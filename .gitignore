@@ -1,0 +1,15 @@
+# Local-only reference checkouts. Never committed.
+refs/
+
+# Dependencies and build output.
+node_modules/
+dist/
+
+# Verification artifacts.
+artifacts/
+.audit/
+
+# Editor and agent tool state. AGENTS.md itself is tracked.
+*.swp
+*.swo
+.DS_Store

@@ -1,0 +1,53 @@
+{
+  "name": "web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "ultracite check",
+    "format": "ultracite fix",
+    "typecheck": "tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.8.0",
+    "@blobatar/react": "^2.7.0",
+    "@effect/atom-react": "4.0.0-rc.115",
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-code": "^3.31.3",
+    "@tiptap/extension-task-item": "^3.31.3",
+    "@tiptap/extension-task-list": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "@workspace/ui": "workspace:*",
+    "blobatar": "^2.7.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "effect": "4.0.0-rc.115",
+    "lucide-react": "^1.48.0",
+    "motion": "^13.4.3",
+    "prettier": "^3.9.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "sugar-high": "^2.5.0",
+    "tailwind-merge": "^3.7.0",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6",
+    "vite": "^8"
+  }
+}
