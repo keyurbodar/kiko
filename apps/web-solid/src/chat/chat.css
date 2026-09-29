@@ -165,13 +165,19 @@
   font-variant-numeric: tabular-nums;
   color: var(--kiko-text-muted);
   white-space: nowrap;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    color 120ms ease;
 }
 
 .chat-row[data-continuation="true"] .chat-rail > span {
   margin-right: -0.625rem;
 }
 
-.chat-row[data-continuation="true"]:hover .chat-rail {
+.chat-row[data-continuation="true"]:hover .chat-rail,
+.chat-row[data-continuation="true"]:focus-within .chat-rail {
+  opacity: 1;
   color: var(--kiko-secondary-label);
 }
 
