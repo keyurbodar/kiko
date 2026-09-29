@@ -68,8 +68,10 @@
   --color-input: var(--kiko-input);
   --color-focus: var(--kiko-focus);
 
-  --color-accent: var(--kiko-accent);
-  --color-accent-foreground: var(--kiko-accent-foreground);
+  --color-accent: var(--kiko-accent-surface);
+  --color-accent-foreground: var(--kiko-accent-surface-foreground);
+  --color-primary: var(--kiko-accent);
+  --color-primary-foreground: var(--kiko-accent-foreground);
   --color-secondary: var(--kiko-secondary);
   --color-secondary-foreground: var(--kiko-secondary-foreground);
   --color-muted: var(--kiko-muted);
@@ -137,6 +139,12 @@
 
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
+  --glass-blur: 16px;
+  --glass-opacity: 80%;
+  --glass-saturation: 1.08;
+
+  --control-radius: var(--radius-md);
+
   /* `light-dark()` in `theme.css` needs a declared scheme. The theme engine
    * toggles `.dark` on <html> and writes `color-scheme` itself; this is the
    * unthemed fallback. */
@@ -145,4 +153,98 @@
 
 :root:where(.dark) {
   color-scheme: dark;
+}
+
+html[data-theme-id]:not([data-theme-id=""]) {
+  --v2-background-bg-base: var(--kiko-canvas);
+  --v2-background-bg-deep: var(--kiko-canvas);
+  --v2-background-bg-layer-01: var(--kiko-surface-overlay);
+  --v2-background-bg-layer-02: var(--kiko-surface-raised);
+  --v2-background-bg-layer-03: var(--kiko-surface);
+  --v2-background-bg-layer-04: var(--kiko-surface);
+  --v2-background-bg-inverse: var(--kiko-accent);
+  --v2-background-bg-contrast: var(--kiko-accent);
+  --v2-background-bg-button-neutral: var(--kiko-toolbar-control);
+  --v2-background-bg-accent: var(--kiko-accent);
+
+  --v2-text-text-base: var(--kiko-text);
+  --v2-text-text-muted: var(--kiko-muted-foreground);
+  --v2-text-text-faint: var(--kiko-text-muted);
+  --v2-text-text-inverse: var(--kiko-canvas);
+  --v2-text-text-contrast: var(--kiko-accent-foreground);
+  --v2-text-text-accent: var(--kiko-text);
+  --v2-text-text-accent-hover: var(--kiko-text);
+  --v2-text-text-code-accent: var(--kiko-text);
+
+  --v2-icon-icon-base: var(--kiko-text);
+  --v2-icon-icon-muted: var(--kiko-icon-muted);
+  --v2-icon-icon-inverse: var(--kiko-canvas);
+  --v2-icon-icon-contrast: var(--kiko-accent-foreground);
+  --v2-icon-icon-accent: var(--kiko-text);
+  --v2-icon-icon-accent-hover: var(--kiko-text);
+
+  --v2-border-border-muted: var(--kiko-toolbar-border);
+  --v2-border-border-base: var(--kiko-border);
+  --v2-border-border-strong: var(--kiko-input);
+  --v2-border-border-inverse: var(--kiko-accent);
+  --v2-border-border-focus: var(--kiko-focus);
+
+  --v2-overlay-simple-overlay-hover: color-mix(in srgb, var(--kiko-text) 4%, transparent);
+  --v2-overlay-simple-overlay-pressed: color-mix(in srgb, var(--kiko-text) 8%, transparent);
+  --v2-overlay-simple-overlay-contrast-hover: color-mix(
+    in srgb,
+    var(--kiko-accent-foreground) 12%,
+    transparent
+  );
+  --v2-overlay-simple-overlay-contrast-pressed: color-mix(
+    in srgb,
+    var(--kiko-accent-foreground) 20%,
+    transparent
+  );
+  --v2-overlay-simple-overlay-scrim: color-mix(in srgb, var(--kiko-canvas) 60%, transparent);
+  --v2-overlay-gradient-depth-overlay-depth-top: transparent;
+  --v2-overlay-gradient-depth-overlay-depth-bot: transparent;
+
+  --v2-state-bg-danger: var(--kiko-error-surface);
+  --v2-state-fg-danger: var(--kiko-error-foreground);
+  --v2-state-border-danger: var(--kiko-error);
+  --v2-state-bg-warning: var(--kiko-warning-surface);
+  --v2-state-fg-warning: var(--kiko-warning-foreground);
+  --v2-state-border-warning: var(--kiko-warning);
+  --v2-state-fg-info: var(--kiko-update);
+
+  --v2-elevation-raised: 0 2px 6px -2px rgb(0 0 0 / 55%);
+  --v2-elevation-floating: 0 8px 20px -8px rgb(0 0 0 / 65%);
+  --v2-elevation-overlay: 0 16px 40px -16px rgb(0 0 0 / 70%);
+  --v2-elevation-button-neutral: 0 1px 2px 0 rgb(0 0 0 / 45%);
+  --v2-elevation-button-contrast: 0 1px 2px 0 rgb(0 0 0 / 55%);
+  --v2-elevation-elements: 0 1px 1px 0 rgb(0 0 0 / 35%);
+
+  [data-component="button-v2"],
+  [data-component="icon-button-v2"] {
+    border-radius: var(--control-radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition:
+      box-shadow 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease,
+      scale 120ms ease;
+  }
+
+  [data-component="button-v2"][data-size="small"],
+  [data-component="icon-button-v2"][data-size="small"] {
+    border-radius: var(--radius-sm);
+  }
+
+  [data-component="button-v2"]:active:not(:disabled),
+  [data-component="icon-button-v2"]:active:not(:disabled) {
+    scale: 0.97;
+  }
+
+  [data-component="button-v2"]:is(:focus-visible, [data-state="focus"]):not(:disabled),
+  [data-component="icon-button-v2"]:is(:focus-visible, [data-state="focus"]):not(:disabled) {
+    outline: 2px solid var(--kiko-focus);
+    outline-offset: 1px;
+  }
 }
