@@ -19,9 +19,13 @@ This document is about the **frontend**, which is the whole of Kiko today. There
 
 The things we do not compromise. Each exists because removing it changes what the product is.
 
-### 1. Bubbles only
+### 1. A linear transcript, not bubbles
 
-A message is a bubble, from a human or an agent. Nothing else. No tool calls, no reasoning traces, no token streaming, no activity feed. That is a product decision rather than a rendering shortcut, and it makes **the agent's words the only channel**. Anything the agent did and did not say is invisible, so it narrates its own work in prose. It also makes a message **immutable once it arrives**, which is why nothing here parses a partial document.
+A conversation reads top to bottom as one column of text. A message is text on a background — no bubble, no box, no per-message fill. Consecutive messages from one sender inside a time window collapse into a **run** that carries the sender's identity once, at its top, rather than on every message.
+
+This is a product decision, not a rendering shortcut. It makes **the agent's words the only channel**: anything the agent did and did not say stays invisible, so it narrates its own work in prose. It makes a message **immutable once it arrives**, which is why nothing here parses a partial document. And it makes the transcript *scannable*, which is the whole reason a person reads a conversation more than once.
+
+Reactions and inline replies are the two affordances that ride on top of it. Both attach to a message already in the column; neither opens a panel or replaces it.
 
 ### 2. Instant, always
 
@@ -51,7 +55,7 @@ Prefer the smallest change that solves the real problem. Refuse machinery that l
 - **we, us, maintainers** means Keyur and the people building Kiko.
 - **reader** means the person using Kiko to talk to agents.
 - **agent** means the bot in a conversation. It may also mean you.
-- **bubble** means one rendered message.
+- **message** means one rendered message. A message is text on a background, never a bubble.
 - **run** means the maximal sequence of consecutive messages from one sender inside a time window.
 - **position** means where a message sits in its run: `only`, `first`, `middle`, `last`.
 - **resident window** means the pages held in memory around the viewport.
@@ -80,10 +84,10 @@ Prefer the smallest change that solves the real problem. Refuse machinery that l
 
 The commonest defect here is a change that works on the path you tested and is wrong everywhere else. Before calling frontend work done, walk this list and say which entries applied.
 
-- **Conversation modes.** A one-to-one does render an avatar. The avatar appears once per run, on the **last** message, bottom-aligned with its bubble. The sender name appears once, on the first message.
+- **Conversation modes.** A one-to-one does render an avatar. The avatar appears once per run, at the **first** message of the run, top-aligned with the sender's name. Every later message in the run indents under it with no avatar and no repeated name.
 - **Input kind.** Desktop reveals metadata on hover. Touch has no hover, so it stays visible.
 - **Viewport.** Wide keeps the 768px column. Narrow collapses the sidebar.
-- **States.** Empty, loading, error, and the waiting state while an agent works.
+- **States.** Empty, loading, error, and the waiting state while an agent works. Loading and error have no async behind them in v1 and are not mounted; empty and waiting are.
 - **Motion preference.** Reduced motion is honoured. Nothing loops except a genuine wait.
 - **Scale.** A conversation with three messages, and one with twenty thousand.
 
@@ -133,13 +137,12 @@ is no `tailwind.config.js` and no PostCSS chain.
 bunx --bun shadcn@latest add <name>
 ```
 
-`apps/web/components.json` declares the **`base-rhea`** style from preset `b27GctZw`, with `neutral` as the base colour. That file belongs to the frozen React app; the Solid app consumes Kobalte through `@kiko/ui/v2` and does not read it.
 
 **The order we look in for anything** is **pi-do/web-legacy first, then akeru-bot, then t3code.** For UI that order runs through the sources above, which is where a component is actually taken from.
 
 **The order is where we look, not what we settle for.** It decides which source opens first, and which one wins a filename collision when two supply the same name. It never justifies a worse component. When a later source fits the need better, take it, and say why in the PR.
 
-**Pure logic is not a component.** A rules module such as `roster.logic.ts` is ours to write, and so is glue. A button, a row, a bubble or a dialog is not.
+**Pure logic is not a component.** A rules module such as `roster.logic.ts` or `grouping.ts` is ours to write, and so is glue. A button, a row, a divider or a dialog is not. Layout a component does not ship is ours to style, in the slice's own stylesheet, against our own `data-*` attributes.
 
 ## References
 
@@ -155,7 +158,7 @@ Start here. Do not go looking for a fifth opinion when a decision is already rec
 
 - **Fast, parallel, non-blocking.** Every check finishes in under two minutes and runs beside others rather than gating them. A check that cannot is scoped wrong, so split it instead of waiting on it.
 - **Runtime proof for anything you can see.** Typecheck is the floor, not the verdict. A component that compiles and renders wrong has failed.
-- **Measure, do not eyeball.** The column is 768px. The top bar is 52px. These are numbers, read rather than estimated.
+- **Measure, do not eyeball.** The transcript column, the top bar height, the avatar gutter — these are numbers, read rather than estimated.
 - **Script the check.** A deterministic script a reviewer re-runs beats an eyeball, and it survives into the next ship.
 - **No test pile.** No duplicated tests, no test that restates the implementation, no test written so a change has tests.
 - **Scope it, then rebase.** Run what covers the change, and never verify against a stale base.

@@ -111,8 +111,8 @@ Three divergent contracts is the same dropped-work failure as an unowned file.
 ## What does not change
 
 The product rules in `AGENTS.md` were written for the React app and they still
-hold. Bubbles only. Instant, always. Nothing blocks anything else. One owner per
-live value. Tokens over literals.
+hold. A linear transcript, one run per sender. Instant, always. Nothing blocks
+anything else. One owner per live value. Tokens over literals.
 
 The one that changes shape is re-rendering. Solid's reactivity is fine-grained
 enough that a store write touches only the DOM nodes that read it, which

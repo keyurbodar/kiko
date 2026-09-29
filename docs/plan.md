@@ -8,7 +8,7 @@ Kiko is an open-source chat product. An agent is a participant you talk to, not 
 
 v1 is the interface and nothing else. It renders a complete conversation and every state around it. It runs on local fixtures. It does not talk to a server.
 
-There is no backend in v1. No database, no Convex, no worker, no auth, no networking of any kind. All data lives in `apps/web/src/fixtures/` as static modules.
+There is no backend in v1. No database, no Convex, no worker, no auth, no networking of any kind. All data lives in `apps/web-solid/src/lib/fixtures.ts` as static modules.
 
 The point of building this way is that interface decisions are cheap now and expensive later. A UI that renders from fixtures makes every state reachable without a server, and it leaves the types as the only thing a later data layer has to respect.
 
@@ -20,17 +20,23 @@ The point of building this way is that interface decisions are cheap now and exp
 
 **The top bar.** The title of the open conversation and the controls that belong to it.
 
-**The thread.** The message column, scrolled and measured.
+**The thread.** A single column of messages, scrolled and measured. It reads as one transcript, not a stack of cards.
 
-**Bubbles.** A message renders as a bubble. Consecutive messages from one sender group into a run, and the run carries the sender's identity once rather than on every message. Collapsed corners mark the run, so the first and last bubble of a run take a tighter radius on the side that faces the next bubble.
+**A linear transcript.** A message is text on a background — no bubble, no box, no per-message fill. Consecutive messages from one sender inside a time window collapse into a run, and the run carries the sender's avatar and name once, at its top. Every later message in the run indents beneath it with no avatar and no repeated name.
 
-**Date dividers and timestamps.** A divider marks a change of day. A timestamp sits with the message metadata.
+**Date dividers and timestamps.** A divider marks a change of day and stays pinned to the top of the viewport while its messages are on screen. A timestamp sits beside the sender's name, quiet, and reveals the full date on hover. A run's later messages show theirs in the gutter, and only on hover.
+
+**Reactions.** A message can carry emoji reactions with a count. Clicking a chip the reader has already used removes it. The picker hangs off the hover action cluster, not a separate surface.
+
+**Inline replies.** A reply nests under the message it answers, one level deep, and renders as a short quoted line above its own body. No thread panel, no side column, no second scroll.
+
+**The waiting state.** An agent that is working shows a row of pulsing dots under the last message. It disappears the moment the message lands. Nothing blocks the composer or the scroll.
 
 **The composer.** Text entry and send.
 
 **The empty state.** What the thread shows before there is anything in it.
 
-**The scroll-to-bottom pill.** It appears when the viewport is away from the bottom and returns you there.
+**The jump-to-latest pill.** When the viewport is away from the bottom and a message arrives, a pill appears offering to return. It never yanks the view. The reader's place is the thing being protected.
 
 ---
 
@@ -44,8 +50,12 @@ These are out by decision, not by neglect.
 - Syntax highlighting
 - Tool calls
 - Reasoning traces
+- Thread panels and nested replies deeper than one level
+- Editing and deletion
 - Search indexing
 - Settings
+- Paging to older messages. `loadEarlier` and its tests exist, but no sentinel is rendered and `hasOlder` is false, because the fixtures are the whole history and there is nothing older to fetch. The claim that a reader's position survives a load cannot be verified with nothing to load.
+- The loading skeleton and the error surface. Both components exist and neither is mounted. v1 has no async, so neither state can be reached, and the states that can are the empty thread and the waiting row.
 
 A message in v1 is text. Anything that would render a non-text payload is out of scope.
 
@@ -55,7 +65,9 @@ A message in v1 is text. Anything that would render a non-text payload is out of
 
 Look in a fixed order. **pi-do/web-legacy first, then akeru-bot, then t3code.** That is a priority order, not a menu.
 
-For UI, use the **shadcn registry through the CLI** and **npm packages**. Never vendor a file by hand. Never hand-build a component. Never write custom CSS.
+For UI, use the **opencode v2 set in `packages/ui/src/v2`**, **npm packages**, or the **shadcn registry through the CLI**. Never vendor a file by hand. Never hand-build a component.
+
+Layout a component does not ship is ours to style, in the slice's own stylesheet, against our own `data-*` attributes. v2 components style themselves through `data-component` and `data-slot`; do not reach for class names that do not exist.
 
 t3code is the exception where copying logic is acceptable.
 
