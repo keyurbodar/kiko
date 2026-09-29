@@ -39,12 +39,17 @@ gone: the effect runtime was banned client-side for weight (208.5 raw /
 69 gzip KiB) and nothing in the renderer used it.
 
 **Editor.** The whole `@tiptap/*` stack is gone — seven packages, and the
-largest single saving in the port. Opencode's composer is a raw contenteditable
-plus about 150 lines of its own; Kiko v1 excludes attachments, markdown and
-code blocks anyway, so a controlled textarea is the honest size.
+largest single saving in the port. Its replacement is opencode's v2 prompt
+composer, vendored to `apps/web-solid/src/composer` from
+`@opencode-ai/session-ui` under MIT: a raw contenteditable over a parts array,
+with about 150 lines of cursor math in `editor-dom.ts` and no editor framework
+beneath it. Provenance, file by file, is in
+`apps/web-solid/src/composer/ATTRIBUTION.md`. Attachments, an `@` mention menu
+and drag-drop all ship with it, against the plan's exclusion list
+(`docs/plan.md:41-48`).
 
 **Markdown.** `react-markdown` is gone. v1 renders no markdown at all
-(`docs/plan.md:49-50`), so pulling in a parser would be shipping a dependency
+(`docs/plan.md:42,50`), so pulling in a parser would be shipping a dependency
 for a feature the plan excludes.
 
 **Icons.** `lucide-react` → the opencode Icon sprite in `@kiko/ui/v2`.
