@@ -18,6 +18,8 @@
  * values regardless of source order.
  */
 
+@import "./fonts.css";
+
 @custom-variant dark (&:is(.dark, .dark *));
 @custom-variant light (&:not(.dark, .dark *));
 
@@ -128,7 +130,7 @@
   /* `theme.css` ships no code size. Sugar-high code blocks read this. */
   --font-size-code: 13px;
 
-  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-sans: "Schibsted Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-family-mono: "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
   --font-family-text: var(--font-family-sans);
   --v2-font-family-sans: var(--font-family-sans);
