@@ -1,0 +1,6 @@
+{
+  "name": "kiko",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/web-solid", "packages/ui"]
+}

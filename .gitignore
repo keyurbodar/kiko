@@ -1,5 +1,6 @@
 # Local-only reference checkouts. Never committed.
 refs/
+solid-refs/
 
 # Dependencies and build output.
 node_modules/

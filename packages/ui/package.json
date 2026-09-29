@@ -1,0 +1,55 @@
+{
+  "name": "@kiko/ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "sideEffects": ["**/*.css"],
+  "files": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "src/components/file-icons/sprite.svg",
+    "src/theme/themes/*.json"
+  ],
+  "exports": {
+    ".": "./src/theme/index.ts",
+    "./theme.css": "./src/styles/theme.css",
+    "./kiko.css": "./src/styles/kiko.css",
+    "./themes/*": "./src/theme/themes/*",
+    "./file-icon.css": "./src/components/file-icon.css",
+    "./context/*": "./src/context/*.tsx",
+    "./v2/styles/*": "./src/v2/styles/*",
+    "./v2/*.css": "./src/v2/components/*.css",
+    "./v2/*": "./src/v2/components/*.tsx",
+    "./app-theme": "./src/app-theme/index.ts",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@kobalte/core": "0.13.11",
+    "@solid-primitives/bounds": "0.1.3",
+    "@solid-primitives/event-listener": "2.4.5",
+    "@solid-primitives/media": "2.3.3",
+    "@solid-primitives/resize-observer": "2.1.3",
+    "@tanstack/solid-query": "5.91.4",
+    "@tanstack/solid-virtual": "3.13.32",
+    "@thisbeyond/solid-dnd": "0.7.5",
+    "culori": "4.0.2",
+    "fuzzysort": "3.1.0",
+    "motion": "12.34.5",
+    "remeda": "2.26.0",
+    "solid-list": "0.3.0",
+    "solid-sonner": "0.3.1"
+  },
+  "peerDependencies": {
+    "@solid-primitives/event-listener": "2.4.5",
+    "solid-js": "1.9.10"
+  },
+  "devDependencies": {
+    "@types/culori": "^4.0.1",
+    "typescript": "5.8.2",
+    "vite": "7.1.4"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

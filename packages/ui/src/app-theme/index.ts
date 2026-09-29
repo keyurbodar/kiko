@@ -1,0 +1,58 @@
+export {
+  BUILT_IN_THEMES,
+  EMBER_THEME,
+  GROVE_THEME,
+  IRIS_THEME,
+  OCEAN_THEME,
+  RESERVED_THEME_IDS,
+  T3_CHAT_THEME,
+  T3_CODE_DARK_THEME_COLORS,
+  T3_CODE_LIGHT_THEME_COLORS,
+  THEME_COLOR_ROLES,
+  THEME_FILE_VERSION,
+  getDefaultThemeColors,
+  getThemeColorsForAppearance,
+  isThemeAppearance,
+  isThemeColor,
+  lenientThemeColorOverrides,
+  parseThemeFile,
+  serializeThemeFile,
+  themeColorToHex,
+  themeIdFromName,
+  toCanonicalThemeColor,
+} from "./parse";
+export type {
+  ThemeAppearance,
+  ThemeCollection,
+  ThemeColorOverrides,
+  ThemeColorRole,
+  ThemeColors,
+  ThemeDefinition,
+  ThemeFile,
+  ThemePreference,
+  ThemePreferenceMode,
+  ThemeVariantOverrides,
+  ThemeVariants,
+} from "./parse";
+export {
+  APP_THEME_VARIABLES,
+  THEME_PREVIEW_ID,
+  applyThemeColorPreview,
+  applyThemePalette,
+  clearThemePalette,
+  getThemeColorVariable,
+  getThemeColorsForMode,
+  getThemeModes,
+  resolveThemeAppearance,
+} from "./apply";
+export {
+  applyAppThemeExtensions,
+  resolveAppThemeExtensions,
+} from "./extend";
+export type {
+  AppThemeExtensions,
+  MarkdownToken,
+  SugarToken,
+  SyntaxToken,
+  ThemeTypography,
+} from "./extend";

@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@kiko/ui/theme.css";
+@import "@kiko/ui/v2/styles/tailwind.css";
+@import "@kiko/ui/kiko.css";

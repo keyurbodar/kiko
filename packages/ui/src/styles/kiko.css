@@ -1,0 +1,137 @@
+/* Kiko token system.
+ *
+ * Structure follows T3 Code's index.css: one unlayered `:root` holding the
+ * values, a `@theme inline` block registering them as Tailwind v4 utilities,
+ * and a single radius base the whole scale derives from. No shadcn — the
+ * `--color-*` names are Kiko's, resolving to the `--kiko-*` role vars the T3
+ * role engine writes at runtime (see `src/app-theme/apply.ts`).
+ *
+ * Import this AFTER `theme.css`. Everything here either replaces a flat value
+ * opencode's stylesheet ships or adds a step it lacks. What is left to that
+ * file: the `--font-family-*`, `--font-weight-*`, `--letter-spacing-*` and
+ * `--spacing` values, and the v1/v2 color tokens the opencode engine emits.
+ *
+ * The radius ladder lives only here, in unlayered `:root`, and needs no
+ * `@theme` registration: Tailwind v4 already knows the `--radius-*` names from
+ * its default theme and emits `rounded-lg` against `var(--radius-lg)`. Because
+ * these declarations are unlayered they outrank `theme.css`'s flat radius
+ * values regardless of source order.
+ */
+
+@custom-variant dark (&:is(.dark, .dark *));
+@custom-variant light (&:not(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+}
+
+@theme inline {
+  /* Binds the opencode font-size tokens to Tailwind's scale, so `text-sm` is
+   * 13px rather than Tailwind's default 14px. Without this the two scales
+   * disagree and every text utility silently ignores the theme. */
+  --text-sm: var(--font-size-small);
+  --text-base: var(--font-size-base);
+  --text-lg: var(--font-size-large);
+  --text-xl: var(--font-size-x-large);
+
+  /* Dense steps below Tailwind's `text-xs` (12px) for metadata rows, badges,
+   * counters and keyboard hints. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(1 / 0.6875);
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: calc(0.875 / 0.625);
+  --text-4xs: 0.5rem;
+  --text-4xs--line-height: 1;
+  --text-5xs: 0.4375rem;
+  --text-5xs--line-height: 1;
+
+  /* Every entry resolves to a role var the theme engine writes, so swapping a
+   * theme repaints the app without touching a stylesheet. */
+  --color-canvas: var(--kiko-canvas);
+  --color-chrome: var(--kiko-chrome);
+  --color-toolbar: var(--kiko-toolbar);
+  --color-toolbar-foreground: var(--kiko-toolbar-foreground);
+  --color-toolbar-border: var(--kiko-toolbar-border);
+  --color-toolbar-control: var(--kiko-toolbar-control);
+  --color-toolbar-control-foreground: var(--kiko-toolbar-control-foreground);
+  --color-toolbar-control-hover: var(--kiko-toolbar-control-hover);
+
+  --color-surface: var(--kiko-surface);
+  --color-surface-raised: var(--kiko-surface-raised);
+  --color-surface-overlay: var(--kiko-surface-overlay);
+
+  --color-foreground: var(--kiko-text);
+  --color-weak: var(--kiko-text-muted);
+
+  --color-border: var(--kiko-border);
+  --color-input: var(--kiko-input);
+  --color-focus: var(--kiko-focus);
+
+  --color-accent: var(--kiko-accent);
+  --color-accent-foreground: var(--kiko-accent-foreground);
+  --color-secondary: var(--kiko-secondary);
+  --color-secondary-foreground: var(--kiko-secondary-foreground);
+  --color-muted: var(--kiko-muted);
+  --color-muted-foreground: var(--kiko-muted-foreground);
+  --color-placeholder: var(--kiko-placeholder);
+  --color-secondary-label: var(--kiko-secondary-label);
+  --color-icon-muted: var(--kiko-icon-muted);
+
+  --color-error: var(--kiko-error);
+  --color-error-foreground: var(--kiko-error-foreground);
+  --color-error-surface: var(--kiko-error-surface);
+  --color-warning: var(--kiko-warning);
+  --color-warning-foreground: var(--kiko-warning-foreground);
+  --color-warning-surface: var(--kiko-warning-surface);
+  --color-update: var(--kiko-update);
+  --color-update-foreground: var(--kiko-update-foreground);
+  --color-update-surface: var(--kiko-update-surface);
+  --color-accent-surface: var(--kiko-accent-surface);
+  --color-accent-surface-foreground: var(--kiko-accent-surface-foreground);
+
+  --color-message: var(--kiko-message-surface);
+  --color-message-foreground: var(--kiko-message-foreground);
+  --color-message-action: var(--kiko-message-action);
+  --color-message-action-foreground: var(--kiko-message-action-foreground);
+  --color-message-action-hover: var(--kiko-message-action-hover);
+
+  --color-code: var(--kiko-code-background);
+  --color-code-foreground: var(--kiko-code-foreground);
+
+  --color-sidebar: var(--kiko-sidebar);
+  --color-sidebar-foreground: var(--kiko-sidebar-foreground);
+  --color-sidebar-muted-foreground: var(--kiko-sidebar-muted-foreground);
+  --color-sidebar-control-surface: var(--kiko-sidebar-control-surface);
+  --color-sidebar-row-hover: var(--kiko-sidebar-row-hover);
+  --color-sidebar-row-active: var(--kiko-sidebar-row-active);
+  --color-sidebar-row-selected: var(--kiko-sidebar-row-selected);
+  --color-sidebar-border: var(--kiko-sidebar-border);
+
+  --color-terminal: var(--kiko-terminal-background);
+  --color-terminal-foreground: var(--kiko-terminal-foreground);
+}
+
+:root {
+  /* The one knob the whole radius scale derives from. */
+  --radius: 0.625rem;
+  --radius-xs: calc(var(--radius) - 6px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  /* `theme.css` ships no code size. Sugar-high code blocks read this. */
+  --font-size-code: 13px;
+
+  /* `light-dark()` in `theme.css` needs a declared scheme. The theme engine
+   * toggles `.dark` on <html> and writes `color-scheme` itself; this is the
+   * unthemed fallback. */
+  color-scheme: light;
+}
+
+:root:where(.dark) {
+  color-scheme: dark;
+}

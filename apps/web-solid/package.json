@@ -1,0 +1,29 @@
+{
+  "name": "web-solid",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@kiko/ui": "workspace:*",
+    "@solid-primitives/event-listener": "2.4.5",
+    "@solidjs/meta": "0.29.4",
+    "@solidjs/router": "0.15.4",
+    "blobatar": "^2.7.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "solid-js": "1.9.10",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.11",
+    "tailwindcss": "4.1.11",
+    "typescript": "5.8.2",
+    "vite": "7.1.4",
+    "vite-plugin-solid": "2.11.10"
+  }
+}
