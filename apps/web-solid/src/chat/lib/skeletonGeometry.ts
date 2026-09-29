@@ -1,11 +1,10 @@
 import type { TimelineItem } from "./grouping"
 
 export const SKELETON_HEADER_PX = 22
-export const SKELETON_FONT_SIZE_PX = 15
 export const SKELETON_LINE_HEIGHT_PX = 22
 export const SKELETON_ROW_PADDING_PX = 4
 export const SKELETON_RUN_GAP_PX = 21
-export const SKELETON_CHARS_PER_LINE = 91
+export const SKELETON_CHARS_PER_LINE = 98
 export const SKELETON_MAX_LINES = 4
 
 export type SkeletonRowShape = {
