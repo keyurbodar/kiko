@@ -54,7 +54,7 @@ export function Row(props: {
           onClick={() => props.onJumpToReply(message().replyToId!)}
         >
           <span class="chat-reply-quote__author" style={{ color: parentColor() }}>
-            {parentAuthor()}
+            @{parentAuthor()}
           </span>
           <span class="chat-reply-quote__body">{props.parent?.body}</span>
         </button>
