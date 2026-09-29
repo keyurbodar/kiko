@@ -1,9 +1,17 @@
-import { Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { Avatar } from "@kiko/ui/v2/avatar-v2";
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2";
 import type { ChatMessage, RosterBot } from "../../lib/types";
+import { useApp } from "../../lib/store";
 import type { TimelineItem } from "../lib/grouping";
 import { formatFullTimestamp, formatTimeOfDay } from "../lib/dayLabel";
+import { ActionBar } from "./ActionBar";
+import {
+  closeReplyComposer,
+  openReplyComposer,
+  ReplyComposer,
+  replyComposerTarget,
+} from "./ReplyComposer";
 
 export function Row(props: {
   item: Extract<TimelineItem, { kind: "message" }>;
@@ -17,6 +25,12 @@ export function Row(props: {
   const parentAuthor = () =>
     props.parent?.sender === "user" ? "You" : props.bot?.name ?? "Unknown";
   const lastOfRun = () => !props.item.isFollowedByContinuation;
+  const replying = createMemo(() => replyComposerTarget() === message().id);
+
+  const submitReply = (body: string) => {
+    useApp.appendReply(body, message().id, Date.now());
+    closeReplyComposer(message().id);
+  };
 
   return (
     <div
@@ -79,6 +93,21 @@ export function Row(props: {
               </button>
             ))}
           </div>
+        </Show>
+
+        <ActionBar
+          message={message()}
+          onReaction={props.onToggleReaction}
+          onReply={openReplyComposer}
+        />
+
+        <Show when={replying()}>
+          <ReplyComposer
+            author={name()}
+            quote={message().body}
+            onSubmit={submitReply}
+            onCancel={() => closeReplyComposer(message().id)}
+          />
         </Show>
       </div>
     </div>

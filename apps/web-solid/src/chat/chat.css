@@ -138,6 +138,7 @@
 }
 
 .chat-cell {
+  position: relative;
   grid-column: 2;
   min-width: 0;
 }
@@ -288,4 +289,113 @@
 
 .chat-load-earlier {
   height: 1px;
+}
+
+
+[data-component="chat-actionbar"] {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat-row:hover [data-component="chat-actionbar"],
+.chat-row:focus-within [data-component="chat-actionbar"],
+[data-component="chat-actionbar"][data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+[data-component="chat-actionbar-pill"] {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  background: color-mix(in srgb, var(--kiko-surface) 90%, transparent);
+  border: 1px solid var(--kiko-border);
+  border-radius: 999px;
+  box-shadow: var(--v2-elevation-raised);
+  backdrop-filter: blur(6px);
+}
+
+[data-component="chat-actionbar-divider"] {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: var(--kiko-border);
+}
+
+[data-component="chat-emoji-grid"] {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+[data-component="chat-emoji"] {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: var(--text-lg);
+  line-height: 1;
+  border-radius: var(--radius-xs);
+}
+
+[data-component="chat-emoji-grid"] > [role="group"] {
+  display: contents;
+}
+
+[data-component="chat-emoji-grid"] [data-component="menu-v2-item"] {
+  padding: 0;
+  justify-content: center;
+}
+
+[data-component="chat-emoji"][data-mine="true"] {
+  background: var(--kiko-accent-surface);
+  box-shadow: inset 0 0 0 1px var(--kiko-accent);
+}
+
+[data-component="chat-reply-composer"] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--kiko-surface);
+  border: 1px solid var(--kiko-border);
+  border-radius: var(--radius-md);
+}
+
+[data-component="chat-reply-composer"] [data-component="textarea-v2"] {
+  width: 100%;
+}
+
+[data-component="chat-reply-target"] {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-2xs);
+  color: var(--kiko-text-muted);
+}
+
+[data-component="chat-reply-target-author"] {
+  flex: none;
+  font-weight: 500;
+  color: var(--kiko-accent);
+}
+
+[data-component="chat-reply-target-quote"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-component="chat-reply-actions"] {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
