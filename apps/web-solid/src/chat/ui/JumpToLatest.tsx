@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
+import { ChevronDown } from "lucide-solid";
 import { ButtonV2 } from "@kiko/ui/v2/button-v2";
-import { Icon } from "@kiko/ui/v2/icon";
 
 export function JumpToLatest(props: {
   arrivals: number;
@@ -23,7 +23,7 @@ export function JumpToLatest(props: {
           }
           onClick={props.onJump}
         >
-          <Icon name="chevron-down" size="small" />
+          <ChevronDown size={14} />
           <Show when={props.arrivals > 0} fallback={<span>Jump to latest</span>}>
             <span>
               {props.arrivals} new message{props.arrivals === 1 ? "" : "s"}

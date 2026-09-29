@@ -126,6 +126,17 @@
   /* `theme.css` ships no code size. Sugar-high code blocks read this. */
   --font-size-code: 13px;
 
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-mono: "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-family-text: var(--font-family-sans);
+  --v2-font-family-sans: var(--font-family-sans);
+
+  --font-size-interface: 16px;
+  font-size: var(--font-size-interface);
+  -webkit-font-smoothing: antialiased;
+
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
   /* `light-dark()` in `theme.css` needs a declared scheme. The theme engine
    * toggles `.dark` on <html> and writes `color-scheme` itself; this is the
    * unthemed fallback. */

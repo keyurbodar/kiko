@@ -5,7 +5,9 @@ import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems } from "./lib/grouping"
 import { formatDayLabel } from "./lib/dayLabel"
 import { DRIFT_EPSILON, driftCompensation, rowReserveStyle } from "./lib/heights"
+import { AT_BOTTOM_THRESHOLD_PX, isAtBottom } from "./lib/anchoring"
 import { WaitingRow } from "./ui/WaitingRow"
+import { JumpToLatest } from "./ui/JumpToLatest"
 import { Row } from "./ui/Row"
 import "./chat.css"
 
@@ -48,6 +50,31 @@ export function VirtualThread(props: {
     if (index < 0) return
     handle()?.scrollToIndex(index, { align: "start" })
   }
+
+  const [scrollState, setScrollState] = createSignal<VirtualThreadState>()
+  const [bottomCount, setBottomCount] = createSignal(0)
+
+  const pinnedToBottom = (state: VirtualThreadState) =>
+    isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
+
+  const isAtLatest = () => {
+    const state = scrollState()
+    return state ? pinnedToBottom(state) : true
+  }
+
+  const commitState = (state: VirtualThreadState) => {
+    setScrollState(state)
+    if (pinnedToBottom(state)) setBottomCount(items().length)
+    props.onStateChange(state)
+  }
+
+  const arrivals = () => (isAtLatest() ? 0 : Math.max(0, items().length - bottomCount()))
+
+  const jumpToLatest = () => {
+    if (!scrollElement || items().length === 0) return
+    scrollElement.scrollTo({ top: scrollElement.scrollHeight })
+  }
+
   const now = new Date().getTime()
 
   let anchor: DriftAnchor | undefined
@@ -55,9 +82,9 @@ export function VirtualThread(props: {
   const readState = (): VirtualThreadState => {
     const virtualizer = handle()
     const count = items().length
-    const scrollOffset = virtualizer?.scrollOffset ?? scrollElement?.scrollTop ?? 0
-    const viewportSize = virtualizer?.viewportSize ?? scrollElement?.clientHeight ?? 0
-    const scrollSize = virtualizer?.scrollSize ?? scrollElement?.scrollHeight ?? 0
+    const scrollOffset = scrollElement?.scrollTop ?? virtualizer?.scrollOffset ?? 0
+    const viewportSize = scrollElement?.clientHeight ?? virtualizer?.viewportSize ?? 0
+    const scrollSize = scrollElement?.scrollHeight ?? virtualizer?.scrollSize ?? 0
     const first = count === 0 ? 0 : (virtualizer?.findItemIndex(scrollOffset) ?? 0)
     const last = count === 0 ? 0 : (virtualizer?.findItemIndex(scrollOffset + viewportSize) ?? 0)
     return {
@@ -104,7 +131,7 @@ export function VirtualThread(props: {
     const held = anchor?.element.isConnected === true ? anchor : undefined
     if (!held) {
       seedAnchor()
-      props.onStateChange(state)
+      commitState(state)
       return
     }
     const atBottom = state.scrollOffset + state.viewportSize >= state.scrollSize - BOTTOM_EPSILON
@@ -115,25 +142,25 @@ export function VirtualThread(props: {
     const compensation = driftCompensation(drift, atBottom)
     if (compensation === 0) {
       seedAnchor()
-      props.onStateChange(state)
+      commitState(state)
       return
     }
     const virtualizer = handle()
     if (virtualizer) virtualizer.scrollBy(compensation)
     else scrollElement.scrollBy(0, compensation)
     requestAnimationFrame(seedAnchor)
-    props.onStateChange(readState())
+    commitState(readState())
   }
 
   onMount(() => {
     if (!scrollElement || !columnElement) return
     const onScroll = () => {
       seedAnchor()
-      props.onStateChange(readState())
+      commitState(readState())
     }
     const onViewportResize = () => {
       seedAnchor()
-      props.onStateChange(readState())
+      commitState(readState())
     }
     const viewportObserver = new ResizeObserver(onViewportResize)
     const contentObserver = new ResizeObserver(cancelDrift)
@@ -151,67 +178,94 @@ export function VirtualThread(props: {
     props.scrollRef(undefined)
   })
 
+  let pinnedToLatest = false
+  const pinToLatest = () => {
+    const until = performance.now() + 400
+    const step = () => {
+      if (!scrollElement) return
+      scrollElement.scrollTo({ top: scrollElement.scrollHeight })
+      if (performance.now() < until) {
+        requestAnimationFrame(step)
+        return
+      }
+      seedAnchor()
+      commitState(readState())
+    }
+    step()
+  }
+
   createEffect(
     on(items, () => {
       seedAnchor()
-      props.onStateChange(readState())
+      if (!pinnedToLatest && items().length > 0) {
+        pinnedToLatest = true
+        pinToLatest()
+        setBottomCount(items().length)
+      }
+      commitState(readState())
     }),
   )
 
   return (
-    <div
-      class="chat-scroll"
-      data-component="chat-scroll"
-      data-virtual-scroll=""
-      ref={(element) => {
-        scrollElement = element
-        props.scrollRef(element)
-      }}
-    >
+    <>
       <div
-        class="chat-column"
-        data-component="chat-column"
-        data-virtual-column=""
+        class="chat-scroll"
+        data-component="chat-scroll"
+        data-virtual-scroll=""
         ref={(element) => {
-          columnElement = element
+          scrollElement = element
+          props.scrollRef(element)
         }}
       >
-        <Show
-          when={items().length > 0}
-          fallback={
-            <div class="chat-empty" data-component="chat-empty">
-              <span class="chat-empty__title">Nothing here yet</span>
-              <span class="chat-empty__hint">Send the first message to start the thread.</span>
-            </div>
-          }
+        <div
+          class="chat-column"
+          data-component="chat-column"
+          data-virtual-column=""
+          ref={(element) => {
+            columnElement = element
+          }}
         >
-          <Virtualizer
-            data={items()}
-            scrollRef={scrollElement}
-            bufferSize={BUFFER_SIZE}
-            ref={setHandle}
-          >
-            {(item) => (
-              <div data-component="chat-vrow" style={rowReserveStyle(item)}>
-                {item.kind === "day-divider" ? (
-                  <div class="chat-divider" data-component="chat-divider">
-                    <span class="chat-divider__pill">{formatDayLabel(item.dayStart, now)}</span>
-                  </div>
-                ) : (
-                  <Row
-                    item={item}
-                    bot={props.botById(item.message.botId)}
-                    onJumpToReply={jumpToMessage}
-                    parent={props.replyParent(item.message.replyToId)}
-                    onToggleReaction={props.onToggleReaction}
-                  />
-                )}
+          <Show
+            when={items().length > 0}
+            fallback={
+              <div class="chat-empty" data-component="chat-empty">
+                <span class="chat-empty__title">Nothing here yet</span>
+                <span class="chat-empty__hint">Send the first message to start the thread.</span>
               </div>
-            )}
-          </Virtualizer>
-        </Show>
-        <WaitingRow names={props.waitingNames} />
+            }
+          >
+            <Virtualizer
+              data={items()}
+              scrollRef={scrollElement}
+              bufferSize={BUFFER_SIZE}
+              ref={setHandle}
+            >
+              {(item) => (
+                <div data-component="chat-vrow" style={rowReserveStyle(item)}>
+                  {item.kind === "day-divider" ? (
+                    <div class="chat-divider" data-component="chat-divider">
+                      <span class="chat-divider__pill">{formatDayLabel(item.dayStart, now)}</span>
+                    </div>
+                  ) : (
+                    <Row
+                      item={item}
+                      bot={props.botById(item.message.botId)}
+                      onJumpToReply={jumpToMessage}
+                      parent={props.replyParent(item.message.replyToId)}
+                      onToggleReaction={props.onToggleReaction}
+                    />
+                  )}
+                </div>
+              )}
+            </Virtualizer>
+          </Show>
+          <WaitingRow names={props.waitingNames} />
+        </div>
       </div>
-    </div>
+
+      <div class="chat-stage" data-component="chat-stage">
+        <JumpToLatest arrivals={arrivals()} isAtBottom={isAtLatest()} onJump={jumpToLatest} />
+      </div>
+    </>
   )
 }
