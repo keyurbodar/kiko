@@ -41,6 +41,20 @@ export function Row(props: {
       data-last-of-run={String(lastOfRun())}
       data-message-id={message().id}
     >
+      <Show when={message().replyToId && props.parent}>
+        <button
+          type="button"
+          class="chat-reply-quote"
+          data-component="chat-reply-quote"
+          data-reply-to={message().replyToId}
+          aria-label={`Jump to the message from ${parentAuthor()}`}
+          onClick={() => props.onJumpToReply(message().replyToId!)}
+        >
+          <span class="chat-reply-quote__author">{parentAuthor()}</span>
+          <span class="chat-reply-quote__body">{props.parent?.body}</span>
+        </button>
+      </Show>
+
       <div class="chat-rail">
         <Show
           when={!props.item.isContinuation}
@@ -66,20 +80,6 @@ export function Row(props: {
               </span>
             </TooltipV2>
           </div>
-        </Show>
-
-        <Show when={message().replyToId && props.parent}>
-          <button
-            type="button"
-            class="chat-reply-quote"
-            data-component="chat-reply-quote"
-            data-reply-to={message().replyToId}
-            aria-label={`Jump to the message from ${parentAuthor()}`}
-            onClick={() => props.onJumpToReply(message().replyToId!)}
-          >
-            <span class="chat-reply-quote__author">{parentAuthor()}</span>
-            <span class="chat-reply-quote__body">{props.parent?.body}</span>
-          </button>
         </Show>
 
         <div class="chat-body" data-component="chat-body">
