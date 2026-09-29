@@ -437,6 +437,10 @@
   line-height: 1;
 }
 
+.chat-actionbar-check {
+  color: var(--kiko-accent);
+}
+
 [data-component="chat-actionbar-divider"] {
   flex: none;
   width: 1px;

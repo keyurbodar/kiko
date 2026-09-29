@@ -1,11 +1,13 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, onCleanup, Show } from "solid-js";
 import { render } from "solid-js/web";
-import { Copy, Reply, SmilePlus } from "lucide-solid";
+import { Check, Copy, Reply, SmilePlus } from "lucide-solid";
 import { IconButtonV2 } from "@kiko/ui/v2/icon-button-v2";
 import { MenuV2 } from "@kiko/ui/v2/menu-v2";
 import { showToastV2, ToastV2 } from "@kiko/ui/v2/toast-v2";
 import type { ChatMessage } from "../../lib/types";
 import { EmojiPicker, QUICK_EMOJI } from "./EmojiPicker";
+
+const COPIED_MS = 1000;
 
 let toastRegionMounted = false;
 
@@ -21,7 +23,10 @@ export function ActionBar(props: {
   onReply: (messageId: string) => void;
 }) {
   const [pickerOpen, setPickerOpen] = createSignal(false);
-  ensureToastRegion();
+  const [copied, setCopied] = createSignal(false);
+
+  let copiedTimer: number | undefined;
+  onCleanup(() => clearTimeout(copiedTimer));
 
   const hasReaction = QUICK_EMOJI.length > 0;
   const hasReply = typeof props.onReply === "function";
@@ -30,30 +35,24 @@ export function ActionBar(props: {
   if (!hasReaction && !hasReply && !hasCopy) return null;
 
   const copy = () => {
-    const body = props.message.body;
-    const clipboard = navigator.clipboard;
-    if (!clipboard) {
+    const fail = () => {
+      ensureToastRegion();
       showToastV2({
         title: "Copy failed",
-        description: "The clipboard is unavailable in this context.",
+        description: "The message could not be copied.",
         variant: "error",
       });
+    };
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      fail();
       return;
     }
-    void clipboard.writeText(body).then(
-      () =>
-        showToastV2({
-          title: "Copied",
-          description: "Message copied to clipboard.",
-          variant: "success",
-        }),
-      () =>
-        showToastV2({
-          title: "Copy failed",
-          description: "The message could not be copied.",
-          variant: "error",
-        }),
-    );
+    void clipboard.writeText(props.message.body).then(() => {
+      setCopied(true);
+      clearTimeout(copiedTimer);
+      copiedTimer = window.setTimeout(() => setCopied(false), COPIED_MS);
+    }, fail);
   };
 
   return (
@@ -113,10 +112,11 @@ export function ActionBar(props: {
 
         <Show when={hasCopy}>
           <IconButtonV2
-            icon={<Copy size={16} />}
+            icon={copied() ? <Check class="chat-actionbar-check" size={16} /> : <Copy size={16} />}
             size="normal"
             variant="ghost"
-            aria-label="Copy message"
+            disabled={copied()}
+            aria-label={copied() ? "Copied" : "Copy message"}
             onClick={copy}
           />
         </Show>
