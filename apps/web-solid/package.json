@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@blobatar/solid": "^2.7.0",
     "@kiko/ui": "workspace:*",
     "@solid-primitives/event-listener": "2.4.5",
     "@solid-primitives/resize-observer": "2.1.3",
