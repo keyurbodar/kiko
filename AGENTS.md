@@ -2,7 +2,7 @@
 
 > **NOTE.** Four skills govern how work here is verified. Invoke each as `/skill:<name>` and read it before acting.
 >
-> - **`/skill:verify-kiko`** is project local, at `.cursor/skills/verify-kiko/`. It drives the real app in a browser, and it is the one that applies to a change under `apps/web` or `packages/ui`.
+> - **`/skill:verify-kiko`** is project local, at `.cursor/skills/verify-kiko/`. It drives the real app in a browser, and it is the one that applies to a change under `apps/web-solid` or `packages/ui`.
 > - **`/skill:show-me-your-work`**
 > - **`/skill:create-verification-skill`**
 > - **`/skill:maintain-verification-skill`**
@@ -11,7 +11,7 @@
 
 Kiko is an open-source alternative to Grok Bot and Muse Bot. A chat product where the agent is a participant you talk to, not a tool you operate.
 
-This document is about the **frontend**, which is the whole of Kiko today. There is no backend, no server and no database. Every screen reads from local fixtures in `apps/web/src/fixtures/`.
+This document is about the **frontend**, which is the whole of Kiko today. There is no backend, no server and no database. Every screen reads from local fixtures in `apps/web-solid/src/lib/fixtures.ts`.
 
 **Read these as good defaults, not hard rules.** A rule fighting the task is worth arguing about out loud, to a human, before you break it.
 
@@ -33,11 +33,11 @@ Work in one part of Kiko must not make another part wait. An agent can be mid-ru
 
 ### 4. One owner per live value
 
-Every value that changes has exactly one thing responsible for it. Convex owns server truth. React owns render state. The window controller owns what is resident. Two owners is where the bugs that take days to find come from, so a second cache, a second dark-mode mechanism or a second source of truth is the signal to stop and delete one.
+Every value that changes has exactly one thing responsible for it. A fixture module owns the initial data, `src/lib/store.ts` owns the values that move, and a component owns its own local state. Two owners is where the bugs that take days to find come from, so a second cache, a second dark-mode mechanism or a second source of truth is the signal to stop and delete one.
 
 ### 5. The design system is enforced
 
-Kiko owns its visual language. Colour, spacing, radius, border and type are tokens, and `@shadcn/lint` fails the build on a raw value. Tokens over literals is the difference between a theme we can change and one we cannot.
+Kiko owns its visual language. Colour, spacing, radius, border and type are tokens, and a raw value where a token exists is a defect. The role names resolve through `packages/ui/src/styles/kiko.css`, so a slice writes `bg-sidebar` and never `var(--kiko-sidebar)`. Tokens over literals is the difference between a theme we can change and one we cannot.
 
 ## A note from Keyur
 
@@ -57,15 +57,15 @@ Prefer the smallest change that solves the real problem. Refuse machinery that l
 - **resident window** means the pages held in memory around the viewport.
 - **evict** means drop a page that drifted too far. **dispose** means release what it owned. Eviction without disposal is a leak.
 - **token** means a design token, a CSS custom property.
-- **worktree** means one git worktree at `kiko/.worktrees/<name>/`, owned by one agent.
+- **worktree** means one git worktree, a sibling checkout at `../kiko-<slice>/`, owned by one agent.
 - **wave** means a group of worktrees that can run at once without touching one file.
 
 ## The ways to hurt yourself
 
-1. **Re-rendering the list.** A timer, cursor blink or elapsed counter whose state reaches the parent repaints a screenful every tick. Update the text node directly, or scope the state to the row. A ticking clock is not a reason to repaint a conversation.
+1. **Re-rendering the list.** A timer, cursor blink or elapsed counter whose state reaches the parent repaints a screenful every tick. Update the text node directly, or scope the signal to the row. A ticking clock is not a reason to repaint a conversation. Solid's fine-grained updates shrink the blast radius of a signal, but a `createSignal` still updates every node that reads it, and one at the top of the tree is still a screenful a tick.
 2. **Unbounded growth.** Anything long-lived in memory is a leak with a delay on it. Message arrays, caches, parsed output, Maps, blob URLs, decoded images. Each needs a boundary, and the boundary is a number you can read rather than a hope.
 3. **Eviction that only splices an array.** Dropping a page releases nothing. Blob URLs, highlight entries, timers, observers and media survive unless something releases them, and the release must come off the scroll handler or it drops a frame.
-4. **Installing a dependency.** One installer per track, never two at once. UI track dependencies land in Phase 0, engineering track ones in Phase 7's gate, because `package.json` and the lockfile cannot be touched by two worktrees together.
+4. **Installing a dependency.** One installer per worktree, never two at once. `package.json` and the lockfile cannot be touched by two worktrees together, so a slice that needs a new package raises it rather than installing it.
 
 ## Parallelism
 
@@ -98,36 +98,44 @@ What we optimise for, in priority order.
 
 ## Where code lives
 
-Kiko is a **bun workspace** with **turbo** on top. Two members, and that is the whole repo.
+Kiko is a **bun workspace**. Two members, and that is the whole repo.
 
 ```
-apps/web/                 the React app, and the only frontend
-  src/components/         avatar/  chat/  composer/  shell/  sidebar/
-  src/                    fixtures/  hooks/  lib/  types/
-  src/App.tsx             the shell
-packages/ui/              @workspace/ui, the shared design system
-  src/components/         the shadcn components, and bubble.tsx
-  src/styles/globals.css  the single stylesheet, and the token layer
-  src/lib/utils.ts        cn
-docs/                     the plan, and the decisions behind it
-refs/                     gitignored reference repos
+apps/web-solid/            the app, and the only one we build in
+  src/lib/                 types, fixtures, store — the frozen contract
+  src/<slice>/             one directory per slice, one owner each
+  OWNERSHIP.md             who writes what
+packages/ui/               @kiko/ui, the design system
+  src/theme/               the opencode theme engine
+  src/app-theme/           the T3 role layer
+  src/v2/                  the opencode v2 components
+  src/styles/kiko.css      the Kiko token bridge
+docs/                      the plan, the port, the decisions behind them
+refs/                      gitignored reference repos
 ```
 
-`packages/ui` is a real package rather than a folder of vendored files. It exports `./globals.css`, `./lib/*`, `./components/*` and `./hooks/*`, and `apps/web` consumes it as `@workspace/ui`. There is no `worker/`, no `confect/` and no `convex/`. Those described a backend that does not exist.
+`apps/web` is the old React app. It is frozen and kept as reference: its source
+still imports packages the port removed, because the removal was a manifest
+change and nothing else. Do not write new code there.
 
-Styling enters through one line, `@import "@workspace/ui/styles/globals.css"` in `apps/web/src/index.css`. Tailwind v4 comes in through `@tailwindcss/vite`, so there is no `tailwind.config.js` and no PostCSS chain.
+There is no `worker/`, no `confect/` and no `convex/`. Those described a backend
+that does not exist.
+
+Styling enters through `apps/web-solid/src/styles/app.css`, one `@import` per
+layer, Kiko's last. Tailwind v4 comes in through `@tailwindcss/vite`, so there
+is no `tailwind.config.js` and no PostCSS chain.
 
 ## Components
 
-**Never build a UI component from scratch, and never vendor one by hand.** A component is either pulled from the **shadcn registry through the CLI**, or it is an **npm package**. Those are the only two doors. Nothing here is copied in, hand-edited or hand-written.
+**Never build a UI component from scratch, and never vendor one by hand.** A component comes from one of three doors: the opencode v2 set already in `packages/ui/src/v2`, an **npm package**, or the **shadcn registry through the CLI** where a React component is genuinely the only thing that exists. Nothing is copied in, hand-edited or hand-written.
 
 ```bash
 bunx --bun shadcn@latest add <name>
 ```
 
-The style is **`base-rhea`**, installed from preset `b27GctZw`. `apps/web/components.json` declares it, along with `neutral` as the base colour and `mingcute` as the icon library. Adding a component means running the CLI, not typing the file.
+`apps/web/components.json` declares the **`base-rhea`** style from preset `b27GctZw`, with `neutral` as the base colour. That file belongs to the frozen React app; the Solid app consumes Kobalte through `@kiko/ui/v2` and does not read it.
 
-**The order we look in for anything** is **pi-do/web-legacy first, then akeru-bot, then t3code.** For UI that order runs through the shadcn registry and npm packages, which is where a component is actually taken from.
+**The order we look in for anything** is **pi-do/web-legacy first, then akeru-bot, then t3code.** For UI that order runs through the sources above, which is where a component is actually taken from.
 
 **The order is where we look, not what we settle for.** It decides which source opens first, and which one wins a filename collision when two supply the same name. It never justifies a worse component. When a later source fits the need better, take it, and say why in the PR.
 
@@ -138,9 +146,9 @@ The style is **`base-rhea`**, installed from preset `b27GctZw`. `apps/web/compon
 Start here. Do not go looking for a fifth opinion when a decision is already recorded.
 
 
+- **Port.** [`docs/solid-port.md`](docs/solid-port.md) is why the frontend is Solid, what the dependency changes were, and how the three theming layers stack. Read it before touching `apps/web-solid` or `packages/ui`.
 - **Stack.** [`docs/tech-stack.md`](docs/tech-stack.md) holds every dependency and why alternatives were rejected.
-- **Plan.** [`docs/phases/overview.md`](docs/phases/overview.md) is the strategy. [`ownership-map.md`](docs/phases/ownership-map.md) is the directory ownership per worktree and the conflict control.
-- **Verification.** [`docs/phases/verification.md`](docs/phases/verification.md) defines what counts as proof, and carries the CI contract.
+- **Plan.** [`docs/plan.md`](docs/plan.md) is what v1 contains and what it excludes, and [`apps/web-solid/OWNERSHIP.md`](apps/web-solid/OWNERSHIP.md) is directory ownership per worktree.
 - **Read-only.** `refs/t3code/`, `refs/confect/`. Never import from or edit `refs/`.
 
 ## Verifying
@@ -154,7 +162,7 @@ Start here. Do not go looking for a fifth opinion when a decision is already rec
 
 ## Worktrees and pull requests
 
-- One worktree owns one directory subtree. Take the paths your phase names and no others. Take a file you do not own and you have created a conflict somebody else resolves badly.
+- One worktree owns one directory subtree. Take the paths your slice names and no others — `apps/web-solid/OWNERSHIP.md` is the authority. Take a file you do not own and you have created a conflict somebody else resolves badly.
 - One worktree, one branch, one PR. Dependencies are blocked-by relations, never two agents on a branch.
 - One concern per PR. If the description says "also", split it.
 
