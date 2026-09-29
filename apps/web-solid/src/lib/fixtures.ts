@@ -22,8 +22,6 @@ export const BOTS: readonly RosterBot[] = [
     unread: 0,
     pinned: true,
     persona: "Systems engineer. Concise, allergic to hand-waving.",
-    avatarImage:
-      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23252526'/><text x='16' y='22' font-family='sans-serif' font-size='16' fill='%23f0f0f0' text-anchor='middle'>A</text></svg>",
   },
   {
     id: "grace",

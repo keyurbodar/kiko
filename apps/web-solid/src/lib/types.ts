@@ -84,6 +84,8 @@ export interface ComposerProps {
   /** Conversation a sent message lands in. */
   threadId: string;
   onSend: (body: string) => void;
+  /** Roster the `@` menu filters. A mention is text; this is the only source. */
+  bots: readonly RosterBot[];
   /** Disables send while a send is in flight. */
   busy?: boolean;
 }
