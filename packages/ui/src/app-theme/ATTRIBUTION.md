@@ -10,9 +10,15 @@ The role engine in this directory is derived from T3 Code, MIT licensed, © 2026
 
 | Upstream path | Local path | Notes |
 | --- | --- | --- |
-| `packages/shared/src/themePalettes.ts` | `shared.ts` | Verbatim, byte-identical copy. Holds the 57 `THEME_COLOR_ROLES`, `ThemeDefinition`, reserved ids, and the 5 built-in palettes (t3-chat, grove, ocean, ember, iris) plus the T3 Code light/dark defaults. |
+| `packages/shared/src/themePalettes.ts` | `shared.ts` | Derived, not verbatim. Upstream's 57 `THEME_COLOR_ROLES`, `ThemeDefinition` and reserved-id logic are kept; its 5 built-in palettes (t3-chat, grove, ocean, ember, iris) and the T3 Code light/dark defaults are removed and replaced by Whirl, Kiko's only palette. |
 | `apps/web/src/themePalette.ts` (selected logic) | `parse.ts` | Color canonicalization, validators, `parseThemeFile` / `serializeThemeFile`, built-in lookups. |
 | `apps/web/src/themePalette.ts` (selected logic) | `apply.ts` | `--kiko-*` variable map, palette application, preview, appearance resolution. |
+
+## Whirl
+
+The one palette, by **saltjsx**, based on whirl.chat. Dark is the base appearance and light is a
+variant, matching the upstream theme file. Author credit belongs to them; the palette ships
+unmodified except for being moved from the theme file into `shared.ts`.
 
 ## Deliberate changes
 
@@ -24,8 +30,6 @@ The role engine in this directory is derived from T3 Code, MIT licensed, © 2026
   editor family updates, localStorage CRUD for custom themes, theme halves, sidebar artwork, and
   environment-published themes are not copied. They are product features of T3 Code, not part of
   the file format.
-- `extend.ts` is new Kiko code, not copied: typography, sugar-high (`--sh-*`), markdown, and syntax
-  token bridges layered on top of the t3 role set.
 
 ## Dependency
 
@@ -38,7 +42,7 @@ The role engine in this directory is derived from T3 Code, MIT licensed, © 2026
 `{ "version": 1, "id", "name", "appearance": "light" | "dark", "colors": { <role>: <css color> },
 "variants"?: { "light"?: {...}, "dark"?: {...} } }`. Colors are decoded to canonical
 `oklch(L C H)` form; `variants` may not repeat the base appearance. Missing roles fall back to the
-flagship t3-chat palette for that mode, so a theme file may ship only the roles it changes.
+Whirl palette for that mode, so a theme file may ship only the roles it changes.
 
 ## License
 

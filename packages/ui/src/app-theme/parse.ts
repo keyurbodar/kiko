@@ -2,13 +2,10 @@ import "culori/css";
 import { converter, parse } from "culori/fn";
 import {
   BUILT_IN_THEMES,
-  EMBER_THEME,
-  GROVE_THEME,
-  IRIS_THEME,
-  OCEAN_THEME,
+  DEFAULT_THEME_ID,
   RESERVED_THEME_IDS,
-  T3_CHAT_THEME,
   THEME_COLOR_ROLES,
+  WHIRL_THEME,
   getThemeColorsForAppearance,
   type ThemeAppearance,
   type ThemeColorRole,
@@ -19,18 +16,11 @@ import {
 
 export {
   BUILT_IN_THEMES,
-  EMBER_THEME,
-  GROVE_THEME,
-  IRIS_THEME,
-  OCEAN_THEME,
+  DEFAULT_THEME_ID,
   RESERVED_THEME_IDS,
-  T3_CHAT_THEME,
   THEME_COLOR_ROLES,
+  WHIRL_THEME,
   getThemeColorsForAppearance,
-} from "./shared";
-export {
-  T3_CODE_DARK_THEME_COLORS,
-  T3_CODE_LIGHT_THEME_COLORS,
 } from "./shared";
 export type {
   ThemeAppearance,
@@ -250,9 +240,9 @@ function parseThemeColorOverrides(value: unknown): ThemeColorOverrides {
   return overrides;
 }
 
-/** Theme-file defaults follow the flagship palette for the requested mode. */
+/** Theme-file defaults follow Whirl, the palette Kiko ships. */
 export function getDefaultThemeColors(appearance: ThemeAppearance): ThemeColors {
-  return appearance === "dark" ? T3_CHAT_THEME.variants!.dark! : T3_CHAT_THEME.colors;
+  return appearance === "dark" ? WHIRL_THEME.colors : WHIRL_THEME.variants!.light!;
 }
 
 export function parseThemeFile(value: unknown): ThemeDefinition {
