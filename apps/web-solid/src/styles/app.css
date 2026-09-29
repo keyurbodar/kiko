@@ -2,3 +2,17 @@
 @import "@kiko/ui/theme.css";
 @import "@kiko/ui/v2/styles/tailwind.css";
 @import "@kiko/ui/kiko.css";
+
+@layer components {
+  .app-shell {
+    display: flex;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--kiko-canvas);
+  }
+
+  .app-shell > .chat-shell {
+    min-width: 0;
+    flex: 1;
+  }
+}
