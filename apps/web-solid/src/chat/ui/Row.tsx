@@ -18,6 +18,7 @@ export function Row(props: {
   bot: RosterBot | undefined;
   parent: ChatMessage | undefined;
   onToggleReaction: (messageId: string, emoji: string) => void;
+  onJumpToReply: (messageId: string) => void;
 }) {
   const message = () => props.item.message;
   const isUser = () => message().sender === "user";
@@ -68,10 +69,17 @@ export function Row(props: {
         </Show>
 
         <Show when={message().replyToId && props.parent}>
-          <div class="chat-reply-quote" data-component="chat-reply-quote">
-            <span>{parentAuthor()}</span>
+          <button
+            type="button"
+            class="chat-reply-quote"
+            data-component="chat-reply-quote"
+            data-reply-to={message().replyToId}
+            aria-label={`Jump to the message from ${parentAuthor()}`}
+            onClick={() => props.onJumpToReply(message().replyToId!)}
+          >
+            <span class="chat-reply-quote__author">{parentAuthor()}</span>
             <span class="chat-reply-quote__body">{props.parent?.body}</span>
-          </div>
+          </button>
         </Show>
 
         <div class="chat-body" data-component="chat-body">

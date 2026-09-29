@@ -5,6 +5,7 @@ import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems } from "./lib/grouping"
 import { formatDayLabel } from "./lib/dayLabel"
 import { DRIFT_EPSILON, driftCompensation, rowReserveStyle } from "./lib/heights"
+import { WaitingRow } from "./ui/WaitingRow"
 import { Row } from "./ui/Row"
 import "./chat.css"
 
@@ -32,13 +33,21 @@ export function VirtualThread(props: {
   onToggleReaction: (messageId: string, emoji: string) => void
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
+  waitingNames: readonly string[]
 }) {
   let scrollElement: HTMLDivElement | undefined
   let columnElement: HTMLDivElement | undefined
 
   const [handle, setHandle] = createSignal<VirtualizerHandle>()
-
   const items = createMemo(() => buildTimelineItems(props.messages))
+
+  const jumpToMessage = (messageId: string) => {
+    const index = items().findIndex(
+      (item) => item.kind === "message" && item.message.id === messageId,
+    )
+    if (index < 0) return
+    handle()?.scrollToIndex(index, { align: "start" })
+  }
   const now = new Date().getTime()
 
   let anchor: DriftAnchor | undefined
@@ -192,6 +201,7 @@ export function VirtualThread(props: {
                   <Row
                     item={item}
                     bot={props.botById(item.message.botId)}
+                    onJumpToReply={jumpToMessage}
                     parent={props.replyParent(item.message.replyToId)}
                     onToggleReaction={props.onToggleReaction}
                   />
@@ -200,6 +210,7 @@ export function VirtualThread(props: {
             )}
           </Virtualizer>
         </Show>
+        <WaitingRow names={props.waitingNames} />
       </div>
     </div>
   )

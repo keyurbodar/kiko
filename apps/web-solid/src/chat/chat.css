@@ -172,11 +172,28 @@
   display: flex;
   gap: 6px;
   align-items: baseline;
-  padding: 1px 0 1px 8px;
+  width: 100%;
+  padding: 1px 4px 1px 8px;
   margin-bottom: 3px;
   font-size: var(--text-2xs);
+  text-align: left;
   color: var(--kiko-text-muted);
+  background: transparent;
+  border: none;
   border-left: 2px solid var(--kiko-border);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.chat-reply-quote:hover {
+  background: var(--kiko-message-action);
+  border-left-color: var(--kiko-accent);
+}
+
+.chat-reply-quote__author {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--kiko-text);
 }
 
 .chat-reply-quote__body {
@@ -403,4 +420,185 @@
 [data-virtual-scroll],
 [data-virtual-column] {
   overflow-anchor: none;
+}
+
+[data-component="chat-skeleton"] {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-component="chat-skeleton-row"] {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 10px;
+  align-content: start;
+  padding: 3px 8px;
+  margin: 0 -8px;
+}
+
+[data-component="chat-skeleton-row"][data-run-start="false"] {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+[data-component="chat-skeleton-rail"] {
+  grid-column: 1;
+  width: 36px;
+  height: 36px;
+  background: var(--kiko-message-action);
+  border-radius: 999px;
+}
+
+[data-component="chat-skeleton-cell"] {
+  display: flex;
+  grid-column: 2;
+  flex-direction: column;
+  min-width: 0;
+}
+
+[data-component="chat-skeleton-header"] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 20px;
+}
+
+[data-component="chat-skeleton-author"] {
+  width: 84px;
+  height: 10px;
+  background: var(--kiko-message-action);
+  border-radius: var(--radius-xs);
+}
+
+[data-component="chat-skeleton-time"] {
+  width: 36px;
+  height: 8px;
+  background: var(--kiko-message-action);
+  border-radius: var(--radius-xs);
+  opacity: 0.6;
+}
+
+[data-component="chat-skeleton-lines"] {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-component="chat-skeleton-line"] {
+  height: 19.5px;
+  background: var(--kiko-message-action);
+  border-radius: var(--radius-xs);
+  animation: chat-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+[data-component="chat-skeleton-line"][data-last="true"] {
+  animation-delay: 0.12s;
+}
+
+@keyframes chat-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="chat-skeleton-line"] {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+[data-component="chat-waiting"] {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: center;
+  padding: 3px 8px;
+  margin: 0 -8px;
+  pointer-events: none;
+}
+
+[data-component="chat-waiting-rail"] {
+  grid-column: 1;
+  width: 36px;
+  height: 36px;
+}
+
+[data-component="chat-waiting-cell"] {
+  display: flex;
+  grid-column: 2;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--kiko-text-muted);
+}
+
+[data-component="chat-waiting-label"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-component="chat-waiting-dots"] {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 3px;
+}
+
+[data-component="chat-waiting-dots"] > span {
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 999px;
+  animation: chat-waiting-dot 1.1s ease-in-out infinite;
+}
+
+[data-component="chat-waiting-dots"] > span[data-index="1"] {
+  animation-delay: 0.15s;
+}
+
+[data-component="chat-waiting-dots"] > span[data-index="2"] {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-waiting-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="chat-waiting-dots"] > span {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+[data-component="chat-error"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  background: var(--kiko-error-surface);
+  border: 1px solid var(--kiko-border);
+  border-radius: var(--radius-sm);
+}
+
+[data-component="chat-error-reason"] {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--kiko-text);
 }
