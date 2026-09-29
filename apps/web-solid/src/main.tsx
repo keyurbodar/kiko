@@ -55,6 +55,10 @@ const App = () => {
         onToggleReaction={(messageId, emoji) => useApp.toggleReaction(messageId, emoji)}
         scrollRef={() => {}}
         onStateChange={() => {}}
+        waitingNames={useApp
+          .bots()
+          .filter((bot) => bot.presence === "typing" || bot.presence === "working")
+          .map((bot) => bot.name)}
       />
     </div>
   );
