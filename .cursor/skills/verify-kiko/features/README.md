@@ -2,7 +2,7 @@
 
 This directory is the maintained source for verifying the user-facing behavior of Kiko. Read the index before driving the app, then use the matching feature file as the recipe.
 
-The map reflects what exists **today**. Kiko's chat surface has not landed yet, so most of what a user would eventually touch is absent — the gap is recorded under [Known gaps](#known-gaps) instead of being papered over with invented recipes.
+The map reflects what exists **today**. The chat transcript has landed; the roster sidebar, the composer, and the top bar's conversation controls have not, and the gap is recorded under [Known gaps](#known-gaps) instead of being papered over with invented recipes.
 
 ## Baseline preconditions
 
@@ -43,14 +43,15 @@ Keep implementation details out of the map. Name only user paths, stable handles
 ## Features
 
 - [Whirl theme tokens](./theme-tokens.md) covers the palette Kiko paints onto the page at load, the dark appearance, and the token layer every slice styles against.
-- [App shell](./app-shell.md) covers the mounted page: title, root element, the provider tree the UI renders into, and the fact that no chat surface is present yet.
+- [App shell](./app-shell.md) covers the mounted page: title, root element, and the provider tree the UI renders into.
+- [Chat transcript](./chat-transcript.md) covers the message column: runs, day dividers, reactions, inline replies, the hover action cluster, copy, the jump pill, the waiting row, and virtualization.
 
 ## Known gaps
 
-**The chat transcript does not exist yet and is deliberately not mapped.** `apps/web-solid/src/main.tsx` renders an empty `<div />` inside `ThemeProvider`. When the chat UI lands in a later PR, add `features/chat-transcript.md` to this directory and a line to the Features list above, following the same four-H2 shape.
+**The roster sidebar, the composer, and the top bar's conversation controls do not exist yet and are deliberately not mapped.** `apps/web-solid/src/main.tsx` renders a top bar carrying a conversation title and a row of switcher buttons, then the transcript. The switcher is scaffolding that stands in until the sidebar lands, and it is not a feature worth a recipe.
 
-The fixture data that will feed it already exists and is worth knowing before you write that file: `apps/web-solid/src/lib/fixtures.ts` holds 61 messages across 5 conversations spanning 4 calendar days, with 20 reactions and 5 inline replies. Bot ids are `ada`, `grace`, `alan`, `katherine`; the group id is `launch`; the viewer id is `viewer`. No bot id collides. Generated message ids take the form `sent-N`.
+The fixture data behind the transcript is worth knowing before extending it: `apps/web-solid/src/lib/fixtures.ts` holds 61 messages across 5 conversations spanning 4 calendar days, with 20 reactions and 5 inline replies. Bot ids are `ada`, `grace`, `alan`, `katherine`; the group id is `launch`; the viewer id is `viewer`. No bot id collides. Generated message ids take the form `sent-N`.
 
 The data deliberately includes consecutive same-author bursts, because a transcript that only ever alternates one message for one reply never exercises the collapse that makes the layout worth building. Every conversation carries at least one run, and `ada` carries a message eleven minutes after its predecessor to prove the ten-minute window ends a run.
 
-When that feature exists, the sub-features to split are the ones the data actually supports: rendering a run of consecutive messages under one sender header, the time window that ends a run, the inline reply affordance, and reaction counts. Do not add a sub-feature the fixtures cannot exercise.
+**Three built components are mounted nowhere and cannot be reached, so they have no recipes.** `ui/Skeleton.tsx` and `ui/ErrorState.tsx` need an async state that v1 has no source for, and `lib/useLoadEarlier.ts` needs older pages that the fixtures do not contain. Do not write a recipe that reaches them through another path, and do not record them as verified.
