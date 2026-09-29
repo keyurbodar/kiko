@@ -23,6 +23,7 @@ import {
 import { buildTimelineItems } from "./lib/grouping";
 import { formatDayLabel } from "./lib/dayLabel";
 import { Row } from "./ui/Row";
+import { JumpToLatest } from "./ui/JumpToLatest";
 import "./chat.css";
 
 const ThreadAnchoringContext = createContext<ThreadAnchoring>();
@@ -200,6 +201,17 @@ export function Thread(props: {
             </For>
           </Show>
         </div>
+      </div>
+
+      <div class="chat-stage" data-component="chat-stage">
+        <JumpToLatest
+          arrivals={arrivals()}
+          isAtBottom={atBottom()}
+          onJump={() => {
+            auto.resume();
+            setArrivals(0);
+          }}
+        />
       </div>
     </ThreadAnchoringContext.Provider>
   );
