@@ -35,6 +35,7 @@ export function ActionBar(props: {
   if (!hasReaction && !hasReply && !hasCopy) return null;
 
   const copy = () => {
+    if (copied()) return;
     const fail = () => {
       ensureToastRegion();
       showToastV2({
@@ -115,7 +116,6 @@ export function ActionBar(props: {
             icon={copied() ? <Check class="chat-actionbar-check" size={16} /> : <Copy size={16} />}
             size="normal"
             variant="ghost"
-            disabled={copied()}
             aria-label={copied() ? "Copied" : "Copy message"}
             onClick={copy}
           />
