@@ -399,3 +399,8 @@
   justify-content: flex-end;
   gap: 6px;
 }
+
+[data-virtual-scroll],
+[data-virtual-column] {
+  overflow-anchor: none;
+}

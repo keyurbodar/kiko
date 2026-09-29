@@ -4,7 +4,7 @@ import { ThemeProvider } from "@kiko/ui";
 import { WHIRL_THEME, applyThemePalette } from "@kiko/ui/app-theme";
 import { useApp } from "./lib/store";
 import type { RosterBot, RosterGroup } from "./lib/types";
-import { Thread } from "./chat/Thread";
+import { VirtualThread } from "./chat/VirtualThread";
 import "./styles/app.css";
 
 const root = document.getElementById("root");
@@ -48,11 +48,13 @@ const App = () => {
         </nav>
       </header>
 
-      <Thread
+      <VirtualThread
         messages={useApp.activeMessages()}
         botById={(botId) => (botId ? useApp.botById().get(botId) : undefined)}
         replyParent={(messageId) => (messageId ? useApp.messageById(messageId) : undefined)}
         onToggleReaction={(messageId, emoji) => useApp.toggleReaction(messageId, emoji)}
+        scrollRef={() => {}}
+        onStateChange={() => {}}
       />
     </div>
   );
