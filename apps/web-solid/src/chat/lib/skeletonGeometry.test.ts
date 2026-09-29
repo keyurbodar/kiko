@@ -20,7 +20,7 @@ describe("skeleton constants mirror chat.css", () => {
   test("the constants are the px values the real row uses", () => {
     expect(SKELETON_LINE_HEIGHT_PX).toBe(22);
     expect(SKELETON_HEADER_PX).toBe(22);
-    expect(SKELETON_ROW_PADDING_PX).toBe(2);
+    expect(SKELETON_ROW_PADDING_PX).toBe(4);
     expect(SKELETON_RUN_GAP_PX).toBe(21);
   });
 });
@@ -33,15 +33,15 @@ describe("skeletonRowHeight", () => {
     expect(skeletonRowHeight(1, false)).toBe(
       SKELETON_ROW_PADDING_PX * 2 + SKELETON_LINE_HEIGHT_PX,
     );
-    expect(skeletonRowHeight(1, false)).toBe(26);
-    expect(skeletonRowHeight(1, true)).toBe(48);
+    expect(skeletonRowHeight(1, false)).toBe(30);
+    expect(skeletonRowHeight(1, true)).toBe(52);
   });
 
   test("line count drives height by exactly one line height per line", () => {
     expect(skeletonRowHeight(3, true) - skeletonRowHeight(1, true)).toBe(
       2 * SKELETON_LINE_HEIGHT_PX,
     );
-    expect(skeletonRowHeight(3, true)).toBe(92);
+    expect(skeletonRowHeight(3, true)).toBe(96);
     expect(skeletonRowHeight(4, false)).toBe(SKELETON_ROW_PADDING_PX * 2 + 4 * 22);
   });
 
@@ -56,7 +56,7 @@ describe("skeletonRowHeight", () => {
 describe("run gap", () => {
   test("the gap replaces the padding a run-end row already had", () => {
     expect(skeletonRunGapPx()).toBe(SKELETON_RUN_GAP_PX - SKELETON_ROW_PADDING_PX);
-    expect(skeletonRunGapPx()).toBe(19);
+    expect(skeletonRunGapPx()).toBe(17);
   });
 
   test("a run of three rows adds the gap once, not once per row", () => {
@@ -66,16 +66,16 @@ describe("run gap", () => {
       0,
     );
     expect(skeletonRunHeight(run)).toBe(rowsOnly + skeletonRunGapPx());
-    expect(skeletonRunHeight(run)).toBe(rowsOnly + 19);
-    expect(skeletonRunHeight(run)).toBe(119);
+    expect(skeletonRunHeight(run)).toBe(rowsOnly + 17);
+    expect(skeletonRunHeight(run)).toBe(129);
   });
 
   test("a two-row run is shorter than the two one-row runs that replace it", () => {
     const oneRun = skeletonRunHeight([row(1, true), row(1, false)]);
     const twoRuns = skeletonRunHeight([row(1, true)]) + skeletonRunHeight([row(1, true)]);
     expect(twoRuns).toBe(2 * (skeletonRowHeight(1, true) + skeletonRunGapPx()));
-    expect(twoRuns).toBe(134);
-    expect(oneRun).toBe(93);
+    expect(twoRuns).toBe(138);
+    expect(oneRun).toBe(99);
   });
 
   test("an empty run has no height", () => {

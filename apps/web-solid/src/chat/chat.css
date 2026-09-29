@@ -123,20 +123,20 @@
   grid-template-rows: auto auto;
   align-content: start;
   column-gap: 16px;
-  padding: 2px 8px;
+  padding: 4px 8px;
   margin: 0 -8px;
 }
 
 .chat-row::before {
   content: "";
   position: absolute;
-  inset: 0 calc(-1 * var(--chat-gutter));
+  inset: 0;
   pointer-events: none;
   transition: background-color 120ms ease;
 }
 
 .chat-row[data-last-of-run="true"]::before {
-  bottom: 19px;
+  bottom: 13px;
 }
 
 .chat-row:hover::before {
@@ -144,7 +144,7 @@
 }
 
 .chat-row[data-last-of-run="true"] {
-  padding-bottom: 19px;
+  padding-bottom: 17px;
 }
 
 .chat-rail {
