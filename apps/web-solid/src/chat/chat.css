@@ -217,10 +217,9 @@
   content: "";
   position: absolute;
   top: 50%;
-  right: 100%;
-  bottom: 0;
-  left: -34px;
-  margin: -1px 4px -2px -1px;
+  left: -28px;
+  width: 20px;
+  height: 14px;
   border-left: 2px solid var(--kiko-border);
   border-top: 2px solid var(--kiko-border);
   border-top-left-radius: 6px;
