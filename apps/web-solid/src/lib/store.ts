@@ -10,6 +10,13 @@ import { createStore, produce } from "solid-js/store"
 import { BOTS, GROUPS, MESSAGES, VIEWER_ID } from "./fixtures"
 import type { ChatMessage, RosterBot, RosterGroup } from "./types"
 
+let sentCount = 0
+
+function nextMessageId(): string {
+  sentCount += 1
+  return `sent-${sentCount}`
+}
+
 const [state, setState] = createStore({
   bots: BOTS as RosterBot[],
   groups: GROUPS as RosterGroup[],
@@ -40,6 +47,59 @@ export const useApp = {
     setState("activeThreadId", threadId)
   },
 
+  /** Messages for any conversation by id, for resolving a reply's parent. */
+  messageById(messageId: string): ChatMessage | undefined {
+    return state.messages.find((message) => message.id === messageId)
+  },
+
+  toggleReaction(messageId: string, emoji: string) {
+    setState(
+      "messages",
+      produce((draft) => {
+        for (const message of draft) {
+          if (message.id !== messageId) continue
+          const existing = message.reactions ?? []
+          const hit = existing.find((reaction) => reaction.emoji === emoji)
+          if (!hit) {
+            message.reactions = [...existing, { emoji, count: 1, viewerReacted: true }]
+            return
+          }
+          if (hit.viewerReacted) {
+            if (hit.count <= 1) {
+              message.reactions = existing.filter((reaction) => reaction.emoji !== emoji)
+              return
+            }
+            hit.count -= 1
+            hit.viewerReacted = false
+            return
+          }
+          hit.count += 1
+          hit.viewerReacted = true
+        }
+      }),
+    )
+  },
+
+  appendReply(body: string, replyToId: string, sentAt: number) {
+    const threadId = state.activeThreadId
+    if (!threadId || !body.trim() || !replyToId) return
+    if (!state.messages.some((message) => message.id === replyToId)) return
+
+    setState(
+      "messages",
+      produce((draft) => {
+        draft.push({
+          id: nextMessageId(),
+          threadId,
+          sender: "user",
+          body,
+          sentAt,
+          replyToId,
+        })
+      }),
+    )
+  },
+
   appendMessage(body: string, sentAt: number) {
     const threadId = state.activeThreadId
     if (!threadId || !body.trim()) return
@@ -48,7 +108,7 @@ export const useApp = {
       "messages",
       produce((draft) => {
         draft.push({
-          id: `m${draft.length + 1}`,
+          id: nextMessageId(),
           threadId,
           sender: "user",
           body,

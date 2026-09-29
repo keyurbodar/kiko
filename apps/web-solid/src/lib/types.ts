@@ -31,6 +31,13 @@ export interface RosterGroup {
   updatedAt: number;
 }
 
+export interface Reaction {
+  emoji: string;
+  count: number;
+  /** True when the viewer is among the reactors, so the chip reads as pressed. */
+  viewerReacted: boolean;
+}
+
 /** A single message in a conversation. Text only, by v1 decision. */
 export interface ChatMessage {
   id: string;
@@ -43,6 +50,9 @@ export interface ChatMessage {
   body: string;
   /** Epoch ms, used for date dividers and the per-message timestamp. */
   sentAt: number;
+  reactions?: readonly Reaction[];
+  /** The message this one answers. Absent on a root message. */
+  replyToId?: string;
 }
 
 /** What the sidebar renders for one conversation. Either kind, never both. */
