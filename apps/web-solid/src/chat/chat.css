@@ -285,3 +285,7 @@
   color: var(--kiko-text);
   border-color: var(--kiko-accent);
 }
+
+.chat-load-earlier {
+  height: 1px;
+}

@@ -23,6 +23,7 @@ import {
 import { buildTimelineItems } from "./lib/grouping";
 import { formatDayLabel } from "./lib/dayLabel";
 import { Row } from "./ui/Row";
+import { useLoadEarlier } from "./lib/useLoadEarlier";
 import { JumpToLatest } from "./ui/JumpToLatest";
 import "./chat.css";
 
@@ -89,6 +90,9 @@ export function Thread(props: {
 }) {
   let scrollRef: HTMLDivElement | undefined;
   let contentRef: HTMLDivElement | undefined;
+  let sentinelRef: HTMLDivElement | undefined;
+  const [loadingOlder, setLoadingOlder] = createSignal(false);
+  const [hasOlder, setHasOlder] = createSignal(false);
 
   const [anchor, setAnchor] = createSignal<AnchorState>({ kind: "at-bottom" });
   const [atBottom, setAtBottom] = createSignal(true);
@@ -110,6 +114,19 @@ export function Thread(props: {
   createEffect(() => {
     auto.scrollRef(scrollRef);
     auto.contentRef(contentRef);
+  });
+
+  useLoadEarlier({
+    root: () => scrollRef,
+    sentinel: () => sentinelRef,
+    hasOlder,
+    isLoading: loadingOlder,
+    onLoad: () => {
+      if (loadingOlder()) return;
+      setLoadingOlder(true);
+      setHasOlder(false);
+      queueMicrotask(() => setLoadingOlder(false));
+    },
   });
 
   const items = createMemo(() => buildTimelineItems(props.messages));
@@ -171,6 +188,13 @@ export function Thread(props: {
             contentRef = el;
           }}
         >
+          <div
+            class="chat-load-earlier"
+            data-component="chat-load-earlier"
+            ref={(el) => {
+              sentinelRef = el;
+            }}
+          />
           <Show
             when={items().length > 0}
             fallback={
