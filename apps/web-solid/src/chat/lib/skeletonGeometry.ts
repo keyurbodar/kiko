@@ -1,23 +1,17 @@
 import type { TimelineItem } from "./grouping"
 
-export const SKELETON_AVATAR_PX = 36
-export const SKELETON_COLUMN_GAP_PX = 10
-export const SKELETON_HEADER_PX = 20
-export const SKELETON_FONT_SIZE_PX = 13
-export const SKELETON_LINE_HEIGHT_PX = SKELETON_FONT_SIZE_PX * 1.5
-export const SKELETON_ROW_PADDING_PX = 3
-export const SKELETON_CONTINUATION_PADDING_PX = 1
-export const SKELETON_RUN_GAP_PX = 10
-export const SKELETON_CHARS_PER_LINE = 105
+export const SKELETON_HEADER_PX = 22
+export const SKELETON_FONT_SIZE_PX = 15
+export const SKELETON_LINE_HEIGHT_PX = 22
+export const SKELETON_ROW_PADDING_PX = 2
+export const SKELETON_RUN_GAP_PX = 21
+export const SKELETON_CHARS_PER_LINE = 91
 export const SKELETON_MAX_LINES = 4
 
 export type SkeletonRowShape = {
   readonly lineCount: number
   readonly isRunStart: boolean
 }
-
-const rowPadding = (isRunStart: boolean) =>
-  isRunStart ? SKELETON_ROW_PADDING_PX : SKELETON_CONTINUATION_PADDING_PX
 
 export function skeletonLineCount(body: string): number {
   const text = body.replace(/\s+/g, " ").trim()
@@ -39,11 +33,11 @@ export function skeletonRowsFromItems(items: readonly TimelineItem[]): SkeletonR
 export function skeletonRowHeight(lineCount: number, isRunStart: boolean): number {
   const header = isRunStart ? SKELETON_HEADER_PX : 0
   const lines = Math.max(1, Math.round(lineCount)) * SKELETON_LINE_HEIGHT_PX
-  return rowPadding(isRunStart) * 2 + header + lines
+  return SKELETON_ROW_PADDING_PX * 2 + header + lines
 }
 
-export function skeletonRunGapPx(runEnd: SkeletonRowShape): number {
-  return SKELETON_RUN_GAP_PX - rowPadding(runEnd.isRunStart)
+export function skeletonRunGapPx(): number {
+  return SKELETON_RUN_GAP_PX - SKELETON_ROW_PADDING_PX
 }
 
 export function skeletonRowOuterHeight(
@@ -52,7 +46,7 @@ export function skeletonRowOuterHeight(
   isRunEnd: boolean,
 ): number {
   const height = skeletonRowHeight(lineCount, isRunStart)
-  return isRunEnd ? height + skeletonRunGapPx({ lineCount, isRunStart }) : height
+  return isRunEnd ? height + skeletonRunGapPx() : height
 }
 
 export function skeletonRunHeight(run: readonly SkeletonRowShape[]): number {

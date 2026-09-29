@@ -1,6 +1,8 @@
 .chat-shell {
   --chat-max-width: 48rem;
   --chat-gutter: 0.75rem;
+  --chat-text-size: 0.9375rem;
+  --chat-line-height: 1.375rem;
   --chat-scrollbar-thumb: color-mix(in srgb, var(--kiko-text) 12%, transparent);
   --chat-scrollbar-thumb-hover: color-mix(in srgb, var(--kiko-text) 20%, transparent);
   position: relative;
@@ -131,11 +133,6 @@
   background: color-mix(in srgb, var(--kiko-text) 4%, transparent);
 }
 
-.chat-row[data-continuation="true"] {
-  padding-top: 2px;
-  padding-bottom: 2px;
-}
-
 .chat-row[data-last-of-run="true"] {
   padding-bottom: 19px;
 }
@@ -192,11 +189,11 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  min-height: 20px;
+  min-height: var(--chat-line-height);
 }
 
 .chat-author {
-  font-size: 0.875rem;
+  font-size: var(--chat-text-size);
   font-weight: 500;
   color: var(--kiko-text);
 }
@@ -279,8 +276,8 @@
 }
 
 .chat-body {
-  font-size: 0.875rem;
-  line-height: 1.625;
+  font-size: var(--chat-text-size);
+  line-height: var(--chat-line-height);
   color: var(--kiko-message-foreground);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -533,22 +530,17 @@
 
 [data-component="chat-skeleton-row"] {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  column-gap: 10px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 16px;
   align-content: start;
-  padding: 3px 8px;
+  padding: 2px 8px;
   margin: 0 -8px;
-}
-
-[data-component="chat-skeleton-row"][data-run-start="false"] {
-  padding-top: 1px;
-  padding-bottom: 1px;
 }
 
 [data-component="chat-skeleton-rail"] {
   grid-column: 1;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   background: var(--kiko-message-action);
   border-radius: 999px;
 }
@@ -564,12 +556,12 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  height: 20px;
+  height: var(--chat-line-height);
 }
 
 [data-component="chat-skeleton-author"] {
-  width: 84px;
-  height: 10px;
+  width: 96px;
+  height: 12px;
   background: var(--kiko-message-action);
   border-radius: var(--radius-xs);
 }
@@ -589,7 +581,7 @@
 }
 
 [data-component="chat-skeleton-line"] {
-  height: 19.5px;
+  height: var(--chat-line-height);
   background: var(--kiko-message-action);
   border-radius: var(--radius-xs);
 }
@@ -641,7 +633,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 0.875rem;
+  font-size: var(--chat-text-size);
   color: var(--kiko-text-muted);
 }
 
