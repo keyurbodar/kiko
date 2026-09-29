@@ -15,6 +15,7 @@ export const BOTS: readonly RosterBot[] = [
   {
     id: "ada",
     name: "Ada",
+    color: "#7c9ef0",
     preview: "The radius ladder is one calc() off a single value.",
     updatedAt: 1759100000000,
     presence: "idle",
@@ -27,6 +28,7 @@ export const BOTS: readonly RosterBot[] = [
   {
     id: "grace",
     name: "Grace",
+    color: "#e07c9f",
     preview: "Sidebar is mine. I will own sidebar.css outright.",
     updatedAt: 1759090000000,
     presence: "working",
@@ -37,6 +39,7 @@ export const BOTS: readonly RosterBot[] = [
   {
     id: "alan",
     name: "Alan",
+    color: "#7fc99a",
     preview: "Send is optimistic, no round trip in v1.",
     updatedAt: 1759080000000,
     presence: "typing",
@@ -46,6 +49,7 @@ export const BOTS: readonly RosterBot[] = [
   {
     id: "katherine",
     name: "Katherine",
+    color: "#d9a05b",
     preview: "Standup notes are in the thread above.",
     updatedAt: 1758900000000,
     presence: "sleeping",

@@ -16,6 +16,7 @@ import {
 export function Row(props: {
   item: Extract<TimelineItem, { kind: "message" }>;
   bot: RosterBot | undefined;
+  parentBot: RosterBot | undefined;
   parent: ChatMessage | undefined;
   onToggleReaction: (messageId: string, emoji: string) => void;
   onJumpToReply: (messageId: string) => void;
@@ -24,7 +25,9 @@ export function Row(props: {
   const isUser = () => message().sender === "user";
   const name = () => (isUser() ? "You" : (props.bot?.name ?? "Unknown"));
   const parentAuthor = () =>
-    props.parent?.sender === "user" ? "You" : props.bot?.name ?? "Unknown";
+    props.parent?.sender === "user" ? "You" : (props.parentBot?.name ?? "Unknown");
+  const parentColor = () =>
+    props.parent?.sender === "user" ? undefined : props.parentBot?.color;
   const lastOfRun = () => !props.item.isFollowedByContinuation;
   const replying = createMemo(() => replyComposerTarget() === message().id);
 
@@ -50,7 +53,9 @@ export function Row(props: {
           aria-label={`Jump to the message from ${parentAuthor()}`}
           onClick={() => props.onJumpToReply(message().replyToId!)}
         >
-          <span class="chat-reply-quote__author">{parentAuthor()}</span>
+          <span class="chat-reply-quote__author" style={{ color: parentColor() }}>
+            {parentAuthor()}
+          </span>
           <span class="chat-reply-quote__body">{props.parent?.body}</span>
         </button>
       </Show>
@@ -70,6 +75,7 @@ export function Row(props: {
             <span
               class="chat-author"
               classList={{ "chat-author--user": isUser() }}
+              style={isUser() ? undefined : { color: props.bot?.color }}
               data-component="chat-author"
             >
               {name()}
@@ -103,12 +109,6 @@ export function Row(props: {
           </div>
         </Show>
 
-        <ActionBar
-          message={message()}
-          onReaction={props.onToggleReaction}
-          onReply={openReplyComposer}
-        />
-
         <Show when={replying()}>
           <ReplyComposer
             author={name()}
@@ -118,6 +118,12 @@ export function Row(props: {
           />
         </Show>
       </div>
+
+      <ActionBar
+        message={message()}
+        onReaction={props.onToggleReaction}
+        onReply={openReplyComposer}
+      />
     </div>
   );
 }

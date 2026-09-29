@@ -1,4 +1,4 @@
-import { createSignal, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { render } from "solid-js/web";
 import { Copy, Reply, SmilePlus } from "lucide-solid";
 import { IconButtonV2 } from "@kiko/ui/v2/icon-button-v2";
@@ -62,7 +62,25 @@ export function ActionBar(props: {
       data-component="chat-actionbar"
       data-open={pickerOpen() ? "true" : undefined}
     >
-      <div class="chat-actionbar-pill" data-component="chat-actionbar-pill">
+      <div class="chat-actionbar-panel" data-component="chat-actionbar-panel">
+        <For each={QUICK_EMOJI.slice(0, 3)}>
+          {(emoji) => (
+            <IconButtonV2
+              icon={<span class="chat-actionbar-emoji">{emoji}</span>}
+              size="normal"
+              variant="ghost"
+              aria-label={`React with ${emoji}`}
+              onClick={() => props.onReaction(props.message.id, emoji)}
+            />
+          )}
+        </For>
+
+        <span
+          class="chat-actionbar-divider"
+          data-component="chat-actionbar-divider"
+          aria-hidden="true"
+        />
+
         <MenuV2
           placement="top-end"
           gutter={8}
@@ -75,7 +93,7 @@ export function ActionBar(props: {
             icon={<SmilePlus size={16} />}
             size="normal"
             variant="ghost"
-            aria-label="React to message"
+            aria-label="More reactions"
           />
           <EmojiPicker
             reactions={props.message.reactions ?? []}
@@ -84,11 +102,6 @@ export function ActionBar(props: {
         </MenuV2>
 
         <Show when={hasReply}>
-          <span
-            class="chat-actionbar-divider"
-            data-component="chat-actionbar-divider"
-            aria-hidden="true"
-          />
           <IconButtonV2
             icon={<Reply size={16} />}
             size="normal"
@@ -99,11 +112,6 @@ export function ActionBar(props: {
         </Show>
 
         <Show when={hasCopy}>
-          <span
-            class="chat-actionbar-divider"
-            data-component="chat-actionbar-divider"
-            aria-hidden="true"
-          />
           <IconButtonV2
             icon={<Copy size={16} />}
             size="normal"

@@ -1,7 +1,7 @@
 import { For } from "solid-js";
 import { MenuV2 } from "@kiko/ui/v2/menu-v2";
 import type { Reaction } from "../../lib/types";
-export const QUICK_EMOJI = ["👍", "❤️", "🎉", "👀", "🚀", "✅", "🙏", "💯"] as const;
+export const QUICK_EMOJI = ["❤️", "🔥", "😂", "👍", "🎉", "👀", "🚀", "✅"] as const;
 
 function viewerReacted(reactions: readonly Reaction[], emoji: string): boolean {
   return reactions.some((reaction) => reaction.emoji === emoji && reaction.viewerReacted);

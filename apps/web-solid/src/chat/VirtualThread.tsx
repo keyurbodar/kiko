@@ -250,6 +250,7 @@ export function VirtualThread(props: {
                     <Row
                       item={item}
                       bot={props.botById(item.message.botId)}
+                      parentBot={props.botById(props.replyParent(item.message.replyToId)?.botId)}
                       onJumpToReply={jumpToMessage}
                       parent={props.replyParent(item.message.replyToId)}
                       onToggleReaction={props.onToggleReaction}
