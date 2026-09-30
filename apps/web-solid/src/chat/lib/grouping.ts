@@ -4,7 +4,16 @@ import type { ChatMessage } from "../../lib/types";
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
 
 export type TimelineItem =
-  | { kind: "day-divider"; key: string; dayStart: number }
+  | {
+      kind: "day-divider";
+      key: string;
+      /** Local midnight of the day, used for labels and the date chip. */
+      dayStart: number;
+      /** The first message in that day. The divider shows ITS clock time, not
+       *  midnight: kat's separator reads `today 11:23 am`, and `12:00 am` on
+       *  every divider is a label that says nothing. */
+      firstSentAt: number;
+    }
   | { kind: "unread-divider"; key: string; afterMessageId: string }
   | {
       kind: "message";
@@ -82,7 +91,12 @@ export function buildTimelineItems(
     const dayStart = dayStartOf(message.sentAt);
 
     if (i > 0 && dayStartOf(messages[i - 1].sentAt) !== dayStart) {
-      items.push({ kind: "day-divider", key: `day:${dayStart}`, dayStart });
+      items.push({
+        kind: "day-divider",
+        key: `day:${dayStart}`,
+        dayStart,
+        firstSentAt: message.sentAt,
+      });
     }
     if (
       firstUnreadMessageId != null &&

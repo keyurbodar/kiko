@@ -1,6 +1,8 @@
+import { cn } from "../../lib/cn"
+
 /**
  * The top and bottom scrims. They are static gradients painted over the
- * scroller's edges, not a fade on scroll: a `linear-gradient` to `var(--bg)`
+ * scroller's edges, not a fade on scroll: a `linear-gradient` to transparent
  * with no transition, so the reader learns there is more above or below without
  * anything moving.
  *
@@ -13,14 +15,31 @@ export function ScrollFades(props: {
   showTop: boolean
   /** False at the floor, where the last row is already on screen. */
   showBottom: boolean
+  class?: string
 }) {
   return (
-    <div class="chat-fades" data-component="chat-fades" aria-hidden="true">
+    <div
+      class={cn("chat-fades pointer-events-none absolute inset-0 z-[5]", props.class)}
+      data-component="chat-fades"
+      aria-hidden="true"
+    >
       {props.showTop ? (
-        <div class="chat-fades__top" data-component="chat-fade-top" />
+        <div
+          class={cn(
+            "chat-fades__top absolute inset-x-0 top-0 h-6",
+            "bg-[linear-gradient(to_bottom,var(--bg),transparent)]",
+          )}
+          data-component="chat-fade-top"
+        />
       ) : null}
       {props.showBottom ? (
-        <div class="chat-fades__bottom" data-component="chat-fade-bottom" />
+        <div
+          class={cn(
+            "chat-fades__bottom absolute inset-x-0 bottom-0 h-6",
+            "bg-[linear-gradient(to_top,var(--bg),transparent)]",
+          )}
+          data-component="chat-fade-bottom"
+        />
       ) : null}
     </div>
   )

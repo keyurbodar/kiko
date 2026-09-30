@@ -8,21 +8,18 @@
 //      no harness-only rendering path, so what the probes observe is what a user
 //      would see. A probe that reads a variable this file set would be testing
 //      the harness.
-//   2. The slice's own stylesheet AND the app's token chain are imported HERE
-//      rather than relied on from main.tsx. The composed app pulls both in
-//      through its own entry; a harness mounted on its own page would otherwise
-//      render unstyled, and every probe reading a colour or a font size would
-//      report a missing stylesheet as a design bug. The token chain in
-//      particular is not optional: `chat.css` resolves every value through it,
-//      so without it the page is structurally correct and completely colourless.
+//   2. The app's token chain is imported HERE rather than relied on from
+//      main.tsx. The composed app pulls it in through its own entry; a harness
+//      mounted on its own page would otherwise render with no tokens at all,
+//      and every probe reading a colour or a font size would report a missing
+//      stylesheet as a design bug. The slice's own styling arrives with the
+//      slice, through MessageList.
 
 import { createMemo, createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import { BOTS, FIXTURE_STATES, NOW, UNREAD_ANCHOR_ID, VIEWER_ID } from "../lib/fixtures";
 import type { ChatMessage, RosterBot } from "../lib/types";
 import { MessageList, type VirtualThreadState } from "./MessageList";
-import "./chat.css";
-import "./harness.css";
 import "../styles/app.css";
 
 /** The state the page falls back to when the flag is missing or unknown. */
@@ -80,21 +77,37 @@ const firstUnreadMessageId = createMemo<string | null>(() =>
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element #root not found");
 
+// The harness chrome, as utilities. It used to be `harness.css`, and that
+// file's whole reason for existing was that it could not touch a `chat-` class
+// — so a visual bug in the transcript was never mistakable for a bug in the
+// page framing it. Nothing in these strings selects a descendant, let alone a
+// `chat-` one, so the separation survives the stylesheet's deletion. The class
+// names stay on the elements because a named node is still easier to find in
+// devtools than an anonymous one.
+//
+// The page used to establish `height: 100%` on html, body and #root. The root
+// element is the only one this file renders, and the page is the viewport, so
+// the chain collapses to one `h-dvh` and Tailwind's preflight already zeroes
+// the body margin.
 function App() {
   return (
-    <div class="harness-root">
-      <header class="harness-bar">
-        <span class="harness-title">chat slice</span>
-        <span class="harness-state" data-component="harness-state">
+    <div class="harness-root flex h-dvh min-h-0 flex-col bg-bg">
+      <header class="harness-bar flex flex-wrap items-center gap-3 bg-bg-sidebar px-4 py-2 text-weak text-sm shadow-[0_1px_0_0_var(--panel-edge)]">
+        {/* Chrome is lowercased. Message bodies never are, and that is the
+            transcript's rule to keep, not this page's. */}
+        <span class="harness-title text-text font-[var(--font-weight-bold)] lowercase">chat slice</span>
+        <span class="harness-state font-mono text-accent" data-component="harness-state">
           {unknownFlag() ? `unknown state: ${slug()}` : slug()}
         </span>
-        <span class="harness-spacer" />
-        <span class="harness-hint">
+        <span class="harness-spacer flex-1" />
+        <span class="harness-hint font-mono text-xs text-faint">
           states: {SLUGS.length} · ?state=&lt;slug&gt;
         </span>
       </header>
 
-      <div class="harness-stage">
+      {/* The slice under test, given the remaining height and a width to be
+          judged at. Its scroller owns its own scrolling, so this must not clip. */}
+      <div class="harness-stage flex min-h-0 flex-1">
         <MessageList
           messages={messages()}
           botById={(id: string | undefined) => (id === undefined ? undefined : botById.get(id))}

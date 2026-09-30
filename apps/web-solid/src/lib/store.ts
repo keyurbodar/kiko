@@ -52,29 +52,34 @@ export const useApp = {
     return state.messages.find((message) => message.id === messageId)
   },
 
+  /**
+   * The viewer is at most one reactor per chip, so each emoji is toggled on its
+   * own. The chip is mutated in place: rebuilding the array would hand every
+   * other chip a new object and lose the pressed state of the rest.
+   */
   toggleReaction(messageId: string, emoji: string) {
     setState(
       "messages",
       produce((draft) => {
         for (const message of draft) {
           if (message.id !== messageId) continue
-          const existing = message.reactions ?? []
-          const hit = existing.find((reaction) => reaction.emoji === emoji)
-          if (!hit) {
-            message.reactions = [...existing, { emoji, count: 1, viewerReacted: true }]
+          const reactions = message.reactions ?? []
+          const chip = reactions.find((reaction) => reaction.emoji === emoji)
+          if (!chip) {
+            message.reactions = [...reactions, { emoji, count: 1, viewerReacted: true }]
             return
           }
-          if (hit.viewerReacted) {
-            if (hit.count <= 1) {
-              message.reactions = existing.filter((reaction) => reaction.emoji !== emoji)
-              return
+          if (chip.viewerReacted) {
+            chip.count -= 1
+            if (chip.count <= 0) {
+              message.reactions = reactions.filter((reaction) => reaction !== chip)
+            } else {
+              chip.viewerReacted = false
             }
-            hit.count -= 1
-            hit.viewerReacted = false
             return
           }
-          hit.count += 1
-          hit.viewerReacted = true
+          chip.count += 1
+          chip.viewerReacted = true
         }
       }),
     )

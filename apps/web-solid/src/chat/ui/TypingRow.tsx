@@ -1,6 +1,6 @@
 import { animate } from "motion"
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Signal } from "solid-js"
-import "../interactions.css"
+import { cn } from "../../lib/cn"
 
 export interface TypingRowProps {
   /** Names currently typing. The row is not rendered when this is empty. */
@@ -12,6 +12,7 @@ export interface TypingRowProps {
    * row keeps its own; either way exactly one animation drives the dots.
    */
   wave?: Signal<number>
+  class?: string
 }
 
 const DOT_COUNT = 3
@@ -85,16 +86,32 @@ export function TypingRow(props: TypingRowProps) {
 
   return (
     <Show when={active()}>
-      <li class="chat-typing-row" data-component="chat-typing-row" role="listitem">
-        <div class="chat-typing-bubble" data-component="chat-typing-bubble" data-sending={sending() ? "" : undefined}>
+      <li
+        class={cn("flex items-start py-0.5", props.class)}
+        data-component="chat-typing-row"
+        role="listitem"
+      >
+        <div
+          class={cn(
+            "flex items-center gap-[3px] rounded-[calc(18px*var(--brm))] bg-message-assistant px-3 py-[7px]",
+            // One text line plus the bubble's own padding, so the typing
+            // bubble is exactly as tall as a one-line message bubble.
+            "min-h-[calc(2*7px+var(--font-base)*var(--line-height))]",
+          )}
+          data-component="chat-typing-bubble"
+          data-sending={sending() ? "" : undefined}
+        >
           <For each={[...Array(DOT_COUNT).keys()]}>
             {(index) => {
               const lift = () => dotLift(phase(), index)
               return (
                 <span
-                  class="chat-typing-dot"
+                  class="block size-1.5 origin-center rounded-full bg-text"
                   data-component="chat-typing-dot"
                   style={{
+                    // Scale and opacity are written inline by the wave and
+                    // there is no transition, so a dot is exactly where the
+                    // animation says it is.
                     transform: `scale(${SCALE_MIN + (1 - SCALE_MIN) * lift()})`,
                     opacity: String(OPACITY_MIN + (1 - OPACITY_MIN) * lift()),
                   }}

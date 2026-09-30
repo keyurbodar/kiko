@@ -53,7 +53,12 @@ export interface ChatMessage {
   body: string;
   /** Epoch ms, used for date dividers and the per-message timestamp. */
   sentAt: number;
-  reactions?: readonly Reaction[];
+  /**
+   * One chip per emoji, each carrying its own count. Every person is at most
+   * one reactor on any chip, so `viewerReacted` is per chip rather than per
+   * message: reacting with a second emoji must not disturb the first.
+   */
+  reactions?: Reaction[];
   /** The message this one answers. Absent on a root message. */
   replyToId?: string;
   /**

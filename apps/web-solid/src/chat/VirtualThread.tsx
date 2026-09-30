@@ -17,7 +17,7 @@ import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } 
 import { dayChipLabel, formatTimeOfDay } from "./lib/dayLabel"
 import { useApp } from "../lib/store"
 import { jumboEmojiClass } from "./lib/reply"
-import { Bubble } from "./ui/Bubble"
+import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
 import { UnreadRule } from "./ui/UnreadRule"
 import { EmptyState } from "./ui/EmptyState"
@@ -26,7 +26,6 @@ import { TypingRow } from "./ui/TypingRow"
 import { JumpToLatest } from "./ui/JumpToLatest"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
-import "./chat.css"
 
 /**
  * What the shell knows about the reader's position. Everything the transcript
@@ -60,8 +59,109 @@ const BOTTOM_EPSILON = 2
 /** How long the bottom-pin loop keeps re-asserting itself, in ms. */
 const PIN_SETTLE_MS = 400
 
+/**
+ * How long a jumped-to message stays marked, in ms. Long enough to find the row
+ * you asked for, short enough that it is gone before you start reading it -
+ * kat's own landing mark works the same way.
+ */
+const LANDING_MS = 1200
+
 /** A row whose height changed under the reader's eyes, and where to undo it. */
 type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
+
+/**
+ * The box the floating pieces hang from: the date chip, the two scrims and the
+ * jump-to-latest pill are absolute children of this, and it is a SIBLING of
+ * the scroller rather than its parent.
+ *
+ * That is not tidiness. An absolutely positioned child of a scroll container is
+ * positioned against that container's padding box but travels with its
+ * content, so all three would scroll off the top of the transcript. Here they
+ * are children of a box that does not move.
+ *
+ * `min-h-0` and `flex-1` are load-bearing in a flex parent: without them the
+ * stage refuses to shrink below its content, and the transcript grows the page
+ * instead of scrolling inside it.
+ */
+const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
+
+/**
+ * The scroller. `touch-pan-y` hands the vertical axis to the row track and
+ * leaves the horizontal axis to the swipe-to-reply gesture, which is the only
+ * reason a transcript has both. `overscroll-y-contain` stops a flick at either
+ * end from chaining into the shell behind it.
+ *
+ * The scrollbar is deliberately NOT restated here. `kat.css` ships the app-wide
+ * thin scrollbar — `scrollbar-width: thin` on `*`, a 4px transparent
+ * `-webkit-scrollbar` with a `--scrollbar-thumb` fill — and the transcript is
+ * an ordinary scroller. Repeating those values as `[&::-webkit-scrollbar]:*`
+ * utilities would make this one scrollbar disagree with every other one in the
+ * product the moment either changed.
+ */
+const SCROLLER_CLASS =
+  "relative flex min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-y-contain"
+
+/**
+ * The centred measure. `pt-12` is the 48px top inset: rows carry their own
+ * 16px side padding so the column adds none, and the date chip floats 10px
+ * down and is 30px tall — an inset under 40px puts the oldest row underneath
+ * it.
+ *
+ * The empty state is reached through its `data-component` handle rather than a
+ * class, because `ui/EmptyState.tsx` takes no `class` prop and no slice owns
+ * it. It is a direct child of this element, so the child combinator is exact.
+ */
+const COLUMN_CLASS =
+  "mx-auto flex w-full max-w-(--content-max-w) flex-col pt-12 " +
+  "[&>[data-component=chat-empty]]:flex " +
+  "[&>[data-component=chat-empty]]:flex-col " +
+  "[&>[data-component=chat-empty]]:items-center " +
+  "[&>[data-component=chat-empty]]:gap-1.5 " +
+  "[&>[data-component=chat-empty]]:px-4 " +
+  "[&>[data-component=chat-empty]]:py-12 " +
+  "[&>[data-component=chat-empty]]:text-center " +
+  "[&>[data-component=chat-empty]]:text-weak " +
+  "[&>[data-component=chat-empty]>span]:text-sm " +
+  "[&>[data-component=chat-empty]>span]:lowercase"
+
+/**
+ * The day separator, on kat's `.time-separator` numbers: `justify-content:
+ * center`, `padding: 14px 16px 10px`, both spans at `--font-xs`. Ours had no
+ * justification, so it sat at the left edge of the column.
+ *
+ * `items-baseline` with a real gap, because the date and the clock are two
+ * spans and without both they read as one jammed word.
+ */
+const DIVIDER_CLASS = "flex items-baseline justify-center gap-1.5 px-4 pt-3.5 pb-2.5"
+
+const DIVIDER_LABEL_CLASS = "text-xs font-medium text-weak lowercase"
+
+const DIVIDER_TIME_CLASS = "text-xs font-normal text-weak lowercase"
+
+/**
+ * The new-messages rule, reached as descendants of the row that renders it:
+ * `ui/UnreadRule.tsx` takes no `class` prop and no slice owns it, so its three
+ * boxes (slot, clip, rule) and the label are addressed structurally. Applied
+ * only to the `unread-divider` row, so these never match a message row.
+ *
+ * The slot stays a grid and collapses via a `0fr` track, so retiring the rule
+ * removes the row outright and nothing animates. The two hairlines are the one
+ * place the transcript draws a rule; they are flex items, not absolutely
+ * positioned bars, so the label sits between two equal lengths of accent.
+ */
+const UNREAD_RULE_ROW_CLASS =
+  "[&>div]:grid [&>div]:grid-rows-[1fr] " +
+  "[&>[data-retiring]]:grid-rows-[0fr] " +
+  "[&>div>div]:min-h-0 [&>div>div]:overflow-hidden " +
+  "[&>div>div>div]:flex [&>div>div>div]:items-center [&>div>div>div]:gap-2.5 " +
+  "[&>div>div>div]:px-4 [&>div>div>div]:pt-3 [&>div>div>div]:pb-2 " +
+  "[&>div>div>div]:before:flex-1 [&>div>div>div]:before:h-px [&>div>div>div]:before:bg-accent/45 " +
+  "[&>div>div>div]:after:flex-1 [&>div>div>div]:after:h-px [&>div>div>div]:after:bg-accent/45 " +
+  "[&>div>div>div>span]:shrink-0 " +
+  "[&>div>div>div>span]:text-xs " +
+  "[&>div>div>div>span]:font-medium " +
+  "[&>div>div>div>span]:text-accent " +
+  "[&>div>div>div>span]:lowercase"
 
 const ROW_SELECTOR = '[data-component="chat-vrow"]'
 
@@ -140,11 +240,28 @@ export function VirtualThread(props: {
   })
 
   /**
-   * The chip only earns its place over today. Once yesterday's rows are on
-   * screen the reader already has the date in the transcript, and a chip
-   * reading "today" while they read yesterday would be a lie.
+   * The chip is the sticky day label: whenever there is a day at the top of
+   * the viewport, it names that day and opens the calendar on click. It used
+   * to show only over today, which meant the one thing it exists for - telling
+   * a reader who has scrolled back which day they are in - never happened.
    */
-  const dateChipVisible = createMemo(() => topVisibleDay() === dayStartOf(now()))
+  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined)
+
+  /**
+   * Which message the last reply-quote jump landed on.
+   *
+   * Held by id rather than as a boolean, because the row that was marked before
+   * has to clear in the same commit. Expiry is a generation counter rather than
+   * a stored timer handle: a second jump bumps it, so an older deadline can no
+   * longer clear the newer mark, and there is no handle to thread around or
+   * type. Cleanup bumps it too, which neutralises anything still in flight so a
+   * disposed thread is never written to.
+   */
+  const [landed, setLanded] = createSignal<string | undefined>()
+  let landingGeneration = 0
+  onCleanup(() => {
+    landingGeneration += 1
+  })
 
   const jumpToMessage = (messageId: string) => {
     const index = items().findIndex(
@@ -152,6 +269,11 @@ export function VirtualThread(props: {
     )
     if (index < 0) return
     handle()?.scrollToIndex(index, { align: "start" })
+    const generation = (landingGeneration += 1)
+    setLanded(messageId)
+    setTimeout(() => {
+      if (landingGeneration === generation) setLanded(undefined)
+    }, LANDING_MS)
     props.onJumpToMessage(messageId)
   }
 
@@ -411,24 +533,30 @@ export function VirtualThread(props: {
   const renderMessage = (item: TimelineItem & { kind: "message" }): JSX.Element => {
     const message = item.message
     const menu = createMessageMenu({
-      message,
+      messageFor: (id) => {
+        for (const entry of items()) {
+          if (entry.kind === "message" && entry.message.id === id) return entry.message
+        }
+        return message
+      },
       side: message.sender,
-      onReply: () => aimReplyAt(message.id),
+      onReply: () => aimReplyAt(menu.targetId() ?? message.id),
       /* Pin, edit and delete have no store mutation behind them yet, so they are
          omitted rather than wired to an empty handler: a menu item that accepts
          a click and then does nothing is worse than a missing one. */
-      onReact: (emoji) => useApp.toggleReaction(message.id, emoji),
+      onReact: (emoji) => useApp.toggleReaction(menu.targetId() ?? message.id, emoji),
     })
     return (
       <>
-        <SwipeToReply side={message.sender} onCommit={() => aimReplyAt(message.id)}>
-          <Bubble
+        <SwipeToReply onCommit={() => aimReplyAt(message.id)}>
+          <MessageRow
             message={message}
             bot={props.botById(message.botId)}
             parent={props.replyParent(message.replyToId)}
             isRunStart={item.isRunStart}
             isRunEnd={item.isRunEnd}
             hasRunGapBefore={item.hasRunGapBefore}
+            highlighted={landed() === message.id}
             jumboClass={jumboEmojiClass(message.body)}
             replying={replyTarget() === message.id}
             onOpenReplyTarget={jumpToMessage}
@@ -444,9 +572,13 @@ export function VirtualThread(props: {
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
       return (
-        <div class="chat-divider" data-component="chat-divider">
-          <span class="chat-divider__label">{dayChipLabel(item.dayStart, now())}</span>
-          <span class="chat-divider__time">{formatTimeOfDay(item.dayStart)}</span>
+        <div class={DIVIDER_CLASS} data-component="chat-divider">
+          <span class={DIVIDER_LABEL_CLASS} data-component="chat-day-label">
+            {dayChipLabel(item.dayStart, now())}
+          </span>
+          <span class={DIVIDER_TIME_CLASS} data-component="chat-day-time">
+            {formatTimeOfDay(item.firstSentAt)}
+          </span>
         </div>
       )
     }
@@ -459,9 +591,9 @@ export function VirtualThread(props: {
   const hasMessages = () => items().length > 0
 
   return (
-    <div class="chat-stage" data-component="chat-stage">
+    <div class={STAGE_CLASS} data-component="chat-stage">
       <div
-        class="chat-scroller"
+        class={SCROLLER_CLASS}
         data-component="chat-scroll"
         data-virtual-scroll=""
         ref={(element) => {
@@ -470,7 +602,7 @@ export function VirtualThread(props: {
         }}
       >
         <div
-          class={`chat-column chat-column--flush`}
+          class={COLUMN_CLASS}
           data-component="chat-column"
           data-virtual-column=""
           ref={(element) => {
@@ -489,6 +621,7 @@ export function VirtualThread(props: {
             >
               {(item) => (
                 <div
+                  class={item.kind === "unread-divider" ? UNREAD_RULE_ROW_CLASS : undefined}
                   data-component="chat-vrow"
                   style={{
                     "contain-intrinsic-size": `auto ${estimateRowHeight(item)}px`,

@@ -1,6 +1,6 @@
 import { Show } from "solid-js"
-import { ButtonV2 } from "@kiko/ui/v2/button-v2"
 import { Icon } from "@kiko/ui/v2/icon"
+import { cn } from "../../lib/cn"
 
 /**
  * The pill that appears when the reader has scrolled up and the thread keeps
@@ -9,9 +9,8 @@ import { Icon } from "@kiko/ui/v2/icon"
  * above the scroller — so it does not scroll away with the content.
  *
  * `visible` is the parent's read of the scroll position. The pill is always in
- * the DOM and toggled by `data-visible` on the button, because chat.css hides
- * it with `display: none` and there is nothing to animate between the two
- * states anyway.
+ * the DOM and toggled by `data-visible` on the button: it is `hidden` until
+ * then, and there is nothing to animate between the two states anyway.
  */
 export function JumpToLatest(props: {
   /** How many rows arrived while the reader was away from the bottom. */
@@ -19,6 +18,7 @@ export function JumpToLatest(props: {
   /** False while the reader is parked anywhere but the end of the thread. */
   visible: boolean
   onJump: () => void
+  class?: string
 }) {
   const label = () =>
     props.arrivals > 0
@@ -26,18 +26,30 @@ export function JumpToLatest(props: {
       : "jump to latest"
 
   return (
-    <div class="chat-jump-latest" data-component="chat-jump-latest">
+    <div
+      class={cn(
+        // `chat-jump-latest` is a QA handle, not a style: the verify skill
+        // scopes the pill by `.chat-jump-latest > button`.
+        "chat-jump-latest pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center",
+        props.class,
+      )}
+      data-component="chat-jump-latest"
+    >
       {/*
-        ButtonV2 writes its own `data-component="button-v2"` after the prop
-        spread, so a `data-component` handle passed here would be silently
-        dropped. The stable handle for this pill is the `chat-jump` class,
-        which chat.css already keys `.chat-jump-latest > button` off.
+        Hand-rolled rather than `ButtonV2`: the ghost variant's own `height`,
+        `padding` and `border-radius` are set at a specificity a utility on the
+        same element cannot beat, so the pill's 16px round on a 32px box would
+        have to be fought for. This is one button with one click handler.
       */}
-      <ButtonV2
-        variant="ghost"
-        size="normal"
-        class="chat-jump"
+      <button
+        type="button"
+        class={cn(
+          "chat-jump pointer-events-auto hidden items-center gap-1.5 min-h-8 px-3.5 py-1.5",
+          "rounded-2xl bg-surface-raised text-text text-sm font-medium lowercase shadow-popover cursor-pointer",
+          "data-[visible]:inline-flex hover:bg-btn-hover",
+        )}
         data-part="pill"
+        data-component="chat-jump"
         data-visible={props.visible ? "" : undefined}
         data-arrivals={String(props.arrivals)}
         aria-label={props.arrivals > 0 ? `${label()}, jump to the end of the thread` : label()}
@@ -47,7 +59,7 @@ export function JumpToLatest(props: {
         <Show when={props.arrivals > 0} fallback={<span>{"jump to latest"}</span>}>
           <span>{label()}</span>
         </Show>
-      </ButtonV2>
+      </button>
     </div>
   )
 }

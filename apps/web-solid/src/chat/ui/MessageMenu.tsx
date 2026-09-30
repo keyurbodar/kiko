@@ -1,9 +1,11 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { Copy, CornerUpLeft, Pencil, Pin, Plus, Trash2 } from "lucide-solid"
 import { createSignal, For, Show, type JSX } from "solid-js"
+import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
-import { resolveShortcode, type EmojiEntry } from "../lib/emojiData"
-import "../interactions.css"
+import { Emoji } from "../../lib/emoji"
+import { EmojiPicker, preloadEmojiPicker } from "./EmojiPicker"
 
 export interface MessageMenuOptions {
   message: ChatMessage
@@ -38,15 +40,28 @@ export interface MessageMenuController {
   view: JSX.Element
 }
 
-const QUICK_REACTIONS: readonly EmojiEntry[] = ["+1", "heart", "joy", "open_mouth", "folded_hands"]
-  .map((shortcode) => resolveShortcode(shortcode))
-  .filter((entry): entry is EmojiEntry => entry !== undefined)
+/**
+ * The five reactions offered without opening the picker, as literals.
+ *
+ * They used to be resolved out of an emojibase build by shortcode. Nothing
+ * needs that any more: these five are a fixed set of characters, and the
+ * picker's own shortcodes come from the element's data. So the database, its
+ * search index and both emojibase dependencies are gone.
+ */
+const QUICK_REACTIONS: readonly { readonly emoji: string; readonly label: string }[] = [
+  { emoji: "👍", label: "thumbs up" },
+  { emoji: "❤️", label: "heart" },
+  { emoji: "😂", label: "joy" },
+  { emoji: "😮", label: "surprised" },
+  { emoji: "🙏", label: "folded hands" },
+]
 
 /**
  * The message menu, identical for the viewer's and the agent's messages apart
  * from `edit`, which the agent's never offers.
  */
 export function MessageMenu(props: MessageMenuProps) {
+  const [pickerOpen, setPickerOpen] = createSignal(false)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(props.message.body)
@@ -61,49 +76,147 @@ export function MessageMenu(props: MessageMenuProps) {
   }
 
   return (
-    <MenuV2.Context gutter={8} onOpenChange={props.onOpenChange}>
+    <MenuV2.Context
+      gutter={8}
+      onOpenChange={(open) => {
+        // A reader who has just opened the menu is deciding what to react with,
+        // so this is the moment to start pulling the picker's module and data.
+        if (open) preloadEmojiPicker()
+        props.onOpenChange?.(open)
+      }}
+    >
       <MenuV2.Context.Trigger
         ref={props.ref}
         class="chat-menu__trigger"
         style={{ position: "fixed", left: 0, top: 0, width: 0, height: 0, "pointer-events": "none", ...props.style }}
       />
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content class="chat-menu" data-component="chat-menu">
-          <div class="chat-menu__quick">
-            <For each={QUICK_REACTIONS}>
-              {(entry) => (
+        <MenuV2.Context.Content
+          class={cn(
+            // `chat-menu` is a QA handle as well as the surface: the verify
+            // skill scopes the quick strip by it.
+            //
+            // These sizes only take effect because the vendored menu stylesheet
+            // sits in `@layer v2`, below `utilities` - unlayered it beat every
+            // one of them and the menu rendered at the library's 2px padding,
+            // 6px radius and 13px rows instead.
+            "chat-menu min-w-[200px] rounded-[calc(20px*var(--brm))] p-2",
+            // Painted, not inherited: the vendored v2 menu resolves its own
+            // light ramp, so the kat roles have to be stated here.
+            "border-none bg-menu text-base text-text shadow-menu",
+            // One item rhythm for every row in the menu: kat's rows are taller
+            // and set larger than the library default, and every entry carries
+            // a leading glyph. The row itself is `data-component`, NOT
+            // `data-slot` - only the inner content span is a slot.
+            "[&_[data-component=menu-v2-item]]:h-10",
+            "[&_[data-slot=menu-v2-item-content]]:text-base",
+            "[&_[data-slot=menu-v2-item-content]]:gap-2.5",
+          )}
+          data-component="chat-menu"
+        >
+        <Show
+          when={pickerOpen()}
+          fallback={
+            <>
+              <div class="chat-menu__quick flex gap-0.5 p-1 mb-2">
+                <For each={QUICK_REACTIONS}>
+                  {(entry) => (
+                    <button
+                      type="button"
+                      class={cn(
+                        // `text-inherit` is NOT here on purpose: `cn` merges by
+                        // Tailwind's font-size group, so it and `text-[22px]` were
+                        // treated as one property and the size utility was dropped,
+                        // leaving every emoji at the inherited 14px. Preflight
+                        // already gives a button `color: inherit`.
+                        "chat-menu__emoji flex size-9 items-center justify-center rounded-xl p-0 text-[22px] leading-none",
+                        "cursor-default border-none bg-transparent",
+                        "hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
+                        "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
+                        // One of the three permitted motions.
+                        "active:scale-[0.85]",
+                      )}
+                      data-emoji={entry.emoji}
+                      aria-label={entry.label}
+                      onClick={() => props.onReact(entry.emoji)}
+                    >
+                      <Emoji emoji={entry.emoji} class="size-[22px] align-middle" eager />
+                    </button>
+                  )}
+                </For>
                 <button
                   type="button"
-                  class="chat-menu__emoji"
-                  data-emoji={entry.emoji}
-                  aria-label={entry.label}
-                  onClick={() => props.onReact(entry.emoji)}
+                  class={cn(
+                    "chat-menu__more flex size-9 items-center justify-center rounded-xl p-0",
+                    "cursor-default border-none bg-transparent text-weak",
+                    "hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
+                    "hover:text-text focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
+                    "focus-visible:text-text",
+                  )}
+                  aria-label="more emoji"
+                  aria-expanded={pickerOpen()}
+                  onClick={() => setPickerOpen(true)}
                 >
-                  {entry.emoji}
+                  <Plus class="size-4" aria-hidden="true" />
                 </button>
-              )}
-            </For>
+              </div>
+              <MenuV2.Separator />
+              <MenuV2.Item onSelect={props.onReply}>
+                <CornerUpLeft class="size-4 shrink-0" aria-hidden="true" />
+                reply
+              </MenuV2.Item>
+              <MenuV2.Item onSelect={copy}>
+                <Copy class="size-4 shrink-0" aria-hidden="true" />
+                copy
+              </MenuV2.Item>
+              <Show when={props.onTogglePin}>
+                <MenuV2.Item onSelect={props.onTogglePin}>
+                  <Pin class="size-4 shrink-0" aria-hidden="true" />
+                  {props.pinned ? "unpin" : "pin"}
+                </MenuV2.Item>
+              </Show>
+              {/* The divider only appears when something follows it. */}
+              <Show when={props.onEdit !== undefined || props.onDelete !== undefined}>
+                <MenuV2.Separator />
+              </Show>
+              <Show when={props.side === "user" && props.onEdit}>
+                <MenuV2.Item onSelect={props.onEdit}>
+                  <Pencil class="size-4 shrink-0" aria-hidden="true" />
+                  edit
+                </MenuV2.Item>
+              </Show>
+              <Show when={props.onDelete}>
+                <MenuV2.Item
+                  class={cn(
+                    "chat-menu__danger text-danger",
+                    "hover:bg-[oklch(from_var(--danger)_l_c_h_/_12%)]",
+                    "focus-visible:bg-[oklch(from_var(--danger)_l_c_h_/_12%)]",
+                  )}
+                  onSelect={props.onDelete}
+                >
+                  <Trash2 class="size-4 shrink-0" aria-hidden="true" />
+                  delete
+                </MenuV2.Item>
+              </Show>
+            </>
+          }
+        >
+          {/* The picker takes the WHOLE surface. The quick strip and the actions
+              are inside the fallback above rather than beside this, because kat's
+              picker replaces the menu outright: leaving the five quick emoji
+              stacked above it reads as two half-panels, and the reader who opened
+              the picker to browse has already decided against the quick five.
+              Escape and an outside click close the menu, so there is no way back
+              and none is needed. */}
+          <div class="chat-menu__picker">
+            <EmojiPicker
+              onSelect={(emoji) => {
+                props.onReact(emoji)
+                setPickerOpen(false)
+              }}
+            />
           </div>
-          <MenuV2.Separator />
-          <MenuV2.Item onSelect={props.onReply}>reply</MenuV2.Item>
-          <MenuV2.Item onSelect={copy}>copy</MenuV2.Item>
-          <Show when={props.onTogglePin}>
-            <MenuV2.Item onSelect={props.onTogglePin}>
-              {props.pinned ? "unpin" : "pin"}
-            </MenuV2.Item>
-          </Show>
-          {/* The divider only appears when something follows it. */}
-          <Show when={props.onEdit !== undefined || props.onDelete !== undefined}>
-            <MenuV2.Separator />
-          </Show>
-          <Show when={props.side === "user" && props.onEdit}>
-            <MenuV2.Item onSelect={props.onEdit}>edit</MenuV2.Item>
-          </Show>
-          <Show when={props.onDelete}>
-            <MenuV2.Item class="chat-menu__danger" onSelect={props.onDelete}>
-              delete
-            </MenuV2.Item>
-          </Show>
+        </Show>
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>
@@ -116,13 +229,34 @@ export function MessageMenu(props: MessageMenuProps) {
  * `contextmenu` event reaches its trigger and takes the anchor rect off that
  * event — so the integration is to park a zero-size trigger somewhere inert
  * and replay the row's event onto it at the pointer's coordinates.
+ *
+ * The `targetId` is the message id of the row that was actually under the
+ * pointer when the menu opened, and it is written HERE, at open time — not at
+ * render time. The option callbacks close over whatever message was current
+ * when the row rendered, and under a virtualizer that row's DOM is recycled
+ * into a different message by the time the click lands, so anything but the
+ * opened-on id names the wrong row.
  */
-export function createMessageMenu(options: MessageMenuOptions): MessageMenuController {
+export function createMessageMenu(
+  options: Omit<MessageMenuOptions, "message"> & { messageFor: (messageId: string) => ChatMessage },
+): MessageMenuController & { targetId: () => string | null } {
   const [trigger, setTrigger] = createSignal<HTMLElement>()
+  const [targetId, setTargetId] = createSignal<string | null>(null)
+
+  const liveProps = (): MessageMenuProps => {
+    const id = targetId()
+    const fallback: ChatMessage = { id: "__none__", threadId: "", sender: "bot", body: "", sentAt: 0 }
+    return { ...options, message: id === null ? fallback : options.messageFor(id) } as MessageMenuProps
+  }
 
   return {
+    targetId,
     onContextMenu: (event) => {
       event.preventDefault()
+      const id = (event.currentTarget as HTMLElement | null)?.dataset.messageId
+        ?? (event.target as HTMLElement | null)?.closest?.("[data-message-id]")?.getAttribute("data-message-id")
+        ?? null
+      setTargetId(id)
       trigger()?.dispatchEvent(
         new MouseEvent("contextmenu", {
           bubbles: true,
@@ -132,6 +266,6 @@ export function createMessageMenu(options: MessageMenuOptions): MessageMenuContr
         }),
       )
     },
-    view: <MessageMenu {...options} ref={setTrigger} />,
+    view: <MessageMenu {...liveProps()} ref={setTrigger} />,
   }
 }

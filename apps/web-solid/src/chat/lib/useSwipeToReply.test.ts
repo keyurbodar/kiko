@@ -5,7 +5,6 @@ import {
   SWIPE_REPLY_THRESHOLD_PX,
   createSwipeGesture,
   type SwipeGesture,
-  type SwipeSide,
 } from "./useSwipeToReply"
 
 interface Harness {
@@ -15,7 +14,7 @@ interface Harness {
   settles: number[]
 }
 
-function harness(side: SwipeSide = "bot"): Harness {
+function harness(): Harness {
   return createRoot(() => {
     const replies: number[] = []
     const settles: number[] = []
@@ -26,7 +25,6 @@ function harness(side: SwipeSide = "bot"): Harness {
       done()
     }
     const gesture = createSwipeGesture({
-      side: () => side,
       settle,
       onReply: () => replies.push(replies.length),
     })
@@ -34,17 +32,19 @@ function harness(side: SwipeSide = "bot"): Harness {
   }) as Harness
 }
 
-/** Drags from the origin in the direction that suits `side`, in one step. */
-function drag(gesture: SwipeGesture, side: SwipeSide, travel: number, rise = 0) {
-  const sign = side === "bot" ? 1 : -1
+/**
+ * Drags from the origin in one step. `travel` carries its own sign: positive is
+ * a rightward drag, negative a leftward one. Both are valid replies.
+ */
+function drag(gesture: SwipeGesture, travel: number, rise = 0) {
   gesture.down(0, 0)
-  gesture.move(travel * sign, rise)
+  gesture.move(travel, rise)
 }
 
 describe("swipe to reply", () => {
   test("fires the reply at 48px of travel", () => {
     const { gesture, replies } = harness()
-    drag(gesture, "bot", SWIPE_REPLY_THRESHOLD_PX)
+    drag(gesture, SWIPE_REPLY_THRESHOLD_PX)
     expect(gesture.offset).toBe(48)
     expect(gesture.progress).toBe(1)
     gesture.release()
@@ -53,7 +53,7 @@ describe("swipe to reply", () => {
 
   test("does not fire one pixel short of the threshold", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, "bot", SWIPE_REPLY_THRESHOLD_PX - 1)
+    drag(gesture, SWIPE_REPLY_THRESHOLD_PX - 1)
     expect(gesture.offset).toBe(47)
     expect(gesture.progress).toBeCloseTo(47 / SWIPE_REPLY_THRESHOLD_PX, 5)
     gesture.release()
@@ -64,7 +64,7 @@ describe("swipe to reply", () => {
 
   test("fires once even if the release is delivered twice", () => {
     const { gesture, replies } = harness()
-    drag(gesture, "bot", 60)
+    drag(gesture, 60)
     gesture.release()
     gesture.release()
     expect(replies).toHaveLength(1)
@@ -76,7 +76,6 @@ describe("swipe to reply", () => {
     let gesture: SwipeGesture
     createRoot(() => {
       gesture = createSwipeGesture({
-        side: () => "bot" as SwipeSide,
         settle: (_from, done) => {
           order.push("settle")
           settleDone = done
@@ -95,7 +94,7 @@ describe("swipe to reply", () => {
 
   test("travel caps at 64px and the progress stops at 1", () => {
     const { gesture } = harness()
-    drag(gesture, "bot", 200)
+    drag(gesture, 200)
     expect(gesture.offset).toBe(SWIPE_MAX_TRAVEL_PX)
     expect(gesture.progress).toBe(1)
     expect(gesture.scale).toBe(1)
@@ -139,32 +138,39 @@ describe("swipe to reply", () => {
     expect(gesture.swiping).toBe(false)
   })
 
-  test("the viewer's row swipes left and the agent's swipes right", () => {
-    const viewer = harness("user")
-    drag(viewer.gesture, "user", 50)
-    expect(viewer.gesture.offset).toBe(-50)
-    viewer.gesture.release()
-    expect(viewer.replies).toHaveLength(1)
+  test("either direction replies, whichever side sent the message", () => {
+    // Direction is the reader's, not the sender's. A leftward swipe used to be
+    // discarded on the agent's row, which reads as a dead gesture because
+    // nothing on screen says which way a row is allowed to move.
+    const right = harness()
+    drag(right.gesture, 50)
+    expect(right.gesture.offset).toBe(50)
+    expect(right.gesture.side).toBe("start")
+    right.gesture.release()
+    expect(right.replies).toHaveLength(1)
 
-    const agent = harness("bot")
-    drag(agent.gesture, "bot", 50)
-    expect(agent.gesture.offset).toBe(50)
+    const left = harness()
+    drag(left.gesture, -50)
+    expect(left.gesture.offset).toBe(-50)
+    expect(left.gesture.side).toBe("end")
+    left.gesture.release()
+    expect(left.replies).toHaveLength(1)
   })
 
-  test("swiping against the indicator's side is a miss, not a reply", () => {
-    const { gesture, replies, settles } = harness("user")
-    gesture.down(0, 0)
-    // The viewer's indicator sits on the right, so the row must be dragged
-    // left; dragging it right is an ordinary text selection.
-    gesture.move(50, 0)
-    expect(gesture.swiping).toBe(false)
-    gesture.release()
-    expect(replies).toHaveLength(0)
-    expect(settles).toEqual([])
+  test("the indicator edge follows the drag, not the message", () => {
+    const { gesture } = harness()
+    drag(gesture, 30)
+    expect(gesture.side).toBe("start")
+
+    const other = harness()
+    other.gesture.down(0, 0)
+    other.gesture.move(-30, 0)
+    expect(other.gesture.side).toBe("end")
   })
+
   test("a cancelled gesture settles back but never replies", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, "bot", 55)
+    drag(gesture, 55)
     expect(gesture.swiping).toBe(true)
     gesture.cancel()
     expect(replies).toHaveLength(0)
@@ -178,7 +184,6 @@ describe("swipe to reply", () => {
     let gesture: SwipeGesture
     createRoot(() => {
       gesture = createSwipeGesture({
-        side: () => "bot" as SwipeSide,
         settle: (_from, done) => {
           pending = done
         },
@@ -198,10 +203,10 @@ describe("swipe to reply", () => {
 
   test("a second gesture starts from rest", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, "bot", 50)
+    drag(gesture, 50)
     gesture.release()
     expect(settles).toEqual([50])
-    drag(gesture, "bot", 20)
+    drag(gesture, 20)
     expect(gesture.swiping).toBe(true)
     expect(gesture.offset).toBe(20)
     gesture.release()

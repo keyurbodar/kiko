@@ -1,7 +1,6 @@
 import type { JSX } from "solid-js"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { VirtualThread, type VirtualThreadState } from "./VirtualThread"
-import "./chat.css"
 
 /**
  * The transcript surface.

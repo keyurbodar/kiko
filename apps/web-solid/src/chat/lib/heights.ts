@@ -14,7 +14,8 @@ const LINE_BOX = FONT_BASE * 1.45;
 const LINE_BOX_CHROME = 11 * 1.45;
 
 /** `.bubble { padding: 7px 12px }` — 7px top plus 7px bottom. */
-const BUBBLE_PAD_Y = 14;
+const BUBBLE_PAD_TOP = 7;
+const BUBBLE_PAD_Y = BUBBLE_PAD_TOP * 2;
 /** `.message-row { padding: 1px 16px }` — 1px top plus 1px bottom. */
 const ROW_PAD_Y = 2;
 /**
@@ -48,9 +49,15 @@ const QUOTE_LINE = 12 * 1.35;
 const QUOTE_LINES = 3;
 /** `.reply-quote { padding: 5px 8px 5px 11px; margin-bottom: 4px }`. */
 const QUOTE_CHROME_Y = 5 + 5 + 4;
-/** `.jumbo-emoji-* { line-height: 1.25 }`. */
-const JUMBO_SINGLE_PX = FONT_BASE * 3.5 * 1.25 + BUBBLE_PAD_Y;
-const JUMBO_GROUP_PX = FONT_BASE * 2.5 * 1.25 + BUBBLE_PAD_Y;
+/**
+ * `.jumbo-emoji-* { line-height: 1.25 }`. An emoji-only bubble is BARE — no fill
+ * and no padding — so unlike an ordinary bubble the padding is not part of the
+ * height and only the line box counts. These two numbers must move with the
+ * `text-[42px]` / `text-[31px]` utilities in `MessageRow`, or the virtualizer
+ * reserves room that is not there and the scroll anchor drifts.
+ */
+const JUMBO_SINGLE_PX = 42 * 1.25;
+const JUMBO_GROUP_PX = 31 * 1.25;
 
 function bubbleTextLines(body: string): number {
   return Math.max(1, Math.ceil(graphemes(body.trim()).length / CHARS_PER_LINE));
@@ -62,6 +69,10 @@ function bubbleTextLines(body: string): number {
  * A virtualizer only needs this to be close and stable: it measures the real
  * rows afterwards and corrects. Rounding up keeps a wrapped bubble from being
  * clipped on the first paint.
+ *
+ * A reaction contributes NOTHING to this. Its badge is absolutely positioned
+ * and the row's padding is constant, so reacting never changes a height - the
+ * transcript must not move when a chip appears.
  */
 export function estimateRowHeight(item: TimelineItem): number {
   if (item.kind === "day-divider") return Math.ceil(DAY_DIVIDER_PAD_Y + LINE_BOX_CHROME);

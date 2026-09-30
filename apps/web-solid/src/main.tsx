@@ -15,8 +15,8 @@ if (!root) throw new Error("Root element #root not found");
  * from `useApp` instead of a fixture slice, so a difference between this page
  * and the harness is a difference in the data and never in the wiring.
  *
- * `chat.css` reaches the page through MessageList, not through an import here,
- * so the slice stays the owner of its own styles.
+ * The transcript's own styling reaches the page through MessageList, not
+ * through an import here, so the slice stays the owner of its own styles.
  *
  * The two signals are real state the shell writes to, surfaced as data
  * attributes so a devtools read can see what the transcript last reported. They
@@ -35,9 +35,13 @@ export default function App() {
   );
 
   return (
-    <div class="app-shell">
+    <div class="flex h-dvh overflow-hidden bg-bg">
+      {/* The pane is the transcript's only parent, and `min-w-0` is load-bearing:
+          a flex child defaults to `min-width: auto` and refuses to shrink below
+          its content, so without it the 768px column overflows a narrow window
+          instead of narrowing with it. */}
       <div
-        class="app-pane"
+        class="flex min-w-0 flex-1"
         data-component="chat-shell"
         data-reply-target={replyTarget() ?? undefined}
         data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}

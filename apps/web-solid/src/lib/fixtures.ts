@@ -199,10 +199,7 @@ export const MESSAGES: readonly ChatMessage[] = [
     botId: "ada",
     body: "Gone. Tailwind v4 already registers the names, so the @theme block was redundant.",
     sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 5 * MINUTE,
-    reactions: [
-      { emoji: "✅", count: 3, viewerReacted: false },
-      { emoji: "🎉", count: 1, viewerReacted: true },
-    ],
+    reactions: [{ emoji: "✅", count: 3, viewerReacted: false }],
   },
 
   // The grouped run: three consecutive agent messages inside the window. A
@@ -311,7 +308,7 @@ export const MESSAGES: readonly ChatMessage[] = [
     reactions: [{ emoji: "👍", count: 4, viewerReacted: false }],
   },
 
-  // --- reactions: three from the agent, one the viewer has already given ----
+  // --- reactions: one the viewer has already given, so the chip reads pressed -
   {
     id: "a-18",
     threadId: "ada",
@@ -327,10 +324,8 @@ export const MESSAGES: readonly ChatMessage[] = [
     body: "A chip row under the body. Clicking your own removes it. No picker modal, no long-press requirement, no burst animation.",
     sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 4 * MINUTE,
     reactions: [
-      { emoji: "🔥", count: 3, viewerReacted: false },
-      { emoji: "🎉", count: 2, viewerReacted: false },
-      { emoji: "🚀", count: 1, viewerReacted: false },
-      { emoji: "🙏", count: 1, viewerReacted: true },
+      { emoji: "❤️", count: 1, viewerReacted: true },
+      { emoji: "✅", count: 2, viewerReacted: false },
     ],
   },
   {
@@ -673,7 +668,8 @@ export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = 
   "reply-text": slice("a-35", "a-36"),
   "reply-image": slice("a-25", "a-26", "a-27"),
 
-  // Three reactions the viewer has not given and one they have.
+  // A cluster: one chip the viewer has given, pressed, beside a counted chip
+  // they are not part of. Both visible at once is the whole point.
   reactions: slice("a-19"),
 
   // The edited marker on a body that was not rewritten.

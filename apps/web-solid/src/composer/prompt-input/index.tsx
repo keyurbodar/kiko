@@ -22,7 +22,6 @@ import type {
   PromptInputV2Suggestion,
 } from "./types"
 import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
-import "./attachments.css"
 
 export type {
   PromptInputV2Attachment,
@@ -404,11 +403,37 @@ export function PromptInputV2Attachments(props: {
   onCommentRemove?: (comment: PromptInputV2Comment) => void
 }) {
   const i18n = useI18n()
+  let scroller: HTMLDivElement | undefined
+  /** Which edges have more strip beyond them, so each fade earns its place. */
+  const [edges, setEdges] = createSignal({ start: false, end: false })
+  const syncEdges = () => {
+    const node = scroller
+    if (!node) return
+    // A single pixel of slack: a fractional layout width can leave the last
+    // position a hair short of the end and strand the fade on screen.
+    setEdges({
+      start: node.scrollLeft > 1,
+      end: node.scrollLeft < node.scrollWidth - node.clientWidth - 1,
+    })
+  }
+  // The strip's own width changes when an attachment is added or removed, so
+  // the fades have to be re-read after every list change, not just on scroll.
+  // createEffect runs after the render phase, so the new cards are already in
+  // the DOM by the time this reads scrollWidth.
+  createEffect(() => {
+    const count = props.attachments.length + (props.comments?.length ?? 0)
+    void count
+    syncEdges()
+  })
   return (
     <Show when={props.attachments.length > 0 || (props.comments?.length ?? 0) > 0}>
       <div data-component="prompt-input-v2-attachments" data-slot="prompt-attachments" class="relative">
         <div
+          ref={(element) => {
+            scroller = element
+          }}
           data-slot="prompt-attachments-scroll"
+          onScroll={syncEdges}
           class="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar px-2 pt-2 pb-1"
         >
           <For each={props.comments ?? []}>
@@ -474,10 +499,12 @@ export function PromptInputV2Attachments(props: {
         </div>
         <div
           data-slot="prompt-attachments-fade-left"
+          classList={{ invisible: !edges().start }}
           class="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-[linear-gradient(to_right,var(--v2-background-bg-base),transparent)] rtl:bg-[linear-gradient(to_left,var(--v2-background-bg-base),transparent)]"
         />
         <div
           data-slot="prompt-attachments-fade-right"
+          classList={{ invisible: !edges().end }}
           class="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-[linear-gradient(to_left,var(--v2-background-bg-base),transparent)] rtl:bg-[linear-gradient(to_right,var(--v2-background-bg-base),transparent)]"
         />
       </div>
