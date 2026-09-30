@@ -20,6 +20,20 @@ export function MessageList(props: {
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
+  /**
+   * Controlled reply target. When this prop is supplied the transcript stops
+   * owning the reply and renders whatever the parent says; `null` means no
+   * reply. Leave it out and the transcript keeps its internal signal, which is
+   * what the harness relies on.
+   */
+  replyTarget?: string | null
+  /** Receives a stable jump function for the transcript's scroller. */
+  onJumpHandle?: (handle: {
+    /** Scroll to a message and mark where it landed. */
+    jumpToMessage: (messageId: string) => void
+    /** Scroll to the end without marking anything. */
+    scrollToLatest: () => void
+  }) => void
 }): JSX.Element {
   return <VirtualThread {...props} />
 }

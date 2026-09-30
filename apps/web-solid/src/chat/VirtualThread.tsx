@@ -15,6 +15,7 @@ import { buildTimelineItems, dayStartOf, type TimelineItem } from "./lib/groupin
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dayChipLabel, formatTimeOfDay } from "./lib/dayLabel"
+import { animate } from "motion"
 import { useApp } from "../lib/store"
 import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
@@ -26,6 +27,7 @@ import { TypingRow } from "./ui/TypingRow"
 import { JumpToLatest } from "./ui/JumpToLatest"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
+import { createLightbox } from "../lightbox/lightbox"
 
 /**
  * What the shell knows about the reader's position. Everything the transcript
@@ -65,6 +67,13 @@ const PIN_SETTLE_MS = 400
  * kat's own landing mark works the same way.
  */
 const LANDING_MS = 1200
+
+/**
+ * How long the shared scroll-to-latest takes. Fast on purpose: both callers
+ * are decisions the reader has already made, so this is a snap that keeps the
+ * eye oriented, not a journey.
+ */
+const SCROLL_LATEST_MS = 180
 
 /** A row whose height changed under the reader's eyes, and where to undo it. */
 type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
@@ -112,7 +121,12 @@ const SCROLLER_CLASS =
  * it. It is a direct child of this element, so the child combinator is exact.
  */
 const COLUMN_CLASS =
-  "mx-auto flex w-full max-w-(--content-max-w) flex-col pt-12 " +
+  // `pb-12` is the composer's scrim height. Without it the last message lands
+  // inside the 48px band the composer fades above itself, so scrolling to the
+  // bottom of a thread would leave the newest message half-dissolved — the
+  // scrim is meant to soften content passing under the composer, not to dim
+  // the place a conversation ends.
+  "mx-auto flex w-full max-w-(--content-max-w) flex-col pt-12 pb-12 " +
   "[&>[data-component=chat-empty]]:flex " +
   "[&>[data-component=chat-empty]]:flex-col " +
   "[&>[data-component=chat-empty]]:items-center " +
@@ -178,6 +192,20 @@ export function VirtualThread(props: {
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
+  /**
+   * Controlled reply target. When this prop is supplied the transcript stops
+   * owning the reply and renders whatever the parent says; `null` means no
+   * reply. Leave it out and the transcript keeps its internal signal, which is
+   * what the harness relies on.
+   */
+  replyTarget?: string | null
+  /** Receives a stable jump function for the transcript's scroller. */
+  onJumpHandle?: (handle: {
+    /** Scroll to a message and mark where it landed. */
+    jumpToMessage: (messageId: string) => void
+    /** Scroll to the end without marking anything. */
+    scrollToLatest: () => void
+  }) => void
 }): JSX.Element {
   let scrollElement: HTMLDivElement | undefined
   let columnElement: HTMLDivElement | undefined
@@ -198,6 +226,18 @@ export function VirtualThread(props: {
     setReplyTarget(messageId)
     props.onReplyTarget(messageId)
   }
+
+  /**
+   * The reply the rows are marked against, controlled or not.
+   *
+   * The split is on `undefined`, not on `??`: `null` is a real answer here -
+   * it is how a parent says "clear the reply after sending" - so `??` would
+   * fall through to the internal signal on exactly the value that means no
+   * reply, and the composer could never dismiss its own bar.
+   */
+  const activeReply = createMemo<string | null>(() =>
+    props.replyTarget !== undefined ? props.replyTarget : replyTarget(),
+  )
 
   // Declared before every reader of it. Solid evaluates these memos eagerly
   // during the first render, so a signal read above its own declaration is a
@@ -259,6 +299,9 @@ export function VirtualThread(props: {
    */
   const [landed, setLanded] = createSignal<string | undefined>()
   let landingGeneration = 0
+  /** The in-flight scroll-to-latest, so a second call cancels the first. */
+  let scrollControls: { stop: () => void } | undefined
+  onCleanup(() => scrollControls?.stop())
   onCleanup(() => {
     landingGeneration += 1
   })
@@ -276,6 +319,16 @@ export function VirtualThread(props: {
     }, LANDING_MS)
     props.onJumpToMessage(messageId)
   }
+
+  /**
+   * Hand the parent the very function the rows already use to open a reply
+   * quote. Not a wrapper and not a second path: the scroll and the landing
+   * highlight are written in one place, and anything that jumped by another
+   * route would move the transcript without ever marking where it landed.
+   */
+  onMount(() => {
+    props.onJumpHandle?.({ jumpToMessage, scrollToLatest })
+  })
 
   /** The calendar asks for a day; the transcript answers with its first row. */
   const jumpToDay = (dayStart: number) => {
@@ -319,9 +372,31 @@ export function VirtualThread(props: {
     isAtLatest() ? 0 : Math.max(0, messageCount() - pinnedCount()),
   )
 
-  const jumpToLatest = () => {
+  /**
+   * The one scroll-to-latest, shared by the jump pill and by sending.
+   *
+   * Animated at 180ms rather than the browser's `behavior: "smooth"`: that
+   * curve is long enough to read as a journey, and both callers are things the
+   * reader has already decided on — the pill means "take me to the end", and
+   * sending means "I am done here". A snap that keeps the eye oriented is the
+   * whole job.
+   *
+   * Deliberately NOT `jumpToMessage`: that one also arms the landing highlight,
+   * which is right when you clicked a quote to go find a message and wrong when
+   * the message is one you just wrote. Routing the send through it flashed the
+   * highlight on every message sent.
+   */
+  const scrollToLatest = () => {
     if (!scrollElement) return
-    scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "auto" })
+    const element = scrollElement
+    scrollControls?.stop()
+    scrollControls = animate(element.scrollTop, Math.max(0, element.scrollHeight - element.clientHeight), {
+      duration: SCROLL_LATEST_MS / 1000,
+      ease: [0.23, 1, 0.32, 1],
+      onUpdate: (value) => {
+        element.scrollTop = value
+      },
+    })
   }
 
   let anchor: DriftAnchor | undefined
@@ -522,6 +597,17 @@ export function VirtualThread(props: {
   )
 
   /**
+   * One lightbox for the whole transcript, not one per row.
+   *
+   * It has to outlive the row that opened it: the transcript is virtualized, so
+   * a per-row viewer would be destroyed the moment its message scrolled out of
+   * the buffer, taking an open dialog with it. `menu.view` is per row for
+   * exactly the opposite reason — a menu belongs to one message and should die
+   * with it.
+   */
+  const lightbox = createLightbox()
+
+  /**
    * One message row: the swipe wrapper, the bubble, and the menu that belongs
    * to that specific message.
    *
@@ -557,11 +643,19 @@ export function VirtualThread(props: {
             isRunEnd={item.isRunEnd}
             hasRunGapBefore={item.hasRunGapBefore}
             highlighted={landed() === message.id}
+            replying={activeReply() === message.id}
+            /*
+             * Classified here, at the one place a row is built. The helper was
+             * imported and then never called, so `jumboClass` was always
+             * undefined and every emoji-only message drew an ordinary bubble:
+             * the jumbo sizes and the bare `ghost` variant were both in
+             * `MessageRow` and neither could ever be reached.
+             */
             jumboClass={jumboEmojiClass(message.body)}
-            replying={replyTarget() === message.id}
             onOpenReplyTarget={jumpToMessage}
             onReact={(emoji) => useApp.toggleReaction(message.id, emoji)}
             onContextMenu={menu.onContextMenu}
+            onOpenImage={lightbox.open}
           />
         </SwipeToReply>
         {menu.view}
@@ -656,12 +750,7 @@ export function VirtualThread(props: {
         showBottom={!isAtLatest()}
       />
 
-      <JumpToLatest
-        arrivals={arrivals()}
-        visible={!isAtLatest()}
-        onJump={jumpToLatest}
-      />
-
+      {lightbox.view}
     </div>
   )
 }

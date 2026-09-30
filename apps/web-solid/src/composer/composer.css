@@ -1,0 +1,446 @@
+/* Chat composer - the docked input row, its attachment strip and its inline
+ * reply bar, ported from chat.kat.ai.
+ *
+ * Every selector is scoped under `.composer-dock`. The names here
+ * (`.composer-row`, `.attachment-*`, `.reply-bar*`) are generic enough to
+ * collide with the sidebar and the transcript, and this file ships alongside
+ * both in one global namespace, so an unscoped rule would reach them.
+ *
+ * Colours come from `packages/ui/src/styles/kat.css` only - every value is a
+ * token or an `oklch(from var(--token) ...)` mix of one, never a literal.
+ *
+ * Three deliberate departures from kat:
+ *   1. no borders. In this token layer `--border` is literally `none`, so
+ *      kat's `border-color` declarations on the input wrap and the attach
+ *      button draw nothing. They are omitted rather than restated as dead
+ *      rules - see the note on `.composer-input-wrap` below, where the drop
+ *      is load-bearing because one of them names a token that does not
+ *      exist here.
+ *   2. motion only where kat has it: the send-press squash, the input
+ *      surface's own transition, and the reply bar's entrance. The input
+ *      growing is instant, and no hover colour outside kat's is animated.
+ *   3. all UI text we author is lowercase. */
+
+/* ===== Dock ------------------------------------------------------------ */
+
+/* The dock is a plain block at the bottom of the chat pane's column - NOT
+ * `position: absolute`. kat can anchor its composer to the viewport edge
+ * because kat's transcript area is positioned; our dock's ancestor chain
+ * (`.sidebar-shell` -> `[data-component="chat-shell"]` -> dock) contains
+ * nothing positioned, so absolute would resolve against the initial
+ * containing block and stretch the dock across the whole window. `relative` is
+ * here only to give `z-index: 5` something to resolve against. */
+.composer-dock {
+  position: relative;
+  z-index: 5;
+  width: 100%;
+  max-width: var(--content-max-w);
+  margin-right: auto;
+  margin-left: auto;
+  /* Opaque by declaration, not by luck — see "The seam" below. */
+  background: var(--bg);
+}
+
+/* No backdrop fade, deliberately, and this is a real departure from kat.
+ *
+ * kat's composer is `position: absolute` over the transcript, so its six-stop
+ * gradient is doing work: messages scroll UNDER it and the fade is what stops
+ * the last row being guillotined by the composer's edge.
+ *
+ * This dock is in flow. Nothing scrolls under it, so there is nothing to fade —
+ * and because the dock's surface and the transcript's are both `--bg`, there is
+ * no visible seam to soften either. Keeping the gradient would only dim the
+ * last message by 72px of nothing. The separation kat gets from the gradient it
+ * also gets from the input surface, which is `--input-bg` and reads as its own
+ * object without help. */
+
+/* `align-items: flex-end` is load-bearing: as the editor grows with newlines
+ * the two circles stay pinned to the bottom edge instead of riding up. */
+.composer-dock .composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 16px;
+}
+
+/* ===== The two circles ------------------------------------------------ */
+
+.composer-dock .composer-attach,
+.composer-dock .composer-send {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.composer-dock .composer-attach {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  transition: box-shadow var(--spring150-duration) var(--spring150-easing);
+}
+
+.composer-dock .composer-send {
+  background: var(--accent-fill);
+  color: var(--user-bubble-text);
+}
+
+.composer-dock .composer-attach:active:not(:disabled),
+.composer-dock .composer-send:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.composer-dock .composer-attach:disabled,
+.composer-dock .composer-send:disabled {
+  opacity: 0.35;
+}
+
+@media (hover: hover) {
+  .composer-dock .composer-attach:hover:not(:disabled) {
+    /* kat hovers this to `var(--input-border)`, a token that does not exist
+     * in this layer; `--input-bg` is the same intent - the fill the input
+     * surface is already painted - and it does resolve. Its
+     * `border-color: var(--accent)` is dropped: `--border` is `none`. */
+    background: var(--input-bg);
+    color: var(--text);
+  }
+}
+
+/* ===== Input surface -------------------------------------------------- */
+
+/* kat also sets `border-color` here on `:focus-within`
+ * (`color-mix(in oklch, var(--accent) 50%, var(--input-border) 50%)`) and on
+ * the attach button's hover (`var(--accent)`). Both are dropped: `--border` is
+ * `none` in this token layer so neither draws, and `--input-border` does not
+ * exist in kat.css at all - only `--input-bg` does. Restating the mix would
+ * resolve the missing half to an invalid colour and drop the whole property. */
+.composer-dock .composer-input-wrap {
+  --composer-radius: 20px;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 6px 14px;
+  background: var(--input-bg);
+  border-radius: var(--composer-radius);
+  cursor: text;
+  transform-origin: 100% 100%;
+  transition:
+    box-shadow var(--spring150-duration) var(--spring150-easing),
+    background 0.25s ease,
+    transform var(--spring325-bounce-duration) var(--spring325-bounce-easing);
+}
+
+/* Pressing send squashes the whole input surface, not just the button. */
+.composer-dock:has(.composer-send:active:not(:disabled)) .composer-input-wrap {
+  transform: scale(0.98, 0.96);
+}
+
+/* ===== The editor ----------------------------------------------------- */
+
+/* The editor is a contenteditable div, not a CodeMirror instance, so kat's
+ * `.cm-*` internals have no counterpart here - the rule is written against
+ * the element itself, and the element is its own scroller. */
+.composer-dock .composer-input {
+  min-width: 0;
+  max-height: 120px;
+  overflow: hidden auto;
+  flex: 1;
+  color: var(--text);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-base);
+  line-height: var(--line-height);
+  min-height: calc(var(--font-base) * var(--line-height));
+  cursor: text;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* The placeholder is a sibling overlay, not a `::before` on the editor: the
+ * editor carries a zero-width space in its own `::before` so a contenteditable
+ * never collapses, which means `:empty` is not the hook it looks like.
+ *
+ * Taken out of flow deliberately. Left in flow the placeholder is a second
+ * 20px line stacked under the editor inside the wrap, and the composer renders
+ * 53px tall at rest instead of kat's 32px — the input looks like a two-line
+ * box before a single character is typed.
+ *
+ * Anchored from the BOTTOM, not the top. The editor is the wrap's last in-flow
+ * child, so its bottom edge is the wrap's content bottom — whereas the top of
+ * the wrap is the reply bar when one is armed, and a `top: 6px` placeholder
+ * would print `message ada` straight through the quote. The placeholder only
+ * shows while the editor is empty, so it is always a single line and bottom
+ * anchoring always lands it on that line. */
+.composer-dock .composer-placeholder {
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  left: 14px;
+  color: var(--text-muted);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-base);
+  line-height: var(--line-height);
+  pointer-events: none;
+}
+
+/* ===== The seam -------------------------------------------------------- */
+
+/* No shadow above the composer, and no gradient either. Both were tried here
+ * and both were wrong.
+ *
+ * A `box-shadow` cast upward drew a dark band lying across the last message —
+ * a shadow has a hard near edge, so it never reads as depth. A gradient scrim
+ * is kat's own mechanism and was the second attempt, but it dimmed the newest
+ * messages: kat's composer FLOATS over the transcript, so its gradient has
+ * content passing beneath it to fade, and ours is in flow.
+ *
+ * kat in fact does neither, which the user settled by pointing at it. Its
+ * composer area is an OPAQUE surface — content that scrolls under it is
+ * covered, not faded, and the seam is simply where the cover ends. There is
+ * nothing to soften and nothing to fake.
+ *
+ * Here that happens for free: the dock is in flow, so the transcript ends where
+ * the composer begins and nothing is ever behind it. The background below is
+ * stated rather than assumed so the dock is opaque by declaration — if it ever
+ * becomes an overlay, the cover still holds and no scrim gets reinvented. */
+
+/* ===== Attachment strip ----------------------------------------------- */
+
+.composer-dock .attachment-strip {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px 6px;
+  overflow: auto visible;
+  scrollbar-width: none;
+}
+
+.composer-dock .attachment-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.composer-dock .attachment-chip {
+  position: relative;
+  display: flex;
+  height: 52px;
+  max-width: 180px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border-radius: calc(12px * var(--brm));
+  corner-shape: squircle;
+  font-size: var(--font-sm);
+}
+
+.composer-dock .attachment-chip[data-image] {
+  width: 52px;
+  padding: 0;
+}
+
+.composer-dock .attachment-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.composer-dock .attachment-file-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.composer-dock .attachment-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-dock .attachment-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ===== Inline reply bar ----------------------------------------------- */
+
+/* The bar sits inside the input wrap, above the input line.
+ *
+ * It has NO entrance animation, against kat, which slides it up on the
+ * spring250 curve. Arming a reply is the direct consequence of a gesture the
+ * reader just made — the bar is confirmation that the swipe landed, not a new
+ * surface arriving from elsewhere, and a quarter second of slide on something
+ * you have already done reads as the app lagging behind you.
+ *
+ * What it does have is the smallest transition that still counts as one, wired
+ * through `@starting-style` below. Because it is a transition rather than an
+ * `animation`, there is no separate clock to wait out and dismissing the bar
+ * does not animate at all — only appearing is acknowledged, and barely. */
+.composer-dock .reply-bar {
+  display: flex;
+  align-self: stretch;
+  margin: 0 -8px 6px;
+  overflow: hidden;
+  background: oklch(from var(--tint-strong) l c h / 30%);
+  border-radius: calc(var(--composer-radius) - 6px);
+  color: var(--text);
+  font-size: var(--font-sm);
+  cursor: default;
+  /* 70ms is under the ~100ms at which motion stops reading as immediate and
+   * starts reading as the app being busy; 3px is under the threshold at which
+   * movement is perceived as movement rather than as a surface settling. */
+  transition: opacity 70ms linear, translate 70ms linear;
+}
+
+@starting-style {
+  .composer-dock .reply-bar {
+    opacity: 0;
+    translate: 0 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-dock .reply-bar {
+    transition: none;
+  }
+}
+
+.composer-dock .reply-bar-jump {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  padding: 7px 0 7px 21px;
+  color: inherit;
+  background: 0 0;
+  border: 0;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* The accent bar that marks the bar as leading somewhere. */
+.composer-dock .reply-bar-jump::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 10px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 1.5px;
+  content: "";
+}
+
+.composer-dock .reply-bar-jump:where(:hover, :focus-visible) {
+  color: var(--text);
+}
+
+.composer-dock .reply-bar-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.composer-dock .reply-bar-role {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-dock .reply-bar-preview {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* An image reply puts its thumbnail inline before the text. */
+.composer-dock .reply-preview-line {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.composer-dock .reply-bar-dismiss {
+  display: flex;
+  width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-muted);
+  background: 0 0;
+  border: none;
+  cursor: pointer;
+}
+
+/* ===== Scroll down ---------------------------------------------------- */
+
+/* kat's `scroll-down`: a 34px circle floating just above the composer's right
+ * edge, in line with the send button rather than centred in the transcript.
+ *
+ * `bottom: calc(100% + 8px)` is measured from the dock's own top edge, so it
+ * clears the whole composer — the input row and, when one is armed, the
+ * attachment strip above it — instead of overlapping either.
+ *
+ * No shadow, against kat, which gives this button one. The user's rule for this
+ * whole seam is that nothing casts a shadow while the transcript is scrolled,
+ * and this button exists only while it is scrolled — so it is the one element
+ * the rule always applies to. The opaque fill is what separates it; it does not
+ * need lifting off the messages as well. */
+.composer-dock .composer-scroll-down {
+  position: absolute;
+  right: 16px;
+  bottom: calc(100% + 8px);
+  z-index: 6;
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: color-mix(in oklch, var(--tint) 60%, var(--bg));
+  border: none;
+  border-radius: 50%;
+}
+
+/* ===== Narrow --------------------------------------------------------- */
+
+@media (width <= 480px) {
+  .composer-dock .attachment-strip {
+    padding: 8px 10px 6px;
+  }
+}

@@ -16,3 +16,13 @@
 @import "tailwindcss";
 @import "@kiko/ui/v2/styles/tailwind.css";
 @import "@kiko/ui/kat.css";
+
+/* `FileIcon` has the same trap as `Icon`: it ships `file-icon.css`, which is
+ * what gives it its 16x16 box, and nothing on the load path imported it. An
+ * unsized `<svg>` in a flex row stretches to the row, so a PDF in the
+ * attachment strip rendered as a glyph a hundred pixels tall and pushed the
+ * chip's own layout apart. Imported at the app level, with `icon.css`, for the
+ * same reason: both belong to the package, not to whichever surface first
+ * needed an icon. */
+@import "@kiko/ui/icon.css";
+@import "@kiko/ui/file-icon.css";

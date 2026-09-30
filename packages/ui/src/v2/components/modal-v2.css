@@ -1,0 +1,73 @@
+/* ModalV2 — the modal shell's stacking, centring and scrim. Nothing else.
+ *
+ * CHROMELESS is the contract. `dialog-v2.css` hardcodes a 480x368 surface
+ * because a settings dialog has one obvious size; a lightbox, a media viewer
+ * and a confirmation each have a different one, and a shell that picks for
+ * them picks wrong every time. So the content rule below sets no width, no
+ * height, no max-width and no padding — the caller owns the box, and what
+ * separates a surface from the scrim behind it is a fill or a shadow, never a
+ * border (`--border` is `none` in this token layer).
+ *
+ * In `@layer v2` for the reason `hover-card-v2.css` and `menu-v2.css` give:
+ * unlayered, these rules outrank every utility a consumer aimed at the modal,
+ * so a caller's own sizing is silently discarded. */
+
+@layer v2 {
+  /* Above the sidebar (20), the resize handle (21), the sidebar edge (25),
+   * the hover card (50) and the menus and selects (60): a modal covers the
+   * app, it does not sit inside one of its panels. Deliberately BELOW the
+   * tooltip and toast band (1000) — a toast raised while a viewer is open is
+   * the one thing that should stay readable over it. */
+  [data-component="modal-v2-overlay"] {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: var(--v2-overlay-simple-overlay-scrim);
+  }
+
+  [data-component="modal-v2-content"] {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    /* One above the overlay so the scrim is unambiguously behind the content
+     * whatever order the two are mounted in. */
+    z-index: 71;
+    display: flex;
+    /* Centred by moving the box, not by insets, so a caller that later wants
+     * to animate `transform` has a single origin to compose with. */
+    transform: translate(-50%, -50%);
+    outline: none;
+  }
+
+  [data-component="modal-v2-content"]:focus-visible {
+    outline: none;
+  }
+
+  /* No entrance animation by default. A modal is a surface the reader is about
+   * to read, which is the last place to make them wait on a transition — the
+   * reason `menu-v2.css` and `hover-card-v2.css` give. The fade below exists
+   * for the viewer case only, where the surface covers the whole app and a
+   * hard cut reads as a glitch; opacity alone, no transform, so it cannot
+   * perturb anything that measures the box while it is animating. Gated on
+   * `no-preference` rather than neutralised under `reduce`, so the reduced
+   * path has nothing to switch off. */
+  @media (prefers-reduced-motion: no-preference) {
+    [data-component="modal-v2-overlay"][data-expanded] {
+      animation: modal-v2-fade 140ms ease-out;
+    }
+
+    [data-component="modal-v2-content"][data-expanded] {
+      animation: modal-v2-fade 140ms ease-out;
+    }
+  }
+}
+
+@keyframes modal-v2-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

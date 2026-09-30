@@ -124,4 +124,14 @@ export interface ComposerProps {
   bots: readonly RosterBot[];
   /** Disables send while a send is in flight. */
   busy?: boolean;
+  /**
+   * The message the composer is quoting, or null. Owned by the app rather than
+   * the composer, because the swipe gesture that arms a reply lives in the
+   * transcript and both surfaces have to agree on it.
+   */
+  replyTo?: ChatMessage | null;
+  /** Drop the reply, after a send or when the reader dismisses the bar. */
+  onClearReply?: () => void;
+  /** Scroll the transcript to the quoted message. */
+  onJumpToReply?: (messageId: string) => void;
 }

@@ -3,6 +3,7 @@ import { cn } from "../../lib/cn"
 import { useApp } from "../../lib/store"
 import type { ChatMessage, RosterBot } from "../../lib/types"
 import { LinkText } from "./LinkText"
+import { MessageImage } from "./MessageImage"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { RowTime } from "./RowTime"
@@ -71,6 +72,9 @@ export function MessageRow(props: {
   /** Toggles a reaction on this message. Omit it and the badges still render,
    *  they just do not respond to a click. */
   onReact?: (emoji: string) => void
+  /** Opens this message's image full-screen. Omit it and the picture still
+   *  renders, it just is not a button that goes anywhere. */
+  onOpenImage?: (image: { src: string; name: string }) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
   return (
@@ -172,6 +176,10 @@ export function MessageRow(props: {
               />
             )}
           </Show>
+          <MessageImage
+            image={props.message.image}
+            onOpen={(image) => props.onOpenImage?.(image)}
+          />
           <LinkText text={props.message.body} preview={props.message.linkPreview} />
         </BubbleContent>
         <ReactionStack

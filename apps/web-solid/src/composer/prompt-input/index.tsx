@@ -1,7 +1,6 @@
 import { createEffect, createMemo, createSignal, For, Show, type JSX } from "solid-js"
 import { FileIcon } from "@kiko/ui/file-icon"
 import { Icon } from "@kiko/ui/icon"
-import { IconButton } from "@kiko/ui/icon-button"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { ButtonV2 } from "@kiko/ui/v2/button-v2"
@@ -10,9 +9,7 @@ import { IconButtonV2 } from "@kiko/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@kiko/ui/v2/keybind-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { AttachmentCardV2 } from "../attachment-card-v2"
 import { CommentCardV2 } from "../comment-card-v2"
-import { typeLabel } from "../type-label"
 import type {
   PromptInputV2Attachment,
   PromptInputV2Comment,
@@ -43,6 +40,8 @@ export type PromptInputV2Props = {
   variantControlVisible?: boolean
   attachKeybind?: string[]
   attachShortcut?: string
+  /** Optional bar rendered at the top of the input surface, e.g. an active reply-to chip. */
+  reply?: JSX.Element
 }
 
 export function PromptInputV2(props: PromptInputV2Props) {
@@ -57,12 +56,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
     if (!editor || !window.getSelection()?.isCollapsed) return
     props.controller.onCursor(promptInputV2Cursor(editor))
   }
-  const mode = createMemo(() => state.mode)
-  const buttons = createMemo(() => ({
-    opacity: mode() === "normal" ? 1 : 0,
-    "pointer-events": mode() === "normal" ? ("auto" as const) : ("none" as const),
-    transition: "opacity 200ms ease",
-  }))
 
   createEffect(() => {
     const parts = props.controller.parts()
@@ -77,17 +70,24 @@ export function PromptInputV2(props: PromptInputV2Props) {
   })
 
   return (
-    <div class={`relative size-full flex flex-col gap-0 ${props.class ?? ""}`}>
+    <div class={`relative flex flex-col ${props.class ?? ""}`}>
       <input
         ref={props.controller.setFileInput}
         type="file"
         multiple
-        accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/*,application/json,application/ld+json,application/toml,application/x-toml,application/x-yaml,application/xml,application/yaml,.c,.cc,.cjs,.conf,.cpp,.css,.csv,.cts,.env,.go,.gql,.graphql,.h,.hh,.hpp,.htm,.html,.ini,.java,.js,.json,.jsx,.log,.md,.mdx,.mjs,.mts,.py,.rb,.rs,.sass,.scss,.sh,.sql,.toml,.ts,.tsx,.txt,.xml,.yaml,.yml,.zsh"
+        accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/*,application/json,application/toml,application/x-toml,application/x-yaml,application/xml,application/x-xml,.yaml,.yml,.csv,.tsv,.env,.gql,.graphql,.h,.hpp,.html,.ini,.java,.js,.json,.jsx,.log,.md,.mdx,.mjs,.mts,.py,.rb,.rs,.sass,.scss,.sh,.sql,.toml,.ts,.tsx,.txt,.vue,.yaml,.yml,.zsh,.go"
         class="hidden"
         onChange={(event) => {
-          const list = event.currentTarget.files
-          if (list) props.controller.addAttachments(Array.from(list))
+          const files = Array.from(event.currentTarget.files ?? [])
+          /*
+           * Cleared BEFORE handing the files on. The input keeps its selection
+           * after a change, and a change event only fires when the value
+           * actually differs — so without this, picking the same file twice in
+           * a row does nothing at all and reads as a broken button. The File
+           * objects are already captured above, so clearing loses nothing.
+           */
           event.currentTarget.value = ""
+          if (files.length > 0) props.controller.addAttachments(files)
         }}
       />
       <Show when={state.popover.type !== "closed"}>
@@ -113,7 +113,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
       <form
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
-        class="group/prompt-input flex w-full items-center gap-2"
+        class="flex flex-col"
         classList={{
           "border border-v2-icon-icon-info border-dashed": state.drag === "active",
         }}
@@ -126,160 +126,103 @@ export function PromptInputV2(props: PromptInputV2Props) {
         onDragLeave={props.controller.onDragLeave}
         onDrop={props.controller.onDrop}
       >
-        <div
-          data-component="prompt-input-box"
-          class="relative min-w-0 flex-1 rounded-xl bg-v2-background-bg-base px-3.5 py-3.5"
-          classList={{
-            "shadow-[var(--v2-elevation-raised)]": !props.borderUnderlay,
-          }}
-        >
-          <Show when={state.drag === "active"}>
-            <div class="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-xl bg-v2-background-bg-base/90 text-v2-text-text-base">
-              {i18n.t("ui.promptInput.dropFiles")}
-            </div>
-          </Show>
+        <Show when={state.mode === "normal"}>
+          <PromptInputV2Attachments
+            attachments={props.controller.attachments()}
+            comments={props.controller.comments()}
+            activeCommentID={state.activeContextID}
+            removeLabel={i18n.t("ui.promptInput.removeAttachment")}
+            onAttachmentClick={props.controller.openAttachment}
+            onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
+            onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
+            onCommentRemove={(item) => props.controller.removeContext(item.key)}
+          />
+        </Show>
 
-          <Show when={state.mode === "normal"}>
-            <PromptInputV2Attachments
-              attachments={props.controller.attachments()}
-              comments={props.controller.comments()}
-              activeCommentID={state.activeContextID}
-              removeLabel={i18n.t("ui.promptInput.removeAttachment")}
-              onAttachmentClick={props.controller.openAttachment}
-              onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
-              onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
-              onCommentRemove={(item) => props.controller.removeContext(item.key)}
-            />
-          </Show>
+        <div class="composer-row">
+          <button
+            type="button"
+            class="composer-attach"
+            disabled={state.mode === "shell"}
+            title={i18n.t("ui.promptInput.add")}
+            onClick={() => props.controller.attach()}
+          >
+            <IconV2 name="plus" class="size-4" />
+          </button>
 
-          <div class="flex items-start gap-2.5">
+          <div
+            data-component="prompt-input-box"
+            class="composer-input-wrap"
+          >
+            <Show when={state.drag === "active"}>
+              <div class="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-xl bg-v2-background-bg-base/90 text-v2-text-text-base">
+                {i18n.t("ui.promptInput.dropFiles")}
+              </div>
+            </Show>
+
+            {props.reply}
+
             <div
-              class="flex shrink-0 items-center gap-1"
-              aria-hidden={state.mode === "shell"}
-              inert={state.mode === "shell" ? true : undefined}
-              style={buttons()}
-            >
-              <PromptInputV2AddMenu
-                disabled={state.mode === "shell"}
-                title={i18n.t("ui.promptInput.add")}
-                keybind={props.attachKeybind ?? ["Mod", "U"]}
-                attachLabel={i18n.t("ui.promptInput.attachments")}
-                attachShortcut={props.attachShortcut ?? "Mod+U"}
-                commandsLabel={i18n.t("ui.promptInput.commands")}
-                contextLabel={i18n.t("ui.promptInput.context")}
-                shellLabel={i18n.t("ui.promptInput.shell")}
-                onAttach={props.controller.attach}
-                onCommands={props.controller.openCommands}
-                onContext={props.controller.openContext}
-                onShell={props.controller.openShell}
-              />
-              <Show when={view.agent} keyed>
-                {(control) => (
-                  <PromptInputV2ConfiguredSelect
-                    title={i18n.t("ui.promptInput.chooseAgent")}
-                    keybind={["Mod", "."]}
-                    control={control}
-                  />
-                )}
-              </Show>
-              <Show
-                when={props.modelControl}
-                fallback={
-                  <Show when={view.model} keyed>
-                    {(control) => (
-                      <PromptInputV2ConfiguredSelect
-                        title={i18n.t("ui.promptInput.chooseModel")}
-                        keybind={["Mod", "M"]}
-                        control={control}
-                        model
-                      />
-                    )}
-                  </Show>
+              ref={(element) => {
+                editor = element
+                props.controller.setEditor(element)
+                renderPromptInputV2Editor(element, props.controller.parts())
+              }}
+              data-component="prompt-input"
+              role="textbox"
+              aria-multiline="true"
+              aria-label={i18n.t("ui.promptInput.label")}
+              contenteditable={!props.disabled && !props.readOnly}
+              autocapitalize={state.mode === "normal" ? "sentences" : "off"}
+              autocorrect={state.mode === "normal" ? "on" : "off"}
+              spellcheck={state.mode === "normal"}
+              // @ts-expect-error
+              autocomplete="off"
+              class="composer-input focus:outline-none empty:before:content-['\200B'] [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+              classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
+              onInput={(event) => {
+                const cursor = promptInputV2Cursor(event.currentTarget)
+                const prompt = parsePromptInputV2Editor(event.currentTarget)
+                const images = props.controller.parts().filter((part) => part.type === "image")
+                localInput = true
+                setBlank(!event.currentTarget.textContent)
+                props.controller.onInput(prompt.map((part) => part.content).join(""), [...prompt, ...images], cursor)
+              }}
+              onKeyDown={(event) => {
+                if (props.controller.onKeyDown(event)) return
+                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                  event.preventDefault()
+                  if (event.repeat) return
+                  props.controller.submit()
                 }
-              >
-                {props.modelControl}
-              </Show>
-              <Show when={(props.variantControlVisible ?? true) && view.variant} keyed>
-                {(control) => (
-                  <Show when={control.options().length > 1}>
-                    <PromptInputV2ConfiguredSelect
-                      title={i18n.t("ui.promptInput.chooseVariant")}
-                      keybind={["Shift", "Mod", "D"]}
-                      control={control}
-                    />
-                  </Show>
-                )}
-              </Show>
-            </div>
-
-            <div class="relative min-w-0 flex-1">
-              <div
-                ref={(element) => {
-                  editor = element
-                  props.controller.setEditor(element)
-                  renderPromptInputV2Editor(element, props.controller.parts())
-                }}
-                data-component="prompt-input"
-                role="textbox"
-                aria-multiline="true"
-                aria-label={i18n.t("ui.promptInput.label")}
-                contenteditable={!props.disabled && !props.readOnly}
-                autocapitalize={state.mode === "normal" ? "sentences" : "off"}
-                autocorrect={state.mode === "normal" ? "on" : "off"}
-                spellcheck={state.mode === "normal"}
-                // @ts-expect-error
-                autocomplete="off"
-                class="relative z-10 block max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent text-[16px] font-[440] leading-7 text-v2-text-text-base focus:outline-none empty:before:content-['\200B'] [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
-                classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
-                onInput={(event) => {
-                  const cursor = promptInputV2Cursor(event.currentTarget)
-                  const prompt = parsePromptInputV2Editor(event.currentTarget)
-                  const images = props.controller.parts().filter((part) => part.type === "image")
-                  localInput = true
-                  setBlank(!event.currentTarget.textContent)
-                  props.controller.onInput(prompt.map((part) => part.content).join(""), [...prompt, ...images], cursor)
-                }}
-                onKeyDown={(event) => {
-                  if (props.controller.onKeyDown(event)) return
-                  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-                    event.preventDefault()
-                    if (event.repeat) return
-                    props.controller.submit()
-                  }
-                }}
-                onKeyUp={() => {
-                  syncBlank()
-                  updateCursor()
-                }}
-                onPointerUp={() => {
-                  syncBlank()
-                  updateCursor()
-                }}
-                onPaste={props.controller.onPaste}
-                onFocus={() => props.controller.dispatch({ type: "focus.editor" })}
-              />
-              <Show when={blank()}>
-                <div
-                  class="pointer-events-none absolute inset-x-0 top-0 text-[16px] font-[440] leading-7 text-v2-text-text-faint"
-                  classList={{ "font-mono!": state.mode === "shell" }}
-                >
-                  {view.placeholder?.() ?? i18n.t("ui.promptInput.label")}
-                </div>
-              </Show>
-            </div>
-
-            <div class="flex shrink-0 items-center">
-              <PromptInputV2SubmitButton
-                mode={state.mode}
-                stopping={view.submit.stopping()}
-                disabled={!props.controller.canSubmit()}
-                sendLabel={i18n.t("ui.promptInput.send")}
-                stopLabel={i18n.t("ui.promptInput.stop")}
-                onSubmit={props.controller.submit}
-                onStop={props.controller.stop}
-              />
-            </div>
+              }}
+              onKeyUp={() => {
+                syncBlank()
+                updateCursor()
+              }}
+              onPointerUp={() => {
+                syncBlank()
+                updateCursor()
+              }}
+              onPaste={props.controller.onPaste}
+              onFocus={() => props.controller.dispatch({ type: "focus.editor" })}
+            />
+            <Show when={blank()}>
+              <div class="composer-placeholder" classList={{ "font-mono!": state.mode === "shell" }}>
+                {view.placeholder?.() ?? i18n.t("ui.promptInput.label")}
+              </div>
+            </Show>
           </div>
+
+          <PromptInputV2SubmitButton
+            mode={state.mode}
+            stopping={view.submit.stopping()}
+            disabled={!props.controller.canSubmit()}
+            sendLabel={i18n.t("ui.promptInput.send")}
+            stopLabel={i18n.t("ui.promptInput.stop")}
+            onSubmit={props.controller.submit}
+            onStop={props.controller.stop}
+          />
         </div>
       </form>
     </div>
@@ -434,7 +377,7 @@ export function PromptInputV2Attachments(props: {
           }}
           data-slot="prompt-attachments-scroll"
           onScroll={syncEdges}
-          class="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar px-2 pt-2 pb-1"
+          class="attachment-strip"
         >
           <For each={props.comments ?? []}>
             {(comment) => (
@@ -465,36 +408,50 @@ export function PromptInputV2Attachments(props: {
             )}
           </For>
           <For each={props.attachments}>
-            {(attachment) => (
-              <div class="relative group shrink-0">
+            {(attachment) => {
+              const isImage = () => attachment.mime.startsWith("image/")
+              return (
+                /* The tooltip wraps the chip rather than living inside it: its
+                 * trigger is a wrapper element, and a wrapper inside the chip
+                 * would become the flex item that kat's `gap: 6px` measures
+                 * between the icon and the name. */
                 <TooltipV2 value={attachment.filename} placement="top" contentClass="break-all">
-                  <Show
-                    when={attachment.mime.startsWith("image/")}
-                    fallback={
-                      <AttachmentCardV2 title={attachment.filename}>
-                        {typeLabel(attachment.filename, attachment.mime, i18n.t("ui.common.file"))}
-                      </AttachmentCardV2>
-                    }
+                  <div
+                    class="attachment-chip"
+                    data-component="composer-attachment"
+                    data-image={isImage() ? "" : undefined}
                   >
-                    <img
-                      src={attachment.blob.url}
-                      alt={attachment.filename}
-                      class="w-[58px] h-[46px] rounded-[6px] object-cover"
-                      onClick={() => props.onAttachmentClick?.(attachment)}
-                    />
-                    <div class="absolute inset-0 rounded-[6px] shadow-[inset_0_0_0_0.5px_var(--v2-border-border-base)] pointer-events-none" />
-                  </Show>
+                    <Show
+                      when={isImage()}
+                      fallback={
+                        <>
+                          <FileIcon
+                            node={{ path: attachment.filename, type: "file" }}
+                            class="attachment-file-icon"
+                          />
+                          <span class="attachment-filename">{attachment.filename}</span>
+                        </>
+                      }
+                    >
+                      <img
+                        src={attachment.blob.url}
+                        alt={attachment.filename}
+                        class="attachment-thumb"
+                        onClick={() => props.onAttachmentClick?.(attachment)}
+                      />
+                    </Show>
+                    <button
+                      type="button"
+                      class="attachment-remove"
+                      onClick={() => props.onAttachmentRemove(attachment)}
+                      aria-label={props.removeLabel}
+                    >
+                      <IconV2 name="outline-xmark" />
+                    </button>
+                  </div>
                 </TooltipV2>
-                <button
-                  type="button"
-                  onClick={() => props.onAttachmentRemove(attachment)}
-                  class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label={props.removeLabel}
-                >
-                  <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
-                </button>
-              </div>
-            )}
+              )
+            }}
           </For>
         </div>
         <div
@@ -730,18 +687,12 @@ export function PromptInputV2SubmitButton(props: {
       inactive={!props.stopping && props.disabled}
       value={props.stopping ? props.stopLabel : props.sendLabel}
     >
-      <IconButton
+      <button
         data-action="prompt-submit"
         type="button"
         disabled={!props.stopping && props.disabled}
         tabIndex={props.mode === "normal" ? undefined : -1}
-        icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
-        variant="primary"
-        class="size-8 rounded-lg p-2 text-v2-icon-icon-muted shadow-[var(--v2-elevation-button-contrast)] disabled:opacity-50"
-        style={{
-          "background-image":
-            "linear-gradient(180deg,var(--v2-alpha-light-20) 0%,var(--v2-alpha-light-0) 100%),linear-gradient(90deg,var(--v2-background-bg-contrast) 0%,var(--v2-background-bg-contrast) 100%)",
-        }}
+        class="composer-send"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()
@@ -752,13 +703,18 @@ export function PromptInputV2SubmitButton(props: {
           }
           props.onSubmit()
         }}
-      />
+      >
+        <Icon
+          name={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
+          size="small"
+        />
+      </button>
     </TooltipV2>
   )
 }
 
 function PromptInputV2SuggestionIcon(props: { item: PromptInputV2Suggestion }) {
-  if (props.item.kind === "agent") return <Icon name="brain" size="small" class="shrink-0 text-icon-info-active" />
+  if (props.item.kind === "agent") return <Icon name="brain" size="small" class="shrink-0 text-weak" />
   if (props.item.kind === "command") return null
   return (
     <FileIcon

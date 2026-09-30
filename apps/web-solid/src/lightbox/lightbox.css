@@ -1,0 +1,199 @@
+/* The full-screen image viewer. Ported from t3code's lightbox surface, restyled
+ * in this app's token layer.
+ *
+ * Every selector is scoped under `.lightbox`. `.lightbox` is the modal content
+ * and it only exists while a viewer is open, but the rest of these names
+ * (`-caption`, `-bar`, `-button`) are generic enough to collide with the
+ * transcript and the composer, and this file ships alongside both in one global
+ * namespace, so an unscoped rule would reach them.
+ *
+ * Colours come from `packages/ui/src/styles/kat.css` only — every value is a
+ * token or an `oklch(from var(--token) …)` mix of one, never a literal.
+ *
+ * No borders anywhere. `--border` is literally `none` in this token layer, so a
+ * `border` declaration here would draw nothing; the surface is separated from
+ * the scrim by its own fill and by the shadow, and the controls by their
+ * fill. */
+
+/* ===== Modal surface --------------------------------------------------- */
+
+/* `.lightbox` IS the modal content, and `modal-v2.css` leaves width, height,
+ * max-width and padding to the caller. That is why this rule owns all four.
+ *
+ * The scrim behind it comes from `ModalV2.Overlay`, so this box can stay the
+ * size of what it shows — an image at fit, or an image zoomed past the window.
+ * `overflow: hidden` keeps a zoomed image from painting its scrollbars over
+ * the caption and the bar. */
+.lightbox {
+  display: flex;
+  max-width: 100vw;
+  max-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  overflow: hidden;
+  border-radius: calc(18px * var(--brm));
+  corner-shape: squircle;
+  box-shadow: var(--v2-elevation-overlay);
+}
+
+/* ===== Caption --------------------------------------------------------- */
+
+/* The dialog's accessible name, so it is real text and not `sr-only`: a viewer
+ * with an image and no filename on it is a viewer you cannot tell what you are
+ * looking at. `text-overflow` rather than a wrap because a long filename must
+ * not push the image down the viewport. */
+.lightbox .lightbox-caption {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-sm);
+  line-height: var(--line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== The viewport ---------------------------------------------------- */
+
+/* The scroll container and the thing being panned. Its width and height are
+ * written inline from the fit calculation — that is the DESIRED size, and the
+ * two `max-*` below are what clamp it, which is why this rule sets neither.
+ *
+ * The clamps are the measured fit formula, in CSS: `min(86vh, 100vh - 160px)`
+ * tall, and `92vw` less a 96px gutter past 640px. Without them the box grows
+ * with the zoom and simply leaves the window — still no scroll range, so still
+ * no pan and no pointer anchor on that axis, and a wide image zoomed in is
+ * cropped by the modal with nothing to drag it back with. Clamped, the box is
+ * the window and the picture is what overflows it, which is what makes both
+ * axes pannable.
+ *
+ * `overscroll-contain` stops a flick at the end of the image from chaining out
+ * to the page behind the modal. */
+.lightbox .lightbox-viewport {
+  max-width: min(92vw, calc(92vw - 96px));
+  max-height: min(86vh, calc(100vh - 160px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: calc(8px * var(--brm));
+  background: var(--bg-subtle);
+  box-shadow: var(--v2-elevation-raised);
+  cursor: zoom-in;
+  outline: none;
+}
+
+.lightbox .lightbox-viewport:focus-visible {
+  box-shadow:
+    var(--v2-elevation-raised),
+    0 0 0 2px var(--accent);
+}
+
+.lightbox .lightbox-viewport--zoomed {
+  cursor: grab;
+}
+
+/* `grabbing` while a drag is live. The attribute, not a `:active` rule: the
+ * pointer is captured by the viewport, so `:active` on it is unreliable, and a
+ * cursor that keeps saying `grab` through a pan reads as a dropped drag. */
+.lightbox .lightbox-viewport[data-dragging] {
+  cursor: grabbing;
+}
+
+/* The image fills the viewport exactly, so the scroll box and the picture are
+ * the same rectangle and a drag that starts on one is a drag on the other.
+ * `user-select: none` keeps a fast drag from selecting the picture. */
+.lightbox .lightbox-image {
+  display: block;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* ===== Zoom readout ---------------------------------------------------- */
+
+/* The zoom level, announced politely as it changes. Visually hidden: the
+ * control bar already shows what a click on any of its three buttons would do,
+ * and a percentage ticking between 100% and 800% is noise to a sighted reader
+ * in the middle of a picture. */
+.lightbox .lightbox-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
+}
+
+/* ===== Control bar ----------------------------------------------------- */
+
+.lightbox .lightbox-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-raised);
+  border-radius: calc(12px * var(--brm));
+  corner-shape: squircle;
+  box-shadow: var(--v2-elevation-floating);
+}
+
+/* The close button is last in the bar and separated from the zoom trio by a
+ * wider gap, because it is the one control that ends the session rather than
+ * changing the view. Separation is spacing and a fill here — `--border` is
+ * `none`, so a divider rule would draw nothing. */
+.lightbox .lightbox-button {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: calc(8px * var(--brm));
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  /* The only transition in this file. Neutralised under `reduce` at the foot
+   * of the sheet, so the reduced-motion path has it switched off, not merely
+   * shortened. */
+  transition: box-shadow var(--spring150-duration) var(--spring150-easing);
+}
+
+.lightbox .lightbox-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.lightbox .lightbox-button--close {
+  margin-left: 4px;
+}
+
+@media (hover: hover) {
+  .lightbox .lightbox-button:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg-subtle);
+  }
+}
+
+.lightbox .lightbox-button:active:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.lightbox .lightbox-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* No entrance animation on the viewer. The image appearing IS the event, and
+ * the shell's own fade is the only motion this surface adds; a transition on
+ * the viewer would land the controls after the picture the reader came for.
+ * The button fill is tweened because it answers a hover, which is motion the
+ * reader never has to wait on. */
+@media (prefers-reduced-motion: reduce) {
+  .lightbox .lightbox-button {
+    transition: none;
+  }
+}
