@@ -41,7 +41,7 @@ Every value that changes has exactly one thing responsible for it. A fixture mod
 
 ### 5. The design system is enforced
 
-Kiko owns its visual language. Colour, spacing, radius, border and type are tokens, and a raw value where a token exists is a defect. The role names resolve through `packages/ui/src/styles/kiko.css`, so a slice writes `bg-sidebar` and never `var(--kiko-sidebar)`. Tokens over literals is the difference between a theme we can change and one we cannot.
+Kiko owns its visual language. Colour, spacing, radius, border and type are tokens, and a raw value where a token exists is a defect. The role names resolve through `packages/ui/src/styles/kat.css`, so a slice writes `bg-surface-raised` and never names a token in its class attribute. Tokens over literals is the difference between a theme we can change and one we cannot.
 
 ## A note from Keyur
 
@@ -110,10 +110,8 @@ apps/web-solid/            the app, and the only one we build in
   src/<slice>/             one directory per slice, one owner each
   OWNERSHIP.md             who writes what
 packages/ui/               @kiko/ui, the design system
-  src/theme/               the opencode theme engine
-  src/app-theme/           the T3 role layer
   src/v2/                  the opencode v2 components
-  src/styles/kiko.css      the Kiko token bridge
+  src/styles/kat.css       the kat token layer — the only theme
 docs/                      the plan, the port, the decisions behind them
 refs/                      gitignored reference repos
 ```

@@ -14,7 +14,11 @@ let the slices pick it up.
 | `src/lib/types.ts` | Domain types and every slice's props |
 | `src/lib/fixtures.ts` | Static v1 data |
 | `src/lib/store.ts` | Shared state: selection, messages, bots |
-| `src/styles/kiko.css` | Token bridge (in `packages/ui`) |
+
+Tokens are owned by the design system, not by a slice: every colour, radius
+and type step is declared once in `packages/ui/src/styles/kat.css` and reaches
+components as Tailwind utilities. A slice never writes a raw colour and never
+edits that file.
 
 ## Slice-owned
 
@@ -24,13 +28,12 @@ Each slice owns its whole directory. Nothing here is edited by another slice.
 | --- | --- | --- |
 | Chat | `chat` | `src/chat/**` |
 | Composer | `composer` | `src/composer/**` |
-| Sidebar | `sidebar` | `src/sidebar/**` |
 
 CSS is per-slice for the same reason: `chat.css` in `src/chat/`, and so on.
-Three slices writing one stylesheet is a three-way merge on every visual tweak.
+Two slices writing one stylesheet is a two-way merge on every visual tweak.
 
 ## The one file nobody owns
 
-`src/main.tsx` composes the three. It is edited once, on `main`, after the
+`src/main.tsx` composes the slices. It is edited once, on `main`, after the
 slices land — not during. A slice that needs a new prop on the composition
 raises it rather than reaching for the file.

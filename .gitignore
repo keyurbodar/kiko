@@ -2,13 +2,15 @@
 refs/
 solid-refs/
 
+# Decision trail for the port. Local only.
+.audit/
+
 # Dependencies and build output.
 node_modules/
 dist/
 
 # Verification artifacts.
 artifacts/
-.audit/
 
 # Editor and agent tool state. AGENTS.md itself is tracked.
 *.swp

@@ -1,17 +1,17 @@
 @import "tailwindcss";
-@import "@kiko/ui/theme.css";
 @import "@kiko/ui/v2/styles/tailwind.css";
-@import "@kiko/ui/kiko.css";
+@import "@kiko/ui/kat.css";
 
 @layer components {
   .app-shell {
     display: flex;
     height: 100dvh;
     overflow: hidden;
-    background: var(--kiko-canvas);
+    background: var(--bg);
   }
 
   .app-shell > .chat-shell {
+    display: grid;
     min-width: 0;
     flex: 1;
     /* Three rows: top bar, transcript, composer dock. The transcript keeps
@@ -21,18 +21,18 @@
 
   /* The shell is one grid column, and a grid item defaults to
      `min-width: auto` — it refuses to shrink below its content. Both rows
-     carry a 768px column that cannot shrink to fit, so without this the
+     carry a content column that cannot shrink to fit, so without this the
      transcript and the dock both overflow a narrow shell instead of
      narrowing with it. */
   .app-shell > .chat-shell > * {
     min-width: 0;
   }
 
-  /* Mirrors .chat-column so the entry box lines up with the messages above
-     it rather than running the full width of the shell. */
+  /* Mirrors the transcript column so the entry box lines up with the
+     messages above it rather than running the full width of the shell. */
   .composer-dock {
     width: 100%;
-    max-width: 768px;
+    max-width: var(--content-max-w);
     margin: 0 auto;
     padding: 0 20px 16px;
   }

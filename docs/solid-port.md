@@ -12,10 +12,8 @@ apps/web-solid/           the rewrite, and the only app we build in
   src/<slice>/            one directory per slice, one owner each
   OWNERSHIP.md            who writes what
 packages/ui/              @kiko/ui, the design system
-  src/theme/              the opencode theme engine, unmodified
-  src/app-theme/          the T3 role layer, unmodified
   src/v2/                 the opencode v2 components, unmodified
-  src/styles/kiko.css     the Kiko token bridge — ours
+  src/styles/kat.css      the kat token layer — ours, the only theme
 docs/                     this, plan, tech-stack
 ```
 
@@ -57,7 +55,7 @@ for a feature the plan excludes.
 **Formatter.** `prettier` removed from the app; it was a runtime dependency
 where formatters belong to the toolchain.
 
-Kept: `blobatar`, `date-fns`, `sugar-high`, `remark-gfm`, `remark-breaks`,
+Kept: `date-fns`, `sugar-high`, `remark-gfm`, `remark-breaks`,
 `class-variance-authority`, `clsx`, `tailwind-merge`, `@tailwindcss/vite`.
 
 ## Net effect
@@ -68,50 +66,51 @@ editor stack alone outweighs the entire framework swap.
 
 ## Theming
 
-Three layers, and the order is the whole point.
+One layer: **`packages/ui/src/styles/kat.css`**. It replaces the old
+three-layer `theme/` + `app-theme/` + `kiko.css` stack, all of which is gone.
 
-1. **`packages/ui/src/theme/`** — the opencode engine. Emits
-   `--text-weak`, `--background-base` and friends. Unmodified upstream copy.
-2. **`packages/ui/src/app-theme/`** — the T3 role layer. Takes a theme JSON,
-   resolves 57 role names against user settings, and writes `--kiko-*` vars.
-   Also unmodified; the two names coexist deliberately, since the v2 components
-   still need the v1 set.
-3. **`packages/ui/src/styles/kiko.css`** — ours. The bridge: one `--radius`
-   base with a `calc()` ladder, dense type steps, and `@theme inline`
-   registration of the role vars as Tailwind utilities.
+The palette is split the way kat splits it — lightness and chroma in one
+place, hue in one place — so the whole app is recoloured by editing `--hue`:
 
-Import order matters, and it is the reverse of what the layers suggest:
+```css
+:root {
+  --cm: 1;
+  --hue: 340;
+  --bg: oklch(0.22 0.05 calc(var(--hue) * 1deg));
+  /* …every other role… */
+}
+```
+
+Roles are registered as Tailwind utilities through an `@theme inline` block,
+so a component writes `class="bg-surface-raised text-weak"` and never names a
+token in its markup. The same file re-points the vendored `--v2-*` set at the
+new roles, which is what keeps the composer's opencode components from
+rendering colourless.
 
 ```css
 @import "tailwindcss";
-@import "@kiko/ui/theme.css";
 @import "@kiko/ui/v2/styles/tailwind.css";
-@import "@kiko/ui/kiko.css";
+@import "@kiko/ui/kat.css";
 ```
 
-Slices write `class="bg-sidebar text-foreground rounded-lg"`, never
-`var(--kiko-sidebar)`. A theme swap then repaints the app with no stylesheet
-change, which is the point of the layer.
+There is no light theme. `--border` is `none` everywhere and hairlines are
+painted as `box-shadow: 0 0 0 0.5px …`, so separation comes from shadow or
+fill rather than a border.
 
-Two traps worth knowing before they bite:
-
-- `text-*` is one namespace for both font-size and colour. A colour named
-  `--color-text-muted` silently turns `text-code` into a background. Ours is
-  `--color-weak`, and a new colour has to be checked against the size names
-  first.
-- The radius ladder is unlayered in `:root` and must stay that way. `@theme`
-  lands in Tailwind's theme layer, and unlayered declarations beat layered ones
-  regardless of source order — `theme.css`'s flat values would win otherwise.
+One trap worth knowing before it bites: `text-*` is one namespace for both
+font-size and colour. A colour named `--color-text-muted` silently turns
+`text-code` into a background. Ours is `--color-weak`, and a new colour has
+to be checked against the size names first.
 
 ## The slices
 
-`chat`, `composer`, `sidebar`. One git worktree each, one directory each, one
+`chat`, `composer`. One git worktree each, one directory each, one
 CSS file each. They run side by side against the frozen contract in
 `src/lib/types.ts` and share nothing else. `apps/web-solid/OWNERSHIP.md` is the
 authority; `src/main.tsx` is the one file nobody edits while they run.
 
 A slice that finds a type wrong changes it on `main` and lets the others pull.
-Three divergent contracts is the same dropped-work failure as an unowned file.
+Two divergent contracts is the same dropped-work failure as an unowned file.
 
 ## What does not change
 

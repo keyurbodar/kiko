@@ -1,0 +1,19 @@
+// Barrel for the pieces the app composes at the root. Everything else is
+// still imported through its own subpath export (`@kiko/ui/v2/*`,
+// `@kiko/ui/context/*`) so a consumer pulls only what it renders.
+
+export { FileIcon } from "./components/file-icon"
+export { Icon } from "./components/icon"
+export { IconButton } from "./components/icon-button"
+export { ProviderIcon } from "./components/provider-icon"
+
+export { ButtonV2 } from "./v2/components/button-v2"
+export { Icon as IconV2 } from "./v2/components/icon"
+export { IconButtonV2 } from "./v2/components/icon-button-v2"
+export { KeybindV2 } from "./v2/components/keybind-v2"
+export { MenuV2 } from "./v2/components/menu-v2"
+export { TooltipV2 } from "./v2/components/tooltip-v2"
+
+export { useFilteredList } from "./hooks"
+export { I18nProvider, useI18n } from "./context/i18n"
+export type { UiI18n, UiI18nKey } from "./context/i18n"

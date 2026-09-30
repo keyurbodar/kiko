@@ -1,0 +1,1020 @@
+/* =============================================================================
+   kat.css — Kiko's token system.
+
+   Structure follows kat's `tokens.css` foundation: self-hosted fonts, an OKLCH
+   palette split into a lightness/chroma scale, `@property` registrations that
+   make the roles interpolable, a derived layer that recomposes each role, the
+   Tailwind bridge, and a base reset.
+
+   The palette is DARK ONLY. There is no light variant, no
+   `prefers-color-scheme` block and no `data-theme` switch — `:root` carries the
+   single theme.
+
+   Load order: this file FIRST, before any component stylesheet.
+
+   Two rules govern everything below:
+
+   1. No borders. `--border` and its siblings are `none`; separation comes from
+      a shadow or a fill. A component that asks for a border draws nothing.
+   2. Token names never appear in a class attribute. Components consume the
+      Tailwind utilities registered in section 5, which resolve to these vars.
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------------
+   1. Self-hosted fonts
+   -------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/DiVDrmQJ.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/FCBEiFp6.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fantasque Sans Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Y3td2gRp.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Fantasque Sans Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/hWqxyCs0.woff2") format("woff2");
+}
+
+@font-feature-values InterVariable {
+  @character-variant {
+    cv01: 1;
+    cv02: 2;
+    cv03: 3;
+    cv04: 4;
+    cv05: 5;
+    cv06: 6;
+    cv07: 7;
+    cv08: 8;
+    cv09: 9;
+    cv10: 10;
+    cv11: 11;
+    cv12: 12;
+    cv13: 13;
+    alt-1: 1;
+    alt-3: 9;
+    open-4: 2;
+    open-6: 3;
+    open-9: 4;
+    lc-l-with-tail: 5;
+    simplified-u: 6;
+    alt-double-s: 7;
+    uc-i-with-serif: 8;
+    uc-g-with-spur: 10;
+    single-story-a: 11;
+    compact-lc-f: 12;
+    compact-lc-t: 13;
+  }
+  @styleset {
+    ss01: 1;
+    ss02: 2;
+    ss03: 3;
+    ss04: 4;
+    ss05: 5;
+    ss06: 6;
+    ss07: 7;
+    ss08: 8;
+    open-digits: 1;
+    disambiguation: 2;
+    disambiguation-except-zero: 4;
+    round-quotes-and-commas: 3;
+    square-punctuation: 7;
+    square-quotes: 8;
+    circled-characters: 5;
+    squared-characters: 6;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   2. Theme lightness / chroma scales
+
+   Every colour is an OKLCH triple split into a lightness and a chroma custom
+   property, recombined by the derived layer in section 4:
+
+       --l-<role>: <lightness 0..1>;
+       --c-<role>: <chroma>;
+       --hue: 340;  --cm: 1;
+       --<role>: oklch(var(--l-<role>) calc(var(--c-<role>) * var(--cm)) var(--hue));
+
+   `--hue` is the single knob the whole warm mauve / plum family sits at, so
+   raising `--cm` saturates the entire surface at once. Roles whose palette
+   colour is genuinely off-family — the cream text, the warm bubble text, the
+   rose accent, the slate input — carry their own `--h-<role>` and are exempt
+   from that knob, the way `--h-danger` / `--h-success` / `--h-gold` are.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --l-bg: 0.2657;
+  --c-bg: 0.0422;
+  --l-bg-sidebar: 0.2357;
+  --c-bg-sidebar: 0.0378;
+  --l-bg-subtle: 0.327;
+  --c-bg-subtle: 0.0362;
+  --l-surface-raised: 0.327;
+  --c-surface-raised: 0.0362;
+  --l-menu-bg: 0.327;
+  --c-menu-bg: 0.0362;
+  --l-input-bg: 0.3426;
+  --c-input-bg: 0.0279;
+  --h-input-bg: 293;
+  --l-hover-bg: 0.3426;
+  --c-hover-bg: 0.0279;
+  --h-hover-bg: 293;
+  --l-selected-bg: 0.3674;
+  --c-selected-bg: 0.0407;
+  --l-tint-subtle: 0.4146;
+  --c-tint-subtle: 0.0438;
+  --l-tint: 0.4794;
+  --c-tint: 0.0462;
+  --l-tint-strong: 0.5571;
+  --c-tint-strong: 0.049;
+  --l-tooltip-bg: 0.3741;
+  --c-tooltip-bg: 0.0321;
+  --l-scrollbar-thumb: 0.4321;
+  --c-scrollbar-thumb: 0.0356;
+  --l-scrollbar-thumb-hover: 0.5355;
+  --c-scrollbar-thumb-hover: 0.0447;
+  --l-assistant-bubble: 0.4091;
+  --c-assistant-bubble: 0;
+  --l-user-bubble: 0.4074;
+  --c-user-bubble: 0.0322;
+  --l-user-bubble-text: 0.95;
+  --c-user-bubble-text: 0.0197;
+  --h-user-bubble-text: 88;
+  --l-text: 0.9166;
+  --c-text: 0.0264;
+  --h-text: 71;
+  --l-text-muted: 0.6478;
+  --c-text-muted: 0.0523;
+  --l-text-faint: 0.4998;
+  --c-text-faint: 0.0331;
+  --l-accent: 0.8135;
+  --c-accent: 0.0545;
+  --h-accent: 5;
+  --l-accent-fill: 0.8135;
+  --c-accent-fill: 0.0545;
+  --h-accent-fill: 5;
+  --l-danger: 0.7894;
+  --c-danger: 0.12;
+  --h-danger: 25;
+  --l-success: 0.7937;
+  --c-success: 0.12;
+  --h-success: 150;
+  --l-gold: 0.8453;
+  --c-gold: 0.15;
+  --h-gold: 88;
+}
+
+/* -----------------------------------------------------------------------------
+   3. Animatable custom property registrations
+
+   Registering the themed roles as `<color>` makes them interpolable, so a
+   change to a role tweens instead of snapping. The shadow roles are values, not
+   colours, and are deliberately absent.
+   -------------------------------------------------------------------------- */
+
+@property --bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --bg-sidebar {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --bg-subtle {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --surface-raised {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --menu-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --input-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --hover-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --selected-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --tint-subtle {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --tint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --tint-strong {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --tooltip-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --scrollbar-thumb {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --scrollbar-thumb-hover {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --assistant-bubble {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --assistant-bubble-text {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --user-bubble {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --user-bubble-text {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --text {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --text-muted {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --text-faint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --accent-fill {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --btn-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --btn-bg-hover {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --panel-edge {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --danger {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --success {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --gold {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+/* -----------------------------------------------------------------------------
+   4. Derived semantic layer + type / layout constants
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* The one knob the whole warm family rotates and saturates on. */
+  --hue: 340;
+  --cm: 1;
+
+  font-feature-settings:
+    "cv01" 1,
+    "cv02" 1,
+    "cv09" 1,
+    "cv08" 1,
+    "cv03" 1,
+    "cv04" 1,
+    "cv05" 1,
+    "cv10" 1;
+
+  --bg: oklch(var(--l-bg) calc(var(--c-bg) * var(--cm)) var(--hue));
+  --bg-sidebar: oklch(
+    var(--l-bg-sidebar) calc(var(--c-bg-sidebar) * var(--cm)) var(--hue)
+  );
+  --bg-subtle: oklch(
+    var(--l-bg-subtle) calc(var(--c-bg-subtle) * var(--cm)) var(--hue)
+  );
+  --surface-raised: oklch(
+    var(--l-surface-raised) calc(var(--c-surface-raised) * var(--cm)) var(--hue)
+  );
+  --menu-bg: oklch(
+    var(--l-menu-bg) calc(var(--c-menu-bg) * var(--cm)) var(--hue)
+  );
+  --input-bg: oklch(
+    var(--l-input-bg) calc(var(--c-input-bg) * var(--cm)) var(--h-input-bg)
+  );
+  --hover-bg: oklch(
+    var(--l-hover-bg) calc(var(--c-hover-bg) * var(--cm)) var(--h-hover-bg)
+  );
+  --selected-bg: oklch(
+    var(--l-selected-bg) calc(var(--c-selected-bg) * var(--cm)) var(--hue)
+  );
+  --tint-subtle: oklch(
+    var(--l-tint-subtle) calc(var(--c-tint-subtle) * var(--cm)) var(--hue)
+  );
+  --tint: oklch(var(--l-tint) calc(var(--c-tint) * var(--cm)) var(--hue));
+  --tint-strong: oklch(
+    var(--l-tint-strong) calc(var(--c-tint-strong) * var(--cm)) var(--hue)
+  );
+  --tooltip-bg: oklch(
+    var(--l-tooltip-bg) calc(var(--c-tooltip-bg) * var(--cm)) var(--hue)
+  );
+  --scrollbar-thumb: oklch(
+    var(--l-scrollbar-thumb) calc(var(--c-scrollbar-thumb) * var(--cm)) var(--hue)
+  );
+  --scrollbar-thumb-hover: oklch(
+    var(--l-scrollbar-thumb-hover) calc(var(--c-scrollbar-thumb-hover) * var(--cm))
+      var(--hue)
+  );
+  --assistant-bubble: oklch(
+    var(--l-assistant-bubble) calc(var(--c-assistant-bubble) * var(--cm))
+      var(--hue)
+  );
+  --assistant-bubble-text: var(--text);
+  --user-bubble: oklch(
+    var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--hue)
+  );
+  --user-bubble-text: oklch(
+    var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm))
+      var(--h-user-bubble-text)
+  );
+  --text: oklch(var(--l-text) calc(var(--c-text) * var(--cm)) var(--h-text));
+  --text-muted: oklch(
+    var(--l-text-muted) calc(var(--c-text-muted) * var(--cm)) var(--hue)
+  );
+  --text-faint: oklch(
+    var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--hue)
+  );
+  --accent: oklch(
+    var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--h-accent)
+  );
+  --accent-fill: oklch(
+    var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--h-accent-fill)
+  );
+  --danger: oklch(var(--l-danger) var(--c-danger) var(--h-danger));
+  --success: oklch(var(--l-success) var(--c-success) var(--h-success));
+  --gold: oklch(var(--l-gold) var(--c-gold) var(--h-gold));
+
+  /* Alpha-derived roles. Relative colour off `--text` so every translucent
+     fill tracks the text colour rather than a second palette. */
+  --btn-bg: oklch(from var(--text) l c h / 7%);
+  --btn-bg-hover: oklch(from var(--text) l c h / 11%);
+  --panel-edge: oklch(from var(--text) l c h / 6%);
+
+  /* Elevation. Dark-mode only: the light value would be a grey smudge. */
+  --popover-shadow:
+    0 12px 40px oklch(0% 0 none / 0.45), 0 2px 6px oklch(0% 0 none / 0.12);
+  --menu-shadow:
+    0 0 0 0.5px oklch(0% 0 none / 0.4), 0 10px 28px oklch(0% 0 none / 0.32);
+
+  /* type scale */
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-md: 13px;
+  --font-base: 14px;
+  --line-height: 1.45;
+  --line-height-code: 1.5;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+
+  /* Hairline system: every one of these is `none`, so a component that asks
+     for a border draws nothing. Separation is a shadow or a fill — see
+     `--panel-edge` and `--menu-shadow`. */
+  --border: none;
+  --border-dashed: none;
+  --border-heavy: none;
+  --border-heavy-dashed: none;
+
+  /* `--brm` scales the `calc(Npx * var(--brm))` radius idiom at the call site,
+     so a squircle-capable browser gets the full corner. The two radius roles
+     themselves live in the `@theme` block in section 5, which Tailwind emits
+     as a real `:root` rule — declaring them here too would self-reference. */
+  --brm: 0.5;
+
+  /* layout constants */
+  --content-max-w: 768px;
+  --sidebar-content-w: 280px;
+  --sidebar-nav-w: 60px;
+  --popup-max-w: 560px;
+
+  --font-family-sans:
+    "InterVariable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    sans-serif;
+  --font-family-mono:
+    "Fantasque Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --font-family-text: var(--font-family-sans);
+}
+
+/* Kat bumps `--brm` to 1 where the browser can draw a continuous corner, so a
+   `calc(18px * var(--brm))` radius is a true squircle there and half that
+   elsewhere. */
+@supports (corner-shape: squircle) {
+  :root {
+    --brm: 1;
+  }
+}
+
+/* --- spring easings, full sampling curves ---------------------------------- */
+
+:root {
+  --spring250-easing: linear(
+    0,
+    0.0068,
+    0.025 2.32%,
+    0.0855 4.65%,
+    0.4668 15.1%,
+    0.6406 20.9%,
+    0.7215,
+    0.7865,
+    0.8377,
+    0.8776 34.84%,
+    0.9167,
+    0.9438 44.13%,
+    0.966,
+    0.9797 55.74%,
+    0.9891 62.71%,
+    0.9948 70.84%,
+    0.9982 82.45%,
+    0.9997 99.87%
+  );
+  --spring250-duration: 0.415s;
+  --spring325-bounce-easing: linear(
+    0,
+    0.0025,
+    0.0096 1.37%,
+    0.0359 2.75%,
+    0.1247 5.5%,
+    0.5935 15.8%,
+    0.7747 20.61%,
+    0.8551,
+    0.9187,
+    0.9668,
+    1.0011 31.61%,
+    1.0193 33.67%,
+    1.0351,
+    1.0434,
+    1.046 41.92%,
+    1.0452 43.98%,
+    1.0419 46.73%,
+    1.0141 60.47%,
+    1.0028 69.4%,
+    0.9981 80.4%,
+    0.9991 99.64%
+  );
+  --spring325-bounce-duration: 0.5395s;
+  --spring150-easing: linear(
+    0,
+    0.0051 1%,
+    0.0198 2.05%,
+    0.0447 3.2%,
+    0.0811 4.5%,
+    0.115 5.55%,
+    0.159 6.8%,
+    0.3671 12.3%,
+    0.4686 15.15%,
+    0.5196 16.7%,
+    0.5658 18.2%,
+    0.6086 19.7%,
+    0.6494 21.25%,
+    0.6868 22.8%,
+    0.7218 24.4%,
+    0.7544 26.05%,
+    0.7837 27.7%,
+    0.8106 29.4%,
+    0.8351 31.15%,
+    0.8777 34.85%,
+    0.914 39.1%,
+    0.9422 43.8%,
+    0.9636 49.15%,
+    0.9789 55.35%,
+    0.9888 62.4%,
+    0.995 71.15%,
+    1
+  );
+  --spring150-duration: 0.249s;
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* -----------------------------------------------------------------------------
+   5. Tailwind bridge
+
+   Every role above becomes a `--color-*` utility here, so a component's class
+   attribute names a role (`bg-surface-raised`, `text-weak`) and never a token.
+   -------------------------------------------------------------------------- */
+
+@theme {
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+  --default-font-family: var(--font-family-sans);
+  --default-mono-family: var(--font-family-mono);
+
+  /* The radius roles. This block is emitted as a real `:root` rule, so these
+   * ARE the runtime `--radius-*` vars; `rounded-sm` / `rounded-bubble` read
+   * them back. Every other `rounded-*` step is still a Tailwind default —
+   * use these two, or the `calc(Npx * var(--brm))` idiom. */
+  --radius-sm: 8px;
+  --radius-bubble: 18px;
+}
+
+@theme inline {
+  /* Type scale. Tailwind's defaults are a rem ladder; ours is the 11/12/13/14
+     px ladder the transcript is set in. */
+  --text-xs: var(--font-xs);
+  --text-sm: var(--font-sm);
+  --text-md: var(--font-md);
+  --text-base: var(--font-base);
+  --text-xs--line-height: var(--line-height);
+  --text-sm--line-height: var(--line-height);
+  --text-md--line-height: var(--line-height);
+  --text-base--line-height: var(--line-height);
+
+  --shadow-popover: var(--popover-shadow);
+  --shadow-menu: var(--menu-shadow);
+
+  --color-bg: var(--bg);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface-raised: var(--surface-raised);
+  --color-menu: var(--menu-bg);
+  --color-input: var(--input-bg);
+  --color-hover: var(--hover-bg);
+  --color-selected: var(--selected-bg);
+  --color-tint-subtle: var(--tint-subtle);
+  --color-tint: var(--tint);
+  --color-tint-strong: var(--tint-strong);
+  --color-tooltip: var(--tooltip-bg);
+  --color-scrollbar: var(--scrollbar-thumb);
+  --color-scrollbar-hover: var(--scrollbar-thumb-hover);
+  --color-foreground: var(--text);
+  --color-text: var(--text);
+  --color-weak: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-fill: var(--accent-fill);
+  --color-btn: var(--btn-bg);
+  --color-btn-hover: var(--btn-bg-hover);
+  --color-panel-edge: var(--panel-edge);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-gold: var(--gold);
+  --color-message-assistant: var(--assistant-bubble);
+  --color-message-assistant-text: var(--assistant-bubble-text);
+  --color-message-user: var(--user-bubble);
+  --color-message-user-text: var(--user-bubble-text);
+
+  /* The vendored v2 component set paints itself with `bg-v2-*` / `text-v2-*`
+   * utilities, which only exist if the `--v2-*` tokens are registered in
+   * Tailwind's colour namespace. Section 6 gives them values. */
+  --color-v2-background-bg-base: var(--v2-background-bg-base);
+  --color-v2-background-bg-deep: var(--v2-background-bg-deep);
+  --color-v2-background-bg-layer-01: var(--v2-background-bg-layer-01);
+  --color-v2-background-bg-layer-02: var(--v2-background-bg-layer-02);
+  --color-v2-background-bg-layer-03: var(--v2-background-bg-layer-03);
+  --color-v2-background-bg-layer-04: var(--v2-background-bg-layer-04);
+  --color-v2-background-bg-inverse: var(--v2-background-bg-inverse);
+  --color-v2-background-bg-contrast: var(--v2-background-bg-contrast);
+  --color-v2-background-bg-button-neutral: var(--v2-background-bg-button-neutral);
+  --color-v2-background-bg-accent: var(--v2-background-bg-accent);
+  --color-v2-text-text-base: var(--v2-text-text-base);
+  --color-v2-text-text-muted: var(--v2-text-text-muted);
+  --color-v2-text-text-faint: var(--v2-text-text-faint);
+  --color-v2-text-text-inverse: var(--v2-text-text-inverse);
+  --color-v2-text-text-contrast: var(--v2-text-text-contrast);
+  --color-v2-text-text-accent: var(--v2-text-text-accent);
+  --color-v2-text-text-accent-hover: var(--v2-text-text-accent-hover);
+  --color-v2-text-text-code-accent: var(--v2-text-text-code-accent);
+  --color-v2-icon-icon-base: var(--v2-icon-icon-base);
+  --color-v2-icon-icon-muted: var(--v2-icon-icon-muted);
+  --color-v2-icon-icon-inverse: var(--v2-icon-icon-inverse);
+  --color-v2-icon-icon-contrast: var(--v2-icon-icon-contrast);
+  --color-v2-icon-icon-accent: var(--v2-icon-icon-accent);
+  --color-v2-icon-icon-accent-hover: var(--v2-icon-icon-accent-hover);
+  --color-v2-border-border-muted: var(--v2-border-border-muted);
+  --color-v2-border-border-base: var(--v2-border-border-base);
+  --color-v2-border-border-strong: var(--v2-border-border-strong);
+  --color-v2-border-border-inverse: var(--v2-border-border-inverse);
+  --color-v2-border-border-focus: var(--v2-border-border-focus);
+  --color-v2-overlay-simple-overlay-hover: var(--v2-overlay-simple-overlay-hover);
+  --color-v2-overlay-simple-overlay-pressed: var(--v2-overlay-simple-overlay-pressed);
+  --color-v2-overlay-simple-overlay-contrast-hover: var(
+    --v2-overlay-simple-overlay-contrast-hover
+  );
+  --color-v2-overlay-simple-overlay-contrast-pressed: var(
+    --v2-overlay-simple-overlay-contrast-pressed
+  );
+  --color-v2-overlay-simple-overlay-scrim: var(--v2-overlay-simple-overlay-scrim);
+  --color-v2-overlay-gradient-depth-overlay-depth-top: var(
+    --v2-overlay-gradient-depth-overlay-depth-top
+  );
+  --color-v2-overlay-gradient-depth-overlay-depth-bot: var(
+    --v2-overlay-gradient-depth-overlay-depth-bot
+  );
+  --color-v2-overlay-simple-tab-active-scrim: var(
+    --v2-overlay-simple-tab-active-scrim
+  );
+  --color-v2-overlay-simple-tab-hover-scrim: var(
+    --v2-overlay-simple-tab-hover-scrim
+  );
+  --color-v2-overlay-simple-tab-scrim: var(--v2-overlay-simple-tab-scrim);
+  --color-v2-state-bg-success: var(--v2-state-bg-success);
+  --color-v2-state-fg-success: var(--v2-state-fg-success);
+  --color-v2-state-border-success: var(--v2-state-border-success);
+  --color-v2-state-bg-warning: var(--v2-state-bg-warning);
+  --color-v2-state-fg-warning: var(--v2-state-fg-warning);
+  --color-v2-state-border-warning: var(--v2-state-border-warning);
+  --color-v2-state-bg-danger: var(--v2-state-bg-danger);
+  --color-v2-state-fg-danger: var(--v2-state-fg-danger);
+  --color-v2-state-border-danger: var(--v2-state-border-danger);
+  --color-v2-state-bg-info: var(--v2-state-bg-info);
+  --color-v2-state-fg-info: var(--v2-state-fg-info);
+  --color-v2-state-border-info: var(--v2-state-border-info);
+
+  /* The editor colours its mention chips with `text-syntax-type` and friends,
+   * so an unregistered ramp leaves every chip the colour of body text. */
+  --color-syntax-comment: var(--syntax-comment);
+  --color-syntax-regexp: var(--syntax-regexp);
+  --color-syntax-string: var(--syntax-string);
+  --color-syntax-keyword: var(--syntax-keyword);
+  --color-syntax-primitive: var(--syntax-primitive);
+  --color-syntax-operator: var(--syntax-operator);
+  --color-syntax-variable: var(--syntax-variable);
+  --color-syntax-property: var(--syntax-property);
+  --color-syntax-type: var(--syntax-type);
+  --color-syntax-constant: var(--syntax-constant);
+  --color-syntax-punctuation: var(--syntax-punctuation);
+  --color-syntax-object: var(--syntax-object);
+  --color-syntax-success: var(--syntax-success);
+  --color-syntax-warning: var(--syntax-warning);
+  --color-syntax-critical: var(--syntax-critical);
+  --color-syntax-info: var(--syntax-info);
+  --color-syntax-diff-add: var(--syntax-diff-add);
+  --color-syntax-diff-delete: var(--syntax-diff-delete);
+  --color-syntax-diff-unknown: var(--syntax-diff-unknown);
+}
+
+/* -----------------------------------------------------------------------------
+   6. The v2 bridge
+
+   The vendored opencode component set resolves its own `--v2-*` tokens out of
+   its `@layer theme` defaults, which are a light-mode grey ramp. Re-point the
+   whole semantic set — background, text, icon, border, overlay, state, agent,
+   elevation, illustration — plus the syntax ramp at the roles above, so those
+   components render in this palette instead of going colourless.
+   -------------------------------------------------------------------------- */
+
+html[data-kat-theme] {
+  --v2-background-bg-base: var(--bg);
+  --v2-background-bg-deep: var(--bg);
+  --v2-background-bg-layer-01: var(--bg-subtle);
+  --v2-background-bg-layer-02: var(--bg-subtle);
+  --v2-background-bg-layer-03: var(--surface-raised);
+  --v2-background-bg-layer-04: var(--surface-raised);
+  --v2-background-bg-inverse: var(--bg);
+  --v2-background-bg-contrast: var(--accent-fill);
+  --v2-background-bg-button-neutral: var(--btn-bg);
+  --v2-background-bg-accent: var(--accent-fill);
+
+  --v2-text-text-base: var(--text);
+  --v2-text-text-muted: var(--text-muted);
+  --v2-text-text-faint: var(--text-faint);
+  --v2-text-text-inverse: var(--bg);
+  --v2-text-text-contrast: var(--bg);
+  --v2-text-text-accent: var(--accent);
+  --v2-text-text-accent-hover: var(--accent);
+  --v2-text-text-code-accent: var(--accent);
+
+  --v2-icon-icon-base: var(--text);
+  --v2-icon-icon-muted: var(--text-faint);
+  --v2-icon-icon-inverse: var(--bg);
+  --v2-icon-icon-contrast: var(--bg);
+  --v2-icon-icon-accent: var(--accent);
+  --v2-icon-icon-accent-hover: var(--accent);
+
+  /* The v2 set paints its own sub-pixel hairlines; these are the one place a
+     0.5px border survives, at the faintest legible step. */
+  --v2-border-border-muted: oklch(from var(--text) l c h / 6%);
+  --v2-border-border-base: oklch(from var(--text) l c h / 8%);
+  --v2-border-border-strong: oklch(from var(--text) l c h / 12%);
+  --v2-border-border-inverse: var(--text);
+  --v2-border-border-focus: var(--accent);
+
+  --v2-overlay-simple-overlay-hover: oklch(from var(--text) l c h / 6%);
+  --v2-overlay-simple-overlay-pressed: oklch(from var(--text) l c h / 11%);
+  --v2-overlay-simple-overlay-contrast-hover: oklch(from var(--bg) l c h / 10%);
+  --v2-overlay-simple-overlay-contrast-pressed: oklch(from var(--bg) l c h / 18%);
+  --v2-overlay-simple-overlay-scrim: oklch(from var(--bg) l c h / 60%);
+  --v2-overlay-gradient-depth-overlay-depth-top: transparent;
+  --v2-overlay-gradient-depth-overlay-depth-bot: transparent;
+  --v2-overlay-simple-tab-active-scrim: transparent;
+  --v2-overlay-simple-tab-hover-scrim: transparent;
+  --v2-overlay-simple-tab-scrim: transparent;
+
+  --v2-state-bg-success: oklch(from var(--success) l c h / 12%);
+  --v2-state-fg-success: var(--success);
+  --v2-state-border-success: oklch(from var(--success) l c h / 35%);
+  --v2-state-bg-warning: oklch(from var(--gold) l c h / 12%);
+  --v2-state-fg-warning: var(--gold);
+  --v2-state-border-warning: oklch(from var(--gold) l c h / 35%);
+  --v2-state-bg-danger: oklch(from var(--danger) l c h / 12%);
+  --v2-state-fg-danger: var(--danger);
+  --v2-state-border-danger: oklch(from var(--danger) l c h / 35%);
+  --v2-state-bg-info: oklch(from var(--accent) l c h / 12%);
+  --v2-state-fg-info: var(--accent);
+  --v2-state-border-info: oklch(from var(--accent) l c h / 35%);
+
+  --v2-agent-plan-solid: var(--accent);
+  --v2-agent-plan-border: oklch(from var(--accent) l c h / 35%);
+  --v2-agent-plan-background: oklch(from var(--accent) l c h / 10%);
+  --v2-agent-build-solid: var(--success);
+  --v2-agent-build-border: oklch(from var(--success) l c h / 35%);
+  --v2-agent-build-background: oklch(from var(--success) l c h / 10%);
+  --v2-agent-explore-solid: var(--gold);
+  --v2-agent-explore-border: oklch(from var(--gold) l c h / 35%);
+  --v2-agent-explore-background: oklch(from var(--gold) l c h / 10%);
+  --v2-agent-review-solid: var(--success);
+  --v2-agent-writer-solid: var(--text);
+
+  --v2-elevation-raised: 0 1px 2px oklch(0% 0 none / 0.3);
+  --v2-elevation-floating:
+    0 8px 20px -8px oklch(0% 0 none / 0.4), 0 0 0 0.5px oklch(0% 0 none / 0.35);
+  --v2-elevation-overlay: var(--popover-shadow);
+  --v2-elevation-button-neutral: 0 0 0 0.5px oklch(0% 0 none / 0.4);
+  --v2-elevation-button-contrast: 0 0 0 0.5px oklch(0% 0 none / 0.5);
+  --v2-elevation-elements: 0 1px 1px oklch(0% 0 none / 0.25);
+  --v2-elevation-switch-off: inset 0 0 0 0.5px oklch(0% 0 none / 0.12);
+  --v2-elevation-switch-on: inset 0 0 0 0.5px oklch(0% 0 none / 0.24);
+
+  --v2-illustration-illustration-layer-01: var(--bg-subtle);
+  --v2-illustration-illustration-layer-02: var(--tint);
+  --v2-illustration-illustration-layer-03: var(--tint-strong);
+
+  --v2-font-family-sans: var(--font-family-sans);
+  --v2-font-family-mono: var(--font-family-mono);
+
+  --syntax-comment: oklch(50% 0.02 var(--hue));
+  --syntax-string: oklch(72% 0.12 145);
+  --syntax-regexp: oklch(70% 0.14 30);
+  --syntax-keyword: oklch(68% 0.14 var(--hue));
+  --syntax-primitive: oklch(74% 0.11 75);
+  --syntax-operator: oklch(66% 0.09 var(--hue));
+  --syntax-variable: oklch(78% 0.015 var(--hue));
+  --syntax-property: oklch(70% 0.08 230);
+  --syntax-type: oklch(72% 0.1 310);
+  --syntax-constant: oklch(74% 0.11 75);
+  --syntax-punctuation: oklch(55% 0.015 var(--hue));
+  --syntax-object: oklch(84% 0.012 var(--hue));
+  --syntax-success: var(--success);
+  --syntax-warning: var(--gold);
+  --syntax-critical: var(--danger);
+  --syntax-info: var(--accent);
+  --syntax-diff-add: var(--success);
+  --syntax-diff-delete: var(--danger);
+  --syntax-diff-unknown: var(--danger);
+}
+
+/* -----------------------------------------------------------------------------
+   7. Base reset
+   -------------------------------------------------------------------------- */
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+dialog {
+  margin: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    interpolate-size: allow-keywords;
+  }
+}
+
+/* There are no borders in this system, and these are the only elements that
+   ship one from the UA stylesheet. */
+input,
+select,
+textarea,
+button,
+fieldset,
+hr {
+  border: 0;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+input,
+textarea,
+[contenteditable] {
+  caret-color: var(--accent);
+}
+
+:root {
+  color-scheme: dark;
+  line-height: var(--line-height);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Kat sets the root to 14px, which rescales every rem and shrinks Tailwind's
+ * spacing utilities to 0.875x. Root stays at the 16px default; the 14px face
+ * belongs on the body, where the type scale actually wants it. */
+body {
+  font-size: var(--font-base);
+  font-family: var(--font-family-sans);
+  cursor: default;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* An app, not a document: re-enable selection where the user is reading or
+   editing prose. */
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  display: block;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  text-wrap: balance;
+}
+
+html,
+body,
+#root {
+  overscroll-behavior-x: none;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  isolation: isolate;
+}
+
+::selection {
+  background: oklch(from var(--accent) l c h / 25%);
+}
+
+::focus {
+  outline: none;
+}
+
+::focus-visible:not(input, textarea, select, [contenteditable]) {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 1px;
+}
+
+[data-no-focus-ring]:focus-visible {
+  outline: none;
+}
+
+@media (hover: none) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* --- 4px scrollbars, transparent track ------------------------------------- */
+
+html {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+* {
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: 0 0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
