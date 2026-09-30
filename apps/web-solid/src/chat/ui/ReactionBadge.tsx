@@ -14,23 +14,35 @@ export interface ReactionStackProps {
 }
 
 /**
- * The chip cluster that hangs off a bubble's corner.
+ * kat's overlapping reaction circles, on the bubble's own corner.
  *
- * Every emoji is its own chip with its own count, so reacting with a second one
- * adds to the row rather than replacing it - and each chip is independent, which
- * is why this maps over the array instead of keeping a single slot.
+ * Every emoji is its own circle with its own count, so reacting with a second
+ * one adds to the cluster rather than replacing it - and each circle is
+ * independent, which is why this maps over the array instead of keeping a
+ * single slot.
  *
- * `BubbleReactions` owns where the row sits; this owns the chips inside it.
- * They are kat circles - 28px, a `--bg-subtle` fill and a 2px ring in the
- * transcript background rather than a border - and the corner is the side
- * facing the other speaker, so the row never lands in the column gutter.
+ * The circles OVERLAP by 8px rather than sitting side by side, and each one
+ * carries a 2px ring in the transcript background colour. The ring is the whole
+ * mechanism: without it an overlap is a smear, because two `--bg-subtle` fills
+ * meet with no visible edge. The ring is a `box-shadow`, not a `border` - this
+ * repo's `--border` is literally `none`, so a border declaration draws nothing.
+ *
+ * A circle only becomes a PILL when it carries a count. A count of 1 is a bare
+ * 28px circle: a "1" is a number nobody needs, and it is the difference between
+ * a cluster and a row of pills.
+ *
+ * Which corner the cluster lands on, and which way it runs, is
+ * `BubbleReactions`' decision - it is keyed on the alignment, because a
+ * right-aligned viewer's message and a left-aligned agent's message sit on
+ * OPPOSITE corners and have to run in opposite directions. This owns only what
+ * is inside the cluster.
  *
  * Nothing renders when a message carries no reactions. That is deliberate: an
  * empty absolutely-positioned wrapper would still be in the DOM on every row in
  * the transcript, and `heights.ts` only reserves the constant padding.
  *
- * There is no transition. The press is instant; a chip that springs back reads
- * as a bounce rather than a tap.
+ * There is no transition. The press is instant; a circle that springs back
+ * reads as a bounce rather than a tap.
  */
 export function ReactionStack(props: ReactionStackProps) {
   return (
@@ -38,7 +50,7 @@ export function ReactionStack(props: ReactionStackProps) {
       <BubbleReactions
         side="top"
         align={props.side === "user" ? "start" : "end"}
-        class={cn("gap-1", props.class)}
+        class={props.class}
         data-component="chat-reaction"
         data-sender={props.side}
       >
@@ -49,11 +61,13 @@ export function ReactionStack(props: ReactionStackProps) {
                 "pointer-events-auto relative inline-flex h-7 min-w-7 items-center justify-center rounded-full p-0 text-[15px] leading-none",
                 "bg-bg-subtle text-text shadow-[0_0_0_2px_var(--bg)]",
                 "active:scale-[0.85]",
-                // kat's counted circle: 7px of lead-in, 8px of trail.
+                // kat's counted circle: 7px of lead-in, 8px of trail. A count of
+                // 1 stays a bare circle.
                 reaction.count > 1 && "pr-2 pl-[7px]",
                 reaction.viewerReacted
-                  ? // The viewer's own reaction takes their own bubble colour.
-                    "bg-message-user text-message-user-text hover:bg-message-user"
+                  ? // The viewer's own reaction takes their own bubble colour,
+                    // and rides ABOVE its neighbours so the overlap reads.
+                    "z-[1] bg-message-user text-message-user-text hover:bg-message-user"
                   : "hover:bg-bg focus-visible:bg-bg",
               )}
               data-component="chat-reaction-badge"
@@ -65,7 +79,7 @@ export function ReactionStack(props: ReactionStackProps) {
             >
               <Emoji emoji={reaction.emoji} class="size-[18px] align-middle" eager />
               <Show when={reaction.count > 1}>
-                <span class="pl-[2px] text-xs font-medium tabular-nums">{reaction.count}</span>
+                <span class="ml-[3px] text-xs font-medium tabular-nums">{reaction.count}</span>
               </Show>
             </button>
           )}

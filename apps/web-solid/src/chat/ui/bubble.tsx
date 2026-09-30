@@ -182,6 +182,18 @@ export function BubbleReactions(rawProps: BubbleReactionsProps) {
         local.side === "top" ? OVERHANG : OVERHANG_BOTTOM,
         local.align === "start" ? OVERHANG_START : OVERHANG_END,
         local.class,
+        // kat's two run directions, and the 8px overlap that makes a stack read
+        // as one cluster rather than a row of loose circles.
+        //
+        // The row hangs off ONE edge and the FIRST reaction has to sit on the
+        // bubble's own corner, so a stack off the LEFT edge runs `row` and each
+        // later circle pulls back toward it (`-ml-2`), while a stack off the
+        // RIGHT edge runs `row-reverse` and each later circle pulls right
+        // (`-mr-2`). Either way exactly one ring lands on the corner and the
+        // rest run out toward the gutter.
+        local.align === "start"
+          ? "flex-row [&>*+*]:-ml-2"
+          : "flex-row-reverse [&>*+*]:-mr-2",
       )}
       {...others}
     />

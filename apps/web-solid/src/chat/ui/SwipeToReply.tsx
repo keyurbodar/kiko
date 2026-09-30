@@ -16,17 +16,20 @@ export interface SwipeToReplyProps {
  * indicator underneath is revealed without anything re-rendering per move.
  *
  * Two gestures feed it: a pointer drag and a trackpad two-finger swipe, which
- * arrives as `wheel`. Both work on every message in either direction, so there
- * is no side to pass in — the wrapper learns which edge to put the indicator on
- * from the direction the reader actually swiped, and mirrors it onto the row as
- * `data-swipe-side`.
+ * arrives as `wheel`. Both are LEFTWARD only, so the indicator has exactly one
+ * edge to live on and there is no direction to mirror — a rightward drag does
+ * nothing at all.
+ *
+ * This element is also the whole grab area. It is a full-column-width block,
+ * not a wrapper sized to the bubble, so a reader can start a swipe anywhere
+ * across the row and never has to aim at the message text.
  *
  * The gesture is `@solid-primitives/pointer` plus the state machine in
  * `lib/useSwipeToReply`; nothing here is hand-rolled beyond the markup.
  *
- * `group/swipe` is how the indicator reads the row's own `data-swiping` and
- * `data-swipe-side`: the gesture owns those attributes on the row, and the
- * indicator only ever needs to know about the parent it sits in.
+ * `group/swipe` is how the indicator reads the row's own `data-swiping`: the
+ * gesture owns that attribute, and the indicator only ever needs to know about
+ * the parent it sits in.
  */
 export function SwipeToReply(props: SwipeToReplyProps) {
   const swipe = useSwipeToReply({
@@ -42,7 +45,6 @@ export function SwipeToReply(props: SwipeToReplyProps) {
       // never received its element and the swipe did nothing.
       ref={swipe.handlers.ref}
       data-swiping={swipe.handlers["data-swiping"]}
-      data-swipe-side={swipe.handlers["data-swipe-side"]}
       class={cn(
         "group/swipe relative flex touch-pan-y",
         // The gesture writes this; the default lives here because this element
@@ -68,7 +70,7 @@ export function SwipeToReply(props: SwipeToReplyProps) {
           // Nothing is drawn until the axis lock is behind us, so a tap leaves
           // no trace.
           "group-data-[swiping]/swipe:flex",
-          "group-data-[swipe-side=start]/swipe:left-4 group-data-[swipe-side=end]/swipe:right-4",
+          "right-4",
         )}
         data-component="chat-swipe-indicator"
         aria-hidden="true"

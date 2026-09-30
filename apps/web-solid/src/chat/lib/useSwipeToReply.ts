@@ -2,29 +2,53 @@ import { createPointerListeners } from "@solid-primitives/pointer"
 import { animate } from "motion"
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js"
 
-/** Furthest the row contents travel, in px. */
-export const SWIPE_MAX_TRAVEL_PX = 64
-/** Travel at which the gesture arms the reply, released. */
-export const SWIPE_REPLY_THRESHOLD_PX = 48
-/** Vertical movement that loses the axis to the scroller before the lock closes. */
-export const SWIPE_AXIS_LOCK_PX = 20
-/** Horizontal movement that wins the axis before anything is drawn. */
-export const SWIPE_INTENT_PX = 8
-
-const INDICATOR_SCALE_MIN = 0.55
+/* ---------------------------------------------------------------------------
+   The four numbers the gesture is made of. They were all tuned against a
+   two-handed feel on a trackpad; they are now tuned against one requirement —
+   a reader should not have to think about whether a swipe is going to work.
+   --------------------------------------------------------------------------- */
 
 /**
- * Which edge the indicator sits on once a gesture is under way.
+ * Furthest the row contents travel, in px.
  *
- * It is derived from the DIRECTION OF THE DRAG, never from who sent the message.
- * An earlier design gated each side to one direction — the agent's row rightward,
- * the viewer's leftward — which meant a leftward swipe on the agent's message was
- * silently discarded. That reads as a broken gesture, because nothing on screen
- * says which way a given row is allowed to move. The content now travels whichever
- * way the reader swipes and the indicator is revealed behind it: `start` is the
- * left edge, `end` the right.
+ * 40, down from 64. The old number was 2/3 of the old 48px arm point, so the
+ * row kept sliding for a third of the gesture after it had already said yes;
+ * that overshoot is what read as a journey. 40 against a 28px arm point keeps
+ * 12px of "past the point" slack, which is enough to feel like it caught.
  */
-export type SwipeSide = "start" | "end"
+export const SWIPE_MAX_TRAVEL_PX = 40
+
+/**
+ * Travel at which the gesture arms the reply, released.
+ *
+ * 28, down from 48. 48px is roughly the width of a two-finger trackpad sweep
+ * and well past what a thumb produces in one lateral flick, so it demanded a
+ * deliberate shove. 28 is a thumb flick; below ~24 the scroller's own residual
+ * jitter starts tripping it.
+ */
+export const SWIPE_REPLY_THRESHOLD_PX = 28
+
+/**
+ * Vertical movement that loses the axis to the scroller before the lock closes.
+ *
+ * 16, down from 20. This is the one guard standing between a vertical scroll
+ * and a stolen gesture, and it has to stay: a real scroll passes 16px inside a
+ * single frame. It came down only because it is measured against the arm point
+ * — at 20px a flick angled as shallowly as 55° was cancelled before it could
+ * reach a 28px travel.
+ */
+export const SWIPE_AXIS_LOCK_PX = 16
+
+/**
+ * Horizontal movement that wins the axis before anything is drawn.
+ *
+ * 6, down from 8. This is the dead zone at the start of every drag, and a
+ * trackpad's very first event already carries more than 6px, so the smaller
+ * value costs nothing in false positives — a resting finger moves 1-2px.
+ */
+export const SWIPE_INTENT_PX = 6
+
+const INDICATOR_SCALE_MIN = 0.55
 
 type Axis = "pending" | "horizontal" | "cancelled"
 
@@ -51,8 +75,6 @@ export interface SwipeGesture {
   readonly offset: number
   readonly progress: number
   readonly scale: number
-  /** The edge the indicator belongs on, from the live drag direction. */
-  readonly side: SwipeSide
 }
 
 export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
@@ -61,18 +83,19 @@ export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
   let originY = 0
   let settling = false
   let armed = false
-  /** Which way the content is travelling. Fixed on the move that claims the axis. */
-  let direction: 1 | -1 = 1
 
   const [swiping, setSwiping] = createSignal(false)
   const [offset, setOffset] = createSignal(0)
   const [progress, setProgress] = createSignal(0)
   const [scale, setScale] = createSignal(INDICATOR_SCALE_MIN)
-  const [side, setSide] = createSignal<SwipeSide>("start")
 
+  /** `travel` is how far the row has been pulled left, always >= 0. */
   const paint = (travel: number) => {
     const ratio = Math.min(1, travel / SWIPE_REPLY_THRESHOLD_PX)
-    setOffset(direction * travel)
+    // `travel > 0` rather than a bare `-travel`: at rest this has to be a plain
+    // zero, and `-0` is a different number that serialises into `--swipe-x` as
+    // `-0px`.
+    setOffset(travel > 0 ? -travel : 0)
     setProgress(ratio)
     setScale(INDICATOR_SCALE_MIN + (1 - INDICATOR_SCALE_MIN) * ratio)
   }
@@ -100,9 +123,6 @@ export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
     get scale() {
       return scale()
     },
-    get side() {
-      return side()
-    },
     down(x, y) {
       settling = false
       armed = false
@@ -121,18 +141,38 @@ export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
           return
         }
         if (Math.abs(dx) < SWIPE_INTENT_PX) return
-        // The first move that clears the lock decides the direction, and with it
-        // which edge the indicator is revealed on. Either way is a valid reply,
-        // so there is no wrong direction to reject.
-        direction = dx > 0 ? 1 : -1
-        setSide(dx > 0 ? "start" : "end")
+        /*
+         * LEFT ONLY.
+         *
+         * A rightward drag is not a reply, so it never claims the axis at all:
+         * cancelling here — rather than claiming it and then ignoring the
+         * travel — is what keeps the promise that a right drag paints nothing,
+         * arms nothing, and leaves `data-swiping` unset. It also means the row
+         * is never handed to the snap-back for a drag the reader did not make,
+         * so there is nothing to spring home afterwards.
+         *
+         * The gesture is deliberately NOT handed the rightward drag as a scroll:
+         * the transcript scroller is `overflow-x-hidden`, so there is no
+         * horizontal scroll to hand it to, and inventing one would be scope the
+         * transcript does not have. Inert is the honest answer.
+         */
+        if (dx > 0) {
+          axis = "cancelled"
+          return
+        }
         // The first move that clears the lock is the only place the row is
         // touched, so a tap that never gets here leaves no litter behind.
         axis = "horizontal"
         setSwiping(true)
       }
 
-      const travel = Math.min(SWIPE_MAX_TRAVEL_PX, Math.abs(dx))
+      /*
+       * Travel is leftward distance only, and it is re-derived on every move
+       * rather than latched at the claim: a reader who overshoots and drags
+       * back has genuinely un-armed the gesture, and the row follows them back
+       * to zero instead of staying parked at the overshoot.
+       */
+      const travel = Math.min(SWIPE_MAX_TRAVEL_PX, Math.max(0, -dx))
       armed = travel >= SWIPE_REPLY_THRESHOLD_PX
       paint(travel)
     },
@@ -141,12 +181,21 @@ export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
         reset()
         return
       }
-      const shouldReply = armed
       settling = true
-      options.settle(offset(), () => {
-        reset()
-        if (shouldReply) options.onReply()
-      })
+      /*
+       * The reply is committed NOW, synchronously — not from `settle`'s
+       * completion callback, which is where it used to live.
+       *
+       * `settle` runs the row's snap-back, so committing inside its callback
+       * meant the composer's reply bar could not appear until the row had
+       * finished animating home. That is the whole of the lag: a gesture the
+       * reader had already completed, followed by a quarter second in which
+       * nothing acknowledged it. The two are independent — the row animates
+       * back to rest while the bar is already up — and nothing downstream
+       * reads the row's transform, so there is no ordering to preserve.
+       */
+      if (armed) options.onReply()
+      options.settle(offset(), reset)
     },
     cancel() {
       if (axis !== "horizontal") {
@@ -167,7 +216,6 @@ export interface UseSwipeToReplyOptions {
 export interface SwipeRowHandlers {
   ref: (element: HTMLElement) => void
   "data-swiping": true | undefined
-  "data-swipe-side": SwipeSide
 }
 
 export interface UseSwipeToReply {
@@ -175,7 +223,6 @@ export interface UseSwipeToReply {
   offset: Accessor<number>
   progress: Accessor<number>
   scale: Accessor<number>
-  indicatorSide: Accessor<SwipeSide>
   handlers: SwipeRowHandlers
 }
 
@@ -234,11 +281,11 @@ function innerScrollsToward(from: EventTarget | null, stop: HTMLElement, deltaX:
 /**
  * Wires the swipe gesture to a row. Two input paths share one state machine: a
  * pointer drag (mouse, touch, pen) and a trackpad two-finger swipe, which the
- * browser delivers as `wheel` events with a dominant `deltaX`. Neither direction
- * is privileged, so any deliberate horizontal swipe on any message replies; the
- * row's `--swipe-x`, `--swipe-progress` and `--swipe-scale` come out, written
- * straight to the custom properties rather than through a style binding, so the
- * contents translate on the compositor.
+ * browser delivers as `wheel` events with a dominant `deltaX`. Only a LEFTWARD
+ * swipe is a reply, on any message; the row's `--swipe-x`, `--swipe-progress`
+ * and `--swipe-scale` come out, written straight to the custom properties
+ * rather than through a style binding, so the contents translate on the
+ * compositor.
  */
 export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToReply {
   const [row, setRow] = createSignal<HTMLElement | undefined>()
@@ -283,24 +330,64 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
 
   const gesture = createSwipeGesture({ settle, onReply: options.onReply })
 
+  /*
+   * The pointer path.
+   *
+   * `@solid-primitives/pointer` attaches pointerdown/move/up to the ROW element
+   * and does not capture the pointer, so the browser retargets every event to
+   * whatever is under the cursor instead. That is the whole of "it is hard to
+   * swipe". Measured on the composed app: a 46px bubble sitting at x=1206-1252
+   * inside a row spanning x=500-1268 — start a leftward drag at x=538, a third
+   * of the way across the row and 668px from the bubble, and by the time the
+   * travel was 30px the cursor had left the row entirely. Both the remaining
+   * `pointermove` and the `pointerup` went to the scroller, so the gesture never
+   * saw its own release: no reply, and the row stranded at `--swipe-x: -30px`
+   * because the snap-back that would have undone it was never asked for. The
+   * grab area was always the full row; it just stopped listening as soon as the
+   * cursor left it, which is the same thing as a short grab area from the
+   * reader's side.
+   *
+   * Capturing is what makes the row the event target for the rest of the drag.
+   * It happens on the move that CLAIMS the axis, not on pointerdown, and that
+   * ordering is load-bearing: capturing at pointerdown would retarget the
+   * compatibility mouse events too, so a click on a link inside a bubble would
+   * land on the row instead of the link. Waiting until the row is actually
+   * moving means a plain click never captures anything and behaves exactly as it
+   * did before.
+   */
+  let captured = false
+  const capture = (event: PointerEvent) => {
+    if (captured) return
+    const element = row()
+    if (!element) return
+    element.setPointerCapture(event.pointerId)
+    captured = true
+  }
+
   createPointerListeners({
     target: row,
     pointerTypes: ["mouse", "touch", "pen"],
     onDown: (event) => gesture.down(event.clientX, event.clientY),
     onMove: (event) => {
       gesture.move(event.clientX, event.clientY)
+      if (gesture.swiping) capture(event)
       paint(gesture.offset)
     },
-    onUp: () => gesture.release(),
-    onCancel: () => gesture.cancel(),
+    onUp: () => {
+      captured = false
+      gesture.release()
+    },
+    onCancel: () => {
+      captured = false
+      gesture.cancel()
+    },
   })
 
   /*
    * The trackpad path. It drives the SAME state machine as the pointer path, by
    * feeding it synthetic coordinates rather than by growing a second machine:
-   * `direction * travel` is exactly the x the gesture already expects, so the
-   * axis lock, the arming threshold, the snap-back and the commit stay in one
-   * place. The sign is taken from the swipe itself, so either direction replies.
+   * `-travel` is exactly the x a leftward drag produces, so the axis lock, the
+   * arming threshold, the snap-back and the commit stay in one place.
    *
    * The gesture ends when the wheel goes quiet, or when the deltas are seen to
    * decay into inertia, which is how we learn the fingers have lifted.
@@ -309,7 +396,7 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
     const element = row()
     if (!element) return
 
-    let axis: "x" | "y" | undefined
+    let axis: "x" | "passive" | undefined
     let travel = 0
     let gesturing = false
     let released = false
@@ -337,8 +424,6 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
       }, WHEEL_IDLE_MS)
     }
 
-    /** The live sign of the wheel swipe. Set once per gesture, on engage. */
-    let wheelDirection: 1 | -1 = 1
 
     const onWheel = (event: WheelEvent) => {
       // Pinch-zoom, or a mouse wheel held sideways with shift. Both put the
@@ -354,20 +439,24 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
             : event.deltaX
 
       if (axis === undefined) {
-        // Engage on any horizontal-dominant swipe. Vertical scrolling, the
-        // browser's own back-swipe and inner horizontal scrollers are still left
-        // alone, so the only gesture claimed is a deliberately sideways one.
+        /*
+         * Engage only on a horizontal-dominant LEFTWARD swipe. Vertical
+         * scrolling, inner horizontal scrollers and — per the pointer path —
+         * a rightward flick are all left entirely alone, so the only wheel
+         * gesture claimed is a deliberately sideways one that means something
+         * here. Nothing is prevented on the way out, so whatever the reader
+         * would have done with the others still happens.
+         */
         if (
+          raw >= 0 ||
           Math.abs(raw) <= Math.abs(event.deltaY) ||
-          raw === 0 ||
           innerScrollsToward(event.target, element, raw)
         ) {
-          axis = "y"
+          axis = "passive"
           scheduleIdle()
           return
         }
         axis = "x"
-        wheelDirection = raw > 0 ? 1 : -1
         travel = 0
         prevAbs = -1
         peakAbs = 0
@@ -377,7 +466,7 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
         gesture.down(0, 0)
       }
 
-      if (axis === "y") {
+      if (axis === "passive") {
         scheduleIdle()
         return
       }
@@ -393,8 +482,9 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
       }
 
       travel = Math.max(0, Math.min(SWIPE_MAX_TRAVEL_PX, travel + Math.abs(raw) * WHEEL_SCALE))
-      gesture.move(wheelDirection * travel, 0)
+      gesture.move(-travel, 0)
       paint(gesture.offset)
+
 
       // Magnitude trend, to spot the coast. A real coast decays smoothly with
       // only tiny up-jitter; a finger pushing again is a clear jump, and only
@@ -433,9 +523,6 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
     get "data-swiping"() {
       return gesture.swiping ? true : undefined
     },
-    get "data-swipe-side"() {
-      return gesture.side
-    },
   }
 
   return {
@@ -443,7 +530,6 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
     offset: () => gesture.offset,
     progress: () => gesture.progress,
     scale: () => gesture.scale,
-    indicatorSide: () => gesture.side,
     handlers,
   }
 }
