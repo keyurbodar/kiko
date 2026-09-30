@@ -1,33 +1,18 @@
+/* The layer order, declared BEFORE the imports so `v2` sits UNDER utilities.
+ *
+ * `@layer` statement rules are one of the few things CSS allows ahead of
+ * `@import`, and the order here is the whole fix: a rule outside any layer
+ * outranks every layered rule regardless of specificity, so the vendored
+ * `v2/components/*.css` set - which is unlayered - silently beat every Tailwind
+ * utility aimed at the same element. A chat menu asking for `p-1.5`,
+ * `rounded-2xl` and `min-w-[120px]` computed to the vendored `2px` / `6px` /
+ * `160px` instead, and no amount of extra utilities could have won.
+ *
+ * Tailwind declares `theme, base, components, utilities`; naming `v2` between
+ * `base` and `components` keeps the vendored set above the preflight and below
+ * the utilities, which is what lets a component restyle itself with classes. */
+@layer theme, base, v2, components, utilities;
+
 @import "tailwindcss";
 @import "@kiko/ui/v2/styles/tailwind.css";
 @import "@kiko/ui/kat.css";
-
-@layer components {
-  .app-shell {
-    display: flex;
-    height: 100dvh;
-    overflow: hidden;
-    background: var(--bg);
-  }
-
-  /* The pane is the transcript's only parent. It is a grid item, and a grid
-     item defaults to `min-width: auto` — it refuses to shrink below its
-     content, so without this the 768px column overflows a narrow window
-     instead of narrowing with it. The three-row track from the old shell is
-     gone: there is no top bar and no composer dock above and below it yet, and
-     an `auto minmax(0,1fr) auto` grid with one child is a lie about structure. */
-  .app-shell > .app-pane {
-    display: flex;
-    min-width: 0;
-    flex: 1;
-  }
-
-  /* Mirrors the transcript column so the entry box lines up with the
-     messages above it rather than running the full width of the shell. */
-  .composer-dock {
-    width: 100%;
-    max-width: var(--content-max-w);
-    margin: 0 auto;
-    padding: 0 20px 16px;
-  }
-}

@@ -1,9 +1,3 @@
-* {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: geometricPrecision;
-}
-
 [data-component="line-comment-v2"] {
   box-sizing: border-box;
   font-family: var(--v2-font-family-sans);
