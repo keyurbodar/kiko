@@ -85,16 +85,17 @@ export const useApp = {
     )
   },
 
-  appendReply(body: string, replyToId: string, sentAt: number) {
+  appendReply(body: string, replyToId: string, sentAt: number): string | undefined {
     const threadId = state.activeThreadId
-    if (!threadId || !body.trim() || !replyToId) return
-    if (!state.messages.some((message) => message.id === replyToId)) return
+    if (!threadId || !body.trim() || !replyToId) return undefined
+    if (!state.messages.some((message) => message.id === replyToId)) return undefined
 
+    const id = nextMessageId()
     setState(
       "messages",
       produce((draft) => {
         draft.push({
-          id: nextMessageId(),
+          id,
           threadId,
           sender: "user",
           body,
@@ -103,17 +104,19 @@ export const useApp = {
         })
       }),
     )
+    return id
   },
 
-  appendMessage(body: string, sentAt: number) {
+  appendMessage(body: string, sentAt: number): string | undefined {
     const threadId = state.activeThreadId
-    if (!threadId || !body.trim()) return
+    if (!threadId || !body.trim()) return undefined
 
+    const id = nextMessageId()
     setState(
       "messages",
       produce((draft) => {
         draft.push({
-          id: nextMessageId(),
+          id,
           threadId,
           sender: "user",
           body,
@@ -121,6 +124,7 @@ export const useApp = {
         })
       }),
     )
+    return id
   },
 
   markRead(threadId: string) {
@@ -132,5 +136,42 @@ export const useApp = {
         }
       }),
     )
+  },
+
+  /**
+   * The mirror of `markRead`, and it has to set a count rather than increment
+   * one: the row renders "unread" as a state, not a tally, so a bot at zero is
+   * put back to one unread rather than to whatever it had before.
+   */
+  markUnread(threadId: string) {
+    setState(
+      "bots",
+      produce((draft) => {
+        for (const bot of draft) {
+          if (bot.id === threadId && bot.unread === 0) bot.unread = 1
+        }
+      }),
+    )
+  },
+
+  /** Pinned bots are lifted into the sidebar's tile grid; the order is not. */
+  togglePinned(threadId: string) {
+    setState(
+      "bots",
+      produce((draft) => {
+        for (const bot of draft) {
+          if (bot.id === threadId) bot.pinned = !bot.pinned
+        }
+      }),
+    )
+  },
+
+  /**
+   * Messages for any conversation by id, oldest first. `activeMessages` is the
+   * same read narrowed to the open thread; the hover preview needs it for a
+   * thread that is not open, which is the whole reason it exists.
+   */
+  messagesFor(threadId: string): readonly ChatMessage[] {
+    return state.messages.filter((message) => message.threadId === threadId)
   },
 }

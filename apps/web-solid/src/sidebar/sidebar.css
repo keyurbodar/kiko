@@ -1,0 +1,491 @@
+/* Chat sidebar - the rail and its conversation panel, ported from chat.kat.ai.
+ *
+ * Every selector is scoped under `.sidebar-shell`. The names here (`.panel`,
+ * `.shell`-adjacent layout names, the `chat-*` family) are generic enough to
+ * collide with the transcript and the composer, and this file ships alongside
+ * both, so an unscoped rule could reach them.
+ *
+ * Colours come from `packages/ui/src/styles/kat.css` only - every value is a
+ * token or an `oklch(from var(--token) ...)` mix of one, never a literal.
+ *
+ * Three deliberate departures from kat:
+ *   1. no borders. kat separates the header and footer with
+ *      `border-bottom`/`border-top`; in this token layer those resolve to
+ *      `none` anyway, so the header carries no rule and the scroll region's
+ *      top fade does the separating. The panel's own background is the only
+ *      plane.
+ *   2. no motion the user waits on. Collapse, resize and hover are instant.
+ *      The only animation is the typing pulse - the user is waiting on the
+ *      agent - and the resize handle's hover reveal.
+ *   3. all UI text is lowercase. */
+
+.sidebar-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  color: var(--text);
+  font-family: var(--font-family-sans);
+}
+
+/* ===== Rail ----------------------------------------------------------- */
+
+.sidebar-shell .rail {
+  display: flex;
+  width: var(--sidebar-nav-w);
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0;
+}
+
+.sidebar-shell .rail-tab {
+  display: flex;
+  width: var(--rail-tab);
+  height: var(--rail-tab);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-muted);
+  background: 0 0;
+  border: none;
+  border-radius: calc(22px * var(--brm));
+  corner-shape: squircle;
+  cursor: pointer;
+  appearance: none;
+}
+
+.sidebar-shell .rail-tab > svg {
+  width: var(--rail-icon);
+  height: var(--rail-icon);
+}
+
+.sidebar-shell .rail-tab:hover {
+  background: var(--nav-hover-bg);
+}
+
+.sidebar-shell .rail-tab[data-active] {
+  color: var(--accent);
+  background: var(--nav-active-bg);
+}
+
+.sidebar-shell .rail-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sidebar-shell .rail-spacer {
+  flex: 1;
+}
+
+/* ===== Panel ---------------------------------------------------------- */
+
+.sidebar-shell .panel {
+  position: relative;
+  display: flex;
+  width: var(--sidebar-content-w);
+  flex-shrink: 0;
+  flex-direction: column;
+  background: var(--bg-sidebar);
+  /* kat bleeds the collapse clip past the box so the scroller can clip its
+   * own content without clipping the resize handle on the panel's edge. */
+  overflow: clip;
+  overflow-clip-margin: 8px;
+}
+
+/* Children hold their natural width while the panel closes, so the header
+ * and the list never reflow mid-collapse. The resize handle is excluded: it is
+ * absolutely positioned and 3px wide, and `min-width` applies to those too. */
+.sidebar-shell .panel > :not(.resize-handle) {
+  min-width: var(--sidebar-content-w);
+}
+
+/* The content goes, the handle stays. It is the only affordance for dragging
+ * the panel back out, so it cannot vanish with the panel — and `opacity: 0` on
+ * the panel would take it along, since opacity groups the whole subtree.
+ * `visibility` on the children hides them from the accessibility tree too. */
+.sidebar-shell .panel[data-collapsed] {
+  width: 0;
+}
+
+.sidebar-shell .panel[data-collapsed] > :not(.resize-handle) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sidebar-shell .panel-header {
+  display: flex;
+  height: 48px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px 0 10px;
+}
+
+.sidebar-shell .panel-title {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: lowercase;
+}
+
+.sidebar-shell .panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 6px 12px 0;
+
+  /* 20px top fade, offset upward by its own height so only the top edge of
+   * the scroller fades and the bottom edge stays crisp. */
+  --panel-scroll-fade: 20px;
+  -webkit-mask: linear-gradient(
+      to bottom,
+      transparent 0,
+      black var(--panel-scroll-fade)
+    )
+    0 calc(-1 * var(--panel-scroll-fade)) / 100% calc(100% + var(--panel-scroll-fade))
+    no-repeat;
+  mask: linear-gradient(to bottom, transparent 0, black var(--panel-scroll-fade)) 0
+    calc(-1 * var(--panel-scroll-fade)) / 100% calc(100% + var(--panel-scroll-fade))
+    no-repeat;
+
+  /* The gutter stays invisible until the list is hovered, focused or
+   * scrolled, so it never competes with the row text. */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-shell .panel-scroll:hover,
+.sidebar-shell .panel-scroll:focus-within,
+.sidebar-shell .panel-scroll[data-scrollbar-active] {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.sidebar-shell .panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-shell .panel-scroll::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+}
+
+.sidebar-shell .panel-scroll:hover::-webkit-scrollbar-thumb,
+.sidebar-shell .panel-scroll:focus-within::-webkit-scrollbar-thumb,
+.sidebar-shell .panel-scroll[data-scrollbar-active]::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+}
+
+.sidebar-shell .panel-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* ===== Pinned grid ---------------------------------------------------- */
+
+.sidebar-shell .pinned-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  margin-bottom: 6px;
+}
+
+.sidebar-shell .pin-tile {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 2px 6px;
+  color: var(--text);
+  font-family: inherit;
+  background: 0 0;
+  border: none;
+  border-radius: calc(18px * var(--brm));
+  corner-shape: squircle;
+  cursor: pointer;
+  appearance: none;
+}
+
+.sidebar-shell .pin-tile:hover {
+  background: var(--hover-bg);
+}
+
+.sidebar-shell .pin-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.sidebar-shell .pin-tile[data-active] {
+  background: var(--selected-bg);
+}
+
+.sidebar-shell .pin-tile-circle {
+  position: relative;
+  display: block;
+  width: var(--pin-circle);
+  height: var(--pin-circle);
+}
+
+.sidebar-shell .pin-tile-icon {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  overflow: hidden;
+  background: oklch(from var(--accent) l c h / 16%);
+  border-radius: 50%;
+}
+
+.sidebar-shell .pin-tile-icon > img {
+  width: var(--pin-avatar);
+  height: var(--pin-avatar);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.sidebar-shell .pin-tile-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.sidebar-shell .pin-tile-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+  text-align: center;
+  text-transform: lowercase;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sidebar-shell .pin-tile[data-unread] .pin-tile-name {
+  font-weight: var(--font-weight-bold);
+}
+
+/* ===== Chat rows ------------------------------------------------------ */
+
+.sidebar-shell .chat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sidebar-shell .chat-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--row-avatar) minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  width: 100%;
+  min-height: calc(var(--font-md) * 1.25 + 1px + var(--font-sm) * 1.25 + 16px);
+  align-content: center;
+  align-items: center;
+  column-gap: 10px;
+  padding: 8px 10px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  line-height: 1.25;
+  background: 0 0;
+  border: none;
+  border-radius: calc(18px * var(--brm));
+  corner-shape: squircle;
+  cursor: pointer;
+  appearance: none;
+}
+
+.sidebar-shell .chat-row:hover {
+  background: var(--hover-bg);
+}
+
+.sidebar-shell .chat-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.sidebar-shell .chat-row[data-active] {
+  background: var(--selected-bg);
+}
+
+.sidebar-shell .chat-row[data-unread]::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 25;
+  width: 3px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+  transform: translateY(-50%);
+  content: "";
+}
+
+.sidebar-shell .chat-row[data-unread] .chat-name {
+  -webkit-text-stroke: 0.3px currentColor;
+  paint-order: stroke fill;
+}
+
+.sidebar-shell .chat-row[data-unread] .chat-preview {
+  color: color-mix(in oklch, var(--text) 70%, var(--text-muted));
+  -webkit-text-stroke: 0.2px currentColor;
+  paint-order: stroke fill;
+}
+
+.sidebar-shell .chat-row > img {
+  grid-area: 1 / 1 / -1;
+  place-self: center;
+  width: var(--row-avatar-img);
+  height: var(--row-avatar-img);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.sidebar-shell .chat-title-line {
+  display: flex;
+  grid-area: 1 / 2;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.sidebar-shell .chat-name {
+  display: block;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  /* Masks use alpha, so the colour is irrelevant - only the hard stop at
+   * 20px from the right edge matters. */
+  -webkit-mask-image: linear-gradient(90deg, var(--text) 0 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(90deg, var(--text) 0 calc(100% - 20px), transparent 100%);
+}
+
+.sidebar-shell .chat-time {
+  flex-shrink: 0;
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sidebar-shell .chat-preview {
+  display: block;
+  grid-area: 2 / 2;
+  min-width: 0;
+  min-height: 1.25em;
+  overflow: hidden;
+  margin-top: 1px;
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--text-muted);
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(90deg, var(--text) 0 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(90deg, var(--text) 0 calc(100% - 20px), transparent 100%);
+}
+
+.sidebar-shell .chat-trailing {
+  display: flex;
+  /* The typing run is three sibling dots; the unread badge is a single child,
+     for which a gap is inert. */
+  gap: 3px;
+  grid-area: 1 / 3 / 3 / 4;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* A typing bot is not a badge, so it does not get a widget on the right edge:
+ * it says so in place of the preview line, where the reader is already looking.
+ * The dots animate because this is the one row state where the reader IS
+ * waiting on someone else — everywhere else in the sidebar motion would be
+ * motion for its own sake. */
+.sidebar-shell .chat-preview[data-typing] {
+  color: var(--accent);
+}
+
+.sidebar-shell .typing-dot {
+  display: inline-block;
+  width: 2px;
+  height: 2px;
+  margin-inline-start: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  animation: sidebar-typing-dot 1.2s ease-in-out infinite;
+}
+
+.sidebar-shell .typing-dot:nth-of-type(2) {
+  animation-delay: 0.15s;
+}
+
+.sidebar-shell .typing-dot:nth-of-type(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes sidebar-typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-shell .typing-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ===== Resize handle -------------------------------------------------- */
+
+.sidebar-shell .resize-handle {
+  position: absolute;
+  top: 0;
+  right: -1.5px;
+  z-index: 21;
+  width: 3px;
+  height: 100%;
+  cursor: col-resize;
+  /* Absolutely positioned inside `.panel`, so it must not inherit the
+   * `min-width` that keeps the header and list from reflowing. */
+  min-width: 0;
+}
+
+.sidebar-shell .resize-handle::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  content: "";
+}
+
+.sidebar-shell .resize-handle:hover::after,
+.sidebar-shell .resize-handle:active::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-shell .resize-handle::after {
+    transition: none;
+  }
+}

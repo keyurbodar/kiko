@@ -144,6 +144,18 @@
   --c-hover-bg: 0.008;
   --l-selected-bg: 0.258;
   --c-selected-bg: 0.014;
+  /* Nav rail state. The rail sits on `--bg-sidebar` (l 0.145), so both of
+     these are lifts off that canvas rather than tints of the accent alone.
+     Active is a stronger accent tint than `--selected-bg`: 0.285 is only a
+     little lighter than its 0.258, and the doubling of chroma to 0.028 is what
+     makes it read as committed. Both take `--h-accent`, so a selected row and
+     an active tab are one family. Hover stays achromatic on the main `--hue`:
+     0.21 is a whisker above the canvas, well under active, and carries no hue
+     of its own so it can never be mistaken for selection. */
+  --l-nav-active-bg: 0.285;
+  --c-nav-active-bg: 0.028;
+  --l-nav-hover-bg: 0.21;
+  --c-nav-hover-bg: 0.006;
   --l-tooltip-bg: 0.329;
   --c-tooltip-bg: 0.006;
   --l-scrollbar-thumb: 0.375;
@@ -251,6 +263,16 @@
   initial-value: transparent;
 }
 @property --selected-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --nav-active-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --nav-hover-bg {
   syntax: "<color>";
   inherits: true;
   initial-value: transparent;
@@ -457,6 +479,12 @@
   --selected-bg: oklch(
     var(--l-selected-bg) calc(var(--c-selected-bg) * var(--cm)) var(--h-accent)
   );
+  --nav-active-bg: oklch(
+    var(--l-nav-active-bg) calc(var(--c-nav-active-bg) * var(--cm)) var(--h-accent)
+  );
+  --nav-hover-bg: oklch(
+    var(--l-nav-hover-bg) calc(var(--c-nav-hover-bg) * var(--cm)) var(--hue)
+  );
 
   /* type scale */
   --font-xs: 11px;
@@ -465,6 +493,7 @@
   --font-base: 14px;
   --line-height: 1.45;
   --line-height-code: 1.5;
+  --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
 
@@ -487,6 +516,17 @@
   --sidebar-content-w: 280px;
   --sidebar-nav-w: 60px;
   --popup-max-w: 560px;
+
+  /* Sidebar component constants. The rail is `--sidebar-nav-w` wide, so the
+     44px tab is its touch target and the 22px glyph sits centred in it. In a
+     chat row the 28px avatar cell holds a 22px image; in a pin tile the 48px
+     circle holds a 26px one, proportionally the same inset at a larger scale. */
+  --rail-tab: 44px;
+  --rail-icon: 22px;
+  --pin-circle: 48px;
+  --pin-avatar: 26px;
+  --row-avatar: 28px;
+  --row-avatar-img: 22px;
 
   --font-family-sans:
     "InterVariable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
@@ -631,6 +671,8 @@
   --color-input: var(--input-bg);
   --color-hover: var(--hover-bg);
   --color-selected: var(--selected-bg);
+  --color-nav-active: var(--nav-active-bg);
+  --color-nav-hover: var(--nav-hover-bg);
   --color-tint-subtle: var(--tint-subtle);
   --color-tint: var(--tint);
   --color-tint-strong: var(--tint-strong);
