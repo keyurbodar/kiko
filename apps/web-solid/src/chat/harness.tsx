@@ -176,6 +176,12 @@ export interface ChatProbe {
   overlay: "menu" | "picker" | null;
   /** The message the reply gesture is currently aimed at. */
   replyTarget: string | null;
+  /** Media blocks in the DOM, one per message that carries media. */
+  media: number;
+  /** Album cells, which is the sum of every rendered album's item count. */
+  mediaCells: number;
+  /** Whether the media viewer's modal is mounted. */
+  viewer: boolean;
   /** Resolved design tokens. */
   tokens: Record<string, string>;
 }
@@ -192,12 +198,30 @@ function probe(): ChatProbe {
     // The chip is a button; its label is its own text, so read the button
     // rather than reaching for a divider label that is not inside it.
     dateChip: text("[data-component='chat-date-chip'] .chat-chip"),
-    dayLabels: qa(".chat-divider__label").map((node) => node.textContent?.trim() ?? ""),
+    // The day divider's label is `[data-component='chat-day-label']`, not a
+    // `chat-divider__label` class: this read used to target a class the
+    // transcript never renders, so `dayLabels` reported an empty array for
+    // every state and a recipe keyed on it could not fail.
+    dayLabels: qa("[data-component='chat-day-label']").map((node) => node.textContent?.trim() ?? ""),
     unreadRule: qa("[data-component='chat-unread-rule']").length > 0,
     runs: bubbles.filter((node) => node.getAttribute("data-run") === "start").length,
-    typing: qa(".chat-typing-row").length > 0,
+    typing: qa("[data-component='chat-typing-row']").length > 0,
     overlay: openOverlay(),
     replyTarget: replyTargetId(),
+    // A lone picture renders one `chat-media` and no cells; an album renders
+    // one `chat-media` and a cell per item. Counting both is what tells the two
+    // apart without reading the fixture.
+    media: qa("[data-component='chat-media']").length,
+    mediaCells: qa("[data-component='chat-media-cell']").length,
+    // `.media-viewer` rather than a `data-component`, and that is not an
+    // oversight: the viewer's root IS `ModalV2.Content`, which hardcodes
+    // `data-component="modal-v2-content"` AFTER spreading the caller's props, so
+    // an attribute passed down to it is overwritten and a probe keyed on one can
+    // never pass. The class is the viewer's own identity — every rule in
+    // `mediaViewer.css` is scoped by it — so it is the handle that cannot be
+    // taken away. Same arrangement as `.chat-chip`, which is likewise a handle
+    // rather than a style.
+    viewer: q(".media-viewer") !== null,
     tokens: readTokens(),
   };
 }
@@ -235,26 +259,85 @@ function openMenu(messageId: string): boolean {
 }
 
 /**
+ * Poll a predicate across frames until it holds, or the budget is spent.
+ *
+ * The picker cannot be checked synchronously: it is a lazily imported web
+ * component that then loads its own database, so the panel appears a beat after
+ * the button is pressed. A probe that read the DOM on the same tick would report
+ * a working picker as missing, which is worse than no probe at all.
+ */
+async function waitFor(predicate: () => boolean, budgetMs: number): Promise<boolean> {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return true;
+    const { promise, resolve } = Promise.withResolvers<void>();
+    requestAnimationFrame(() => resolve());
+    await promise;
+  }
+  return predicate();
+}
+
+/**
  * Open the emoji picker on a message.
  *
- * Same principle as `openMenu`: dispatch the events a tap produces on the
- * row's own add-reaction control, falling back to the row when no control is
- * rendered. Returns whether a picker actually appeared, so an unbuilt picker
- * reports false rather than passing silently.
+ * Same principle as `openMenu`: the events a reader produces, on the controls
+ * they actually press. A bubble carries no add-reaction button, and kat has none
+ * either — reactions are reached through the message menu — so the route is a
+ * right-click and then the menu's "more emoji" button.
+ *
+ * This used to dispatch clicks at `[data-component='chat-add-reaction']` and
+ * fall back to the row itself. Neither the handle nor the control exists, so it
+ * clicked the bubble and returned false in every state: a probe that could never
+ * pass. It is async now for the reason `waitFor` gives.
  */
-function openPicker(messageId: string): boolean {
+async function openPicker(messageId: string): Promise<boolean> {
   const row = rowFor(messageId);
   if (!row) return false;
-  const target =
-    row.querySelector<HTMLElement>("[data-component='chat-add-reaction']") ??
-    row.querySelector<HTMLElement>(".chat-add-reaction") ??
-    row;
-  for (const type of ["pointerdown", "pointerup", "click"] as const) {
-    target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }));
-  }
-  const opened = qa("[data-component*='picker'], [data-component*='emoji']").length > 0;
+  if (!openMenu(messageId)) return false;
+  const more = q<HTMLElement>(".chat-menu__more");
+  if (more === null) return false;
+  more.click();
+  const opened = await waitFor(() => q("emoji-picker") !== null, 5000);
   setOpenOverlay(opened ? "picker" : null);
   return opened;
+}
+
+/**
+ * Open the media viewer on one item of a message.
+ *
+ * A dispatched `click` on the cell the reader would have pressed, for the
+ * reason `openMenu` gives: the row's own handler is the thing under test, and
+ * a probe that called the viewer's `open` directly would prove only that the
+ * viewer works, not that anything reaches it.
+ *
+ * The cell is preferred over the block because an album's block is a
+ * positioned container with no click of its own; a lone picture has no cell,
+ * so the block is the fallback. Returns whether a viewer actually mounted, so
+ * an unbuilt viewer reads as false rather than passing silently.
+ */
+function openMedia(messageId: string, index = 0): boolean {
+  const row = rowFor(messageId);
+  if (!row) return false;
+  const cell = row.querySelectorAll<HTMLElement>("[data-component='chat-media-cell']")[index];
+  const target = cell ?? row.querySelector<HTMLElement>("[data-component='chat-media']");
+  if (!target) return false;
+  target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  return q(".media-viewer") !== null;
+}
+
+/**
+ * Close the media viewer with the key a reader would press.
+ *
+ * Escape is the modal shell's, not the viewer's: Kobalte's Dialog listens for
+ * it and calls `onOpenChange`. Dispatching it on the document is the same path
+ * a real keypress takes.
+ */
+function closeMedia(): boolean {
+  if (!q(".media-viewer")) return false;
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+  );
+  return q(".media-viewer") === null;
 }
 
 /** The harness's window handle. Named for the page it is on. */
@@ -283,6 +366,8 @@ const chat = {
 
   openMenu,
   openPicker,
+  openMedia,
+  closeMedia,
 
   /** Read-only view of the current state, for a caller that only asserts. */
   state: slug,

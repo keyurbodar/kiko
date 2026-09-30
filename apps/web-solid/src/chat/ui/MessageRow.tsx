@@ -1,11 +1,12 @@
 import { Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { useApp } from "../../lib/store"
-import type { ChatMessage, RosterBot } from "../../lib/types"
-import { LinkText } from "./LinkText"
-import { MessageImage } from "./MessageImage"
+import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
+import { mediaThumbnail } from "../lib/media"
+import { MessageMedia } from "./Media"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
+import { RichText } from "./RichText"
 import { RowTime } from "./RowTime"
 import { Bubble, BubbleContent } from "./bubble"
 
@@ -46,6 +47,12 @@ function quoteSender(message: ChatMessage, ownBot: RosterBot | undefined): strin
  * The reply quote is the content's FIRST CHILD rather than a sibling: the
  * quote's radius is the bubble's radius minus the bubble's own vertical
  * padding, which only lines up if it is nested.
+ *
+ * A message with media is a COLUMN of three optional blocks: the quote, the
+ * media, and the caption. Only the media is full-bleed; the quote and the
+ * caption carry the bubble's padding themselves, which is why each of them
+ * wears a wrapper the moment `hasMedia()` is true. The media is also what
+ * makes the bubble bare — a picture is not a coloured pill's contents.
  */
 export function MessageRow(props: {
   message: ChatMessage
@@ -72,11 +79,20 @@ export function MessageRow(props: {
   /** Toggles a reaction on this message. Omit it and the badges still render,
    *  they just do not respond to a click. */
   onReact?: (emoji: string) => void
-  /** Opens this message's image full-screen. Omit it and the picture still
-   *  renders, it just is not a button that goes anywhere. */
-  onOpenImage?: (image: { src: string; name: string }) => void
+  /**
+   * Opens the media viewer on one item of this message's album. Omit it and
+   * the media still renders, it just is not a button that goes anywhere.
+   */
+  onOpenMedia?: (items: readonly MediaItem[], index: number) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
+  /**
+   * Whether this message carries media. Read three times — the bubble's
+   * padding, the quote's own padding, and the caption's — and all three have to
+   * agree, because a message that drops the bubble padding without giving it
+   * back to the caption loses its text against the bubble's edge.
+   */
+  const hasMedia = () => (props.message.media?.length ?? 0) > 0
   return (
     <div
       class={cn(
@@ -164,23 +180,43 @@ export function MessageRow(props: {
             "after:rounded-[inherit] after:opacity-0",
             own() ? "after:bg-message-user-text" : "after:bg-accent",
             props.highlighted && "after:opacity-[0.22]",
+            // Media takes the bubble's edges, so the bubble hands its padding
+            // to the caption instead and a media-only message ends up with
+            // none at all. That is what makes a picture sit flush inside the
+            // bubble's radius rather than floating in a coloured frame, and it
+            // is the same trade tweb makes when it pulls the text out of
+            // `.bubble-content` and into its own padded `.message` block.
+            hasMedia() && "p-0",
           )}
         >
           <Show when={props.parent}>
             {(parent) => (
-              <Quote
-                parent={parent()}
-                label={quoteSender(parent(), props.bot)}
-                imageUrl={parent().image?.src}
-                onOpenReplyTarget={props.onOpenReplyTarget}
+              <div class={hasMedia() ? "px-3 pt-[7px]" : undefined}>
+                <Quote
+                  parent={parent()}
+                  label={quoteSender(parent(), props.bot)}
+                  imageUrl={mediaThumbnail(parent().media?.[0])}
+                  onOpenReplyTarget={props.onOpenReplyTarget}
+                />
+              </div>
+            )}
+          </Show>
+          <Show when={props.message.media}>
+            {(media) => (
+              <MessageMedia
+                items={media()}
+                hasText={props.message.body.trim().length > 0}
+                onOpen={(index) => props.onOpenMedia?.(media(), index)}
               />
             )}
           </Show>
-          <MessageImage
-            image={props.message.image}
-            onOpen={(image) => props.onOpenImage?.(image)}
-          />
-          <LinkText text={props.message.body} preview={props.message.linkPreview} />
+          <Show
+            when={props.message.body.length > 0 || props.message.webPage !== undefined}
+          >
+            <div class={hasMedia() ? "px-3 py-[7px]" : undefined}>
+              <RichText text={props.message.body} webPage={props.message.webPage} />
+            </div>
+          </Show>
         </BubbleContent>
         <ReactionStack
           reactions={props.message.reactions}

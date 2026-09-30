@@ -41,6 +41,47 @@ export interface Reaction {
   viewerReacted: boolean;
 }
 
+/**
+ * One picture or clip a message carries.
+ *
+ * `kind` is what picks the chrome: a video draws a duration badge and a play
+ * mark over its poster frame, a photo draws nothing over itself. The intrinsic
+ * size is required rather than optional, because the box is reserved from it
+ * before the bytes land — an album whose cells resize on load would move the
+ * scroll anchor of every row below it.
+ */
+export interface MediaItem {
+  kind: "photo" | "video"
+  src: string
+  /** Intrinsic size in pixels, not layout size. */
+  width: number
+  height: number
+  /** Frame shown before a video plays. Ignored on a photo. */
+  poster?: string
+  /** Clip length in seconds, for the duration badge. */
+  duration?: number
+  /** Describes the media for assistive tech and for the viewer's caption. */
+  alt: string
+}
+
+/**
+ * The card a message renders when its body points at a page. Every field is
+ * the page's own metadata, so the card is data the sender's link carried
+ * rather than anything derived from the body at render time.
+ */
+export interface WebPagePreview {
+  url: string
+  /** The site's own name, the card's bold first line. */
+  site?: string
+  title?: string
+  description?: string
+  /** The preview image, and which edge of the card it sits on. */
+  media?: { src: string; width: number; height: number }
+  mediaPosition?: "top" | "bottom"
+  /** Label for the card's footer button, e.g. "open". */
+  footer?: string
+}
+
 /** A single message in a conversation. Text is required; the rest is display. */
 export interface ChatMessage {
   id: string;
@@ -62,30 +103,17 @@ export interface ChatMessage {
   /** The message this one answers. Absent on a root message. */
   replyToId?: string;
   /**
-   * Intrinsic size, not layout size. The row reserves `width` x `height`
-   * before the bytes land, so a decoding image cannot shift the scroll anchor.
+   * The message's media, in the order the sender attached it. One item draws
+   * as a single fitted box and two or more draw as an album grid, which is the
+   * same split tweb makes between its photo path and its album layouter.
    */
-  image?: {
-    src: string;
-    alt: string;
-    width: number;
-    height: number;
-  };
+  media?: MediaItem[]
   /** Shows the edited marker. The body is never rewritten, only flagged. */
-  edited?: boolean;
+  edited?: boolean
   /** Marks the message as pinned in its thread. */
-  pinned?: boolean;
-  /**
-   * A card rendered from link metadata. Carries no image: a preview is text
-   * plus a host, and a card that needs a thumbnail is an attachment.
-   */
-  linkPreview?: {
-    url: string;
-    title: string;
-    description?: string;
-    /** Display name for the host, when it differs from the raw hostname. */
-    site?: string;
-  };
+  pinned?: boolean
+  /** The card rendered from the metadata of a page the body points at. */
+  webPage?: WebPagePreview
   /**
    * Optimistic send state for the viewer's own messages. A bot message is
    * never in flight, so this only ever reads on a `sender: "user"` row.

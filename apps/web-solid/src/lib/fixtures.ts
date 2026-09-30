@@ -19,7 +19,7 @@
 // Every timestamp is relative to the exported NOW, so the day labels ("three
 // days ago", "yesterday", "today") are stable no matter when this is read.
 
-import type { ChatMessage, RosterBot, RosterGroup } from "./types";
+import type { ChatMessage, MediaItem, RosterBot, RosterGroup } from "./types";
 
 export const VIEWER_ID = "viewer";
 
@@ -128,36 +128,91 @@ export const GROUPS: readonly RosterGroup[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// THE MEDIA CATALOGUE
+//
+// Every picture and clip the transcript can carry lives in `public/media`, and
+// each one is an ffmpeg testsrc2 card: six saturated vertical bars (red,
+// green, yellow, blue, magenta, cyan), a diagonal streak running out of the
+// top-left corner, a stepped grey pixel grid at the lower right, and a frame
+// counter burned into the top-left. The bar pattern is the readable part, so
+// the alt text says which bars survived the crop rather than saying "image".
+//
+// The sizes are ffprobe's, not the design's. A `MediaItem` carries the
+// INTRINSIC size because the box is reserved from it before the bytes land, and
+// an album whose cells resized on load would move the scroll anchor of every
+// row below it. Keeping the numbers beside the file they came from means
+// regenerating an asset is a one-line edit here rather than a silent layout
+// shift in the app.
+// ---------------------------------------------------------------------------
 
-/**
- * Inline SVG rather than a binary asset. The harness must render an image row
- * and a quote thumbnail with no fetch, no asset pipeline, and no chance of a
- * broken image standing in for a real layout bug. Percent-encoded rather than
- * base64 so the markup stays readable in devtools.
- */
-function svgImage(
-  label: string,
-  from: string,
-  to: string,
-  width = 480,
-  height = 270,
-): string {
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
-    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
-    `<stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/>` +
-    `</linearGradient></defs>` +
-    `<rect width="${width}" height="${height}" fill="url(#g)"/>` +
-    `<circle cx="${width * 0.76}" cy="${height * 0.3}" r="${height * 0.22}" fill="oklch(100% 0 none / 0.16)"/>` +
-    `<rect x="${width * 0.08}" y="${height * 0.62}" width="${width * 0.44}" height="${height * 0.06}" rx="${height * 0.03}" fill="oklch(100% 0 none / 0.5)"/>` +
-    `<rect x="${width * 0.08}" y="${height * 0.76}" width="${width * 0.3}" height="${height * 0.06}" rx="${height * 0.03}" fill="oklch(100% 0 none / 0.28)"/>` +
-    `<text x="${width * 0.08}" y="${height * 0.34}" fill="oklch(100% 0 none / 0.92)" font-family="InterVariable, system-ui, sans-serif" font-size="${height * 0.13}" font-weight="600">${label}</text>` +
-    `</svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+interface CardSize {
+  width: number;
+  height: number;
 }
 
-const MOUNTAIN_SVG = svgImage("oklch", "#4c3a52", "#2a1f2e", 640, 360);
-const DIAGRAM_SVG = svgImage("tokens", "#2f4a52", "#1d2b30", 560, 320);
+const PHOTOS = {
+  "photo-landscape.jpg": { width: 1600, height: 900 },
+  "photo-wide.jpg": { width: 1400, height: 700 },
+  "photo-pano.jpg": { width: 2100, height: 1000 },
+  "photo-square.jpg": { width: 1000, height: 1000 },
+  "photo-portrait.jpg": { width: 900, height: 1600 },
+  "photo-tall.jpg": { width: 700, height: 1400 },
+  "photo-narrow.jpg": { width: 180, height: 800 },
+  "photo-small.jpg": { width: 300, height: 200 },
+} satisfies Record<string, CardSize>;
+
+/** A clip, with the poster frame shown before it plays and the badge's length. */
+const VIDEOS = {
+  "video-landscape.mp4": {
+    width: 1280,
+    height: 720,
+    duration: 6,
+    poster: "video-landscape-poster.jpg",
+  },
+  "video-portrait.mp4": {
+    width: 720,
+    height: 1280,
+    duration: 4,
+    poster: "video-portrait-poster.jpg",
+  },
+} satisfies Record<string, CardSize & { duration: number; poster: string }>;
+
+type PhotoFile = keyof typeof PHOTOS;
+type VideoFile = keyof typeof VIDEOS;
+
+function photo(file: PhotoFile, alt: string): MediaItem {
+  return { kind: "photo", src: `/media/${file}`, ...PHOTOS[file], alt };
+}
+
+/**
+ * The preview image on a web page card, which is the same generated card at
+ * the same intrinsic size but carries no alt: the card's own title and site
+ * already name it, and an image inside a link inside a link is decoration to
+ * assistive tech rather than content.
+ */
+function cardImage(file: PhotoFile): { src: string; width: number; height: number } {
+  return { src: `/media/${file}`, ...PHOTOS[file] };
+}
+
+/**
+ * A clip item. The poster is its own file rather than a frame the browser has
+ * to seek for, because a video that paints nothing until it has buffered
+ * reports a black box where the media should be — and a black box reads as a
+ * broken cell, not as a clip that has not started.
+ */
+function video(file: VideoFile, alt: string): MediaItem {
+  const { width, height, duration, poster } = VIDEOS[file];
+  return {
+    kind: "video",
+    src: `/media/${file}`,
+    width,
+    height,
+    duration,
+    poster: `/media/${poster}`,
+    alt,
+  };
+}
 
 export const MESSAGES: readonly ChatMessage[] = [
   // --- three days ago: the token bridge thread, a grouped run ---------------
@@ -182,7 +237,7 @@ export const MESSAGES: readonly ChatMessage[] = [
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "One :root block in kiko.css. The whole scale is calc() off a single --radius.",
+    body: "One :root block in kat.css. Two named radius roles, and every other corner is calc() off a single --brm.",
     sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 3 * MINUTE,
   },
   {
@@ -378,29 +433,29 @@ export const MESSAGES: readonly ChatMessage[] = [
     id: "a-25",
     threadId: "ada",
     sender: "user",
-    body: "Here is the ladder as it renders. The sm step is visibly tighter than the rest.",
+    body: "A 16:9 test card, so the fitted box has to letterbox rather than crop. The grey grid at the bottom right is the thing to check.",
     sentAt: YESTERDAY + 14 * 60 * MINUTE,
-    image: {
-      src: MOUNTAIN_SVG,
-      alt: "Radius ladder screenshot: eight steps, the smallest noticeably tighter than the rest",
-      width: 640,
-      height: 360,
-    },
+    media: [
+      photo(
+        "photo-landscape.jpg",
+        "Test card at 16:9: six colour bars, a diagonal streak from the top left, and a stepped grey grid at the lower right",
+      ),
+    ],
   },
   {
     id: "a-26",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "That is the calc() I flagged. One unit short on the sm step, and everything after it inherits the error.",
+    body: "Same card at 2:1. Wider than the box, so this is the one that has to crop, and the grid block falls off the bottom edge.",
     sentAt: YESTERDAY + 14 * 60 * MINUTE + 2 * MINUTE,
     replyToId: "a-25",
-    image: {
-      src: DIAGRAM_SVG,
-      alt: "Diagram of the radius ladder with the sm step marked one unit short",
-      width: 560,
-      height: 320,
-    },
+    media: [
+      photo(
+        "photo-wide.jpg",
+        "The same test card at 2:1, so the bars are wider and the grid block is cropped off the bottom edge",
+      ),
+    ],
   },
   {
     id: "a-27",
@@ -435,12 +490,15 @@ export const MESSAGES: readonly ChatMessage[] = [
     botId: "ada",
     body: "Read it. One correction, and it is the same sm step.",
     sentAt: YESTERDAY + 15 * 60 * MINUTE + 2 * MINUTE,
-    linkPreview: {
+    webPage: {
       url: "https://example.com/design/radius-ladder",
+      site: "Design notes",
       title: "The radius ladder, and why one calc() is enough",
       description:
         "A single derivation from --radius to every step, with the reason the rungs are unlayered.",
-      site: "Design notes",
+      media: cardImage("photo-wide.jpg"),
+      mediaPosition: "top",
+      footer: "open",
     },
   },
 
@@ -473,6 +531,228 @@ export const MESSAGES: readonly ChatMessage[] = [
     botId: "ada",
     body: "Three bodies, three classes. The prose one must fall back to text size or it reads as a headline.",
     sentAt: YESTERDAY + 15 * 60 * MINUTE + 7 * MINUTE,
+  },
+
+  // --- yesterday: the album layouter, the viewer, and the rich-text body ----
+  //
+  // Its own block, and its own `m-` id prefix, because every message in it is
+  // about one variable — the shape of the media set or the shape of the body —
+  // and a reader has to be able to scroll straight to a single case without
+  // reasoning about which of the forty rows in this thread is the one they
+  // want. The album sizes climb 2, 3, 4, 5 on purpose: the layouter takes a
+  // different branch at each count, so an album that only ever appeared with
+  // three items would leave every other branch unrendered.
+  {
+    id: "m-01",
+    threadId: "ada",
+    sender: "user",
+    body: "Two, and deliberately mismatched. A 16:9 beside a 9:16 is the asymmetric case, so neither cell can be the reference and the pair has to be balanced against each other.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE,
+    media: [
+      photo(
+        "photo-landscape.jpg",
+        "Test card at 16:9: six colour bars with a diagonal streak from the top left and a stepped grey grid at the lower right",
+      ),
+      photo(
+        "photo-portrait.jpg",
+        "The same test card at 9:16, with the bars running the full height and the grey grid block cropped to a sliver",
+      ),
+    ],
+  },
+  {
+    id: "m-02",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "Three goes to the row-plus-feature shape, and the square is the feature. Nothing is cropped, so what you are checking is that all three cells keep the same height.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 2 * MINUTE,
+    media: [
+      photo(
+        "photo-wide.jpg",
+        "Test card at 2:1: wide colour bars and the diagonal streak, with the grey grid block cut off by the bottom edge",
+      ),
+      photo(
+        "photo-square.jpg",
+        "Test card at 1:1, the whole pattern fitting inside the frame",
+      ),
+      photo(
+        "photo-tall.jpg",
+        "Test card at 1:2: the bars run vertically and the grey grid sits near the middle of the card",
+      ),
+    ],
+  },
+  {
+    id: "m-03",
+    threadId: "ada",
+    sender: "user",
+    body: "Four is the plain 2x2, which is the only album shape that needs no special casing at all.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 4 * MINUTE,
+    media: [
+      photo(
+        "photo-landscape.jpg",
+        "Test card at 16:9 with six colour bars and a diagonal streak across the upper left",
+      ),
+      photo(
+        "photo-square.jpg",
+        "Test card at 1:1 with the full bar pattern and the grey grid in the lower right",
+      ),
+      photo(
+        "photo-tall.jpg",
+        "Test card at 1:2, bars running vertically, grid block visible in the middle",
+      ),
+      photo(
+        "photo-small.jpg",
+        "The test card at 300 by 200, small enough that the frame counter is the only legible detail",
+      ),
+    ],
+  },
+  {
+    id: "m-04",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "Five is where the grid stops being a grid. An odd count means the last row cannot be the same width as the first, so this is the branch that actually solves for the leftover.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 6 * MINUTE,
+    media: [
+      photo(
+        "photo-wide.jpg",
+        "Test card at 2:1, wide bars and the diagonal streak, grey grid cropped off the bottom",
+      ),
+      photo(
+        "photo-square.jpg",
+        "Test card at 1:1 with the full pattern fitting the frame",
+      ),
+      photo(
+        "photo-landscape.jpg",
+        "Test card at 16:9, six colour bars with the grey grid at the lower right",
+      ),
+      photo(
+        "photo-tall.jpg",
+        "Test card at 1:2, vertical bars with the grey grid block mid-card",
+      ),
+      photo(
+        "photo-narrow.jpg",
+        "The test card at 180 by 800: a tall sliver where the bars read as stripes and the frame counter is squeezed into the corner",
+      ),
+    ],
+  },
+  {
+    id: "m-05",
+    threadId: "ada",
+    sender: "user",
+    body: "A 2.1 pano is the other shape that reaches the complex layouter, and the reason it is worse than an odd count is that the wide one is nearly twice the ratio of everything beside it.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 8 * MINUTE,
+    media: [
+      photo(
+        "photo-pano.jpg",
+        "Test card at 2.1:1: the widest frame here, with the colour bars stretched across it and the grey grid block pushed right",
+      ),
+      photo(
+        "photo-square.jpg",
+        "Test card at 1:1 with the full pattern inside the frame",
+      ),
+      photo(
+        "photo-portrait.jpg",
+        "Test card at 9:16, bars running the full height with the grey grid cropped to a sliver",
+      ),
+    ],
+  },
+  {
+    id: "m-06",
+    threadId: "ada",
+    sender: "user",
+    body: "",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 10 * MINUTE,
+    media: [
+      photo(
+        "photo-square.jpg",
+        "Test card at 1:1: six colour bars, a diagonal streak from the top left corner, and a stepped grey grid block at the lower right",
+      ),
+    ],
+  },
+  {
+    id: "m-07",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "And the same card with a caption under it. The box cannot grow to the image's own aspect once there is a line of text beside it, so this is the one that has to fit rather than letterbox.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 12 * MINUTE,
+    media: [
+      photo(
+        "photo-portrait.jpg",
+        "Test card at 9:16: vertical colour bars, a diagonal streak, and the grey grid block cropped to a sliver at the lower right",
+      ),
+    ],
+  },
+  {
+    id: "m-08",
+    threadId: "ada",
+    sender: "user",
+    body: "",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 14 * MINUTE,
+    media: [
+      video(
+        "video-landscape.mp4",
+        "Six-second test clip at 16:9: the colour bars hold still while the burned-in frame counter runs, and the grey grid block sits at the lower right",
+      ),
+    ],
+  },
+  {
+    id: "m-09",
+    threadId: "ada",
+    sender: "user",
+    body: "A caption under the clip. The duration badge has to stay legible against the poster, and the play mark has to sit on the bar pattern rather than on the grid.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 16 * MINUTE,
+    media: [
+      video(
+        "video-landscape.mp4",
+        "Six-second test clip at 16:9: colour bars with a diagonal streak, a frame counter counting up in the top left, and a grey grid block at the lower right",
+      ),
+    ],
+  },
+  {
+    id: "m-10",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "The portrait clip is the case where fitting to width would make the badge a strip, so the box is bounded by height instead.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 18 * MINUTE,
+    media: [
+      video(
+        "video-portrait.mp4",
+        "Four-second test clip at 9:16: the bars run the full height, the frame counter is squeezed into the top-left corner, and the grey grid block is cropped",
+      ),
+    ],
+  },
+  {
+    id: "m-11",
+    threadId: "ada",
+    sender: "user",
+    body: "A card and a photo in one message. They are independent blocks, so neither one is allowed to reflow the other when it loads.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 20 * MINUTE,
+    media: [
+      photo(
+        "photo-landscape.jpg",
+        "Test card at 16:9 with six colour bars, a diagonal streak from the top left, and a stepped grey grid at the lower right",
+      ),
+    ],
+    webPage: {
+      url: "https://example.com/design/geometry",
+      site: "Design notes",
+      title: "Fitting a card and a photo into one row",
+      description:
+        "Why the media block reserves its box from the intrinsic size, and why the card's own image is a separate reservation from the message's.",
+      media: cardImage("photo-pano.jpg"),
+      mediaPosition: "bottom",
+      footer: "open",
+    },
+  },
+  {
+    id: "m-12",
+    threadId: "ada",
+    sender: "user",
+    body: "Every shape the body parser has to tell apart, in one line: a bare link is https://example.com/geometry, a www. run is www.example.com, a trailing full stop is https://example.com/trailing. and foo.zzz is not a url so it has to stay plain text. Mail goes to ada@example.com, ping @ada, file it under #geometry — and https://аррӏе.com is not what it looks like.",
+    sentAt: YESTERDAY + 16 * 60 * MINUTE + 22 * MINUTE,
   },
 
   // --- today: the tail, with the unread anchor in the middle ---------------
@@ -667,6 +947,37 @@ export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = 
   // quote renders both the clamped text line and the thumbnail.
   "reply-text": slice("a-35", "a-36"),
   "reply-image": slice("a-25", "a-26", "a-27"),
+
+  // The album layouter, one count per state, because the count is the only
+  // input that changes which branch runs. Two and three are the shapes a
+  // symmetric grid cannot express; four is the one it can; five and the pano
+  // are both the complex layouter, reached for different reasons.
+  "album-2": slice("m-01"),
+  "album-3": slice("m-02"),
+  "album-4": slice("m-03"),
+  "album-5": slice("m-04"),
+  "album-pano": slice("m-05"),
+
+  // A single photo with no body at all, then the same card with one. The pair
+  // is the point: an empty body has to leave the media its full box rather than
+  // reserve room for a caption that never arrives.
+  "media-only": slice("m-06"),
+  "photo-caption": slice("m-07"),
+
+  // A clip with no body, a clip with one, and the portrait clip, which is the
+  // one whose fitted box is bounded by height rather than width.
+  video: slice("m-08"),
+  "video-caption": slice("m-09"),
+  "video-portrait": slice("m-10"),
+
+  // Media and a card in one row: two independent reservations, and a card
+  // whose image is on the bottom edge rather than the top.
+  "media-card": slice("m-11"),
+
+  // Every run the body parser has to tell apart on one line: a bare scheme, a
+  // `www.` run, a trailing full stop, a non-TLD that must stay text, an email,
+  // a mention, a hashtag, and a homograph host that has to be flagged.
+  "rich-text": slice("m-12"),
 
   // A cluster: one chip the viewer has given, pressed, beside a counted chip
   // they are not part of. Both visible at once is the whole point.

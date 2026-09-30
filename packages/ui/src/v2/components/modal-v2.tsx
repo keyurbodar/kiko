@@ -6,11 +6,11 @@ import "./modal-v2.css"
  * A modal SHELL: Kobalte's Dialog with the stacking, the centring and the
  * scrim filled in, and nothing else.
  *
- * `DialogV2` is the sized panel — `dialog-v2.css` hardcodes a 480x368 surface
- * because a settings dialog has one obvious size. A lightbox, a media viewer
- * and a confirmation do not, and a shell that picks for them picks wrong every
- * time and has to be fought with overrides. So this one is chromeless: no
- * width, no height, no max-width, no padding. The caller owns the box.
+ * A modal is one shell with three different jobs — a lightbox, a media viewer
+ * and a confirmation — and each of them wants its own box. A shell that picks
+ * a size for them picks wrong every time and has to be fought with overrides.
+ * So this one is chromeless: no width, no height, no max-width, no padding.
+ * The caller owns the box.
  *
  * Everything a modal must do that a `div` cannot is Kobalte's, and is not
  * reimplemented here: the focus trap, escape-to-close, `role="dialog"`, the

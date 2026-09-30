@@ -27,7 +27,7 @@ import { TypingRow } from "./ui/TypingRow"
 import { JumpToLatest } from "./ui/JumpToLatest"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
-import { createLightbox } from "../lightbox/lightbox"
+import { createMediaViewer } from "../chat/media/mediaViewer"
 
 /**
  * What the shell knows about the reader's position. Everything the transcript
@@ -597,15 +597,21 @@ export function VirtualThread(props: {
   )
 
   /**
-   * One lightbox for the whole transcript, not one per row.
+   * One media viewer for the whole transcript, not one per row.
    *
    * It has to outlive the row that opened it: the transcript is virtualized, so
    * a per-row viewer would be destroyed the moment its message scrolled out of
    * the buffer, taking an open dialog with it. `menu.view` is per row for
    * exactly the opposite reason — a menu belongs to one message and should die
    * with it.
+   *
+   * The row hands up the whole album and the index that was clicked, not a
+   * single source: a viewer is a slideshow over a message's media, and a
+   * callback that flattened it to one item could not offer the next picture.
+   * The body travels with it as the caption, which is the only place it can
+   * come from — the viewer has no access to the transcript's items.
    */
-  const lightbox = createLightbox()
+  const viewer = createMediaViewer()
 
   /**
    * One message row: the swipe wrapper, the bubble, and the menu that belongs
@@ -655,7 +661,7 @@ export function VirtualThread(props: {
             onOpenReplyTarget={jumpToMessage}
             onReact={(emoji) => useApp.toggleReaction(message.id, emoji)}
             onContextMenu={menu.onContextMenu}
-            onOpenImage={lightbox.open}
+            onOpenMedia={(media, index) => viewer.open(media, index, message.body)}
           />
         </SwipeToReply>
         {menu.view}
@@ -739,7 +745,13 @@ export function VirtualThread(props: {
       </div>
 
       <DateChip
-        dayStart={dayStartOf(now())}
+        // The day at the TOP of the transcript, not today. `topVisibleDay` is
+        // what the chip is a label FOR: scrolling back through yesterday has to
+        // turn the chip into "yesterday", and scrolling down into today has to
+        // turn it back, which is the whole behaviour. It was wired to
+        // `dayStartOf(now())`, so the chip read "today" in every state and the
+        // memo beside it was spent on visibility alone.
+        dayStart={topVisibleDay() ?? dayStartOf(now())}
         now={now()}
         visible={dateChipVisible()}
         onJumpToDay={jumpToDay}
@@ -750,7 +762,7 @@ export function VirtualThread(props: {
         showBottom={!isAtLatest()}
       />
 
-      {lightbox.view}
+      {viewer.view}
     </div>
   )
 }

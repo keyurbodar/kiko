@@ -6,8 +6,8 @@ export interface ReplyBarProps {
   message: ChatMessage
   /** Who the quoted message is from, resolved by the caller. */
   role: string
-  /** Thumbnail for an image message, when the message carries one. */
-  image?: { src: string; alt?: string }
+  /** Still for a message that carries media: the first item's frame. */
+  thumb?: string
   /** Jump the transcript to the quoted message. */
   onJump: () => void
   /** Drop the reply. */
@@ -35,12 +35,12 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
         <div class="reply-bar-text">
           <span class="reply-bar-role">{props.role}</span>
           <Show
-            when={props.image}
+            when={props.thumb}
             fallback={<span class="reply-bar-preview">{replyPreview(props.message.body)}</span>}
           >
-            {(image) => (
+            {(thumb) => (
               <div class="reply-preview-line">
-                <img class="attachment-thumb" src={image().src} alt={image().alt ?? ""} />
+                <img class="attachment-thumb" src={thumb()} alt="" />
                 <span class="reply-bar-preview">{replyPreview(props.message.body)}</span>
               </div>
             )}

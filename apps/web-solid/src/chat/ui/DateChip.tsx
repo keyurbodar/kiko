@@ -50,8 +50,18 @@ export function DateChip(props: {
     setPicking(false)
   }
   const toggle = () => {
-    if (open()) close()
-    else setOpen(true)
+    if (open()) {
+      close()
+      return
+    }
+    // The chip follows the day at the top of the transcript, so the calendar has
+    // to open on THAT day. `month` and `picked` are seeded once at mount, which
+    // was harmless while the chip was pinned to today and is wrong the moment it
+    // is not: scroll back a day, open the grid, and it would land on the day the
+    // component was first rendered.
+    setMonth(new Date(props.dayStart))
+    setPicked(new Date(props.dayStart))
+    setOpen(true)
   }
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape" && open()) {

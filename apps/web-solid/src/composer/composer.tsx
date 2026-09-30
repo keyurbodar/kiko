@@ -7,7 +7,8 @@ import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import { createPromptInputV2Store } from "./prompt-input/store"
 import type { PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
-import { createLightbox } from "../lightbox/lightbox"
+import { mediaThumbnail } from "../chat/lib/media"
+import { createMediaViewer } from "../chat/media/mediaViewer"
 
 export function Composer(props: ComposerProps) {
   const [persisted, setPersisted] = createStore<PromptInputV2PersistedState>({
@@ -19,13 +20,13 @@ export function Composer(props: ComposerProps) {
 
   /*
    * The composer's own viewer, rather than one shared with the transcript.
-   * A lightbox belongs to the surface that opens it: this one is opened by a
+   * A viewer belongs to the surface that opens it: this one is opened by a
    * thumbnail in the attachment strip, that one by a picture in a message, and
    * neither surface can be reached while the other's modal is up. Hoisting one
    * instance to the app would mean threading an `open` callback through
    * `main.tsx`, `MessageList` and `Composer` to save a signal pair.
    */
-  const lightbox = createLightbox()
+  const viewer = createMediaViewer()
 
   const botById = (botId: string | undefined) =>
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
@@ -62,7 +63,21 @@ export function Composer(props: ComposerProps) {
      * swallowed with no dialog and no feedback.
      */
     openAttachment: (attachment) =>
-      lightbox.open({ src: attachment.blob.url, name: attachment.filename }),
+      viewer.open(
+        [
+          {
+            kind: "photo",
+            src: attachment.blob.url,
+            // An attachment's size is not known until its bytes are read, and
+            // the viewer fits by `object-contain`, so it does not need one.
+            width: 0,
+            height: 0,
+            alt: attachment.filename,
+          },
+        ],
+        0,
+        attachment.filename,
+      ),
     attachments: {
       directory: () => "",
       isDialogActive: () => false,
@@ -106,7 +121,7 @@ export function Composer(props: ComposerProps) {
               ? "you"
               : (botById(message().botId)?.name ?? "agent").toLowerCase()
           }
-          image={message().image ? { src: message().image!.src, alt: message().image!.alt } : undefined}
+          thumb={mediaThumbnail(message().media?.[0])}
           onJump={() => props.onJumpToReply?.(message().id)}
           onDismiss={() => props.onClearReply?.()}
         />
@@ -117,7 +132,7 @@ export function Composer(props: ComposerProps) {
   return (
     <>
       <PromptInputV2 controller={controller} disabled={!!props.busy} reply={reply} />
-      {lightbox.view}
+      {viewer.view}
     </>
   )
 }
