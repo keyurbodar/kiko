@@ -11,7 +11,7 @@ There is **no Playwright, no Puppeteer, and no Chrome.app** on this machine. `im
 
 Every check below is read-only except the launch itself. Never edit a source file to make a check pass.
 
-Colour comes from one stylesheet, `packages/ui/src/styles/kat.css`, pulled in by `apps/web-solid/src/styles/app.css`. The app has **no theme switch, no light mode, and no sidebar** — a run that goes looking for one is hunting a bug that is not there.
+Colour comes from one stylesheet, `packages/ui/src/styles/kat.css`, pulled in by `apps/web-solid/src/styles/app.css`. The app has **no theme switch and no light mode** — a run that goes looking for either is hunting a bug that is not there. It does have a **sidebar**: a rail-and-panel conversation column down the left edge of `/`, with its own feature file at [Sidebar](./features/sidebar.md).
 
 ## Launch
 
@@ -100,7 +100,7 @@ const roles = await page.evaluate((names) => {
 const page1 = await page.evaluate(() => ({
   title: document.title,
   rootChildren: document.getElementById("root").childElementCount,
-  shell: document.querySelectorAll(".app-shell").length,
+  shell: document.querySelectorAll(".sidebar-shell").length,
   colorScheme: getComputedStyle(document.documentElement).colorScheme,
   bodyFontSize: getComputedStyle(document.body).fontSize,
   // The two deleted theme engines. Both must stay gone.
@@ -222,9 +222,9 @@ The slugs come from `FIXTURE_STATES` in `apps/web-solid/src/lib/fixtures.ts`. A 
 Selectors you can rely on:
 
 - `loc=css:#root` — the mount point from `apps/web-solid/index.html`.
-- `loc=css:.app-shell` — the full-height shell; its single child is the app's chat pane.
+- `loc=css:.sidebar-shell` — the full-height flex row the app composes, and the class every rule in `apps/web-solid/src/sidebar/sidebar.css` is scoped under. Its children are the sidebar and the chat pane. It is **not** `.chat-shell`.
 - `loc=css:html` — carries `class="dark"` and `color-scheme: dark` from `index.html` and the kat base layer.
-- `loc=css:[data-component="chat-shell"]` — the composed app's chat pane, `.app-pane` inside `.app-shell`. It holds the transcript and the composer dock.
+- `loc=css:[data-component="chat-shell"]` — the composed app's chat pane, the shrinkable flex child of `.sidebar-shell` that sits beside the sidebar. It holds the transcript and the composer dock.
 - `loc=css:[data-component="chat-surface"]` — the transcript root, which owns the scroller and the column.
 - `loc=css:[data-component="chat-scroll"]` — the scroller, `.chat-scroller`. `window.scrollTo` moves nothing; write `scrollTop` on this element.
 - `loc=css:.chat-stage` — the positioned sibling of the scroller that hosts the jump pill and the scroll fades, so those do not scroll away.
@@ -235,10 +235,22 @@ Selectors you can rely on:
 - `loc=css:.chat-divider` — a day-divider row, with `.chat-divider__label` and `.chat-divider__time`.
 - `loc=css:[data-component="chat-date-chip"]` — the floating day chip's anchor, with `.chat-chip` as the trigger.
 - `loc=css:[data-component="chat-unread-rule"]` — the new-messages rule.
+- `loc=css:[data-component="chat-image-trigger"]` — the `<button>` wrapping a message image, carrying `aria-label="Open image: <alt>"`. Its child `<img>` is `[data-slot="chat-image"]`; clicking the button opens the `.lightbox` viewer.
+- `loc=css:[data-component="sidebar"]` — the `<aside>` conversation panel, carrying `data-panel`, `data-collapsed` and `data-resizing`.
+- `loc=css:[data-component="sidebar-rail-tab"]` — one rail button, carrying `data-panel` (one of `chats`, `terminal`, `code`, `browser`, `settings`) and `data-active`.
+- `loc=css:[data-component="sidebar-row"]` — one conversation row, carrying `data-chat-id`, `data-active` and `data-unread`.
+- `loc=css:[data-component="sidebar-pin-tile"]` — one pinned tile, carrying the same three attributes.
+- `loc=css:[data-component="sidebar-unread-count"]` — the unread number in a row's trailing column.
+- `loc=css:[data-component="sidebar-resize"]` — the 3px resize handle, `role="separator"` with `aria-valuenow`/`aria-valuemin`/`aria-valuemax`. It stays mounted while the panel is collapsed, which is what makes the collapse reversible.
+- `loc=css:[data-component="sidebar-add"]` — the `+` in the panel header; its menu carries exactly one item, `toggle sidebar`.
+- `loc=css:[data-component="sidebar-chats"]` — the chats panel body.
+- `loc=css:[data-component="sidebar-panel-empty"]` — the "not built" line shown for the rail panels this app has no content for.
+- `loc=css:[data-component="hover-card-v2-content"]` — the hover preview card the rows and the pinned tiles open.
+- `loc=css:[data-component="menu-v2-content"]` — **the** handle for a Kobalte menu's content element. `MenuV2.Context.Content` overwrites any `data-component` passed to it with its own, so a menu handle supplied as a prop never reaches the DOM; select the menu by this attribute and read its `[data-component="menu-v2-item"]` children.
 
-**Prefer the `data-component` attribute over the class.** Two stylesheets once both defined a bare `.chat-shell` for different elements — the app's pane and the transcript's scroller — with conflicting `overflow` and layout. They are now `.app-pane` and `.chat-scroller` respectively, and the attribute is the handle that stays stable across that rename.
+**Prefer the `data-component` attribute over the class.** Two stylesheets once both defined a bare `.chat-shell` for different elements — the app's pane and the transcript's scroller — with conflicting `overflow` and layout. The pane is now `[data-component="chat-shell"]` inside `.sidebar-shell` and the scroller is `.chat-scroller`, and the attribute is the handle that stays stable across that rename.
 
-Selectors to avoid: any sidebar, top bar, theme switcher, or router query. None exists. A `data-theme-id`, a `data-theme`, a `--kiko-*` variable, an avatar rail, a `data-continuation` attribute and a `chat-actionbar` are all things this app no longer renders.
+Selectors to avoid: any top bar, theme switcher, or router query. None exists. A `data-theme-id`, a `data-theme`, a `--kiko-*` variable, a `data-continuation` attribute and a `chat-actionbar` are all things this app no longer renders. A `data-component` handed to `MenuV2.Content` as a prop is likewise not a handle — see the `menu-v2-content` bullet above.
 
 The transcript is virtualized with `virtua`, so the DOM holds only the visible rows. `document.querySelectorAll("[data-component=chat-vrow]").length` tracks the viewport, not the message count, and an element captured before a scroll can be detached by the time you act on it. Re-query immediately before every action.
 
@@ -263,6 +275,7 @@ Proof artifacts go under `/tmp/kiko-verify-evidence/`, which survives cleanup. T
 - `/tmp/kiko-verify-evidence/reactions.json` — badge geometry and the toggle result.
 - `/tmp/kiko-verify-evidence/typing.json` — the typing bubble's dot count and the `aria-live` label.
 - `/tmp/kiko-verify-evidence/picker.json` — the picker's search result count and its shortcode footer.
+- `/tmp/kiko-verify-evidence/sidebar.json` and `sidebar.png` — the rail, panel and tile/row geometry, the pinned grid's column count at two panel widths, and the before/after pairs for the row menu's `pin`, `mark as read` and `mark as unread` items.
 
 Standards:
 
