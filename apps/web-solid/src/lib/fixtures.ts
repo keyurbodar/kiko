@@ -1,15 +1,78 @@
-// Static v1 data. There is no backend, no database, and no networking: every
-// state the UI can reach has to be reachable from here, which is the point of
+// Static data. There is no backend, no database, and no networking: every state
+// the UI can reach has to be reachable from here, which is the point of
 // building the interface first.
 //
-// The threads are deliberately long, multi-day, and multi-participant. A linear
-// transcript has states a two-message fixture cannot produce: a day boundary, a
-// run that wraps past a ten-minute window, a reply that must resolve its parent,
-// a reaction the viewer has and has not given, and enough rows to scroll.
+// Two layers, and the split matters:
+//
+//   MESSAGES       one long multi-day transcript per thread, the thing the
+//                  composed app actually renders. A linear transcript has
+//                  states a two-message fixture cannot produce: a day
+//                  boundary, a run that wraps past the grouping window, a
+//                  reply that must resolve its parent, a reaction the viewer
+//                  has and has not given, and enough rows to scroll.
+//
+//   FIXTURE_STATES named slices of that same transcript, so a single state can
+//                  be opened in isolation at harness.html?state=<slug>. The
+//                  slices are views over the same objects, not copies, so a
+//                  fixture can never drift from the transcript it came from.
+//
+// Every timestamp is relative to the exported NOW, so the day labels ("three
+// days ago", "yesterday", "today") are stable no matter when this is read.
 
 import type { ChatMessage, RosterBot, RosterGroup } from "./types";
 
 export const VIEWER_ID = "viewer";
+
+/**
+ * The clock the whole fixture set is anchored to, and the single source of
+ * every timestamp below.
+ *
+ * Anchored to the real clock on purpose, not frozen to a literal. The shell
+ * labels a day with `dayChipLabel(dayStart, Date.now())`, so a fixture pinned to
+ * a fixed date in the past makes "today" and "yesterday" permanently
+ * unreachable — the chips would read "monday" and "sunday" forever, and the
+ * two states that exist to prove those labels would prove nothing. Reading the
+ * clock once at module load keeps every timestamp in this file consistent with
+ * itself and with the shell that renders it.
+ */
+export const NOW = Date.now();
+
+const DAY = 86_400_000;
+const MINUTE = 60_000;
+
+/** Local midnight of the day `sentAt` falls in. Mirrors the shell's own. */
+function localDayStart(sentAt: number): number {
+  const d = new Date(sentAt);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+const TODAY_START = localDayStart(NOW);
+
+function daysAgoStart(days: number): number {
+  const d = new Date(TODAY_START);
+  d.setDate(d.getDate() - days);
+  return d.getTime();
+}
+
+// Midnight-relative, not `NOW - n * 24h`: subtracting fixed spans from an
+// instant drifts a day across a DST boundary, and a message that lands on the
+// wrong calendar day changes which chip it sits under.
+const THREE_DAYS_AGO = daysAgoStart(3);
+const TWO_DAYS_AGO = daysAgoStart(2);
+const YESTERDAY = daysAgoStart(1);
+
+/**
+ * A moment `offset` before NOW, clamped to stay inside today.
+ *
+ * Today's messages are written as "N minutes ago", which is only inside today
+ * when the clock reads later than N minutes past midnight. Clamping keeps a
+ * transcript opened at 00:05 from filing this morning's rows under yesterday.
+ * Offsets shrink together so the ordering and the run gaps survive the clamp.
+ */
+const TODAY_MAX_OFFSET = 40 * MINUTE;
+const ELAPSED_TODAY = Math.max(NOW - TODAY_START, MINUTE);
+const TODAY_SCALE = Math.min(1, (ELAPSED_TODAY - 1) / TODAY_MAX_OFFSET);
+const todayAgo = (offset: number): number => NOW - offset * TODAY_SCALE;
 
 export const BOTS: readonly RosterBot[] = [
   {
@@ -17,7 +80,7 @@ export const BOTS: readonly RosterBot[] = [
     name: "Ada",
     color: "#7c9ef0",
     preview: "The radius ladder is one calc() off a single value.",
-    updatedAt: 1759100000000,
+    updatedAt: NOW,
     presence: "idle",
     unread: 0,
     pinned: true,
@@ -28,7 +91,7 @@ export const BOTS: readonly RosterBot[] = [
     name: "Grace",
     color: "#e07c9f",
     preview: "Sidebar is mine. I will own sidebar.css outright.",
-    updatedAt: 1759090000000,
+    updatedAt: NOW - 2 * MINUTE,
     presence: "working",
     unread: 4,
     pinned: true,
@@ -39,7 +102,7 @@ export const BOTS: readonly RosterBot[] = [
     name: "Alan",
     color: "#7fc99a",
     preview: "Send is optimistic, no round trip in v1.",
-    updatedAt: 1759080000000,
+    updatedAt: NOW - 4 * MINUTE,
     presence: "typing",
     unread: 1,
     pinned: false,
@@ -49,7 +112,7 @@ export const BOTS: readonly RosterBot[] = [
     name: "Katherine",
     color: "#d9a05b",
     preview: "Standup notes are in the thread above.",
-    updatedAt: 1758900000000,
+    updatedAt: NOW - 2 * DAY,
     presence: "sleeping",
     unread: 0,
     pinned: false,
@@ -61,19 +124,43 @@ export const GROUPS: readonly RosterGroup[] = [
     id: "launch",
     name: "Launch",
     memberIds: ["ada", "grace", "alan"],
-    updatedAt: 1759100000000,
+    updatedAt: NOW,
   },
 ];
 
-const DAY = 86_400_000;
-const MINUTE = 60_000;
 
-const NOW = 1759100000000;
-const YESTERDAY = NOW - DAY;
-const TWO_DAYS_AGO = NOW - 2 * DAY;
-const THREE_DAYS_AGO = NOW - 3 * DAY;
+/**
+ * Inline SVG rather than a binary asset. The harness must render an image row
+ * and a quote thumbnail with no fetch, no asset pipeline, and no chance of a
+ * broken image standing in for a real layout bug. Percent-encoded rather than
+ * base64 so the markup stays readable in devtools.
+ */
+function svgImage(
+  label: string,
+  from: string,
+  to: string,
+  width = 480,
+  height = 270,
+): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+    `<stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/>` +
+    `</linearGradient></defs>` +
+    `<rect width="${width}" height="${height}" fill="url(#g)"/>` +
+    `<circle cx="${width * 0.76}" cy="${height * 0.3}" r="${height * 0.22}" fill="oklch(100% 0 none / 0.16)"/>` +
+    `<rect x="${width * 0.08}" y="${height * 0.62}" width="${width * 0.44}" height="${height * 0.06}" rx="${height * 0.03}" fill="oklch(100% 0 none / 0.5)"/>` +
+    `<rect x="${width * 0.08}" y="${height * 0.76}" width="${width * 0.3}" height="${height * 0.06}" rx="${height * 0.03}" fill="oklch(100% 0 none / 0.28)"/>` +
+    `<text x="${width * 0.08}" y="${height * 0.34}" fill="oklch(100% 0 none / 0.92)" font-family="InterVariable, system-ui, sans-serif" font-size="${height * 0.13}" font-weight="600">${label}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+const MOUNTAIN_SVG = svgImage("oklch", "#4c3a52", "#2a1f2e", 640, 360);
+const DIAGRAM_SVG = svgImage("tokens", "#2f4a52", "#1d2b30", 560, 320);
 
 export const MESSAGES: readonly ChatMessage[] = [
+  // --- three days ago: the token bridge thread, a grouped run ---------------
   {
     id: "a-01",
     threadId: "ada",
@@ -118,8 +205,11 @@ export const MESSAGES: readonly ChatMessage[] = [
     ],
   },
 
+  // The grouped run: three consecutive agent messages inside the window. A
+  // transcript that only ever alternates one-for-one never exercises the
+  // collapse that makes the run worth building.
   {
-    id: "a-05b",
+    id: "a-06",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
@@ -127,7 +217,7 @@ export const MESSAGES: readonly ChatMessage[] = [
     sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 6 * MINUTE,
   },
   {
-    id: "a-05c",
+    id: "a-07",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
@@ -135,413 +225,354 @@ export const MESSAGES: readonly ChatMessage[] = [
     sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 7 * MINUTE,
   },
   {
-    id: "a-05d",
-    threadId: "ada",
-    sender: "bot",
-    botId: "ada",
-    body: "That is three in a row on purpose. A transcript that only ever alternates one-for-one never exercises the collapse that makes it worth building.",
-    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 8 * MINUTE,
-    reactions: [{ emoji: "🫡", count: 1, viewerReacted: true }],
-  },
-  {
-    id: "a-05e",
-    threadId: "ada",
-    sender: "bot",
-    botId: "ada",
-    body: "Eleven minutes later, so the window has closed and this starts a fresh run even though nothing else about the sender changed.",
-    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 19 * MINUTE,
-  },
-
-  {
-    id: "a-06",
-    threadId: "ada",
-    sender: "user",
-    body: "That is the part I keep getting wrong. What about the spacing scale? Every v2 component hardcodes px, so there is no density to inherit.",
-    sentAt: TWO_DAYS_AGO + 11 * 60 * MINUTE,
-  },
-  {
-    id: "a-07",
-    threadId: "ada",
-    sender: "bot",
-    botId: "ada",
-    body: "Only one primitive exists: --spacing at 0.25rem, which is Tailwind's multiplier. So p-2 is 0.5rem and gap-6 is 1.5rem, and anything a component hardcodes is its own decision.",
-    sentAt: TWO_DAYS_AGO + 11 * 60 * MINUTE + 2 * MINUTE,
-    replyToId: "a-06",
-  },
-  {
     id: "a-08",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "Which means the transcript owns its own density. Nobody else is going to give it one.",
-    sentAt: TWO_DAYS_AGO + 11 * 60 * MINUTE + 3 * MINUTE,
-    reactions: [{ emoji: "💯", count: 1, viewerReacted: true }],
+    body: "That is three in a row on purpose.",
+    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 8 * MINUTE,
+    reactions: [{ emoji: "🫡", count: 1, viewerReacted: true }],
   },
+
+  // --- run-gap: past the 300s window, same author, fresh run ---------------
   {
     id: "a-09",
     threadId: "ada",
-    sender: "user",
-    body: "Fine. But if the run gap is a magic number in two places I will find it.",
-    sentAt: TWO_DAYS_AGO + 11 * 60 * MINUTE + 20 * MINUTE,
+    sender: "bot",
+    botId: "ada",
+    body: "Six minutes later, so the grouping window has closed and this starts a fresh run even though nothing about the sender changed.",
+    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 15 * MINUTE,
   },
   {
     id: "a-10",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "One constant, one module, one test. Grouping is pure so it can be tested without a DOM.",
-    sentAt: TWO_DAYS_AGO + 11 * 60 * MINUTE + 21 * MINUTE,
+    body: "Which is the point. The window is what stops a run from growing forever.",
+    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 16 * MINUTE,
   },
+
+  // --- run-break-reply: the viewer replying always breaks a run -------------
   {
     id: "a-11",
     threadId: "ada",
-    sender: "user",
-    body: "That is the right shape. How long is the window before a new run starts?",
-    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE,
+    sender: "bot",
+    botId: "ada",
+    body: "The spacing scale is one primitive: --spacing at 0.25rem, which is Tailwind's multiplier. So p-2 is 0.5rem and gap-6 is 1.5rem.",
+    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 12 * MINUTE,
   },
   {
     id: "a-12",
     threadId: "ada",
-    sender: "bot",
-    botId: "ada",
-    body: "Ten minutes. Inside it, same author collapses into the run above. Outside it, new avatar and new header.",
-    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + MINUTE,
-    reactions: [{ emoji: "👍", count: 4, viewerReacted: false }],
+    sender: "user",
+    body: "One second — every v2 component hardcodes px, so there is no density to inherit anyway.",
+    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 13 * MINUTE,
   },
-
   {
     id: "a-13",
     threadId: "ada",
-    sender: "user",
-    body: "Here is the part that worries me. Messages stream in. If the reader is scrolled up reading something, the new row must not move the page under them.",
-    sentAt: YESTERDAY + 14 * 60 * MINUTE,
+    sender: "bot",
+    botId: "ada",
+    body: "Then the transcript owns its own density, and nobody else is going to give it one.",
+    sentAt: THREE_DAYS_AGO + 9 * 60 * MINUTE + 14 * MINUTE,
+    reactions: [{ emoji: "💯", count: 1, viewerReacted: true }],
   },
+
+  // --- two days ago: the grouping constant, then reactions ------------------
   {
     id: "a-14",
     threadId: "ada",
-    sender: "bot",
-    botId: "ada",
-    body: "Then anchoring is the whole feature. Three states, not two: at the bottom and following, at the bottom and settled, and away from the bottom where nothing may move.",
-    sentAt: YESTERDAY + 14 * 60 * MINUTE + 2 * MINUTE,
+    sender: "user",
+    body: "Fine. But if the run gap is a magic number in two places I will find it.",
+    sentAt: TWO_DAYS_AGO + 11 * 60 * MINUTE,
   },
   {
     id: "a-15",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "The failure nobody sees coming is a row whose measured height changes after paint. An image decodes, a font loads, an embed expands, and the content grows with no state change at all.",
-    sentAt: YESTERDAY + 14 * 60 * MINUTE + 3 * MINUTE,
-    replyToId: "a-14",
+    body: "One constant, one module, one test. Grouping is pure so it can be tested without a DOM.",
+    sentAt: TWO_DAYS_AGO + 11 * 60 * MINUTE + MINUTE,
   },
   {
     id: "a-16",
     threadId: "ada",
     sender: "user",
-    body: "And the browser fights you, because it will try to keep the anchor itself.",
-    sentAt: YESTERDAY + 14 * 60 * MINUTE + 4 * MINUTE,
-    reactions: [{ emoji: "🔥", count: 2, viewerReacted: true }],
+    body: "How long is the window before a new run starts?",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE,
   },
   {
     id: "a-17",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "So toggle overflow-anchor off while following and on once the reader takes over. Both mechanisms are needed and they cancel each other if you leave both on.",
-    sentAt: YESTERDAY + 14 * 60 * MINUTE + 5 * MINUTE,
+    body: "Five minutes. Inside it, same author collapses into the run above. Outside it, new run.",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + MINUTE,
+    reactions: [{ emoji: "👍", count: 4, viewerReacted: false }],
   },
+
+  // --- reactions: three from the agent, one the viewer has already given ----
   {
     id: "a-18",
     threadId: "ada",
     sender: "user",
-    body: "Do we virtualise from day one, or only when it hurts?",
-    sentAt: YESTERDAY + 15 * 60 * MINUTE,
+    body: "What is the last call on reactions?",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 3 * MINUTE,
   },
   {
     id: "a-19",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "From day one. Retrofitting measurement into a live scroller is far worse than starting with it, and the fixtures are long enough to see it immediately.",
-    sentAt: YESTERDAY + 15 * 60 * MINUTE + 2 * MINUTE,
+    body: "A chip row under the body. Clicking your own removes it. No picker modal, no long-press requirement, no burst animation.",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 4 * MINUTE,
     reactions: [
-      { emoji: "✅", count: 2, viewerReacted: true },
+      { emoji: "🔥", count: 3, viewerReacted: false },
+      { emoji: "🎉", count: 2, viewerReacted: false },
       { emoji: "🚀", count: 1, viewerReacted: false },
+      { emoji: "🙏", count: 1, viewerReacted: true },
     ],
   },
   {
     id: "a-20",
     threadId: "ada",
-    sender: "user",
-    body: "This paragraph is deliberately long so the row has to wrap across many lines and the virtualiser has to measure it rather than trust a constant. A transcript that only ever renders one-line bodies hides every measurement bug there is, because a one-line row is exactly as tall as whatever you guessed it would be.",
-    sentAt: YESTERDAY + 15 * 60 * MINUTE + 8 * MINUTE,
+    sender: "bot",
+    botId: "ada",
+    body: "They attach to the message. They do not replace it and they do not open anything.",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 5 * MINUTE,
   },
+
+  // --- edited: the marker without a rewritten body --------------------------
   {
     id: "a-21",
     threadId: "ada",
-    sender: "bot",
-    botId: "ada",
-    body: "Good, now the estimate is wrong on arrival and the drift correction has something to do.",
-    sentAt: YESTERDAY + 15 * 60 * MINUTE + 9 * MINUTE,
+    sender: "user",
+    body: "Do we virtualise from day one, or only when it hurts?",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 7 * MINUTE,
   },
-
   {
     id: "a-22",
     threadId: "ada",
-    sender: "user",
-    body: "What is the last call on reactions?",
-    sentAt: NOW - 40 * MINUTE,
+    sender: "bot",
+    botId: "ada",
+    body: "From day one. Retrofitting measurement into a live scroller is far worse than starting with it.",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 8 * MINUTE,
+    edited: true,
   },
+
+  // --- pinned: a long body that wraps, so the pin marker and a tall row meet
   {
     id: "a-23",
     threadId: "ada",
-    sender: "bot",
-    botId: "ada",
-    body: "A chip row under the body. Clicking your own removes it. No picker modal, no long-press requirement, no burst animation.",
-    sentAt: NOW - 38 * MINUTE,
-    reactions: [{ emoji: "🙏", count: 1, viewerReacted: true }],
+    sender: "user",
+    body: "Pinning the decision so we stop relitigating it: the transcript virtualises from day one, the scroll container owns anchoring, and the grouping window stays a single exported constant with a test beside it. Three things, one decision, one paragraph, so the next person reading this does not have to reconstruct the argument from the messages above.",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 10 * MINUTE,
+    pinned: true,
   },
   {
     id: "a-24",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "They attach to the message. They do not replace it and they do not open anything.",
-    sentAt: NOW - 37 * MINUTE,
+    body: "Pinned. That is the whole decision.",
+    sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 11 * MINUTE,
   },
+
+  // --- yesterday: images, links, and the reply quote paths ------------------
   {
     id: "a-25",
     threadId: "ada",
     sender: "user",
-    body: "Agreed. Inline replies too, one level, quoted line above the body.",
-    sentAt: NOW - 20 * MINUTE,
+    body: "Here is the ladder as it renders. The sm step is visibly tighter than the rest.",
+    sentAt: YESTERDAY + 14 * 60 * MINUTE,
+    image: {
+      src: MOUNTAIN_SVG,
+      alt: "Radius ladder screenshot: eight steps, the smallest noticeably tighter than the rest",
+      width: 640,
+      height: 360,
+    },
   },
   {
     id: "a-26",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "One level. A thread panel is a different product and it is not v1.",
-    sentAt: NOW - 18 * MINUTE,
+    body: "That is the calc() I flagged. One unit short on the sm step, and everything after it inherits the error.",
+    sentAt: YESTERDAY + 14 * 60 * MINUTE + 2 * MINUTE,
     replyToId: "a-25",
-    reactions: [{ emoji: "👌", count: 2, viewerReacted: false }],
+    image: {
+      src: DIAGRAM_SVG,
+      alt: "Diagram of the radius ladder with the sm step marked one unit short",
+      width: 560,
+      height: 320,
+    },
   },
   {
     id: "a-27",
     threadId: "ada",
     sender: "user",
-    body: "Ship it.",
-    sentAt: NOW - 4 * MINUTE,
+    body: "A reply to an image: the quote above this has to carry a thumbnail, not just the first line of text.",
+    sentAt: YESTERDAY + 14 * 60 * MINUTE + 4 * MINUTE,
+    replyToId: "a-26",
+  },
+  {
+    id: "a-28",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "Right. Text quotes clamp to a line, image quotes clamp to a square. Same slot, two shapes.",
+    sentAt: YESTERDAY + 14 * 60 * MINUTE + 5 * MINUTE,
+    reactions: [{ emoji: "✅", count: 1, viewerReacted: true }],
   },
 
+  // --- link in the body, and a link preview card ----------------------------
+  {
+    id: "a-29",
+    threadId: "ada",
+    sender: "user",
+    body: "The whole write-up is at https://example.com/design/radius-ladder if you want the long version.",
+    sentAt: YESTERDAY + 15 * 60 * MINUTE,
+  },
+  {
+    id: "a-30",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "Read it. One correction, and it is the same sm step.",
+    sentAt: YESTERDAY + 15 * 60 * MINUTE + 2 * MINUTE,
+    linkPreview: {
+      url: "https://example.com/design/radius-ladder",
+      title: "The radius ladder, and why one calc() is enough",
+      description:
+        "A single derivation from --radius to every step, with the reason the rungs are unlayered.",
+      site: "Design notes",
+    },
+  },
+
+  // --- jumbo: one emoji, two emoji, and an emoji with prose ---------------
+  {
+    id: "a-31",
+    threadId: "ada",
+    sender: "user",
+    body: "🎉",
+    sentAt: YESTERDAY + 15 * 60 * MINUTE + 4 * MINUTE,
+  },
+  {
+    id: "a-32",
+    threadId: "ada",
+    sender: "user",
+    body: "🎉🚀",
+    sentAt: YESTERDAY + 15 * 60 * MINUTE + 5 * MINUTE,
+  },
+  {
+    id: "a-33",
+    threadId: "ada",
+    sender: "user",
+    body: "🎉 the sm step is finally right",
+    sentAt: YESTERDAY + 15 * 60 * MINUTE + 6 * MINUTE,
+  },
+  {
+    id: "a-34",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "Three bodies, three classes. The prose one must fall back to text size or it reads as a headline.",
+    sentAt: YESTERDAY + 15 * 60 * MINUTE + 7 * MINUTE,
+  },
+
+  // --- today: the tail, with the unread anchor in the middle ---------------
+  {
+    id: "a-35",
+    threadId: "ada",
+    sender: "user",
+    body: "Agreed. Inline replies too, one level, quoted line above the body.",
+    sentAt: todayAgo(20 * MINUTE),
+  },
+  {
+    id: "a-36",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "One level. A thread panel is a different product and it is not v1.",
+    sentAt: todayAgo(18 * MINUTE),
+    replyToId: "a-35",
+    reactions: [{ emoji: "👌", count: 2, viewerReacted: false }],
+  },
+  {
+    id: "a-37",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "This is the first unread incoming message, so the rule above it has an anchor that is not the last row.",
+    sentAt: todayAgo(12 * MINUTE),
+  },
+  {
+    id: "a-38",
+    threadId: "ada",
+    sender: "user",
+    body: "Understood. And the swipe commits on release?",
+    sentAt: todayAgo(10 * MINUTE),
+  },
+  {
+    id: "a-39",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "On release, after the transform clears. Committing mid-drag means the row jumps while the finger is still down.",
+    sentAt: todayAgo(9 * MINUTE),
+  },
+  {
+    id: "a-40",
+    threadId: "ada",
+    sender: "user",
+    body: "Ship it.",
+    sentAt: todayAgo(4 * MINUTE),
+    status: "sending",
+  },
+  {
+    id: "a-41",
+    threadId: "ada",
+    sender: "user",
+    body: "Shipped. One more pass tomorrow for the failing-send state.",
+    sentAt: todayAgo(2 * MINUTE),
+    status: "sent",
+  },
+
+  // --- grace: the sidebar thread, so a second conversation has a body ------
   {
     id: "g-01",
     threadId: "grace",
     sender: "bot",
     botId: "grace",
-    body: "Taking the sidebar. I will own sidebar.css outright.",
+    body: "Taking the sidebar. I will own sidebar.css outright, and I want the harness to be the only way anyone checks my work.",
     sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE,
   },
   {
     id: "g-02",
     threadId: "grace",
-    sender: "user",
-    body: "Groups collapse, right?",
-    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + 4 * MINUTE,
+    sender: "bot",
+    botId: "grace",
+    body: "That means the harness needs a state per condition, not one flag that turns features on. Same discipline as the fixtures.",
+    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + MINUTE,
   },
   {
     id: "g-03",
     threadId: "grace",
-    sender: "bot",
-    botId: "grace",
-    body: "Groups collapse and expand. A row carries an avatar, a label, an optional second line, unread state, and a hover-revealed action cluster.",
-    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + 5 * MINUTE,
-    reactions: [{ emoji: "👌", count: 1, viewerReacted: true }],
+    sender: "user",
+    body: "Agreed. One slug per state, addressable by URL.",
+    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + 2 * MINUTE,
   },
-
   {
     id: "g-04",
     threadId: "grace",
     sender: "bot",
     botId: "grace",
-    body: "And the rail is the same component at a narrower width, not a second implementation. That is the decision I care most about in the whole sidebar.",
-    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + 6 * MINUTE,
-  },
-  {
-    id: "g-05",
-    threadId: "grace",
-    sender: "bot",
-    botId: "grace",
-    body: "Unread state lives on the row, not in a badge you have to keep in sync with it.",
-    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + 7 * MINUTE,
-  },
-  {
-    id: "g-06",
-    threadId: "grace",
-    sender: "bot",
-    botId: "grace",
-    body: "Hover reveals the actions on desktop. Touch has no hover, so they stay visible there instead of being unreachable.",
-    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + 8 * MINUTE,
-    reactions: [{ emoji: "📐", count: 1, viewerReacted: true }],
+    body: "And the harness chrome needs its own stylesheet so it cannot be confused with the slice's.",
+    sentAt: TWO_DAYS_AGO + 16 * 60 * MINUTE + 3 * MINUTE,
+    reactions: [{ emoji: "🎨", count: 1, viewerReacted: true }],
   },
 
-  {
-    id: "l-01",
-    threadId: "alan",
-    sender: "bot",
-    botId: "alan",
-    body: "Composer is mine. Send is optimistic, no server round trip in v1.",
-    sentAt: TWO_DAYS_AGO + 10 * 60 * MINUTE,
-  },
-  {
-    id: "l-02",
-    threadId: "alan",
-    sender: "user",
-    body: "Does a failed send roll back the row or leave it marked?",
-    sentAt: TWO_DAYS_AGO + 10 * 60 * MINUTE + 6 * MINUTE,
-  },
-  {
-    id: "l-03",
-    threadId: "alan",
-    sender: "bot",
-    botId: "alan",
-    body: "There is no failure in v1 because there is no network. The row is the truth.",
-    sentAt: TWO_DAYS_AGO + 10 * 60 * MINUTE + 7 * MINUTE,
-  },
-
-  {
-    id: "l-04",
-    threadId: "alan",
-    sender: "bot",
-    botId: "alan",
-    body: "The composer does not know about agents at all. It renders text, and whatever is typing is somebody else's concern entirely.",
-    sentAt: TWO_DAYS_AGO + 10 * 60 * MINUTE + 8 * MINUTE,
-  },
-  {
-    id: "l-05",
-    threadId: "alan",
-    sender: "bot",
-    botId: "alan",
-    body: "That separation is the only reason a busy agent cannot make the input feel broken.",
-    sentAt: TWO_DAYS_AGO + 10 * 60 * MINUTE + 9 * MINUTE,
-    reactions: [{ emoji: "🔑", count: 1, viewerReacted: false }],
-  },
-
-  {
-    id: "n-01",
-    threadId: "launch",
-    sender: "user",
-    body: "Standup. Where is everyone?",
-    sentAt: YESTERDAY + 9 * 60 * MINUTE,
-  },
-  {
-    id: "n-02",
-    threadId: "launch",
-    sender: "bot",
-    botId: "ada",
-    body: "Transcript. Grouping is pure and tested, scroll is ported, rows are next.",
-    sentAt: YESTERDAY + 9 * 60 * MINUTE + 2 * MINUTE,
-    reactions: [{ emoji: "✅", count: 1, viewerReacted: true }],
-  },
-  {
-    id: "n-03",
-    threadId: "launch",
-    sender: "bot",
-    botId: "grace",
-    body: "Sidebar. The rail is the narrow form of the same component, so it is not a second implementation.",
-    sentAt: YESTERDAY + 9 * 60 * MINUTE + 4 * MINUTE,
-  },
-  {
-    id: "n-04",
-    threadId: "launch",
-    sender: "bot",
-    botId: "alan",
-    body: "Composer. Send is instant and nothing blocks while an agent is working.",
-    sentAt: YESTERDAY + 9 * 60 * MINUTE + 5 * MINUTE,
-  },
-  {
-    id: "n-05",
-    threadId: "launch",
-    sender: "user",
-    body: "Good. Nobody ships a spinner that lies.",
-    sentAt: YESTERDAY + 9 * 60 * MINUTE + 7 * MINUTE,
-    reactions: [{ emoji: "💯", count: 2, viewerReacted: true }],
-  },
-  {
-    id: "n-06",
-    threadId: "launch",
-    sender: "bot",
-    botId: "ada",
-    body: "Correct, and it applies to the waiting row too. It appears under the last message and unmounts the moment the message lands.",
-    sentAt: YESTERDAY + 9 * 60 * MINUTE + 8 * MINUTE,
-    replyToId: "n-05",
-  },
-  {
-    id: "n-07",
-    threadId: "launch",
-    sender: "bot",
-    botId: "grace",
-    body: "One more thing worth saying out loud. Density is a product decision, not a default we inherit.",
-    sentAt: NOW - 12 * MINUTE,
-  },
-  {
-    id: "n-08",
-    threadId: "launch",
-    sender: "user",
-    body: "Then it belongs in the transcript stylesheet and nowhere else.",
-    sentAt: NOW - 6 * MINUTE,
-  },
-  {
-    id: "n-09",
-    threadId: "launch",
-    sender: "bot",
-    botId: "alan",
-    body: "Making the call: a run is four pixels tighter at the top than the space between runs. Anything else is decoration.",
-    sentAt: NOW - 2 * MINUTE,
-  },
-
-  {
-    id: "n-10",
-    threadId: "launch",
-    sender: "bot",
-    botId: "ada",
-    body: "Grouping is pure and tested, which is the only reason I trust it. Scroll came from the auto-scroll hook that already shipped, so nothing there is new either.",
-    sentAt: NOW - 2 * MINUTE + MINUTE,
-  },
-  {
-    id: "n-11",
-    threadId: "launch",
-    sender: "bot",
-    botId: "ada",
-    body: "What is new is the row itself. A run shows its avatar and name once, and everything after it is indented with neither.",
-    sentAt: NOW - 2 * MINUTE + 2 * MINUTE,
-  },
-  {
-    id: "n-12",
-    threadId: "launch",
-    sender: "bot",
-    botId: "ada",
-    body: "That is the whole trick and it is why this reads faster than a stack of cards.",
-    sentAt: NOW - 2 * MINUTE + 3 * MINUTE,
-    reactions: [{ emoji: "✨", count: 1, viewerReacted: true }],
-  },
-  {
-    id: "n-13",
-    threadId: "launch",
-    sender: "bot",
-    botId: "grace",
-    body: "Two runs from two different people, three minutes apart, and the second one is a different speaker. The grouping keys on the author, not the thread, so a group conversation does not collapse into one voice.",
-    sentAt: NOW - 2 * MINUTE + 4 * MINUTE,
-  },
-  {
-    id: "n-14",
-    threadId: "launch",
-    sender: "bot",
-    botId: "grace",
-    body: "And a reply never joins a run at all, even from the same person, because it carries its own quoted parent.",
-    sentAt: NOW - 2 * MINUTE + 5 * MINUTE,
-    replyToId: "n-13",
-  },
-
+  // --- katherine: a short thread that ends in a sleeping bot --------------
   {
     id: "k-01",
     threadId: "katherine",
@@ -566,23 +597,102 @@ export const MESSAGES: readonly ChatMessage[] = [
     sentAt: THREE_DAYS_AGO + 8 * 60 * MINUTE + 4 * MINUTE,
     reactions: [{ emoji: "💤", count: 2, viewerReacted: true }],
   },
+
+  // --- launch: a group, so grouping has to key on the author --------------
   {
-    id: "k-04",
-    threadId: "katherine",
-    sender: "user",
-    body: "That is a good distinction and I am going to steal it.",
-    sentAt: THREE_DAYS_AGO + 8 * 60 * MINUTE + 6 * MINUTE,
+    id: "n-01",
+    threadId: "launch",
+    sender: "bot",
+    botId: "ada",
+    body: "Cut list is down to three: the transcript, the composer dock, and the scroll container.",
+    sentAt: todayAgo(30 * MINUTE),
   },
   {
-    id: "k-05",
-    threadId: "katherine",
+    id: "n-02",
+    threadId: "launch",
     sender: "bot",
-    botId: "katherine",
-    body: "Take it. Sleeping now.",
-    sentAt: THREE_DAYS_AGO + 8 * 60 * MINUTE + 7 * MINUTE,
-    reactions: [
-      { emoji: "👋", count: 1, viewerReacted: false },
-      { emoji: "💤", count: 3, viewerReacted: true },
-    ],
+    botId: "grace",
+    body: "Two runs from two different people, minutes apart, and the second one is a different speaker. Grouping keys on the author, not the thread, so a group does not collapse into one voice.",
+    sentAt: todayAgo(28 * MINUTE),
+  },
+  {
+    id: "n-03",
+    threadId: "launch",
+    sender: "bot",
+    botId: "grace",
+    body: "And a reply never joins a run at all, even from the same person, because it carries its own quoted parent.",
+    sentAt: todayAgo(27 * MINUTE),
+    replyToId: "n-02",
   },
 ];
+
+// ---------------------------------------------------------------------------
+// FIXTURE_STATES — named slices over the transcript above.
+//
+// `slice(...)` resolves ids to the live objects in MESSAGES, so a state and the
+// transcript it came from can never disagree. Ids that are not found throw at
+// module load rather than rendering a half-built state: a missing fixture is a
+// typo, and a typo should stop the harness, not silently shrink a state.
+// ---------------------------------------------------------------------------
+
+const BY_ID: Record<string, ChatMessage> = Object.fromEntries(
+  MESSAGES.map((message) => [message.id, message]),
+);
+
+function slice(...ids: readonly string[]): readonly ChatMessage[] {
+  return ids.map((id) => {
+    const message = BY_ID[id];
+    if (!message) throw new Error(`fixtures: no message with id "${id}"`);
+    return message;
+  });
+}
+
+export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = {
+  // Three consecutive agent messages inside the window: one run, not three.
+  grouped: slice("a-06", "a-07", "a-08"),
+  // Same author either side of a gap longer than the 300s window: two runs.
+  "run-gap": slice("a-08", "a-09", "a-10"),
+
+  // Two agent messages, the viewer between them: the reply breaks the run.
+  "run-break-reply": slice("a-11", "a-12", "a-13"),
+
+  // Wraps well past four lines, so the row has to be measured not guessed.
+  long: slice("a-23"),
+
+  // Three bodies that must land in three different jumbo classes.
+  "jumbo-single": slice("a-31"),
+  "jumbo-group": slice("a-32"),
+  "jumbo-prose": slice("a-33"),
+
+  // A link in the body, and a link that resolves to a card.
+  link: slice("a-29"),
+  "link-card": slice("a-30"),
+
+  // A reply whose parent is text, and a reply whose parent is an image, so the
+  // quote renders both the clamped text line and the thumbnail.
+  "reply-text": slice("a-35", "a-36"),
+  "reply-image": slice("a-25", "a-26", "a-27"),
+
+  // Three reactions the viewer has not given and one they have.
+  reactions: slice("a-19"),
+
+  // The edited marker on a body that was not rewritten.
+  edited: slice("a-21", "a-22"),
+
+  // A pinned message that is also the long one, plus the reply that follows it.
+  pinned: slice("a-23", "a-24"),
+
+  // Day boundaries. Each slice starts on its own day so the chip is addressable
+  // in isolation, which is the whole reason these are separate states.
+  "three-days-ago": slice("a-01", "a-02", "a-03", "a-04", "a-05"),
+  yesterday: slice("a-25", "a-26", "a-27", "a-28"),
+  today: slice("a-35", "a-36", "a-37", "a-38", "a-39", "a-40", "a-41"),
+
+  // The unread anchor with rows above AND below it, so the rule cannot pass by
+  // being pinned to the end of the list.
+  unread: slice("a-35", "a-36", "a-37", "a-38", "a-39"),
+};
+
+/** The message `firstUnreadIndex` anchors on in the `unread` state. */
+export const UNREAD_ANCHOR_ID = "a-37";
+

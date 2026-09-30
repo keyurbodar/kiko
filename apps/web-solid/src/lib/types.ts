@@ -1,10 +1,11 @@
-// v1 domain contract. Frozen before the UI slices were fanned out, so chat,
-// composer, and sidebar can be built side by side against the same shapes.
+// Domain contract, frozen before the UI slices were fanned out so chat,
+// composer, and sidebar build side by side against the same shapes.
 //
-// v1 is text only: no attachments, no markdown, no code blocks, no tool calls.
-// Anything that would render a non-text payload is deliberately absent rather
-// than stubbed — a later data layer has to satisfy these types, so widening
-// them later is the expensive direction and narrowing them is free.
+// v1 is text-first. Everything the transcript can show on top of a text body
+// is optional rather than absent, because a message is one row: widening these
+// to carry an image, a link card, or a send state is cheap now and expensive
+// once a data layer has to satisfy them. Fields stay optional so the store's
+// `appendMessage` keeps working with a body and nothing else.
 
 export type BotPresence = "idle" | "typing" | "working" | "sleeping";
 
@@ -40,7 +41,7 @@ export interface Reaction {
   viewerReacted: boolean;
 }
 
-/** A single message in a conversation. Text only, by v1 decision. */
+/** A single message in a conversation. Text is required; the rest is display. */
 export interface ChatMessage {
   id: string;
   /** Which conversation this belongs to: a bot id or a group id. */
@@ -55,6 +56,36 @@ export interface ChatMessage {
   reactions?: readonly Reaction[];
   /** The message this one answers. Absent on a root message. */
   replyToId?: string;
+  /**
+   * Intrinsic size, not layout size. The row reserves `width` x `height`
+   * before the bytes land, so a decoding image cannot shift the scroll anchor.
+   */
+  image?: {
+    src: string;
+    alt: string;
+    width: number;
+    height: number;
+  };
+  /** Shows the edited marker. The body is never rewritten, only flagged. */
+  edited?: boolean;
+  /** Marks the message as pinned in its thread. */
+  pinned?: boolean;
+  /**
+   * A card rendered from link metadata. Carries no image: a preview is text
+   * plus a host, and a card that needs a thumbnail is an attachment.
+   */
+  linkPreview?: {
+    url: string;
+    title: string;
+    description?: string;
+    /** Display name for the host, when it differs from the raw hostname. */
+    site?: string;
+  };
+  /**
+   * Optimistic send state for the viewer's own messages. A bot message is
+   * never in flight, so this only ever reads on a `sender: "user"` row.
+   */
+  status?: "sending" | "sent" | "failed";
 }
 
 /** What the sidebar renders for one conversation. Either kind, never both. */

@@ -1,0 +1,93 @@
+/* =============================================================================
+   harness.css — the harness's own chrome, and nothing else.
+
+   Every rule here is scoped to a `harness-` class. That is the whole point of
+   this file: the slice under test is styled by chat.css, and if harness chrome
+   ever bleeds into a `.chat-*` rule then a visual bug in the transcript is
+   indistinguishable from a bug in the page that frames it. Nothing below may
+   target a `chat-` class, and chat.css may not target a `harness-` one.
+
+   Tokens only. No raw colour, no raw size: the harness must be able to sit on
+   the kat layer unchanged. No `transition` and no `animation` either — motion in
+   this product belongs to the transcript, and chrome that animates would make a
+   timing bug look like a rendering one.
+   ========================================================================== */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* The page is a flex column: chrome on top, the slice filling what is left. */
+#root {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.harness-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  /* A fill, not a border: this system has no borders. */
+  background: var(--bg-sidebar);
+  box-shadow: 0 1px 0 0 var(--panel-edge);
+  font-family: var(--font-sans);
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.harness-title {
+  font-weight: var(--font-weight-bold);
+  color: var(--text);
+  /* Chrome is lowercased. Message bodies never are, but that is chat.css's
+     rule to keep, not this file's. */
+  text-transform: lowercase;
+}
+
+.harness-state {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+.harness-spacer {
+  flex: 1;
+}
+
+/* The flex column that #root establishes: chrome, then the stage. `contents`
+   would flatten the wrapper's box, but a named element is easier to find in
+   devtools than an inline style. */
+.harness-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.harness-link {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.harness-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.harness-hint {
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  color: var(--text-faint);
+}
+
+/* The slice under test, given the remaining height and a width to be judged
+   at. `.chat-scroller` inside owns its own scrolling, so this must not clip. */
+.harness-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}

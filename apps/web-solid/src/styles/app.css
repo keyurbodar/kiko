@@ -10,22 +10,16 @@
     background: var(--bg);
   }
 
-  .app-shell > .chat-shell {
-    display: grid;
+  /* The pane is the transcript's only parent. It is a grid item, and a grid
+     item defaults to `min-width: auto` — it refuses to shrink below its
+     content, so without this the 768px column overflows a narrow window
+     instead of narrowing with it. The three-row track from the old shell is
+     gone: there is no top bar and no composer dock above and below it yet, and
+     an `auto minmax(0,1fr) auto` grid with one child is a lie about structure. */
+  .app-shell > .app-pane {
+    display: flex;
     min-width: 0;
     flex: 1;
-    /* Three rows: top bar, transcript, composer dock. The transcript keeps
-       the slack so the dock holds its natural height. */
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-
-  /* The shell is one grid column, and a grid item defaults to
-     `min-width: auto` — it refuses to shrink below its content. Both rows
-     carry a content column that cannot shrink to fit, so without this the
-     transcript and the dock both overflow a narrow shell instead of
-     narrowing with it. */
-  .app-shell > .chat-shell > * {
-    min-width: 0;
   }
 
   /* Mirrors the transcript column so the entry box lines up with the

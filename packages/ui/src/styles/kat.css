@@ -154,10 +154,14 @@
   --c-scrollbar-thumb: 0.0356;
   --l-scrollbar-thumb-hover: 0.5355;
   --c-scrollbar-thumb-hover: 0.0447;
-  --l-assistant-bubble: 0.4091;
-  --c-assistant-bubble: 0;
-  --l-user-bubble: 0.4074;
-  --c-user-bubble: 0.0322;
+  /* Bubble ramp, darkest surface to lightest. Kat runs bg 0.18, agent 0.24,
+     viewer 0.42; ours keeps the same three steps at our own scale. The agent
+     carries real chroma, not grey: a neutral bubble on a plum canvas reads as
+     a hole rather than as a surface. */
+  --l-assistant-bubble: 0.35;
+  --c-assistant-bubble: 0.032;
+  --l-user-bubble: 0.48;
+  --c-user-bubble: 0.048;
   --l-user-bubble-text: 0.95;
   --c-user-bubble-text: 0.0197;
   --h-user-bubble-text: 88;
