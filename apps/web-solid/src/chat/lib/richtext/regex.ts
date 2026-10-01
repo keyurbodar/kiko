@@ -130,12 +130,12 @@ export const URL_REG_EXP =
   "(?:\\.(?<tld>xn--[0-9a-z]{2,16}|[" + ALPHA_CHARS_REG_EXP + "]{2,24}))" +
   ")" +
   // port number
-  "(?::\\d{2,5})?" +
+  "(?::\\d{1,5})?" +
   // resource path. `\S{0,255}` is greedy and the final character is drawn from a
   // class with the sentence punctuation excluded, so a full stop or a comma ends
   // the path instead of being swallowed by it. That is what keeps
   // `see https://example.com.` from linking the full stop.
-  "(?:/(?:\\S{0,255}[^\\s.;,(\\[\\]{}<>\"'])?)?"
+  "(?:/(?:\\S{0,255}[^\\s.;,!?:(\\[\\]{}<>\"'])?)?"
 
 /**
  * Whether a string already spells its own protocol, anchored at the start.
@@ -168,7 +168,7 @@ export const TAG_REG_EXP =
 
 export const FULL_REG_EXP = new RegExp(
   // mention: anchored at the start of the body or after one space, never mid-word
-  "(?<mentionPrefix>^| )(?<mentionAt>@)(?<mentionBody>" +
+  "(?<mentionPrefix>^|[\\s(])(?<mentionAt>@)(?<mentionBody>" +
     MENTION_BODY_REG_EXP +
     ")" +
     // url, and through it email: the run is matched once and `EMAIL_REG_EXP`
@@ -179,7 +179,7 @@ export const FULL_REG_EXP = new RegExp(
     ")" +
     // hashtag: after the start of the body, whitespace, or an opening bracket,
     // so `(see #tag)` tags the tag and not the bracket run
-    "|(?<tagPrefix>^|[\\s\\(\\]])(?<hashtag>" +
+    "|(?<tagPrefix>^|[\\s(])(?<hashtag>" +
     TAG_REG_EXP +
     ")",
   "i",

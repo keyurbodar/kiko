@@ -159,9 +159,7 @@ export function Emoji(props: {
   return (
     <img
       src={twemojiSources(props.emoji)[0]}
-      alt=""
-      aria-hidden={props.title === undefined ? "true" : undefined}
-      aria-label={props.title}
+      alt={props.title ?? props.emoji}
       title={props.title}
       class={props.class}
       style={props.style}

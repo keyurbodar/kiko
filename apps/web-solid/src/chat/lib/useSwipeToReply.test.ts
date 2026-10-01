@@ -43,24 +43,22 @@ function drag(gesture: SwipeGesture, travel: number, rise = 0) {
 }
 
 describe("swipe to reply", () => {
-  test("fires the reply at 28px of leftward travel", () => {
+  test("fires the reply at 24px of leftward travel", () => {
     const { gesture, replies } = harness()
     drag(gesture, -SWIPE_REPLY_THRESHOLD_PX)
-    expect(gesture.offset).toBe(-28)
+    expect(gesture.offset).toBe(-24)
     expect(gesture.progress).toBe(1)
     gesture.release()
     expect(replies).toHaveLength(1)
   })
-
   test("does not fire one pixel short of the threshold", () => {
     const { gesture, replies, settles } = harness()
     drag(gesture, -(SWIPE_REPLY_THRESHOLD_PX - 1))
-    expect(gesture.offset).toBe(-27)
-    expect(gesture.progress).toBeCloseTo(27 / SWIPE_REPLY_THRESHOLD_PX, 5)
+    expect(gesture.offset).toBe(-23)
+    expect(gesture.progress).toBeCloseTo(23 / SWIPE_REPLY_THRESHOLD_PX, 5)
     gesture.release()
     expect(replies).toHaveLength(0)
-    // It still settles: the row had visibly moved and has to come back.
-    expect(settles).toEqual([-27])
+    expect(settles).toEqual([-23])
   })
 
   test("a rightward drag is inert: it never arms, paints, or settles", () => {
@@ -162,10 +160,8 @@ describe("swipe to reply", () => {
     expect(gesture.scale).toBe(1)
   })
 
-  test("the arm point is a third of the row's total travel", () => {
-    // The whole feel of the gesture is the ratio: how much of the available
-    // travel is dead, and how much of it is overshoot after it has said yes.
-    expect(SWIPE_REPLY_THRESHOLD_PX / SWIPE_MAX_TRAVEL_PX).toBeCloseTo(0.7, 2)
+  test("the arm point sits just past half the row's total travel", () => {
+    expect(SWIPE_REPLY_THRESHOLD_PX / SWIPE_MAX_TRAVEL_PX).toBeCloseTo(0.6, 2)
   })
 
   test("a vertical-first gesture never fires and never claims the axis", () => {

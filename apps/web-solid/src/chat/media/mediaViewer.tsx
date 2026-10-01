@@ -2,7 +2,7 @@ import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { ChevronLeft, ChevronRight, Minus, Plus, Scan, X } from "lucide-solid"
-import { Show, createEffect, createMemo, createSignal, on, onMount, type JSX } from "solid-js"
+import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js"
 import type { MediaItem } from "../../lib/types"
 import {
   ZOOM_FIT,
@@ -68,7 +68,12 @@ function MediaViewer(props: {
 }) {
   let stage: HTMLDivElement | undefined
   let player: HTMLVideoElement | undefined
-
+  onCleanup(() => {
+    player?.pause()
+    player?.removeAttribute("src")
+    player?.load()
+    player = undefined
+  })
   const [scale, setScale] = createSignal(ZOOM_FIT)
   const [pan, setPan] = createSignal<ZoomOffset>({ x: 0, y: 0 })
   const [dragging, setDragging] = createSignal(false)
@@ -278,6 +283,7 @@ function MediaViewer(props: {
         fit()
         return
       case " ":
+        if (event.target instanceof HTMLElement && event.target.closest("button, a, input")) return
         if (!player) return
         event.preventDefault()
         if (player.paused) void player.play()

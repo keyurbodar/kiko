@@ -67,27 +67,27 @@ export interface MediaItem {
 }
 
 /**
- * The card a message renders when its body points at a page. Every field is
- * the page's own metadata, so the card is data the sender's link carried
- * rather than anything derived from the body at render time.
+ * The card a message renders when its body points at a page that described
+ * itself. `mediaSize` picks the Telegram layout: `large` draws the picture under
+ * the text at the card's full width, `small` draws a 48px thumbnail at the
+ * card's trailing edge beside the text.
  */
 export interface WebPagePreview {
   url: string
-  /** The site's own name, the card's bold first line. */
   site?: string
   title?: string
   description?: string
-  /** The preview image, and which edge of the card it sits on. */
   media?: { src: string; width: number; height: number }
-  mediaPosition?: "top" | "bottom"
-  /**
-   * The page's own brand colour, when its metadata carries one. A card paints
-   * `var(--webpage-accent, <default>)`, so the surface follows the site without
-   * the card knowing anything about colours.
-   */
-  accent?: string
-  /** Label for the card's footer button, e.g. "open". */
-  footer?: string
+  mediaSize?: "large" | "small"
+}
+
+/** A file a message carries that is not a picture: a PDF, an archive, a text file. */
+export interface DocumentItem {
+  name: string
+  /** Bytes. */
+  size: number
+  mime: string
+  src: string
 }
 
 
@@ -117,6 +117,8 @@ export interface ChatMessage {
    * same split tweb makes between its photo path and its album layouter.
    */
   media?: MediaItem[]
+  /** Files that are not pictures, drawn as document rows in the same bubble. */
+  documents?: DocumentItem[]
   /** Shows the edited marker. The body is never rewritten, only flagged. */
   edited?: boolean
   /** Marks the message as pinned in its thread. */
@@ -144,6 +146,9 @@ export interface OutgoingMessage {
   body: string
   /** The attachments, in the order they were added to the composer. */
   media?: MediaItem[]
+  documents?: DocumentItem[]
+  /** The preview the composer resolved for the draft's link, unless dismissed. */
+  webPage?: WebPagePreview
 }
 
 /** What the sidebar renders for one conversation. Either kind, never both. */

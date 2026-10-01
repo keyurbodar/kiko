@@ -13,13 +13,10 @@
   ],
   "exports": {
     ".": "./src/index.ts",
-    "./theme.css": "./src/styles/theme.css",
     "./kat.css": "./src/styles/kat.css",
     "./file-icon.css": "./src/components/file-icon.css",
     "./icon.css": "./src/components/icon.css",
     "./icon": "./src/components/icon.tsx",
-    "./icon-button.css": "./src/components/icon-button.css",
-    "./icon-button": "./src/components/icon-button.tsx",
     "./provider-icon.css": "./src/components/provider-icon.css",
     "./provider-icon": "./src/components/provider-icon.tsx",
     "./file-icon": "./src/components/file-icon.tsx",

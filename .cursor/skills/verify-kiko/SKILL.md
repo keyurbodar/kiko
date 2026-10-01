@@ -117,7 +117,7 @@ const page1 = await page.evaluate(() => ({
   themeId: document.documentElement.dataset.themeId ?? null,
 }));
 const font = await page.evaluate(() => ({
-  inter: document.fonts.check("14px InterVariable"),
+  ui: getComputedStyle(document.body).fontFamily.slice(0, 60),
   mono: document.fonts.check("14px 'Fantasque Sans Mono'"),
   faces: [...document.fonts].map((f) => f.family + "|" + f.style + "|" + f.weight + "|" + f.status),
 }));
@@ -137,6 +137,8 @@ EOF
 ```
 
 `ego-browser` writes its result to **stderr**, not stdout. The `2>&1` before the pipe is what makes `doctor.txt` non-empty; without it `tee` captures nothing and leaves a zero-byte file that looks like a pass.
+
+**Editing `apps/web-solid/vite.config.ts` requires killing and relaunching this dev server.** The link-preview endpoint lives in that file, and a running Vite does not always pick the change up on its own: measured once, `curl` against `/api/link-preview` returned `204` for every URL until the server was restarted by hand. If every preview is empty, restart before believing the parser is broken.
 
 The heredoc delimiter is unquoted so the shell substitutes `$KIKO_PORT` into the script. `ego-browser nodejs` does **not** inherit the parent environment: `process.env.KIKO_PORT` is `null` inside the script, and a `page.goto` built from it fails with `Cannot navigate to invalid URL`. Read that error as a port that never reached the script, not as a bad URL. For the same reason keep backticks and `${}` out of these scripts so the shell does not eat them.
 
@@ -224,9 +226,11 @@ There is **no `now()` probe.** An earlier version of this map listed one; it doe
 - `typing` — `[data-component="chat-typing-row"]` is present.
 - `overlay` — `"menu"`, `"picker"` or `null`.
 - `replyTarget` — the armed reply id or `null`.
-- `media` / `mediaCells` — `[data-component="chat-media"]` and `[data-component="chat-media-cell"]`. **A lone picture renders one `media` and zero cells; an album renders one `media` and a cell per item.** Measured: `media-only` and `photo-caption` report `1`/`0`, while `album-2`, `album-4`, `album-5` report `1`/`2`, `1`/`4`, `1`/`5` and `album-pano` reports `1`/`3`.
-- `viewer` — **reads `[data-component="media-viewer"]`, which the viewer does not render.** The real dialog is a Kobalte modal carrying `data-component="modal-v2-content"` and the classes `.media-viewer` / `.media-viewer--photo`. Measured on the composed app: after a real click, `querySelectorAll("[data-component='media-viewer']").length` is `0` while `querySelectorAll(".media-viewer").length` is `1` and `[role=dialog]` is `1`. So `probe().viewer` is `false` even with the viewer open, and `openMedia()` / `closeMedia()` return `false` for the same reason — the check they perform looks for an attribute that is not there. **Assert the viewer by `.media-viewer` or `[role=dialog]`, not by `probe().viewer`.** This is a harness-probe bug, not a viewer bug; the viewer itself works.
-- `tokens` — the resolved `--user-bubble`, `--assistant-bubble`, `--font-base` and `--radius-bubble`. Measured on the harness: `oklch(0.465 0.058 25)`, `oklch(0.243 0.007 6)`, `14px`, `18px`.
+- `media` / `mediaCells` — `[data-component="chat-media"]` and `[data-component="chat-media-cell"]`. **A lone picture renders one `media` and zero cells; an album renders one `media` and a cell per item.** Measured: `media-only` and `photo-caption` report `1`/`0`, while `album-2`, `album-4`, `album-5` report `1`/`2`, `1`/`4`, `1`/`5` and `album-pano` reports `1`/`3`. **Both senders now use the album layouter**: the old viewer-side 210px grid (`GridMedia`) is gone, so a viewer album reports cells too.
+- `documents` — `[data-component="chat-document"]` rows in the DOM. Measured `1` on `document-single` and `4` on `document-group` (three from the agent, one from the viewer).
+- `webpages` — `[data-component="chat-webpage"]` cards in the DOM. Measured `1` on `link-large`, `link-small` and `link-text-only`, and `0` on `link-bare`.
+- `viewer` — `true` while `.media-viewer` is mounted. Both `openMedia` and `closeMedia` are honest now: measured on `media-only`, `openMedia("m-06", 0)` returns `true` with `.media-viewer` present, and `closeMedia()` returns `true` with it gone. (An earlier version of this map reported them always `false`; that probe bug is fixed.)
+- `tokens` — the resolved `--user-bubble`, `--assistant-bubble`, `--font-base` and `--radius-bubble`. Measured on the harness after the Sakura theme: `oklch(0.51 0.062 356)`, `oklch(0.278 0 6)`, `14px`, `18px`. Structural backgrounds are chroma 0; mauve appears only on the own bubble and accent marks.
 
 `setState`, `setTyping` and `setReplyTarget` return the value they resolved to, so a caller can assert the result in the same round. `openMenu`, `openPicker`, `openMedia` and `closeMedia` return a boolean saying whether a dialog actually opened — read it, because a stale overlay left on screen makes a no-op look like an open menu. `openMenu` returning `true` is an **observation, not a guarantee**: it tests `[role='menu'], [data-component*='menu']`, which matches the menu's `menu-v2-content`. Measured on `today`: `openMenu` returns `true` for `a-35`, `a-36` and `a-37` with `probe().overlay === "menu"`, but `[data-component="chat-menu"]` is `0` even while the menu is open — see the selector note below.
 
@@ -265,6 +269,10 @@ The harness chrome itself is `harness-root`, `harness-bar`, `harness-title`, `ha
 | `pinned` | a pinned message, plus the reply that follows it |
 | `three-days-ago` / `yesterday` / `today` | the day boundaries, for the date chip |
 | `unread` | an unread division with a rule before the first unread incoming message, and rows above **and** below it |
+| `document-single` / `document-group` | one PDF with a caption; three documents from the agent plus a docx from the viewer |
+| `user-album-3` / `user-album-2-reply` / `user-photo` | the viewer's own albums, an album sent as a reply, and a lone picture |
+| `link-large` / `link-small` / `link-text-only` / `link-bare` | a YouTube card with a large image, a profile card with a 48px thumbnail, a text-only card, and a URL that renders no card |
+| `grouped-own` | three consecutive viewer messages in one run (ids `run-01`..`run-05`), then a two-message agent run |
 
 A slug that `setState` rejects is a fixture gap to report, not a typo to work around by picking another state.
 
@@ -283,7 +291,7 @@ These were read out of a live page on both entry points, not inferred from sourc
 - `loc=css:[data-component="chat-column"]` — the centred content column, also `[data-virtual-column]`.
 - `loc=css:[data-component="chat-vrow"]` — one virtualized row.
 - `loc=css:[data-component="chat-row"]` — one message row, carrying `data-message-id`, `data-side="user|bot"`, `data-run="start|mid|bot"`, `data-gap` on a run start, and `data-replying` on the armed reply target.
-- `loc=css:[data-slot="bubble"]` — the positioned parent of a bubble, carrying `data-variant="default|secondary|ghost"` and `data-align="start|end"`. It has no padding, no fill and no radius of its own.
+- `loc=css:[data-slot="bubble"]` — the positioned parent of a bubble, carrying `data-variant="default|secondary|ghost"`, `data-align="start|end"` and `data-position="only|first|middle|last"`. It has no padding, no fill and no radius of its own. **The sender-side corners tighten to `--radius-bubble-tight` (6px) on a grouped run**: measured on harness `grouped`, first is `18/18/18/6`, middle is `6/18/18/6`, last is `6/18/18/18`. `data-run` still reports `start|mid|bot` for compatibility but only `data-position` describes the shape.
 - `loc=css:[data-slot="bubble-content"]` — the painted, clipping surface. **Read padding, radius, fill and font size here**, never off the parent.
 - `loc=css:[data-slot="bubble-reactions"]` — the absolutely positioned reaction row.
 - `loc=css:[data-component="chat-divider"]` — a day-divider row, holding `[data-component="chat-day-label"]` and `[data-component="chat-day-time"]`. **There is no `.chat-divider__label`.**
@@ -297,7 +305,8 @@ These were read out of a live page on both entry points, not inferred from sourc
 - `loc=css:[data-component="chat-media-duration"]` — a clip's `m:ss` badge.
 - `loc=css:[data-component="chat-webpage"]` — the webpage card, an `<a target="_blank">`.
 - `loc=css:[data-component="chat-masked-link"]` — a homograph host: text kept, `href` dropped, `role="link"`, and a confirm dialog on click.
-- `loc=css:[data-component="chat-row-time"]` — the hover-revealed timestamp.
+- `loc=css:[data-component="chat-document"]` — one file attachment row in a bubble, inside `[data-component="chat-documents"]`.
+- `loc=css:[data-component="chat-media-time"]` — the floating time pill over a media-only message. There is **no `chat-row-time`** and no hover-revealed timestamp: text bubbles show no time at all.
 - `loc=css:[data-component="chat-swipe-row"]` / `chat-swipe-indicator` — the swipe wrapper (carrying `data-swiping` and writing `--swipe-x`) and the arrow revealed during the gesture. There is **no `data-swipe-side`**.
 - `loc=css:[data-component="chat-typing-row"]` / `chat-typing-bubble` / `chat-typing-dot` — the in-list typing row and its three dots.
 - `loc=css:[data-component="chat-fades"]` / `chat-fade-top` / `chat-fade-bottom` — the scrims on the stage.

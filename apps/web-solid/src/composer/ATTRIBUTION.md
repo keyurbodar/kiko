@@ -2,7 +2,7 @@
 
 The composer in this directory is copied from opencode, which is MIT licensed,
 © 2025 opencode. Most of it comes from the session UI package
-(`@opencode-ai/session-ui`); `editor-dom.ts` comes from `packages/app`.
+(`@opencode-ai/session-ui`).
 
 Every statement in this file was checked by diffing this directory against
 upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
@@ -19,11 +19,9 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
 | `prompt-input/types.ts` | `packages/session-ui/src/v2/components/prompt-input/types.ts` |
 | `prompt-input/attachments.ts` | `packages/session-ui/src/v2/components/prompt-input/attachments.ts` |
 | `prompt-input/attachments.css` | `packages/session-ui/src/v2/components/prompt-input/attachments.css` |
-| `editor-dom.ts` | `packages/app/src/components/prompt-input/editor-dom.ts` |
 | `attachment-card-v2.tsx` | `packages/session-ui/src/v2/components/attachment-card-v2.tsx` |
 | `attachment-card-v2.css` | `packages/session-ui/src/v2/components/attachment-card-v2.css` |
 | `comment-card-v2.tsx` | `packages/session-ui/src/v2/components/comment-card-v2.tsx` |
-| `type-label.ts` | `packages/session-ui/src/components/message-file.ts` |
 | `path.ts` | `packages/core/src/util/path.ts` |
 
 ## What was changed
@@ -33,8 +31,6 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
   local `./path` instead.
 - `FilePartSource`, previously imported from `@opencode-ai/sdk/v2/client`, is
   declared locally in `prompt-input/types.ts`. Kiko has no SDK.
-- `typeLabel` in `type-label.ts` drops the `shiki` dependency upstream pulls for
-  its language-name table, in favour of a local extension map.
 - `getFilename` and `getFilenameTruncated` in `path.ts` are local
   implementations of `@opencode-ai/core/util/path`, which Kiko does not vendor.
   `getFilenameTruncated` is not behaviourally equivalent: upstream keeps the
@@ -58,9 +54,8 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
   host that passes `view.placeholder` — Kiko does — never reaches that fallback.
 
 Byte-identical to upstream: `prompt-input/machine.ts`, `prompt-input/store.ts`,
-`prompt-input/attachments.ts`, `prompt-input/attachments.css` and
-`editor-dom.ts`. The controller, reducer, part store and DOM reconciliation are
-upstream's.
+`prompt-input/attachments.ts` and `prompt-input/attachments.css`. The
+controller, reducer, part store and DOM reconciliation are upstream's.
 
 `attachment-card-v2.tsx` is NOT byte-identical: an interactive card is a native
 `<button>`, where upstream shipped a `<div onClick>` with no role and no

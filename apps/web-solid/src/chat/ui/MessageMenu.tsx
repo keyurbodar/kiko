@@ -242,13 +242,16 @@ export function createMessageMenu(
 ): MessageMenuController & { targetId: () => string | null } {
   const [trigger, setTrigger] = createSignal<HTMLElement>()
   const [targetId, setTargetId] = createSignal<string | null>(null)
-
+  const fallback: ChatMessage = { id: "__none__", threadId: "", sender: "bot", body: "", sentAt: 0 }
   const liveProps = (): MessageMenuProps => {
     const id = targetId()
-    const fallback: ChatMessage = { id: "__none__", threadId: "", sender: "bot", body: "", sentAt: 0 }
     return { ...options, message: id === null ? fallback : options.messageFor(id) } as MessageMenuProps
   }
-
+  const view = (
+    <Show when={targetId()} fallback={<MessageMenu {...{ ...options, message: fallback } as MessageMenuProps} ref={setTrigger} />}>
+      {(id) => <MessageMenu {...liveProps()} ref={setTrigger} />}
+    </Show>
+  )
   return {
     targetId,
     onContextMenu: (event) => {
@@ -266,6 +269,6 @@ export function createMessageMenu(
         }),
       )
     },
-    view: <MessageMenu {...liveProps()} ref={setTrigger} />,
+    view,
   }
 }

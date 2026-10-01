@@ -190,6 +190,11 @@
   margin-bottom: 6px;
 }
 
+.sidebar-shell .pin-tile-slot {
+  display: flex;
+  min-width: 0;
+}
+
 .sidebar-shell .pin-tile {
   display: flex;
   width: 100%;
@@ -342,6 +347,31 @@
   paint-order: stroke fill;
 }
 
+.sidebar-shell .chat-avatar,
+.sidebar-shell .pin-tile-avatar {
+  display: block;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.sidebar-shell .chat-avatar {
+  width: var(--row-avatar-img);
+  height: var(--row-avatar-img);
+}
+
+.sidebar-shell .pin-tile-avatar {
+  width: var(--pin-avatar);
+  height: var(--pin-avatar);
+}
+
+.sidebar-shell .chat-avatar > *,
+.sidebar-shell .pin-tile-avatar > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .sidebar-shell .chat-row > img {
   grid-area: 1 / 1 / -1;
   place-self: center;
@@ -349,6 +379,11 @@
   height: var(--row-avatar-img);
   border-radius: 50%;
   object-fit: cover;
+}
+
+.sidebar-shell .chat-avatar {
+  grid-area: 1 / 1 / -1;
+  place-self: center;
 }
 
 .sidebar-shell .chat-title-line {
@@ -487,5 +522,40 @@
 @media (prefers-reduced-motion: reduce) {
   .sidebar-shell .resize-handle::after {
     transition: none;
+  }
+}
+
+/* ===== Narrow --------------------------------------------------------- */
+
+/* Below this the rail plus a 200px panel leave the transcript nothing, so the
+ * panel stops being a column and becomes an overlay over the transcript. The
+ * rail stays put and keeps toggling it; the resize handle goes, because there
+ * is no width to drag. */
+@media (width < 768px) {
+  .sidebar-shell {
+    position: relative;
+  }
+
+  .sidebar-shell .panel {
+    position: absolute;
+    z-index: 30;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: var(--sidebar-nav-w);
+    width: min(320px, calc(100vw - var(--sidebar-nav-w) - 24px));
+    box-shadow: var(--popover-shadow);
+  }
+
+  .sidebar-shell .panel > :not(.resize-handle) {
+    min-width: 0;
+  }
+
+  .sidebar-shell .panel[data-collapsed] {
+    width: 0;
+    box-shadow: none;
+  }
+
+  .sidebar-shell .resize-handle {
+    display: none;
   }
 }

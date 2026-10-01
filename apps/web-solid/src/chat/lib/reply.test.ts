@@ -1,5 +1,45 @@
 import { describe, expect, test } from "bun:test";
-import { jumboEmojiClass, replyQuoteText } from "./reply";
+import type { ChatMessage } from "../../lib/types";
+import { jumboEmojiClass, replyQuoteText, replySummary } from "./reply";
+
+const base: ChatMessage = { id: "m", threadId: "t", sender: "bot", body: "", sentAt: 0 };
+const photo = (src: string) => ({ kind: "photo" as const, src, width: 850, height: 600, alt: "" });
+const doc = (name: string) => ({ name, size: 1, mime: "application/pdf", src: `/${name}` });
+
+describe("replySummary", () => {
+  test("photo-only quotes as Photo with its thumb", () => {
+    expect(replySummary({ ...base, media: [photo("/a.jpg")] })).toEqual({ text: "Photo", thumb: "/a.jpg" });
+  });
+
+  test("document with caption keeps the caption and gets the document glyph", () => {
+    expect(replySummary({ ...base, body: "Q3 report", documents: [doc("q3.pdf")] })).toEqual({
+      text: "Q3 report",
+      glyph: "document",
+    });
+  });
+
+  test("two documents without caption name the first and count the rest", () => {
+    expect(replySummary({ ...base, documents: [doc("a.pdf"), doc("b.pdf")] })).toEqual({
+      text: "a.pdf and 1 more",
+      glyph: "document",
+    });
+  });
+
+  test("an album of three is Album with the first thumb", () => {
+    const media = [photo("/1.jpg"), photo("/2.jpg"), photo("/3.jpg")];
+    expect(replySummary({ ...base, media })).toEqual({ text: "Album", thumb: "/1.jpg" });
+  });
+
+  test("a link-only message quotes the page title with a link glyph", () => {
+    const message = {
+      ...base,
+      body: "https://example.com/x",
+      webPage: { url: "https://example.com/x", site: "Example", title: "Hello page" },
+    };
+    expect(replySummary(message)).toEqual({ text: "Hello page", glyph: "link" });
+  });
+});
+
 
 const VS16 = "\uFE0F";
 
@@ -41,7 +81,6 @@ describe("replyQuoteText", () => {
   });
 
   test("never cuts through a surrogate pair", () => {
-    // 71 emoji is 142 code units, so a naive slice lands inside emoji #71.
     const parent = "😀".repeat(71);
     const quote = replyQuoteText(parent);
 
@@ -52,7 +91,6 @@ describe("replyQuoteText", () => {
 
   test("never cuts through a combining mark or a ZWJ sequence", () => {
     const family = "👩‍👩‍👧‍👦";
-    // 15 families is 165 code units, so the cut lands inside the thirteenth.
     const quote = replyQuoteText(family.repeat(15));
 
     expect(quote).toBe(`${family.repeat(12)}…`);
@@ -63,7 +101,6 @@ describe("replyQuoteText", () => {
     const parent = `${"x".repeat(100)}\n\n${"y".repeat(100)}`;
     const quote = replyQuoteText(parent);
 
-    // 100 + space + 100 collapses to 201, so the cut lands inside the run of y.
     expect(quote).toBe(`${"x".repeat(100)} ${"y".repeat(39)}…`);
   });
 });

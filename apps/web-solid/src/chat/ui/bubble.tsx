@@ -47,12 +47,23 @@ export function BubbleGroup(props: BubbleGroupProps) {
   return <div data-slot="bubble-group" class={cn("flex min-w-0 flex-col gap-2", local.class)} {...others} />
 }
 
+export type BubblePosition = "only" | "first" | "middle" | "last"
+
 export type BubbleProps = ComponentProps<"div"> & {
-  /** Visual treatment. `default` is the viewer's own, `secondary` the agent's. */
   variant?: BubbleVariant
-  /** Which edge of the row the bubble sits against. */
   align?: BubbleAlign
+  position?: BubblePosition
 }
+
+const SENDER_CORNERS =
+  "data-[align=start]:data-[position=first]:[&>[data-slot=bubble-content]]:rounded-es-bubble-tight " +
+  "data-[align=start]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-ss-bubble-tight " +
+  "data-[align=start]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-es-bubble-tight " +
+  "data-[align=start]:data-[position=last]:[&>[data-slot=bubble-content]]:rounded-ss-bubble-tight " +
+  "data-[align=end]:data-[position=first]:[&>[data-slot=bubble-content]]:rounded-ee-bubble-tight " +
+  "data-[align=end]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-se-bubble-tight " +
+  "data-[align=end]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-ee-bubble-tight " +
+  "data-[align=end]:data-[position=last]:[&>[data-slot=bubble-content]]:rounded-se-bubble-tight"
 
 /**
  * The positioned, unclipped parent of one bubble's contents.
@@ -62,19 +73,25 @@ export type BubbleProps = ComponentProps<"div"> & {
  */
 export function Bubble(rawProps: BubbleProps) {
   const props = mergeProps(
-    { variant: "default" as BubbleVariant, align: "start" as BubbleAlign },
+    {
+      variant: "default" as BubbleVariant,
+      align: "start" as BubbleAlign,
+      position: "only" as BubblePosition,
+    },
     rawProps,
   )
-  const [local, others] = splitProps(props, ["align", "class", "variant"])
+  const [local, others] = splitProps(props, ["align", "class", "variant", "position"])
   return (
     <div
       data-slot="bubble"
       data-variant={local.variant}
       data-align={local.align}
+      data-position={local.position}
       class={cn(
         "relative flex w-fit min-w-0 max-w-[80%] flex-col gap-1",
         "data-[align=end]:self-end data-[variant=ghost]:max-w-full",
         VARIANTS[local.variant],
+        local.variant !== "ghost" && SENDER_CORNERS,
         local.class,
       )}
       {...others}

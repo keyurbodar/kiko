@@ -19,7 +19,7 @@ function nextMessageId(): string {
 
 function isSendable(message: OutgoingMessage): boolean {
   if (message.body.trim().length > 0) return true
-  return (message.media?.length ?? 0) > 0
+  return (message.media?.length ?? 0) > 0 || (message.documents?.length ?? 0) > 0
 }
 
 function sentMessage(
@@ -37,6 +37,8 @@ function sentMessage(
     sentAt,
   }
   if (message.media !== undefined && message.media.length > 0) sent.media = message.media
+  if (message.documents !== undefined && message.documents.length > 0) sent.documents = message.documents
+  if (message.webPage !== undefined) sent.webPage = message.webPage
   if (replyToId !== undefined) sent.replyToId = replyToId
   return sent
 }
@@ -112,7 +114,7 @@ export const useApp = {
   appendReply(message: OutgoingMessage, replyToId: string, sentAt: number): string | undefined {
     const threadId = state.activeThreadId
     if (!threadId || !replyToId || !isSendable(message)) return undefined
-    if (!state.messages.some((existing) => existing.id === replyToId)) return undefined
+    if (!state.messages.some((existing) => existing.id === replyToId && existing.threadId === threadId)) return undefined
 
     const id = nextMessageId()
     setState(

@@ -86,10 +86,9 @@ export function TypingRow(props: TypingRowProps) {
 
   return (
     <Show when={active()}>
-      <li
+      <div
         class={cn("flex items-start py-0.5", props.class)}
         data-component="chat-typing-row"
-        role="listitem"
       >
         <div
           class={cn(
@@ -123,7 +122,7 @@ export function TypingRow(props: TypingRowProps) {
         <span class="sr-only" role="status" aria-live="polite">
           {label()}
         </span>
-      </li>
+      </div>
     </Show>
   )
 }

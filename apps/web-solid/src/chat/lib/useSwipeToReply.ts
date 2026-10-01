@@ -26,7 +26,7 @@ export const SWIPE_MAX_TRAVEL_PX = 40
  * deliberate shove. 28 is a thumb flick; below ~24 the scroller's own residual
  * jitter starts tripping it.
  */
-export const SWIPE_REPLY_THRESHOLD_PX = 28
+export const SWIPE_REPLY_THRESHOLD_PX = 24
 
 /**
  * Vertical movement that loses the axis to the scroller before the lock closes.
@@ -356,6 +356,7 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
    * did before.
    */
   let captured = false
+  let activePointer: number | undefined
   const capture = (event: PointerEvent) => {
     if (captured) return
     const element = row()
@@ -363,21 +364,30 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
     element.setPointerCapture(event.pointerId)
     captured = true
   }
-
   createPointerListeners({
     target: row,
     pointerTypes: ["mouse", "touch", "pen"],
-    onDown: (event) => gesture.down(event.clientX, event.clientY),
+    onDown: (event) => {
+      if (event.button !== 0) return
+      activePointer = event.pointerId
+      gesture.down(event.clientX, event.clientY)
+    },
     onMove: (event) => {
+      if (event.pointerId !== activePointer) return
       gesture.move(event.clientX, event.clientY)
-      if (gesture.swiping) capture(event)
+      if (!gesture.swiping) return
+      capture(event)
       paint(gesture.offset)
     },
-    onUp: () => {
+    onUp: (event) => {
+      if (event.pointerId !== activePointer) return
+      activePointer = undefined
       captured = false
       gesture.release()
     },
-    onCancel: () => {
+    onCancel: (event) => {
+      if (event.pointerId !== activePointer) return
+      activePointer = undefined
       captured = false
       gesture.cancel()
     },

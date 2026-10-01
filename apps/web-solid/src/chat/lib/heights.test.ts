@@ -169,7 +169,7 @@ describe("estimateRowHeight on media", () => {
     );
 
     // 7px of padding above and below, plus one 20.3px line box.
-    expect(captioned - bare).toBe(35);
+    expect(captioned - bare).toBe(33);
   });
 
   test("a card on a media-only message still pays the caption block's padding", () => {
@@ -187,58 +187,27 @@ describe("estimateRowHeight on media", () => {
 });
 
 describe("estimateRowHeight on user media", () => {
-  // A tile is (210 - 8) / 2 = 101px wide and 101 * 3 / 4 = 75.75px tall, so a
-  // row of tiles is rows * 75.75 + (rows - 1) * 8.
-  const TILE_H = 75.75;
-
-  test("one and two tiles are a single row; three jump to two", () => {
-    const grid = (n: number) =>
-      heightOf(me("m", at(0), { body: "", media: Array.from({ length: n }, () => photo(1600, 900)) }));
-
-    // One row of tiles either way, then the second row appears at n=3.
-    expect(grid(2) - grid(1)).toBe(0);
-    expect(grid(3) - grid(2)).toBe(Math.ceil(TILE_H + 8));
-  });
-
-  test("the grid ignores the intrinsic size the album layouter depends on", () => {
-    const wide = heightOf(me("a", at(0), { body: "", media: [photo(1600, 900)] }));
-    const tall = heightOf(me("b", at(0), { body: "", media: [photo(4000, 3000)] }));
-
-    expect(tall).toBe(wide);
-  });
-
-  test("a video takes the same tile as an image", () => {
-    const clip = heightOf(me("a", at(0), { body: "", media: [video(1920, 1080)] }));
-    const picture = heightOf(me("b", at(0), { body: "", media: [photo(1920, 1080)] }));
-
-    expect(clip).toBe(picture);
-  });
-
-  test("a media-only user row still pays the grid's mb-2, with no caption", () => {
-    const bare = heightOf(me("a", at(0), { body: "", media: [photo(1000, 1000)] }));
-
-    // The wrapper's `mb-2` is applied unconditionally, so it is not conditional
-    // on a caption following. Measured in the browser at 92.75px, and 75.75 of
-    // tiles plus 8 of margin plus the 9px of row padding is 92.75.
-    expect(bare).toBe(Math.ceil(TILE_H + 8 + 8 + 1));
-  });
-
-  test("a caption pays the caption block, as it does for assistant media", () => {
-    const bare = heightOf(me("a", at(0), { body: "", media: [photo(1000, 1000)] }));
-    const captioned = heightOf(me("b", at(0), { body: "short", media: [photo(1000, 1000)] }));
-
-    // Media is full-bleed for BOTH senders - `MessageRow` keys the bubble's
-    // `p-0` off `hasMedia()`, not off the side - so a caption costs the same 35px
-    // here as it does on the assistant branch.
-    expect(captioned - bare).toBe(35);
-  });
-
-  test("user media and assistant media of the same photo reserve differently", () => {
+  test("user and assistant media of the same photo reserve the same box", () => {
     const mine = heightOf(me("a", at(0), { body: "", media: [photo(1000, 1000)] }));
     const theirs = heightOf(bot("b", at(0), { body: "", media: [photo(1000, 1000)] }));
 
-    // A lone square fits the assistant's 400x400 album box; user media is a
-    // 75.75px tile, so the two reserves must not be interchangeable.
-    expect(mine).toBeLessThan(theirs);
+    expect(mine).toBe(theirs);
+  });
+
+  test("a video reserves the same album box as an image", () => {
+    const clip = heightOf(me("a", at(0), { body: "", media: [video(1000, 1000), video(1000, 1000)] }));
+    const picture = heightOf(me("b", at(0), { body: "", media: [photo(1000, 1000), photo(1000, 1000)] }));
+
+    expect(clip).toBe(picture);
+  });
+});
+
+describe("estimateRowHeight on documents", () => {
+  test("each document row reserves 64px", () => {
+    const doc = { name: "a.pdf", size: 10, mime: "application/pdf", src: "/a.pdf" };
+    const one = heightOf(me("a", at(0), { body: "", documents: [doc] }));
+    const two = heightOf(me("b", at(0), { body: "", documents: [doc, doc] }));
+
+    expect(two - one).toBe(64);
   });
 });

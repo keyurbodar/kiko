@@ -433,12 +433,18 @@ export function PromptInputV2Attachments(props: {
                         </>
                       }
                     >
-                      <img
-                        src={attachment.blob.url}
-                        alt={attachment.filename}
-                        class="attachment-thumb"
+                      <button
+                        type="button"
+                        class="attachment-thumb-button"
                         onClick={() => props.onAttachmentClick?.(attachment)}
-                      />
+                        aria-label={`open ${attachment.filename}`}
+                      >
+                        <img
+                          src={attachment.blob.url}
+                          alt={attachment.filename}
+                          class="attachment-thumb"
+                        />
+                      </button>
                     </Show>
                     <button
                       type="button"

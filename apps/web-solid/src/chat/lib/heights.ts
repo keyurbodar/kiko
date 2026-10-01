@@ -1,126 +1,46 @@
-import type { ChatMessage } from "../../lib/types";
+import type { ChatMessage, WebPagePreview } from "../../lib/types";
 import { albumLayout, singleMediaBox } from "./album";
 import type { TimelineItem } from "./grouping";
 import { graphemes, jumboEmojiClass } from "./reply";
-import { hasWebPageContent } from "./linkPreview";
+import { hasWebPageContent, MAX_PREVIEW_HEIGHT, MAX_PREVIEW_WIDTH } from "./linkPreview";
 
-/**
- * The one height table. Every number below is read off the rendered metrics in
- * kat's chat CSS; nothing here may be re-derived at a call site.
- */
-
-/** `--font-base`. */
 const FONT_BASE = 14;
-/** `--line-height`; one bubble text line is 14 * 1.45 = 20.3px. */
 const LINE_BOX = FONT_BASE * 1.45;
-/** `--font-xs`, used by the date chip, unread rule and row time. */
 const LINE_BOX_CHROME = 11 * 1.45;
 
-/** `.bubble { padding: 7px 12px }` — 7px top plus 7px bottom. */
 const BUBBLE_PAD_TOP = 7;
 const BUBBLE_PAD_Y = BUBBLE_PAD_TOP * 2;
-/** `.message-row { padding: 1px 16px }` — 1px top plus 1px bottom. */
 const ROW_PAD_Y = 2;
-/**
- * `.message-row.group-gap { padding-top: 8px }`. It REPLACES the row's 1px top
- * padding rather than adding to it, so a run break reads 7px taller than a run
- * continuation. Model both halves so the estimate matches the DOM either way.
- */
 const RUN_GAP_PX = 8;
 
-/** `.time-separator { padding: 14px 16px 10px }`. */
 const DAY_DIVIDER_PAD_Y = 24;
-/** `.unread-rule { padding: 12px 16px 8px }`. */
 const UNREAD_RULE_PAD_Y = 20;
 
-/**
- * Characters per rendered bubble line, measured rather than assumed.
- *
- * The bubble is `max-width: 80%` of a `--content-max-w` (768px) column that has
- * already lost 16px of row padding per side, then loses 12px of its own padding
- * per side, which leaves 0.80 * (768 - 32) - 24 = 564.8px of text column. At
- * `--font-base` 14px in Inter Variable, mixed-case English prose averages about
- * 0.46em (6.44px) of advance, putting a line at 564.8 / 6.44 = 87.7, so 87.
- * The 94 and 96 that used to live in the old tables assumed a bubble wide
- * enough for 11px prose and are wrong for this one.
- */
 const CHARS_PER_LINE = 87;
 
-/** `.reply-quote { font-size: var(--font-sm); line-height: 1.35 }`. */
 const QUOTE_LINE = 12 * 1.35;
-/** One clamped label line plus two clamped text lines (`-webkit-line-clamp: 2`). */
 const QUOTE_LINES = 3;
-/** `.reply-quote { padding: 5px 8px 5px 11px; margin-bottom: 4px }`. */
 const QUOTE_CHROME_Y = 5 + 5 + 4;
-/**
- * `.jumbo-emoji-* { line-height: 1.25 }`. An emoji-only bubble is BARE — no fill
- * and no padding — so unlike an ordinary bubble the padding is not part of the
- * height and only the line box counts. These two numbers must move with the
- * `text-[42px]` / `text-[31px]` utilities in `MessageRow`, or the virtualizer
- * reserves room that is not there and the scroll anchor drifts.
- */
+
 const JUMBO_SINGLE_PX = 42 * 1.25;
 const JUMBO_GROUP_PX = 31 * 1.25;
 
-/**
- * The caption block's own `py-[7px]` — the bubble's vertical padding, moved
- * onto the caption once the media has taken the bubble's edges. A media-only
- * message has no caption block at all, so it pays nothing here.
- */
-const CAPTION_PAD_Y = BUBBLE_PAD_Y;
-/**
- * User media is t3code's fixed 2-column grid rather than the album layouter: a
- * `max-w-[210px]` container with `gap-2` (8px) whose tiles are `aspect-[4/3]`
- * and `object-cover`. Every tile is therefore the same box whatever the
- * sender attached, which is what lets the reserve be pure arithmetic. A video
- * occupies a tile exactly as an image does.
- */
-const GRID_MAX_W = 210;
-const GRID_GAP = 8;
-const GRID_COLS = 2;
-/** (210 - 8) / 2. */
-const GRID_TILE_W = (GRID_MAX_W - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-/** `aspect-[4/3]`: 101 * 3 / 4. */
-const GRID_TILE_H = (GRID_TILE_W * 3) / 4;
-/**
- * `.mb-2` on the grid's wrapper, which is unconditional — it is applied whether
- * or not a caption follows, so a media-only row pays it too. Measured: a
- * media-only user row is 92.75px, and 75.75 of tiles plus this 8 plus the 9px
- * of row padding is 92.75 exactly.
- */
-const GRID_MARGIN_Y = 8;
+const CAPTION_PAD_Y = 5 + 7;
 
-/**
- * The web page card: its own padding, its 2px top margin, and the four lines
- * its name, title, description and footer can occupy.
- *
- * This is the roughest number in the table, and deliberately so: the card's
- * real height depends on how its title and description wrap, which is not
- * knowable from the message. Under-reserving it would cost the virtualizer
- * more than a close guess does, because a row that is 100px short drags every
- * row below it until the measurement lands.
- */
-const CARD_PAD_Y = 22;
-const CARD_LINES = 4;
+const DOCUMENT_ICON_PX = 48;
+const DOCUMENT_ROW_PAD_Y = 8;
+const DOCUMENT_ROW_PX = DOCUMENT_ICON_PX + DOCUMENT_ROW_PAD_Y * 2;
 
-/**
- * The height the media block reserves, which is the whole point of the album
- * geometry being pure: the box a photo or an album will occupy is computed
- * here, before the bytes land, and it is the same computation the renderer
- * uses. A single item draws as one fitted box and two or more draw as a grid,
- * mirroring the renderer's own split.
- *
- * A media item's intrinsic size is required rather than optional for exactly
- * this reason. An item with no known size would reserve nothing, and an album
- * whose cells resize on load moves the scroll anchor of every row beneath it.
- *
- * That intrinsic size is an ASSISTANT concern only. User media is the fixed
- * grid below, whose tiles are the same box whatever the sender attached.
- */
+const CARD_PAD_Y = 8;
+const CARD_TEXT_LINE = 20;
+const CARD_TITLE_MAX_LINES = 2;
+const CARD_DESCRIPTION_MAX_LINES = 3;
+const CARD_CHARS_PER_LINE = 50;
+const CARD_FALLBACK_ASPECT = 1.5;
+
 function mediaBlockHeight(message: ChatMessage): number {
   const media = message.media;
   if (media === undefined || media.length === 0) return 0;
-  if (message.sender === "user") return userMediaGridHeight(media.length);
   const hasText = message.body.trim().length > 0;
   if (media.length === 1) {
     const only = media[0];
@@ -132,83 +52,56 @@ function mediaBlockHeight(message: ChatMessage): number {
   return albumLayout(media.map((item) => ({ w: item.width, h: item.height }))).height;
 }
 
-/**
- * The grid's painted height for `count` tiles: `ceil(count / 2)` rows of 75.75px
- * with an 8px gap between them and none after the last row, so one and two
- * tiles are a single row and three jump to two. Count-only by construction —
- * a tile is a fixed box, so what was attached cannot change the reserve.
- */
-function userMediaGridHeight(count: number): number {
-  const rows = Math.ceil(count / GRID_COLS);
-  return rows * GRID_TILE_H + (rows - 1) * GRID_GAP;
+function clampedLines(text: string | undefined, maxLines: number): number {
+  const length = text?.trim().length ?? 0;
+  if (length === 0) return 0;
+  return Math.min(maxLines, Math.ceil(length / CARD_CHARS_PER_LINE));
+}
+
+function cardHeight(page: WebPagePreview | undefined): number {
+  if (page === undefined || !hasWebPageContent(page)) return 0;
+  const siteLines = page.site?.trim() ? 1 : 0;
+  const textLines =
+    siteLines +
+    clampedLines(page.title, CARD_TITLE_MAX_LINES) +
+    clampedLines(page.description, CARD_DESCRIPTION_MAX_LINES);
+  const image =
+    page.media !== undefined && page.mediaSize !== "small"
+      ? Math.min(
+          MAX_PREVIEW_WIDTH *
+            (page.media.width > 0 && page.media.height > 0
+              ? page.media.height / page.media.width
+              : 1 / CARD_FALLBACK_ASPECT),
+          MAX_PREVIEW_HEIGHT,
+        )
+      : 0;
+  return CARD_PAD_Y + textLines * CARD_TEXT_LINE + image;
 }
 
 function bubbleTextLines(body: string): number {
   return Math.max(1, Math.ceil(graphemes(body.trim()).length / CHARS_PER_LINE));
 }
 
-/**
- * Predicted row height in CSS pixels for any timeline row, dividers included.
- *
- * A virtualizer only needs this to be close and stable: it measures the real
- * rows afterwards and corrects. Rounding up keeps a wrapped bubble from being
- * clipped on the first paint.
- *
- * A reaction contributes NOTHING to this. Its badge is absolutely positioned
- * and the row's padding is constant, so reacting never changes a height - the
- * transcript must not move when a chip appears.
- *
- * Media is the one term that cannot be approximated away. A single picture
- * reserves up to 420x400 and an album up to 420x591, against a text bubble's
- * ~34px, so a row estimated without it is short by more than an order of
- * magnitude - and the virtualizer's correction only fires once the row is
- * measured, which is after the transcript has already scrolled wrong. The
- * numbers come from the same pure geometry the renderer uses, so the reserve
- * and the painted box are one computation rather than two that agree.
- */
 export function estimateRowHeight(item: TimelineItem): number {
   if (item.kind === "day-divider") return Math.ceil(DAY_DIVIDER_PAD_Y + LINE_BOX_CHROME);
   if (item.kind === "unread-divider") return Math.ceil(UNREAD_RULE_PAD_Y + LINE_BOX_CHROME);
 
   const { message } = item;
-  const media = mediaBlockHeight(message);
+  const attachments =
+    mediaBlockHeight(message) + (message.documents?.length ?? 0) * DOCUMENT_ROW_PX;
   const caption = message.body.trim().length > 0;
-  /**
-   * The caption block is rendered whenever there is a body OR a card, which is
-   * `MessageRow`'s own condition, so a media message whose only text is a card
-   * still pays the block's padding. Its line box is only paid when there is
-   * actually a body: `bubbleTextLines` floors at one line, and a card-only
-   * message would otherwise reserve a blank line above the card.
-   */
   const captionBlock = message.body.length > 0 || hasWebPageContent(message.webPage);
-  // A jumbo bubble is a message whose WHOLE body is emoji, which a message
-  // carrying media is not: the emoji is a caption beside a picture, so it takes
-  // the caption's line box rather than the 42px one.
-  const jumbo = media > 0 ? undefined : jumboEmojiClass(message.body);
+  const jumbo = attachments > 0 ? undefined : jumboEmojiClass(message.body);
   const text = bubbleTextLines(message.body);
-  // Media is full-bleed for BOTH senders: `MessageRow` keys the bubble's `p-0`
-  // off `hasMedia()` alone, not off the side, so a user grid sits flush against
-  // the bubble's edge exactly as an assistant album does. The caption therefore
-  // pays the vertical padding in both cases, and `CAPTION_PAD_Y` is not a
-  // sender split. What does differ is the wrapper's `mb-2`, which the user grid
-  // carries and the assistant album does not - and it is unconditional, so a
-  // media-only user row pays it with no caption present.
   const bubble =
-    media > 0
-      ? media +
-        (message.sender === "user" ? GRID_MARGIN_Y : 0) +
-        (captionBlock ? CAPTION_PAD_Y + (caption ? LINE_BOX * text : 0) : 0)
+    attachments > 0
+      ? attachments + (captionBlock ? CAPTION_PAD_Y + (caption ? LINE_BOX * text : 0) : 0)
       : jumbo === "jumbo-single"
         ? JUMBO_SINGLE_PX
         : jumbo === "jumbo-group"
           ? JUMBO_GROUP_PX
           : BUBBLE_PAD_Y + LINE_BOX * text;
-  // The card is a child of the caption block, so a message with media pays its
-  // padding once, inside that block, and a message without media pays it as
-  // part of the bubble's own padding.
-  const card = hasWebPageContent(message.webPage) ? CARD_PAD_Y + LINE_BOX * CARD_LINES : 0;
-  // The quote is the bubble's first child, so its height lands inside the
-  // bubble, above the body line.
+  const card = cardHeight(message.webPage);
   const quote = message.replyToId === undefined ? 0 : QUOTE_LINE * QUOTE_LINES + QUOTE_CHROME_Y;
 
   const rowPadTop = item.hasRunGapBefore ? RUN_GAP_PX : 1;

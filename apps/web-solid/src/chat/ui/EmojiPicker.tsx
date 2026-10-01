@@ -188,7 +188,7 @@ function drawTwemoji(root: ParentNode): void {
         image.src = next
         return
       }
-      image.replaceWith(document.createTextNode(cell.getAttribute("aria-label") ?? ""))
+      image.replaceWith(document.createTextNode(emoji))
     })
     cell.append(image)
   }

@@ -4,7 +4,6 @@
 
 export { FileIcon } from "./components/file-icon"
 export { Icon } from "./components/icon"
-export { IconButton } from "./components/icon-button"
 export { ProviderIcon } from "./components/provider-icon"
 
 export { ButtonV2 } from "./v2/components/button-v2"

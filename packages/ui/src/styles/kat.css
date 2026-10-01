@@ -20,26 +20,9 @@
       Tailwind utilities registered in section 5, which resolve to these vars.
    ========================================================================== */
 
-/* -----------------------------------------------------------------------------
-   1. Self-hosted fonts
-   -------------------------------------------------------------------------- */
-
-@font-face {
-  font-family: "InterVariable";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/fonts/DiVDrmQJ.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "InterVariable";
-  font-style: italic;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/fonts/FCBEiFp6.woff2") format("woff2");
-}
-
+/* Sans is the system stack: `-apple-system` resolves to SF Pro on Apple
+   platforms, and shipping Apple's font files in this repo is not permitted.
+   Mono is self-hosted. */
 @font-face {
   font-family: "Fantasque Sans Mono";
   font-style: normal;
@@ -56,167 +39,124 @@
   src: url("/fonts/hWqxyCs0.woff2") format("woff2");
 }
 
-@font-feature-values InterVariable {
-  @character-variant {
-    cv01: 1;
-    cv02: 2;
-    cv03: 3;
-    cv04: 4;
-    cv05: 5;
-    cv06: 6;
-    cv07: 7;
-    cv08: 8;
-    cv09: 9;
-    cv10: 10;
-    cv11: 11;
-    cv12: 12;
-    cv13: 13;
-    alt-1: 1;
-    alt-3: 9;
-    open-4: 2;
-    open-6: 3;
-    open-9: 4;
-    lc-l-with-tail: 5;
-    simplified-u: 6;
-    alt-double-s: 7;
-    uc-i-with-serif: 8;
-    uc-g-with-spur: 10;
-    single-story-a: 11;
-    compact-lc-f: 12;
-    compact-lc-t: 13;
-  }
-  @styleset {
-    ss01: 1;
-    ss02: 2;
-    ss03: 3;
-    ss04: 4;
-    ss05: 5;
-    ss06: 6;
-    ss07: 7;
-    ss08: 8;
-    open-digits: 1;
-    disambiguation: 2;
-    disambiguation-except-zero: 4;
-    round-quotes-and-commas: 3;
-    square-punctuation: 7;
-    square-quotes: 8;
-    circled-characters: 5;
-    squared-characters: 6;
-  }
-}
 
 /* -----------------------------------------------------------------------------
-   2. Theme lightness / chroma scales
+   2. Theme tiers
 
-   Every colour is an OKLCH triple split into a lightness and a chroma custom
-   property, recombined by the derived layer in section 4:
+       primitives  --l-grey-* / --c-neutral / --l-mauve-* / --c-mauve / --h-mauve
+       semantic    --l-<role> / --c-<role> / --h-<role>, built only from primitives
+       component   bubbles and their text, built only from semantic roles and primitives
 
-       --l-<role>: <lightness 0..1>;
-       --c-<role>: <chroma>;
-       --hue: 340;  --cm: 1;
+   Derived colours in section 4 recompose each role:
        --<role>: oklch(var(--l-<role>) calc(var(--c-<role>) * var(--cm)) var(--hue));
-
-   `--hue` is the single knob the whole warm mauve / plum family sits at, so
-   raising `--cm` saturates the entire surface at once. Roles whose palette
-   colour is genuinely off-family — the cream text, the warm bubble text, the
-   rose accent, the slate input — carry their own `--h-<role>` and are exempt
-   from that knob, the way `--h-danger` / `--h-success` / `--h-gold` are.
+   A theme overrides the primitives and nothing else.
    -------------------------------------------------------------------------- */
 
 :root {
-  /* Dark, quiet, neutral. Kat's calm is one warm-neutral family for everything
-     structural (their dark canvas runs chroma 0.003–0.008, never a wash) and a
-     single chromatic surface for the viewer's bubble. Lightness carries the
-     hierarchy here; chroma is rationed to the one place that may shout. */
-  --l-bg: 0.183;
-  --c-bg: 0.004;
-  --l-bg-sidebar: 0.145;
-  --c-bg-sidebar: 0.0035;
-  --l-bg-subtle: 0.238;
-  --c-bg-subtle: 0.005;
-  --l-surface-raised: 0.233;
-  --c-surface-raised: 0.005;
-  --l-menu-bg: 0.273;
-  --c-menu-bg: 0.005;
-  --l-input-bg: 0.228;
-  --c-input-bg: 0.005;
-  --l-hover-bg: 0.207;
-  --c-hover-bg: 0.008;
-  --l-selected-bg: 0.258;
-  --c-selected-bg: 0.014;
-  /* Nav rail state. The rail sits on `--bg-sidebar` (l 0.145), so both of
-     these are lifts off that canvas rather than tints of the accent alone.
-     Active is a stronger accent tint than `--selected-bg`: 0.285 is only a
-     little lighter than its 0.258, and the doubling of chroma to 0.028 is what
-     makes it read as committed. Both take `--h-accent`, so a selected row and
-     an active tab are one family. Hover stays achromatic on the main `--hue`:
-     0.21 is a whisker above the canvas, well under active, and carries no hue
-     of its own so it can never be mistaken for selection. */
-  --l-nav-active-bg: 0.285;
-  --c-nav-active-bg: 0.028;
-  --l-nav-hover-bg: 0.21;
-  --c-nav-hover-bg: 0.006;
-  --l-tooltip-bg: 0.329;
-  --c-tooltip-bg: 0.006;
-  --l-scrollbar-thumb: 0.375;
-  --c-scrollbar-thumb: 0.009;
-  --l-scrollbar-thumb-hover: 0.482;
-  --c-scrollbar-thumb-hover: 0.012;
-  /* The small closed shapes take the tints: dark, nearly-chromaless steps that
-     keep badges and avatars quiet against the canvas. */
-  --l-tint-subtle: 0.292;
-  --c-tint-subtle: 0.005;
-  --l-tint: 0.343;
-  --c-tint: 0.007;
-  --l-tint-strong: 0.411;
-  --c-tint-strong: 0.011;
+  --l-grey-canvas: 0.218;
+  --l-grey-sidebar: 0.248;
+  --l-grey-elevated: 0.278;
+  --l-grey-menu: 0.305;
+  --l-grey-chip: 0.326;
+  --l-grey-hairline: 0.336;
+  --l-grey-thumb: 0.375;
+  --l-grey-thumb-hover: 0.48;
+  --l-grey-text-faint: 0.6;
+  --l-grey-text-muted: 0.74;
+  --l-grey-text: 0.947;
+  --c-neutral: 0;
 
-  /* Bubbles. Kat's tranquillity is bg 0.18 / agent 0.24 / viewer 0.42, almost
-     achromatic — the calm comes from VALUE, not chroma. Our one licence is the
-     viewer's bubble: the same step, holding a pinkish pinch (`#E2B4BD` walked
-     dark) so the eye knows whose mouth a message came from.
+  --l-mauve-fill: 0.51;
+  --l-mauve-deep: 0.44;
+  --l-mauve-petal: 0.64;
+  --l-mauve-on: 0.96;
+  --c-mauve: 0.062;
+  --c-mauve-on: 0.01;
+  --h-mauve: 356;
 
-     The chroma is the load-bearing number, not the lightness. At h 25 a rose
-     needs far less chroma than kat's h 55 tan to read as saturated, so an
-     earlier 0.095 rendered as rust while kat's own 0.07 is calm brown. 0.058 is
-     the most that stays a dusty rose; text contrast is never the problem here
-     (the viewer text sits 0.485 above the fill, wider than kat's own). */
-  --l-assistant-bubble: 0.243;
-  --c-assistant-bubble: 0.007;
-  --l-user-bubble: 0.465;
-  --c-user-bubble: 0.058;
-  --h-user-bubble: 25;
-  --l-user-bubble-text: 0.95;
-  --c-user-bubble-text: 0.011;
-  --h-user-bubble-text: 32;
+  --l-signal-danger: 0.789;
+  --c-signal-danger: 0.12;
+  --h-signal-danger: 25;
+  --l-signal-success: 0.794;
+  --c-signal-success: 0.09;
+  --h-signal-success: 160;
+  --l-signal-gold: 0.845;
+  --c-signal-gold: 0.15;
+  --h-signal-gold: 88;
+}
 
-  /* Body text is a warm off-white at kat's weight. It must hold contrast on the
-     agent bubble too, so it never drops below body strength: secondary tiers
-     step DOWN in value only, never in a second hue. */
-  --l-text: 0.885;
-  --c-text: 0.009;
-  --l-text-muted: 0.735;
-  --c-text-muted: 0.012;
-  --l-text-faint: 0.615;
-  --c-text-faint: 0.009;
+:root {
+  --l-bg: var(--l-grey-canvas);
+  --c-bg: var(--c-neutral);
+  --l-bg-sidebar: var(--l-grey-sidebar);
+  --c-bg-sidebar: var(--c-neutral);
+  --l-bg-subtle: var(--l-grey-sidebar);
+  --c-bg-subtle: var(--c-neutral);
+  --l-surface-raised: var(--l-grey-elevated);
+  --c-surface-raised: var(--c-neutral);
+  --l-menu-bg: var(--l-grey-menu);
+  --c-menu-bg: var(--c-neutral);
+  --l-input-bg: var(--l-grey-elevated);
+  --c-input-bg: var(--c-neutral);
+  --l-hover-bg: 0.27;
+  --c-hover-bg: var(--c-neutral);
+  --l-selected-bg: var(--l-grey-elevated);
+  --c-selected-bg: var(--c-neutral);
+  --l-nav-active-bg: var(--l-grey-elevated);
+  --c-nav-active-bg: var(--c-neutral);
+  --l-nav-hover-bg: 0.27;
+  --c-nav-hover-bg: var(--c-neutral);
+  --l-tooltip-bg: var(--l-grey-chip);
+  --c-tooltip-bg: var(--c-neutral);
+  --l-scrollbar-thumb: var(--l-grey-thumb);
+  --c-scrollbar-thumb: var(--c-neutral);
+  --l-scrollbar-thumb-hover: var(--l-grey-thumb-hover);
+  --c-scrollbar-thumb-hover: var(--c-neutral);
+  --l-tint-subtle: 0.3;
+  --c-tint-subtle: var(--c-neutral);
+  --l-tint: var(--l-grey-chip);
+  --c-tint: var(--c-neutral);
+  --l-tint-strong: var(--l-grey-thumb);
+  --c-tint-strong: var(--c-neutral);
 
-  /* The accent is one job: a poke of peach-rose for marks a reader must find —
-     day dividers, jump pills, presence dots. It is brighter than the viewer
-     bubble and walked toward peach, so an accent and a bubble never coincide. */
-  --l-accent: 0.72;
-  --c-accent: 0.09;
-  --h-accent: 32;
-  --l-accent-fill: 0.56;
-  --c-accent-fill: 0.1;
-  --l-danger: 0.789;
-  --c-danger: 0.12;
-  --h-danger: 25;
-  --l-success: 0.794;
-  --c-success: 0.12;
-  --h-success: 150;
-  --l-gold: 0.845;
-  --c-gold: 0.15;
-  --h-gold: 88;
+  --l-text: var(--l-grey-text);
+  --c-text: 0.004;
+  --l-text-muted: var(--l-grey-text-muted);
+  --c-text-muted: 0.004;
+  --l-text-faint: var(--l-grey-text-faint);
+  --c-text-faint: 0.003;
+
+  --l-accent: var(--l-mauve-petal);
+  --c-accent: 0.055;
+  --h-accent: var(--h-mauve);
+  --l-accent-fill: var(--l-mauve-fill);
+  --c-accent-fill: var(--c-mauve);
+  --l-danger: var(--l-signal-danger);
+  --c-danger: var(--c-signal-danger);
+  --h-danger: var(--h-signal-danger);
+  --l-success: var(--l-signal-success);
+  --c-success: var(--c-signal-success);
+  --h-success: var(--h-signal-success);
+  --l-gold: var(--l-signal-gold);
+  --c-gold: var(--c-signal-gold);
+  --h-gold: var(--h-signal-gold);
+}
+
+:root {
+  --l-assistant-bubble: var(--l-grey-elevated);
+  --c-assistant-bubble: var(--c-neutral);
+  --l-user-bubble: var(--l-mauve-fill);
+  --c-user-bubble: var(--c-mauve);
+  --h-user-bubble: var(--h-mauve);
+  --l-user-bubble-deep: var(--l-mauve-deep);
+  --l-user-bubble-text: var(--l-mauve-on);
+  --c-user-bubble-text: var(--c-mauve-on);
+  --h-user-bubble-text: var(--h-mauve);
+  --l-on-accent: var(--l-mauve-on);
+  --c-on-accent: var(--c-mauve-on);
+  --h-on-accent: var(--h-mauve);
+  --radius-row: 20px;
+  --radius-field: 999px;
 }
 
 /* -----------------------------------------------------------------------------
@@ -388,21 +328,8 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  /* The one knob the whole warm family rotates and saturates on. h 6 rather
-     than the old plum's 340: the palette's own chroma sits between h 5
-     (`#E2B4BD`) and h 30 (`#F7D6D0`), and 340 read violet next to it. */
   --hue: 6;
   --cm: 1;
-
-  font-feature-settings:
-    "cv01" 1,
-    "cv02" 1,
-    "cv09" 1,
-    "cv08" 1,
-    "cv03" 1,
-    "cv04" 1,
-    "cv05" 1,
-    "cv10" 1;
 
   --bg: oklch(var(--l-bg) calc(var(--c-bg) * var(--cm)) var(--hue));
   --bg-sidebar: oklch(
@@ -467,6 +394,22 @@
   --accent-fill: oklch(
     var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--h-accent)
   );
+  --user-bubble-deep: oklch(
+    var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm))
+      var(--h-user-bubble)
+  );
+  --user-bubble-gradient: linear-gradient(
+    135deg,
+    var(--user-bubble),
+    var(--user-bubble-deep)
+  );
+  --on-accent: oklch(
+    var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--h-on-accent)
+  );
+  --hairline: oklch(var(--l-grey-hairline) var(--c-neutral) 0);
+  --petal: var(--accent);
+  --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
+  --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
 
   /* Elevation. Dark-mode only: the light value would be a grey smudge. */
   --popover-shadow:
@@ -527,9 +470,8 @@
   --pin-avatar: 26px;
   --row-avatar: 28px;
   --row-avatar-img: 22px;
-
   --font-family-sans:
-    "InterVariable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
     sans-serif;
   --font-family-mono:
     "Fantasque Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
@@ -646,6 +588,9 @@
    * use these two, or the `calc(Npx * var(--brm))` idiom. */
   --radius-sm: 8px;
   --radius-bubble: 18px;
+  --radius-bubble-tight: 6px;
+  --radius-row: 20px;
+  --radius-field: 999px;
 }
 
 @theme inline {
@@ -695,6 +640,17 @@
   --color-message-assistant-text: var(--assistant-bubble-text);
   --color-message-user: var(--user-bubble);
   --color-message-user-text: var(--user-bubble-text);
+  --color-hairline: var(--hairline);
+  --color-on-accent: var(--on-accent);
+  --color-chip: var(--tint);
+  --shadow-row: var(--row-shadow);
+  --shadow-segment: var(--segment-shadow);
+  --color-file-pdf: oklch(0.6 0.17 25);
+  --color-file-archive: oklch(0.7 0.15 60);
+  --color-file-sheet: oklch(0.62 0.13 150);
+  --color-file-doc: oklch(0.6 0.12 255);
+  --color-file-media: oklch(0.62 0.12 320);
+  --color-file-default: oklch(0.55 0.05 340);
 
   /* The vendored v2 component set paints itself with `bg-v2-*` / `text-v2-*`
    * utilities, which only exist if the `--v2-*` tokens are registered in

@@ -1,26 +1,14 @@
+import { FileText, Link } from "lucide-solid"
 import { Show } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
-import { replyQuoteText } from "../lib/reply"
+import type { ReplySummary } from "../lib/reply"
 
-/**
- * The reply preview, rendered as the FIRST CHILD of the bubble it belongs to.
- * The radius is the bubble's radius minus the bubble's own vertical padding, so
- * the slab reads as part of the bubble rather than a box floating beside it.
- *
- * Nothing is stored here: the message keeps the parent's id and the full body,
- * and the clamps are the `line-clamp` utilities on the label and the text. Only
- * the click needs the id, and only to hand it back to the transcript to jump to.
- *
- * The tint is derived from `currentColor` rather than a token, so the slab
- * follows whichever of the two message colours the bubble it sits in already
- * painted. A parent that carries an image quotes as a ROW instead of a column:
- * the thumbnail takes its 32px, and the body takes what is left of the line.
- */
 export function Quote(props: {
   parent: ChatMessage
   label: string
-  imageUrl?: string
+  summary: ReplySummary
+  side?: "user" | "bot"
   onOpenReplyTarget: (messageId: string) => void
   class?: string
 }) {
@@ -29,23 +17,30 @@ export function Quote(props: {
       type="button"
       data-component="chat-quote"
       class={cn(
-        "relative flex w-full cursor-pointer flex-col gap-px overflow-hidden",
-        "mb-1 p-[5px_8px_5px_11px] text-start text-inherit text-sm leading-[1.35]",
-        "rounded-[calc(var(--radius-bubble)-7px)] bg-[oklch(from_currentColor_l_c_h/10%)]",
-        // The 3px rule down the sender's edge.
-        "[&::before]:absolute [&::before]:inset-y-0 [&::before]:start-0 [&::before]:w-[3px]",
-        "[&::before]:bg-[oklch(from_currentColor_l_c_h/35%)] [&::before]:content-['']",
-        // An image parent lays the quote out as a row: thumb inline-start, text
-        // taking the rest of the line.
-        "has-[img]:flex-row has-[img]:items-center has-[img]:gap-2 has-[img]:[&>:last-child]:flex-1",
+        "relative flex w-full cursor-pointer flex-row items-center gap-2 overflow-hidden",
+        "mb-1 py-[3px] ps-[11px] pe-2 text-start text-inherit text-sm leading-[1.35]",
+        "rounded-[4px] bg-[oklch(from_currentColor_l_c_h/10%)]",
+        "before:absolute before:inset-y-0 before:start-0 before:w-[3px] before:bg-current before:content-['']",
+        props.side === "bot" && "before:bg-accent",
         props.class,
       )}
       onClick={() => props.onOpenReplyTarget(props.parent.id)}
     >
-      <Show when={props.imageUrl}>
+      <Show
+        when={props.summary.thumb}
+        fallback={
+          <Show when={props.summary.glyph}>
+            {(glyph) => (
+              <span class="chat-quote__thumb flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(from_currentColor_l_c_h/15%)]">
+                {glyph() === "document" ? <FileText class="size-4" /> : <Link class="size-4" />}
+              </span>
+            )}
+          </Show>
+        }
+      >
         {(src) => (
           <img
-            class="chat-quote__thumb size-8 shrink-0 grow-0 basis-8 rounded-[2px] object-cover"
+            class="chat-quote__thumb size-8 shrink-0 rounded-[3px] object-cover"
             src={src()}
             alt=""
             loading="lazy"
@@ -53,12 +48,17 @@ export function Quote(props: {
           />
         )}
       </Show>
-      <span class="chat-quote__body flex min-w-0 flex-col gap-px">
-        <span class="chat-quote__label min-w-full max-w-[221px] truncate font-[var(--font-weight-bold)] opacity-90">
+      <span class="chat-quote__body flex min-w-0 flex-1 flex-col">
+        <span
+          class={cn(
+            "chat-quote__label min-w-0 max-w-[221px] truncate font-semibold",
+            props.side === "bot" && "text-accent",
+          )}
+        >
           {props.label}
         </span>
-        <span class="chat-quote__text line-clamp-2 min-w-full max-w-[221px] wrap-anywhere opacity-75">
-          {replyQuoteText(props.parent.body)}
+        <span class="chat-quote__text min-w-0 max-w-[221px] truncate opacity-75">
+          {props.summary.text}
         </span>
       </span>
     </button>

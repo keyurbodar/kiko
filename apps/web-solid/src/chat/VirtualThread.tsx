@@ -153,31 +153,6 @@ const DIVIDER_LABEL_CLASS = "text-xs font-medium text-weak lowercase"
 
 const DIVIDER_TIME_CLASS = "text-xs font-normal text-weak lowercase"
 
-/**
- * The new-messages rule, reached as descendants of the row that renders it:
- * `ui/UnreadRule.tsx` takes no `class` prop and no slice owns it, so its three
- * boxes (slot, clip, rule) and the label are addressed structurally. Applied
- * only to the `unread-divider` row, so these never match a message row.
- *
- * The slot stays a grid and collapses via a `0fr` track, so retiring the rule
- * removes the row outright and nothing animates. The two hairlines are the one
- * place the transcript draws a rule; they are flex items, not absolutely
- * positioned bars, so the label sits between two equal lengths of accent.
- */
-const UNREAD_RULE_ROW_CLASS =
-  "[&>div]:grid [&>div]:grid-rows-[1fr] " +
-  "[&>[data-retiring]]:grid-rows-[0fr] " +
-  "[&>div>div]:min-h-0 [&>div>div]:overflow-hidden " +
-  "[&>div>div>div]:flex [&>div>div>div]:items-center [&>div>div>div]:gap-2.5 " +
-  "[&>div>div>div]:px-4 [&>div>div>div]:pt-3 [&>div>div>div]:pb-2 " +
-  "[&>div>div>div]:before:flex-1 [&>div>div>div]:before:h-px [&>div>div>div]:before:bg-accent/45 " +
-  "[&>div>div>div]:after:flex-1 [&>div>div>div]:after:h-px [&>div>div>div]:after:bg-accent/45 " +
-  "[&>div>div>div>span]:shrink-0 " +
-  "[&>div>div>div>span]:text-xs " +
-  "[&>div>div>div>span]:font-medium " +
-  "[&>div>div>div>span]:text-accent " +
-  "[&>div>div>div>span]:lowercase"
-
 const ROW_SELECTOR = '[data-component="chat-vrow"]'
 
 const clampIndex = (index: number, count: number): number =>
@@ -507,25 +482,17 @@ export function VirtualThread(props: {
   }
 
   onMount(() => {
-    if (!scrollElement || !columnElement) return
+    const scroller = scrollElement
+    const column = columnElement
+    if (!scroller || !column) return
     const onScroll = () => {
       seedAnchor()
       commitState(readState())
     }
-    // The viewport growing is not a height change under the reader: nothing
-    // moved relative to the top, so there is nothing to cancel.
     const onViewportResize = () => {
       seedAnchor()
       commitState(readState())
     }
-    // The column growing IS one: rows above the reading line changed size.
-    //
-    // Deferred to the next frame on purpose. Cancelling drift means writing
-    // `scrollTop`, and a ResizeObserver callback that mutates layout is exactly
-    // what the observer loop forbids: the browser reports "loop completed with
-    // undelivered notifications", drops the rest of that frame's observations,
-    // and the correction lands a frame late — which is the same visible jump it
-    // was meant to prevent.
     let driftQueued = false
     const queueDriftCancel = () => {
       if (driftQueued) return
@@ -535,13 +502,32 @@ export function VirtualThread(props: {
         cancelDrift()
       })
     }
-    makeResizeObserver(onViewportResize).observe(scrollElement)
-    makeResizeObserver(queueDriftCancel).observe(columnElement)
-    createEventListener(() => scrollElement, "scroll", onScroll, { passive: true })
-  })
-
-  onCleanup(() => {
-    props.scrollRef(undefined)
+    const viewportObserver = makeResizeObserver(onViewportResize)
+    viewportObserver.observe(scroller)
+    createEventListener(() => scroller, "scroll", onScroll, { passive: true })
+    const mutations = new MutationObserver(queueDriftCancel)
+    mutations.observe(column, { childList: true, subtree: true })
+    const heights = new MutationObserver(queueDriftCancel)
+    for (const child of Array.from(column.children)) {
+      heights.observe(child, { attributes: true, attributeFilter: ["style"] })
+    }
+    const tree = new MutationObserver((entries) => {
+      for (const entry of entries) {
+        for (const node of Array.from(entry.addedNodes)) {
+          if (node instanceof HTMLElement) {
+            heights.observe(node, { attributes: true, attributeFilter: ["style"] })
+          }
+        }
+      }
+    })
+    tree.observe(column, { childList: true })
+    onCleanup(() => {
+      viewportObserver.unobserve(scroller)
+      mutations.disconnect()
+      heights.disconnect()
+      tree.disconnect()
+      props.scrollRef(undefined)
+    })
   })
 
   /**
@@ -577,9 +563,18 @@ export function VirtualThread(props: {
    * previous position to respect, and a thread opens at its end.
    */
   let firstLoad = true
+  let lastOwner: readonly unknown[] | undefined
   createEffect(
     on(items, () => {
-      const wasAtLatest = isAtLatest()
+      const owner = props.messages as readonly unknown[]
+      if (owner !== lastOwner) {
+        lastOwner = owner
+        firstLoad = true
+        anchor = undefined
+        setPinnedCount(messageCount())
+        if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
+      }
+      const wasAtLatest = firstLoad || isAtLatest()
       seedAnchor()
       if (firstLoad) {
         firstLoad = false
@@ -678,7 +673,7 @@ export function VirtualThread(props: {
       )
     }
     if (item.kind === "unread-divider") {
-      return <UnreadRule retiring={false} />
+      return <UnreadRule />
     }
     return renderMessage(item)
   }
@@ -716,7 +711,6 @@ export function VirtualThread(props: {
             >
               {(item) => (
                 <div
-                  class={item.kind === "unread-divider" ? UNREAD_RULE_ROW_CLASS : undefined}
                   data-component="chat-vrow"
                   style={{
                     "contain-intrinsic-size": `auto ${estimateRowHeight(item)}px`,
@@ -740,18 +734,12 @@ export function VirtualThread(props: {
       </div>
 
       <DateChip
-        // The day at the TOP of the transcript, not today. `topVisibleDay` is
-        // what the chip is a label FOR: scrolling back through yesterday has to
-        // turn the chip into "yesterday", and scrolling down into today has to
-        // turn it back, which is the whole behaviour. It was wired to
-        // `dayStartOf(now())`, so the chip read "today" in every state and the
-        // memo beside it was spent on visibility alone.
         dayStart={topVisibleDay() ?? dayStartOf(now())}
         now={now()}
         visible={dateChipVisible()}
         onJumpToDay={jumpToDay}
       />
-
+      <JumpToLatest arrivals={arrivals()} visible={!isAtLatest()} onJump={scrollToLatest} />
       <ScrollFades
         showTop={(scrollState()?.scrollOffset ?? 0) > 0}
         showBottom={!isAtLatest()}

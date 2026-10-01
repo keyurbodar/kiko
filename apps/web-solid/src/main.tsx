@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import { render } from "solid-js/web";
 import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import "./styles/app.css";
@@ -26,20 +26,16 @@ if (!root) throw new Error("Root element #root not found");
 export default function App() {
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null);
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
-
+  createEffect(
+    on(useApp.activeThreadId, () => {
+      setReplyTarget(null);
+    }),
+  );
   const bots = useApp.botById();
   const messages = createMemo(() => useApp.activeMessages());
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
   );
-
-  /*
-   * The reply is owned here rather than in either surface, because two of them
-   * need it: the transcript arms it when a row is swiped, and the composer
-   * renders it and clears it on send. A reply is only ever a message in the
-   * open conversation, so `byId` — which is built from the active thread — is
-   * the whole lookup.
-   */
   const replyTo = createMemo(() => {
     const id = replyTarget();
     return id === null ? null : (byId().get(id) ?? null);

@@ -180,6 +180,8 @@ export interface ChatProbe {
   media: number;
   /** Album cells, which is the sum of every rendered album's item count. */
   mediaCells: number;
+  documents: number;
+  webpages: number;
   /** Whether the media viewer's modal is mounted. */
   viewer: boolean;
   /** Resolved design tokens. */
@@ -213,6 +215,8 @@ function probe(): ChatProbe {
     // apart without reading the fixture.
     media: qa("[data-component='chat-media']").length,
     mediaCells: qa("[data-component='chat-media-cell']").length,
+    documents: qa("[data-component='chat-document']").length,
+    webpages: qa("[data-component='chat-webpage']").length,
     // `.media-viewer` rather than a `data-component`, and that is not an
     // oversight: the viewer's root IS `ModalV2.Content`, which hardcodes
     // `data-component="modal-v2-content"` AFTER spreading the caller's props, so

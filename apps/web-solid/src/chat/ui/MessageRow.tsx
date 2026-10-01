@@ -2,27 +2,28 @@ import { createSignal, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { useApp } from "../../lib/store"
 import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
-import { mediaThumbnail } from "../lib/media"
+import { formatTimeOfDay } from "../lib/dayLabel"
+import { replySummary } from "../lib/reply"
+import { MessageDocuments } from "./Documents"
 import { MessageMedia } from "./Media"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { RichText } from "./RichText"
-import { RowTime } from "./RowTime"
-import { Bubble, BubbleContent } from "./bubble"
+import { Bubble, BubbleContent, type BubblePosition } from "./bubble"
 
-/** Which corner the run's tail clamps, and which side the sender sits on. */
+function bubblePosition(isRunStart: boolean, isRunEnd: boolean): BubblePosition {
+  if (isRunStart && isRunEnd) return "only"
+  if (isRunStart) return "first"
+  if (isRunEnd) return "last"
+  return "middle"
+}
+
 function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot" {
   if (isRunEnd) return "bot"
   if (isRunStart) return "start"
   return "mid"
 }
 
-/**
- * Who a quote names: the sender of the QUOTED message, never the sender of the
- * message carrying the quote. The viewer is "you" whichever row the quote sits
- * in; an agent resolves through the roster, so the label is that agent's name
- * rather than the generic "bot" the carrying row's own sender would produce.
- */
 function quoteSender(message: ChatMessage, ownBot: RosterBot | undefined): string {
   if (message.sender === "user") return "you"
   if (ownBot !== undefined && ownBot.id === message.botId) return ownBot.name
@@ -30,77 +31,31 @@ function quoteSender(message: ChatMessage, ownBot: RosterBot | undefined): strin
   return "bot"
 }
 
-/**
- * One message row: a single bubble, no avatar, no author header, no rail.
- *
- * The row is a COLUMN, not a row-direction flex, and the bubble places itself
- * with `data-align`. That is the primitive's contract: in a column `align-self`
- * is the horizontal axis, which is the one that decides which edge the bubble
- * hugs. A row-direction flex would make the same property mean vertical.
- *
- * The top padding is where the reaction badge is paid for. The badge pulls
- * itself 12px past the bubble's own top edge and its ring adds 2px, so a row
- * with a reaction reserves 15px - one more than the badge needs, because rows
- * sit 1px apart. Without it the badge lands on the message above, which is
- * exactly what a transcript that looks almost right does.
- *
- * The reply quote is the content's FIRST CHILD rather than a sibling: the
- * quote's radius is the bubble's radius minus the bubble's own vertical
- * padding, which only lines up if it is nested.
- *
- * A message with media is a COLUMN of three optional blocks: the quote, the
- * media, and the caption. Only the media is full-bleed; the quote and the
- * caption carry the bubble's padding themselves, which is why each of them
- * wears a wrapper the moment `hasMedia()` is true. The media is also what
- * makes the bubble bare — a picture is not a coloured pill's contents.
- */
 export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
-  /** The message this one answers. Undefined on a root message. */
   parent: ChatMessage | undefined
   isRunStart: boolean
   isRunEnd: boolean
   hasRunGapBefore: boolean
-  /** True when this message is the reply target the composer is holding. */
   replying?: boolean
-  /** True for the moment after a reply quote jumped here. */
   highlighted?: boolean
   jumboClass?: "jumbo-single" | "jumbo-group"
-  /** Merged onto the row root. The row's own box stays a component decision. */
   class?: string
   onOpenReplyTarget: (messageId: string) => void
-  /**
-   * Omit it until a message menu exists. MessageRow never renders a menu
-   * itself, and a caller with nothing to open should not have to pass a no-op
-   * just to satisfy a required prop.
-   */
   onContextMenu?: (event: MouseEvent) => void
-  /** Toggles a reaction on this message. Omit it and the badges still render,
-   *  they just do not respond to a click. */
   onReact?: (emoji: string) => void
-  /**
-   * Opens the media viewer on one item of this message's album. Omit it and
-   * the media still renders, it just is not a button that goes anywhere.
-   */
   onOpenMedia?: (items: readonly MediaItem[], index: number) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
-  /**
-   * Whether this message carries media. Read three times — the bubble's
-   * padding, the quote's own padding, and the caption's — and all three have to
-   * agree, because a message that drops the bubble padding without giving it
-   * back to the caption loses its text against the bubble's edge.
-   */
   const hasMedia = () => (props.message.media?.length ?? 0) > 0
-  /**
-   * The width the assistant media reserved. tweb makes the bubble hug a photo
-   * with `width: max-content` on the attachment (`_chatBubble.scss:956`) and
-   * `max-width: 100%` on the text block (`:1203`) — the attachment defines the
-   * width and the text wraps inside it. A `fit-content` bubble reaches that
-   * outcome through the caption instead, because here it is the caption's own
-   * max-content (measured 1073px beside a 420px album) that would win.
-   */
+  const hasDocuments = () => (props.message.documents?.length ?? 0) > 0
+  const hasAttachment = () => hasMedia() || hasDocuments()
+  const floatingTime = () =>
+    hasMedia() &&
+    !hasDocuments() &&
+    props.message.body.length === 0 &&
+    props.message.webPage === undefined
   const [fittedWidth, setFittedWidth] = createSignal<number | undefined>(undefined)
   const captionStyle = () => {
     const width = fittedWidth()
@@ -111,34 +66,9 @@ export function MessageRow(props: {
       class={cn(
         "group/row relative mx-auto flex w-full max-w-(--content-max-w) flex-col items-start",
         "px-4 pb-px contain-layout touch-pan-y",
-        // `--swipe-x` is NOT defaulted here. It is owned and written by the
-        // `SwipeToReply` wrapper above this row, and a custom property declared
-        // on an element beats the value it would otherwise inherit — so a
-        // `[--swipe-x:0px]` on this row froze every bubble at 0 while the
-        // gesture wrote 64px onto the parent, i.e. the swipe did nothing.
-        // The default belongs on the element that owns the variable.
-        "[--swipe-gutter-rate:0.2] [--chat-time-reveal:0]",
-        "hover:[--chat-time-reveal:1] focus-within:[--chat-time-reveal:1]",
-        // No ring on the armed reply target. There used to be a
-        // `shadow-[0_0_0_2px_var(--accent)]` here, which is a border wearing a
-        // shadow's clothes — exactly what this design forbids — and kat draws
-        // nothing on the message it is replying to either: the composer's reply
-        // bar is the whole indication. `data-replying` survives as the state the
-        // probe reads, but it paints nothing.
-        // Constant regardless of reactions. A reserved band for the badge was
-        // tried and is wrong: padding that appears only once a reaction exists
-        // makes the whole transcript jump the moment you react, and kat does
-        // not move at all. The badge is absolutely positioned like kat's, so it
-        // costs no layout - it may graze the corner of the message above in a
-        // tight run, which is exactly what kat's own stacks show.
+        "[--swipe-gutter-rate:0.2]",
         props.hasRunGapBefore ? "pt-2" : "pt-px",
-        // Swipe-to-reply travels the bubble, not the row: the row stays put so
-        // the indicator underneath is revealed rather than pushed along.
         "[&>[data-slot=bubble]]:translate-x-(--swipe-x)",
-        // Every bubble keeps the full radius. kat has exactly one bubble radius
-        // in its stylesheet and no per-run corner clamp, and the grouped stacks
-        // show it: twelve consecutive messages, twelve identical pills. A
-        // clamped corner is a tail this design never had.
         props.class,
       )}
       data-component="chat-row"
@@ -150,22 +80,10 @@ export function MessageRow(props: {
       onContextMenu={props.onContextMenu}
     >
       <Bubble
-        // An emoji-only message is BARE, kat's `.bubble-bare`: no fill and no
-        // padding, so the emoji floats on the canvas instead of sitting in a
-        // large coloured pill around a single glyph. `ghost` is that variant.
         variant={props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
+        position={bubblePosition(props.isRunStart, props.isRunEnd)}
         class={
-          // These are whole literals, never assembled from parts, and that is
-          // load-bearing: Tailwind generates a class by scanning this file for
-          // the finished string. A `[&>…]:${condition ? "text-[42px]" : …}`
-          // template is two fragments to the scanner, so it emitted a bare
-          // `.text-[42px]` that nothing applied and no bubble-content variant at
-          // all — the jumbo size was dead, with the class present in the DOM and
-          // matching no rule. Both sizes and both line heights therefore sit here
-          // in full, and the line height is scoped to the content because
-          // `text-base` sets the content's own line height, which a 42px glyph
-          // cannot inherit from the bubble.
           props.jumboClass === "jumbo-single"
             ? "[&>[data-slot=bubble-content]]:text-[42px] [&>[data-slot=bubble-content]]:leading-[1.25]"
             : props.jumboClass === "jumbo-group"
@@ -175,42 +93,24 @@ export function MessageRow(props: {
       >
         <BubbleContent
           class={cn(
-            // The landing overlay, kat's `.landing-target:after`: one pseudo-
-            // element over the painted surface, `opacity: 0` until the row is
-            // the jump target. It costs no layout, and only the two rows whose
-            // `highlighted` flips ever re-evaluate, which is what keeps a jump
-            // cheap.
-            //
-            // There is deliberately NO transition on the opacity. kat fades
-            // its mark, but a transition here is not merely slower, it is
-            // broken: the row is created and re-styled as the virtualizer
-            // settles the scroll it just performed, and each re-style restarts
-            // the fade, so the mark sat invisible for ~900ms and then flashed
-            // for the last 200ms of its life. An instant toggle is both correct
-            // and the cheapest thing that works.
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
             "after:rounded-[inherit] after:opacity-0",
             own() ? "after:bg-message-user-text" : "after:bg-accent",
             props.highlighted && "after:opacity-[0.22]",
-            // Assistant media takes the bubble's edges — tweb pulls the text out
-            // of `.bubble-content` into its own padded block, so a picture sits
-            // flush inside the radius. A user media block is INSET instead,
-            // which is t3code's own shape: its user bubble keeps `p-3` and the
-            // 210px grid floats inside it. Keying this off `hasMedia()` alone
-            // made both senders full-bleed, so a user album sat hard against
-            // the bubble edge with no padding on any side.
-            hasMedia() && !own() && "p-0",
+            hasAttachment() && "p-0",
           )}
         >
           <Show when={props.parent}>
             {(parent) => (
-              <div class={hasMedia() && !own() ? "px-3 pt-[7px]" : undefined}>
+              <div class={hasAttachment() ? "px-2 pt-2" : undefined}>
                 <Quote
                   parent={parent()}
                   label={quoteSender(parent(), props.bot)}
-                  imageUrl={mediaThumbnail(parent().media?.[0])}
+                  summary={replySummary(parent())}
+                  side={props.message.sender}
                   onOpenReplyTarget={props.onOpenReplyTarget}
+                  class={hasAttachment() ? "mb-0" : undefined}
                 />
               </div>
             )}
@@ -221,20 +121,32 @@ export function MessageRow(props: {
                 items={media()}
                 hasText={props.message.body.trim().length > 0}
                 onOpen={(index) => props.onOpenMedia?.(media(), index)}
-                side={props.message.sender}
                 fittedWidth={setFittedWidth}
               />
             )}
           </Show>
-          <Show
-            when={props.message.body.length > 0 || props.message.webPage !== undefined}
-          >
+          <Show when={hasDocuments() ? props.message.documents : undefined}>
+            {(documents) => <MessageDocuments items={documents()} side={props.message.sender} />}
+          </Show>
+          <Show when={props.message.body.length > 0 || props.message.webPage !== undefined}>
             <div
-              class={hasMedia() && !own() ? "px-3 py-[7px]" : undefined}
+              class={hasAttachment() ? "px-3 pt-[5px] pb-[7px]" : undefined}
               style={captionStyle()}
             >
-              <RichText text={props.message.body} webPage={props.message.webPage} />
+              <RichText
+                text={props.message.body.length > 0 ? props.message.body : undefined}
+                webPage={props.message.media === undefined ? props.message.webPage : undefined}
+              />
             </div>
+          </Show>
+          <Show when={floatingTime()}>
+            <time
+              class="pointer-events-none absolute end-1 bottom-1 z-[1] rounded-full bg-black/35 px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-white"
+              data-component="chat-media-time"
+              datetime={new Date(props.message.sentAt).toISOString()}
+            >
+              {formatTimeOfDay(props.message.sentAt)}
+            </time>
           </Show>
         </BubbleContent>
         <ReactionStack
@@ -243,7 +155,6 @@ export function MessageRow(props: {
           onToggle={props.onReact}
         />
       </Bubble>
-      <RowTime sentAt={props.message.sentAt} />
     </div>
   )
 }

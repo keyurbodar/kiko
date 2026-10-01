@@ -35,49 +35,83 @@ export function rowStamp(updatedAt: number, now: number): string {
  */
 function RosterAvatar(props: { bot: RosterBot; class: string }) {
   return (
-    <Show
-      when={props.bot.avatarImage}
-      fallback={<Blobatar name={props.bot.name} class={props.class} />}
-    >
-      {(src) => <img src={src()} alt="" class={props.class} />}
-    </Show>
+    <span class={props.class}>
+      <Show
+        when={props.bot.avatarImage}
+        fallback={<Blobatar name={props.bot.name} class="size-full rounded-full" />}
+      >
+        {(src) => <img src={src()} alt="" class="size-full rounded-full object-cover" />}
+      </Show>
+    </span>
   )
 }
 
 /** The pinned block: a circle, a dot when unread, a name clamped to two lines. */
 function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void }) {
+  const [menuOpen, setMenuOpen] = createSignal(false)
+  const [previewOpen, setPreviewOpen] = createSignal(false)
   return (
-    /* The card opens to the right, into the transcript. Anchored below, which
-     * is the popper default, it covered the very list the pointer came from. */
-    <HoverCardV2 openDelay={400} closeDelay={150} placement="right-start" gutter={12}>
-      <HoverCardV2.Trigger
-        as="button"
-        type="button"
-        class="pin-tile"
-        data-component="sidebar-pin-tile"
-        data-chat-id={props.bot.id}
-        data-active={props.active ? "" : undefined}
-        data-unread={props.bot.unread > 0 ? "" : undefined}
-        aria-current={props.active ? "true" : undefined}
-        onClick={props.onSelect}
-      >
-        <span class="pin-tile-circle">
-          <span class="pin-tile-icon">
-            <RosterAvatar bot={props.bot} class="size-[26px] rounded-full" />
-          </span>
-          <Show when={props.bot.unread > 0}>
-            <span class="pin-tile-dot" aria-hidden="true" />
-          </Show>
-        </span>
-        <span class="pin-tile-name">{props.bot.name}</span>
-      </HoverCardV2.Trigger>
+    <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
+      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id}>
+        <HoverCardV2
+          open={previewOpen() && !menuOpen()}
+          onOpenChange={setPreviewOpen}
+          openDelay={400}
+          closeDelay={150}
+          placement="right-start"
+          gutter={12}
+        >
+          <HoverCardV2.Trigger
+            as="button"
+            type="button"
+            class="pin-tile"
+            data-component="sidebar-pin-tile"
+            data-chat-id={props.bot.id}
+            data-active={props.active ? "" : undefined}
+            data-unread={props.bot.unread > 0 ? "" : undefined}
+            aria-current={props.active ? "true" : undefined}
+            onClick={props.onSelect}
+          >
+            <span class="pin-tile-circle">
+              <span class="pin-tile-icon">
+                <RosterAvatar bot={props.bot} class="pin-tile-avatar" />
+              </span>
+              <Show when={props.bot.unread > 0}>
+                <span class="pin-tile-dot" aria-hidden="true" />
+              </Show>
+            </span>
+            <span class="pin-tile-name">{props.bot.name}</span>
+          </HoverCardV2.Trigger>
 
-      <HoverCardV2.Portal>
-        <HoverCardV2.Content>
-          <ChatPreview bot={props.bot} />
-        </HoverCardV2.Content>
-      </HoverCardV2.Portal>
-    </HoverCardV2>
+          <HoverCardV2.Portal>
+            <HoverCardV2.Content>
+              <ChatPreview bot={props.bot} />
+            </HoverCardV2.Content>
+          </HoverCardV2.Portal>
+        </HoverCardV2>
+      </MenuV2.Context.Trigger>
+
+      <MenuV2.Context.Portal>
+        <MenuV2.Context.Content
+          class={cn(
+            "min-w-[180px] rounded-[calc(20px*var(--brm))] p-2",
+            "border-none bg-menu text-base text-text shadow-menu",
+          )}
+          data-component="sidebar-pin-menu"
+        >
+          <MenuV2.Item onSelect={() => useApp.togglePinned(props.bot.id)}>unpin</MenuV2.Item>
+          <MenuV2.Separator />
+          <Show
+            when={props.bot.unread > 0}
+            fallback={
+              <MenuV2.Item onSelect={() => useApp.markUnread(props.bot.id)}>mark as unread</MenuV2.Item>
+            }
+          >
+            <MenuV2.Item onSelect={() => useApp.markRead(props.bot.id)}>mark as read</MenuV2.Item>
+          </Show>
+        </MenuV2.Context.Content>
+      </MenuV2.Context.Portal>
+    </MenuV2.Context>
   )
 }
 
@@ -210,7 +244,7 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <RosterAvatar bot={props.bot} class="size-[22px] shrink-0 rounded-full" />
+        <RosterAvatar bot={props.bot} class="chat-avatar shrink-0" />
 
         <span class="chat-title-line">
           <span class="chat-name">{props.bot.name}</span>
@@ -267,9 +301,8 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
  */
 export function ChatPanel(props: { onToggleSidebar: () => void }) {
   const now = Date.now()
-
   const pinned = createMemo(() => useApp.bots().filter((bot) => bot.pinned))
-
+  const rows = createMemo(() => useApp.bots().filter((bot) => !bot.pinned))
   return (
     <div class="flex flex-col" data-component="sidebar-chats">
       <Show when={pinned().length > 0}>
@@ -288,9 +321,8 @@ export function ChatPanel(props: { onToggleSidebar: () => void }) {
           </For>
         </div>
       </Show>
-
       <div class="chat-list" role="list">
-        <For each={useApp.bots()}>
+        <For each={rows()}>
           {(bot) => <ChatRow bot={bot} active={useApp.activeThreadId() === bot.id} now={now} />}
         </For>
       </div>

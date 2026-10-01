@@ -1,18 +1,24 @@
 import { Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { ComposerProps, MediaItem, OutgoingMessage, WebPagePreview } from "../lib/types"
+import type {
+  ComposerProps,
+  DocumentItem,
+  MediaItem,
+  OutgoingMessage,
+  WebPagePreview,
+} from "../lib/types"
 import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import { createPromptInputV2Store } from "./prompt-input/store"
 import type { PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
-import { mediaThumbnail } from "../chat/lib/media"
+import { replySummary } from "../chat/lib/reply"
 import { createMediaViewer } from "../chat/media/mediaViewer"
 
 import { draftLinkUrl } from "./link-draft"
 import { ComposerLinkPreview } from "./link-preview"
-import { resolveLinkPreview } from "../chat/lib/linkPreview"
+import { hasWebPageContent, resolveLinkPreview } from "../chat/lib/linkPreview"
 
 const LINK_PREVIEW_DEBOUNCE_MS = 400
 
@@ -43,6 +49,19 @@ async function decodeMedia(pending: { src: string; alt: string }): Promise<Media
     height: image.naturalHeight,
     alt: pending.alt,
   }
+}
+async function readDocument(pending: {
+  src: string
+  name: string
+  mime: string
+}): Promise<DocumentItem> {
+  let size = 0
+  try {
+    size = (await (await fetch(pending.src)).blob()).size
+  } catch {
+    size = 0
+  }
+  return { name: pending.name, size, mime: pending.mime, src: pending.src }
 }
 
 export function Composer(props: ComposerProps) {
@@ -186,17 +205,31 @@ export function Composer(props: ComposerProps) {
               ? [{ src: part.blob.url, alt: part.filename }]
               : [],
           )
-          if (!text.trim() && pending.length === 0) return
+          const documents = store.state.prompt.flatMap((part) =>
+            part.type === "image" && !part.mime.startsWith("image/")
+              ? [{ src: part.blob.url, name: part.filename, mime: part.mime }]
+              : [],
+          )
+          if (!text.trim() && pending.length === 0 && documents.length === 0) return
+          const link = draftLink()
+          const webPage =
+            link?.preview && text.includes(link.url) && hasWebPageContent(link.preview)
+              ? link.preview
+              : undefined
           store.reset()
           clearDraftLink()
           setDecoding(true)
-          void Promise.all(pending.map(decodeMedia)).then((decoded) => {
+          void Promise.all([
+            Promise.all(pending.map(decodeMedia)),
+            Promise.all(documents.map(readDocument)),
+          ]).then(([decoded, files]) => {
             setDecoding(false)
             const media = decoded.filter((item) => item !== undefined)
             const message: OutgoingMessage = { body: text }
             if (media.length > 0) message.media = media
+            if (files.length > 0) message.documents = files
+            if (webPage) message.webPage = webPage
             props.onSend(message)
-            // The quote is answered; keeping it armed would quote it twice.
             props.onClearReply?.()
           })
         },
@@ -215,13 +248,12 @@ export function Composer(props: ComposerProps) {
       <Show when={props.replyTo}>
         {(message) => (
           <ReplyBar
-            message={message()}
+            summary={replySummary(message())}
             role={
               message().sender === "user"
                 ? "you"
                 : (botById(message().botId)?.name ?? "agent").toLowerCase()
             }
-            thumb={mediaThumbnail(message().media?.[0])}
             onJump={() => props.onJumpToReply?.(message().id)}
             onDismiss={() => props.onClearReply?.()}
           />
