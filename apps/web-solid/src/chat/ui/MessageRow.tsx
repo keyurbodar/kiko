@@ -1,4 +1,4 @@
-import { Show, type JSX } from "solid-js"
+import { createSignal, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { useApp } from "../../lib/store"
 import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
@@ -93,6 +93,19 @@ export function MessageRow(props: {
    * back to the caption loses its text against the bubble's edge.
    */
   const hasMedia = () => (props.message.media?.length ?? 0) > 0
+  /**
+   * The width the assistant media reserved. tweb makes the bubble hug a photo
+   * with `width: max-content` on the attachment (`_chatBubble.scss:956`) and
+   * `max-width: 100%` on the text block (`:1203`) — the attachment defines the
+   * width and the text wraps inside it. A `fit-content` bubble reaches that
+   * outcome through the caption instead, because here it is the caption's own
+   * max-content (measured 1073px beside a 420px album) that would win.
+   */
+  const [fittedWidth, setFittedWidth] = createSignal<number | undefined>(undefined)
+  const captionStyle = () => {
+    const width = fittedWidth()
+    return width === undefined ? undefined : { "max-width": `${width}px` }
+  }
   return (
     <div
       class={cn(
@@ -180,18 +193,19 @@ export function MessageRow(props: {
             "after:rounded-[inherit] after:opacity-0",
             own() ? "after:bg-message-user-text" : "after:bg-accent",
             props.highlighted && "after:opacity-[0.22]",
-            // Media takes the bubble's edges, so the bubble hands its padding
-            // to the caption instead and a media-only message ends up with
-            // none at all. That is what makes a picture sit flush inside the
-            // bubble's radius rather than floating in a coloured frame, and it
-            // is the same trade tweb makes when it pulls the text out of
-            // `.bubble-content` and into its own padded `.message` block.
-            hasMedia() && "p-0",
+            // Assistant media takes the bubble's edges — tweb pulls the text out
+            // of `.bubble-content` into its own padded block, so a picture sits
+            // flush inside the radius. A user media block is INSET instead,
+            // which is t3code's own shape: its user bubble keeps `p-3` and the
+            // 210px grid floats inside it. Keying this off `hasMedia()` alone
+            // made both senders full-bleed, so a user album sat hard against
+            // the bubble edge with no padding on any side.
+            hasMedia() && !own() && "p-0",
           )}
         >
           <Show when={props.parent}>
             {(parent) => (
-              <div class={hasMedia() ? "px-3 pt-[7px]" : undefined}>
+              <div class={hasMedia() && !own() ? "px-3 pt-[7px]" : undefined}>
                 <Quote
                   parent={parent()}
                   label={quoteSender(parent(), props.bot)}
@@ -207,13 +221,18 @@ export function MessageRow(props: {
                 items={media()}
                 hasText={props.message.body.trim().length > 0}
                 onOpen={(index) => props.onOpenMedia?.(media(), index)}
+                side={props.message.sender}
+                fittedWidth={setFittedWidth}
               />
             )}
           </Show>
           <Show
             when={props.message.body.length > 0 || props.message.webPage !== undefined}
           >
-            <div class={hasMedia() ? "px-3 py-[7px]" : undefined}>
+            <div
+              class={hasMedia() && !own() ? "px-3 py-[7px]" : undefined}
+              style={captionStyle()}
+            >
               <RichText text={props.message.body} webPage={props.message.webPage} />
             </div>
           </Show>

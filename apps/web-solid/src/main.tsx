@@ -145,12 +145,12 @@ export default function App() {
              * the composer cleared its reply bar, so the quote vanished from
              * both surfaces while never reaching the transcript.
              */
-            onSend={(body) => {
+            onSend={(message) => {
               const target = replyTarget();
               const sent =
                 target === null
-                  ? useApp.appendMessage(body, Date.now())
-                  : useApp.appendReply(body, target, Date.now());
+                  ? useApp.appendMessage(message, Date.now())
+                  : useApp.appendReply(message, target, Date.now());
               /*
                * Sending is a statement about where you want to be looking. If
                * the reader had scrolled up and then sent, leaving them parked

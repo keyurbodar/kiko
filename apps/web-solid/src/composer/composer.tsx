@@ -1,6 +1,6 @@
-import { Show } from "solid-js"
+import { Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { ComposerProps } from "../lib/types"
+import type { ComposerProps, MediaItem, OutgoingMessage, WebPagePreview } from "../lib/types"
 import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
@@ -10,6 +10,41 @@ import { ReplyBar } from "./reply-bar"
 import { mediaThumbnail } from "../chat/lib/media"
 import { createMediaViewer } from "../chat/media/mediaViewer"
 
+import { draftLinkUrl } from "./link-draft"
+import { ComposerLinkPreview } from "./link-preview"
+import { resolveLinkPreview } from "../chat/lib/linkPreview"
+
+const LINK_PREVIEW_DEBOUNCE_MS = 400
+
+type DraftLink = { url: string; preview: WebPagePreview | null }
+
+/*
+ * An attachment's box is reserved from its intrinsic size before the bytes
+ * land, so the size has to be real rather than a placeholder: the transcript's
+ * height model and the album layouter both divide by it, and a 0x0 item
+ * reserves nothing and collapses the row. Decoding is the only way to learn
+ * it, and the object URL is already in memory, so this is a decode of bytes
+ * the browser holds rather than a fetch. A blob that will not decode yields no
+ * item rather than a wrong one.
+ */
+async function decodeMedia(pending: { src: string; alt: string }): Promise<MediaItem | undefined> {
+  const image = new Image()
+  image.src = pending.src
+  try {
+    await image.decode()
+  } catch {
+    return undefined
+  }
+  if (image.naturalWidth === 0 || image.naturalHeight === 0) return undefined
+  return {
+    kind: "photo",
+    src: pending.src,
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    alt: pending.alt,
+  }
+}
+
 export function Composer(props: ComposerProps) {
   const [persisted, setPersisted] = createStore<PromptInputV2PersistedState>({
     prompt: [{ type: "text", content: "", start: 0, end: 0 }],
@@ -17,6 +52,57 @@ export function Composer(props: ComposerProps) {
     context: { items: [] },
   })
   const store = createPromptInputV2Store([persisted, setPersisted])
+  const [decoding, setDecoding] = createSignal(false)
+
+  const draftText = () =>
+    store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
+
+  const [draftLink, setDraftLink] = createSignal<DraftLink | null>(null)
+  const [dismissedLink, setDismissedLink] = createSignal<string | null>(null)
+
+  let linkRequest = 0
+  let resolvedUrl: string | null = null
+
+  const resolveDraftLink = async (url: string, request: number) => {
+    const preview = await resolveLinkPreview(url)
+    if (request !== linkRequest) return
+    resolvedUrl = url
+    setDraftLink({ url, preview })
+  }
+
+  const clearDraftLink = () => {
+    linkRequest += 1
+    resolvedUrl = null
+    setDraftLink(null)
+    setDismissedLink(null)
+  }
+
+  createEffect(() => {
+    const url = draftLinkUrl(draftText())
+    const dismissed = dismissedLink()
+
+    if (url === null) {
+      if (dismissed !== null) setDismissedLink(null)
+      linkRequest += 1
+      resolvedUrl = null
+      setDraftLink(null)
+      return
+    }
+
+    if (url === dismissed) {
+      linkRequest += 1
+      setDraftLink(null)
+      return
+    }
+
+    if (resolvedUrl === url) return
+
+    linkRequest += 1
+    const request = linkRequest
+    setDraftLink({ url, preview: null })
+    const timer = setTimeout(() => void resolveDraftLink(url, request), LINK_PREVIEW_DEBOUNCE_MS)
+    onCleanup(() => clearTimeout(timer))
+  })
 
   /*
    * The composer's own viewer, rather than one shared with the transcript.
@@ -89,17 +175,30 @@ export function Composer(props: ComposerProps) {
       placeholder,
       submit: {
         stopping: () => false,
-        working: () => !!props.busy,
+        working: () => !!props.busy || decoding(),
         onSubmit: () => {
           if (props.busy) return
           // There is no conversation to land in, so there is nothing to send.
           if (!props.threadId) return
-          const text = store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
-          if (!text.trim()) return
-          props.onSend(text)
+          const text = draftText()
+          const pending = store.state.prompt.flatMap((part) =>
+            part.type === "image" && part.mime.startsWith("image/")
+              ? [{ src: part.blob.url, alt: part.filename }]
+              : [],
+          )
+          if (!text.trim() && pending.length === 0) return
           store.reset()
-          // The quote is answered; keeping it armed would quote it twice.
-          props.onClearReply?.()
+          clearDraftLink()
+          setDecoding(true)
+          void Promise.all(pending.map(decodeMedia)).then((decoded) => {
+            setDecoding(false)
+            const media = decoded.filter((item) => item !== undefined)
+            const message: OutgoingMessage = { body: text }
+            if (media.length > 0) message.media = media
+            props.onSend(message)
+            // The quote is answered; keeping it armed would quote it twice.
+            props.onClearReply?.()
+          })
         },
         onStop: () => {},
       },
@@ -111,27 +210,39 @@ export function Composer(props: ComposerProps) {
    * eagerly-built element would freeze whichever reply was armed at mount.
    * The `when` accessor is what makes the bar track the prop.
    */
-  const reply = (
-    <Show when={props.replyTo}>
-      {(message) => (
-        <ReplyBar
-          message={message()}
-          role={
-            message().sender === "user"
-              ? "you"
-              : (botById(message().botId)?.name ?? "agent").toLowerCase()
-          }
-          thumb={mediaThumbnail(message().media?.[0])}
-          onJump={() => props.onJumpToReply?.(message().id)}
-          onDismiss={() => props.onClearReply?.()}
-        />
-      )}
-    </Show>
+  const above = (
+    <>
+      <Show when={props.replyTo}>
+        {(message) => (
+          <ReplyBar
+            message={message()}
+            role={
+              message().sender === "user"
+                ? "you"
+                : (botById(message().botId)?.name ?? "agent").toLowerCase()
+            }
+            thumb={mediaThumbnail(message().media?.[0])}
+            onJump={() => props.onJumpToReply?.(message().id)}
+            onDismiss={() => props.onClearReply?.()}
+          />
+        )}
+      </Show>
+
+      <Show when={draftLink()?.preview ? draftLink() : null}>
+        {(link) => (
+          <ComposerLinkPreview
+            url={link().url}
+            preview={link().preview}
+            onDismiss={() => setDismissedLink(link().url)}
+          />
+        )}
+      </Show>
+    </>
   )
 
   return (
     <>
-      <PromptInputV2 controller={controller} disabled={!!props.busy} reply={reply} />
+      <PromptInputV2 controller={controller} disabled={!!props.busy} reply={above} />
       {viewer.view}
     </>
   )

@@ -2,6 +2,7 @@ import type { ChatMessage } from "../../lib/types";
 import { albumLayout, singleMediaBox } from "./album";
 import type { TimelineItem } from "./grouping";
 import { graphemes, jumboEmojiClass } from "./reply";
+import { hasWebPageContent } from "./linkPreview";
 
 /**
  * The one height table. Every number below is read off the rendered metrics in
@@ -67,6 +68,27 @@ const JUMBO_GROUP_PX = 31 * 1.25;
  * message has no caption block at all, so it pays nothing here.
  */
 const CAPTION_PAD_Y = BUBBLE_PAD_Y;
+/**
+ * User media is t3code's fixed 2-column grid rather than the album layouter: a
+ * `max-w-[210px]` container with `gap-2` (8px) whose tiles are `aspect-[4/3]`
+ * and `object-cover`. Every tile is therefore the same box whatever the
+ * sender attached, which is what lets the reserve be pure arithmetic. A video
+ * occupies a tile exactly as an image does.
+ */
+const GRID_MAX_W = 210;
+const GRID_GAP = 8;
+const GRID_COLS = 2;
+/** (210 - 8) / 2. */
+const GRID_TILE_W = (GRID_MAX_W - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
+/** `aspect-[4/3]`: 101 * 3 / 4. */
+const GRID_TILE_H = (GRID_TILE_W * 3) / 4;
+/**
+ * `.mb-2` on the grid's wrapper, which is unconditional — it is applied whether
+ * or not a caption follows, so a media-only row pays it too. Measured: a
+ * media-only user row is 92.75px, and 75.75 of tiles plus this 8 plus the 9px
+ * of row padding is 92.75 exactly.
+ */
+const GRID_MARGIN_Y = 8;
 
 /**
  * The web page card: its own padding, its 2px top margin, and the four lines
@@ -91,10 +113,14 @@ const CARD_LINES = 4;
  * A media item's intrinsic size is required rather than optional for exactly
  * this reason. An item with no known size would reserve nothing, and an album
  * whose cells resize on load moves the scroll anchor of every row beneath it.
+ *
+ * That intrinsic size is an ASSISTANT concern only. User media is the fixed
+ * grid below, whose tiles are the same box whatever the sender attached.
  */
 function mediaBlockHeight(message: ChatMessage): number {
   const media = message.media;
   if (media === undefined || media.length === 0) return 0;
+  if (message.sender === "user") return userMediaGridHeight(media.length);
   const hasText = message.body.trim().length > 0;
   if (media.length === 1) {
     const only = media[0];
@@ -104,6 +130,17 @@ function mediaBlockHeight(message: ChatMessage): number {
     ).height;
   }
   return albumLayout(media.map((item) => ({ w: item.width, h: item.height }))).height;
+}
+
+/**
+ * The grid's painted height for `count` tiles: `ceil(count / 2)` rows of 75.75px
+ * with an 8px gap between them and none after the last row, so one and two
+ * tiles are a single row and three jump to two. Count-only by construction —
+ * a tile is a fixed box, so what was attached cannot change the reserve.
+ */
+function userMediaGridHeight(count: number): number {
+  const rows = Math.ceil(count / GRID_COLS);
+  return rows * GRID_TILE_H + (rows - 1) * GRID_GAP;
 }
 
 function bubbleTextLines(body: string): number {
@@ -143,15 +180,24 @@ export function estimateRowHeight(item: TimelineItem): number {
    * actually a body: `bubbleTextLines` floors at one line, and a card-only
    * message would otherwise reserve a blank line above the card.
    */
-  const captionBlock = message.body.length > 0 || message.webPage !== undefined;
+  const captionBlock = message.body.length > 0 || hasWebPageContent(message.webPage);
   // A jumbo bubble is a message whose WHOLE body is emoji, which a message
   // carrying media is not: the emoji is a caption beside a picture, so it takes
   // the caption's line box rather than the 42px one.
   const jumbo = media > 0 ? undefined : jumboEmojiClass(message.body);
   const text = bubbleTextLines(message.body);
+  // Media is full-bleed for BOTH senders: `MessageRow` keys the bubble's `p-0`
+  // off `hasMedia()` alone, not off the side, so a user grid sits flush against
+  // the bubble's edge exactly as an assistant album does. The caption therefore
+  // pays the vertical padding in both cases, and `CAPTION_PAD_Y` is not a
+  // sender split. What does differ is the wrapper's `mb-2`, which the user grid
+  // carries and the assistant album does not - and it is unconditional, so a
+  // media-only user row pays it with no caption present.
   const bubble =
     media > 0
-      ? media + (captionBlock ? CAPTION_PAD_Y + (caption ? LINE_BOX * text : 0) : 0)
+      ? media +
+        (message.sender === "user" ? GRID_MARGIN_Y : 0) +
+        (captionBlock ? CAPTION_PAD_Y + (caption ? LINE_BOX * text : 0) : 0)
       : jumbo === "jumbo-single"
         ? JUMBO_SINGLE_PX
         : jumbo === "jumbo-group"
@@ -160,7 +206,7 @@ export function estimateRowHeight(item: TimelineItem): number {
   // The card is a child of the caption block, so a message with media pays its
   // padding once, inside that block, and a message without media pays it as
   // part of the bubble's own padding.
-  const card = message.webPage === undefined ? 0 : CARD_PAD_Y + LINE_BOX * CARD_LINES;
+  const card = hasWebPageContent(message.webPage) ? CARD_PAD_Y + LINE_BOX * CARD_LINES : 0;
   // The quote is the bubble's first child, so its height lands inside the
   // bubble, above the body line.
   const quote = message.replyToId === undefined ? 0 : QUOTE_LINE * QUOTE_LINES + QUOTE_CHROME_Y;

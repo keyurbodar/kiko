@@ -501,6 +501,22 @@ export const MESSAGES: readonly ChatMessage[] = [
       footer: "open",
     },
   },
+  {
+    id: "a-30b",
+    threadId: "ada",
+    sender: "bot",
+    botId: "ada",
+    body: "This one carries the site's own colour, so the card takes its surface from the page rather than the default.",
+    sentAt: YESTERDAY + 15 * MINUTE + 3 * MINUTE,
+    webPage: {
+      url: "https://solidjs.com/ecosystem",
+      site: "solidjs.com",
+      title: "SolidJS",
+      description:
+        "A purely reactive library with a fine-grained reactive core, and the ecosystem around it.",
+      accent: "oklch(0.62 0.14 253)",
+    },
+  },
 
   // --- jumbo: one emoji, two emoji, and an emoji with prose ---------------
   {
@@ -942,6 +958,7 @@ export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = 
   // A link in the body, and a link that resolves to a card.
   link: slice("a-29"),
   "link-card": slice("a-30"),
+  "link-accent": slice("a-30b"),
 
   // A reply whose parent is text, and a reply whose parent is an image, so the
   // quote renders both the clamped text line and the thumbnail.

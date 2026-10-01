@@ -75,6 +75,9 @@ function MediaViewer(props: {
 
   const item = createMemo(() => props.items[props.index])
   const isPhoto = createMemo(() => item()?.kind === "photo")
+  const title = createMemo(() =>
+    (props.caption?.trim().length ?? 0) > 0 ? props.caption : item()?.alt
+  )
 
   const hasPrevious = () => props.index > 0
   const hasNext = () => props.index < props.items.length - 1
@@ -313,7 +316,7 @@ function MediaViewer(props: {
                 picture and nothing naming it is a viewer you cannot tell what
                 you are looking at. */}
             <ModalV2.Title class="media-viewer-caption">
-              {props.caption ?? item()?.alt}
+              {title()}
             </ModalV2.Title>
 
             <Show when={props.items.length > 1}>

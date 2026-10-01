@@ -1,4 +1,5 @@
 import { createEventListener } from "@solid-primitives/event-listener"
+import { makeResizeObserver } from "@solid-primitives/resize-observer"
 import {
   createEffect,
   createMemo,
@@ -534,15 +535,9 @@ export function VirtualThread(props: {
         cancelDrift()
       })
     }
-    const viewportObserver = new ResizeObserver(onViewportResize)
-    const contentObserver = new ResizeObserver(queueDriftCancel)
-    viewportObserver.observe(scrollElement)
-    contentObserver.observe(columnElement)
+    makeResizeObserver(onViewportResize).observe(scrollElement)
+    makeResizeObserver(queueDriftCancel).observe(columnElement)
     createEventListener(() => scrollElement, "scroll", onScroll, { passive: true })
-    onCleanup(() => {
-      viewportObserver.disconnect()
-      contentObserver.disconnect()
-    })
   })
 
   onCleanup(() => {

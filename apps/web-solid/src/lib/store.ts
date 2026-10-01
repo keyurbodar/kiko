@@ -8,13 +8,37 @@
 
 import { createStore, produce } from "solid-js/store"
 import { BOTS, GROUPS, MESSAGES, VIEWER_ID } from "./fixtures"
-import type { ChatMessage, RosterBot, RosterGroup } from "./types"
+import type { ChatMessage, OutgoingMessage, RosterBot, RosterGroup } from "./types"
 
 let sentCount = 0
 
 function nextMessageId(): string {
   sentCount += 1
   return `sent-${sentCount}`
+}
+
+function isSendable(message: OutgoingMessage): boolean {
+  if (message.body.trim().length > 0) return true
+  return (message.media?.length ?? 0) > 0
+}
+
+function sentMessage(
+  id: string,
+  threadId: string,
+  message: OutgoingMessage,
+  sentAt: number,
+  replyToId?: string,
+): ChatMessage {
+  const sent: ChatMessage = {
+    id,
+    threadId,
+    sender: "user",
+    body: message.body,
+    sentAt,
+  }
+  if (message.media !== undefined && message.media.length > 0) sent.media = message.media
+  if (replyToId !== undefined) sent.replyToId = replyToId
+  return sent
 }
 
 const [state, setState] = createStore({
@@ -85,43 +109,30 @@ export const useApp = {
     )
   },
 
-  appendReply(body: string, replyToId: string, sentAt: number): string | undefined {
+  appendReply(message: OutgoingMessage, replyToId: string, sentAt: number): string | undefined {
     const threadId = state.activeThreadId
-    if (!threadId || !body.trim() || !replyToId) return undefined
-    if (!state.messages.some((message) => message.id === replyToId)) return undefined
+    if (!threadId || !replyToId || !isSendable(message)) return undefined
+    if (!state.messages.some((existing) => existing.id === replyToId)) return undefined
 
     const id = nextMessageId()
     setState(
       "messages",
       produce((draft) => {
-        draft.push({
-          id,
-          threadId,
-          sender: "user",
-          body,
-          sentAt,
-          replyToId,
-        })
+        draft.push(sentMessage(id, threadId, message, sentAt, replyToId))
       }),
     )
     return id
   },
 
-  appendMessage(body: string, sentAt: number): string | undefined {
+  appendMessage(message: OutgoingMessage, sentAt: number): string | undefined {
     const threadId = state.activeThreadId
-    if (!threadId || !body.trim()) return undefined
+    if (!threadId || !isSendable(message)) return undefined
 
     const id = nextMessageId()
     setState(
       "messages",
       produce((draft) => {
-        draft.push({
-          id,
-          threadId,
-          sender: "user",
-          body,
-          sentAt,
-        })
+        draft.push(sentMessage(id, threadId, message, sentAt))
       }),
     )
     return id

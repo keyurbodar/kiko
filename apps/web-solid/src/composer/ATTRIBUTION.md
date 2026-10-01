@@ -58,14 +58,18 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
   host that passes `view.placeholder` — Kiko does — never reaches that fallback.
 
 Byte-identical to upstream: `prompt-input/machine.ts`, `prompt-input/store.ts`,
-`prompt-input/attachments.ts`, `prompt-input/attachments.css`, `editor-dom.ts`,
-`attachment-card-v2.tsx` and `attachment-card-v2.css`. The controller, reducer,
-part store and DOM reconciliation are upstream's.
+`prompt-input/attachments.ts`, `prompt-input/attachments.css` and
+`editor-dom.ts`. The controller, reducer, part store and DOM reconciliation are
+upstream's.
 
-`comment-card-v2.tsx` is NOT byte-identical, and it is listed apart from the
-group above because it does not show up in a line count: it is 64 lines on both
-sides and the bodies match, and only its three import lines differ. Two are
-repoints to `@kiko/ui/*`; the third is the `./path` swap described above.
+`attachment-card-v2.tsx` is NOT byte-identical: an interactive card is a native
+`<button>`, where upstream shipped a `<div onClick>` with no role and no
+keyboard path. A card with no `onClick` is still a `<div>`.
+
+`comment-card-v2.tsx` is NOT byte-identical either. Its imports differ as
+described above, and it observes with `createResizeObserver` from
+`@solid-primitives/resize-observer` rather than a raw `new ResizeObserver`, so
+the observer's teardown is owned by the primitive.
 
 ## License
 

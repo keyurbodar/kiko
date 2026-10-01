@@ -36,9 +36,13 @@
  * window and `transform: none` undoes the centring, because a viewer that is
  * centred in the viewport is a letterboxed viewer.
  *
- * The scrim is a literal near-opaque black rather than a token: the tokens
- * describe the app's own surfaces, and a surface under a picture has to stay
- * the same dark whatever the theme is. tweb's viewer does the same. */
+ * The scrim is a literal opaque black rather than a token: the tokens
+ * describe the app's own surfaces and every scrim token is translucent, and a
+ * surface under a picture has to occlude the app whatever the theme is. tweb's
+ * viewer does the same. Two translucent layers stacked — this one and the
+ * shell's overlay beneath it — composite to mud, and the transcript reads
+ * straight through a "modal". So this one owns the backdrop outright and the
+ * scrim under it has nothing left to do. */
 .media-viewer {
   position: fixed;
   inset: 0;
@@ -49,7 +53,7 @@
   max-width: none;
   padding: 0;
   overflow: hidden;
-  background: rgb(0 0 0 / 0.92);
+  background: rgb(0 0 0);
   color: rgb(255 255 255 / 0.62);
   user-select: none;
 

@@ -1,52 +1,16 @@
-import { For, Show, type JSX } from "solid-js"
+import { createEffect, For, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { MediaItem } from "../../lib/types"
 import { Play } from "lucide-solid"
 import { RectPart, albumLayout, singleMediaBox, type AlbumLayout, type AlbumRect } from "../lib/album"
 import { mediaThumbnail } from "../lib/media"
 
-/**
- * A message's media: one fitted box, or an album grid.
- *
- * The split is tweb's. A single photo goes through `setAttachmentSize`'s clamp
- * ladder and lands in a fitted box — natural size when it is smaller than the
- * box, letterboxed when it is larger, widened when a caption would otherwise
- * be squeezed to nothing. Two or more go through the album layouter, whose
- * geometry is a straight port and which knows nothing about the DOM. Both are
- * asked for their size HERE, before the bytes land, so a decoding picture
- * cannot move the scroll anchor of every row beneath it.
- *
- * Nothing in this file draws a radius of its own beyond the album's outer
- * corners. The media sits flush inside `BubbleContent`, which already clips
- * with `rounded-bubble overflow-hidden`, so the bubble's own corners are the
- * media's corners — and the seam where the media meets a caption below it
- * stays square, which is what makes the two read as one surface.
- *
- * A video is shown as its poster frame with a duration badge, never as an
- * inline player. Playing it is the viewer's job: an inline `<video>` would put
- * a second set of chrome inside the bubble and a second scroll target inside
- * the transcript, and Telegram opens the viewer on a tap for the same reason.
- */
-
-/** The 1px gap tweb leaves between album cells, and the album's own spacing. */
 const ALBUM_SPACING = 1
 
-/**
- * One album cell, positioned in percentages of the album box.
- *
- * Percentages rather than the layouter's own pixels, so the box can be capped
- * to `100%` on a narrow viewport and the cells follow it down instead of
- * overflowing the bubble. The layouter's px arithmetic is what decides the
- * SHAPE; the percentage conversion is what makes that shape resolution-
- * independent.
- *
- * The four corner radii are the ones the cell contributes to the album's
- * outline, and only those. An interior corner stays square: rounding it would
- * pull the cell away from its neighbour and open a gap that is not in the
- * layout. Each outline corner is the bubble's radius less the 1px spacing,
- * which is tweb's own `calc(var(--border-*-radius) - 1px)` and is what keeps
- * the gap visible as the corner turns.
- */
+const CELL_BASE = "cursor-zoom-in overflow-hidden border-none bg-[var(--input-bg)] p-0"
+const ALBUM_CELL = `absolute ${CELL_BASE}`
+const GRID_CELL = `relative block aspect-[4/3] rounded-lg ${CELL_BASE}`
+
 function cellStyle(rect: AlbumRect, layout: AlbumLayout): JSX.CSSProperties {
   const radius = `calc(var(--radius-bubble) - ${ALBUM_SPACING}px)`
   const atStart = (rect.sides & RectPart.Left) !== 0
@@ -65,19 +29,12 @@ function cellStyle(rect: AlbumRect, layout: AlbumLayout): JSX.CSSProperties {
   }
 }
 
-/** `m:ss`, the shape every chat client uses for a clip's length. */
 function durationLabel(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds))
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`
 }
 
-/**
- * A clip's frame. The play mark is only drawn when the clip is the message's
- * whole media: in an album a cell is a couple of hundred pixels wide at most,
- * and a glyph in the middle of every cell reads as clutter rather than as
- * information. The duration badge is the mark an album cell gets.
- */
-function MediaFrame(props: { item: MediaItem; solo: boolean }): JSX.Element {
+function MediaFrame(props: { item: MediaItem; playMark: boolean }): JSX.Element {
   return (
     <>
       <img
@@ -91,7 +48,7 @@ function MediaFrame(props: { item: MediaItem; solo: boolean }): JSX.Element {
         draggable={false}
       />
       <Show when={props.item.kind === "video"}>
-        <Show when={props.solo}>
+        <Show when={props.playMark}>
           <span class="pointer-events-none absolute inset-0 grid place-items-center">
             <span class="grid size-9 place-items-center rounded-full bg-black/45 text-white">
               <Play class="size-4 translate-x-px" fill="currentColor" stroke-width={0} />
@@ -111,18 +68,18 @@ function MediaFrame(props: { item: MediaItem; solo: boolean }): JSX.Element {
   )
 }
 
-const CELL_CLASS = "absolute cursor-zoom-in overflow-hidden border-none bg-[var(--input-bg)] p-0"
+function reportFittedWidth(
+  reportWidth: (width: number | undefined) => void,
+  read: () => number,
+): void {
+  createEffect(() => reportWidth(read()))
+  onCleanup(() => reportWidth(undefined))
+}
 
-export function MessageMedia(props: {
+function AlbumMedia(props: {
   items: readonly MediaItem[]
-  /**
-   * Whether the message also carries caption text. A lone item whose caption
-   * would be squeezed below the text column's 320px is widened to it, which is
-   * tweb's `EXPAND_TEXT_WIDTH` rung — and the same flag has to reach
-   * `estimateRowHeight`, or the row reserves the wrong box.
-   */
   hasText: boolean
-  /** Opens the viewer at this item's index. */
+  reportWidth: (width: number | undefined) => void
   onOpen: (index: number) => void
   class?: string
 }): JSX.Element {
@@ -137,6 +94,9 @@ export function MessageMedia(props: {
     )
   }
 
+  const boxWidth = () => (props.items.length === 1 ? singleBox().width : layout().width)
+  reportFittedWidth(props.reportWidth, boxWidth)
+
   return (
     <Show
       when={props.items.length === 1}
@@ -146,7 +106,8 @@ export function MessageMedia(props: {
           data-component="chat-media"
           data-count={props.items.length}
           style={{
-            width: `min(${layout().width}px, 100%)`,
+            width: `${layout().width}px`,
+            "max-width": "100%",
             "aspect-ratio": `${layout().width} / ${layout().height}`,
           }}
         >
@@ -154,13 +115,13 @@ export function MessageMedia(props: {
             {(rect, index) => (
               <button
                 type="button"
-                class={CELL_CLASS}
+                class={ALBUM_CELL}
                 style={cellStyle(rect, layout())}
                 data-component="chat-media-cell"
                 aria-label={`Open ${props.items[index()].alt}`}
                 onClick={() => props.onOpen(index())}
               >
-                <MediaFrame item={props.items[index()]} solo={false} />
+                <MediaFrame item={props.items[index()]} playMark={false} />
               </button>
             )}
           </For>
@@ -170,21 +131,84 @@ export function MessageMedia(props: {
       <button
         type="button"
         class={cn(
-          "relative block cursor-zoom-in overflow-hidden border-none bg-[var(--input-bg)] p-0",
+          "relative block overflow-hidden",
           "focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)]",
+          CELL_BASE,
           props.class,
         )}
         data-component="chat-media"
-        data-count={1}
+        data-count={props.items.length}
         style={{
-          width: `min(${singleBox().width}px, 100%)`,
+          width: `${singleBox().width}px`,
+          "max-width": "100%",
           "aspect-ratio": `${singleBox().width} / ${singleBox().height}`,
         }}
         aria-label={`Open ${props.items[0].alt}`}
         onClick={() => props.onOpen(0)}
       >
-        <MediaFrame item={props.items[0]} solo />
+        <MediaFrame item={props.items[0]} playMark />
       </button>
+    </Show>
+  )
+}
+
+function GridMedia(props: {
+  items: readonly MediaItem[]
+  onOpen: (index: number) => void
+  class?: string
+}): JSX.Element {
+  return (
+    <div class={cn("mb-2", props.class)}>
+      <div
+        class="grid w-[210px] max-w-[210px] grid-cols-2 gap-2"
+        data-component="chat-media"
+        data-count={props.items.length}
+      >
+        <For each={props.items}>
+          {(item, index) => (
+            <button
+              type="button"
+              class={GRID_CELL}
+              data-component="chat-media-cell"
+              aria-label={`Open ${item.alt}`}
+              onClick={() => props.onOpen(index())}
+            >
+              <MediaFrame item={item} playMark={false} />
+            </button>
+          )}
+        </For>
+      </div>
+    </div>
+  )
+}
+
+export function MessageMedia(props: {
+  items: readonly MediaItem[]
+  hasText: boolean
+  side: "user" | "bot"
+  fittedWidth?: (width: number | undefined) => void
+  onOpen: (index: number) => void
+  class?: string
+}): JSX.Element {
+  const reportWidth = () => props.fittedWidth ?? (() => undefined)
+  return (
+    <Show
+      when={props.side === "bot"}
+      fallback={
+        <GridMedia
+          items={props.items}
+          onOpen={props.onOpen}
+          class={props.class}
+        />
+      }
+    >
+      <AlbumMedia
+        items={props.items}
+        hasText={props.hasText}
+        reportWidth={reportWidth()}
+        onOpen={props.onOpen}
+        class={props.class}
+      />
     </Show>
   )
 }

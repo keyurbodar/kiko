@@ -19,6 +19,18 @@ function bot(id: string, sentAt: Date, extra: Partial<ChatMessage> = {}): ChatMe
   };
 }
 
+/** The same message from the human side, which draws media differently. */
+function me(id: string, sentAt: Date, extra: Partial<ChatMessage> = {}): ChatMessage {
+  return {
+    id,
+    threadId: "t1",
+    sender: "user",
+    body: "hello",
+    sentAt: sentAt.getTime(),
+    ...extra,
+  };
+}
+
 /** Height of one real row as the virtualizer will meet it. */
 function heightOf(message: ChatMessage, hasRunGapBefore = true): number {
   return estimateRowHeight({
@@ -123,6 +135,11 @@ function photo(width: number, height: number): MediaItem {
   return { kind: "photo", src: "/media/photo-square.jpg", width, height, alt: "a test card" };
 }
 
+/** A video at the given intrinsic size; it occupies a grid tile like a photo. */
+function video(width: number, height: number): MediaItem {
+  return { kind: "video", src: "/media/clip.mp4", width, height, alt: "a test clip" };
+}
+
 describe("estimateRowHeight on media", () => {
   test("a picture reserves its fitted box, not a text bubble's 34px", () => {
     const text = heightOf(bot("a", at(0), { body: "short" }));
@@ -166,5 +183,62 @@ describe("estimateRowHeight on media", () => {
     );
 
     expect(carded).toBeGreaterThan(bare);
+  });
+});
+
+describe("estimateRowHeight on user media", () => {
+  // A tile is (210 - 8) / 2 = 101px wide and 101 * 3 / 4 = 75.75px tall, so a
+  // row of tiles is rows * 75.75 + (rows - 1) * 8.
+  const TILE_H = 75.75;
+
+  test("one and two tiles are a single row; three jump to two", () => {
+    const grid = (n: number) =>
+      heightOf(me("m", at(0), { body: "", media: Array.from({ length: n }, () => photo(1600, 900)) }));
+
+    // One row of tiles either way, then the second row appears at n=3.
+    expect(grid(2) - grid(1)).toBe(0);
+    expect(grid(3) - grid(2)).toBe(Math.ceil(TILE_H + 8));
+  });
+
+  test("the grid ignores the intrinsic size the album layouter depends on", () => {
+    const wide = heightOf(me("a", at(0), { body: "", media: [photo(1600, 900)] }));
+    const tall = heightOf(me("b", at(0), { body: "", media: [photo(4000, 3000)] }));
+
+    expect(tall).toBe(wide);
+  });
+
+  test("a video takes the same tile as an image", () => {
+    const clip = heightOf(me("a", at(0), { body: "", media: [video(1920, 1080)] }));
+    const picture = heightOf(me("b", at(0), { body: "", media: [photo(1920, 1080)] }));
+
+    expect(clip).toBe(picture);
+  });
+
+  test("a media-only user row still pays the grid's mb-2, with no caption", () => {
+    const bare = heightOf(me("a", at(0), { body: "", media: [photo(1000, 1000)] }));
+
+    // The wrapper's `mb-2` is applied unconditionally, so it is not conditional
+    // on a caption following. Measured in the browser at 92.75px, and 75.75 of
+    // tiles plus 8 of margin plus the 9px of row padding is 92.75.
+    expect(bare).toBe(Math.ceil(TILE_H + 8 + 8 + 1));
+  });
+
+  test("a caption pays the caption block, as it does for assistant media", () => {
+    const bare = heightOf(me("a", at(0), { body: "", media: [photo(1000, 1000)] }));
+    const captioned = heightOf(me("b", at(0), { body: "short", media: [photo(1000, 1000)] }));
+
+    // Media is full-bleed for BOTH senders - `MessageRow` keys the bubble's
+    // `p-0` off `hasMedia()`, not off the side - so a caption costs the same 35px
+    // here as it does on the assistant branch.
+    expect(captioned - bare).toBe(35);
+  });
+
+  test("user media and assistant media of the same photo reserve differently", () => {
+    const mine = heightOf(me("a", at(0), { body: "", media: [photo(1000, 1000)] }));
+    const theirs = heightOf(bot("b", at(0), { body: "", media: [photo(1000, 1000)] }));
+
+    // A lone square fits the assistant's 400x400 album box; user media is a
+    // 75.75px tile, so the two reserves must not be interchangeable.
+    expect(mine).toBeLessThan(theirs);
   });
 });

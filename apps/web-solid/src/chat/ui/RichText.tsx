@@ -28,10 +28,14 @@ import { WebPageCard } from "./WebPageCard"
  * whole difference.
  *
  * A suspicious url — a host written in mixed scripts, which is how a look-alike
- * is spelled — keeps its text and loses its `href`, so the only way through is
- * the confirm in `SuspiciousLinkDialog`. Dropping the href rather than merely
- * intercepting the click is deliberate: it takes the middle-click and the
- * keyboard with it, and those are the paths an interception misses.
+ * is spelled — is not a link at all. It is a `<button>` that opens the confirm in
+ * `SuspiciousLinkDialog`, because that is what it does: the reader is not being
+ * sent somewhere, they are being shown where the address really goes. A real
+ * `<button>` is what buys that, because Enter, Space, focus, and the focus ring
+ * are then the browser's and not ours; an `<a>` with no `href` is inert on
+ * every key, which is why the old renderer had to fake a `role` and a keydown.
+ * Nothing navigates to the host itself, so there is no middle-click and no
+ * "open in new tab" for the homograph to escape through either.
  */
 export function RichText(props: {
   text?: string
@@ -78,23 +82,14 @@ export function RichText(props: {
                         </a>
                       }
                     >
-                      <a
+                      <button
+                        type="button"
                         class="cursor-pointer text-inherit underline underline-offset-2"
-                        role="link"
-                        tabindex="0"
                         data-component="chat-masked-link"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          setMaskedHref(href())
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter" && event.key !== " ") return
-                          event.preventDefault()
-                          setMaskedHref(href())
-                        }}
+                        onClick={() => setMaskedHref(href())}
                       >
                         {segment.text}
-                      </a>
+                      </button>
                     </Show>
                   )}
                 </Show>

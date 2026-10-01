@@ -5,7 +5,9 @@
 // is optional rather than absent, because a message is one row: widening these
 // to carry an image, a link card, or a send state is cheap now and expensive
 // once a data layer has to satisfy them. Fields stay optional so the store's
-// `appendMessage` keeps working with a body and nothing else.
+// `appendMessage` keeps working with a body and nothing else — and a send that
+// carries attachments says so with an `OutgoingMessage` rather than by making
+// the body optional.
 
 export type BotPresence = "idle" | "typing" | "working" | "sleeping";
 
@@ -78,11 +80,18 @@ export interface WebPagePreview {
   /** The preview image, and which edge of the card it sits on. */
   media?: { src: string; width: number; height: number }
   mediaPosition?: "top" | "bottom"
+  /**
+   * The page's own brand colour, when its metadata carries one. A card paints
+   * `var(--webpage-accent, <default>)`, so the surface follows the site without
+   * the card knowing anything about colours.
+   */
+  accent?: string
   /** Label for the card's footer button, e.g. "open". */
   footer?: string
 }
 
-/** A single message in a conversation. Text is required; the rest is display. */
+
+/** A single message in a conversation. A media-only message has an empty body. */
 export interface ChatMessage {
   id: string;
   /** Which conversation this belongs to: a bot id or a group id. */
@@ -121,6 +130,22 @@ export interface ChatMessage {
   status?: "sending" | "sent" | "failed";
 }
 
+/**
+ * What the composer hands the app on a send.
+ *
+ * `body` stays a required string rather than becoming optional, because a
+ * media-only message is `body: ""` — the shape the fixtures already use for an
+ * attachment-only message — and every reader of `ChatMessage.body` (the
+ * caption block, the height model, the reply quote) asks whether it is empty,
+ * not whether it exists. Making it optional would push that same question into
+ * every one of those readers for no gain.
+ */
+export interface OutgoingMessage {
+  body: string
+  /** The attachments, in the order they were added to the composer. */
+  media?: MediaItem[]
+}
+
 /** What the sidebar renders for one conversation. Either kind, never both. */
 export type Thread =
   | { kind: "bot"; id: string; bot: RosterBot; messageCount: number }
@@ -147,7 +172,8 @@ export interface ChatProps {
 export interface ComposerProps {
   /** Conversation a sent message lands in. */
   threadId: string;
-  onSend: (body: string) => void;
+  /** A send carries its text and its attachments together. */
+  onSend: (message: OutgoingMessage) => void;
   /** Roster the `@` menu filters. A mention is text; this is the only source. */
   bots: readonly RosterBot[];
   /** Disables send while a send is in flight. */

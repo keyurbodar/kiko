@@ -1,4 +1,5 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createSignal, onMount, Show } from "solid-js"
+import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { FileIcon } from "@kiko/ui/file-icon"
 import { getFilenameTruncated } from "./path"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -17,16 +18,19 @@ export function CommentCardV2(props: {
   let title: HTMLSpanElement | undefined
   const [truncated, setTruncated] = createSignal(false)
 
+  const sync = (element: HTMLSpanElement) => setTruncated(element.scrollWidth > element.clientWidth)
+
+  createResizeObserver(
+    () => title,
+    (_rect, element) => sync(element),
+  )
+
   onMount(() => {
     const element = title
     if (!element) return
-    const sync = () => setTruncated(element.scrollWidth > element.clientWidth)
-    const measure = () => requestAnimationFrame(sync)
-    const observer = new ResizeObserver(sync)
-    observer.observe(element)
+    const measure = () => requestAnimationFrame(() => sync(element))
     measure()
     void document.fonts?.ready.then(measure)
-    onCleanup(() => observer.disconnect())
   })
 
   return (
