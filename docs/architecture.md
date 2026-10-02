@@ -475,7 +475,9 @@ A user connects an Executor Cloud account in settings. `UserDO` stores the token
 
 - The first choice is OAuth with PKCE against `https://signin.executor.sh`, with dynamic client registration and the `offline_access` scope. `pi-mcp` implements this flow, and kiko supplies the `McpOAuthStateStore` over `UserDO`.
 - The fallback is a personal API key that the user pastes.
-- UNVERIFIED: that Executor's sign-in accepts a registration from kiko's redirect URI. Section 21 tests it.
+- Executor's sign-in page accepts a dynamic registration with kiko's localhost redirect URI (P7-03). UNVERIFIED: that the consent step after sign-in accepts it and returns a refresh token. Section 21 tests it, through `bun kiko verify executor-connect`.
+- `UserDO` keeps the pi-mcp OAuth state and tokens in `executor_secrets`, one sealed row per name, and runs every exchange and refresh itself. Disconnect deletes every row in one transaction. A refresh still in flight at that moment stores nothing.
+- The callback is `/api/integrations/executor/callback`. The session names the user, and the stored `state` ties the code to the sign-in. The redirect URI is built from the origin the user socket came through.
 
 ### 12.2 Nothing hardcoded
 

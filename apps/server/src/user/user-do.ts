@@ -1,8 +1,10 @@
-import type { Chat, ChatOp, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Chat, ChatOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { Schema } from "effect"
 import type { Env } from "../index"
+import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
+import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { createAlarms } from "../lib/alarm"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
@@ -20,7 +22,8 @@ import { migrate } from "./schema"
 /** Events kept for replay. An older `lastSeq` gets a snapshot. Same limit as the room. */
 const REPLAY_LIMIT = 500
 
-type Attachment = { ready: boolean }
+/** `origin` is the Worker origin the socket came through. The Executor callback URL is built from it. */
+type Attachment = { ready: boolean; origin?: string }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
@@ -121,6 +124,64 @@ export class UserDO extends DurableObject<Env> {
     return this.#vault
   }
 
+  // Executor Cloud (P7-03, architecture section 12.1). The tokens live in this object,
+  // sealed, and every exchange and refresh runs here.
+
+  /** The Worker calls this from the OAuth callback. Every socket hears the result. */
+  async finishExecutor(params: CallbackParams): Promise<ExecutorResult> {
+    const result = await this.executorResult(async () => ({ status: await this.#executor.finish(params) }))
+    this.broadcast({ t: "executor", result })
+    return result
+  }
+
+  /**
+   * A fresh Executor bearer credential for this user's own agents, or null. Server code
+   * only: it is never sent on a socket or over HTTP.
+   */
+  async executorToken(): Promise<string | null> {
+    return this.#executor.bearer()
+  }
+
+  #executorConnection?: ExecutorConnection
+  get #executor(): ExecutorConnection {
+    this.#executorConnection ??= new ExecutorConnection(
+      new ExecutorTokenStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), (fn) =>
+        this.ctx.storage.transactionSync(fn),
+      ),
+    )
+    return this.#executorConnection
+  }
+
+  private async executorResult(
+    run: () => Promise<{ status?: ExecutorStatus; authorizeUrl?: string; tools?: string[] }>,
+  ): Promise<ExecutorResult> {
+    try {
+      const { status, ...rest } = await run()
+      return { ok: true, status: status ?? (await this.#executor.status()), ...rest }
+    } catch (e) {
+      return { ok: false, error: errorText(e) }
+    }
+  }
+
+  private async executorFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectExecutor" | "disconnectExecutor" | "executorStatus" }>) {
+    const executor = this.#executor
+    const result = await this.executorResult(async () => {
+      if (frame.t === "disconnectExecutor") {
+        executor.disconnect()
+        return {}
+      }
+      if (frame.t === "connectExecutor") {
+        if (frame.apiKey !== undefined) return { status: await executor.connectApiKey(frame.apiKey) }
+        const origin = (ws.deserializeAttachment() as Attachment | null)?.origin
+        if (!origin) throw new ExecutorError("this socket has no origin")
+        return { authorizeUrl: await executor.start(origin) }
+      }
+      if (frame.refresh) await executor.refresh()
+      return frame.tools ? { tools: await executor.listTools() } : {}
+    })
+    send(ws, { t: "executor", reqId: frame.reqId, result })
+  }
+
   // The socket.
 
   async fetch(request: Request): Promise<Response> {
@@ -129,7 +190,7 @@ export class UserDO extends DurableObject<Env> {
     }
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
-    server.serializeAttachment({ ready: false } satisfies Attachment)
+    server.serializeAttachment({ ready: false, origin: new URL(request.url).origin } satisfies Attachment)
     return new Response(null, { status: 101, webSocket: client })
   }
 
@@ -142,7 +203,12 @@ export class UserDO extends DurableObject<Env> {
     }
     if (frame.t === "hello") {
       send(ws, this.resume(frame.lastSeq))
-      ws.serializeAttachment({ ready: true } satisfies Attachment)
+      const before = ws.deserializeAttachment() as Attachment | null
+      ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
+      return
+    }
+    if (frame.t === "connectExecutor" || frame.t === "disconnectExecutor" || frame.t === "executorStatus") {
+      await this.executorFrame(ws, frame)
       return
     }
     if (frame.t === "memory") {
@@ -187,11 +253,16 @@ export class UserDO extends DurableObject<Env> {
     const event = { ...change, seq, at } as UserEvent
     this.sql.exec("INSERT INTO user_events (seq, at, body) VALUES (?, ?, ?)", seq, at, JSON.stringify(event))
     this.sql.exec("DELETE FROM user_events WHERE seq <= ?", seq - REPLAY_LIMIT)
-    const frame = JSON.stringify({ t: "events", events: [event] } satisfies UserToClient)
-    for (const ws of this.ctx.getWebSockets()) {
-      if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, frame)
-    }
+    this.broadcast({ t: "events", events: [event] })
     return event
+  }
+
+  /** Sends a frame to every socket that has said hello. */
+  private broadcast(frame: UserToClient): void {
+    const text = JSON.stringify(frame)
+    for (const ws of this.ctx.getWebSockets()) {
+      if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, text)
+    }
   }
 
   /** The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. */

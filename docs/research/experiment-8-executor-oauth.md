@@ -13,9 +13,11 @@ Run on 2026-10-02. No account was created and no token was obtained.
 - Dynamic client registration is open. A public client (`token_endpoint_auth_method: none`, name `kiko`, a localhost redirect uri) got HTTP 201 and a `client_id`. No secret is issued for a public client.
 - A Worker route using `@earendil-works/pi-mcp` (`apps/server/src/experiments/executor-oauth.ts`) ran discovery and registration itself and answered `/start` with a 302 to `/oauth2/authorize` carrying `code_challenge_method=S256`, `scope=openid profile email offline_access`, `prompt=consent`, and `resource=https://executor.sh/mcp`.
 
+- P7-03, 2026-10-02: the production flow in `UserDO` (`apps/server/src/integrations/executor/connect.ts`) registered client `client_01M3XZJZ...` for `http://localhost:8873/api/integrations/executor/callback`. `/oauth2/authorize` answered 302 to `https://signin.executor.sh/?authorization_session_id=...`, and a headless browser showed Executor's "Sign in" page (email, Google, GitHub). Nobody signed in.
+
 ## UNVERIFIED (needs the owner)
 
-- That an Executor sign-in and consent screen accepts the dynamically registered client.
+- That the consent screen after sign-in accepts the dynamically registered client. The sign-in page accepts it.
 - That the code exchange returns an access token the MCP endpoint accepts.
 - Access-token lifetime, and whether a refresh token arrives with `offline_access`.
 - The tool names returned by `tools/list`.

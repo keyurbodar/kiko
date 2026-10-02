@@ -302,11 +302,39 @@ export const MemoryResult = Schema.Union([
 	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 
+export const ExecutorStatus = Schema.Struct({
+	connected: Schema.Boolean,
+	kind: Schema.NullOr(Schema.Union([Schema.Literal("oauth"), Schema.Literal("api_key")])),
+	pending: Schema.Boolean,
+	expiresAt: Schema.NullOr(Schema.Number),
+	issuedAt: Schema.NullOr(Schema.Number),
+	refreshable: Schema.Boolean,
+	rows: Schema.Number,
+})
+
+export const ExecutorResult = Schema.Union([
+	Schema.Struct({
+		ok: Schema.Literal(true),
+		status: ExecutorStatus,
+		authorizeUrl: Schema.optionalKey(Schema.String),
+		tools: Schema.optionalKey(Schema.Array(Schema.String)),
+	}),
+	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
+])
+
 export const ClientToUser = Schema.Union([
 	Hello,
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("connectExecutor"), reqId: Id, apiKey: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({ t: Schema.Literal("disconnectExecutor"), reqId: Id }),
+	Schema.Struct({
+		t: Schema.Literal("executorStatus"),
+		reqId: Id,
+		refresh: Schema.optionalKey(Schema.Boolean),
+		tools: Schema.optionalKey(Schema.Boolean),
+	}),
 ])
 
 export const UserToClient = Schema.Union([
@@ -314,6 +342,7 @@ export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
+	Schema.Struct({ t: Schema.Literal("executor"), reqId: Schema.optionalKey(Id), result: ExecutorResult }),
 ])
 
 // A schema and its plain type must accept exactly the same values. `Inline`
@@ -342,6 +371,8 @@ export type InSync = Assert<
 	| Same<typeof UserSnapshot.Type, P.UserSnapshot>
 	| Same<typeof MemoryOp.Type, P.MemoryOp>
 	| Same<typeof MemoryResult.Type, P.MemoryResult>
+	| Same<typeof ExecutorStatus.Type, P.ExecutorStatus>
+	| Same<typeof ExecutorResult.Type, P.ExecutorResult>
 	| Same<typeof ClientToUser.Type, P.ClientToUser>
 	| Same<typeof UserToClient.Type, P.UserToClient>
 >
