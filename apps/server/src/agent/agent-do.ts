@@ -5,8 +5,8 @@ import type { Env } from "../index"
 export class AgentDO extends DurableObject<Env> {
   private readonly experiment = new TurnExperiment(this.ctx, this.env)
 
-  experimentTurn(requestId: string) {
-    return this.experiment.turn(requestId)
+  experimentTurn(requestId: string, heartbeat = true) {
+    return this.experiment.turn(requestId, heartbeat)
   }
 
   experimentStatus() {

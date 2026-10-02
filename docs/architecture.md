@@ -655,7 +655,7 @@ The gating layer is code, so its tests are deterministic. The verification CLI r
 
 ## 17. Scale and cost
 
-Limits are from Cloudflare docs fetched on 2026-10-02 ([research/cloudflare.md](research/cloudflare.md)). Usage per turn is an ESTIMATE until section 21 measures it. The method is what to trust here. The numbers will move.
+Limits are from Cloudflare docs fetched on 2026-10-02 ([research/cloudflare.md](research/cloudflare.md)). The agent side of a turn was measured on 2026-10-02 ([research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md)). The rest is labeled. The method is what to trust here. The numbers will move as the room and user objects are built.
 
 ### 17.1 The user in the model
 
@@ -663,41 +663,51 @@ A "24/7 user" keeps a socket open all day and has 30 turns a day in a one-agent 
 
 ### 17.2 Cost of one turn
 
+Measured on a deployed Worker, mean of 5 runs, with the model answering for about 16 seconds ([research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md)).
+
 | Resource | Count | Where it comes from |
 | --- | --- | --- |
-| Durable Object requests | 13 | 9 incoming socket frames at 20 to 1 (0.45), debounce alarm (1), delivery (1), inbox alarm (1), `turnContext` (1), posts and status from the agent (6), one memory tool call (1), chat index update (1), heartbeat (0.5) |
-| Duration | 4.0 GB-s | `AgentDO` awake 15 s, `RoomDO` counted awake 15 s as a worst case, `UserDO` 1 s, all at 128 MB |
-| Rows written, as shipped | 375 | `pi-durable` commits partial output every 100 ms (`PARTIAL_THROTTLE_MS` in `src/harness/generation.ts`). 150 commits at about 2 rows, plus about 50 rows of entries and task checkpoints, plus about 25 rows in kiko's own tables and alarms |
-| Rows written, coalesced | 90 | the same with partial commits batched to one every 2 s (section 17.5) |
+| Rows written by `AgentDO`, as shipped | 717 | measured. `pi-durable` commits partial output every 100 ms (`PARTIAL_THROTTLE_MS` in `src/harness/generation.ts`), about 40 rows a second with index rows counted |
+| Rows written by `RoomDO` and `UserDO` | 25 | ASSUMPTION, carried from the first estimate. Those objects are not built yet |
+| Rows written, as shipped | 742 | the two lines above |
+| Rows written, coalesced | 135 | ASSUMPTION, derived. Partial commits at 2 s instead of 100 ms leave about 8 commits at 4 rows, plus the 77 rows that are not partials (measured 717 minus 640). P0-07 replaces it with a measurement |
+| Rows read by `AgentDO` | 996 | measured. Not a limit on any plan |
+| Wall time of `AgentDO` | 16.2 s | measured |
+| CPU of `AgentDO` | 1.5 s | measured, in one RPC invocation. See section 17.3 |
+| Duration | 4.2 GB-s | `AgentDO` awake 16.2 s, `RoomDO` counted awake 16.2 s as a worst case, `UserDO` 1 s, all at 128 MB |
+| Durable Object requests | 13 | ASSUMPTION, carried from the first estimate: 9 socket frames at 20 to 1 (0.45), debounce alarm (1), delivery (1), inbox alarm (1), `turnContext` (1), posts and status from the agent (6), memory tool call (1), chat index update (1), heartbeat (0.5). Measured so far: the agent side is 1 RPC call per turn |
 
-Per user per day, with 30 turns plus sockets and background jobs: 420 requests, 120 GB-s, 11,250 rows written as shipped, 2,700 coalesced.
+Per user per day, with 30 turns plus sockets and background jobs: 420 requests, 126 GB-s, 22,260 rows written as shipped, 4,050 coalesced, 30,000 rows read.
 
 ### 17.3 Free plan
 
 | Limit per day | Allowance | Users as shipped | Users coalesced |
 | --- | --- | --- | --- |
-| Durable Object rows written | 100,000 | **8** | **37** |
-| Durable Object duration | 13,000 GB-s | 108 | 108 |
+| Durable Object rows written | 100,000 | **4** | **24** |
+| Durable Object duration | 13,000 GB-s | 103 | 103 |
 | Durable Object requests | 100,000 | 238 | 238 |
+| Durable Object rows read | 5,000,000 | 166 | 166 |
 | Worker requests (about 60 per user) | 100,000 | 1,600 | 1,600 |
 
-The Free plan supports about 8 daily users as shipped and about 35 with coalesced writes. The next ceiling is duration, at about 100. Other Free limits that bind early are KV writes (1,000 a day, one per new link preview), Queues (10,000 operations a day), and 5 GB of total Durable Object storage.
+The Free plan supports about 4 daily users as shipped and about 24 with coalesced writes. The next ceiling is duration, at about 100. Other Free limits that bind early are KV writes (1,000 a day, one per new link preview), Queues (10,000 operations a day), and 5 GB of total Durable Object storage.
+
+CPU. One turn uses about 1.5 s of CPU in one invocation, and the Free plan allows 10 ms per invocation. UNVERIFIED: whether that limit applies inside a Durable Object. The measurement account is not on the Free plan, so experiment 4 is open ([research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md)). If the limit applies, no turn fits on Free, the Free plan is not usable at all, and Workers Paid is the minimum.
 
 ### 17.4 Workers Paid, 5 dollars a month
 
 | Resource | Included per month | Users covered | Price beyond | Cost per extra user per month |
 | --- | --- | --- | --- | --- |
 | Requests | 1M | 79 | $0.15 per M | $0.002 |
-| Duration | 400,000 GB-s | 111 | $12.50 per M GB-s | $0.045 |
-| Rows written, as shipped | 50M | 148 | $1.00 per M | $0.34 |
-| Rows written, coalesced | 50M | 617 | $1.00 per M | $0.08 |
+| Duration | 400,000 GB-s | 105 | $12.50 per M GB-s | $0.047 |
+| Rows written, as shipped | 50M | 75 | $1.00 per M | $0.67 |
+| Rows written, coalesced | 50M | 411 | $1.00 per M | $0.12 |
 
-The flat 5 dollars covers about 80 daily users. Past that, a user costs about $0.39 a month as shipped and about $0.13 coalesced.
+The flat 5 dollars covers about 75 daily users as shipped and about 80 coalesced, where requests bind. Past that, a user costs about $0.72 a month as shipped and about $0.17 coalesced.
 
 | Daily users | As shipped | Coalesced |
 | --- | --- | --- |
-| 80 | $5 | $5 |
-| 1,000 | about $335 | about $80 |
+| 75 | $5 | $5 |
+| 1,000 | about $665 | about $120 |
 
 Model cost is the user's own and is not in these numbers. A team turn that wakes k agents multiplies the agent side of the table by k.
 
@@ -709,7 +719,7 @@ Rows written is the limit that binds first, and partial commits cause most of it
 
 **Reasoning.** A partial commit protects streamed text against a crash. After a crash mid-stream, `pi-durable` marks the partial as aborted and sends the request again, so the saved partial is not reused. Losing up to 2 seconds of it changes nothing the user sees.
 
-UNVERIFIED: that a wrapper can tell a partial write from other writes by its `StorageWrite` shape, and that the wrapper passes the conformance suite. If it cannot, kiko ships with the as-shipped numbers and the Free plan is a demo tier.
+The coalesced numbers in section 17.2 are derived until P0-07 measures them. UNVERIFIED: that a wrapper can tell a partial write from other writes by its `StorageWrite` shape, and that the wrapper passes the conformance suite. If it cannot, kiko ships with the as-shipped numbers and the Free plan is a demo tier.
 
 ### 17.6 Latency
 
@@ -868,9 +878,9 @@ These experiments come before any feature work. Each one settles an UNVERIFIED i
 | # | Question | Experiment | If it fails |
 | --- | --- | --- | --- |
 | 1 | Does `pi-durable` run in a Durable Object? | write the `SqliteDatabase` facade over `ctx.storage.sql` and `ctx.storage.transaction()`, run the storage conformance suite and one full turn under `wrangler dev` | stop. The foundation is wrong and the plan needs a new one |
-| 2 | What does a turn cost? | measure rows written, rows read, requests, CPU ms, and wall time for one turn on the test model | redo the math in section 17 |
+| 2 | What does a turn cost? Settled for the agent side, see [research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md) | measure rows written, rows read, requests, CPU ms, and wall time for one turn on the test model | redo the math in section 17 |
 | 3 | Can partial writes be coalesced? | build the `Storage` wrapper and run the conformance suite | ship as-is and treat the Free plan as a demo tier |
-| 4 | Does the Free plan's 10 ms CPU limit apply inside a Durable Object? | read the CPU time of experiment 2 against the limit | the Paid plan becomes the minimum |
+| 4 | Does the Free plan's 10 ms CPU limit apply inside a Durable Object? | read the CPU time of experiment 2 against the limit | the Paid plan becomes the minimum. Open: the measurement account is not on Free, so this is still UNVERIFIED. A turn uses about 1.5 s of CPU |
 | 5 | How large is the Worker bundle with `pi-ai`, `pi-durable`, TypeBox, and the catalog? | build and read the size. The limit is 64 MiB and startup must stay under 1 second | load the catalog from an asset |
 | 6 | Which provider sign-in flows import on Workers? | import each module under `wrangler dev` with `nodejs_compat` | ship API keys only |
 | 7 | Does the published `pi-ai` contain the model catalog, and what is the test model's id? | inspect the npm package | generate the catalog at build time with pi's script |
