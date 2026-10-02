@@ -3,6 +3,7 @@ import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../lib/names"
 import { Deliveries, type ReminderDelivery } from "./deliver"
+import { type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { migrate } from "./schema"
 import { searchMessages } from "./search"
@@ -14,6 +15,7 @@ import { type Attachment, attachment, handleFrame, send, type SocketRoom } from 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	readonly log: RoomLog
 	private readonly deliveries: Deliveries
+	readonly files: RoomFiles
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -24,6 +26,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		migrate(ctx.storage)
 		this.log = new RoomLog(ctx.storage)
 		this.deliveries = new Deliveries(ctx.storage, this.log)
+		this.files = new RoomFiles(ctx.storage, this.log)
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -75,6 +78,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const event = this.deliveries.reminder(id, reminder)
 		if (event) this.publish([event])
 		return event !== null
+	}
+
+	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
+	async putFile(input: NewFile): Promise<Omit<PutResult, "event">> {
+		const { event, ...result } = this.files.put(input)
+		if (event) this.publish([event])
+		return result
 	}
 
 	humanTyping(): void {

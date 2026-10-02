@@ -1,7 +1,9 @@
 import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth"
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
-import { authRoute } from "./auth/auth"
+import { authRoute, getSessionUser } from "./auth/auth"
+import { downloadRoute } from "./files/download"
+import { uploadRoute } from "./files/upload"
 import { handleImageJob, isImageJob } from "./previews/image-job"
 import { devFixtureFetcher, previewRoute } from "./previews/route"
 import { route } from "./router"
@@ -45,6 +47,8 @@ export default {
     if (credentials) return credentials
     const reminders = await remindersRoute(request, env)
     if (reminders) return reminders
+    const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
+    if (filed) return filed
     const previewed = await previewRoute(request, env)
     if (previewed) return previewed
     const authResponse = await authRoute(request, env)
