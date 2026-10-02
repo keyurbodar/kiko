@@ -76,10 +76,3 @@ export function deleteChat(id: string, active: string | null, go: (path: string)
   openTabs.close(id)
   if (active === id) go("/chat")
 }
-
-/** Starts a chat and returns its id. It exists in the list before the server hears of it. */
-export function newChat(): string | undefined {
-  const id = useApp.user()?.createChat("new chat")
-  if (id) setRenaming(id)
-  return id
-}

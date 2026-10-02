@@ -20,7 +20,7 @@ export function katCommands(deps: {
 }): Command[] {
   return [
     { id: "view.toggle-sidebar", title: "view: toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+S", global: true, run: deps.toggleSidebar },
-    { id: "chat.new", title: "chat: new", group: "chat", icon: "plus", shortcut: "Mod+T", run: deps.newChat },
+    { id: "chat.new", title: "chat: new", group: "chat", icon: "plus", shortcut: "Mod+N", alias: "Mod+T", run: deps.newChat },
     { id: "chat.reopen", title: "chat: reopen closed", group: "chat", icon: "undo", shortcut: "Mod+Shift+T", when: never, run: nothing },
     { id: "chat.attach", title: "chat: attach file...", group: "chat", icon: "attach", shortcut: "Mod+O", when: never, run: nothing },
     { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: never, run: nothing },

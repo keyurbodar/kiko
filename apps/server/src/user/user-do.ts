@@ -1,4 +1,4 @@
-import type { Chat, ChatOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Agent, Chat, ChatOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { Schema } from "effect"
@@ -8,6 +8,7 @@ import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { createAlarms } from "../lib/alarm"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
+import { createAgent, listAgents } from "./agents"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
 import { ProviderLogins } from "./provider-login"
@@ -64,8 +65,8 @@ export class UserDO extends DurableObject<Env> {
   // own, so no method takes a user id.
 
   /** Adds a chat. A repeat for the same room changes nothing and returns the stored row. */
-  async createChat(roomId: RoomId, title: string): Promise<Chat> {
-    this.apply({ op: "create", roomId, title })
+  async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
+    this.apply({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
     return getChat(this.sql, roomId)!
   }
 
@@ -103,6 +104,15 @@ export class UserDO extends DurableObject<Env> {
 
   async listChats(): Promise<Chat[]> {
     return listChats(this.sql)
+  }
+
+  /** Adds an agent and tells every socket. Returns null when the id or the handle is taken or the input is refused. */
+  async createAgent(agent: Agent): Promise<Agent | null> {
+    return this.saveAgent(agent)
+  }
+
+  async listAgents(): Promise<Agent[]> {
+    return listAgents(this.sql)
   }
 
   /** The theme JSON text, or null. */
@@ -258,6 +268,10 @@ export class UserDO extends DurableObject<Env> {
       send(ws, { t: "search", query: frame.query, chats: searchChats(this.sql, frame.query.slice(0, 200)) })
       return
     }
+    if (frame.t === "agent") {
+      this.saveAgent(frame.op.agent)
+      return
+    }
     // A login runs until it ends, so the handler does not wait for it.
     if (frame.t === "login.start") return void this.#logins.start(ws, frame.loginId, frame.provider).catch(() => {})
     if (frame.t === "login.answer") return this.#logins.answer(ws, frame.loginId, frame.promptId, frame.value)
@@ -329,6 +343,12 @@ export class UserDO extends DurableObject<Env> {
     return this.commit(applyChatOp(this.sql, op, Date.now()))
   }
 
+  private saveAgent(agent: Agent): Agent | null {
+    const stored = createAgent(this.sql, agent, Date.now())
+    if (stored) this.commit({ t: "agent", agent: stored })
+    return stored
+  }
+
   private saveTheme(theme: string | null): boolean {
     if (!setTheme(this.sql, theme)) return false
     this.commit({ t: "theme", theme })
@@ -340,7 +360,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** Stores `change` as the next event and sends it to every socket that said hello. */
-  private commit(change: ChatChange | { t: "theme"; theme: string | null } | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | null): UserEvent | null {
     if (!change) return null
     const at = Date.now()
     const seq = this.currentSeq() + 1
@@ -364,7 +384,7 @@ export class UserDO extends DurableObject<Env> {
     const seq = this.currentSeq()
     const oldest = this.sql.exec<{ seq: number | null }>("SELECT min(seq) AS seq FROM user_events").one().seq
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
-    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), theme: getTheme(this.sql) } }
+    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()

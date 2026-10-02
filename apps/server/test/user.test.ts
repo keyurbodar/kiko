@@ -177,3 +177,27 @@ test("a theme saved on one socket reaches the other, survives a snapshot, and re
   b.close()
   c.close()
 })
+
+test("an agent is stored once, broadcast to every socket, and the chat keeps the ids it was made with", async () => {
+  const user = fresh()
+  const a = await socket(user)
+  const b = await socket(user)
+  const agent = { id: "ag1", name: "ada", slug: "ada", prompt: "reads code", model: "opencode-go/deepseek-v4.1-flash" }
+  a.send({ t: "agent", op: { op: "create", agent } })
+  a.send({ t: "agent", op: { op: "create", agent } }) // a resend after a reconnect changes nothing
+  expect(await rpc(user, "createAgent", { ...agent, id: "ag2" })).toBeNull() // the handle is taken
+  await b.until(2)
+  const got = events((await b.settle()).slice(1))
+  expect(got).toHaveLength(1)
+  expect(got[0]).toMatchObject({ t: "agent", agent })
+  expect(await rpc(user, "listAgents")).toEqual([agent])
+  a.send({ t: "chat", op: { op: "create", roomId: ROOM_A, title: "ada", agents: ["ag1"] } })
+  await b.until(3)
+  expect(await rpc(user, "listChats")).toMatchObject([{ roomId: ROOM_A, agents: ["ag1"] }])
+  const late = await socket(user, 0)
+  const first = late.frames[0]
+  expect(first.t === "reset" ? first.snapshot.agents : events(late.frames).filter((e) => e.t === "agent").map((e) => e.agent)).toEqual([agent])
+  a.close()
+  b.close()
+  late.close()
+})

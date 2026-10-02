@@ -23,7 +23,7 @@ function ulid(): string {
 
 const chatEvents = (frame: UserToClient, rooms: string[]): UserEvent[] =>
   frame.t === "events"
-    ? frame.events.filter((e) => e.t !== "theme" && rooms.includes(e.t === "chat" ? e.chat.roomId : e.roomId))
+    ? frame.events.filter((e) => (e.t === "chat" || e.t === "chat_removed") && rooms.includes(e.t === "chat" ? e.chat.roomId : e.roomId))
     : []
 
 const suite: Suite = {

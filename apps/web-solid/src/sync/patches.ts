@@ -242,6 +242,7 @@ export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch
 				lastPreview: "",
 				unread: 0,
 				updatedAt: p.at,
+				...(op.agents?.length ? { agents: op.agents } : {}),
 			})
 		} else if (op.op === "delete") {
 			out = out.filter((c) => c.roomId !== op.roomId)

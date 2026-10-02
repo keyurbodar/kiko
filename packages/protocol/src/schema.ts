@@ -234,10 +234,15 @@ export const Chat = Schema.Struct({
 	lastPreview: Schema.String,
 	unread: Count,
 	updatedAt: Count,
+	agents: Schema.optionalKey(Schema.Array(Schema.String)),
 })
 
+export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })
+
+export const AgentOp = Schema.Struct({ op: Schema.Literal("create"), agent: Agent })
+
 export const ChatOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String }),
+	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)) }),
 	Schema.Struct({ op: Schema.Literal("rename"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ op: Schema.Literal("pin"), roomId: RoomId, pinned: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("mute"), roomId: RoomId, muted: Schema.Boolean }),
@@ -247,12 +252,14 @@ export const ChatOp = Schema.Union([
 export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
+	Schema.Struct({ ...stored, t: Schema.Literal("agent"), agent: Agent }),
 	Schema.Struct({ ...stored, t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 ])
 
 export const UserSnapshot = Schema.Struct({
 	seq: Count,
 	chats: Schema.Array(Chat),
+	agents: Schema.optionalKey(Schema.Array(Agent)),
 	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
 })
 
@@ -331,6 +338,7 @@ export const ExecutorResult = Schema.Union([
 export const ClientToUser = Schema.Union([
 	Hello,
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
+	Schema.Struct({ t: Schema.Literal("agent"), op: AgentOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
 	Schema.Struct({ t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
@@ -421,6 +429,7 @@ export type InSync = Assert<
 	| Same<typeof ClientToRoom.Type, P.ClientToRoom>
 	| Same<typeof RoomToClient.Type, P.RoomToClient>
 	| Same<typeof ChatOp.Type, P.ChatOp>
+	| Same<typeof Agent.Type, P.Agent>
 	| Same<typeof UserEvent.Type, P.UserEvent>
 	| Same<typeof UserSnapshot.Type, P.UserSnapshot>
 	| Same<typeof MemoryOp.Type, P.MemoryOp>
