@@ -22,6 +22,8 @@ export interface SocketRoom {
 	publish(events: readonly RoomEvent[]): void
 	/** The human is typing. Not stored. */
 	humanTyping(): void
+	/** The human pressed stop. Drops the pending burst and stops every agent's run (section 6.2). Not stored. */
+	stop(): void
 	/** Searches the room's live messages. */
 	search(query: string, before?: number, limit?: number): SearchPage
 }
@@ -120,9 +122,11 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			return null
 		}
 		case "stop":
+			room.stop()
+			return null
 		case "approve":
 		case "task":
-			// Owned by later tasks: stop (P1-12), approvals (P7), the task board (P6).
+			// Owned by later tasks: approvals (P7), the task board (P6).
 			return null
 	}
 }

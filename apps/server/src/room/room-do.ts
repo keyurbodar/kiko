@@ -162,6 +162,25 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
+	/**
+	 * The human pressed stop (section 6.2). The pending burst is dropped, so nothing sent before the
+	 * stop starts a run, and the agent aborts its run and discards what waits in its inbox. The
+	 * messages stay in the log. The agent's `stop` only stores and returns, so this never waits on a run.
+	 * ASSUMPTION: a failed stop call is not retried. The human can press stop again.
+	 */
+	stop(): void {
+		const home = this.home()
+		if (!home) return
+		this.burst.delivered(this.burst.envelopes(home.roomId))
+		const agent = agentStub(this.env.AGENT, home.userId, home.roomId, DEFAULT_AGENT)
+		this.ctx.waitUntil(
+			agent.stop().then(
+				() => undefined,
+				(error: unknown) => console.error(`stop failed: ${error instanceof Error ? error.message : String(error)}`),
+			),
+		)
+	}
+
 	/** Extends a pending burst (section 6.1). Nothing is sent. */
 	humanTyping(): void {
 		this.ctx.waitUntil(this.burst.typing())

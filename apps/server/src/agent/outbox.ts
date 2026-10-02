@@ -1,6 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState } from "@kiko/protocol"
+import type { RunState } from "./mid-run"
 import { createSplitter, type Splitter } from "./split-bubbles"
 
 // Architecture section 6.3. The outbox watches the root conversation and turns the assistant's
@@ -50,8 +51,26 @@ type Generation = { texts: Map<number, string>; fed: string; splitter: Splitter;
 
 const newGeneration = (): Generation => ({ texts: new Map(), fed: "", splitter: createSplitter(), blocks: [] })
 
-/** The run this process is following. `blocks` holds the finished generations' blocks, as stored. */
-type Run = { id: string; attempt: number; cursor: number; blocks: string[]; posted: number; generation: Generation | null }
+/**
+ * The run this process is following. `blocks` holds the finished generations' blocks, as stored.
+ * `bubbled`, `toolStarted`, and `toolsRunning` are what the mid-run rules read (section 6.2).
+ */
+type Run = {
+  id: string
+  attempt: number
+  cursor: number
+  blocks: string[]
+  posted: number
+  generation: Generation | null
+  bubbled: boolean
+  toolStarted: boolean
+  toolsRunning: number
+}
+
+/** What the mid-run rules need to know of the run in flight. */
+export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "toolRunning">
+
+const hasToolCall = (message: AssistantLike | undefined) => (message?.content ?? []).some((part) => part.type === "toolCall")
 
 export class Outbox {
   private readonly sql: SqlStorage
@@ -90,6 +109,16 @@ export class Outbox {
     stream.start(async (events) => {
       for (const event of events) await this.guard(() => this.apply(event))
     })
+  }
+
+  /**
+   * The run this process follows, or null when it has seen none start. A bubble counts as posted
+   * from the moment its post is sent, and a tool from the moment the model asked for it.
+   */
+  progress(): RunProgress | null {
+    const run = this.run
+    if (!run) return null
+    return { bubblePosted: run.bubbled || run.posted > 0 || run.attempt > 0, toolStarted: run.toolStarted, toolRunning: run.toolsRunning > 0 }
   }
 
   /** A room call failed. The run state stays, and the next event or the next attach posts what is left. */
@@ -138,8 +167,13 @@ export class Outbox {
         this.lastEntry = Math.max(this.lastEntry, event.entry.id)
         return
       case "tool_execution_start":
+        if (this.run) {
+          this.run.toolStarted = true
+          this.run.toolsRunning++
+        }
         return this.setStatus("working")
       case "tool_execution_end":
+        if (this.run) this.run.toolsRunning = Math.max(0, this.run.toolsRunning - 1)
         return this.setStatus("typing")
       case "run_end":
         return this.end(`${this.prefix()}:${event.inputs[0]}`)
@@ -156,7 +190,12 @@ export class Outbox {
     for (const row of this.openRows()) {
       const run = this.load(row)
       // After an overflow the generation in flight is still live and keeps its blocks.
-      if (livePartial && this.run?.id === row.run_id) run.generation = this.run.generation
+      if (livePartial && this.run?.id === row.run_id) {
+        run.generation = this.run.generation
+        run.bubbled = this.run.bubbled
+        run.toolStarted = this.run.toolStarted
+        run.toolsRunning = this.run.toolsRunning
+      }
       // Entries after the cursor that this process never saw. A finished run's entries stop at the next input.
       for (const entry of entries) {
         if (entry.id <= run.cursor) continue
@@ -177,6 +216,14 @@ export class Outbox {
       this.save(run)
     }
     if (!this.run) return
+    // The run in flight is everything after the last finished answer. A process that reopened learns
+    // here that a tool round started before it. ASSUMPTION: a reopened process cannot tell whether a
+    // tool still runs, and "started" is enough to rule out a restart.
+    const answered = entries.findLastIndex((e) => {
+      const m = assistant(e)
+      return m !== undefined && !hasToolCall(m) && m.stopReason !== "aborted"
+    })
+    if (entries.slice(answered + 1).some((e) => hasToolCall(assistant(e)))) this.run.toolStarted = true
     await this.flush()
     await this.setStatus("typing")
     const partial = snapshot.generation?.message as AssistantLike | undefined
@@ -230,6 +277,8 @@ export class Outbox {
     run.cursor = Math.max(run.cursor, entry.id)
     const message = assistant(entry)
     if (!message) return false
+    // A tool-calling answer starts its tool round in the same commit. A reopened process learns it here.
+    if (hasToolCall(message)) run.toolStarted = true
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
@@ -251,6 +300,7 @@ export class Outbox {
     if (!run || !room) return
     const all = [...run.blocks, ...(run.generation?.blocks ?? [])]
     while (run.posted < all.length) {
+      run.bubbled = true
       await room.post(run.id, run.attempt, run.posted, all[run.posted]!)
       run.posted++
       this.sql.exec("UPDATE outbox SET posted = ?, attempt = ? WHERE run_id = ?", run.posted, run.attempt, run.id)
@@ -282,7 +332,17 @@ export class Outbox {
   }
 
   private load(row: Row): Run {
-    return { id: row.run_id, attempt: row.attempt, cursor: row.cursor, blocks: JSON.parse(row.blocks) as string[], posted: row.posted, generation: null }
+    return {
+      id: row.run_id,
+      attempt: row.attempt,
+      cursor: row.cursor,
+      blocks: JSON.parse(row.blocks) as string[],
+      posted: row.posted,
+      generation: null,
+      bubbled: false,
+      toolStarted: false,
+      toolsRunning: 0,
+    }
   }
 
   private save(run: Run): void {

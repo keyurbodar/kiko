@@ -5,7 +5,9 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import type { Envelope } from "@kiko/protocol"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
-import { Inbox, renderInput } from "./inbox"
+import { type Batch, Inbox, renderInput } from "./inbox"
+import { type Arrival, decide, FRESH_RUN, type RunState } from "./mid-run"
+import type { RunProgress } from "./outbox"
 import { openDurableObjectSqlite } from "./sqlite"
 
 // Architecture sections 4.4 and 7.3. The host owns one agent's `pi-durable` harness inside its
@@ -22,6 +24,9 @@ export const HEARTBEAT_WAKEUP = "heartbeat"
 export const HEARTBEAT_MS = 30_000
 /** The first retry after a failed alarm. It doubles up to the heartbeat. */
 const RETRY_MS = 1_000
+/** Storage keys of the mid-run rules (section 6.2). */
+const STOP_KEY = "mid-run:stop"
+const RESTARTS_KEY = "mid-run:restarts"
 
 /** What the agent factory (P1-10) decides. The host calls it once per process, when it opens the harness. */
 export type AgentSetup = {
@@ -38,6 +43,8 @@ export type HostOptions = {
   onOpen?: (opened: Opened) => void | Promise<void>
   /** Default `HEARTBEAT_MS`. Tests pass less. Never more than `HEARTBEAT_MS`. */
   heartbeatMs?: number
+  /** What the run in flight has shown so far: bubbles and tools. The outbox knows. Null before it saw the run start. */
+  progress?: () => RunProgress | null
 }
 
 export type Opened = { harness: Harness; root: Conversation; storage: CoalescingStorage }
@@ -78,6 +85,17 @@ export class AgentHost {
   }
 
   /**
+   * The human pressed stop (section 6.2). Discards every input not yet submitted and asks the alarm
+   * to abort the run. Like `receive()`, it touches only this object's storage and returns.
+   */
+  async stop(): Promise<{ discarded: number }> {
+    const discarded = this.inbox.discard()
+    await this.ctx.storage.put(STOP_KEY, true)
+    await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
+    return { discarded }
+  }
+
+  /**
    * The `AgentDO` alarm. Alarms arrive at least once, and every step here is idempotent: the inbox
    * claim is a transaction, and a repeated submit with the same request id is a no-op. A failure
    * re-arms with backoff and returns, so the runtime's six alarm retries are never spent.
@@ -87,7 +105,7 @@ export class AgentHost {
       // The keys only say why the alarm fired. The inbox table and the live tasks say what to do.
       await this.alarms.dueWakeups(Date.now())
       const opened = await this.open()
-      await this.drain(opened.root)
+      await this.drain(opened)
       await this.pulse(opened.harness)
       this.failures = 0
     } catch (error) {
@@ -133,13 +151,44 @@ export class AgentHost {
   }
 
   /**
-   * Submits every claimed batch as one input. While a run is busy `pi-durable` queues the input as a
-   * follow-up. ASSUMPTION: restart and steer (section 6.2) come with the mid-run rules in P1-12.
+   * Applies a pending stop, then submits every claimed batch as one input each. The mid-run rules
+   * (section 6.2) pick how: a restart aborts the run first, a steer joins it after the current tool
+   * round, and a queue waits for its answer. A batch claimed before a crash is submitted again with
+   * the same request id, which `pi-durable` ignores.
    */
-  private async drain(root: Conversation): Promise<void> {
+  private async drain({ harness, root }: Opened): Promise<void> {
+    if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
+      // Withdraws every queued input and aborts the run's tasks, then waits until the conversation is idle.
+      await root.abort(context)
+      await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
+    }
     for (const batch of await this.inbox.claim()) {
-      await root.submit({ type: "input", content: renderInput(batch), requestId: batch.requestId }, context)
+      const run = await this.runState(harness, root)
+      const action = decide(run, arrivalOf(batch))
+      // The restart count belongs to the run chain. A submit to an idle conversation starts a new one.
+      let restarts = run?.restarts ?? 0
+      if (action === "restart") {
+        // The run showed nothing yet. The aborted partial is dropped and its input stays in the
+        // transcript, so the model answers both turns at once.
+        await root.abort(context)
+        restarts++
+      }
+      await this.ctx.storage.put(RESTARTS_KEY, restarts)
+      const whenBusy = action === "steer" ? ({ whenBusy: "steer" } as const) : {}
+      await root.submit({ type: "input", content: renderInput(batch), requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
+    }
+  }
+
+  /** The root conversation's run, or null when it is idle. */
+  private async runState(harness: Harness, root: Conversation): Promise<RunState | null> {
+    const live = await harness.inspect(context)
+    const mine = live.submissions.filter((s) => s.conversationId === root.id)
+    if (!mine.some((s) => s.status === "placed") && live.tasks.length === 0) return null
+    return {
+      ...(this.options.progress?.() ?? FRESH_RUN),
+      queued: mine.some((s) => s.status === "queued"),
+      restarts: (await this.ctx.storage.get<number>(RESTARTS_KEY)) ?? 0,
     }
   }
 
@@ -183,4 +232,9 @@ export class AgentHost {
     if (!opened) return
     await opened.then((o) => o.harness.close(context)).catch(() => {})
   }
+}
+
+/** A batch with any human envelope is a human arrival. */
+function arrivalOf(batch: Batch): Arrival {
+  return { kind: batch.envelopes.some((e) => e.from.kind === "human") ? "human" : (batch.envelopes[0]?.from.kind ?? "system") }
 }

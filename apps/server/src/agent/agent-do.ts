@@ -5,12 +5,15 @@ import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
+import { fakeSetup } from "./dev-fake"
 import { buildAgent, DEV_MODEL, devModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
 
 declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
+
+const DEV_FAKE_KEY = "dev-fake"
 
 /** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
 export class AgentDO extends DurableObject<Env> {
@@ -21,6 +24,7 @@ export class AgentDO extends DurableObject<Env> {
 
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
+      progress: () => this.outbox.progress(),
       ...this.hostOptions,
       setup: () => this.setup(),
       onOpen: async (opened) => {
@@ -49,6 +53,14 @@ export class AgentDO extends DurableObject<Env> {
   receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     if (home) this.setHome(home)
     return this.host.receive(envelopes, brief)
+  }
+
+  /**
+   * Called by `RoomDO` when the human presses stop (section 6.2). Discards the inputs that wait and
+   * sets the alarm, which aborts the run. Like `receive`, it never waits on another object.
+   */
+  stop() {
+    return this.host.stop()
   }
 
   /** Inbox counts and live work, for tests and the CLI. Opens nothing. */
@@ -86,7 +98,8 @@ export class AgentDO extends DurableObject<Env> {
    * per-user credentials (P4-02) land; the key never leaves this object. ASSUMPTION: every agent is
    * a lead with the default role until the room passes membership (P6).
    */
-  protected setup(): AgentSetup {
+  protected async setup(): Promise<AgentSetup> {
+    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup()
     return {
       ...buildAgent({ role: "", lead: true, model: DEV_MODEL }),
       // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
@@ -127,6 +140,15 @@ export class AgentDO extends DurableObject<Env> {
 
   async storedRows(): Promise<number> {
     return this.#wiped ? 0 : storedRows(this.ctx.storage)
+  }
+
+  /**
+   * Development only. Makes this agent the scripted fake of `agent/dev-fake.ts` (P1-12), which spends
+   * no tokens. It takes effect when the harness next opens, so call it before the first message.
+   */
+  async devFake(): Promise<void> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    await this.ctx.storage.put(DEV_FAKE_KEY, true)
   }
 
   /** Development only. Stores one row, so a deletion check has agent data before agents exist (P1-06). */
