@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler d1 migrations apply AUTH_DB --local >/dev/null && wrangler dev",
+    "test": "bun scripts/test-each.ts",
     "test:workerd": "vitest run",
     "typecheck": "tsc --noEmit",
     "deploy:dry": "wrangler deploy --dry-run"

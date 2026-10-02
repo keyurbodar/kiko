@@ -60,7 +60,8 @@ A task is not done until its `Verify` line passes and you have shown the output.
 
 ```bash
 bun run typecheck
-bun test
+bun test                          # client, cli, protocol
+bun run --cwd apps/server test    # server: one process per file, each boots its own workerd
 bun kiko verify --list            # backend suites
 bun kiko verify <suite>           # one suite against the dev server
 bun kiko verify --no-model        # everything that needs no model key
