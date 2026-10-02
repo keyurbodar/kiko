@@ -6,6 +6,7 @@ import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
+import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { type AgentSend, Bubbles, Deliveries, Mail, type ReminderDelivery, route } from "./deliver"
@@ -54,6 +55,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	members!: Members
 	files!: RoomFiles
 	workspace!: RoomWorkspace
+	approvals!: RoomApprovals
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -74,6 +76,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.mail = new Mail(ctx.storage, this.log)
 			this.members = new Members(ctx.storage, this.log)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
+			this.approvals = new RoomApprovals(ctx.storage, this.log)
 		})
 	}
 
@@ -117,6 +120,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
 		if (due.includes(BURST_WAKEUP)) await this.flush()
 		if (due.includes(WAKES_WAKEUP)) await this.deliverWakes()
+		if (due.includes(APPROVALS_WAKEUP)) {
+			this.publish(this.approvals.expire())
+			await this.deliverApprovals()
+			await this.armApprovals()
+		}
 	}
 
 	private async flush(): Promise<void> {
@@ -418,6 +426,67 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		} catch (error) {
 			console.error(`task_unblocked delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			await this.alarms.setWakeup(WAKES_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
+		}
+	}
+
+	/**
+	 * RPC for an agent's trust gate (P7-02, section 16.3). A tainted run wants to call `external` tool
+	 * `req.tool`. Returns the accepted approval's id, or the text that ends the call while a card waits
+	 * for the human. It never decides a card: only the human's socket does.
+	 */
+	async requestApproval(slug: AgentSlug, req: ApprovalRequest): Promise<ApprovalAnswer> {
+		if (!this.members.list().some((m) => m.slug === slug)) return { refused: "not run: you are not a member of this room." }
+		const { answer, event } = this.approvals.request(slug, req)
+		if (event) {
+			this.publish([event])
+			await this.armApprovals()
+		}
+		return answer
+	}
+
+	/** A human's `approve` frame. A card that is not pending changes nothing. */
+	approve(id: string, action: "accept" | "decline"): void {
+		const event = this.approvals.decide(id, action)
+		if (!event) return
+		this.publish([event])
+		this.ctx.waitUntil(this.deliverApprovals())
+	}
+
+	/** Sets the approvals wakeup to the next expiry, or clears it. */
+	private async armApprovals(): Promise<void> {
+		const at = this.approvals.nextExpiry()
+		if (at === null) await this.alarms.clearWakeup(APPROVALS_WAKEUP)
+		else await this.alarms.setWakeup(APPROVALS_WAKEUP, at)
+	}
+
+	/**
+	 * Delivers each decided card's `approval_result` envelope (id `approval:<id>`) to its agent. The
+	 * inbox ignores an id it has, so a repeat delivers nothing twice. A failure retries from the alarm.
+	 */
+	private async deliverApprovals(): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		const results = this.approvals.undelivered(home.roomId)
+		if (!results.length) return
+		try {
+			const chat = await this.chat(home)
+			for (const { slug, id, envelope } of results) {
+				const members = this.members.list()
+				const member = members.find((m) => m.slug === slug)
+				if (!member) {
+					this.approvals.markDelivered(id)
+					continue
+				}
+				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat?.title ?? "", new Set(), null))
+				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, slug)
+				const { refused } = await agent.receive([envelope], brief, { ...home, slug, role: member.role, lead: member.lead })
+				if (refused === "full") throw new Error("inbox full")
+				if (refused) console.error(`approval_result delivery to ${slug} refused: ${refused}`)
+				this.approvals.markDelivered(id)
+			}
+		} catch (error) {
+			console.error(`approval_result delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+			await this.alarms.setWakeup(APPROVALS_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
 		}
 	}
 

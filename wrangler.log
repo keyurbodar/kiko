@@ -1,0 +1,123 @@
+
+ ⛅️ wrangler 4.146.0 (update available 4.147.0)
+───────────────────────────────────────────────
+
+Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
+Using secrets defined in .dev.vars
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+Wrangler detected this dev session is running in an AI agent.
+The Local Explorer API is available at http://localhost:8830/cdn-cgi/local/explorer/api
+Useful routes:
+  GET http://localhost:8830/cdn-cgi/local/explorer/api/local/workers - local Workers and bindings
+  POST http://localhost:8830/cdn-cgi/local/explorer/api/local/scheduled?worker=<name> - invoke a Worker's scheduled handler; cron is required (see the OpenAPI schema for the full request)
+  GET http://localhost:8830/cdn-cgi/local/explorer/api/storage/kv/namespaces - KV namespaces
+  GET http://localhost:8830/cdn-cgi/local/explorer/api/d1/database - D1 databases
+  GET http://localhost:8830/cdn-cgi/local/explorer/api/r2/buckets - R2 buckets
+  GET http://localhost:8830/cdn-cgi/local/explorer/api/workers/durable_objects/namespaces - Durable Object namespaces
+  GET http://localhost:8830/cdn-cgi/local/explorer/api/workflows - Workflows
+  POST http://localhost:8830/cdn-cgi/local/explorer/api/local/observability/query - run a read-only SQL query (SELECT/WITH only) over captured request traces and console logs. Tables: spans, logs (read attributes via json(attributes)). Example:
+    curl -X POST http://localhost:8830/cdn-cgi/local/explorer/api/local/observability/query -H 'Content-Type: application/json' -d '{"sql":"SELECT service, name, outcome, duration_ms FROM spans WHERE parent_id IS NULL LIMIT 20"}'
+  POST http://localhost:8830/cdn-cgi/local/explorer/api/local/observability/clear - clear all captured traces and logs
+If the routes above don't cover what you need, fetch the full OpenAPI schema (large - use only as a last resort):
+  GET http://localhost:8830/cdn-cgi/local/explorer/api - OpenAPI schema
+⎔ Starting local server...
+⎔ Connection status updated
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+[wrangler:info] Ready on http://localhost:8830
+[wrangler:info] GET /api/health 200 OK (10926ms)
+[wrangler:info] POST /api/auth/dev/session 200 OK (447ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (109ms)
+[wrangler:info] GET /api/ws/room/01M3YB35MAE70F1ZEEWS48N2MK 101 Switching Protocols (237ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (170ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (282ms)
+[wrangler:info] GET /api/ws/room/01M3YB3CHB0NPCJB8X0NGFJB8F 101 Switching Protocols (92ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (36ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (261ms)
+[wrangler:info] GET /api/ws/room/01M3YB3JFVDXWS9JDVMH24MRGW 101 Switching Protocols (284ms)
+[wrangler:info] POST /api/auth/dev/session 200 OK (1378ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (418ms)
+[wrangler:info] GET /api/ws/room/01M3YB49ZB0FD7MBM8PJETVGGQ 101 Switching Protocols (200ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (117ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (159ms)
+[wrangler:info] GET /api/ws/room/01M3YB4F3HX427F2DB0B7TJHNW 101 Switching Protocols (191ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (123ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (463ms)
+[wrangler:info] GET /api/ws/room/01M3YB4KA240P37RB9QM3YK8SQ 101 Switching Protocols (966ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (400ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (227ms)
+[wrangler:info] GET /api/ws/room/01M3YB4T6WV08TACHZK4K4NWCN 101 Switching Protocols (146ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (79ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (243ms)
+[wrangler:info] GET /api/ws/room/01M3YB4YC8H9H7MPGS3DJB6PC0 101 Switching Protocols (185ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (88ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (298ms)
+[wrangler:info] GET /api/ws/room/01M3YB530CFVCV1Z210A5BWY6C 101 Switching Protocols (144ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (77ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (2040ms)
+[wrangler:info] GET /api/ws/room/01M3YB59DCTA8KDKVGTR5315RF 101 Switching Protocols (160ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (126ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (342ms)
+[wrangler:info] GET /api/ws/room/01M3YB5GEYW63CYXF43VYMAJWC 101 Switching Protocols (612ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (126ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (310ms)
+[wrangler:info] GET /api/ws/room/01M3YB5P6TS8JGGEQFE9KRARC8 101 Switching Protocols (1271ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (609ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (3841ms)
+[wrangler:info] GET /api/ws/room/01M3YB5ZZ576RNBED1QJVM3PB4 101 Switching Protocols (346ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (188ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (414ms)
+[wrangler:info] GET /api/ws/room/01M3YB69EA8DNBA6S8E4SR2416 101 Switching Protocols (214ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (129ms)
+[wrangler:info] POST /api/dev/agent/deliver 200 OK (170ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (378ms)
+[wrangler:info] GET /api/ws/room/01M3YB6DG3RK0F1CH2WEN7B0QZ 101 Switching Protocols (4497ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (763ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (605ms)
+[wrangler:info] GET /api/ws/room/01M3YB6Q2NG7HXRHTT0GXDDCPB 101 Switching Protocols (346ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (129ms)
+[wrangler:info] POST /api/auth/dev/session 200 OK (1746ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (661ms)
+[wrangler:info] GET /api/ws/room/01M3YB73D3XWJSZ4N895DB65C8 101 Switching Protocols (413ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (444ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (257ms)
+[wrangler:info] GET /api/ws/room/01M3YB7CGHZYEP25EPPVX86A93 101 Switching Protocols (262ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (225ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (580ms)
+[wrangler:info] GET /api/ws/room/01M3YB7RBNN67HDWX5XAFAXDNJ 101 Switching Protocols (198ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (269ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (956ms)
+[wrangler:info] GET /api/ws/room/01M3YB85KA954KWRBYCRY4N0EK 101 Switching Protocols (289ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (384ms)
+[wrangler:info] POST /api/auth/dev/session 200 OK (940ms)
+[wrangler:info] POST /api/auth/dev/session 200 OK (4252ms)
+[wrangler:info] POST /api/auth/dev/session 200 OK (1137ms)
+[wrangler:info] PUT /api/credentials/opencode-go 200 OK (309ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (146ms)
+[wrangler:info] GET /api/ws/room/01M3YBET6CHV5CC8MV5BF1CE3G 101 Switching Protocols (222ms)
+⎔ Reloading local server...

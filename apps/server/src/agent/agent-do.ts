@@ -13,6 +13,7 @@ import { fakeSetup } from "./dev-fake"
 import { roomFilesPort } from "./extensions/files"
 import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
+import type { Approvals } from "./extensions/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { createAlarms } from "../lib/alarm"
@@ -159,16 +160,29 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     const messaging = () => this.messagingPort()
-    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging)
+    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort())
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
     const files = roomFilesPort(this.env, () => this.home(), user.models)
     const memory = this.memoryPort()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, workspace: roomWorkspacePort(this.env, () => this.home()) }),
+      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
       inputContext: async () => memoryContext(this.#run?.memory ?? null),
+    }
+  }
+
+  /**
+   * The trust gate's approvals (P7-02). The room posts a card for a tainted run's `external` call, or
+   * hands back the human's accepted record. The agent can ask; it can never decide.
+   */
+  private approvalsPort(): Approvals {
+    return async (call) => {
+      const home = this.home()
+      if (!home) return null
+      const room = roomStub(this.env.ROOM, home.userId, home.roomId)
+      return room.requestApproval(home.slug, { callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments })
     }
   }
 

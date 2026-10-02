@@ -16,6 +16,7 @@ import type {
 	RunRef,
 	Sender,
 } from "@kiko/protocol"
+import { listApprovals } from "./approvals"
 import { listFiles } from "./files"
 import { listMembers } from "./members"
 import { listTasks } from "./workspace"
@@ -133,14 +134,13 @@ export class RoomLog {
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		// ASSUMPTION: approvals are empty until the task that owns that table fills them in.
 		return {
 			seq: this.lastSeq(),
 			readSeq: this.readSeq(),
 			members: listMembers(this.storage),
 			messages: rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [])),
 			tasks: listTasks(this.storage),
-			approvals: [],
+			approvals: listApprovals(this.storage),
 			files: listFiles(this.storage),
 		}
 	}
