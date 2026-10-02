@@ -64,3 +64,14 @@ The coordinator adds to this list as tasks land.
 - `apps/server/src/lib/alarm.ts` exports `createAlarms(ctx)` which returns `{ setWakeup(key, at), clearWakeup(key), dueWakeups(now) }`. `dueWakeups` removes the due keys and re-arms the alarm for the rest.
 - The CLI entry is `apps/cli/src/index.ts`, which calls `main()` in `apps/cli/src/main.ts`. It has `health` and `ws` commands.
 - `.wrangler/` is ignored by git. Never commit it.
+- Write server tests for `bun test`, run from `apps/server`. For Durable Object behavior use the Miniflare pattern above. A vitest config also exists (`bun run test:workerd`), but do not add new vitest-only tests.
+- `apps/server/src/user/` has `nextOccurrence(rrule, tz, afterUtc)` built on the `rrule` package. Find it with grep before writing recurrence code.
+- The test model is `opencode-go/deepseek-v4.1-flash` (provider `opencode-go`, model id `deepseek-v4.1-flash`).
+- Wire types are in `@kiko/protocol` (`packages/protocol`). Plain types from `.`, Effect schemas from `./schema`, sample frames from `./fixtures`. Client code imports types only.
+- Never use `git stash`. The stash is shared by every worktree.
+- Sessions: `getSessionUser(request, env)` in `apps/server/src/auth/auth.ts` is the only source of a user id. Locally, run `bunx wrangler d1 migrations apply kiko-auth --local` once in `apps/server`, start the Worker with `NODE_ENV=development`, then `bun kiko login --dev --name alice --url http://localhost:<port>`. The CLI stores cookies per origin; other CLI commands send them with `sessionCookie(url)` from `apps/cli/src/commands/login.ts`. Set `KIKO_SESSION_FILE` to a file in your worktree so agents do not overwrite each other's sessions.
+- The bubble splitter is `apps/server/src/agent/split-bubbles.ts` (`createSplitter()`). The markdown parser is `parseRichText(markdown)` in `apps/server/src/room/rich-text.ts`.
+- Client routes live in `apps/web-solid/src/app/routes.tsx`; the shell is `app/shell.tsx`, the rail `app/rail.tsx`.
+- `safeFetch(url, fetcher?)` in `apps/server/src/lib/safe-fetch.ts` returns `{ ok: true, url, status, headers, body, truncated }` or `{ ok: false, reason, url }`. Every fetch of a user or model supplied URL uses it.
+- The warm tier is `apps/web-solid/src/warm/`: `openWarm({ userId })` in `db.ts`, plus `messages.ts`, `chats.ts`, `outbox.ts`, `drafts.ts`. One database per user.
+- Verify suites: create `apps/cli/src/verify/suites/<name>.ts` exporting `{ name, model?, run(v) }`. In `run`, `const s = await v.as("alice")`, `const room = await s.room(id)`, `room.send(text)`, `room.expect(match, ms)`, `(await s.user()).expect(...)`, `reconnect()`. Set `model: true` when it calls a model. Run with `bun kiko verify <name> --url http://localhost:<port>`.

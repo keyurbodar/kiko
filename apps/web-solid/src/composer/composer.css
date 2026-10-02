@@ -241,6 +241,15 @@
   font-size: var(--font-sm);
 }
 
+.composer-dock .attachment-chip[draggable="true"] {
+  cursor: grab;
+}
+
+.composer-dock .attachment-chip[data-drop] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .composer-dock .attachment-chip[data-image] {
   width: 52px;
   padding: 0;

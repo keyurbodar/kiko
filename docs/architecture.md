@@ -384,7 +384,7 @@ type RoomToClient =
 	| { t: "ack"; clientId: string; id: string; seq: number }
 	| { t: "reset"; snapshot: RoomSnapshot }         // when lastSeq is too old
 	| { t: "typing"; who: string[] }                 // not stored
-	| { t: "draft"; runId: string; index: number; text: string }  // not stored
+	| { t: "draft"; slug: string; runId: string; index: number; text: string }  // not stored
 	| { t: "status"; slug: string; state: AgentState }            // not stored
 ```
 
@@ -404,6 +404,8 @@ Every client action is applied locally first. The client keeps a list of pending
 - The session cookie cache is on, so most requests verify a signed cookie and do not read D1.
 - The auth instance is created per request from `env`. The Worker needs the `nodejs_compat` flag for `AsyncLocalStorage`.
 - `bunx auth init` is a real command, but it scaffolds Next.js and SQLite only (Better Auth docs). The plan runs it for the reference config and adapts the result by hand. Migrations are generated as SQL and applied with `wrangler d1 migrations apply`.
+- A dev-only Better Auth plugin serves `POST /api/auth/dev/session` with `{ "name" }` and mints a session for `<name>@dev.kiko.test`. It is selected only when `process.env.NODE_ENV === "development"`, which wrangler sets at bundle time ("production" for deploy). A production bundle does not contain it, and the route also refuses any host that is not local. `kiko login --dev` and the server tests use it.
+- A Google or GitHub provider is on only when both of its env values are set, so local runs need no OAuth clients.
 
 **Reasoning.** Pi has no user accounts, so kiko needs them. The spec names Better Auth. D1 is the right store for data that is global and tiny. All per-user data lives in that user's Durable Objects, so D1 never becomes a bottleneck.
 
@@ -437,15 +439,15 @@ Disconnecting a provider deletes its rows in `UserDO` at once. A run already in 
 | Flow in pi-ai | Mechanism | On Workers |
 | --- | --- | --- |
 | API key (every provider, including `opencode` and `opencode-go`) | paste | works |
-| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | UNVERIFIED, expected to work |
-| Anthropic | loopback server, with a copy-code fallback | UNVERIFIED, copy-code path only |
-| OpenRouter | loopback server, with a manual paste fallback | UNVERIFIED, paste path only |
-| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | UNVERIFIED, may not import |
+| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | module imports under `wrangler dev` (experiment 6). The flow itself is not yet run. |
+| Anthropic | loopback server, with a copy-code fallback | module imports. Use the copy-code path only. |
+| OpenRouter | loopback server, with a manual paste fallback | module imports. Use the paste path only. |
+| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | module imports with `nodejs_compat` |
 
 Two cautions for the owner to decide on.
 
 - The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. A hosted multi-user service that signs users in with that client id may break the provider's terms. The plan ships API keys first and puts subscription sign-in behind a flag that is off by default.
-- pi-ai's generated model catalog is gitignored in `refs/pi`. UNVERIFIED: that the published npm package contains it. Section 21 checks it.
+- pi-ai's generated model catalog is gitignored in `refs/pi`, but the published npm package does contain it, as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5, [results](research/experiment-5-bundle-and-catalog.md)).
 
 ### 11.5 Model catalog for the client
 
@@ -453,7 +455,7 @@ A build step reads the pi-ai catalog and writes a hashed JSON asset. The setting
 
 ### 11.6 Test provider
 
-Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. UNVERIFIED: the catalog id for "deepseek v4.1 flash". An older catalog has `opencode-go/deepseek-v4-flash`, and the pi changelog names `deepseek-flash` for the `deepseek` provider. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
+Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
 
 ## 12. Executor integration and code mode
 
@@ -577,7 +579,7 @@ Agents schedule their own work with the same tool by naming themselves as the ta
 
 Delivery is into the chat only. The spec excludes notifications.
 
-ASSUMPTION: the recurrence library is `rrule` 2.8.1. It was last published in November 2023 and is still the standard. `rrule-temporal` needs the Temporal API, and Temporal in the Workers runtime is UNVERIFIED. The verification suite includes cases on both sides of a daylight-saving change.
+The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `nextOccurrence(rrule, tz, afterUtc)` in `apps/server/src/user/recurrence.ts` runs the rule on floating wall-clock dates and converts each result to UTC with `Intl`, because `rrule` has no zone math. Tests in workerd cover "every day at 09:00" and "every monday at 09:00" in `America/New_York` and `Europe/Berlin` across both 2026 changes. Local time stays 09:00. A time inside a spring-forward gap runs later by the gap (02:30 becomes 03:30). In a fall-back overlap the first instant wins. `rrule-temporal` was not needed.
 
 ## 15. Skills
 

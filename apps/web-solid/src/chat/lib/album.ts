@@ -783,3 +783,68 @@ class ComplexLayouter {
     return result;
   }
 }
+
+/** Telegram's album ceiling. The layouter itself tops out at twelve. */
+export const MAX_ALBUM_ITEMS = 10;
+
+/**
+ * Which outer corners of one album cell are rounded. tweb's `prepareAlbum`
+ * rounds a corner only when the cell touches both edges that meet there, so a
+ * 3x3 album has twelve rounded corners, not thirty-six. A bubble that continues
+ * past an edge (a caption below, a quote above) passes that edge as flat and
+ * the corners on it stay square.
+ */
+export interface CornerRadii {
+  startStart: boolean;
+  startEnd: boolean;
+  endStart: boolean;
+  endEnd: boolean;
+}
+
+export function cornerRadii(
+  sides: number,
+  flat: { top?: boolean; bottom?: boolean } = {},
+): CornerRadii {
+  const top = !flat.top;
+  const bottom = !flat.bottom;
+  const has = (part: number) => (sides & part) !== 0;
+  return {
+    startStart: top && has(RectPart.Left) && has(RectPart.Top),
+    startEnd: top && has(RectPart.Right) && has(RectPart.Top),
+    endStart: bottom && has(RectPart.Left) && has(RectPart.Bottom),
+    endEnd: bottom && has(RectPart.Right) && has(RectPart.Bottom),
+  };
+}
+
+/** The four edges of a lone item, for `cornerRadii`. */
+export const ALL_SIDES = RectPart.Top | RectPart.Right | RectPart.Bottom | RectPart.Left;
+
+/**
+ * How a set of picked files is sent. Photos and videos alone, two to ten of
+ * them, make an album grid. A lone image is a single bubble. Anything else, or
+ * any file that is not a photo or video among them, stacks as a list of
+ * documents: Telegram does not mix files into a grid, and neither do we.
+ */
+export type AttachmentPlan = "none" | "single" | "album" | "list";
+
+export function planAttachments(files: readonly { mime: string }[]): AttachmentPlan {
+  if (files.length === 0) return "none";
+  const visual = files.every((f) => f.mime.startsWith("image/") || f.mime.startsWith("video/"));
+  if (!visual || files.length > MAX_ALBUM_ITEMS) return "list";
+  return files.length === 1 ? "single" : "album";
+}
+
+/** Moves the item with `id` to the slot `toId` holds. Unknown ids leave the list as it was. */
+export function reorderById<T extends { id: string }>(
+  items: readonly T[],
+  id: string,
+  toId: string,
+): T[] {
+  const from = items.findIndex((item) => item.id === id);
+  const to = items.findIndex((item) => item.id === toId);
+  if (from < 0 || to < 0 || from === to) return items.slice();
+  const next = items.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}

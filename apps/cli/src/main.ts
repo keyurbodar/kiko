@@ -1,6 +1,8 @@
 import { parseArgs } from "node:util"
 import { executor } from "./commands/executor"
 import { health } from "./commands/health"
+import { login, whoami } from "./commands/login"
+import { verify } from "./commands/verify"
 import { ws } from "./commands/ws"
 
 export const defaultUrl = "http://localhost:8787"
@@ -12,11 +14,15 @@ export interface Context {
   json: boolean
   args: string[]
   idle: number
+  dev: boolean
+  name: string
+  list: boolean
+  noModel: boolean
 }
 
-const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, executor }
+const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, executor }
 
-export const usage = "usage: kiko <health | ws <path> | executor <probe | discover>> [--url <url>] [--json] [--idle <ms>]"
+export const usage = "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | executor <probe | discover> | verify [--list] [--no-model] [suite...]> [--url <url>] [--json] [--idle <ms>]"
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -27,6 +33,10 @@ export async function main(argv: string[]): Promise<number> {
         url: { type: "string", default: defaultUrl },
         json: { type: "boolean", default: false },
         idle: { type: "string", default: "1000" },
+        dev: { type: "boolean", default: false },
+        name: { type: "string", default: "dev" },
+        list: { type: "boolean", default: false },
+        "no-model": { type: "boolean", default: false },
       },
     })
     const [name, ...args] = positionals
@@ -34,7 +44,7 @@ export async function main(argv: string[]): Promise<number> {
     if (!run) throw new CliError(name ? `unknown command: ${name}. ${usage}` : usage)
     const idle = Number(values.idle)
     if (!Number.isFinite(idle) || idle < 0) throw new CliError(`bad --idle: ${values.idle}`)
-    await run({ url: values.url, json: values.json, args, idle })
+    await run({ url: values.url, json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"] })
     return 0
   } catch (e) {
     console.error(`kiko: ${e instanceof Error ? e.message : String(e)}`)

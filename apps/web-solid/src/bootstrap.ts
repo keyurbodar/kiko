@@ -1,0 +1,38 @@
+/*
+ * Tier 1 entry. Tiny on purpose: it loads tier 2 with a dynamic import and
+ * holds the HTML shell until the first route's chunk is in, then swaps.
+ * Architecture 19.3.
+ */
+
+const RELOAD_KEY = "kiko:preload-reload";
+
+// Same specifiers as `app/routes.tsx`, so the bundler shares the chunks.
+function firstRouteChunk(path: string): Promise<unknown> {
+  if (path.startsWith("/files")) return import("./app/routes/files");
+  if (path.startsWith("/board")) return import("./app/routes/board");
+  if (path.startsWith("/memory")) return import("./app/routes/memory");
+  if (path.startsWith("/settings")) return import("./app/routes/settings");
+  return import("./app/routes/chat");
+}
+
+function showBootError(): void {
+  const el = document.getElementById("boot-error");
+  if (el) el.style.display = "block";
+}
+
+// A stale deploy removes old chunks. Reload once, never in a loop.
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  try {
+    if (sessionStorage.getItem(RELOAD_KEY)) return;
+    sessionStorage.setItem(RELOAD_KEY, "1");
+  } catch {
+    return;
+  }
+  location.reload();
+});
+
+const chunk = firstRouteChunk(location.pathname === "/" ? "/chat" : location.pathname);
+void Promise.all([import("./main"), chunk])
+  .then(([main]) => main.start())
+  .catch(showBootError);

@@ -1,6 +1,6 @@
 import { Show, createMemo, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
-import { MAX_PREVIEW_HEIGHT, MAX_PREVIEW_WIDTH, hasWebPageContent } from "../lib/linkPreview"
+import { MAX_PREVIEW_HEIGHT, MAX_PREVIEW_WIDTH, hasWebPageContent, ownMedia } from "../lib/linkPreview"
 import type { WebPagePreview } from "../../lib/types"
 
 const TITLE_LENGTH = 80
@@ -19,7 +19,7 @@ export function WebPageCard(props: { page: WebPagePreview; class?: string }): JS
     title: limitSymbols(props.page.title, TITLE_LENGTH, TITLE_LIMIT),
     description: limitSymbols(props.page.description, DESCRIPTION_LENGTH, DESCRIPTION_LIMIT),
   }))
-  const media = () => props.page.media
+  const media = () => ownMedia(props.page)
   const large = () => props.page.mediaSize !== "small"
 
   return (

@@ -1,3 +1,4 @@
+import { planAttachments } from "../chat/lib/album"
 import { Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type {
@@ -200,13 +201,16 @@ export function Composer(props: ComposerProps) {
           // There is no conversation to land in, so there is nothing to send.
           if (!props.threadId) return
           const text = draftText()
+          const files = store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
+          // A file that is not a picture turns the whole send into a list of documents.
+          const grid = planAttachments(files) !== "list"
           const pending = store.state.prompt.flatMap((part) =>
-            part.type === "image" && part.mime.startsWith("image/")
+            grid && part.type === "image" && part.mime.startsWith("image/")
               ? [{ src: part.blob.url, alt: part.filename }]
               : [],
           )
           const documents = store.state.prompt.flatMap((part) =>
-            part.type === "image" && !part.mime.startsWith("image/")
+            part.type === "image" && !(grid && part.mime.startsWith("image/"))
               ? [{ src: part.blob.url, name: part.filename, mime: part.mime }]
               : [],
           )

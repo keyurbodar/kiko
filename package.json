@@ -7,8 +7,12 @@
     "dev:server": "bun run --cwd apps/server dev --port 8787",
     "dev:web": "bun run --cwd apps/web-solid dev --port 5173",
     "typecheck": "bun run --filter '*' typecheck",
-    "test": "bun test",
+    "test": "bun run --filter '*' test",
+    "lint": "biome check",
     "kiko": "bun apps/cli/src/index.ts",
     "plan": "bun scripts/plan.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15"
   }
 }

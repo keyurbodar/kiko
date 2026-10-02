@@ -1,31 +1,11 @@
 import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { createSignal, For, Show } from "solid-js"
+import { createSignal, Show } from "solid-js"
+import type { SectionId } from "../app/sections"
 import { cn } from "../lib/cn"
 import { ChatPanel } from "./chat-panel"
-import { PlusIcon, RailIcon, SettingsIcon, type PanelId } from "./icons"
+import { PlusIcon } from "./icons"
 import "./sidebar.css"
-
-/**
- * The rail, in kat's order. `chats` is the only one this app has a panel for;
- * the other three are kat's and are kept so the rail is the real shape, with
- * the panel body saying so rather than pretending.
- *
- * Clicking a tab selects it. Clicking the tab that is ALREADY selected toggles
- * the column instead — that is kat's `iconbar` behaviour (`if (r === e) {
- * toggleCollapse(); return }`), and it is why the rail doubles as the
- * collapse control.
- */
-const PANELS: readonly { id: PanelId; label: string }[] = [
-  { id: "chats", label: "chats" },
-  { id: "terminal", label: "terminal" },
-  { id: "code", label: "code" },
-  { id: "browser", label: "browser" },
-]
-
-/** The rail's own ids: kat's four panels plus the account/settings tab. */
-export type RailId = PanelId | "settings"
 
 /** Width is a user decision, so it is clamped rather than free. */
 const MIN_W = 200
@@ -34,14 +14,17 @@ const MAX_W = 420
 const DEFAULT_W = 280
 
 export interface SidebarProps {
-  class?: string
+  /** The active section, read from the URL by the shell. */
+  section: SectionId | null
+  collapsed: boolean
+  onCollapsedChange: (collapsed: boolean) => void
 }
 
 /**
- * The rail plus the conversation column. Rendered as a fragment, not a wrapper
- * element: kat's rail and column are siblings inside the app's flex row, and
- * the stylesheet scopes every rule under `.sidebar-shell` — the row's own class
- * in the app's markup — so nothing here can reach the transcript beside it.
+ * The sidebar column. The rail is its sibling in the shell's flex row, and the
+ * stylesheet scopes every rule under `.sidebar-shell`, the row's own class, so
+ * nothing here can reach the main panel beside it. Which section it shows, and
+ * whether it is collapsed, come from the shell; only its width is its own.
  *
  * Deliberately NOT `.chat-shell`: that name is already the `data-component`
  * handle for the app's chat pane, and a bare class of it collided with the
@@ -52,24 +35,15 @@ export interface SidebarProps {
  * takes a quarter second to get out of the way is a panel the user waits on.
  */
 export function Sidebar(props: SidebarProps) {
-  const [panel, setPanel] = createSignal<RailId>("chats")
-  const [collapsed, setCollapsed] = createSignal(false)
+  const collapsed = () => props.collapsed
+  const setCollapsed = props.onCollapsedChange
   const [width, setWidth] = createSignal<number | null>(null)
   const [resizing, setResizing] = createSignal(false)
 
   let panelEl: HTMLElement | undefined
   let handleEl: HTMLDivElement | undefined
 
-  const toggleSidebar = () => setCollapsed((value) => !value)
-
-  const select = (id: RailId) => {
-    if (id === panel()) {
-      toggleSidebar()
-      return
-    }
-    setPanel(id)
-    setCollapsed(false)
-  }
+  const toggleSidebar = () => setCollapsed(!collapsed())
 
   /*
    * Drag to resize. `createPerPointerListeners` follows one pointer from its
@@ -128,51 +102,11 @@ export function Sidebar(props: SidebarProps) {
 
   return (
     <>
-      <nav class="rail" aria-label="navigation" data-component="sidebar-rail">
-        <For each={PANELS}>
-          {(entry) => (
-            <TooltipV2 placement="right" openDelay={400} value={entry.label}>
-              <button
-                type="button"
-                class="rail-tab"
-                data-component="sidebar-rail-tab"
-                data-panel={entry.id}
-                data-active={panel() === entry.id ? "" : undefined}
-                aria-label={entry.label}
-                aria-pressed={panel() === entry.id}
-                onClick={() => select(entry.id)}
-              >
-                <RailIcon panel={entry.id} active={panel() === entry.id} />
-              </button>
-            </TooltipV2>
-          )}
-        </For>
-
-        {/* Pushes the account tab to the bottom of the rail, exactly as kat's
-            `flex:1` spacer does. */}
-        <div class="rail-spacer" />
-
-        <TooltipV2 placement="right" openDelay={400} value="settings">
-          <button
-            type="button"
-            class="rail-tab"
-            data-component="sidebar-rail-tab"
-            data-panel="settings"
-            data-active={panel() === "settings" ? "" : undefined}
-            aria-label="settings"
-            aria-pressed={panel() === "settings"}
-            onClick={() => select("settings")}
-          >
-            <SettingsIcon active={panel() === "settings"} />
-          </button>
-        </TooltipV2>
-      </nav>
-
       <aside
         ref={(el) => (panelEl = el)}
         class="panel"
         data-component="sidebar"
-        data-panel={panel()}
+        data-panel={props.section ?? undefined}
         data-collapsed={collapsed() ? "" : undefined}
         data-resizing={resizing() ? "" : undefined}
         /*
@@ -184,16 +118,16 @@ export function Sidebar(props: SidebarProps) {
         style={{ "--sidebar-content-w": width() === null ? undefined : `${width()}px` }}
       >
         <header class="panel-header">
-          <span class="panel-title">{panel()}</span>
+          <span class="panel-title">{props.section}</span>
           <ChatPanelMenu onToggleSidebar={toggleSidebar} />
         </header>
 
         <div class="panel-scroll">
           <Show
-            when={panel() === "chats"}
+            when={props.section === "chat"}
             fallback={
               <p class="px-3 py-2 text-xs text-weak" data-component="sidebar-panel-empty">
-                the {panel()} panel is not built
+                the {props.section} panel is not built
               </p>
             }
           >

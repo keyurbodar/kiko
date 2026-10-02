@@ -1,0 +1,85 @@
+/* Micro-motion, the only motion kiko allows outside the typing indicator.
+ *
+ * Architecture 19.5: navigation, buttons, menus, tabs, the composer, and route
+ * changes never animate. Motion is allowed where the user is already waiting:
+ * a reaction pop, an attachment added or removed, the calendar opening, a toast
+ * entering, and an incoming bubble. So every rule here hangs off an opt-in
+ * `motion-*` class that only those surfaces carry, and none of them is ever
+ * put on a navigation, button, menu, tab, or composer element. `motion.test.ts`
+ * scans this file and fails on motion aimed at one of those.
+ *
+ * Rules:
+ * - Durations and easings are tokens. No literal time appears below the tokens.
+ * - Only `transform` and `opacity` change, so nothing lays out or repaints.
+ * - Everything is inside `prefers-reduced-motion: no-preference`, so with
+ *   reduced motion on nothing animates. The tokens stay outside because a
+ *   custom property is not motion.
+ * - Animation, not transition: an element that mounts has no "from" state for a
+ *   transition to start at, and an animation never delays input. */
+
+:root {
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 240ms;
+  --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes motion-reaction-pop {
+    from { transform: scale(0.6); }
+    to { transform: scale(1); }
+  }
+
+  @keyframes motion-fade-scale-in {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes motion-fade-scale-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.92); }
+  }
+
+  @keyframes motion-calendar-open {
+    from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  @keyframes motion-toast-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes motion-bubble-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .motion-reaction-pop {
+    animation: motion-reaction-pop var(--motion-base) var(--motion-ease-pop) both;
+  }
+
+  .motion-attachment-in {
+    animation: motion-fade-scale-in var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  /* Set `data-leaving` and remove the node on `animationend`. */
+  .motion-attachment-in[data-leaving] {
+    animation: motion-fade-scale-out var(--motion-fast) var(--motion-ease-in) both;
+  }
+
+  .motion-calendar-open {
+    transform-origin: top center;
+    animation: motion-calendar-open var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  .motion-toast-enter {
+    animation: motion-toast-enter var(--motion-slow) var(--motion-ease-out) both;
+  }
+
+  .motion-bubble-in {
+    animation: motion-bubble-in var(--motion-base) var(--motion-ease-out) both;
+  }
+}

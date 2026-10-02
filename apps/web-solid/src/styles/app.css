@@ -16,6 +16,7 @@
 @import "tailwindcss";
 @import "@kiko/ui/v2/styles/tailwind.css";
 @import "@kiko/ui/kat.css";
+@import "./motion.css";
 
 /* `FileIcon` has the same trap as `Icon`: it ships `file-icon.css`, which is
  * what gives it its 16x16 box, and nothing on the load path imported it. An
