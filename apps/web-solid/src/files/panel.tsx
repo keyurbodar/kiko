@@ -16,8 +16,11 @@ export const filesHref = (roomId: string, path?: string) =>
 export default function FilesPanel() {
 	const navigate = useNavigate()
 	const location = useLocation()
-	const roomId = createMemo(() => /^\/files\/([^/]+)/.exec(location.pathname)?.[1] ?? useApp.activeThreadId() ?? "")
 	const chats = createMemo(() => useApp.bots())
+	// The URL names the room. With none, use the open chat, else the first chat, so the tree is never an empty picker.
+	const roomId = createMemo(
+		() => /^\/files\/([^/]+)/.exec(location.pathname)?.[1] ?? useApp.activeThreadId() ?? chats()[0]?.id ?? "",
+	)
 	// Opening the section on a room loads that room's index.
 	createEffect(() => {
 		const id = roomId()
@@ -28,7 +31,7 @@ export default function FilesPanel() {
 	return (
 		<div class="files-panel" data-component="files-panel">
 			<select class="fp-picker" aria-label="chat" value={roomId()} onChange={(e) => navigate(filesHref(e.currentTarget.value))}>
-				<For each={chats()}>{(c) => <option value={c.id}>{c.name || "new chat"}</option>}</For>
+				<For each={chats()}>{(c) => <option value={c.id} selected={c.id === roomId()}>{c.name || "new chat"}</option>}</For>
 			</select>
 			<div class="fp-tree">
 				<FileTree

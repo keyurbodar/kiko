@@ -12,6 +12,7 @@ import { infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { Palette, preloadPalette } from "../palette";
 import { Sidebar } from "../sidebar";
+import { drawerOpen, setDrawerOpen } from "./drawer";
 import { Rail } from "./rail";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
@@ -69,7 +70,8 @@ export function Shell(props: ParentProps) {
   // is never saved, so the saved wide-screen preference does not bury the chat on a phone.
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined;
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
-  const [drawer, setDrawer] = createSignal(false);
+  const drawer = drawerOpen;
+  const setDrawer = setDrawerOpen;
   onMount(() => {
     const on = () => {
       setNarrow(narrowQuery!.matches);

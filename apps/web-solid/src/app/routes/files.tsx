@@ -3,6 +3,7 @@ import { createEffect, createMemo, Show } from "solid-js"
 import { withMade } from "../../files/api"
 import { FileViewer } from "../../files/viewer"
 import { useApp } from "../../lib/store"
+import { setDrawerOpen } from "../drawer"
 
 /*
  * The files route. The sidebar column holds the chat picker and the file tree; this panel shows
@@ -30,7 +31,18 @@ export default function FilesRoute() {
       when={path()}
       fallback={
         <div class="grid min-h-0 flex-1 place-items-center text-sm text-weak" data-component="files-empty">
-          pick a file
+          <div class="flex flex-col items-center gap-3">
+            <span>pick a file</span>
+            {/* Below 768 px the file list is the sidebar drawer, so say where it is and open it in one tap. */}
+            <button
+              type="button"
+              class="h-10 rounded-[10px] bg-[var(--btn-bg)] px-4 text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:hidden"
+              data-action="open-files"
+              onClick={() => setDrawerOpen(true)}
+            >
+              browse files
+            </button>
+          </div>
         </div>
       }
     >
