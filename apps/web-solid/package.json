@@ -19,7 +19,6 @@
     "@solidjs/meta": "0.29.4",
     "@solidjs/router": "0.15.4",
     "blobatar": "^2.7.0",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "emoji-picker-element": "^1.29.1",
     "lucide-solid": "^1.48.0",

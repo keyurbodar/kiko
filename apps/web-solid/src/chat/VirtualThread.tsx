@@ -25,7 +25,6 @@ import { UnreadRule } from "./ui/UnreadRule"
 import { EmptyState } from "./ui/EmptyState"
 import { SwipeToReply } from "./ui/SwipeToReply"
 import { TypingRow } from "./ui/TypingRow"
-import { JumpToLatest } from "./ui/JumpToLatest"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
 import { createMediaViewer } from "../chat/media/mediaViewer"
@@ -80,13 +79,12 @@ const SCROLL_LATEST_MS = 180
 type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
 
 /**
- * The box the floating pieces hang from: the date chip, the two scrims and the
- * jump-to-latest pill are absolute children of this, and it is a SIBLING of
+ * The box the floating pieces hang from: the date chip, and the two scrims are absolute children of this, and it is a SIBLING of
  * the scroller rather than its parent.
  *
  * That is not tidiness. An absolutely positioned child of a scroll container is
  * positioned against that container's padding box but travels with its
- * content, so all three would scroll off the top of the transcript. Here they
+ * content, so all of them would scroll off the top of the transcript. Here they
  * are children of a box that does not move.
  *
  * `min-h-0` and `flex-1` are load-bearing in a flex parent: without them the
@@ -344,12 +342,8 @@ export function VirtualThread(props: {
     props.onStateChange(state)
   }
 
-  const arrivals = createMemo(() =>
-    isAtLatest() ? 0 : Math.max(0, messageCount() - pinnedCount()),
-  )
-
   /**
-   * The one scroll-to-latest, shared by the jump pill and by sending.
+   * The one scroll-to-latest, used by the composer scroll-down control and by sending.
    *
    * Animated at 180ms rather than the browser's `behavior: "smooth"`: that
    * curve is long enough to read as a journey, and both callers are things the
@@ -739,7 +733,6 @@ export function VirtualThread(props: {
         visible={dateChipVisible()}
         onJumpToDay={jumpToDay}
       />
-      <JumpToLatest arrivals={arrivals()} visible={!isAtLatest()} onJump={scrollToLatest} />
       <ScrollFades
         showTop={(scrollState()?.scrollOffset ?? 0) > 0}
         showBottom={!isAtLatest()}
