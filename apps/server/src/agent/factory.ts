@@ -13,6 +13,7 @@ import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
 import { skillsExtension } from "./extensions/skills"
 import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
+import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses
@@ -28,7 +29,7 @@ export type BuildAgentInput = RoleInput & {
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
   workspace?: WorkspacePort
   /** The human's Executor tools for this run (P7-04). Without it the agent has none. */
-  executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall }
+  executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall; gate?: ApprovalGate }
   /** The user's reminders (P5-06). Without it the agent has no reminder tools. */
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   /** The room's team tools (P6-03). Without it the agent has no messaging tools. */
@@ -64,7 +65,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     webExtension(),
     ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
-    ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call)] : []),
+    ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate)] : []),
     Subagent,
     ...(input.testExtensions ?? []),
   ]

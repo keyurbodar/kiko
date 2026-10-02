@@ -211,7 +211,7 @@ export class AgentDO extends DurableObject<Env> {
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
       // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
