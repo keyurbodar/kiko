@@ -13,13 +13,16 @@ import { ulid } from "./mid-run"
 // Set KIKO_LATENCY_RESTART to a shell command that restarts the dev server and returns once it is
 // healthy (the same contract as KIKO_TURN_RESTART) to also time a reconnect after a restart mid-run.
 //
-// The suite fails only when a step never happens. The numbers are for reading, not for asserting.
+// The suite fails when a step never happens, and when an agent waits for its heartbeat after a
+// restart. Every other number is for reading, not for asserting.
 
 /** The room's burst pause after a message (room/burst.ts AFTER_MESSAGE_MS). Subtracted from the burst step. */
 const BURST_MS = 1_500
 const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
 const RESTART = process.env.KIKO_LATENCY_RESTART
 const RESTART_RUNS = Number(process.env.KIKO_LATENCY_RESTART_RUNS ?? 3)
+/** Well under the agent's 30 s heartbeat (agent/host.ts HEARTBEAT_MS). */
+const ALIVE_LIMIT_MS = 15_000
 
 type Status = Extract<RoomToClient, { t: "status" }>
 type Events = Extract<RoomToClient, { t: "events" }>
@@ -221,7 +224,10 @@ async function restartRuns(v: Verifier): Promise<void> {
     samples.add("server up to transcript replayed", now() - tUp)
     // The agent resumes on its own. Its first sign of life, then the answer the run was writing.
     await room.expect((f) => f.t === "status" || f.t === "draft" || agentMessage()(f), 120_000)
-    samples.add("server up to agent alive again", now() - tUp)
+    const alive = now() - tUp
+    samples.add("server up to agent alive again", alive)
+    // The room wakes the agent when the human reconnects. Waiting for the 30 s heartbeat is the bug.
+    if (alive > ALIVE_LIMIT_MS) throw new VerifyError(`the agent came back after ${Math.round(alive)} ms. the room did not wake it`)
     await room.expect(agentMessage((t) => t.includes(`[slow] restart ${i}`)), 120_000)
     samples.add("server up to answer in transcript", now() - tUp)
     room.raw.close()

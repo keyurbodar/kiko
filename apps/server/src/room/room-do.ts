@@ -92,6 +92,33 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
+	/** True once this process looked for runs a restart may have left waiting. */
+	#woke = false
+
+	/**
+	 * The first socket of a new process wakes every agent the room last saw working. After a restart the
+	 * agent's run would otherwise wait for its heartbeat, up to 30 seconds, while the human watches. The
+	 * marker of an agent with no live run is dropped. Never awaited, so the socket opens at once.
+	 */
+	private wakeLiveAgents(userId: string, roomId: string): void {
+		if (this.#woke) return
+		this.#woke = true
+		const live = this.ctx.storage.sql
+			.exec<{ key: string }>("SELECT key FROM meta WHERE key LIKE 'live:%'")
+			.toArray()
+			.map((r) => r.key.slice("live:".length) as AgentSlug)
+		for (const slug of live) {
+			this.ctx.waitUntil(
+				agentStub(this.env.AGENT, userId, roomId, slug)
+					.wake()
+					.then((running) => {
+						if (!running && !this.states.has(slug)) this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
+					})
+					.catch((error: unknown) => console.error(`wake failed: ${error instanceof Error ? error.message : String(error)}`)),
+			)
+		}
+	}
+
 	async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 			return new Response("expected a websocket upgrade", { status: 426 })
@@ -107,6 +134,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
 		this.ctx.acceptWebSocket(server)
 		server.serializeAttachment({ ready: false } satisfies Attachment)
+		this.wakeLiveAgents(userId, roomId)
 		return new Response(null, { status: 101, webSocket: client })
 	}
 
@@ -213,6 +241,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
 		if ((this.states.get(slug) ?? "idle") === state) return
 		this.states.set(slug, state)
+		// Stored, unlike the state, so a room process that starts after a restart knows a run was live.
+		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
+		else this.log.setMeta(`live:${slug}`, "1")
 		this.broadcast({ t: "status", slug, state })
 		await this.setTyping(slug, state === "typing")
 	}

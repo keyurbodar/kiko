@@ -7,7 +7,8 @@ import { roomStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import { fakeSetup } from "./dev-fake"
 import { buildAgent, DEV_MODEL, devModels } from "./factory"
-import { AgentHost, type AgentSetup, type HostOptions } from "./host"
+import { createAlarms } from "../lib/alarm"
+import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
 import { instrument } from "../lib/dev-stats"
 
@@ -68,6 +69,21 @@ export class AgentDO extends DurableObject<Env> {
    */
   stop() {
     return this.host.stop()
+  }
+
+  /**
+   * Called by `RoomDO` when a socket opens on a room process that just started while a run looked
+   * live. After a restart (a deploy, a crash) the run otherwise waits for its heartbeat, up to 30
+   * seconds. This moves a pending heartbeat to now, so the alarm reopens the harness and resumes the
+   * run at once. Like `receive`, it only stores and returns. A live process gets one extra alarm that
+   * finds nothing to do. Returns false when no heartbeat is pending, that is, when no run is live.
+   */
+  async wake(): Promise<boolean> {
+    this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
+    const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
+    if (at === undefined) return false
+    if (at > Date.now()) await createAlarms(this.ctx).setWakeup(HEARTBEAT_WAKEUP, Date.now())
+    return true
   }
 
   /** Inbox counts and live work, for tests and the CLI. Opens nothing. */
