@@ -1,0 +1,79 @@
+import { betterAuth } from "better-auth"
+import { devSession } from "./dev-session"
+
+// Wrangler replaces process.env.NODE_ENV when it bundles: "production" for deploy and
+// "development" for dev, unless NODE_ENV is set in the shell. Each comparison below is a
+// constant, so the bundler drops the dev plugin from a production bundle.
+declare const process: { env: { NODE_ENV?: string } }
+
+export interface AuthEnv {
+  AUTH_DB: D1Database
+  BETTER_AUTH_SECRET: string
+  /** The public origin. Defaults to the origin of the request. */
+  BETTER_AUTH_URL?: string
+  /** Extra origins allowed to call the auth routes, separated by commas. */
+  TRUSTED_ORIGINS?: string
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
+  GITHUB_CLIENT_ID?: string
+  GITHUB_CLIENT_SECRET?: string
+}
+
+export interface SessionUser {
+  id: string
+  name: string
+  email: string
+  image: string | null
+}
+
+const AUTH_PATH = "/api/auth"
+
+// A provider is on only when both of its values are set, so a machine without
+// OAuth clients still runs.
+function socialProviders(env: AuthEnv) {
+  const pairs = {
+    google: [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET],
+    github: [env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET],
+  } as const
+  const providers: Partial<Record<keyof typeof pairs, { clientId: string; clientSecret: string }>> = {}
+  for (const [id, [clientId, clientSecret]] of Object.entries(pairs)) {
+    if (clientId && clientSecret) providers[id as keyof typeof pairs] = { clientId, clientSecret }
+  }
+  return providers
+}
+
+/** Builds the auth instance for one request. Never keep it in module scope. */
+export function createAuth(env: AuthEnv, request: Request) {
+  return betterAuth({
+    database: env.AUTH_DB,
+    secret: env.BETTER_AUTH_SECRET,
+    baseURL: env.BETTER_AUTH_URL ?? new URL(request.url).origin,
+    basePath: AUTH_PATH,
+    trustedOrigins: [
+      ...(env.TRUSTED_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? []),
+      ...(process.env.NODE_ENV === "development" ? ["http://localhost:*"] : []),
+    ],
+    socialProviders: socialProviders(env),
+    session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
+    advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
+    plugins: process.env.NODE_ENV === "development" ? [devSession()] : [],
+  })
+}
+
+/** The signed-in user of a request, or null. The only source of a user id in the Worker. */
+export async function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
+  const session = await createAuth(env, request).api.getSession({ headers: request.headers })
+  if (!session) return null
+  const { id, name, email, image } = session.user
+  return { id, name, email, image: image ?? null }
+}
+
+/** Answers `/api/auth/*` and `/api/me`. Returns null for every other path. */
+export async function authRoute(request: Request, env: AuthEnv): Promise<Response | null> {
+  const { pathname } = new URL(request.url)
+  if (pathname.startsWith(`${AUTH_PATH}/`)) return createAuth(env, request).handler(request)
+  if (pathname !== "/api/me") return null
+  const user = await getSessionUser(request, env)
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+  return Response.json({ user })
+}
