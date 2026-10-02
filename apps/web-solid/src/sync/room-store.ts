@@ -246,6 +246,10 @@ export type RoomStore = {
 	markRead(seq: number): void
 	typing(): void
 	stop(): void
+	/** Closes the socket and keeps the store. Pings are dropped, sends wait in the outbox. Section 19.6. */
+	suspend(): void
+	/** Reconnects with `hello {lastSeq}` and sends every pending frame again. */
+	resume(): void
 	approve(approvalId: string, action: "accept" | "decline"): void
 	task(op: TaskOp): void
 	/** Prepends up to `limit` older messages from IndexedDB. Resolves to how many. */
@@ -291,6 +295,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	let socket: SyncSocket | null = null
 	let closed = false
+	let suspended = false
 	let queue: RoomEvent[] = []
 	let draining = false
 	let waiters: (() => void)[] = []
@@ -481,6 +486,10 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 				}),
 			)
 		})
+		if (!suspended) openSocket()
+	}
+
+	function openSocket() {
 		socket = createSyncSocket<RoomToClient>({
 			url: options.url,
 			connect: options.connect,
@@ -522,6 +531,16 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		typing: () => void socket?.send({ t: "typing" }),
 		stop: () => void socket?.send({ t: "stop" }),
+		suspend() {
+			suspended = true
+			socket?.close()
+			socket = null
+		},
+		resume() {
+			if (!suspended) return
+			suspended = false
+			if (!closed && state.loaded && !socket) openSocket()
+		},
 		approve: (approvalId, action) => void act({ t: "approve", approvalId, action }),
 		task: (op) => void act({ t: "task", op }),
 		async loadOlder(limit = 50) {
