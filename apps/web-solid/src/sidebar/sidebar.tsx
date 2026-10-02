@@ -1,8 +1,10 @@
 import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { useNavigate } from "@solidjs/router"
 import { createSignal, Show } from "solid-js"
 import type { SectionId } from "../app/sections"
 import { cn } from "../lib/cn"
+import { newChat } from "./actions"
 import { ChatPanel } from "./chat-panel"
 import { PlusIcon } from "./icons"
 import "./sidebar.css"
@@ -167,6 +169,7 @@ export function Sidebar(props: SidebarProps) {
  * toggle; the rail icon and `cmd+s` do.
  */
 function ChatPanelMenu() {
+  const navigate = useNavigate()
   return (
     <MenuV2>
       <MenuV2.Trigger
@@ -190,9 +193,16 @@ function ChatPanelMenu() {
           )}
           data-component="sidebar-add-menu"
         >
-          {/* Creating a chat is not wired yet (P2-09 owns the roster), so the row
-              is disabled rather than a menu entry that does nothing. */}
-          <MenuV2.Item disabled>new chat</MenuV2.Item>
+          {/* Optimistic: the chat is in the list before this returns, and its
+              title is open for editing. */}
+          <MenuV2.Item
+            onSelect={() => {
+              const id = newChat()
+              if (id) navigate(`/chat/${id}`)
+            }}
+          >
+            new chat
+          </MenuV2.Item>
         </MenuV2.Content>
       </MenuV2.Portal>
     </MenuV2>

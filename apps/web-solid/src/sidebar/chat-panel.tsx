@@ -2,20 +2,38 @@ import { Blobatar } from "@blobatar/solid"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
+import { createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js"
+import { VList } from "virtua/solid"
+import { useCommands, type Command } from "../commands/registry"
 import { cn } from "../lib/cn"
 import { useApp } from "../lib/store"
 import type { RosterBot } from "../lib/types"
-import { createMemo, createSignal, For, Show } from "solid-js"
+import {
+  cancelRename,
+  clearUnreadMark,
+  closeChat,
+  commitRename,
+  deleteChat,
+  markedUnread,
+  markUnread,
+  renamingId,
+  startRename,
+  toggleMute,
+  togglePin,
+} from "./actions"
+import { filterRows } from "./filter"
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
+/** Row height in px. Fixed, so the virtualizer never measures and never shows a blank row. */
+export const ROW_H = 68
+
 /**
- * The stamp at the end of a row. Relative, not a clock time: `updatedAt` is
- * last activity, and the question a roster answers at a glance is "how stale
- * is this", not "when exactly" — which is also the shape kat prints. Coarse on
- * purpose, so it never needs a ticking timer to stay truthful.
+ * The stamp at the end of a row's first line. Relative, not a clock time:
+ * `updatedAt` is last activity, and the question a list answers at a glance is
+ * "how stale is this". Coarse on purpose, so it never needs a ticking timer.
  */
 export function rowStamp(updatedAt: number, now: number): string {
   const delta = now - updatedAt
@@ -26,24 +44,40 @@ export function rowStamp(updatedAt: number, now: number): string {
 }
 
 /**
- * A bot's picture. `avatarImage` wins when the fixture carries one; otherwise
- * the blobatar is derived from the name, so every bot has a stable face with
- * nothing to upload. Static, never `animate`: a roster of moving avatars is
- * motion in a place the user is not waiting for anything.
- *
- * Sizing is a utility on the caller, because the two sites differ — 22px in a
- * row, 26px inside a 48px pinned circle.
+ * A picture derived from a name. Static, never `animate`: a list of moving
+ * avatars is motion in a place the user is not waiting for anything.
  */
-function RosterAvatar(props: { bot: RosterBot; class: string }) {
+function Avatar(props: { name: string; image?: string; class: string }) {
   return (
     <span class={props.class}>
-      <Show
-        when={props.bot.avatarImage}
-        fallback={<Blobatar name={props.bot.name} class="size-full rounded-full" />}
-      >
+      <Show when={props.image} fallback={<Blobatar name={props.name} class="size-full rounded-full" />}>
         {(src) => <img src={src()} alt="" class="size-full rounded-full object-cover" />}
       </Show>
     </span>
+  )
+}
+
+const menuClass = cn(
+  "min-w-[180px] rounded-[calc(20px*var(--brm))] p-2",
+  "border-none bg-menu text-base text-text shadow-menu",
+)
+
+/** What every chat's menu holds, in kat's order (screenshot 16). */
+function ChatMenuItems(props: { id: string }) {
+  const navigate = useNavigate()
+  const chat = createMemo(() => useApp.user()?.chats().find((c) => c.roomId === props.id))
+  const active = () => useApp.activeThreadId()
+  return (
+    <>
+      <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">rename</MenuV2.Item>
+      <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "unpin" : "pin"}</MenuV2.Item>
+      <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "unmute" : "mute"}</MenuV2.Item>
+      <MenuV2.Separator />
+      <MenuV2.Item onSelect={() => markUnread(props.id)}>mark as unread</MenuV2.Item>
+      <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>close</MenuV2.Item>
+      <MenuV2.Separator />
+      <MenuV2.Item onSelect={() => deleteChat(props.id, active(), navigate)}>delete</MenuV2.Item>
+    </>
   )
 }
 
@@ -51,6 +85,7 @@ function RosterAvatar(props: { bot: RosterBot; class: string }) {
 function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = createSignal(false)
+  const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   return (
     <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
       <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id}>
@@ -69,15 +104,15 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void 
             data-component="sidebar-pin-tile"
             data-chat-id={props.bot.id}
             data-active={props.active ? "" : undefined}
-            data-unread={props.bot.unread > 0 ? "" : undefined}
+            data-unread={unread() ? "" : undefined}
             aria-current={props.active ? "true" : undefined}
             onClick={props.onSelect}
           >
             <span class="pin-tile-circle">
               <span class="pin-tile-icon">
-                <RosterAvatar bot={props.bot} class="pin-tile-avatar" />
+                <Avatar name={props.bot.name} image={props.bot.avatarImage} class="pin-tile-avatar" />
               </span>
-              <Show when={props.bot.unread > 0}>
+              <Show when={unread()}>
                 <span class="pin-tile-dot" aria-hidden="true" />
               </Show>
             </span>
@@ -93,41 +128,11 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void 
       </MenuV2.Context.Trigger>
 
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content
-          class={cn(
-            "min-w-[180px] rounded-[calc(20px*var(--brm))] p-2",
-            "border-none bg-menu text-base text-text shadow-menu",
-          )}
-          data-component="sidebar-pin-menu"
-        >
-          <MenuV2.Item onSelect={() => useApp.togglePinned(props.bot.id)}>unpin</MenuV2.Item>
+        <MenuV2.Context.Content class={menuClass} data-component="sidebar-pin-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+          <ChatMenuItems id={props.bot.id} />
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>
-  )
-}
-
-/**
- * What trails a row: the unread count, and only that. The typing pulse used to
- * live here and it read as a second, unrelated widget pinned to the right edge;
- * a typing bot is not a badge, so it now replaces the row's preview line where
- * the reader is already looking.
- */
-function RowTrailing(props: { bot: RosterBot }) {
-  return (
-    <span class="chat-trailing">
-      <Show when={props.bot.unread > 0}>
-        <span
-          class={cn(
-            "grid h-[18px] min-w-[18px] place-items-center rounded-full px-1",
-            "bg-[oklch(from_var(--accent)_l_c_h_/_18%)] text-[11px] font-medium leading-none",
-          )}
-          data-component="sidebar-unread-count"
-        >
-          {props.bot.unread}
-        </span>
-      </Show>
-    </span>
   )
 }
 
@@ -138,16 +143,12 @@ function ChatPreview(props: { bot: RosterBot }) {
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
       <div class="flex items-center gap-2.5">
-        <RosterAvatar bot={props.bot} class="size-[32px] shrink-0 rounded-full" />
+        <Avatar name={props.bot.name} image={props.bot.avatarImage} class="size-[32px] shrink-0 rounded-full" />
         <div class="min-w-0">
           <div class="truncate text-[13px] font-semibold text-text">{props.bot.name}</div>
           <div class="truncate text-[11px] text-weak">{props.bot.presence}</div>
         </div>
       </div>
-
-      <Show when={props.bot.persona}>
-        {(persona) => <p class="mt-2 text-[12px] leading-snug text-weak">{persona()}</p>}
-      </Show>
 
       <Show when={tail().length > 0}>
         <div class="mt-2.5 flex flex-col gap-1.5">
@@ -165,42 +166,77 @@ function ChatPreview(props: { bot: RosterBot }) {
   )
 }
 
+/** The title, or the field that edits it in place. */
+function RowTitle(props: { id: string; title: string }) {
+  let input: HTMLInputElement | undefined
+  let done = false
+  const editing = () => renamingId() === props.id
+  createEffect(() => {
+    if (!editing()) return
+    done = false
+    // After the menu has handed focus back, or the field loses it at once.
+    setTimeout(() => {
+      input?.focus()
+      input?.select()
+    }, 0)
+  })
+  return (
+    <Show when={editing()} fallback={<span class="chat-name">{props.title}</span>}>
+      <input
+        ref={(el) => (input = el)}
+        class="chat-rename"
+        data-component="sidebar-rename"
+        aria-label="chat name"
+        value={props.title}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === "Enter") {
+            done = true
+            commitRename(props.id, e.currentTarget.value)
+          } else if (e.key === "Escape") {
+            done = true
+            cancelRename()
+          }
+        }}
+        onBlur={(e) => {
+          if (done) return
+          done = true
+          commitRename(props.id, e.currentTarget.value)
+        }}
+      />
+    </Show>
+  )
+}
+
 /**
- * One conversation.
- *
- * The row IS the context menu's trigger, so Kobalte opens it from the real
- * `contextmenu` event on the real element — no parked trigger, no event
- * replay, and no id to re-resolve at open time, because each row's menu
- * already closes over its own bot. The hover preview hangs off an overlay
- * instead, because an element can only be one primitive's trigger: the overlay
- * is absolutely positioned, so it stays out of the grid, receives the pointer,
- * and lets the click bubble to the row underneath.
+ * One conversation, laid out the way MonoCode lays out a thread, in kat's
+ * colours: a muted first line (the agent's name, the unread dot, the time), a
+ * bold title, a muted one-line preview. The row IS the context menu's trigger,
+ * so Kobalte opens it from the real `contextmenu` event on the real element.
+ * The hover preview hangs off an overlay, because an element can only be one
+ * primitive's trigger.
  */
-function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
+function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active: boolean; now: number }) {
   /*
-   * The row's preview and its context menu are both floating layers, and the
-   * preview is nested inside the menu's trigger. Left alone they are open at
-   * the same time — the pointer is on the row, so the preview has opened, and
-   * the right-click opens the menu underneath it. The preview's layer is then
-   * the topmost one and it swallows the Escape that would dismiss the menu, so
-   * the menu stays up and its modality keeps the rest of the page inert: the
-   * app is unusable until it is reloaded. Verified before this fix: Escape
-   * closed the menu only after the pointer was moved away and the preview had
-   * closed on its own.
-   *
-   * Declarative rather than a call into the hover card, so there is no
-   * imperative close to get out of step with Kobalte's own state.
+   * The preview is nested inside the menu's trigger, so left alone both are
+   * open at once, the preview swallows the Escape that would dismiss the menu,
+   * and the app stays inert. Declarative, so there is no imperative close to
+   * get out of step with Kobalte's own state.
    */
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = createSignal(false)
   const navigate = useNavigate()
+  const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
 
   const select = () => {
+    clearUnreadMark(props.bot.id)
     navigate(`/chat/${props.bot.id}`)
   }
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return
+    if (event.target !== event.currentTarget) return
     event.preventDefault()
     select()
   }
@@ -213,7 +249,8 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
         data-component="sidebar-row"
         data-chat-id={props.bot.id}
         data-active={props.active ? "" : undefined}
-        data-unread={props.bot.unread > 0 ? "" : undefined}
+        data-unread={unread() ? "" : undefined}
+        data-muted={props.muted ? "" : undefined}
         aria-current={props.active ? "true" : undefined}
         role="button"
         tabindex={0}
@@ -221,7 +258,7 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
         onKeyDown={onKeyDown}
       >
         <HoverCardV2
-          open={previewOpen() && !menuOpen()}
+          open={previewOpen() && !menuOpen() && renamingId() !== props.bot.id}
           onOpenChange={setPreviewOpen}
           openDelay={400}
           closeDelay={150}
@@ -236,17 +273,21 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <RosterAvatar bot={props.bot} class="chat-avatar shrink-0" />
+        <Avatar name={props.agent} image={props.bot.avatarImage} class="chat-avatar" />
 
-        <span class="chat-title-line">
-          <span class="chat-name">{props.bot.name}</span>
+        <span class="chat-meta-line">
+          <span class="chat-agent">{props.agent}</span>
+          <Show when={unread()}>
+            <i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
+          </Show>
           <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
         </span>
 
-        <span
-          class="chat-preview"
-          data-typing={props.bot.presence === "typing" ? "" : undefined}
-        >
+        <span class="chat-title-line">
+          <RowTitle id={props.bot.id} title={props.bot.name} />
+        </span>
+
+        <span class="chat-preview" data-typing={props.bot.presence === "typing" ? "" : undefined}>
           <Show when={props.bot.presence === "typing"} fallback={props.bot.preview}>
             typing
             <i class="typing-dot" aria-hidden="true" />
@@ -254,49 +295,107 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
             <i class="typing-dot" aria-hidden="true" />
           </Show>
         </span>
-
-        <RowTrailing bot={props.bot} />
       </MenuV2.Context.Trigger>
 
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content
-          class={cn(
-            "min-w-[180px] rounded-[calc(20px*var(--brm))] p-2",
-            "border-none bg-menu text-base text-text shadow-menu",
-          )}
-          data-component="sidebar-chat-menu"
-        >
-          <MenuV2.Item onSelect={() => useApp.togglePinned(props.bot.id)}>
-            {props.bot.pinned ? "unpin" : "pin"}
-          </MenuV2.Item>
+        <MenuV2.Context.Content class={menuClass} data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+          <ChatMenuItems id={props.bot.id} />
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>
   )
 }
 
+/** The search field and the filter button. Typing filters locally. */
+function SearchRow(props: {
+  query: string
+  onQuery: (query: string) => void
+  unreadOnly: boolean
+  onUnreadOnly: (on: boolean) => void
+}): JSX.Element {
+  return (
+    <div class="chat-search" data-component="sidebar-search">
+      <label class="chat-search-field">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
+        <input
+          type="text"
+          class="chat-search-input"
+          data-component="sidebar-search-input"
+          placeholder="search chats"
+          aria-label="search chats"
+          autocomplete="off"
+          spellcheck={false}
+          value={props.query}
+          onInput={(e) => props.onQuery(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && props.query !== "") {
+              e.preventDefault()
+              props.onQuery("")
+            }
+          }}
+        />
+      </label>
+      <button
+        type="button"
+        class="chat-filter"
+        data-component="sidebar-filter"
+        aria-label="show unread only"
+        aria-pressed={props.unreadOnly}
+        title="unread only"
+        onClick={() => props.onUnreadOnly(!props.unreadOnly)}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 5H14M2 11H14" /><circle cx="10" cy="5" r="1.6" fill="var(--bg-sidebar)" /><circle cx="6" cy="11" r="1.6" fill="var(--bg-sidebar)" /></svg>
+      </button>
+    </div>
+  )
+}
+
 /**
- * The chats panel: the pinned block, then every conversation.
+ * The chats panel: search, the pinned block, then every conversation in a
+ * virtual list. Only the rows in the viewport plus the buffer exist in the DOM.
  *
  * `now` is read once per render rather than from a timer. The stamps are coarse
- * (minutes upward) and the list re-renders on every roster change, so a clock
- * would buy a repaint per minute and nothing else.
+ * and the list re-renders on every roster change.
  */
 export function ChatPanel() {
   const now = Date.now()
   const navigate = useNavigate()
-  const pinned = createMemo(() => useApp.bots().filter((bot) => bot.pinned))
-  const rows = createMemo(() => useApp.bots().filter((bot) => !bot.pinned))
+  const [query, setQuery] = createSignal("")
+  const [unreadOnly, setUnreadOnly] = createSignal(false)
+
+  const all = createMemo(() => useApp.bots())
+  const shown = createMemo(() =>
+    filterRows(all(), { query: query(), unreadOnly: unreadOnly() }, (row) => row.unread > 0 || markedUnread(row.id)),
+  )
+  const pinned = createMemo(() => shown().filter((bot) => bot.pinned))
+  const rowIds = createMemo(() => shown().filter((bot) => !bot.pinned).map((bot) => bot.id))
+  // Rows are looked up by id so a roster change does not remount the rows that did not change.
+  const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
+  const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
+  // ASSUMPTION: a chat row carries no agent, so the first line names the open
+  // room's lead and falls back to the product name for a room that is not open.
+  const agentName = (id: string) => (useApp.activeThreadId() === id ? (useApp.members().find((m) => m.persona === "lead")?.name ?? "kiko") : "kiko")
+
+  const active = () => useApp.activeThreadId()
+  const chatCommands: Command[] = [
+    { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: () => active() !== null, run: () => active() && startRename(active()!) },
+    { id: "chat.pin", title: "chat: pin", group: "chat", icon: "pin", shortcut: "Mod+D", when: () => active() !== null, run: () => active() && togglePin(active()!) },
+    { id: "chat.delete", title: "chat: delete", group: "chat", icon: "trash", when: () => active() !== null, run: () => active() && deleteChat(active()!, active(), navigate) },
+  ]
+  useCommands(chatCommands)
+
   return (
-    <div class="flex flex-col" data-component="sidebar-chats">
+    <div class="chat-panel" data-component="sidebar-chats">
+      <SearchRow query={query()} onQuery={setQuery} unreadOnly={unreadOnly()} onUnreadOnly={setUnreadOnly} />
       <Show when={pinned().length > 0}>
         <div class="pinned-grid">
           <For each={pinned()}>
             {(bot) => (
               <PinTile
                 bot={bot}
-                active={useApp.activeThreadId() === bot.id}
+                active={active() === bot.id}
                 onSelect={() => {
+                  clearUnreadMark(bot.id)
                   navigate(`/chat/${bot.id}`)
                 }}
               />
@@ -304,11 +403,16 @@ export function ChatPanel() {
           </For>
         </div>
       </Show>
-      <div class="chat-list" role="list">
-        <For each={rows()}>
-          {(bot) => <ChatRow bot={bot} active={useApp.activeThreadId() === bot.id} now={now} />}
-        </For>
-      </div>
+      <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
+        <p class="px-3 py-2 text-xs text-weak" data-component="sidebar-empty">no chats match</p>
+      </Show>
+      <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
+        {(id) => (
+          <Show when={byId().get(id)}>
+            {(bot) => <ChatRow bot={bot()} agent={agentName(id)} muted={muted().has(id)} active={active() === id} now={now} />}
+          </Show>
+        )}
+      </VList>
     </div>
   )
 }

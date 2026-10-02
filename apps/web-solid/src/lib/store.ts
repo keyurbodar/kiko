@@ -20,7 +20,7 @@ import type { MockRoom } from "../sync/mock-room"
 import type { ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
-import { createUserStore, type UserStore } from "../sync/user-store"
+import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import type { BotPresence, ChatMessage, DocumentItem, OutgoingMessage, Reaction, RosterBot } from "./types"
 
@@ -393,7 +393,9 @@ async function defaultTransport(): Promise<Transport> {
 type MockModule = typeof import("../sync/mock-room")
 
 function devTransport(mock: MockModule, fixtureRoom: RoomId): Transport {
-  const user = mock.createMockUser()
+  // `?mockChats=2000` seeds a long list, to prove the sidebar stays virtual. Dev only.
+  const count = Number(new URLSearchParams(globalThis.location?.search).get("mockChats")) || 0
+  const user = mock.createMockUser(count > 0 ? { chats: manyChats(count) } : {})
   const rooms = new Map<string, MockRoom>()
   return {
     user: user.connect,
@@ -408,6 +410,20 @@ function devTransport(mock: MockModule, fixtureRoom: RoomId): Transport {
       return answering(r)
     },
   }
+}
+
+function manyChats(count: number): Chat[] {
+  const now = Date.now()
+  return Array.from({ length: count }, (_, i) => ({
+    roomId: newRoomId(now - i * 1000),
+    title: `chat ${i + 1}`,
+    pinned: i < 3,
+    muted: false,
+    lastSeq: 0,
+    lastPreview: `message number ${i + 1} in this chat`,
+    unread: i % 7 === 0 ? 1 : 0,
+    updatedAt: now - i * 60_000,
+  }))
 }
 
 /** Wraps the mock's socket so the lead agent types and then answers each send. */
