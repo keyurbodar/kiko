@@ -577,7 +577,7 @@ Agents schedule their own work with the same tool by naming themselves as the ta
 
 Delivery is into the chat only. The spec excludes notifications.
 
-ASSUMPTION: the recurrence library is `rrule` 2.8.1. It was last published in November 2023 and is still the standard. `rrule-temporal` needs the Temporal API, and Temporal in the Workers runtime is UNVERIFIED. The verification suite includes cases on both sides of a daylight-saving change.
+The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `nextOccurrence(rrule, tz, afterUtc)` in `apps/server/src/user/recurrence.ts` runs the rule on floating wall-clock dates and converts each result to UTC with `Intl`, because `rrule` has no zone math. Tests in workerd cover "every day at 09:00" and "every monday at 09:00" in `America/New_York` and `Europe/Berlin` across both 2026 changes. Local time stays 09:00. A time inside a spring-forward gap runs later by the gap (02:30 becomes 03:30). In a fall-back overlap the first instant wins. `rrule-temporal` was not needed.
 
 ## 15. Skills
 
