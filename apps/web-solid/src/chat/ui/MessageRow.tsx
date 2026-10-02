@@ -104,8 +104,8 @@ export function MessageRow(props: {
       data-replying={props.replying ? "" : undefined}
       onContextMenu={props.onContextMenu}
     >
-      <Show when={grouped() && props.isRunEnd}>
-        <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} />
+      <Show when={grouped()}>
+        <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
       <Bubble
         variant={props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
