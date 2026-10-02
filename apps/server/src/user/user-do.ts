@@ -160,7 +160,9 @@ export class UserDO extends DurableObject<Env> {
     const setting = (key: string) =>
       this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
     const limits = setting("limits")
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null })
+    const body = (id: string) => this.memory.peek(id)?.body ?? ""
+    const memory = { profile: body("profile"), now: body("now"), todo: body("todo") }
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null }, memory)
   }
 
   // pi-ai's `CredentialStore` for this user. A `#` member, so RPC can never reach it.

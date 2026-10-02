@@ -8,9 +8,10 @@ import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
-import { findProvider } from "../user/turn-context"
+import { findProvider, type TurnMemory } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
 import { roomFilesPort } from "./extensions/files"
+import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
@@ -133,15 +134,34 @@ export class AgentDO extends DurableObject<Env> {
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
     const files = roomFilesPort(this.env, () => this.home(), user.models)
+    const memory = this.memoryPort()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files }),
+      ...buildAgent({ ...role, model: await this.model(), files, memory }),
       ...user,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
+      inputContext: async () => memoryContext(this.#run?.memory ?? null),
+    }
+  }
+
+  /**
+   * The memory tools' port (P5-02). The profile, `now`, and `todo` come from the run's one
+   * `turnContext` call. A process that resumed a run without one loads it here, once.
+   */
+  private memoryPort(): MemoryPort | undefined {
+    const home = this.home()
+    if (!home) return undefined
+    return {
+      author: home.slug,
+      context: async () => {
+        if (!this.#run) await this.loadAuth((await this.model()).provider)
+        return this.#run?.memory ?? null
+      },
+      op: (op) => userStub(this.env.USER, home.userId).memoryOp(op),
     }
   }
 
   // Per-run credentials (P4-02). The auth lives in this process's memory only, never in storage.
-  #run: { provider: string; auth: AuthResult | null } | null = null
+  #run: { provider: string; auth: AuthResult | null; memory: TurnMemory | null } | null = null
 
   /** Before a run: applies a newly chosen model, then loads the user's auth for its provider. */
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
@@ -168,7 +188,8 @@ export class AgentDO extends DurableObject<Env> {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider) : null
-    this.#run = { provider, auth: context?.auth ?? null }
+    const memory = context ? { profile: context.profile, now: context.now, todo: context.todo } : null
+    this.#run = { provider, auth: context?.auth ?? null, memory }
     return this.#run.auth
   }
 

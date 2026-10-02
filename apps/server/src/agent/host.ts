@@ -41,6 +41,8 @@ export type AgentSetup = {
    * dropped and nothing is submitted. Absent means every run may start.
    */
   beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
+  /** One more `<context>` block for each submitted input, after the briefs: the user's `now` and `todo` (section 13.2). */
+  inputContext?: () => Promise<string | undefined>
 }
 
 export type HostOptions = {
@@ -53,7 +55,7 @@ export type HostOptions = {
   progress?: () => RunProgress | null
 }
 
-export type Opened = { harness: Harness; root: Conversation; storage: CoalescingStorage; beginRun?: AgentSetup["beginRun"] }
+export type Opened = { harness: Harness; root: Conversation; storage: CoalescingStorage; beginRun?: AgentSetup["beginRun"]; inputContext?: AgentSetup["inputContext"] }
 
 export type HostStatus = {
   open: boolean
@@ -139,7 +141,7 @@ export class AgentHost {
       const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
       const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings }, context)
       const root = await harness.root(context, { agent: setup.agent })
-      const opened = { harness, root, storage, beginRun: setup.beginRun }
+      const opened = { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext }
       await this.options.onOpen?.(opened)
       harness.resume()
       return opened
@@ -173,7 +175,7 @@ export class AgentHost {
    * round, and a queue waits for its answer. A batch claimed before a crash is submitted again with
    * the same request id, which `pi-durable` ignores.
    */
-  private async drain({ harness, root, beginRun }: Opened): Promise<void> {
+  private async drain({ harness, root, beginRun, inputContext }: Opened): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       // Withdraws every queued input and aborts the run's tasks, then waits until the conversation is idle.
       await root.abort(context)
@@ -197,7 +199,9 @@ export class AgentHost {
       }
       await this.ctx.storage.put(RESTARTS_KEY, restarts)
       const whenBusy = action === "steer" ? ({ whenBusy: "steer" } as const) : {}
-      await root.submit({ type: "input", content: renderInput(batch), requestId: batch.requestId, ...whenBusy }, context)
+      const extra = await inputContext?.()
+      const content = renderInput(extra ? { ...batch, briefs: [...batch.briefs, extra] } : batch)
+      await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
     }
   }
