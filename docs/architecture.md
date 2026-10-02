@@ -404,6 +404,8 @@ Every client action is applied locally first. The client keeps a list of pending
 - The session cookie cache is on, so most requests verify a signed cookie and do not read D1.
 - The auth instance is created per request from `env`. The Worker needs the `nodejs_compat` flag for `AsyncLocalStorage`.
 - `bunx auth init` is a real command, but it scaffolds Next.js and SQLite only (Better Auth docs). The plan runs it for the reference config and adapts the result by hand. Migrations are generated as SQL and applied with `wrangler d1 migrations apply`.
+- A dev-only Better Auth plugin serves `POST /api/auth/dev/session` with `{ "name" }` and mints a session for `<name>@dev.kiko.test`. It is selected only when `process.env.NODE_ENV === "development"`, which wrangler sets at bundle time ("production" for deploy). A production bundle does not contain it, and the route also refuses any host that is not local. `kiko login --dev` and the server tests use it.
+- A Google or GitHub provider is on only when both of its env values are set, so local runs need no OAuth clients.
 
 **Reasoning.** Pi has no user accounts, so kiko needs them. The spec names Better Auth. D1 is the right store for data that is global and tiny. All per-user data lives in that user's Durable Objects, so D1 never becomes a bottleneck.
 

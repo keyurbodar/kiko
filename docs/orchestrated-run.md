@@ -69,3 +69,6 @@ The coordinator adds to this list as tasks land.
 - The test model is `opencode-go/deepseek-v4.1-flash` (provider `opencode-go`, model id `deepseek-v4.1-flash`).
 - Wire types are in `@kiko/protocol` (`packages/protocol`). Plain types from `.`, Effect schemas from `./schema`, sample frames from `./fixtures`. Client code imports types only.
 - Never use `git stash`. The stash is shared by every worktree.
+- Sessions: `getSessionUser(request, env)` in `apps/server/src/auth/auth.ts` is the only source of a user id. Locally, run `bunx wrangler d1 migrations apply kiko-auth --local` once in `apps/server`, start the Worker with `NODE_ENV=development`, then `bun kiko login --dev --name alice --url http://localhost:<port>`. The CLI stores cookies per origin; other CLI commands send them with `sessionCookie(url)` from `apps/cli/src/commands/login.ts`. Set `KIKO_SESSION_FILE` to a file in your worktree so agents do not overwrite each other's sessions.
+- The bubble splitter is `apps/server/src/agent/split-bubbles.ts` (`createSplitter()`). The markdown parser is `parseRichText(markdown)` in `apps/server/src/room/rich-text.ts`.
+- Client routes live in `apps/web-solid/src/app/routes.tsx`; the shell is `app/shell.tsx`, the rail `app/rail.tsx`.
