@@ -37,7 +37,7 @@ describe("registry", () => {
 })
 
 describe("kat commands", () => {
-  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, openPalette() {}, openChats() {} })
+  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette() {}, openChats() {} })
 
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.map((c) => [c.title, c.shortcut]))
@@ -49,6 +49,7 @@ describe("kat commands", () => {
       "chat: rename": "F2",
       "chat: pin": "Mod+D",
       "chat: info": "Mod+I",
+      "chat: files": "Mod+Shift+E",
       "chat: close": "Mod+W",
       "chat: delete": undefined,
       "chats: go to chat...": "Mod+P",
@@ -64,12 +65,18 @@ describe("kat commands", () => {
     expect([c.shortcut, c.alias]).toEqual(["Mod+N", "Mod+T"])
   })
 
-  test("only the sidebar toggle, chat info, and the palette are global", () => {
-    expect(list.filter((c) => c.global).map((c) => c.id).sort()).toEqual(["chat.info", "chats.go", "palette.open", "view.toggle-sidebar"])
+  test("only the sidebar toggle, chat info and files, and the palette are global", () => {
+    expect(list.filter((c) => c.global).map((c) => c.id).sort()).toEqual(["chat.files", "chat.info", "chats.go", "palette.open", "view.toggle-sidebar"])
   })
 
   test("non-global shortcuts ignore text fields, global ones do not", () => {
     for (const c of list) expect(hotkeyOptions(c).ignoreInputs).toBe(!c.global)
+  })
+
+  test("a passive shortcut leaves the key for the dialog above it, and others consume it", () => {
+    const passive = hotkeyOptions({ id: "x", title: "x: y", group: "chat", icon: "close", shortcut: "Escape", passive: true, run() {} })
+    expect([passive.preventDefault, passive.stopPropagation]).toEqual([false, false])
+    for (const c of list) expect([hotkeyOptions(c).preventDefault, hotkeyOptions(c).stopPropagation]).toEqual([true, true])
   })
 
   test("the cheatsheet lists every shortcut once", () => {

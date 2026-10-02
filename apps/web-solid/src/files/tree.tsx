@@ -21,7 +21,7 @@ import {
 } from "./model"
 
 /*
- * The files sidebar. It draws the room's file index as a tree, the way kat's
+ * The file tree in the chat's right panel. It draws the room's file index as a tree, the way kat's
  * code panel does: 30 px rows, 16 px per level, a rotating chevron, no
  * animation. The index is the only source of files. A write by an agent lands
  * as a `file` event, the room store updates `files`, and the tree rebuilds.
@@ -35,6 +35,8 @@ export type FileTreeProps = {
 	roomId: string
 	/** The room's file index. `name` is the full path. */
 	files: readonly FileRef[]
+	/** The open file, drawn as the selected row. When given, it is the only selected row. */
+	active?: string | null
 	/** A file was opened, by click or Enter. */
 	onOpen?: (path: string) => void
 	/** Bumps when something outside the tree asks for a new file. */
@@ -261,16 +263,14 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 					data-folder={folder() ? "" : undefined}
 					data-open={open() ? "" : undefined}
 					data-hidden={isHidden(id) ? "" : undefined}
-					data-selected={tree.selected().includes(id) ? "" : undefined}
+					data-selected={(props.active !== undefined ? props.active === id : tree.selected().includes(id)) ? "" : undefined}
 					data-focused={tree.focused() === id ? "" : undefined}
 					style={{ "--ft-depth": item.getItemMeta().level }}
 					onClick={(e: MouseEvent) => {
 						const handler = (tree.itemProps(item) as { onClick?: (e: MouseEvent) => void }).onClick
+						// The core's click focuses, selects, and toggles a folder. A file also opens.
 						handler?.(e)
-						if (folder()) {
-							if (open()) item.collapse()
-							else item.expand()
-						} else props.onOpen?.(id)
+						if (!folder()) props.onOpen?.(id)
 					}}
 					onDblClick={() => startRename(id)}
 				>

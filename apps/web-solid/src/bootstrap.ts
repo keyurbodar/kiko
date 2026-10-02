@@ -8,7 +8,6 @@ const RELOAD_KEY = "kiko:preload-reload";
 
 // Same specifiers as `app/routes.tsx`, so the bundler shares the chunks.
 function firstRouteChunk(path: string): Promise<unknown> {
-  if (path.startsWith("/files")) return import("./app/routes/files");
   if (path.startsWith("/settings")) return import("./app/routes/settings");
   return import("./app/routes/chat");
 }

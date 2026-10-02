@@ -16,6 +16,8 @@ export function hotkeyOptions(command: Command) {
     enabled: isEnabled(command),
     // Two commands may share a key while one is disabled.
     conflictBehavior: "allow" as const,
+    preventDefault: !command.passive,
+    stopPropagation: !command.passive,
   }
 }
 

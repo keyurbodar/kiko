@@ -837,7 +837,7 @@ Each stored value carries a schema version. A version mismatch drops the warm ti
 | 1 | HTML shell. Inline critical CSS, the app icon, a script that sets theme variables. Target 10 to 20 KB | first response |
 | 2 | Solid runtime, router, stores, sync client, sidebar, transcript, bubbles, plain composer | at once, after the shell |
 | 3 | rich text renderer and sugar-high, media viewer, emoji picker, calendar, command palette, context menus | on idle or on intent |
-| 4 | files route with headless-tree and CodeMirror 6, board, memory, settings | on route intent |
+| 4 | the right panel's files tab with headless-tree, its lazy viewers (CodeMirror 6, the markdown parser, table, pdf, media), and settings | on route or tab intent |
 
 Routing uses `@solidjs/router` with lazy routes. Intent means pointer hover for 80 ms, pointer down, or keyboard focus on a link or a chat row. Intent preloads the route chunk and warms the chat from IndexedDB. solid-primitives has no intent-prefetch package, so kiko composes one from `@solid-primitives/event-listener` and `@solid-primitives/scheduled`.
 
@@ -845,7 +845,9 @@ The build stays on Vite, now Vite 8 (8.3.2, Rolldown-based) with `@tailwindcss/v
 
 Menus, tooltips, hover cards, dialogs and the dismissable layer are Kobalte, and they load after first paint in one chunk (`@kiko/ui/v2/overlays`). Until it lands, each part renders what it renders while closed: a root renders its children, a trigger renders its element, and a portal renders nothing. The toaster, `motion`, and icon glyphs not shown at rest load the same way. Tier 2 was 231.9 KB gzip before this and 142.5 KB after.
 
-**DEVIATION.** The spec names CodeMirror 6 as the text editor. Kiko uses it for the files route only. The composer keeps the existing `contenteditable` input, because the composer is in tier 2 and CodeMirror would be most of that tier's bytes.
+**DEVIATION.** The spec names CodeMirror 6 as the text editor. Kiko uses it for the file viewer in the right panel's files tab only. The composer keeps the existing `contenteditable` input, because the composer is in tier 2 and CodeMirror would be most of that tier's bytes.
+
+**DEVIATION.** Files are not a rail section. They live in the chat's right panel, on a files tab beside the info tab, after t3code's right panel: the tree, and the open file beside it in a wider panel. `/files/<room>/<path>` redirects to the chat with that file open. A markdown file renders with the room's own parser (`parseRichText`), imported into the lazy markdown viewer, so a file and a message holding the same markdown look the same and `marked` stays out of tiers 1 to 3.
 
 Effect v4 does not ship in tiers 1 to 3. See section 20.
 
@@ -948,7 +950,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | D3 | the pending burst lives in the agent's object | the human burst lives in the room. The agent keeps its inbox | 6.1 |
 | D4 | the server sends bubbles with a typing delay | the client paces bubbles | 6.3 |
 | D5 | `stub.onReaction` notifies the author agent | the reaction arrives with the next delivery | 6.5 |
-| D6 | CodeMirror 6 as the text editor | CodeMirror in the files route only | 19.3 |
+| D6 | CodeMirror 6 as the text editor | CodeMirror in the file viewer only | 19.3 |
 | D7 | Rolldown or Vite, Bun | Vite, with Bun as the package manager and test runner | 19.3 |
 
 ### Assumptions

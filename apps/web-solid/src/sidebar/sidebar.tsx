@@ -5,7 +5,6 @@ import { SECTIONS, type SectionId } from "../app/sections"
 import { cn } from "../lib/cn"
 import { ChatPanel } from "./chat-panel"
 import { PlusIcon } from "./icons"
-import { requestNewFile } from "./new-file"
 import "./sidebar.css"
 
 /*
@@ -14,7 +13,6 @@ import "./sidebar.css"
  */
 const PANELS: Record<SectionId, Component> = {
   chat: ChatPanel,
-  files: lazy(() => import("../files/panel")),
   settings: lazy(() => import("./settings/sidebar")),
 }
 const SECTION_IDS = SECTIONS.map((section) => section.id)
@@ -24,7 +22,6 @@ type PanelAction = { label: string; run: (navigate: (to: string) => void) => voi
 /** The header's one primary action. Settings has none. */
 const ACTIONS: Record<SectionId, PanelAction | null> = {
   chat: { label: "new chat", run: (navigate) => navigate("/chat/new") },
-  files: { label: "new file", run: () => requestNewFile() },
   settings: null,
 }
 

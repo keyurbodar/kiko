@@ -12,7 +12,6 @@ export function navCommands(deps: {
 }): Command[] {
   return [
     { id: "go.chat", title: "go: chat", group: "go", icon: "chat", run: () => deps.go("/chat") },
-    { id: "go.files", title: "go: files", group: "go", icon: "files", run: () => deps.go("/files") },
     { id: "settings.open", title: "settings: open", group: "settings", icon: "settings", shortcut: "Mod+,", global: true, run: () => deps.go("/settings") },
     { id: "settings.providers", title: "settings: connect a provider", group: "settings", icon: "key", run: () => deps.go("/settings/providers") },
     { id: "settings.model", title: "settings: default model", group: "settings", icon: "model", run: () => deps.go("/settings/models") },

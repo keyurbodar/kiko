@@ -4,7 +4,7 @@ import { newRoomId } from "../../sync/user-store"
 import { mergeCatalog } from "./catalog"
 import { formatBytes, shortDate, startedAt, subtitle } from "./format"
 import { forChat } from "./memory/records"
-import { clampWidth, closeInfo, infoOpen, infoSections, infoView, openInfo, popInfo, pushInfo, registerInfoSection, toggleInfo } from "./state"
+import { clampWidth, closeFile, closeInfo, DEFAULT_WIDTH, FILE_DEFAULT_WIDTH, infoOpen, infoSections, infoTab, infoView, openFile, openFilePath, openInfo, panelWidth, popInfo, pushInfo, registerInfoSection, toggleFiles, toggleInfo } from "./state"
 
 const member = (slug: string, lead = false): Member => ({ slug: slug as AgentSlug, name: slug, lead })
 const link = (seq: number): CatalogItem => ({ kind: "link", url: `https://a.dev/${seq}`, site: "a.dev", messageId: `m${seq}` as never, seq, at: seq })
@@ -75,6 +75,34 @@ describe("panel state", () => {
     popInfo()
     expect(infoView().kind).toBe("home")
     expect([clampWidth(10), clampWidth(400), clampWidth(9999)]).toEqual([280, 400, 560])
+    closeInfo()
+  })
+
+  test("cmd+i and cmd+shift+e switch tabs, and close the panel only from their own tab", () => {
+    closeInfo()
+    toggleFiles()
+    expect([infoOpen(), infoTab()]).toEqual([true, "files"])
+    toggleInfo()
+    expect([infoOpen(), infoTab()]).toEqual([true, "info"])
+    toggleInfo()
+    expect(infoOpen()).toBe(false)
+    toggleFiles()
+    toggleFiles()
+    expect(infoOpen()).toBe(false)
+  })
+
+  test("an open file widens the panel for its chat only, and closing it restores the width", () => {
+    closeInfo()
+    openFile("room-a", "notes/plan.md")
+    expect([infoOpen(), infoTab(), openFilePath("room-a"), openFilePath("room-b")]).toEqual([true, "files", "notes/plan.md", null])
+    expect([panelWidth("room-a"), panelWidth("room-b")]).toEqual([FILE_DEFAULT_WIDTH, DEFAULT_WIDTH])
+    openInfo()
+    expect(panelWidth("room-a")).toBe(DEFAULT_WIDTH)
+    openFile("room-a", null)
+    expect(openFilePath("room-a")).toBeNull()
+    openFile("room-a", "x.ts")
+    closeFile("room-a")
+    expect([infoOpen(), openFilePath("room-a"), panelWidth("room-a")]).toEqual([true, null, DEFAULT_WIDTH])
     closeInfo()
   })
 

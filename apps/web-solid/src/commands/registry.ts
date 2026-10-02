@@ -24,6 +24,8 @@ export interface Command {
   alias?: string
   /** A global shortcut also fires while a text field has focus. */
   global?: boolean
+  /** The key is not consumed: a dialog above still gets it. For Escape, which every layer uses. */
+  passive?: boolean
   /** Enabled while this returns true. Absent means always enabled. */
   when?: () => boolean
   run: () => void

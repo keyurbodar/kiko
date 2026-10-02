@@ -2,7 +2,7 @@ import type { FileRef } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { urls } from "../lib/store"
 
-// The files route's HTTP calls. The server's edit rule (architecture 18.1): a PUT that
+// The file viewer's HTTP calls. The server's edit rule (architecture 18.1): a PUT that
 // names the SHA-256 it started from is refused with 409 when the path holds other bytes.
 
 export const sha256Hex = async (data: BufferSource): Promise<string> =>
@@ -48,8 +48,6 @@ export const MAX_EDIT_BYTES = 2 * 1024 * 1024
 
 export const isTextFile = (f: Pick<FileRef, "name" | "type">) =>
 	TEXT_TYPES.test(f.type) || TEXT_EXT.test(f.name) || /(^|\/)\.[^/.]+$/.test(f.name)
-export const isImage = (f: Pick<FileRef, "type">) => /^image\/(?!svg)/.test(f.type)
-export const isVideo = (f: Pick<FileRef, "type">) => f.type.startsWith("video/")
 
 // A file the user just made. The index event can lag the PUT answer, so the new file shows at once
 // and drops out when the index has the path.

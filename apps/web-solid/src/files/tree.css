@@ -1,6 +1,6 @@
-/* The files sidebar. Matches kat's code panel (screenshot 15): 30 px rows,
- * 16 px per level, a 16 px chevron that rotates open, no animation anywhere,
- * indent guides only while the tree is hovered. Scoped under `.file-tree`. */
+/* The file tree in the right panel. Compact like t3code's: 28 px rows, 12 px per
+ * level, faint indent guides, a 16 px chevron that rotates open, no animation
+ * anywhere. Scoped under `.file-tree`. */
 
 .file-tree {
   display: flex;
@@ -46,7 +46,6 @@
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  padding: 0 2px 0 4px;
   scrollbar-width: thin;
 }
 
@@ -57,14 +56,14 @@
 }
 
 .file-tree .ft-row {
-  --ft-indent: 16px;
+  --ft-indent: 12px;
   position: relative;
   display: flex;
-  height: 30px;
+  height: 28px;
   align-items: center;
-  gap: 6px;
-  padding: 0 8px 0 calc(8px + var(--ft-depth, 0) * var(--ft-indent));
-  border-radius: 14px;
+  gap: 4px;
+  padding: 0 8px 0 calc(4px + var(--ft-depth, 0) * var(--ft-indent));
+  border-radius: 8px;
   cursor: default;
   outline: none;
   transition: none;
@@ -117,19 +116,19 @@
   white-space: nowrap;
 }
 
-/* Indent guides: one 1 px line per ancestor level, only while hovering. */
+/* Indent guides: one 1 px line per ancestor level, faint, and stronger while hovering. */
 .file-tree .ft-row::before {
   content: "";
   position: absolute;
-  inset: 0 auto 0 8px;
+  inset: 0 auto 0 4px;
   width: calc(var(--ft-depth, 0) * var(--ft-indent));
   background: repeating-linear-gradient(
     to right,
     oklch(from var(--text) l c h / 0.12) 0 1px,
     transparent 1px var(--ft-indent)
   );
-  background-position: 7px 0;
-  opacity: 0;
+  background-position: 8px 0;
+  opacity: 0.5;
   pointer-events: none;
 }
 
@@ -154,7 +153,7 @@
 }
 
 .file-tree .ft-empty {
-  padding: 12px 16px;
+  padding: 8px;
   color: var(--text-muted);
 }
 
