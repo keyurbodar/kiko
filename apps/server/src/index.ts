@@ -17,6 +17,7 @@ import { experimentCoalescingRoute } from "./experiments/coalescing"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 import { remindersRoute } from "./user/reminders-route"
+import { tidyRoute } from "./user/tidy-route"
 
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
@@ -55,6 +56,8 @@ export default {
     if (executorCallback) return executorCallback
     const reminders = await remindersRoute(request, env)
     if (reminders) return reminders
+    const tidied = await tidyRoute(request, env)
+    if (tidied) return tidied
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
     const previewed = await previewRoute(request, env)

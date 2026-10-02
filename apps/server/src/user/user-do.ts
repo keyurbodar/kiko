@@ -16,8 +16,11 @@ import { createMemory, type MemoryStore } from "./memory"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
-import { resolveTurnContext, type TurnContext } from "./turn-context"
+import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
+import { nextTidyAt, TIDY_WAKEUP, Tidy, type TidyReport } from "./tidy"
+import { DEFAULT_MODEL, userModels } from "../agent/factory"
+import { roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
@@ -57,6 +60,14 @@ export class UserDO extends DurableObject<Env> {
       this.alarms = createAlarms(ctx)
       this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
+      this.tidy = new Tidy({
+        sql: this.sql,
+        memory: this.memory,
+        now: Date.now,
+        chats: () => listChats(this.sql),
+        readChat: (roomId, since, limit) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).humanMessagesSince(since, limit),
+        complete: (system, prompt) => this.completeDefault(system, prompt),
+      })
     })
   }
 
@@ -103,7 +114,9 @@ export class UserDO extends DurableObject<Env> {
    * and broadcast. A repeat with the same `lastSeq` returns false and sends nothing.
    */
   async touchChat(roomId: RoomId, touch: Touch): Promise<boolean> {
-    return this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
+    const changed = this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
+    if (changed) await this.armTidy()
+    return changed
   }
 
   async searchChats(query: string): Promise<Chat[]> {
@@ -140,7 +153,50 @@ export class UserDO extends DurableObject<Env> {
 
   /** Memory. One RPC for every operation, the same one the socket uses. Never throws on a bad id. */
   async memoryOp(op: MemoryOp): Promise<MemoryResult> {
-    return this.memory.handle(op)
+    return this.memoryCall(op)
+  }
+
+  // The daily memory tidy (P5-03, architecture section 13.3). The logic is in tidy.ts.
+  private tidy!: Tidy
+
+  /** Runs the tidy now. `kiko memory tidy --now` and the alarm both come here. */
+  async tidyMemory(): Promise<TidyReport> {
+    return this.tidy.run()
+  }
+
+  /** A memory write arms the next tidy. Reads arm nothing. */
+  private async memoryCall(op: MemoryOp): Promise<MemoryResult> {
+    const result = this.memory.handle(op)
+    if (result.ok && !["list", "search", "view", "history"].includes(op.op)) await this.armTidy()
+    return result
+  }
+
+  /** Sets the tidy wakeup for the next 03:00 in the user's timezone, unless one is already set. */
+  private async armTidy(): Promise<void> {
+    if (this.sql.exec("SELECT 1 FROM wakeups WHERE key = ?", TIDY_WAKEUP).toArray().length) return
+    const tz = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'").toArray()[0]?.value
+    await this.alarms.setWakeup(TIDY_WAKEUP, nextTidyAt(tz ?? DEFAULT_TIMEZONE, Date.now()))
+  }
+
+  /**
+   * One completion with the user's default model and the user's own credential, for the tidy.
+   * Null when the user has no credential for that provider. Kiko pays for no model.
+   */
+  private async completeDefault(system: string, prompt: string): Promise<string | null> {
+    const { provider, modelId } = DEFAULT_MODEL
+    const auth = (await this.turnContext(provider)).auth
+    if (!auth) return null
+    const { models, settings } = userModels(async () => auth, `tidy-${this.ctx.id.toString()}`)
+    const model = models.getModel(provider, modelId)
+    if (!model) return null
+    const headers = (settings as { stream?: { headers?: Record<string, string> } }).stream?.headers
+    const reply = await models.completeSimple(
+      model,
+      { systemPrompt: system, messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
+      { headers },
+    )
+    if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error("the model call failed")
+    return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }
 
   // Provider credentials (P4-01). No method returns a secret.
@@ -284,7 +340,7 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "memory") {
-      send(ws, { t: "memory_result", reqId: frame.reqId, result: this.memory.handle(frame.op) })
+      send(ws, { t: "memory_result", reqId: frame.reqId, result: await this.memoryCall(frame.op) })
       return
     }
     if (frame.t === "theme") {
@@ -324,6 +380,7 @@ export class UserDO extends DurableObject<Env> {
     const due = await this.alarms.dueWakeups(Date.now())
     if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
     if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
+    if (due.includes(TIDY_WAKEUP)) await this.tidy.run()
     this.#loginState?.expire(due)
   }
 
