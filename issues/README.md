@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-108 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+109 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -108,6 +108,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P1-12](wave-06/P1-12-apply-the-mid-run-rules.md) | Apply the mid-run rules | backend | 4 | P1-11 | yes |
+| [P2-18](wave-06/P2-18-let-users-theme-everything-with-json.md) | Let users theme everything with JSON | frontend | 4 | P2-01, P4-05, P1-05 | yes |
 | [P7-06](wave-06/P7-06-build-the-integrations-settings.md) | Build the integrations settings | frontend | 2 | P7-03, P4-05 | yes |
 | [P8-08](wave-06/P8-08-build-the-file-viewer-and-editor.md) | Build the file viewer and editor | frontend | 3 | P8-07 | yes |
 
