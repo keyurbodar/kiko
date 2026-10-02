@@ -73,6 +73,18 @@ export function Composer(props: ComposerProps) {
     context: { items: [] },
   })
   const store = createPromptInputV2Store([persisted, setPersisted])
+  // Escape drops the quote, the way it closes a menu. A menu, a dialog or the mention list that
+  // wants the key has already used it by the time it reaches the document.
+  const dropReply = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !props.replyTo) return
+    const target = event.target
+    if (!(target instanceof HTMLElement) || !target.closest('[data-component="composer-dock"]')) return
+    if (document.querySelector('[role="dialog"], [role="menu"]')) return
+    event.preventDefault()
+    props.onClearReply?.()
+  }
+  document.addEventListener("keydown", dropReply)
+  onCleanup(() => document.removeEventListener("keydown", dropReply))
   const [decoding, setDecoding] = createSignal(false)
 
   const draftText = () =>
