@@ -12,5 +12,8 @@
     "miniflare": "^4",
     "typescript": "^5.9.0",
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "@earendil-works/pi-mcp": "1.0.0"
   }
 }

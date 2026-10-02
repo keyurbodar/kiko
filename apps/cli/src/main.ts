@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util"
+import { executor } from "./commands/executor"
 import { health } from "./commands/health"
 import { ws } from "./commands/ws"
 
@@ -13,9 +14,9 @@ export interface Context {
   idle: number
 }
 
-const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws }
+const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, executor }
 
-export const usage = "usage: kiko <health | ws <path>> [--url <url>] [--json] [--idle <ms>]"
+export const usage = "usage: kiko <health | ws <path> | executor <probe | discover>> [--url <url>] [--json] [--idle <ms>]"
 
 export async function main(argv: string[]): Promise<number> {
   try {

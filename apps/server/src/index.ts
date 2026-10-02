@@ -1,3 +1,4 @@
+import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth"
 import type { AgentDO } from "./agent/agent-do"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
@@ -24,6 +25,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
+    if (url.pathname.startsWith(executorOAuthPrefix)) return executorOAuth(request)
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
   },
