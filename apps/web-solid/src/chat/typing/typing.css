@@ -60,18 +60,16 @@
 }
 
 .typing-label-wrap {
-  position: relative;
-  display: block;
+  display: grid;
   min-width: 0;
   flex: 1;
 }
 
 .typing-label {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  margin-top: -0.75em;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
