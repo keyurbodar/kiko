@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kiko",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "../web-solid/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "USER", "class_name": "UserDO" },
+      { "name": "ROOM", "class_name": "RoomDO" },
+      { "name": "AGENT", "class_name": "AgentDO" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["UserDO", "RoomDO", "AgentDO"] }
+  ],
+  "d1_databases": [
+    { "binding": "AUTH_DB", "database_name": "kiko-auth", "database_id": "00000000-0000-0000-0000-000000000000" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }],
+  "kv_namespaces": [{ "binding": "PREVIEWS", "id": "00000000000000000000000000000000" }],
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "kiko-jobs" }],
+    "consumers": [{ "queue": "kiko-jobs" }]
+  }
+}
