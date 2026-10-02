@@ -3,7 +3,7 @@ name: verify-kiko
 description: "Drive the Kiko web app (SolidJS + Vite) in a real browser to prove what a user sees, and capture evidence. Use for 'verify the app', 'prove this change in the browser', 'check the Kiko UI', or before claiming a web-solid slice works."
 ---
 
-> **Owner rule.** Never use `ego-browser`. Drive the app only with Claude's own browser tools (`mcp__Claude_Browser__*`, or `mcp__claude-in-chrome__*`). If neither is available, skip the browser and report the check as open. The `ego-browser` sections below are kept only for what they check, not how they drive.
+> **Owner rule.** Never use `ego-browser`. Drive the app with `agent-browser --session <name>` (its own Chromium). See docs/orchestrated-run.md. The `ego-browser` sections below are kept only for what they check, not how they drive.
 
 # Verify Kiko
 
