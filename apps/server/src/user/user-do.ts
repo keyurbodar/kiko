@@ -4,6 +4,8 @@ import { DurableObject } from "cloudflare:workers"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { createAlarms } from "../lib/alarm"
+import { keyringFromEnv } from "../lib/crypto"
+import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { applyChatOp, type ChatChange, getChat, listChats, type Touch, touchChat } from "./chats"
 import { migrate } from "./schema"
 
@@ -71,6 +73,29 @@ export class UserDO extends DurableObject<Env> {
 
   async listChats(): Promise<Chat[]> {
     return listChats(this.sql)
+  }
+
+  // Provider credentials (P4-01). No method returns a secret.
+  // DEVIATION: the plan names these `connect` and `disconnect`, but `connect` is the
+  // `DurableObject` handler for incoming TCP sockets, so they carry a `Provider` suffix.
+
+  async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
+    return this.#credentials.connect(provider, apiKey)
+  }
+
+  async disconnectProvider(provider: string): Promise<boolean> {
+    return this.#credentials.disconnect(provider)
+  }
+
+  async listProviders(): Promise<ProviderInfo[]> {
+    return this.#credentials.listProviders()
+  }
+
+  // pi-ai's `CredentialStore` for this user. A `#` member, so RPC can never reach it.
+  #vault?: CredentialVault
+  get #credentials(): CredentialVault {
+    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name))
+    return this.#vault
   }
 
   // The socket.

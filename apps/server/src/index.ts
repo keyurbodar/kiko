@@ -5,6 +5,7 @@ import { authRoute } from "./auth/auth"
 import { handleImageJob, isImageJob } from "./previews/image-job"
 import { devFixtureFetcher, previewRoute } from "./previews/route"
 import { route } from "./router"
+import { credentialsRoute } from "./user/credentials-route"
 import { experimentTurnRoute } from "./experiments/turn"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
@@ -26,6 +27,8 @@ export interface Env {
   ASSETS: Fetcher
   OPENCODE_API_KEY: string
   CREDENTIALS_KEK: string
+  CREDENTIALS_KEK_VERSION?: string
+  CREDENTIALS_KEK_PREVIOUS?: string
   BETTER_AUTH_SECRET: string
 }
 
@@ -37,6 +40,8 @@ export default {
     if (url.pathname === "/api/experiments/imports") return Response.json(await runImports())
     const routed = await route(request, env)
     if (routed) return routed
+    const credentials = await credentialsRoute(request, env)
+    if (credentials) return credentials
     const previewed = await previewRoute(request, env)
     if (previewed) return previewed
     const authResponse = await authRoute(request, env)
