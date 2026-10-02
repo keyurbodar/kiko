@@ -1,5 +1,5 @@
 import { planAttachments } from "../chat/lib/album"
-import { Show, createEffect, createSignal, on, onCleanup } from "solid-js"
+import { Show, Suspense, createEffect, createSignal, lazy, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type {
   ComposerProps,
@@ -19,8 +19,10 @@ import { createMediaViewer } from "../chat/media/mediaViewer"
 
 import { runSlash, slashSuggestions } from "./slash"
 import { draftLinkUrl } from "./link-draft"
-import { ComposerLinkPreview } from "./link-preview"
 import { hasWebPageContent, resolveLinkPreview } from "../chat/lib/linkPreview"
+
+/* The link card shows only once a draft has a link with a preview, so it loads then. */
+const ComposerLinkPreview = lazy(() => import("./link-preview").then((m) => ({ default: m.ComposerLinkPreview })))
 
 const LINK_PREVIEW_DEBOUNCE_MS = 400
 
@@ -314,11 +316,13 @@ export function Composer(props: ComposerProps) {
 
       <Show when={draftLink()?.preview ? draftLink() : null}>
         {(link) => (
-          <ComposerLinkPreview
-            url={link().url}
-            preview={link().preview}
-            onDismiss={() => setDismissedLink(link().url)}
-          />
+          <Suspense>
+            <ComposerLinkPreview
+              url={link().url}
+              preview={link().preview}
+              onDismiss={() => setDismissedLink(link().url)}
+            />
+          </Suspense>
         )}
       </Show>
     </>
