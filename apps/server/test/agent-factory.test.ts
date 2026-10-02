@@ -5,6 +5,8 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import { defineExtension, Harness, MemoryStorage, wrapSection } from "@earendil-works/pi-durable"
 import { BASE, type BuildAgentInput, buildAgent } from "../src/agent/factory"
 import { TRUST } from "../src/agent/extensions/trust"
+import { SUBAGENT } from "../src/agent/extensions/subagent"
+import { WEB } from "../src/agent/extensions/web"
 import { SECTION_ORDER } from "../src/agent/prompt"
 
 // The factory is the one place that configures an agent (architecture section 16). These tests run
@@ -103,7 +105,7 @@ describe("buildAgent", () => {
     const extra = defineExtension({ name: "extra" })
     for (const lead of [true, false]) {
       const names = (buildAgent({ role: "", lead, model: FAUX, testExtensions: [extra] }).agent.extensions as readonly { name: string }[]).map((e) => e.name)
-      expect(names).toEqual([BASE, "extra", TRUST])
+      expect(names).toEqual([BASE, WEB, SUBAGENT, "extra", TRUST])
     }
   })
 

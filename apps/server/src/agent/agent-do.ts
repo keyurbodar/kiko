@@ -6,6 +6,7 @@ import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import { fakeSetup } from "./dev-fake"
+import { roomFilesPort } from "./extensions/files"
 import { buildAgent, DEV_MODEL, devModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
@@ -122,11 +123,10 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role)
-    return {
-      ...buildAgent({ ...role, model: DEV_MODEL }),
-      // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
-      ...devModels(this.env.OPENCODE_API_KEY, this.ctx.id.toString()),
-    }
+    // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
+    const dev = devModels(this.env.OPENCODE_API_KEY, this.ctx.id.toString())
+    const files = roomFilesPort(this.env, () => this.home(), dev.models)
+    return { ...buildAgent({ ...role, model: DEV_MODEL, files }), ...dev }
   }
 
   async alarm() {
