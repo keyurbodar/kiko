@@ -152,7 +152,7 @@ export function Shell(props: ParentProps) {
           class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-tl-[32px] bg-bg"
           data-component="main-panel"
         >
-          <div class="flex min-h-0 min-w-0 flex-1">
+          <div class="@container/main relative flex min-h-0 min-w-0 flex-1">
             <div class="flex min-w-0 flex-1 flex-col">
               <TopBar />
               {props.children}

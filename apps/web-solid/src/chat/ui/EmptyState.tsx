@@ -20,9 +20,23 @@ export function EmptyState(props: { hint?: string; class?: string }) {
       data-component="chat-empty"
     >
       <Show when={useApp.activeThreadId()}>{(id) => <IdentityAvatar seed={id()} size={64} />}</Show>
+      <Show when={useApp.activeThreadId()}>
+        {(id) => (
+          <span class="mt-1 text-base font-medium text-text" data-component="chat-empty-name">
+            {useApp.chatById(id())?.name}
+          </span>
+        )}
+      </Show>
       <span class="chat-empty__text text-sm lowercase">
         {props.hint ?? "no messages yet. say something to start the thread."}
       </span>
+      <Show when={!props.hint}>
+        <span class="text-xs lowercase opacity-80" data-component="chat-empty-tips">
+          {useApp.members().length > 1
+            ? "type @ to mention an agent, / for commands"
+            : "type / for commands, shift+enter for a new line"}
+        </span>
+      </Show>
     </div>
   )
 }

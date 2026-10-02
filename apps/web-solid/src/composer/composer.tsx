@@ -73,6 +73,18 @@ export function Composer(props: ComposerProps) {
     context: { items: [] },
   })
   const store = createPromptInputV2Store([persisted, setPersisted])
+  // Escape drops the quote, the way it closes a menu. A menu, a dialog or the mention list that
+  // wants the key has already used it by the time it reaches the document.
+  const dropReply = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !props.replyTo) return
+    const target = event.target
+    if (!(target instanceof HTMLElement) || !target.closest('[data-component="composer-dock"]')) return
+    if (document.querySelector('[role="dialog"], [role="menu"]')) return
+    event.preventDefault()
+    props.onClearReply?.()
+  }
+  document.addEventListener("keydown", dropReply)
+  onCleanup(() => document.removeEventListener("keydown", dropReply))
   const [decoding, setDecoding] = createSignal(false)
 
   const draftText = () =>
@@ -177,7 +189,7 @@ export function Composer(props: ComposerProps) {
       id: `agent-${bot.id}`,
       kind: "agent",
       label: `@${bot.name}`,
-      description: bot.persona ?? "Agent",
+      description: bot.persona ?? "agent",
       mention: { type: "agent", name: bot.name, content: `@${bot.name}`, start: 0, end: 0 },
     }))
 
@@ -188,7 +200,7 @@ export function Composer(props: ComposerProps) {
    * reader switches conversation.
    */
   const placeholder = () => {
-    const name = botById(props.threadId)?.name
+    const name = props.title || botById(props.threadId)?.name
     return name ? `message ${name.toLowerCase()}` : "message"
   }
 
@@ -292,7 +304,7 @@ export function Composer(props: ComposerProps) {
             role={
               message().sender === "user"
                 ? "you"
-                : (botById(message().botId)?.name ?? "agent").toLowerCase()
+                : (botById(message().botId)?.name ?? (props.bots.length === 1 ? props.bots[0]!.name : "agent")).toLowerCase()
             }
             onJump={() => props.onJumpToReply?.(message().id)}
             onDismiss={() => props.onClearReply?.()}

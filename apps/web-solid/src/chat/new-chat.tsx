@@ -199,7 +199,12 @@ export function NewChat() {
               <span class="new-chat-name">new agent</span>
             </li>
           </ul>
-          <p class="new-chat-foot">search by name or @handle</p>
+          <Show when={picked().length > 0} fallback={<p class="new-chat-foot">search by name or @handle</p>}>
+            <button type="button" class="new-chat-start" data-component="new-chat-start" onClick={() => create(picked())}>
+              {picked().length > 1 ? `start group with ${picked().length}` : `start chat with ${picked()[0]!.name}`}
+              <span class="new-chat-start-key" aria-hidden="true">enter</span>
+            </button>
+          </Show>
         </Show>
       </div>
     </div>

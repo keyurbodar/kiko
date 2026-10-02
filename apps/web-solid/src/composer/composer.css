@@ -423,3 +423,14 @@
     padding: 8px 10px 6px;
   }
 }
+
+/*
+ * iOS zooms the page when a field under 16px takes focus, and it does not zoom
+ * back. On a touch screen the editor and its placeholder are 16px.
+ */
+@media (pointer: coarse) {
+  .composer-dock .composer-input,
+  .composer-dock .composer-placeholder {
+    font-size: 16px;
+  }
+}
