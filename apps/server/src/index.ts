@@ -9,6 +9,7 @@ import { devFixtureFetcher, previewRoute } from "./previews/route"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
 import { experimentTurnRoute } from "./experiments/turn"
+import { experimentCoalescingRoute } from "./experiments/coalescing"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 import { remindersRoute } from "./user/reminders-route"
@@ -54,6 +55,7 @@ export default {
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
     if (url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
+    if (url.pathname === "/api/experiments/coalescing") return experimentCoalescingRoute(request, env)
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
   },

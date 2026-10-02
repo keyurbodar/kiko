@@ -1,0 +1,133 @@
+// Experiment 3 (architecture section 17.5). Measures the SQLite rows one turn writes, with and without
+// write coalescing. The model is pi-ai's faux provider, so a measurement costs no tokens and streams
+// for a fixed time. Delete this once AgentDO has its real host and the numbers are in section 21.
+
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
+import { createModels } from "@earendil-works/pi-ai/models"
+import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
+import { AssistantEntry, createRegistry, Harness, type Storage } from "@earendil-works/pi-durable"
+import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
+import { type CoalescingStorage, createCoalescingStorage } from "../agent/coalescing-storage"
+import { openDurableObjectSqlite } from "../agent/sqlite"
+import type { Env } from "../index"
+
+const context = BACKGROUND_CONTEXT
+export const FAUX_MODEL = { provider: "faux", modelId: "faux-1" }
+/** Faux pacing. pi-ai sends a chunk of 3 to 5 tokens, so 50 tokens a second is a chunk about every 80 ms. */
+export const TOKENS_PER_SECOND = 50
+
+/** Text that the faux model streams for about `ms` milliseconds at `TOKENS_PER_SECOND`. */
+export const streamedText = (ms: number) => {
+  const chars = Math.round((ms / 1000) * TOKENS_PER_SECOND * 4)
+  return "lorem ipsum dolor sit amet ".repeat(Math.ceil(chars / 27)).slice(0, chars)
+}
+
+/** A view of a Durable Object's storage that counts the SQLite rows written through it. */
+export function countRowsWritten(storage: DurableObjectStorage) {
+  let rows = 0
+  const sql = {
+    exec: (query: string, ...bindings: unknown[]) => {
+      const cursor = storage.sql.exec(query, ...bindings)
+      // The facade reads every result at once, so the count is final after `toArray`.
+      const result = cursor.toArray()
+      rows += cursor.rowsWritten
+      return { toArray: () => result }
+    },
+  }
+  const counted = { sql, transaction: storage.transaction.bind(storage) } as unknown as DurableObjectStorage
+  return { storage: counted, rows: () => rows }
+}
+
+/** Opens pi-durable over the object's SQLite, through the coalescing wrapper when asked. */
+export async function openDurable(storage: DurableObjectStorage, coalesce: boolean) {
+  const sqlite = await SqliteStorage.open(openDurableObjectSqlite(storage))
+  const durable: Storage = coalesce ? createCoalescingStorage(sqlite) : sqlite
+  return { durable, coalescing: coalesce ? (durable as CoalescingStorage) : undefined }
+}
+
+export function fauxModels(responses: string[]) {
+  const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
+  const models = createModels()
+  models.setProvider(faux.provider)
+  faux.setResponses(responses.map((text) => fauxAssistantMessage(text)))
+  return models
+}
+
+type Message = { content?: { type: string; text?: string }[]; stopReason?: string }
+const textOf = (message: Message | undefined) =>
+  (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("")
+
+/** The assistant entries of the root conversation, oldest first. */
+export async function assistantMessages(harness: Harness) {
+  const view = await (await harness.root(context)).context(context)
+  return view.entries
+    .filter((entry) => entry.kind === AssistantEntry.kind)
+    .map((entry) => {
+      const message = entry.model?.[0] as Message | undefined
+      return { text: textOf(message), stopReason: message?.stopReason }
+    })
+}
+
+export type TurnMeasurement = {
+  coalesce: boolean
+  status: string
+  streamMs: number
+  rowsWritten: number
+  commits: number
+  /** Commits the wrapper answered from memory. */
+  held: number
+  answerChars: number
+}
+
+/** Runs one turn on an empty database and counts what the turn alone writes. */
+export async function measureTurn(storage: DurableObjectStorage, coalesce: boolean, streamMs = 15_000): Promise<TurnMeasurement> {
+  const counted = countRowsWritten(storage)
+  const { durable, coalescing } = await openDurable(counted.storage, coalesce)
+  let commits = 0
+  const counting = new Proxy(durable, {
+    get(target, key: keyof Storage) {
+      if (key === "commit") return (...args: Parameters<Storage["commit"]>) => (commits++, target.commit(...args))
+      const member = target[key] as unknown
+      return typeof member === "function" ? member.bind(target) : member
+    },
+  })
+  const answer = streamedText(streamMs)
+  const harness = await Harness.open(counting, { models: fauxModels([answer]), registry: createRegistry() }, context)
+  const root = await harness.root(context, { agent: { model: FAUX_MODEL } })
+  // Opening migrates the schema and creates the root. Only what the turn writes counts.
+  const rowsBefore = counted.rows()
+  const commitsBefore = commits
+  const started = Date.now()
+  const submission = await root.submit({ type: "input", content: "count", requestId: "measure" }, context)
+  const settled = await submission.wait(context)
+  await harness.waitForIdle(context)
+  const elapsed = Date.now() - started
+  const rowsWritten = counted.rows() - rowsBefore
+  const turnCommits = commits - commitsBefore
+  const held = coalescing?.stats().held ?? 0
+  const last = (await assistantMessages(harness)).at(-1)
+  await harness.close(context)
+  return {
+    coalesce,
+    status: settled.status,
+    streamMs: elapsed,
+    rowsWritten,
+    commits: turnCommits,
+    held,
+    answerChars: last?.text === answer ? answer.length : -1,
+  }
+}
+
+declare const process: { env: { NODE_ENV?: string } }
+
+/** `POST /api/experiments/coalescing?coalesce=1&ms=15000`. Local development only. */
+export async function experimentCoalescingRoute(request: Request, env: Env): Promise<Response> {
+  if (process.env.NODE_ENV !== "development") return new Response("not found", { status: 404 })
+  if (request.method !== "POST") return new Response("method not allowed", { status: 405 })
+  const params = new URL(request.url).searchParams
+  const coalesce = params.get("coalesce") === "1"
+  const ms = Math.min(Math.max(Number(params.get("ms") ?? 15_000) || 15_000, 500), 60_000)
+  // A unique id, not a name: every measurement starts on an empty database and belongs to no user.
+  const stub = env.AGENT.get(env.AGENT.newUniqueId())
+  return Response.json(await stub.experimentCoalescing(coalesce, ms))
+}
