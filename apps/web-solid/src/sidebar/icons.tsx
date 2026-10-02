@@ -8,6 +8,8 @@ import BrainFilled from "@mingcute/solid/core-filled/brain";
 import BrainRegular from "@mingcute/solid/core-regular/brain";
 import DashboardFilled from "@mingcute/solid/core-filled/dashboard";
 import DashboardRegular from "@mingcute/solid/core-regular/dashboard";
+import LayoutLeftFilled from "@mingcute/solid/core-filled/layout-left";
+import LayoutLeftRegular from "@mingcute/solid/core-regular/layout-left";
 import FolderFilled from "@mingcute/solid/core-filled/folder";
 import FolderRegular from "@mingcute/solid/core-regular/folder";
 import Settings3Filled from "@mingcute/solid/core-filled/settings-3";
@@ -55,4 +57,14 @@ export function SettingsIcon(props: { active?: boolean }): JSX.Element {
 
 export function PlusIcon(): JSX.Element {
   return <AddRegular size={RAIL_ICON} />;
+}
+
+/** The sidebar toggle: filled while the column is open, regular while shut. */
+export function SidebarPanelIcon(props: { open?: boolean }): JSX.Element {
+  return (
+    <Dynamic
+      component={props.open ? LayoutLeftFilled : LayoutLeftRegular}
+      size={RAIL_ICON}
+    />
+  );
 }

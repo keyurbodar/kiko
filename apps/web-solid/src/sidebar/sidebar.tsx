@@ -43,8 +43,6 @@ export function Sidebar(props: SidebarProps) {
   let panelEl: HTMLElement | undefined
   let handleEl: HTMLDivElement | undefined
 
-  const toggleSidebar = () => setCollapsed(!collapsed())
-
   /*
    * Drag to resize. `createPerPointerListeners` follows one pointer from its
    * `down` to its `up` regardless of where it travels, so a drag that leaves
@@ -119,7 +117,7 @@ export function Sidebar(props: SidebarProps) {
       >
         <header class="panel-header">
           <span class="panel-title">{props.section}</span>
-          <ChatPanelMenu onToggleSidebar={toggleSidebar} />
+          <ChatPanelMenu />
         </header>
 
         <div class="panel-scroll">
@@ -131,7 +129,7 @@ export function Sidebar(props: SidebarProps) {
               </p>
             }
           >
-            <ChatPanel onToggleSidebar={toggleSidebar} />
+            <ChatPanel />
           </Show>
         </div>
 
@@ -165,11 +163,10 @@ export function Sidebar(props: SidebarProps) {
 }
 
 /**
- * The `+` in the panel header. kat hangs `toggle sidebar` off this affordance,
- * and it is the only entry that has somewhere real to go — a menu row with no
- * handler behind it is a lie, so nothing else is listed.
+ * The `+` in the panel header. the new-chat menu. It no longer owns the sidebar
+ * toggle; the rail icon and `cmd+b` do.
  */
-function ChatPanelMenu(props: { onToggleSidebar: () => void }) {
+function ChatPanelMenu() {
   return (
     <MenuV2>
       <MenuV2.Trigger
@@ -181,7 +178,7 @@ function ChatPanelMenu(props: { onToggleSidebar: () => void }) {
           "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] focus-visible:text-text",
         )}
         data-component="sidebar-add"
-        aria-label="sidebar options"
+        aria-label="new chat menu"
       >
         <PlusIcon />
       </MenuV2.Trigger>
@@ -193,7 +190,9 @@ function ChatPanelMenu(props: { onToggleSidebar: () => void }) {
           )}
           data-component="sidebar-add-menu"
         >
-          <MenuV2.Item onSelect={props.onToggleSidebar}>toggle sidebar</MenuV2.Item>
+          {/* Creating a chat is not wired yet (P2-09 owns the roster), so the row
+              is disabled rather than a menu entry that does nothing. */}
+          <MenuV2.Item disabled>new chat</MenuV2.Item>
         </MenuV2.Content>
       </MenuV2.Portal>
     </MenuV2>

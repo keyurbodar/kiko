@@ -301,7 +301,7 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
  * (minutes upward) and the list re-renders on every roster change, so a clock
  * would buy a repaint per minute and nothing else.
  */
-export function ChatPanel(props: { onToggleSidebar: () => void }) {
+export function ChatPanel() {
   const now = Date.now()
   const navigate = useNavigate()
   const pinned = createMemo(() => useApp.bots().filter((bot) => bot.pinned))
