@@ -448,6 +448,7 @@ Two cautions for the owner to decide on.
 
 - The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. A hosted multi-user service that signs users in with that client id may break the provider's terms. The plan ships API keys first and puts subscription sign-in behind a flag that is off by default.
 - pi-ai's generated model catalog is gitignored in `refs/pi`, but the published npm package does contain it, as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5, [results](research/experiment-5-bundle-and-catalog.md)).
+- pi-ai's generated model catalog is gitignored in `refs/pi`. The published npm package 1.0.0 contains it, one JSON file per provider under `dist/providers/data/` (experiment 1).
 
 ### 11.5 Model catalog for the client
 
@@ -456,6 +457,7 @@ A build step reads the pi-ai catalog and writes a hashed JSON asset. The setting
 ### 11.6 Test provider
 
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
+Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers` (see [research/experiment-1-durable-in-do.md](research/experiment-1-durable-in-do.md)).
 
 ## 12. Executor integration and code mode
 

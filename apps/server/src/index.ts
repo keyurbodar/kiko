@@ -3,6 +3,7 @@ import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { authRoute } from "./auth/auth"
 import { route } from "./router"
+import { experimentTurnRoute } from "./experiments/turn"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 
@@ -34,6 +35,7 @@ export default {
     if (routed) return routed
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
+    if (url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
   },
