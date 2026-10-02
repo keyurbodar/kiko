@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, For } from "solid-js"
 import { useApp } from "../lib/store"
 import { createFile, withMade } from "./api"
+import { newFileRequests } from "../sidebar/new-file"
 import { FileTree } from "./tree"
 import "./panel.css"
 
@@ -16,8 +17,8 @@ export const filesHref = (roomId: string, path?: string) =>
 export default function FilesPanel() {
 	const navigate = useNavigate()
 	const location = useLocation()
-	const roomId = createMemo(() => /^\/files\/([^/]+)/.exec(location.pathname)?.[1] ?? useApp.activeThreadId() ?? "")
 	const chats = createMemo(() => useApp.bots())
+	const roomId = createMemo(() => /^\/files\/([^/]+)/.exec(location.pathname)?.[1] || useApp.activeThreadId() || chats()[0]?.id || "")
 	// Opening the section on a room loads that room's index.
 	createEffect(() => {
 		const id = roomId()
@@ -33,6 +34,7 @@ export default function FilesPanel() {
 			<div class="fp-tree">
 				<FileTree
 					roomId={roomId()}
+					newFileRequests={newFileRequests}
 					files={files()}
 					onOpen={(path) => navigate(filesHref(roomId(), path))}
 					onNewFile={(path) => {

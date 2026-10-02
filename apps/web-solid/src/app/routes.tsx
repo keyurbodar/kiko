@@ -14,7 +14,6 @@ import { sectionOf } from "./sections"
 const pages = {
   chat: lazy(() => import("./routes/chat")),
   files: lazy(() => import("./routes/files")),
-  board: lazy(() => import("./routes/board")),
   settings: lazy(() => import("./routes/settings")),
 }
 
@@ -40,7 +39,7 @@ export const routes: RouteDefinition[] = [
   { path: "/", component: () => <Navigate href="/chat" /> },
   { path: ["/chat", "/chat/new", "/chat/:id"], component: pages.chat },
   { path: ["/files", "/files/:chatId/*path"], component: pages.files },
-  { path: ["/board", "/board/:chatId"], component: pages.board },
+  { path: ["/board", "/board/:chatId"], component: () => <Navigate href="/chat" /> },
   { path: ["/memory", "/memory/:id"], component: MemoryRedirect },
   { path: "/settings/*", component: pages.settings },
   { path: "*", component: () => <Navigate href="/chat" /> },

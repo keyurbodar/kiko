@@ -4,8 +4,6 @@ import { Dynamic } from "solid-js/web";
 import AddRegular from "@mingcute/solid/core-regular/add";
 import Chat1Filled from "@mingcute/solid/core-filled/chat-1";
 import Chat1Regular from "@mingcute/solid/core-regular/chat-1";
-import DashboardFilled from "@mingcute/solid/core-filled/dashboard";
-import DashboardRegular from "@mingcute/solid/core-regular/dashboard";
 import LayoutLeftFilled from "@mingcute/solid/core-filled/layout-left";
 import LayoutLeftRegular from "@mingcute/solid/core-regular/layout-left";
 import FolderFilled from "@mingcute/solid/core-filled/folder";
@@ -14,7 +12,7 @@ import Settings3Filled from "@mingcute/solid/core-filled/settings-3";
 import Settings3Regular from "@mingcute/solid/core-regular/settings-3";
 
 /** The panels above settings, in rail order. */
-export type PanelId = "chat" | "files" | "board";
+export type PanelId = "chat" | "files";
 
 /** Mirrors `--rail-icon`; the rail tab sizes its `svg` to this. */
 const RAIL_ICON = 22;
@@ -28,7 +26,6 @@ type Glyph = Component<{ size?: number | string }>;
 const PANEL_GLYPHS: Record<PanelId, { filled: Glyph; regular: Glyph }> = {
   chat: { filled: Chat1Filled, regular: Chat1Regular },
   files: { filled: FolderFilled, regular: FolderRegular },
-  board: { filled: DashboardFilled, regular: DashboardRegular },
 };
 
 export function RailIcon(props: {
