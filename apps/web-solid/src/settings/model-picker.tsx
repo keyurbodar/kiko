@@ -1,9 +1,9 @@
-import { A } from "@solidjs/router"
+import { A, useNavigate } from "@solidjs/router"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { chatModel, setChatModel } from "./chat-model"
 import { formatContext, formatPrice, loadCatalog, modelRef, searchModels } from "./catalog"
-import { connectedProviders } from "./connected"
+import { connectedProviders, connectedReady } from "./connected"
 
 // At most this many rows render for one search. A catalog holds hundreds of
 // models, and a search narrows it faster than scrolling does.
@@ -26,7 +26,7 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
     <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="model-list">
       <input
         type="search"
-        class="h-9 shrink-0 rounded-[10px] bg-[var(--tab-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        class="h-9 shrink-0 rounded-[10px] bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         placeholder="search models"
         aria-label="search models"
         autofocus={props.autofocus}
@@ -80,20 +80,29 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
   )
 }
 
+/** Whether the picker is open. A command opens it, so `chat: choose model` works from the keyboard. */
+const [pickerOpen, setPickerOpen] = createSignal(false)
+export const openModelPicker = () => setPickerOpen(true)
+
 /** The chat top bar control: shows the chat's model and opens the picker. Picking applies at once. */
 export function ModelPickerButton(props: { chatId: string | null }) {
-  const [open, setOpen] = createSignal(false)
+  const open = pickerOpen
+  const setOpen = setPickerOpen
+  const navigate = useNavigate()
   const current = () => chatModel(props.chatId)
+  // First run: with no provider connected a model cannot run, so the button is the way to connect one.
+  const needsProvider = () => connectedReady() && connectedProviders().length === 0
   return (
     <ModalV2 open={open()} onOpenChange={setOpen}>
       <button
         type="button"
-        class="ml-auto h-7 max-w-[220px] shrink-0 truncate rounded-[10px] px-2 text-xs text-muted hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        class="ml-auto h-9 max-w-[220px] shrink-0 truncate rounded-[10px] px-3 text-xs text-muted outline-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] data-[setup]:bg-[var(--accent-wash)] data-[setup]:text-[var(--accent)] md:h-7 md:px-2"
         data-component="model-picker-button"
-        aria-label="choose model"
-        onClick={() => setOpen(true)}
+        data-setup={needsProvider() ? "" : undefined}
+        aria-label={needsProvider() ? "connect a provider" : "choose model"}
+        onClick={() => (needsProvider() ? navigate("/settings/providers") : setOpen(true))}
       >
-        {current()?.split("/").slice(1).join("/") ?? "choose model"}
+        {needsProvider() ? <><span class="md:hidden">connect</span><span class="hidden md:inline">connect a provider</span></> : (current()?.split("/").slice(1).join("/") ?? "choose model")}
       </button>
       <ModalV2.Portal>
         <ModalV2.Overlay />

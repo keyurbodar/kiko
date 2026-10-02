@@ -20,19 +20,30 @@ export default function Palette() {
   const chats = createMemo(() => useApp.bots())
   let input: HTMLInputElement | undefined
 
+  // Focus goes back to where it was, so closing the palette does not strand the person on the page body.
+  let before: Element | null = null
   createEffect(() => {
-    if (paletteMode()) queueMicrotask(() => input?.focus())
+    if (paletteMode()) {
+      before ??= document.activeElement
+      queueMicrotask(() => input?.focus())
+    }
   })
+  const close = () => {
+    closePalette()
+    const el = before
+    before = null
+    if (el instanceof HTMLElement && el.isConnected) el.focus()
+  }
 
   const run = (fn: () => void) => {
-    closePalette()
+    close()
     fn()
   }
 
   return (
     <Show when={paletteMode()}>
       {(mode) => (
-        <div class="palette-scrim" data-component="palette" onMouseDown={(e) => e.target === e.currentTarget && closePalette()}>
+        <div class="palette-scrim" data-component="palette" onMouseDown={(e) => e.target === e.currentTarget && close()}>
           <Cmdk
             class="palette-panel"
             label="command palette"
@@ -40,7 +51,7 @@ export default function Palette() {
             onKeyDown={(e: KeyboardEvent) => {
               if (e.key === "Escape") {
                 e.preventDefault()
-                closePalette()
+                close()
               }
             }}
           >

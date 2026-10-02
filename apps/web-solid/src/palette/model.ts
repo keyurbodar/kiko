@@ -18,6 +18,15 @@ const ICONS: Record<string, string> = {
   chat: "bubble-5",
   search: "magnifying-glass",
   command: "keyboard",
+  files: "file-tree",
+  board: "status",
+  settings: "settings-gear",
+  key: "dot-grid",
+  model: "brain",
+  integrations: "mcp",
+  appearance: "eye",
+  account: "circle-check",
+  signout: "arrow-left",
 }
 
 export const iconFor = (name: string): string => ICONS[name] ?? "dot-grid"

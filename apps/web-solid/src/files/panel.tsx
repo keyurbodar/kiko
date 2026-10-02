@@ -29,7 +29,7 @@ export default function FilesPanel() {
 	return (
 		<div class="files-panel" data-component="files-panel">
 			<select class="fp-picker" aria-label="chat" value={roomId()} onChange={(e) => navigate(filesHref(e.currentTarget.value))}>
-				<For each={chats()}>{(c) => <option value={c.id}>{c.name || "new chat"}</option>}</For>
+				<For each={chats()}>{(c) => <option value={c.id} selected={c.id === roomId()}>{c.name || "new chat"}</option>}</For>
 			</select>
 			<div class="fp-tree">
 				<FileTree

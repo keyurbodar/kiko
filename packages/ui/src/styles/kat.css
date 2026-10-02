@@ -415,6 +415,10 @@
   --text-faint: oklch(
     var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--h-text)
   );
+  /* status colors. These were registered but never declared, so they rendered transparent. */
+  --danger: oklch(var(--l-danger) calc(var(--c-danger) * var(--cm)) var(--h-danger));
+  --success: oklch(var(--l-success) calc(var(--c-success) * var(--cm)) var(--h-success));
+  --gold: oklch(var(--l-gold) calc(var(--c-gold) * var(--cm)) var(--h-gold));
   --accent: oklch(
     var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--hue)
   );
