@@ -36,6 +36,8 @@ function memoryPort(images = false): FilesPort & { files: Map<string, { bytes: U
 
 const api = { agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }) } as unknown as ToolExecutionApi
 
+const call_ = (port: FilesPort, name: string, args: Record<string, unknown>) => tools(filesExtension(port))(name, args)
+
 function tools(extension: { tools?: readonly ToolRegistration[] }) {
   const byName = new Map((extension.tools ?? []).map((t) => [t.name, t]))
   return async (name: string, args: Record<string, unknown>) => {
@@ -89,6 +91,16 @@ describe("file tools", () => {
       const read = await tools(filesExtension(port))("read_file", { path: "pic.png" })
       expect(read.text).toBe(images ? "[image]" : "pic.png is an image (image/png, 7 bytes). this model cannot read images.")
     }
+  })
+
+  test("a pdf comes back as its text, page by page", async () => {
+    const port = memoryPort()
+    const bytes = new Uint8Array(await Bun.file(new URL("./fixtures/hello.pdf", import.meta.url)).arrayBuffer())
+    port.files.set("attachments/trip.pdf", { bytes, type: "application/pdf" })
+    const read = await call_(port, "read_file", { path: "attachments/trip.pdf" })
+    expect(read.isError).toBeFalsy()
+    expect(read.text).toContain("a pdf of 1 pages")
+    expect(read.text).toContain("kiko reads pdfs: lisbon trip plan")
   })
 
   test("a binary file is not read as text", async () => {

@@ -20,7 +20,7 @@ import { batch, createComputed, createRoot, createSignal, untrack } from "solid-
 import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
-import { uploadAll } from "../sync/uploads"
+import { attachmentName, uploadAll } from "../sync/uploads"
 import { createRoomStore, type MemberNotice, type RoomStore, type SendOptions } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
@@ -100,9 +100,9 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
     // Pictures and video with known dimensions are media; everything else is a document row.
     const visual = (f: FileRef) => (f.type.startsWith("image/") || f.type.startsWith("video/")) && !!f.width && !!f.height
     const media = m.files.filter(visual).map(
-      (f): MediaItem => ({ kind: f.type.startsWith("video/") ? "video" : "photo", src: urls.file(roomId, f.id), width: f.width!, height: f.height!, alt: f.name }),
+      (f): MediaItem => ({ kind: f.type.startsWith("video/") ? "video" : "photo", src: urls.file(roomId, f.id), width: f.width!, height: f.height!, alt: attachmentName(f.name) }),
     )
-    const docs = m.files.filter((f) => !visual(f)).map((f): DocumentItem => ({ name: f.name, size: f.size, mime: f.type, src: urls.file(roomId, f.id) }))
+    const docs = m.files.filter((f) => !visual(f)).map((f): DocumentItem => ({ name: attachmentName(f.name), size: f.size, mime: f.type, src: urls.file(roomId, f.id) }))
     if (media.length) out.media = media
     if (docs.length) out.documents = docs
   } else if (m.local?.length) {

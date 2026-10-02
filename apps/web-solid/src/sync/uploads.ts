@@ -20,6 +20,12 @@ export function attachmentPath(name: string, now = Date.now()): string {
   return `attachments/${now.toString(36)}-${clean}`
 }
 
+/** The name the human gave a file: `attachments/<time>-photo.png` reads as `photo.png`. */
+export function attachmentName(path: string): string {
+  const m = /^attachments\/[0-9a-z]+-(.+)$/.exec(path)
+  return m ? m[1]! : (path.split("/").pop() ?? path)
+}
+
 async function putOnce(roomId: string, file: LocalFile, body: Blob, path: string): Promise<FileRef> {
   const headers: Record<string, string> = { "content-type": file.mime || body.type || "application/octet-stream" }
   if (file.width && file.height) {
