@@ -10,6 +10,7 @@ import type { SessionLookup } from "../router"
 // R2 key is built from the session's user id, so no request can reach another user's bytes.
 //
 //   PUT    /api/files/<roomId>?path=<path>                     one request, up to MAX_SINGLE_PUT_BYTES
+//          x-kiko-if-sha256: <sha256 | none> makes it an edit: 409 { error, file } when the path holds other bytes
 //   POST   /api/files/<roomId>/uploads                         { path, type, size } -> { fileId, uploadId }
 //   PUT    /api/files/<roomId>/uploads/<fileId>/<part>?uploadId=  -> { partNumber, etag }
 //   POST   /api/files/<roomId>/uploads/<fileId>?uploadId=      { parts } -> { file }
@@ -113,10 +114,12 @@ async function sha256Of(stream: ReadableStream): Promise<string> {
 
 /** Indexes a stored object in the room and deletes whatever the room no longer points to. */
 async function index(env: Env, userId: string, roomId: string, input: NewFile, failures?: number): Promise<Response> {
-	const { file, drop, fresh } = await roomStub(env.ROOM, userId, roomId).putFile(input)
+	const { file, drop, fresh, conflict } = await roomStub(env.ROOM, userId, roomId).putFile(input)
 	if (drop) await env.FILES.delete(drop)
+	// A stale edit writes nothing. The answer names what the path holds now, so the editor can offer it.
+	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })
 	// Architecture section 7.9: the room is not held awake for image metadata. A queue job fills what the client did not send.
-	if (fresh) await enqueueAttachment(env, userId, roomId, file, failures)
+	if (fresh && file) await enqueueAttachment(env, userId, roomId, file, failures)
 	return Response.json({ file })
 }
 
@@ -176,7 +179,11 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 		height: request.headers.get("x-kiko-height"),
 		thumbhash: request.headers.get("x-kiko-thumbhash"),
 	})
-	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...sent }, testFailures(request))
+	// An edit names the SHA-256 it started from, so a write that landed meanwhile is never overwritten.
+	const expect = request.headers.get("x-kiko-if-sha256")
+	const expectSha256 = expect && /^(none|[0-9a-f]{64})$/.test(expect) ? expect : undefined
+	if (expect && !expectSha256) return error(400, "bad x-kiko-if-sha256")
+	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...sent, ...(expectSha256 ? { expectSha256 } : {}) }, testFailures(request))
 }
 
 async function create(request: Request, env: Env, userId: string, roomId: string): Promise<Response> {

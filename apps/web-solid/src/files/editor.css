@@ -1,0 +1,85 @@
+/* The file editor and viewer. No animation. Colors are kat tokens. */
+
+.file-editor,
+.file-view {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  color: var(--text);
+}
+
+.file-editor .fe-body {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.file-editor .fe-bar {
+  display: flex;
+  height: 40px;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.file-editor .fe-status {
+  margin-left: auto;
+}
+
+.file-editor .fe-warn {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.file-editor .fe-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--hover-bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.file-editor .fe-btn:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.file-editor .fe-save:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg, #fff);
+}
+
+.file-view .fv-center {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.file-view .fv-media {
+  max-width: 100%;
+  max-height: 100%;
+  border: none;
+  border-radius: 12px;
+  object-fit: contain;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.file-view .fv-link {
+  color: var(--text);
+  text-decoration: underline;
+}

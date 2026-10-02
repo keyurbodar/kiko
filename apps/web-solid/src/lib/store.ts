@@ -14,7 +14,7 @@
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { AgentSlug, AgentState, Chat, Member, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, FileRef, Member, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
 import { batch, createRoot, createSignal } from "solid-js"
 import type { MockRoom } from "../sync/mock-room"
 import type { ViewMessage } from "../sync/patches"
@@ -279,6 +279,11 @@ export function createApp(options: AppOptions = {}) {
       },
 
       activeThreadId: activeId,
+
+      /** The open room's file index. `name` is the full path. */
+      activeFiles(): FileRef[] {
+        return room()?.state.files ?? []
+      },
 
       selectThread(threadId: string) {
         const id = threadId as RoomId
