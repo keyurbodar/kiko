@@ -12,6 +12,7 @@
   "dependencies": {
     "@blobatar/solid": "^2.7.0",
     "@corvu/calendar": "0.1.2",
+    "@kiko/protocol": "workspace:*",
     "@kiko/ui": "workspace:*",
     "@mingcute/solid": "^3.0.2",
     "@solid-primitives/event-listener": "2.4.5",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
     "@types/bun": "1.3.14",
+    "fake-indexeddb": "6.2.5",
     "tailwindcss": "4.3.3",
     "typescript": "5.8.2",
     "vite": "8.3.2",
