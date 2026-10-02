@@ -27,17 +27,17 @@ const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/
 
 /*
  * Recorded gzip bytes, measured at P2-03. Re-recorded on purpose:
- * - tier 1: the shell html lists more modulepreload links (16 bytes).
+ * - tier 1: the shell html lists more modulepreload links.
  * - tier 3: P3-14 palette and cmdk-solid add 5.6 KB. The budget fix moved the hotkey library
  *   (@tanstack/solid-hotkeys), the corvu day calendar and fuzzysort out of tier 2 into lazy
  *   chunks, which adds about 12 KB here. Tier 2 shrank by the same code.
- * - tier 4: the settings route has real content (provider and model settings, P4-05). It was a placeholder.
+ * - tier 4: the settings and memory routes have real content. They were placeholders.
  */
 const RECORDED: Record<string, number> = {
-  "tier 1 shell js": 1616,
+  "tier 1 shell js": 1689,
   "tier 2 first paint of /chat": 220198,
-  "tier 3 lazy modules": 31687,
-  "tier 4 route chunks": 3043,
+  "tier 3 lazy modules": 31724,
+  "tier 4 route chunks": 7978, // settings (P4-05) 3.0 KB plus the memory screen (P5-04) 4.9 KB. CodeMirror is a dynamic import, outside this count.
 };
 
 interface Entry {

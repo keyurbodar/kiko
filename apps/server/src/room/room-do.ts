@@ -3,7 +3,7 @@ import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../lib/names"
 import { Deliveries, type ReminderDelivery } from "./deliver"
-import { type NewFile, type PutResult, RoomFiles } from "./files"
+import { type FileMeta, type FileMetaPatch, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { migrate } from "./schema"
 import { searchMessages } from "./search"
@@ -81,10 +81,22 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
-	async putFile(input: NewFile): Promise<Omit<PutResult, "event">> {
+	async putFile(input: NewFile): Promise<Omit<PutResult, "event"> & { fresh: boolean }> {
 		const { event, ...result } = this.files.put(input)
 		if (event) this.publish([event])
-		return result
+		return { ...result, fresh: event !== null }
+	}
+
+	/** RPC for the attachment job. */
+	async fileMeta(id: string): Promise<FileMeta | null> {
+		return this.files.meta(id)
+	}
+
+	/** RPC for the attachment job. Fills empty fields only, so a second call returns false and stores nothing. */
+	async setFileMeta(id: string, patch: FileMetaPatch): Promise<boolean> {
+		const event = this.files.fillMeta(id, patch)
+		if (event) this.publish([event])
+		return event !== null
 	}
 
 	humanTyping(): void {

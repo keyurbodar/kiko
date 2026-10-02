@@ -1,5 +1,5 @@
-import { Placeholder } from "./placeholder"
+import MemoryScreen from "../../memory/screen"
 
 export default function MemoryRoute() {
-  return <Placeholder name="memory" />
+  return <MemoryScreen />
 }
