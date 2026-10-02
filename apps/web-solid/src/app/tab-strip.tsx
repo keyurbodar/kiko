@@ -32,7 +32,7 @@ export function TabStrip() {
     if (id) untrack(() => openTabs.open(id))
   })
 
-  const label = (id: string) => useApp.chatById(id)?.name ?? id
+  const label = (id: string) => useApp.chatById(id)?.name ?? "chat"
   const unread = (id: string) => (useApp.chatById(id)?.unread ?? 0) > 0
   const go = (id: string | null) => navigate(id ? `/chat/${id}` : "/chat")
 
