@@ -384,7 +384,7 @@ type RoomToClient =
 	| { t: "ack"; clientId: string; id: string; seq: number }
 	| { t: "reset"; snapshot: RoomSnapshot }         // when lastSeq is too old
 	| { t: "typing"; who: string[] }                 // not stored
-	| { t: "draft"; runId: string; index: number; text: string }  // not stored
+	| { t: "draft"; slug: string; runId: string; index: number; text: string }  // not stored
 	| { t: "status"; slug: string; state: AgentState }            // not stored
 ```
 
