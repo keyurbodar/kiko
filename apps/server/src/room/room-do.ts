@@ -3,7 +3,7 @@ import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
-import { storedRows, wipeStorage } from "../lib/wipe"
+import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { Bubbles, Deliveries, type ReminderDelivery } from "./deliver"
 import { type FileMeta, type FileMetaPatch, type NewFile, type PutResult, RoomFiles } from "./files"
@@ -98,6 +98,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const userId = request.headers.get(USER_ID_HEADER)
 		const roomId = request.headers.get(ROOM_ID_HEADER)
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
+		if (this.#closed || this.#wiped) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
@@ -238,6 +239,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	// Account deletion (P9-02). The job in jobs/delete-account.ts calls these.
 	#wiped = false
+
+	/**
+	 * Closes every socket and refuses new ones until the object is evicted. After that the
+	 * Worker's tombstone check keeps the deleted user out.
+	 */
+	async close(): Promise<void> {
+		this.#closed = true
+		closeSockets(this.ctx)
+	}
+	#closed = false
 
 	/** The agents that have acted in this room and the R2 keys its file index holds. */
 	async inventory(): Promise<{ agents: AgentSlug[]; keys: string[] }> {

@@ -3,7 +3,7 @@ import type { Env } from "../index"
 import { agentStub, NameError, roomStub, userStub } from "../lib/names"
 import { originAllowed } from "../router"
 import { deletionTargets, enqueueDeletion, runDeleteJob, userPrefix } from "../jobs/delete-account"
-import { createAuth } from "./auth"
+import { createAuth, isDeletedUser, revokeUser } from "./auth"
 
 // Account deletion. Architecture section 7.9.
 //
@@ -70,21 +70,23 @@ async function deleteAccount(request: Request, env: Env, url: URL): Promise<Resp
 	if (!originAllowed(request, url, env)) return error(403, "forbidden origin")
 	const auth = createAuth(env, request)
 	const session = await auth.api.getSession({ headers: request.headers })
-	if (!session) return error(401, "unauthorized")
+	if (!session || (await isDeletedUser(env.AUTH_DB, session.user.id))) return error(401, "unauthorized")
 	if (!isFresh(session.session.createdAt)) {
 		return Response.json({ error: "sign in again to delete your account", reauth: true }, { status: 403 })
 	}
 	const body = await readJson(request)
 	if (body?.confirm !== CONFIRM_PHRASE) return error(400, `type "${CONFIRM_PHRASE}" to confirm`)
 
+	// Close the door first. The tombstone and the revoked sessions stop every route and
+	// socket, including a cookie the cache still trusts, before any data is touched. The
+	// user and account rows stay until the last job, so a retry can still find them.
 	const userId = session.user.id
+	await revokeUser(env.AUTH_DB, userId)
 	const rooms = await userStub(env.USER, userId).beginDeletion()
 	await enqueueDeletion(env.JOBS, userId, rooms)
 
-	// Sign out here, which clears the cookies, then end every other session. The user
-	// and account rows stay until the last job, so a retry can still find them.
+	// Signing out now only clears the cookies. The session row is already gone.
 	const { headers } = await auth.api.signOut({ headers: request.headers, returnHeaders: true })
-	await env.AUTH_DB.prepare(`DELETE FROM "session" WHERE "userId" = ?`).bind(userId).run()
 	const response = Response.json({ rooms: rooms.length }, { status: 202 })
 	for (const cookie of headers.getAll("set-cookie")) response.headers.append("set-cookie", cookie)
 	return response
@@ -95,7 +97,7 @@ async function devRoute(request: Request, env: Env, url: URL): Promise<Response>
 		if (url.pathname === `${DEV_PREFIX}seed-agent`) {
 			if (request.method !== "POST") return error(405, "method not allowed")
 			const session = await createAuth(env, request).api.getSession({ headers: request.headers })
-			if (!session) return error(401, "unauthorized")
+			if (!session || (await isDeletedUser(env.AUTH_DB, session.user.id))) return error(401, "unauthorized")
 			const body = await readJson(request)
 			const roomId = body?.roomId
 			const slug = body?.slug

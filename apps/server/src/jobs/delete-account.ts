@@ -4,8 +4,10 @@ import { agentStub, roomStub, userStub } from "../lib/names"
 
 // Account deletion fan-out. Architecture section 7.9.
 //
-// The account route asks `UserDO` for its rooms and enqueues one job per room, or one
-// job with `roomId: null` when there are none. A room job deletes the room's R2 objects,
+// The account route first writes the tombstone and revokes every session (auth.ts), so
+// no route or socket reaches the user's objects again. Then it asks `UserDO` for its
+// rooms, every room ever addressed and not only chats, and enqueues one job per room, or
+// one job with `roomId: null` when there are none. A room job closes its sockets, deletes the room's R2 objects,
 // wipes each agent the room lists, wipes the room, and reports back to `UserDO`. The job
 // that reports the last room finishes the account: it wipes `UserDO`, sweeps any R2
 // object left under the user's prefix, and deletes the D1 rows last.
@@ -38,6 +40,8 @@ export type DeleteReport = {
 
 /** Everything a job touches. The Worker binds these to the real objects; tests pass fakes. */
 export interface DeletionTargets {
+	/** Closes the room's sockets, so nothing new is written while the job runs. */
+	closeRoom(roomId: RoomId): Promise<void>
 	roomInventory(roomId: RoomId): Promise<{ agents: string[]; keys: string[] }>
 	wipeAgent(roomId: RoomId, slug: string): Promise<number>
 	wipeRoom(roomId: RoomId): Promise<number>
@@ -56,6 +60,7 @@ export async function runDeleteJob(job: DeleteAccountJob, t: DeletionTargets): P
 	const report: DeleteReport = { agents: 0, rooms: 0, user: 0, objects: 0, authRows: 0, finished: false }
 	if (job.roomId) {
 		const roomId = job.roomId
+		await t.closeRoom(roomId)
 		const { agents, keys } = await t.roomInventory(roomId)
 		report.objects += await t.deleteObjects(roomPrefix(job.userId, roomId), keys)
 		for (const slug of agents) if ((await t.wipeAgent(roomId, slug)) > 0) report.agents++
@@ -100,6 +105,7 @@ async function deleteAuthRows(db: D1Database, userId: string): Promise<number> {
 export function deletionTargets(env: Env, userId: string): DeletionTargets {
 	const user = () => userStub(env.USER, userId)
 	return {
+		closeRoom: (roomId) => roomStub(env.ROOM, userId, roomId).close(),
 		roomInventory: (roomId) => roomStub(env.ROOM, userId, roomId).inventory(),
 		wipeAgent: (roomId, slug) => agentStub(env.AGENT, userId, roomId, slug).deleteAll(),
 		wipeRoom: (roomId) => roomStub(env.ROOM, userId, roomId).deleteAll(),

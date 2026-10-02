@@ -53,6 +53,25 @@ export function roomStub(ns: DurableObjectNamespace<RoomDO>, userId: string, roo
   return ns.get(ns.idFromName(roomName(userId, roomId)))
 }
 
+/**
+ * The stub of one of the session user's rooms, for a Worker route. It records the room in
+ * `UserDO` first, so account deletion finds a room that never became a chat. Null once
+ * deletion has begun. Throws `NameError` for a bad room id.
+ *
+ * DEVIATION from refusing rooms the chat index does not list: a client creates a chat
+ * optimistically and may open its socket before the create reaches `UserDO`, and a
+ * deleted chat's room still holds data. Recording keeps one ledger of every room ever
+ * reached, and the name still comes only from the session's user id.
+ */
+export async function addressRoom(
+  env: { USER: DurableObjectNamespace<UserDO>; ROOM: DurableObjectNamespace<RoomDO> },
+  userId: string,
+  roomId: string,
+): Promise<DurableObjectStub<RoomDO> | null> {
+  const stub = roomStub(env.ROOM, userId, roomId)
+  return (await userStub(env.USER, userId).recordRoom(checkRoom(roomId))) ? stub : null
+}
+
 /** For `RoomDO` only. It reaches its own agents with the user id and room id the Worker gave it. */
 export function agentStub(
   ns: DurableObjectNamespace<AgentDO>,

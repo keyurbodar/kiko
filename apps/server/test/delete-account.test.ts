@@ -32,6 +32,7 @@ function account() {
 		return Promise.resolve(fn())
 	}
 	const targets: DeletionTargets = {
+		closeRoom: () => step("closeRoom", () => undefined),
 		roomInventory: (id) => step("roomInventory", () => {
 			const r = state.rooms.get(id)
 			return { agents: r?.agents ?? [], keys: r?.keys ?? [] }
