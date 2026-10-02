@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { For, Show, createEffect, createMemo, untrack } from "solid-js"
 import { intentRef } from "../lib/intent"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { nextAfterClose, openTabs, stepTab } from "./open-tabs"
 
@@ -14,12 +15,6 @@ import { nextAfterClose, openTabs, stepTab } from "./open-tabs"
  * list.
  */
 const CHAT_PATH = /^\/chat\/([^/]+)$/
-
-function glyphHue(id: string): number {
-  let hash = 0
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) % 360
-  return hash
-}
 
 export function TabStrip() {
   const location = useLocation()
@@ -100,11 +95,7 @@ export function TabStrip() {
               }}
               onKeyDown={(event) => onKeyDown(event, id)}
             >
-              <span
-                class="size-[13px] shrink-0 rounded-full"
-                style={{ background: `oklch(0.72 0.12 ${glyphHue(id)})` }}
-                aria-hidden="true"
-              />
+              <IdentityAvatar seed={id} size={16} />
               <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-12px),transparent)] group-data-[unread]:[-webkit-text-stroke:0.3px]">
                 {label(id)}
               </span>
