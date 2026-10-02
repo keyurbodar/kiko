@@ -74,3 +74,4 @@ The coordinator adds to this list as tasks land.
 - Client routes live in `apps/web-solid/src/app/routes.tsx`; the shell is `app/shell.tsx`, the rail `app/rail.tsx`.
 - `safeFetch(url, fetcher?)` in `apps/server/src/lib/safe-fetch.ts` returns `{ ok: true, url, status, headers, body, truncated }` or `{ ok: false, reason, url }`. Every fetch of a user or model supplied URL uses it.
 - The warm tier is `apps/web-solid/src/warm/`: `openWarm({ userId })` in `db.ts`, plus `messages.ts`, `chats.ts`, `outbox.ts`, `drafts.ts`. One database per user.
+- Verify suites: create `apps/cli/src/verify/suites/<name>.ts` exporting `{ name, model?, run(v) }`. In `run`, `const s = await v.as("alice")`, `const room = await s.room(id)`, `room.send(text)`, `room.expect(match, ms)`, `(await s.user()).expect(...)`, `reconnect()`. Set `model: true` when it calls a model. Run with `bun kiko verify <name> --url http://localhost:<port>`.
