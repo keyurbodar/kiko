@@ -3,8 +3,10 @@ import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
+import { MISSED_HEADER } from "../room/brief"
 import { buildAgent } from "./factory"
 import type { AgentSetup } from "./host"
+import type { RoleInput } from "./prompt"
 
 // DEV AND TESTS ONLY. A scripted agent for `bun kiko verify mid-run` (P1-12): pi-ai's faux provider
 // answers from the transcript, and one slow tool makes "a tool is running" last long enough to
@@ -14,6 +16,7 @@ import type { AgentSetup } from "./host"
 //   [slow]      the answer is one long paragraph, about six seconds with no bubble
 //   [two-part]  a short first bubble, then a long second paragraph, about six seconds
 //   [tool]      the model calls `slow_tool` first, which sleeps SLOW_TOOL_MS
+//   [brief]     the answer ends with `; missed: <the brief's missed messages, joined by " | ">` (P6-01)
 //
 // Every answer is `heard: <the user turns since the last answer, joined by " | ">`, plus
 // `; tool: <result>` when a tool ran since then. The text shows which turns one run answered.
@@ -28,9 +31,24 @@ const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this
 type Part = { type: string; text?: string }
 type Message = { role?: string; content?: string | Part[]; stopReason?: string }
 
+/** The whole text of a message, the room's `<context>` brief included. */
+const rawOf = (m: Message) => (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join(""))
+
+/** The missed-message lines of the brief in `raw`, as `<who>: <text>`, without message ids. */
+function missedOf(raw: string): string[] {
+  const brief = /<context>([\s\S]*?)<\/context>/.exec(raw)?.[1] ?? ""
+  const at = brief.indexOf(MISSED_HEADER)
+  if (at < 0) return []
+  return brief
+    .slice(at + MISSED_HEADER.length)
+    .split("\n")
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2).replace(/^\[[^\]]*\] /, ""))
+}
+
 /** The text of a message without the room's `<context>` brief. */
 const textOf = (m: Message) =>
-  (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join(""))
+  rawOf(m)
     .replace(/<context>[\s\S]*?<\/context>\s*/g, "")
     .trim()
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
@@ -47,7 +65,9 @@ export function fakeReply(transcript: readonly Message[]) {
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
-  const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}`
+  const briefed = since.filter((m) => m.role === "user" && textOf(m).includes("[brief]"))
+  const missed = briefed.length ? `; missed: ${briefed.flatMap((m) => missedOf(rawOf(m))).join(" | ")}` : ""
+  const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}${missed}`
   const newest = last?.role === "user" ? textOf(last) : ""
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
   if (newest.includes("[two-part]")) return fauxAssistantMessage(`part one.\n\n${LONG} ${heard}`)
@@ -68,11 +88,11 @@ const slowTool = defineTool({
 export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [slowTool] })
 
 /** The fake agent's setup. The factory builds it, with the slow tool as a test extension. */
-export function fakeSetup(): AgentSetup {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }): AgentSetup {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ role: "", lead: true, model: FAKE_MODEL, testExtensions: [SLOW_TOOL_EXTENSION] }) }
+  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, testExtensions: [SLOW_TOOL_EXTENSION] }) }
 }

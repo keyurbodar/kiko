@@ -48,7 +48,8 @@ export class AgentDO extends DurableObject<Env> {
   /**
    * Called by `RoomDO` only. Stores the envelopes and returns. It never waits on a model or on
    * another Durable Object, so two agents that message each other cannot deadlock. `home` says which
-   * room this agent belongs to; the room passes it on every delivery and the agent keeps the first.
+   * room this agent belongs to and its member row; the room passes it on every delivery and the agent
+   * keeps the latest. The name of this object already fixes the user, room, and slug.
    */
   receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     if (home) this.setHome(home)
@@ -76,8 +77,9 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   private setHome(home: AgentHome): void {
-    if (this.home()) return
-    this.ctx.storage.sql.exec("INSERT OR IGNORE INTO agent_home (id, home) VALUES (1, ?)", JSON.stringify(home))
+    const text = JSON.stringify(home)
+    if (this.home() && this.ctx.storage.sql.exec("SELECT 1 FROM agent_home WHERE home = ?", text).toArray().length) return
+    this.ctx.storage.sql.exec("INSERT INTO agent_home (id, home) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET home = excluded.home", text)
   }
 
   /** The room's RPC, bound to this agent's slug. Tests override it. */
@@ -95,13 +97,16 @@ export class AgentDO extends DurableObject<Env> {
 
   /**
    * The factory builds every agent. DEV ONLY: the model and key come from the Worker's env until
-   * per-user credentials (P4-02) land; the key never leaves this object. ASSUMPTION: every agent is
-   * a lead with the default role until the room passes membership (P6).
+   * per-user credentials (P4-02) land; the key never leaves this object. The role and lead flag are
+   * the member row at the latest delivery. ASSUMPTION: they are read when the harness opens, so a
+   * change reaches the prompt when the root conversation is created, not later.
    */
   protected async setup(): Promise<AgentSetup> {
-    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup()
+    const home = this.home()
+    const role = { role: home?.role ?? "", lead: home?.lead ?? true }
+    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role)
     return {
-      ...buildAgent({ role: "", lead: true, model: DEV_MODEL }),
+      ...buildAgent({ ...role, model: DEV_MODEL }),
       // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
       ...devModels(this.env.OPENCODE_API_KEY, this.ctx.id.toString()),
     }

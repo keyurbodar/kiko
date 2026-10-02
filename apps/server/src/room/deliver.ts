@@ -1,6 +1,27 @@
-import type { AgentSlug, RoomEvent, RunRef } from "@kiko/protocol"
+import type { AgentSlug, Envelope, RoomEvent, RunRef } from "@kiko/protocol"
 import type { RoomLog } from "./log"
+import { type RecipientMember, resolveRecipients } from "./recipients"
 import { parseRichText } from "./rich-text"
+
+/**
+ * Architecture section 7.2 over a human burst. Each envelope goes to the members `resolveRecipients`
+ * picks for it, and each member gets its own envelopes in one `receive()` call. A member that is not
+ * in the result is not woken. `replyAuthor` names the agent whose bubble a message replies to.
+ */
+export function route(
+	envelopes: readonly Envelope[],
+	members: readonly RecipientMember[],
+	replyAuthor: (messageId: string) => AgentSlug | undefined,
+): Map<AgentSlug, Envelope[]> {
+	const out = new Map<AgentSlug, Envelope[]>()
+	for (const e of envelopes) {
+		const replyToAgent = e.replyTo ? replyAuthor(e.replyTo) : undefined
+		for (const slug of resolveRecipients({ text: e.body, ...(replyToAgent ? { replyToAgent } : {}) }, members)) {
+			out.set(slug, [...(out.get(slug) ?? []), e])
+		}
+	}
+	return out
+}
 
 // Architecture section 14. Deliveries from outside the room (reminders today) arrive
 // at least once. Each has a stable id, and `deliveries` remembers every id the room
