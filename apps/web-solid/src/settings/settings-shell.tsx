@@ -2,6 +2,8 @@ import { A } from "@solidjs/router"
 import { ModelList } from "./model-picker"
 import { chatModel, setChatModel } from "./chat-model"
 import { ProviderList } from "./providers"
+import { Integrations } from "./integrations"
+import type { JSX } from "solid-js"
 
 /*
  * The settings route shell: a small tab list and the section beside it. The
@@ -12,10 +14,14 @@ import { ProviderList } from "./providers"
 export const SECTIONS = [
   { id: "providers", label: "providers" },
   { id: "models", label: "default model" },
+  { id: "integrations", label: "integrations" },
 ] as const
 
+const COMPONENTS: Record<string, (props: {}) => JSX.Element> = { providers: ProviderList, integrations: Integrations }
+
 function section(id: string) {
-  return id === "providers" ? <ProviderList /> : <DefaultModel />
+  const Section = COMPONENTS[id] ?? DefaultModel
+  return <Section />
 }
 
 function DefaultModel() {

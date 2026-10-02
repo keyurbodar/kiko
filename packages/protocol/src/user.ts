@@ -64,6 +64,8 @@ export type ExecutorStatus = {
 	issuedAt: number | null
 	/** True when a refresh token is stored. */
 	refreshable: boolean
+	/** The Executor organization the connection belongs to. Absent until the server reports it. */
+	organization?: string
 	/** How many sealed Executor rows the user has. Zero after a disconnect. */
 	rows: number
 }

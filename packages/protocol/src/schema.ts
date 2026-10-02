@@ -309,6 +309,7 @@ export const ExecutorStatus = Schema.Struct({
 	expiresAt: Schema.NullOr(Schema.Number),
 	issuedAt: Schema.NullOr(Schema.Number),
 	refreshable: Schema.Boolean,
+	organization: Schema.optionalKey(Schema.String),
 	rows: Schema.Number,
 })
 
