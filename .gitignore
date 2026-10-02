@@ -16,3 +16,9 @@ artifacts/
 *.swp
 *.swo
 .DS_Store
+
+# Local secrets. Never committed.
+.dev.vars
+.env
+.env.*
+!.dev.vars.example
