@@ -27,6 +27,7 @@ import { TypingRow } from "./ui/TypingRow"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
 import { createMediaViewer } from "../chat/media/mediaViewer"
+import type { DraftBook } from "../warm/drafts"
 
 /**
  * What the shell knows about the reader's position. Everything the transcript
@@ -160,6 +161,14 @@ export function VirtualThread(props: {
    * what the harness relies on.
    */
   replyTarget?: string | null
+  /**
+   * The chat this transcript shows, and the book that remembers where the reader
+   * was in each. Together they save the top message and offset as the reader
+   * scrolls and put them back when the chat is opened again. Leave them out and
+   * the transcript always opens at the end.
+   */
+  scrollKey?: string
+  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll">
   /** Receives a stable jump function for the transcript's scroller. */
   onJumpHandle?: (handle: {
     /** Scroll to a message and mark where it landed. */
@@ -321,8 +330,67 @@ export function VirtualThread(props: {
       : true
   }
 
+  /** The chat whose saved position has been put back, or given up on. */
+  let restoredFor: string | undefined
+
+  /** True when the rows on screen belong to the chat `scrollKey` names. */
+  const showsKey = () => {
+    const first = props.messages[0]
+    return props.scrollKey !== undefined && first !== undefined && first.threadId === props.scrollKey
+  }
+
+  /** Remember the top row and how far into it the view sits. At the end it remembers nothing. */
+  const recordScroll = (state: VirtualThreadState) => {
+    const key = props.scrollKey
+    if (!key || !props.scrollBook || restoredFor !== key || !showsKey()) return
+    const virtualizer = handle()
+    if (!virtualizer) return
+    if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
+      props.scrollBook.saveScroll(key, null)
+      return
+    }
+    const list = items()
+    for (let i = clampIndex(state.rangeStart, list.length); i < list.length; i += 1) {
+      const item = list[i]
+      if (item.kind !== "message") continue
+      props.scrollBook.saveScroll(key, {
+        messageId: item.message.id,
+        offset: Math.round(state.scrollOffset - virtualizer.getItemOffset(i)),
+      })
+      return
+    }
+  }
+
+  /**
+   * Put the reader back where they were. Returns true when it took over the
+   * scroll, so the caller does not also pin to the end.
+   */
+  const restorePosition = (): boolean => {
+    const key = props.scrollKey
+    if (!key || !props.scrollBook || restoredFor === key || !showsKey()) return false
+    restoredFor = key
+    const saved = props.scrollBook.scroll(key)
+    if (!saved) return false
+    const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
+    if (index < 0) return false
+    let tries = 0
+    const apply = () => {
+      const virtualizer = handle()
+      if (!virtualizer) {
+        if ((tries += 1) < 10) requestAnimationFrame(apply)
+        return
+      }
+      virtualizer.scrollToIndex(index, { align: "start", offset: saved.offset })
+      seedAnchor()
+      commitState(readState())
+    }
+    apply()
+    return true
+  }
+
   const commitState = (state: VirtualThreadState) => {
     setScrollState(state)
+    recordScroll(state)
     if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
       setPinnedCount(messageCount())
     }
@@ -544,10 +612,11 @@ export function VirtualThread(props: {
    * previous position to respect, and a thread opens at its end.
    */
   let firstLoad = true
-  let lastOwner: readonly unknown[] | undefined
+  let lastOwner: unknown
   createEffect(
     on(items, () => {
-      const owner = props.messages as readonly unknown[]
+      // With a scroll key the chat is the owner. Without one, the array is.
+      const owner: unknown = props.scrollKey ?? props.messages
       if (owner !== lastOwner) {
         lastOwner = owner
         firstLoad = true
@@ -555,9 +624,12 @@ export function VirtualThread(props: {
         setPinnedCount(messageCount())
         if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
       }
+      const restoring = restorePosition()
       const wasAtLatest = firstLoad || isAtLatest()
       seedAnchor()
-      if (firstLoad) {
+      if (restoring) {
+        firstLoad = false
+      } else if (firstLoad) {
         firstLoad = false
         if (items().length > 0) pinToLatest()
       } else if (wasAtLatest) {

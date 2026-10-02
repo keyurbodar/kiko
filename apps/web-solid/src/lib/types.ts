@@ -181,4 +181,12 @@ export interface ComposerProps {
   onClearReply?: () => void;
   /** Scroll the transcript to the quoted message. */
   onJumpToReply?: (messageId: string) => void;
+  /**
+   * Names the draft the input shows. When it changes the input is refilled from
+   * `draftFor`, in the same frame. Empty means no draft is loaded yet.
+   */
+  draftKey?: string;
+  draftFor?: (key: string) => string;
+  /** The text changed. Called only for the loaded `draftKey`. */
+  onDraftChange?: (key: string, text: string) => void;
 }

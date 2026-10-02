@@ -228,6 +228,12 @@ function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active:
   const [previewOpen, setPreviewOpen] = createSignal(false)
   const navigate = useNavigate()
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
+  /** Unsent text in a chat you are not looking at. The open chat shows it in the composer. */
+  const draft = () => {
+    const book = useApp.drafts()
+    // `has` is the reactive read. The text itself only changes in the open chat.
+    return props.active || !book?.has(props.bot.id) ? "" : (book.get(props.bot.id)?.text.trim() ?? "")
+  }
 
   const select = () => {
     clearUnreadMark(props.bot.id)
@@ -250,6 +256,7 @@ function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active:
         data-chat-id={props.bot.id}
         data-active={props.active ? "" : undefined}
         data-unread={unread() ? "" : undefined}
+        data-draft={draft() ? "" : undefined}
         data-muted={props.muted ? "" : undefined}
         aria-current={props.active ? "true" : undefined}
         role="button"
@@ -288,7 +295,14 @@ function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active:
         </span>
 
         <span class="chat-preview" data-typing={props.bot.presence === "typing" ? "" : undefined}>
-          <Show when={props.bot.presence === "typing"} fallback={props.bot.preview}>
+          <Show
+            when={props.bot.presence === "typing"}
+            fallback={
+              <Show when={draft()} fallback={props.bot.preview}>
+                <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
+              </Show>
+            }
+          >
             typing
             <i class="typing-dot" aria-hidden="true" />
             <i class="typing-dot" aria-hidden="true" />

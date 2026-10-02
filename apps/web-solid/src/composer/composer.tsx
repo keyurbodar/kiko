@@ -1,5 +1,5 @@
 import { planAttachments } from "../chat/lib/album"
-import { Show, createEffect, createSignal, onCleanup } from "solid-js"
+import { Show, createEffect, createSignal, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type {
   ComposerProps,
@@ -77,6 +77,34 @@ export function Composer(props: ComposerProps) {
 
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
+
+  /*
+   * Unsent text follows the chat. Switching refills the input from the draft in
+   * memory, in the same tick, so the first painted frame already has it. Saves
+   * are guarded by the key the input was filled for, so the text of the chat you
+   * are leaving never lands under the one you are entering.
+   */
+  let filledFor = ""
+  createEffect(
+    on(
+      () => props.draftKey ?? "",
+      (key) => {
+        filledFor = ""
+        if (!key) return
+        const text = props.draftFor?.(key) ?? ""
+        if (text !== draftText()) {
+          if (text) store.setText(text)
+          else store.reset()
+        }
+        filledFor = key
+      },
+    ),
+  )
+  createEffect(
+    on(draftText, (text) => {
+      if (filledFor && filledFor === props.draftKey) props.onDraftChange?.(filledFor, text)
+    }, { defer: true }),
+  )
 
   const [draftLink, setDraftLink] = createSignal<DraftLink | null>(null)
   const [dismissedLink, setDismissedLink] = createSignal<string | null>(null)

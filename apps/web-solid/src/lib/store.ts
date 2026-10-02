@@ -21,6 +21,7 @@ import type { ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
+import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import type { BotPresence, ChatMessage, DocumentItem, OutgoingMessage, Reaction, RosterBot } from "./types"
 
@@ -154,6 +155,7 @@ export function createApp(options: AppOptions = {}) {
   return createRoot(() => {
     const [userStore, setUserStore] = createSignal<UserStore | null>(null)
     const [room, setRoom] = createSignal<RoomStore | null>(null)
+    const [drafts, setDrafts] = createSignal<DraftBook | null>(null)
     const [activeId, setActiveId] = createSignal<RoomId | null>(null)
 
     let session: { userId: string; warm: Warm; transport: Transport } | null = null
@@ -227,6 +229,7 @@ export function createApp(options: AppOptions = {}) {
           if (bootUser !== userId) return void warm.close()
           session = { userId, warm, transport }
           batch(() => {
+            setDrafts(createDraftBook(warm))
             setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff }))
             openRoom(activeId())
           })
@@ -240,14 +243,19 @@ export function createApp(options: AppOptions = {}) {
         booting = null
         room()?.close()
         userStore()?.close()
+        drafts()?.close()
         session?.warm.close()
         session = null
         views = new Map()
         batch(() => {
           setRoom(null)
           setUserStore(null)
+          setDrafts(null)
         })
       },
+
+      /** Unsent text, reply targets, and scroll positions for every chat. Null before sign-in. */
+      drafts,
 
       /** The sync stores, for code that needs more than this surface. */
       room,

@@ -1,5 +1,6 @@
 import type { JSX } from "solid-js"
 import type { ChatMessage, RosterBot } from "../lib/types"
+import type { DraftBook } from "../warm/drafts"
 import { VirtualThread, type VirtualThreadState } from "./VirtualThread"
 
 /**
@@ -29,6 +30,8 @@ export function MessageList(props: {
    * what the harness relies on.
    */
   replyTarget?: string | null
+  scrollKey?: string
+  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll">
   /** Receives a stable jump function for the transcript's scroller. */
   onJumpHandle?: (handle: {
     /** Scroll to a message and mark where it landed. */

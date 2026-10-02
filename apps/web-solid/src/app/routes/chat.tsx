@@ -4,6 +4,7 @@ import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
+import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 
 /*
@@ -31,10 +32,27 @@ export default function ChatRoute() {
   });
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null);
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
+  /*
+   * Unsent text and the reply target are saved per chat, and both come back from
+   * memory in the same tick as the switch. `replyKey` is the chat the reply
+   * signal currently belongs to, so a reply restored for one chat is never
+   * saved under another.
+   */
+  const book = () => useApp.drafts();
+  const draftKey = () => (book()?.ready() ? (useApp.activeThreadId() ?? "") : "");
+  let replyKey = "";
   createEffect(
-    on(useApp.activeThreadId, () => {
-      setReplyTarget(null);
+    on(draftKey, (key) => {
+      replyKey = "";
+      setReplyTarget((key && (book()?.get(key)?.replyTo ?? null)) || null);
+      replyKey = key;
     }),
+  );
+  createEffect(
+    on(replyTarget, (target) => {
+      if (!replyKey || replyKey !== draftKey()) return;
+      book()?.save(replyKey, { replyTo: target !== null && !target.startsWith("local:") ? (target as MessageId) : null });
+    }, { defer: true }),
   );
   /*
    * Reading the open room marks it read. The anchor for the unread divider is
@@ -105,6 +123,8 @@ export default function ChatRoute() {
             waitingNames={useApp.typingNames()}
             onReact={useApp.toggleReaction}
             replyTarget={replyTarget()}
+            scrollKey={useApp.activeThreadId() ?? undefined}
+            scrollBook={book() ?? undefined}
             onJumpHandle={(handle) => {
               jumpToMessage = handle.jumpToMessage;
               scrollToLatest = handle.scrollToLatest;
@@ -141,6 +161,9 @@ export default function ChatRoute() {
           </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
+            draftKey={draftKey()}
+            draftFor={(key) => book()?.get(key)?.text ?? ""}
+            onDraftChange={(key, text) => book()?.save(key, { text })}
             bots={useApp.members()}
             /*
              * A send while a reply is armed is a REPLY, and the two store
