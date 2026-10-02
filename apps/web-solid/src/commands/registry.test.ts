@@ -37,7 +37,7 @@ describe("registry", () => {
 })
 
 describe("kat commands", () => {
-  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false })
+  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, openPalette() {}, openChats() {} })
 
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.map((c) => [c.title, c.shortcut]))
@@ -59,7 +59,7 @@ describe("kat commands", () => {
   })
 
   test("only the sidebar toggle and the palette are global", () => {
-    expect(list.filter((c) => c.global).map((c) => c.id).sort()).toEqual(["palette.open", "view.toggle-sidebar"])
+    expect(list.filter((c) => c.global).map((c) => c.id).sort()).toEqual(["chats.go", "palette.open", "view.toggle-sidebar"])
   })
 
   test("non-global shortcuts ignore text fields, global ones do not", () => {

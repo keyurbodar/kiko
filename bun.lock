@@ -62,6 +62,7 @@
         "@tanstack/solid-hotkeys": "^0.12.1",
         "blobatar": "^2.7.0",
         "clsx": "^2.1.1",
+        "cmdk-solid": "^1.2.0",
         "emoji-picker-element": "^1.29.1",
         "lucide-solid": "^1.48.0",
         "motion": "12.34.5",
@@ -640,6 +641,8 @@
     "cjs-module-lexer": ["cjs-module-lexer@1.2.3", "", {}, "sha512-0TNiGstbQmCFwt4akjjBg5pLRTSyj/PkWQ1ZoO2zntmg9yLqSRxwEa4iCfQLGjqhiqBfOJa7W/E8wfGrTDmlZQ=="],
 
     "clsx": ["clsx@2.1.1", "", {}, "sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA=="],
+
+    "cmdk-solid": ["cmdk-solid@1.2.0", "", { "peerDependencies": { "@kobalte/core": ">=0.12.4 <1", "solid-js": "^1.8.0" } }, "sha512-eOao2VrS+AF0oCgzsCgHJ25ZSoY7Sa6lU9U4Tb6dcPJ1NpZG7twbdTG04+g21KzKQWhF1F8M1Fr3qPJv9hLBqw=="],
 
     "convert-source-map": ["convert-source-map@2.0.0", "", {}, "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="],
 

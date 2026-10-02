@@ -15,6 +15,8 @@ export function katCommands(deps: {
   newChat: () => void
   closeChat: () => void
   hasActiveChat: () => boolean
+  openPalette: () => void
+  openChats: () => void
 }): Command[] {
   return [
     { id: "view.toggle-sidebar", title: "view: toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+S", global: true, run: deps.toggleSidebar },
@@ -25,9 +27,9 @@ export function katCommands(deps: {
     { id: "chat.pin", title: "chat: pin", group: "chat", icon: "pin", shortcut: "Mod+D", when: never, run: nothing },
     { id: "chat.close", title: "chat: close", group: "chat", icon: "close", shortcut: "Mod+W", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "chat: delete", group: "chat", icon: "trash", when: never, run: nothing },
-    { id: "chats.go", title: "chats: go to chat...", group: "chats", icon: "chat", shortcut: "Mod+P", when: never, run: nothing },
+    { id: "chats.go", title: "chats: go to chat...", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },
     { id: "chats.search-current", title: "chats: search messages in current chat", group: "chats", icon: "search", shortcut: "Mod+F", when: never, run: nothing },
     { id: "chats.search-all", title: "chats: search all chats", group: "chats", icon: "search", shortcut: "Mod+Shift+F", when: never, run: nothing },
-    { id: "palette.open", title: "palette: open", group: "palette", icon: "command", shortcut: "Mod+K", global: true, when: never, run: nothing },
+    { id: "palette.open", title: "palette: open", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
   ]
 }

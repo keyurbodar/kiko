@@ -17,6 +17,7 @@ import { ReplyBar } from "./reply-bar"
 import { replySummary } from "../chat/lib/reply"
 import { createMediaViewer } from "../chat/media/mediaViewer"
 
+import { runSlash, slashSuggestions } from "./slash"
 import { draftLinkUrl } from "./link-draft"
 import { ComposerLinkPreview } from "./link-preview"
 import { hasWebPageContent, resolveLinkPreview } from "../chat/lib/linkPreview"
@@ -159,7 +160,7 @@ export function Composer(props: ComposerProps) {
 
   const controller = createPromptInputV2Controller({
     store: [persisted, setPersisted],
-    commands: () => [],
+    commands: slashSuggestions,
     context,
     searchContextFiles: () => [],
     /*
@@ -201,6 +202,7 @@ export function Composer(props: ComposerProps) {
           // There is no conversation to land in, so there is nothing to send.
           if (!props.threadId) return
           const text = draftText()
+          if (runSlash(text)) return void store.reset()
           const files = store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
           // A file that is not a picture turns the whole send into a list of documents.
           const grid = planAttachments(files) !== "list"

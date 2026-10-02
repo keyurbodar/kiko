@@ -24,6 +24,7 @@
     "@tanstack/solid-hotkeys": "^0.12.1",
     "blobatar": "^2.7.0",
     "clsx": "^2.1.1",
+    "cmdk-solid": "^1.2.0",
     "emoji-picker-element": "^1.29.1",
     "lucide-solid": "^1.48.0",
     "motion": "12.34.5",
