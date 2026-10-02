@@ -15,6 +15,7 @@ export type InfoView =
   | { kind: "media" }
   | { kind: "agent"; slug: string }
   | { kind: "model" }
+  | { kind: "tasks" }
 
 const HOME: InfoView = { kind: "home" }
 

@@ -2,6 +2,7 @@ import { Show, type JSX } from "solid-js"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { loadInfoPanel, openInfo } from "../info/state"
+import { openTasks } from "../info/tasks-model"
 
 /** `3 members`. The human counts, as Telegram counts everyone in a group. */
 export const membersLabel = (agents: number) => `${agents + 1} members`
@@ -38,6 +39,20 @@ export function GroupHeader(props: { chatId: string | null }): JSX.Element {
           <span class="shrink-0 text-xs text-weak" data-component="group-member-count">
             {membersLabel(count())}
           </span>
+          <Show when={openTasks(useApp.room()?.tasks() ?? []).length}>
+            {(n) => (
+              <span
+                class="shrink-0 rounded-full px-1.5 text-xs text-weak hover:text-text"
+                data-component="group-task-count"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openInfo({ kind: "tasks" })
+                }}
+              >
+                · {n()} {n() === 1 ? "task" : "tasks"}
+              </span>
+            )}
+          </Show>
         </button>
       )}
     </Show>

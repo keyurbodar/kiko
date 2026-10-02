@@ -1,4 +1,5 @@
 import { createEffect, createMemo, For, lazy, Match, on, onCleanup, Show, Suspense, Switch } from "solid-js"
+import { openTasks, TasksView } from "./tasks"
 import { useCommands } from "../../commands/registry"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
@@ -59,6 +60,7 @@ const TITLES: Record<InfoView["kind"], string> = {
   media: "media",
   agent: "agent",
   model: "model",
+  tasks: "tasks",
 }
 
 function AgentCard(props: { slug: string; chatId: string }) {
@@ -128,6 +130,9 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
         <ListRow id="memory" label="memory" hue={330} path={ICON.memory} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
         <ListRow id="media" label="photos and videos" hue={150} path={ICON.media} value={count(props.media.items().length)} onClick={() => pushInfo({ kind: "media" })} />
         <ListRow id="files" label="files" hue={210} path={ICON.files} value={count(useApp.activeFiles().length)} onClick={() => setInfoTab("files")} />
+        <Show when={roomMembers().length > 1}>
+          <ListRow id="tasks" label="tasks" hue={185} path={ICON.files} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
+        </Show>
         <ListRow id="links" label="links" hue={45} path={ICON.links} value={count(props.links.items().filter((i) => i.kind === "link").length)} onClick={() => pushInfo({ kind: "links" })} />
       </div>
       <For each={extras()}>
@@ -352,6 +357,9 @@ export default function InfoPanel(props: { chatId: string }) {
               </Match>
               <Match when={view().kind === "agent"}>
                 <AgentCard slug={(view() as { slug: string }).slug} chatId={props.chatId} />
+              </Match>
+              <Match when={view().kind === "tasks"}>
+                <TasksView />
               </Match>
               <Match when={view().kind === "model"}>
                 <div class="flex h-[min(560px,70dvh)] flex-col" data-component="info-model-list">
