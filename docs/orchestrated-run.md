@@ -90,3 +90,8 @@ Run the browser checks your issue names, but only in Claude's built-in browser: 
 - Memory: `UserDO.memoryOp(op)` and the user socket frame `{ t: "memory", reqId, op }` answered by `{ t: "memory_result", reqId, result }`.
 - Never run `pkill` or `killall`, including for `wrangler tail`. Kill your own process by port or pid.
 - Commands: `apps/web-solid/src/commands/registry.ts` has `Command { id, title, group, icon, shortcut?, global?, when?, run }`, `commands()`, `registerCommands(list)`, `useCommands(list)`, `runCommand(id)`, `findCommand(id)`, `isEnabled(c)`, `shortcuts()`. `displayShortcut()` is in `hotkeys.ts`. Never add a keydown listener for an app shortcut; register a command.
+- Write coalescing: open the harness on `createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(ctx.storage)))`, which adds `flush()` and `stats()`. Commits held in one 2-second window share one seq.
+- Reminders: `UserDO` `createReminder(owner, input)`, `listReminders()`, `cancelReminder(id)`, `snoozeReminder(id, time)`; `RoomDO.deliverReminder(id, { text, target })`. HTTP `/api/reminders`.
+- Files: `PUT /api/files/<room>?path=` for one request, multipart under `/api/files/<room>/uploads`, download `GET /api/files/<room>/<fileId>` with Range. `RoomDO.putFile(NewFile)`; `this.files` is `RoomFiles`.
+- Room search: socket frame `search { query, before?, limit? }` on the room; chat-title search on the user socket.
+- The client data layer uses the mock room unless `VITE_KIKO_SYNC=live`. `useApp.chatById`, `members`, `memberById` replace `botById` and `groups`.
