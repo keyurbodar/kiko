@@ -199,6 +199,12 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("stop") }),
 	Schema.Struct({ t: Schema.Literal("approve"), approvalId: Id, action: Schema.Literals(["accept", "decline"]) }),
 	Schema.Struct({ t: Schema.Literal("task"), op: TaskOp }),
+	Schema.Struct({
+		t: Schema.Literal("search"),
+		query: Schema.String,
+		before: Schema.optionalKey(Count),
+		limit: Schema.optionalKey(Count),
+	}),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -208,6 +214,13 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("status"), slug: AgentSlug, state: AgentState }),
+	Schema.Struct({
+		t: Schema.Literal("search"),
+		query: Schema.String,
+		before: Schema.optionalKey(Count),
+		results: Schema.Array(Schema.Struct({ id: MessageId, seq: Count, snippet: Schema.String })),
+		next: Schema.NullOr(Count),
+	}),
 ])
 
 // User
@@ -238,11 +251,16 @@ export const UserEvent = Schema.Union([
 
 export const UserSnapshot = Schema.Struct({ seq: Count, chats: Schema.Array(Chat) })
 
-export const ClientToUser = Schema.Union([Hello, Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp })])
+export const ClientToUser = Schema.Union([
+	Hello,
+	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
+	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
+])
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
+	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
 ])
 
 // A schema and its plain type must accept exactly the same values. `Inline`

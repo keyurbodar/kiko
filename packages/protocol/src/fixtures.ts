@@ -173,6 +173,8 @@ export const clientToRoom: readonly ClientToRoom[] = [
 	{ t: "task", op: { op: "create", id: "t3", title: "ship it", owner: bob, dependsOn: ["t1"] } },
 	{ t: "task", op: { op: "update", id: "t3", status: "review", owner: null, note: "ready" } },
 	{ t: "task", op: { op: "delete", id: "t3" } },
+	{ t: "search", query: "protocol" },
+	{ t: "search", query: "protocol", before: 9, limit: 20 },
 ]
 
 export const roomToClient: readonly RoomToClient[] = [
@@ -185,6 +187,8 @@ export const roomToClient: readonly RoomToClient[] = [
 	{ t: "status", slug: ada, state: "working" },
 	{ t: "draft", slug: ada, runId: "run1", index: 1, text: "a long block that is still gro" },
 	{ t: "status", slug: ada, state: "idle" },
+	{ t: "search", query: "protocol", results: [{ id: messageId(1), seq: 1, snippet: "plan the protocol package" }], next: null },
+	{ t: "search", query: "plan", before: 9, results: [], next: null },
 ]
 
 export const chat: Chat = {
@@ -205,6 +209,7 @@ export const clientToUser: readonly ClientToUser[] = [
 	{ t: "chat", op: { op: "pin", roomId, pinned: true } },
 	{ t: "chat", op: { op: "mute", roomId, muted: true } },
 	{ t: "chat", op: { op: "delete", roomId: otherRoomId } },
+	{ t: "search", query: "protocol" },
 ]
 
 export const userToClient: readonly UserToClient[] = [
@@ -216,6 +221,7 @@ export const userToClient: readonly UserToClient[] = [
 		],
 	},
 	{ t: "reset", snapshot: { seq: 2, chats: [chat] } },
+	{ t: "search", query: "protocol", chats: [chat] },
 ]
 
 /** One envelope from each kind of sender. */

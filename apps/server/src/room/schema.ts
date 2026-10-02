@@ -50,6 +50,20 @@ const MIGRATIONS: readonly string[] = [
 		seq INTEGER NOT NULL
 	);
 	`,
+	// Message search. Architecture section 9.2. The index reads text from messages and
+	// triggers keep it in step inside the same transaction as the write. A deleted message
+	// leaves the index. An edit replaces its entry.
+	`
+	CREATE VIRTUAL TABLE messages_fts USING fts5(text, content='messages', content_rowid='rowid');
+	CREATE TRIGGER messages_fts_insert AFTER INSERT ON messages WHEN new.deleted_at IS NULL BEGIN
+		INSERT INTO messages_fts (rowid, text) VALUES (new.rowid, new.text);
+	END;
+	CREATE TRIGGER messages_fts_update AFTER UPDATE OF text, deleted_at ON messages BEGIN
+		INSERT INTO messages_fts (messages_fts, rowid, text) SELECT 'delete', old.rowid, old.text WHERE old.deleted_at IS NULL;
+		INSERT INTO messages_fts (rowid, text) SELECT new.rowid, new.text WHERE new.deleted_at IS NULL;
+	END;
+	INSERT INTO messages_fts (messages_fts) VALUES ('rebuild');
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

@@ -4,6 +4,7 @@ import type { Env } from "../index"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../lib/names"
 import { RoomLog } from "./log"
 import { migrate } from "./schema"
+import { searchMessages } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
 
 // Architecture sections 4.1 and 9. One room per chat. This file holds the
@@ -60,6 +61,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** Sends a frame that is not stored (typing, draft, status) to every ready socket. */
 	broadcast(frame: RoomToClient): void {
 		for (const ws of this.ctx.getWebSockets()) if (attachment(ws).ready) send(ws, frame)
+	}
+
+	search(query: string, before?: number, limit?: number) {
+		return searchMessages(this.ctx.storage.sql, query, before, limit)
 	}
 
 	humanTyping(): void {

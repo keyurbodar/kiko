@@ -201,6 +201,7 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			if (a?.state === "pending")
 				store({ t: "approval", approval: { ...a, state: f.action === "accept" ? "accepted" : "declined" } })
 		},
+		search() {},
 		task(_, f) {
 			const op = f.op
 			if (op.op === "delete") return void store({ t: "task_removed", id: op.id })
@@ -317,6 +318,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
+			if (frame.t === "search") return
 			const op = frame.op
 			const chat = find(op.roomId)
 			if (op.op === "create") {

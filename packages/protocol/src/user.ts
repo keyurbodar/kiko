@@ -51,8 +51,12 @@ export type UserSnapshot = {
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
+	/** Searches chat titles. Message text is searched per room. */
+	| { t: "search"; query: string }
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[] }
 	/** Sent when `lastSeq` is too old to replay. */
 	| { t: "reset"; snapshot: UserSnapshot }
+	/** Not stored. The answer to `search` for one socket, best match first. */
+	| { t: "search"; query: string; chats: readonly Chat[] }

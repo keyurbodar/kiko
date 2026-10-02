@@ -49,6 +49,17 @@ export function getChat(sql: SqlStorage, roomId: string): Chat | null {
   return row ? toChat(row) : null
 }
 
+/** Chats whose title contains every word of `query`, case folded. Pinned first, then most recent. */
+export function searchChats(sql: SqlStorage, query: string): Chat[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8)
+  if (!words.length) return []
+  const where = words.map(() => "instr(lower(title), ?) > 0").join(" AND ")
+  return sql
+    .exec<Row>(`SELECT * FROM chats WHERE ${where} ORDER BY pinned DESC, updated_at DESC, room_id LIMIT 50`, ...words)
+    .toArray()
+    .map(toChat)
+}
+
 /** Pinned chats first, then the most recently active. */
 export function listChats(sql: SqlStorage): Chat[] {
   return sql.exec<Row>("SELECT * FROM chats ORDER BY pinned DESC, updated_at DESC, room_id").toArray().map(toChat)

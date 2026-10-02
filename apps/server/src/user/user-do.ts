@@ -4,7 +4,7 @@ import { DurableObject } from "cloudflare:workers"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { createAlarms } from "../lib/alarm"
-import { applyChatOp, type ChatChange, getChat, listChats, type Touch, touchChat } from "./chats"
+import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { migrate } from "./schema"
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
@@ -69,6 +69,10 @@ export class UserDO extends DurableObject<Env> {
     return this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
   }
 
+  async searchChats(query: string): Promise<Chat[]> {
+    return searchChats(this.sql, query)
+  }
+
   async listChats(): Promise<Chat[]> {
     return listChats(this.sql)
   }
@@ -95,6 +99,10 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "hello") {
       send(ws, this.resume(frame.lastSeq))
       ws.serializeAttachment({ ready: true } satisfies Attachment)
+      return
+    }
+    if (frame.t === "search") {
+      send(ws, { t: "search", query: frame.query, chats: searchChats(this.sql, frame.query.slice(0, 200)) })
       return
     }
     this.apply(frame.op)
