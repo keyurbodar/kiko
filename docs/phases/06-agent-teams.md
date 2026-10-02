@@ -187,24 +187,24 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 **Done when.** A room with one agent looks exactly as it did before this task.
 
-### P6-09 Build the board screen
+### P6-09 Show a group's tasks inside the chat
 
 `deps: P6-02, P2-08` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` board feature: open `/board/:chatId`, see tasks grouped by status with owner and dependencies, change a status by hand, and see the activity log update live when an agent posts.
+**Verify.** The `verify-kiko` team tasks feature: in a group chat, the top bar shows `3 tasks`, clicking it opens the group info sheet on its tasks tab with tasks grouped by status, owner, and dependencies, a status changed by hand applies at once, and a task an agent finishes appears as one muted line in the transcript.
 
-**Goal.** Show a team's work in one place.
+**Goal.** Show a team's work where the team talks. There is no separate board section.
 
-**Read first.** Product document, "What replaces kat's terminal and browser panels".
+**Read first.** Product document, "What replaces kat's terminal and browser panels". `docs/reference/group-chat/`.
 
-**Files.** Create `apps/web-solid/src/board/` (`board.tsx`, `tasks.tsx`, `activity.tsx`, `notes.tsx`).
+**Files.** Create `apps/web-solid/src/chat/team/` (`info-sheet.tsx`, `tasks.tsx`, `notes.tsx`). Edit the group top bar from P6-08.
 
 **Build.**
 
-- Tabs for tasks, activity, notes, and schedule, switched with no animation.
-- Task columns by status with owner avatar and a blocked marker. Render columns with `content-visibility: auto`.
-- An activity list on `virtua/solid`.
+- The group top bar shows the open task count next to `<n> members`. It opens the group info sheet, which has tabs for members, tasks, and notes, switched with no animation. P6-08 owns the members tab.
+- Tasks grouped by status, each with owner avatar, a blocked marker, and what it waits on. Human edits go through the room socket and apply optimistically.
 - Notes rendered with the rich text renderer.
-- Human edits to tasks go through the room socket and apply optimistically.
+- A task created, finished, or blocked shows in the transcript as one muted system line, collapsed with its neighbors, using the `SystemMessage` component.
+- Load the sheet lazily, so the chat route does not grow.
 
-**Done when.** The route is a tier 4 chunk and updates from room events with no polling.
+**Done when.** The sheet updates from room events with no polling, and a room with no tasks shows no task count.

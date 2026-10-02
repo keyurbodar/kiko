@@ -137,11 +137,11 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P5-05, P2-08` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` schedule feature: a reminder appears in the board's schedule tab, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
+**Verify.** The `verify-kiko` schedule feature: a reminder appears in the chat info sheet's reminders tab, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
 
 **Goal.** Show what is scheduled and what fired.
 
-**Files.** Create `apps/web-solid/src/board/schedule.tsx` and `apps/web-solid/src/chat/ReminderBubble.tsx`.
+**Files.** Create `apps/web-solid/src/chat/team/reminders.tsx` (a tab in the chat info sheet, which every chat has, not only groups) and `apps/web-solid/src/chat/ReminderBubble.tsx`.
 
 **Build.**
 

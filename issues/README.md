@@ -157,7 +157,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P5-03](wave-09/P5-03-build-the-daily-tidy-job.md) | Build the daily tidy job | backend | 4 | P5-02 | yes |
 | [P6-04](wave-09/P6-04-add-spawn-agent-for-the-lead.md) | Add spawn_agent for the lead | backend | 3 | P6-02, P6-03 | yes |
 | [P6-06](wave-09/P6-06-enforce-human-priority-and-stop-across-a.md) | Enforce human priority and stop across a team | backend | 3 | P6-03 | yes |
-| [P6-09](wave-09/P6-09-build-the-board-screen.md) | Build the board screen | frontend | 3 | P6-02, P2-08 | yes |
+| [P6-09](wave-09/P6-09-show-a-group-s-tasks-inside-the.md) | Show a group's tasks inside the chat | frontend | 3 | P6-02, P2-08 | yes |
 | [P7-05](wave-09/P7-05-gate-executor-approvals-on-the-human.md) | Gate Executor approvals on the human | backend | 4 | P7-04, P7-02 | yes |
 | [P9-01](wave-09/P9-01-enforce-per-user-limits.md) | Enforce per-user limits | backend | 3 | P4-02, P6-03 | yes |
 
