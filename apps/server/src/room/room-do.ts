@@ -1,4 +1,4 @@
-import type { AgentSlug, AgentState, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
+import type { AgentSlug, AgentState, FileRef, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
@@ -7,7 +7,7 @@ import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/name
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { Bubbles, Deliveries, type ReminderDelivery } from "./deliver"
-import { type FileMeta, type FileMetaPatch, type NewFile, type PutResult, RoomFiles } from "./files"
+import { type FileMeta, type FileMetaPatch, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
 import { migrate } from "./schema"
@@ -180,6 +180,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const event = this.files.fillMeta(id, patch)
 		if (event) this.publish([event])
 		return event !== null
+	}
+
+	/** RPC for the agent file tools (P8-05). Where the file at `path` lives, or null. */
+	async fileAt(path: string): Promise<{ r2Key: string; size: number; type: string } | null> {
+		const row = this.ctx.storage.sql.exec<{ r2_key: string; size: number; type: string }>("SELECT r2_key, size, type FROM ws_files WHERE path = ?", path).toArray()[0]
+		return row ? { r2Key: row.r2_key, size: row.size, type: row.type } : null
+	}
+
+	/** RPC for the agent file tools (P8-05). Every file whose path starts with `prefix`, by path. */
+	async filesUnder(prefix: string): Promise<FileRef[]> {
+		return listFiles(this.ctx.storage).filter((f) => f.name.startsWith(prefix))
 	}
 
 	/**

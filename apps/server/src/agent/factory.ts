@@ -2,6 +2,8 @@ import type { Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { opencodeGoProvider } from "@earendil-works/pi-ai/providers/opencode-go"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
+import { type FilesPort, filesExtension } from "./extensions/files"
+import { webExtension } from "./extensions/web"
 import { baseSections, type RoleInput } from "./prompt"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses
@@ -10,6 +12,8 @@ import { baseSections, type RoleInput } from "./prompt"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
+  /** The room's files (P8-05). Without it the agent has no file tools, as in the fake agent. */
+  files?: FilesPort
   /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
   testExtensions?: readonly Extension[]
 }
@@ -30,7 +34,12 @@ export const BASE = "base"
  * fills a prompt slot (`skills`, `profile`) does it with `wrapSection` and goes after `Base`.
  */
 function extensionsFor(input: BuildAgentInput): Extension[] {
-  return [defineExtension({ name: BASE, sections: baseSections(input) }), ...(input.testExtensions ?? [])]
+  return [
+    defineExtension({ name: BASE, sections: baseSections(input) }),
+    ...(input.files ? [filesExtension(input.files)] : []),
+    webExtension(),
+    ...(input.testExtensions ?? []),
+  ]
 }
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
