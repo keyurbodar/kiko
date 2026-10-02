@@ -32,7 +32,10 @@ export default function FilesRoute() {
       fallback={
         <div class="grid min-h-0 flex-1 place-items-center text-sm text-weak" data-component="files-empty">
           <div class="flex flex-col items-center gap-3">
-            <span>pick a file</span>
+            <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" class="text-accent" aria-hidden="true">
+              <path d="M1.5 4.5v8h11l2-5.5H4l-2.5 5.5M1.5 4.5v-1h4l1.5 1.5h5.5V7" />
+            </svg>
+            <span>pick a file from the tree to open it</span>
             {/* Below 768 px the file list is the sidebar drawer, so say where it is and open it in one tap. */}
             <button
               type="button"

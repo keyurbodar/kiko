@@ -39,6 +39,8 @@ export type FileTreeProps = {
 	onOpen?: (path: string) => void
 	/** Bumps when something outside the tree asks for a new file. */
 	newFileRequests?: () => number
+	/** Bumped by a "new folder" button outside the tree. When given, the tree draws no header of its own. */
+	newFolderRequests?: () => number
 	/** A new, empty file was named. */
 	onNewFile?: (path: string) => void
 	/** A folder was renamed or a file moved. `paths` are the files it changes. */
@@ -174,6 +176,14 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		startNew("file")
 	})
 
+	let seenFolder = props.newFolderRequests?.() ?? 0
+	createEffect(() => {
+		const n = props.newFolderRequests?.() ?? 0
+		if (n === seenFolder) return
+		seenFolder = n
+		startNew("folder")
+	})
+
 	const container = () => {
 		const p = tree.containerProps() as { ref: (el: HTMLElement | null) => void; onKeyDown?: (e: KeyboardEvent) => void }
 		return {
@@ -278,13 +288,15 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 
 	return (
 		<div class="file-tree" data-component="filetree" data-room={props.roomId}>
-			<div class="ft-header">
-				<span class="ft-actions">
-					<button type="button" class="ft-btn" aria-label="new folder" title="new folder" onClick={() => startNew("folder")}>
-						<NewFolderIcon />
-					</button>
-				</span>
-			</div>
+			<Show when={!props.newFolderRequests}>
+				<div class="ft-header">
+					<span class="ft-actions">
+						<button type="button" class="ft-btn" aria-label="new folder" title="new folder" onClick={() => startNew("folder")}>
+							<NewFolderIcon />
+						</button>
+					</span>
+				</div>
+			</Show>
 			<MenuV2.Context>
 				<MenuV2.Context.Trigger
 					as="div"
@@ -306,7 +318,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 							<For each={rows()}>{renderRow}</For>
 						</Show>
 						<Show when={rows().length === 0}>
-							<div class="ft-empty">no files yet</div>
+							<div class="ft-empty">no files yet. agents save what they make here, and + adds one.</div>
 						</Show>
 					</div>
 				</MenuV2.Context.Trigger>
