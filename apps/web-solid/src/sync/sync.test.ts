@@ -412,6 +412,39 @@ describe("the room store", () => {
 	})
 })
 
+describe("composer typing and run end", () => {
+	test("typing frames go out at most once every 2 s", async () => {
+		let t = 10_000
+		const { mock, make } = setup({}, { now: () => t })
+		const { store } = await make()
+		await until(() => store.state.connection === "open")
+		const typed = () => mock.received.filter((f) => f.t === "typing").length
+		for (let i = 0; i < 20; i++) store.typing()
+		await until(() => typed() === 1)
+		t += 1999
+		store.typing()
+		await sleep(20)
+		expect(typed()).toBe(1)
+		t += 1
+		store.typing()
+		await until(() => typed() === 2)
+		store.close()
+	})
+
+	test("an idle status clears that agent's drafts and keeps another's", async () => {
+		const { mock, make } = setup()
+		const { store } = await make()
+		await until(() => store.state.seq === 17)
+		mock.broadcast({ t: "draft", slug: fixtures.ada, runId: "r1", index: 0, text: "aborted" })
+		mock.broadcast({ t: "draft", slug: fixtures.bob, runId: "r2", index: 0, text: "going" })
+		await until(() => Object.keys(store.state.drafts).length === 2)
+		mock.broadcast({ t: "status", slug: fixtures.ada, state: "idle" })
+		await until(() => Object.keys(store.state.drafts).length === 1)
+		expect(Object.values(store.state.drafts)[0].slug).toBe(fixtures.bob)
+		store.close()
+	})
+})
+
 describe("the user store", () => {
 	test("chat edits apply at once, go out after a reconnect, and are confirmed", async () => {
 		const mock = createMockUser()

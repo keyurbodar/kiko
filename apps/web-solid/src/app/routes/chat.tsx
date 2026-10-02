@@ -171,7 +171,10 @@ export default function ChatRoute() {
             threadId={useApp.activeThreadId() ?? ""}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
-            onDraftChange={(key, text) => book()?.save(key, { text })}
+            onDraftChange={(key, text) => {
+              book()?.save(key, { text });
+              if (text !== "") useApp.typing();
+            }}
             bots={useApp.members()}
             /*
              * A send while a reply is armed is a REPLY, and the two store

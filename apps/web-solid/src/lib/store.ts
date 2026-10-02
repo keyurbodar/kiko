@@ -15,7 +15,8 @@
 // the pure functions below, and nowhere else.
 
 import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
-import { batch, createRoot, createSignal } from "solid-js"
+import { batch, createComputed, createRoot, createSignal, untrack } from "solid-js"
+import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore } from "../sync/room-store"
@@ -171,6 +172,81 @@ export function createApp(options: AppOptions = {}) {
     /** Built views by message id, so an unchanged message keeps its object. */
     let views = new Map<string, { sig: string; view: ChatMessage }>()
 
+    /*
+     * Bubble pacing (architecture 6.3). A bubble of a live run that arrives faster than a person
+     * could type it is held out of the view, not out of the store, so a reload shows all of them.
+     * `paced` bumps when a bubble is held or released.
+     */
+    const LIVE_WINDOW_MS = 30_000
+    const [paced, bumpPaced] = createSignal(0)
+    let pacer = createPacer({ onChange: () => bumpPaced((n) => n + 1) })
+    /** Drafts by `runId:index` and when each was first seen, so a growing bubble keeps its time. */
+    const draftSince = new Map<string, number>()
+    let pacedRoom: RoomStore | null = null
+    let seeded = false
+
+    createComputed(() => {
+      const r = room()
+      if (!r) return
+      const list = r.messages()
+      const loaded = r.state.loaded
+      untrack(() => {
+        if (pacedRoom !== r) {
+          pacer.dispose()
+          pacer = createPacer({ onChange: () => bumpPaced((n) => n + 1) })
+          draftSince.clear()
+          pacedRoom = r
+          seeded = false
+        }
+        if (!loaded) return
+        if (!seeded) {
+          // Whatever the warm tier painted is history.
+          seeded = true
+          for (const m of list) pacer.offer({ id: m.id, slug: "", chars: 0, live: false })
+          return
+        }
+        const t = Date.now()
+        for (const m of list) {
+          const live = m.from.kind === "agent" && !!m.run && !m.pending && t - m.at < LIVE_WINDOW_MS
+          pacer.offer({ id: m.id, slug: m.from.kind === "agent" ? m.from.slug : "", chars: m.text.length, live })
+        }
+      })
+    })
+
+    /*
+     * A new burst restarts a run: the first run ends with no bubble (`idle`), then `typing` comes
+     * again. The dots stay up through that gap. An agent that went quiet after posting a bubble
+     * is done, and its dots go at once.
+     */
+    const RESTART_GRACE_MS = 1500
+    const [lingering, setLingering] = createSignal<string[]>([])
+    const lingerTimers = new Map<string, ReturnType<typeof setTimeout>>()
+    let wasTyping = new Map<string, number>()
+    createComputed(() => {
+      const r = room()
+      const typing = r ? [...r.state.typing] : []
+      const count = (slug: string) => (r ? r.state.messages.filter((m) => m.from.kind === "agent" && m.from.slug === slug).length : 0)
+      untrack(() => {
+        const nowTyping = new Map<string, number>()
+        for (const slug of typing) {
+          nowTyping.set(slug, wasTyping.get(slug) ?? count(slug))
+          const timer = lingerTimers.get(slug)
+          if (timer !== undefined) clearTimeout(timer)
+          lingerTimers.delete(slug)
+        }
+        const stopped = [...wasTyping].filter(([slug]) => !nowTyping.has(slug))
+        wasTyping = nowTyping
+        const quiet = stopped.filter(([slug, before]) => count(slug) === before).map(([slug]) => slug)
+        const drop = (slug: string) => {
+          lingerTimers.delete(slug)
+          setLingering((l) => l.filter((x) => x !== slug))
+        }
+        setLingering((l) => [...l.filter((x) => !nowTyping.has(x)), ...quiet.filter((x) => !l.includes(x))])
+        for (const slug of quiet) lingerTimers.set(slug, setTimeout(() => drop(slug), RESTART_GRACE_MS))
+        if (!r) for (const timer of lingerTimers.values()) clearTimeout(timer)
+      })
+    })
+
     function openRoom(roomId: RoomId | null) {
       const current = room()
       if (current?.state.roomId === roomId) return
@@ -319,7 +395,8 @@ export function createApp(options: AppOptions = {}) {
         if (!r) return []
         const roomId = r.state.roomId
         const next = new Map<string, { sig: string; view: ChatMessage }>()
-        const out = r.messages().map((m) => {
+        paced()
+        const out = r.messages().filter((m) => !pacer.isHeld(m.id)).map((m) => {
           const sig = signature(m)
           const key = m.clientId ?? m.id
           const cached = views.get(key)
@@ -328,6 +405,15 @@ export function createApp(options: AppOptions = {}) {
           return entry.view
         })
         views = next
+        // A growing block shows until its final message is on screen. A held final keeps its dots.
+        const shown = new Set(out.map((m) => m.id))
+        const finals = new Set(r.messages().filter((m) => m.run && shown.has(m.id)).map((m) => `${m.run!.runId}:${m.run!.index}`))
+        for (const [key, d] of Object.entries(r.state.drafts)) {
+          if (finals.has(key) || d.text === "") continue
+          const since = draftSince.get(key) ?? Date.now()
+          draftSince.set(key, since)
+          out.push({ id: `draft:${key}`, threadId: roomId, sender: "bot", botId: d.slug, body: d.text, sentAt: since })
+        }
         return out
       },
 
@@ -360,7 +446,17 @@ export function createApp(options: AppOptions = {}) {
       typingNames(): string[] {
         const r = room()
         if (!r) return []
-        return r.state.typing.map((slug) => r.state.members.find((m) => m.slug === slug)?.name ?? slug)
+        // Held bubbles keep the dots up even after the run's `idle`.
+        paced()
+        const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
+        slugs.delete("")
+        for (const d of Object.values(r.state.drafts)) slugs.delete(d.slug)
+        return [...slugs].map((slug) => r.state.members.find((m) => m.slug === slug)?.name ?? slug)
+      },
+
+      /** The composer calls this on input. The room store sends at most one frame every 2 s. */
+      typing() {
+        room()?.typing()
       },
 
       /** True when the open room has a stored message newer than the read marker and the socket is up. */
