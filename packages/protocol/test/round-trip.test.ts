@@ -33,9 +33,9 @@ describe("fixture round trip", () => {
 	test("the fixtures hold every frame and event tag", () => {
 		const tags = (frames: readonly { t: string }[]) => new Set(frames.map((frame) => frame.t))
 		expect(tags(F.clientToRoom)).toEqual(
-			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "approve", "task", "search"]),
+			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "approve", "task", "member", "search", "catalog"]),
 		)
-		expect(tags(F.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "search"]))
+		expect(tags(F.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "search", "catalog"]))
 		expect(tags(F.roomEvents)).toEqual(
 			new Set([
 				"message",

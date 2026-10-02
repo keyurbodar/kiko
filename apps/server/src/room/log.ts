@@ -17,6 +17,7 @@ import type {
 	Sender,
 } from "@kiko/protocol"
 import { listFiles } from "./files"
+import { listMembers } from "./members"
 
 /** A `hello` further behind than this gets a `reset` instead of events. */
 export const REPLAY_LIMIT = 500
@@ -118,11 +119,11 @@ export class RoomLog {
 				SNAPSHOT_MESSAGES,
 			)
 			.toArray()
-		// ASSUMPTION: members, tasks, and approvals are empty until the tasks that own those tables fill them in.
+		// ASSUMPTION: tasks and approvals are empty until the tasks that own those tables fill them in.
 		return {
 			seq: this.lastSeq(),
 			readSeq: this.readSeq(),
-			members: [],
+			members: listMembers(this.storage),
 			messages: rows.map((r) => this.toMessage(r)),
 			tasks: [],
 			approvals: [],
