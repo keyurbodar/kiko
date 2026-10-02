@@ -53,7 +53,7 @@ export function DateChip(props: {
         active={open()}
         class={cn(
           "flex w-max max-w-full flex-col items-stretch overflow-clip bg-surface-raised text-text shadow-popover",
-          open() ? "rounded-[calc(20px*var(--brm))] min-w-[min(320px,100%)]" : "rounded-[15px]",
+          open() ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full motion-calendar-open" : "rounded-[15px]",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
@@ -61,7 +61,7 @@ export function DateChip(props: {
         <div
           class={cn(
             "relative flex items-center justify-center",
-            open() ? "min-h-9" : "min-h-[30px]",
+            open() ? "min-h-11 px-3 pt-2" : "min-h-[30px]",
           )}
         >
           <button
@@ -71,7 +71,9 @@ export function DateChip(props: {
             type="button"
             class={cn(
               "chat-chip pointer-events-auto cursor-pointer px-[11px] py-1 text-xs lowercase hover:bg-btn-hover aria-expanded:bg-btn-hover",
-              open() ? "min-h-9" : "min-h-[30px]",
+              open()
+                ? "min-h-7 rounded-full bg-btn px-3 text-sm hover:bg-btn-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                : "min-h-[30px]",
             )}
             data-component="chat-day-chip"
             aria-expanded={open()}
@@ -86,7 +88,7 @@ export function DateChip(props: {
           <Show when={open()}>
             <button
               type="button"
-              class="pointer-events-auto absolute top-1/2 right-[5px] grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-weak hover:bg-btn hover:text-text"
+              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-weak hover:bg-btn hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
               aria-label="close calendar"
               onClick={close}
             >
@@ -95,7 +97,7 @@ export function DateChip(props: {
           </Show>
         </div>
         <Show when={open()}>
-          <Suspense fallback={<div class="h-[300px] w-[300px]" />}>
+          <Suspense fallback={<div class="h-[300px] w-full" />}>
             <DateCalendar dayStart={props.dayStart} picked={picked()} setPicked={setPicked} month={month()} setMonth={setMonth} picking={picking()} setPicking={setPicking} close={close} onJumpToDay={props.onJumpToDay} />
           </Suspense>
         </Show>

@@ -31,7 +31,7 @@ export default function DateCalendar(props: {
   const close = props.close
   return (
           <div
-            class="chat-calendar pointer-events-auto flex w-[300px] flex-col items-center px-2.5 pt-1 pb-2.5"
+            class="chat-calendar pointer-events-auto flex w-full flex-col items-center px-3 pt-1 pb-3"
           >
             <Calendar
               mode="single"
@@ -51,7 +51,7 @@ export default function DateCalendar(props: {
             >
               {(calendar) => (
                 <>
-                  <div class="flex min-h-9 w-[280px] items-center gap-0.5">
+                  <div class="flex min-h-9 w-full items-center gap-0.5">
                     <button
                       type="button"
                       class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-base font-medium whitespace-nowrap text-accent lowercase hover:bg-btn"
@@ -92,7 +92,7 @@ export default function DateCalendar(props: {
                   <Show
                     when={!picking()}
                     fallback={
-                      <div class="grid w-[280px] grid-cols-3 grid-rows-4 gap-1 pt-1">
+                      <div class="grid w-full grid-cols-3 grid-rows-4 gap-1 pt-1">
                         <Index each={MONTHS}>
                           {(day) => (
                             <button
@@ -120,7 +120,8 @@ export default function DateCalendar(props: {
                       </div>
                     }
                   >
-                    <Calendar.Table class="w-[280px] border-collapse table-fixed">
+                    <Show when={`${calendar.month.getFullYear()}-${calendar.month.getMonth()}`} keyed>
+                    <Calendar.Table class="motion-calendar-month w-full border-collapse table-fixed">
                       <thead>
                         <tr>
                           <Index each={calendar.weekdays}>
@@ -144,7 +145,7 @@ export default function DateCalendar(props: {
                                   <Calendar.Cell class="h-10 p-0 text-center">
                                     <Calendar.CellTrigger
                                       class={cn(
-                                        "chat-calendar__day mx-auto grid size-9 place-items-center rounded-full p-0",
+                                        "chat-calendar__day mx-auto grid motion-safe:transition-colors motion-safe:duration-(--motion-fast) size-9 place-items-center rounded-full p-0",
                                         "tabular-nums cursor-pointer",
                                         "not-data-disabled:hover:bg-[oklch(from_var(--text)_l_c_h_/_6%)]",
                                         "active:not-data-disabled:scale-[0.92]",
@@ -165,6 +166,7 @@ export default function DateCalendar(props: {
                         </Index>
                       </tbody>
                     </Calendar.Table>
+                    </Show>
                   </Show>
                 </>
               )}
