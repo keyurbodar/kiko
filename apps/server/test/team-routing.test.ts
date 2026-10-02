@@ -142,6 +142,19 @@ test("a chat created without agents gets kiko as its lead", async () => {
   ws.ws.close()
 })
 
+test("a group with the built-in kiko and a stored agent seeds both, kiko first as lead", async () => {
+  const room = fresh()
+  const piko = { id: "agent-piko", name: "piko", slug: slug("piko"), prompt: "", model: "" }
+  await call("/user", { chats: [{ ...chatFor(room, "kiko, piko"), agents: ["kiko", "agent-piko"] }], agents: [piko] })
+  const ws = await Socket.open(room)
+  await ws.until(() => ws.members().length === 2)
+  expect(ws.members().map((m) => [m.slug, m.lead])).toEqual([
+    ["kiko", true],
+    ["piko", false],
+  ])
+  ws.ws.close()
+})
+
 test("untagged reaches only the lead, @ada only ada, @all everyone, and ada's next brief carries what she missed", async () => {
   const { room, ws } = await team()
   await ws.say("hello team")

@@ -51,6 +51,9 @@ export class FakeUser extends DurableObject {
   async listChats() {
     return (await this.state()).chats
   }
+  async getChat(roomId: string) {
+    return (await this.state()).chats.find((c) => c.roomId === roomId) ?? null
+  }
   async listAgents() {
     return (await this.state()).agents
   }
