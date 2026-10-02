@@ -22,3 +22,4 @@ artifacts/
 .env
 .env.*
 !.dev.vars.example
+.claude/worktrees/
