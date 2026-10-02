@@ -43,6 +43,42 @@
     </style>
   </head>
   <body>
+    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#1c1b1f)"></div>
+    <script>
+      /* the last screen, painted before any module loads. src/lib/snapshot.ts saves it and removes this layer. */
+      (function () {
+        var n = document.getElementById("snap");
+        try {
+          var s = JSON.parse(localStorage.getItem("kiko:snap") || "null");
+          if (!s || s.v !== 1 || s.path !== location.pathname) return n.remove();
+          var h = document.head, w = s.links.length;
+          var show = function () {
+            n.style.visibility = "visible";
+            for (var i = 0; i < s.scroll.length; i++) {
+              var e = n, p = s.scroll[i][0].split("/");
+              for (var j = 0; j < p.length && e; j++) e = e.children[+p[j]];
+              if (e) e.scrollTop = s.scroll[i][1];
+            }
+          };
+          for (var i = 0; i < s.styles.length; i++) {
+            var st = document.createElement("style");
+            st.setAttribute("data-snap", "");
+            st.textContent = s.styles[i];
+            h.appendChild(st);
+          }
+          n.innerHTML = s.html;
+          if (!w) return show();
+          s.links.forEach(function (u) {
+            var l = document.createElement("link");
+            l.rel = "stylesheet";
+            l.href = u;
+            l.onload = function () { if (--w === 0) show(); };
+            l.onerror = function () { n.remove(); };
+            h.appendChild(l);
+          });
+        } catch (e) { n.remove(); }
+      })();
+    </script>
     <div id="root">
       <div id="boot">
         <svg viewBox="0 0 64 64" aria-hidden="true">

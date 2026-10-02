@@ -9,6 +9,7 @@ import { Shell } from "./app/shell";
 import { loadMotion } from "./lib/motion";
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
 import { ensureSprite } from "@kiko/ui/icon";
+import { startSnapshots } from "./lib/snapshot";
 
 const SignIn = lazy(() => import("./app/sign-in"));
 
@@ -54,6 +55,14 @@ export function start(): void {
   root.replaceChildren();
   void bootstrapSession();
   render(() => <Router root={Root}>{routes}</Router>, root);
+  // The shell painted the last screen from the snapshot. It goes once the app has painted its own.
+  startSnapshots(() => {
+    const s = session().status;
+    if (s === "signed-out") return true;
+    if (s !== "signed-in") return false;
+    const id = useApp.activeThreadId();
+    return !location.pathname.startsWith("/chat") || !id || !!useApp.room()?.state.loaded;
+  });
   whenIdle(preload);
 }
 

@@ -117,6 +117,9 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
 export async function signOut(): Promise<void> {
   try {
+    localStorage.removeItem("kiko:snap")
+  } catch {}
+  try {
     await fetch("/api/auth/sign-out", {
       method: "POST",
       headers: { "content-type": "application/json" },
