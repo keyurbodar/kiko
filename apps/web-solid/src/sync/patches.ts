@@ -1,0 +1,258 @@
+// Pending patches over the server state. Architecture section 9.3.
+//
+// Every user action becomes a patch first. A patch is the frame the action
+// sends, plus a local `clientId`. The view is the server state with every
+// pending patch laid over it, in order. A patch is dropped when the server
+// confirms it: a `send` by its `clientId` (or once the store has applied the
+// `seq` its `ack` named), every other action by the first event that shows the
+// same change. The tables below are the whole rule.
+//
+// ASSUMPTION: only `send` has an `ack` frame in the protocol, so the other
+// actions are confirmed by the event they cause. One the server never confirms
+// (it refused it, or its message was deleted) expires `ttlMs` after it last
+// went out on an open socket.
+//
+// Everything here is pure, so the tests and both stores share it.
+
+import type {
+	Approval,
+	Chat,
+	ChatOp,
+	ClientToRoom,
+	Message,
+	MessageId,
+	RoomEvent,
+	Task,
+	UserEvent,
+} from "@kiko/protocol"
+
+/** The room frames that change state. `hello`, `typing`, and `stop` change nothing to show. */
+export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" }>
+export type SendFrame = Extract<ClientToRoom, { t: "send" }>
+
+export type RoomPatch = {
+	clientId: string
+	frame: RoomPatchFrame
+	/** Epoch milliseconds when the user acted. */
+	at: number
+	/** Epoch milliseconds when it last went out on an open socket. Unset while offline. */
+	sentAt?: number
+	/** Set by an `ack`. The patch stays until the store has applied `seq`, so the bubble never blinks. */
+	ack?: { id: MessageId; seq: number }
+}
+
+export type UserPatch = {
+	clientId: string
+	op: ChatOp
+	at: number
+	sentAt?: number
+}
+
+/** A message as the transcript draws it. A pending send has `pending` and its `clientId`. */
+export type ViewMessage = Message & { clientId?: string; pending?: boolean }
+
+/** How long an unconfirmed action may stay after it went out. */
+export const PATCH_TTL_MS = 15_000
+
+/** The id an unacknowledged send shows under. */
+export const localMessageId = (clientId: string) => `local:${clientId}` as MessageId
+
+// Confirmation, as a table of cases.
+
+type Confirms = {
+	[K in RoomPatchFrame["t"]]: (frame: Extract<RoomPatchFrame, { t: K }>, event: RoomEvent, clientId: string) => boolean
+}
+
+const roomConfirms: Confirms = {
+	send: (_, e, clientId) => e.t === "message" && e.clientId === clientId,
+	react: (f, e) => e.t === "react" && e.messageId === f.messageId && e.by.kind === "human" && e.emoji === f.emoji,
+	edit: (f, e) => e.t === "edit" && e.messageId === f.messageId && e.text === f.text,
+	delete: (f, e) => e.t === "delete" && e.messageIds.includes(f.messageId),
+	read: (f, e) => e.t === "read" && e.upTo >= f.seq,
+	task: (f, e) =>
+		f.op.op === "delete" ? e.t === "task_removed" && e.id === f.op.id : e.t === "task" && e.task.id === f.op.id,
+	approve: (f, e) => e.t === "approval" && e.approval.id === f.approvalId && e.approval.state !== "pending",
+}
+
+export function roomConfirmedBy(patch: RoomPatch, event: RoomEvent): boolean {
+	const check = roomConfirms[patch.frame.t] as (f: RoomPatchFrame, e: RoomEvent, c: string) => boolean
+	return check(patch.frame, event, patch.clientId)
+}
+
+/** The patches still pending after `events` and with the store at `appliedSeq`. */
+export function settleRoom(patches: readonly RoomPatch[], events: readonly RoomEvent[], appliedSeq: number): RoomPatch[] {
+	return patches.filter(
+		(p) => !(p.ack && p.ack.seq <= appliedSeq) && !events.some((e) => roomConfirmedBy(p, e)),
+	)
+}
+
+type UserConfirms = { [K in ChatOp["op"]]: (op: Extract<ChatOp, { op: K }>, event: UserEvent) => boolean }
+
+const userConfirms: UserConfirms = {
+	create: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId,
+	rename: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.title === op.title,
+	pin: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.pinned === op.pinned,
+	mute: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.muted === op.muted,
+	delete: (op, e) => e.t === "chat_removed" && e.roomId === op.roomId,
+}
+
+export function userConfirmedBy(patch: UserPatch, event: UserEvent): boolean {
+	const check = userConfirms[patch.op.op] as (op: ChatOp, e: UserEvent) => boolean
+	return check(patch.op, event)
+}
+
+export function settleUser(patches: readonly UserPatch[], events: readonly UserEvent[]): UserPatch[] {
+	return patches.filter((p) => !events.some((e) => userConfirmedBy(p, e)))
+}
+
+/** Drops patches that went out more than `ttlMs` ago and were never confirmed. Sends never expire. */
+export function expire<P extends { sentAt?: number; frame?: RoomPatchFrame }>(
+	patches: readonly P[],
+	now: number,
+	ttlMs = PATCH_TTL_MS,
+): P[] {
+	return patches.filter((p) => p.frame?.t === "send" || p.sentAt === undefined || now - p.sentAt < ttlMs)
+}
+
+// The overlays. Each returns the server object itself when no patch touches it,
+// so a keyed list keeps every untouched row.
+
+function pendingMessage(p: RoomPatch & { frame: SendFrame }): ViewMessage {
+	const m: ViewMessage = {
+		id: p.ack?.id ?? localMessageId(p.clientId),
+		// ASSUMPTION: an unacknowledged send sorts after every stored message.
+		seq: p.ack?.seq ?? Number.MAX_SAFE_INTEGER,
+		at: p.at,
+		from: { kind: "human" },
+		text: p.frame.text,
+		clientId: p.clientId,
+		pending: true,
+	}
+	if (p.frame.replyTo) m.replyTo = p.frame.replyTo
+	if (p.frame.files?.length) m.files = p.frame.files
+	return m
+}
+
+function patchMessage(m: ViewMessage, p: RoomPatch): ViewMessage | null {
+	const f = p.frame
+	if (f.t === "delete") return null
+	if (f.t === "edit") {
+		const { rich: _, ...rest } = m
+		return { ...rest, text: f.text, editedAt: p.at }
+	}
+	if (f.t === "react") {
+		const others = (m.reactions ?? []).filter((r) => r.by.kind !== "human")
+		const reactions = f.emoji === null ? others : [...others, { by: { kind: "human" as const }, emoji: f.emoji }]
+		const { reactions: _, ...rest } = m
+		return reactions.length ? { ...rest, reactions } : rest
+	}
+	return m
+}
+
+const messageTarget = (f: RoomPatchFrame): MessageId | undefined =>
+	f.t === "react" || f.t === "edit" || f.t === "delete" ? f.messageId : undefined
+
+export function overlayMessages(messages: readonly Message[], patches: readonly RoomPatch[]): ViewMessage[] {
+	if (patches.length === 0) return messages as ViewMessage[]
+	const byId = new Map<MessageId, RoomPatch[]>()
+	const sends: (RoomPatch & { frame: SendFrame })[] = []
+	for (const p of patches) {
+		if (p.frame.t === "send") sends.push(p as RoomPatch & { frame: SendFrame })
+		const target = messageTarget(p.frame)
+		if (target) byId.set(target, [...(byId.get(target) ?? []), p])
+	}
+	const out: ViewMessage[] = []
+	const stored = new Set<MessageId>()
+	for (const m of messages) {
+		stored.add(m.id)
+		let v: ViewMessage | null = m
+		for (const p of byId.get(m.id) ?? []) if (v) v = patchMessage(v, p)
+		if (v) out.push(v)
+	}
+	for (const s of sends) {
+		if (s.ack && stored.has(s.ack.id)) continue
+		let v: ViewMessage | null = pendingMessage(s)
+		for (const p of byId.get(v.id) ?? []) if (v) v = patchMessage(v, p)
+		if (v) out.push(v)
+	}
+	return out
+}
+
+export function overlayTasks(tasks: readonly Task[], patches: readonly RoomPatch[]): Task[] {
+	let out = tasks as Task[]
+	for (const p of patches) {
+		if (p.frame.t !== "task") continue
+		const op = p.frame.op
+		if (op.op === "create") {
+			const t: Task = { id: op.id, title: op.title, status: "todo", dependsOn: op.dependsOn ?? [] }
+			if (op.owner) t.owner = op.owner
+			out = [...out.filter((x) => x.id !== op.id), t]
+		} else if (op.op === "delete") {
+			out = out.filter((x) => x.id !== op.id)
+		} else {
+			out = out.map((x) => {
+				if (x.id !== op.id) return x
+				const { owner, ...rest } = x
+				const next: Task = { ...rest }
+				const newOwner = op.owner === undefined ? owner : (op.owner ?? undefined)
+				if (newOwner) next.owner = newOwner
+				if (op.title !== undefined) next.title = op.title
+				if (op.status !== undefined) next.status = op.status
+				if (op.note !== undefined) next.note = op.note
+				return next
+			})
+		}
+	}
+	return out
+}
+
+export function overlayApprovals(approvals: readonly Approval[], patches: readonly RoomPatch[]): Approval[] {
+	let out = approvals as Approval[]
+	for (const p of patches) {
+		const f = p.frame
+		if (f.t !== "approve") continue
+		const state = f.action === "accept" ? "accepted" : "declined"
+		out = out.map((a) => (a.id === f.approvalId && a.state === "pending" ? { ...a, state } : a))
+	}
+	return out
+}
+
+export function overlayReadSeq(readSeq: number, patches: readonly RoomPatch[]): number {
+	let out = readSeq
+	for (const p of patches) if (p.frame.t === "read") out = Math.max(out, p.frame.seq)
+	return out
+}
+
+/** Pinned first, then the most recently updated, as the sidebar lists them. */
+export const chatOrder = (a: Chat, b: Chat) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt
+
+export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch[]): Chat[] {
+	if (patches.length === 0) return [...chats].sort(chatOrder)
+	let out = [...chats]
+	for (const p of patches) {
+		const op = p.op
+		if (op.op === "create") {
+			if (out.some((c) => c.roomId === op.roomId)) continue
+			out.push({
+				roomId: op.roomId,
+				title: op.title,
+				pinned: false,
+				muted: false,
+				lastSeq: 0,
+				lastPreview: "",
+				unread: 0,
+				updatedAt: p.at,
+			})
+		} else if (op.op === "delete") {
+			out = out.filter((c) => c.roomId !== op.roomId)
+		} else {
+			out = out.map((c) => {
+				if (c.roomId !== op.roomId) return c
+				if (op.op === "rename") return { ...c, title: op.title }
+				if (op.op === "pin") return { ...c, pinned: op.pinned }
+				return { ...c, muted: op.muted }
+			})
+		}
+	}
+	return out.sort(chatOrder)
+}
