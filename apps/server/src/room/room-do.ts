@@ -537,6 +537,18 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.#wiped ? 0 : storedRows(this.ctx.storage)
 	}
 
+	/** The memory tidy (P5-03) reads the human's own messages after `since`, the newest `limit`, oldest first. */
+	async humanMessagesSince(since: number, limit: number): Promise<{ at: number; text: string }[]> {
+		if (this.#wiped) return []
+		return this.ctx.storage.sql
+			.exec<{ at: number; text: string }>(
+				"SELECT at, text FROM (SELECT seq, at, text FROM messages WHERE json_extract(sender, '$.kind') = 'human' AND deleted_at IS NULL AND at > ? ORDER BY seq DESC LIMIT ?) ORDER BY seq",
+				since,
+				Math.max(1, Math.min(limit, 200)),
+			)
+			.toArray()
+	}
+
 	/** Development only. Makes `slug` a member and stores one message from it, for the deletion check. */
 	async devAgentMessage(slug: AgentSlug, text: string): Promise<void> {
 		if (process.env.NODE_ENV !== "development") throw new Error("not found")
