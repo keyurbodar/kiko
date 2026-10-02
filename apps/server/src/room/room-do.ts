@@ -230,7 +230,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** One member's envelopes with its brief (section 7.4). Reactions on the member's own messages come from reactions.ts. */
-	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, envelopes: Envelope[]) {
+	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) {
+		const envelopes = raw.map((e) => this.withContext(e))
 		const reactions = reactionBrief(this.log, this.ctx.storage.sql, member.slug)
 		const view = readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text)
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
@@ -267,6 +268,29 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!home) return
 		const busy = this.members.list().filter((m) => m.status !== "idle")
 		await Promise.allSettled(busy.map((m) => agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).humanComing()))
+	}
+
+	/**
+	 * What the agent needs to read a human message the way the human sees it: the bubble it replies
+	 * to, and the files it carries (each one opens with read_file). Added after routing, so a quoted
+	 * "@ada" never addresses ada. The envelope id is unchanged, so a repeat is still ignored.
+	 */
+	private withContext(e: Envelope): Envelope {
+		if (e.from.kind !== "human") return e
+		const message = this.log.message(e.rootId)
+		if (!message) return e
+		const lines: string[] = []
+		const quoted = message.replyTo ? this.log.message(message.replyTo) : null
+		if (quoted) {
+			const by = quoted.from.kind === "agent" ? `@${quoted.from.slug}` : quoted.from.kind === "human" ? "the human" : "the room"
+			lines.push(`(replying to ${by}: "${quoted.text.replace(/\s+/g, " ").slice(0, 400)}")`)
+		}
+		if (e.body.trim()) lines.push(e.body)
+		if (message.files?.length) {
+			const list = message.files.map((f) => `${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`).join(", ")
+			lines.push(`(attached: ${list}. open each with read_file before you answer about it.)`)
+		}
+		return lines.length ? { ...e, body: lines.join("\n") } : e
 	}
 
 	/** Delivers the agent messages held while a human burst was pending, in order. */
