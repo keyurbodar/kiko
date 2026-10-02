@@ -1,0 +1,14 @@
+{
+  "name": "@kiko/cli",
+  "private": true,
+  "type": "module",
+  "bin": { "kiko": "src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}
