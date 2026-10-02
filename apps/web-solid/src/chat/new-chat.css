@@ -184,6 +184,53 @@
   text-align: center;
 }
 
+.new-chat-start {
+  display: flex;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  color: var(--bg);
+  font: inherit;
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-bold);
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.new-chat-start:hover {
+  filter: brightness(1.08);
+}
+
+.new-chat-start:active {
+  filter: brightness(0.94);
+}
+
+.new-chat-start-key {
+  font-size: var(--font-sm);
+  font-weight: normal;
+  opacity: 0.6;
+}
+
+@media (pointer: coarse) {
+  .new-chat-start-key {
+    display: none;
+  }
+
+  .new-chat-chip-x {
+    width: 28px;
+    height: 28px;
+  }
+
+  .new-chat-item {
+    min-height: 48px;
+  }
+}
+
 /* The inline new agent form. */
 
 .new-chat-form {
