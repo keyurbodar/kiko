@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler d1 migrations apply AUTH_DB --local >/dev/null && wrangler dev",
     "test:workerd": "vitest run",
     "typecheck": "tsc --noEmit",
     "deploy:dry": "wrangler deploy --dry-run"
