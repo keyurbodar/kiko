@@ -21,16 +21,23 @@ const FIRST_PAINT_ROUTE = "src/app/routes/chat.tsx";
 const APP_ENTRY = "src/main.tsx";
 
 /* Tier 3 modules load with lazy() or a dynamic import on idle or intent. */
-const TIER3 = ["src/palette/palette.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
+const TIER3 = ["src/palette/palette.tsx", "src/chat/ui/DateCalendar.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
 /* Tier 4 route chunks load on route intent. */
 const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/routes/memory.tsx", "src/app/routes/settings.tsx"];
 
-/* Recorded gzip bytes, measured at P2-03. Tier 3 re-recorded at P3-14: the palette and cmdk-solid add 5.6 KB. */
+/*
+ * Recorded gzip bytes, measured at P2-03. Re-recorded on purpose:
+ * - tier 1: the shell html lists more modulepreload links.
+ * - tier 3: P3-14 palette and cmdk-solid add 5.6 KB. The budget fix moved the hotkey library
+ *   (@tanstack/solid-hotkeys), the corvu day calendar and fuzzysort out of tier 2 into lazy
+ *   chunks, which adds about 12 KB here. Tier 2 shrank by the same code.
+ * - tier 4: the settings and memory routes have real content. They were placeholders.
+ */
 const RECORDED: Record<string, number> = {
-  "tier 1 shell js": 1524,
+  "tier 1 shell js": 1689,
   "tier 2 first paint of /chat": 220198,
-  "tier 3 lazy modules": 18992,
-  "tier 4 route chunks": 5694, // P5-04: the memory screen. CodeMirror is a dynamic import, outside this count.
+  "tier 3 lazy modules": 31724,
+  "tier 4 route chunks": 7978, // settings (P4-05) 3.0 KB plus the memory screen (P5-04) 4.9 KB. CodeMirror is a dynamic import, outside this count.
 };
 
 interface Entry {
@@ -49,6 +56,9 @@ const manifest: Record<string, Entry> = JSON.parse(readFileSync(manifestPath, "u
 
 const gz = (file: string): number => gzipSync(readFileSync(join(DIST, file))).length;
 
+/* Manifest keys a tier names that the build does not have. Reported as failures, never thrown. */
+const missing = new Set<string>();
+
 /* The files of a set of manifest keys and their static imports, minus `exclude`. */
 function closure(keys: string[], exclude = new Set<string>()): Set<string> {
   const files = new Set<string>();
@@ -57,7 +67,10 @@ function closure(keys: string[], exclude = new Set<string>()): Set<string> {
     if (seen.has(key)) return;
     seen.add(key);
     const entry = manifest[key];
-    if (!entry) throw new Error(`manifest has no ${key}`);
+    if (!entry) {
+      missing.add(key);
+      return;
+    }
     if (!exclude.has(entry.file)) files.add(entry.file);
     for (const css of entry.css ?? []) if (!exclude.has(css)) files.add(css);
     for (const dep of entry.imports ?? []) visit(dep);
@@ -111,6 +124,8 @@ for (const [name, files] of banned) {
     }
   }
 }
+
+for (const key of missing) fail(`manifest has no ${key}. A tier names it, so the tier is measured without it. Fix the key in scripts/bundle-budget.ts.`);
 
 const htmlBytes = readFileSync(join(DIST, "index.html")).length;
 const htmlOk = htmlBytes <= HTML_MAX_BYTES;

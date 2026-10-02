@@ -7,8 +7,7 @@ import {
 } from "@kiko/ui/context/i18n";
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
-import { createSignal, onCleanup, onMount, type ParentProps } from "solid-js";
-import { bindCommandHotkeys } from "../commands/hotkeys";
+import { createSignal, getOwner, onCleanup, onMount, runWithOwner, type ParentProps } from "solid-js";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { Palette, preloadPalette } from "../palette";
 import { Sidebar } from "../sidebar";
@@ -67,7 +66,11 @@ export function Shell(props: ParentProps) {
   };
   const toggle = () => setAndSave(!collapsed());
   useKatCommands({ toggleSidebar: toggle });
-  bindCommandHotkeys();
+  // The hotkey library loads right after first paint. Shortcuts are keyboard only, so nothing waits on it.
+  const owner = getOwner();
+  onMount(() => {
+    void import("../commands/hotkeys").then((m) => runWithOwner(owner, () => m.bindCommandHotkeys()));
+  });
   // Preload tier 3 on the first modifier key so the palette opens in one frame.
   onMount(() => {
     const on = (e: KeyboardEvent) => {
