@@ -15,14 +15,14 @@ Three labels appear in both documents.
 Kiko is for people who want one assistant for daily life and work, not for programmers who want a coding agent.
 
 - **The daily user.** Asks questions, plans a trip, drafts an email, sets a reminder, sends a photo and asks what it is. Types the way people text, in short bursts.
-- **The delegator.** Hands a goal to a team of agents ("plan the launch"), tags agents by name, checks the task board, and interrupts when something goes the wrong way.
+- **The delegator.** Hands a goal to a team of agents ("plan the launch"), tags agents by name, checks the group's tasks, and interrupts when something goes the wrong way.
 - **The connector.** Links a personal Executor Cloud account so agents can act in calendars, mail, issue trackers, and other APIs under policies the user controls.
 
 Every user brings their own model access. Kiko does not sell, pay for, or choose models.
 
 ## Product principles
 
-1. **Chat first.** Every feature is reachable from a conversation. The board, the files, and the memory views show state that the chat already created.
+1. **Chat first.** Every feature is reachable from a conversation. The files and memory views and a group's task sheet show state that the chat already created.
 2. **Instant.** Navigation, buttons, menus, tabs, and the composer respond in the same frame. The app paints from local data before the network answers.
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles. It can react with an emoji and say nothing.
 4. **The human outranks every agent.** A human message is handled before agent messages and can interrupt work in progress.
@@ -50,7 +50,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - The lead agent splits a goal into tasks, assigns them, and reviews results.
 - Any agent can spawn private subagents to finish a task.
 - Agents message each other in the room, where you can read it. Agent-to-agent threads are collapsed by default.
-- The board shows tasks with owner, status, and dependencies, an activity log, and shared notes.
+- A group chat's info sheet shows tasks with owner, status, and dependencies, and shared notes. Task changes also appear as muted lines in the transcript.
 - When a task finishes, agents blocked on it wake up.
 - Hop limits and a daily autonomous-run budget stop agents from messaging each other forever.
 
@@ -142,7 +142,6 @@ The layout follows the kat screenshots in `~/kat-images`. A 60 px icon rail, a 2
 | --- | --- | --- | --- |
 | `/chat`, `/chat/new`, `/chat/:id` | chat | pinned tiles and chat list | tab strip, transcript, composer |
 | `/files`, `/files/:chatId/*path` | files | file tree | viewer and editor |
-| `/board`, `/board/:chatId` | board | teams and filters | tasks, activity, notes, schedule |
 | `/memory`, `/memory/:id` | memory | note list and search | note viewer and editor, history |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
@@ -158,7 +157,7 @@ Kat has four rail items: chat, terminal, code, browser. Kiko has no terminal and
 | B | activity (live agent log) | integrations | rejected. Activity alone is thin, and integrations are visited once |
 | C | schedule (calendar of reminders) | memory | rejected. A schedule tab inside the board covers it |
 
-Option A is chosen because the board is where a team's work becomes visible and memory is the feature users most want to inspect and correct. Kat's code slot becomes files.
+Option A was chosen at first. On 2026-10-02 the owner made group chats of agents, laid out like Telegram groups, the center of team work. A separate board then duplicates the chat, so it was dropped. The same day the owner asked to fold memory into a per-chat info panel opened from the chat's name, as Telegram and kat do (P2-19). DEVIATION from option A: the rail has chat, files, and settings. A group's tasks and notes live in the group's info sheet (P6-09), and reminders live in every chat's info sheet (P5-07). Kat's code slot becomes files.
 
 ## Non-goals
 

@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-110 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+111 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -118,7 +118,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P2-08](wave-07/P2-08-connect-the-chat-to-the-real-server.md) | Connect the chat to the real server | frontend | 3 | P2-07, P1-12 | yes |
-| [P2-17](wave-07/P2-17-fill-the-sidebar-for-every-section.md) | Fill the sidebar for every section | frontend | 3 | P2-09, P5-04, P4-05, P8-08 | yes |
+| [P2-19](wave-07/P2-19-build-the-chat-info-panel-and-fold.md) | Build the chat info panel and fold memory into it | frontend | 4 | P1-11, P2-09, P5-04, P8-08, P4-05 | yes |
 | [P4-02](wave-07/P4-02-use-each-user-s-credentials-in-a.md) | Use each user's credentials in a run | backend | 3 | P4-01, P1-12 | yes |
 | [P5-06](wave-07/P5-06-add-the-reminder-tool-and-agent-wakes.md) | Add the reminder tool and agent wakes | backend | 3 | P5-05, P1-12 | yes |
 | [P5-08](wave-07/P5-08-port-skill-loading.md) | Port skill loading | backend | 3 | P1-12 | yes |
@@ -133,6 +133,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P2-14](wave-08/P2-14-audit-the-frontend-verification-skill.md) | Audit the frontend verification skill | docs | 3 | P2-08, P2-09, P2-04 | yes |
+| [P2-17](wave-08/P2-17-fill-the-sidebar-for-every-section.md) | Fill the sidebar for every section | frontend | 2 | P2-19 | yes |
 | [P3-11](wave-08/P3-11-add-stop-edit-regenerate-and-pinned-messages.md) | Add stop, edit, regenerate, and pinned messages | frontend | 3 | P2-08 | yes |
 | [P3-13](wave-08/P3-13-build-the-search-screen.md) | Build the search screen | frontend | 3 | P3-12, P2-08 | yes |
 | [P3-15](wave-08/P3-15-show-tool-activity-and-agent-status.md) | Show tool activity and agent status | frontend | 3 | P2-08 | yes |
@@ -157,7 +158,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P5-03](wave-09/P5-03-build-the-daily-tidy-job.md) | Build the daily tidy job | backend | 4 | P5-02 | yes |
 | [P6-04](wave-09/P6-04-add-spawn-agent-for-the-lead.md) | Add spawn_agent for the lead | backend | 3 | P6-02, P6-03 | yes |
 | [P6-06](wave-09/P6-06-enforce-human-priority-and-stop-across-a.md) | Enforce human priority and stop across a team | backend | 3 | P6-03 | yes |
-| [P6-09](wave-09/P6-09-build-the-board-screen.md) | Build the board screen | frontend | 3 | P6-02, P2-08 | yes |
+| [P6-09](wave-09/P6-09-show-a-group-s-tasks-inside-the.md) | Show a group's tasks inside the chat | frontend | 3 | P6-02, P2-08, P2-19 | yes |
 | [P7-05](wave-09/P7-05-gate-executor-approvals-on-the-human.md) | Gate Executor approvals on the human | backend | 4 | P7-04, P7-02 | yes |
 | [P9-01](wave-09/P9-01-enforce-per-user-limits.md) | Enforce per-user limits | backend | 3 | P4-02, P6-03 | yes |
 

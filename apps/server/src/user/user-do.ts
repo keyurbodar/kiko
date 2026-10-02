@@ -1,16 +1,24 @@
-import type { Chat, ChatOp, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Agent, Chat, ChatOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { Schema } from "effect"
 import type { Env } from "../index"
+import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
+import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { createAlarms } from "../lib/alarm"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
+import { createAgent, listAgents } from "./agents"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
+import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
+import { getTheme, setTheme } from "./theme"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
+
+// Wrangler replaces this when it bundles: "development" under `wrangler dev`.
+declare const process: { env: { NODE_ENV?: string } }
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
 // index and the user socket. Every change is stored as an event with a per-user `seq`
@@ -21,7 +29,8 @@ import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 /** Events kept for replay. An older `lastSeq` gets a snapshot. Same limit as the room. */
 const REPLAY_LIMIT = 500
 
-type Attachment = { ready: boolean }
+/** `origin` is the Worker origin the socket came through. The Executor callback URL is built from it. */
+type Attachment = { ready: boolean; origin?: string }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
@@ -56,8 +65,8 @@ export class UserDO extends DurableObject<Env> {
   // own, so no method takes a user id.
 
   /** Adds a chat. A repeat for the same room changes nothing and returns the stored row. */
-  async createChat(roomId: RoomId, title: string): Promise<Chat> {
-    this.apply({ op: "create", roomId, title })
+  async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
+    this.apply({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
     return getChat(this.sql, roomId)!
   }
 
@@ -97,6 +106,25 @@ export class UserDO extends DurableObject<Env> {
     return listChats(this.sql)
   }
 
+  /** Adds an agent and tells every socket. Returns null when the id or the handle is taken or the input is refused. */
+  async createAgent(agent: Agent): Promise<Agent | null> {
+    return this.saveAgent(agent)
+  }
+
+  async listAgents(): Promise<Agent[]> {
+    return listAgents(this.sql)
+  }
+
+  /** The theme JSON text, or null. */
+  async getTheme(): Promise<string | null> {
+    return getTheme(this.sql)
+  }
+
+  /** Saves or clears the theme and tells every socket. Returns false when it changed nothing. */
+  async setTheme(theme: string | null): Promise<boolean> {
+    return this.saveTheme(theme)
+  }
+
   /** Memory. One RPC for every operation, the same one the socket uses. Never throws on a bad id. */
   async memoryOp(op: MemoryOp): Promise<MemoryResult> {
     return this.memory.handle(op)
@@ -125,6 +153,79 @@ export class UserDO extends DurableObject<Env> {
     return this.#vault
   }
 
+  // Executor Cloud (P7-03, architecture section 12.1). The tokens live in this object,
+  // sealed, and every exchange and refresh runs here.
+
+  /** The Worker calls this from the OAuth callback. Every socket hears the result. */
+  async finishExecutor(params: CallbackParams): Promise<ExecutorResult> {
+    const result = await this.executorResult(async () => ({ status: await this.#executor.finish(params) }))
+    this.broadcast({ t: "executor", result })
+    return result
+  }
+
+  /**
+   * A fresh Executor bearer credential for this user's own agents, or null. Server code
+   * only: it is never sent on a socket or over HTTP.
+   */
+  async executorToken(): Promise<string | null> {
+    return this.#executor.bearer()
+  }
+
+  #executorConnection?: ExecutorConnection
+  get #executor(): ExecutorConnection {
+    this.#executorConnection ??= new ExecutorConnection(
+      new ExecutorTokenStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), (fn) =>
+        this.ctx.storage.transactionSync(fn),
+      ),
+    )
+    return this.#executorConnection
+  }
+
+  private async executorResult(
+    run: () => Promise<{ status?: ExecutorStatus; authorizeUrl?: string; tools?: string[] }>,
+  ): Promise<ExecutorResult> {
+    try {
+      const { status, ...rest } = await run()
+      return { ok: true, status: status ?? (await this.#executor.status()), ...rest }
+    } catch (e) {
+      return { ok: false, error: errorText(e) }
+    }
+  }
+
+  private async executorFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectExecutor" | "disconnectExecutor" | "executorStatus" }>) {
+    const executor = this.#executor
+    const result = await this.executorResult(async () => {
+      if (frame.t === "disconnectExecutor") {
+        executor.disconnect()
+        return {}
+      }
+      if (frame.t === "connectExecutor") {
+        if (frame.apiKey !== undefined) return { status: await executor.connectApiKey(frame.apiKey) }
+        const origin = (ws.deserializeAttachment() as Attachment | null)?.origin
+        if (!origin) throw new ExecutorError("this socket has no origin")
+        return { authorizeUrl: await executor.start(origin) }
+      }
+      if (frame.refresh) await executor.refresh()
+      return frame.tools ? { tools: await executor.listTools() } : {}
+    })
+    send(ws, { t: "executor", reqId: frame.reqId, result })
+  }
+
+  // Provider sign-in (P4-04, architecture 11.4). The logic is in provider-login.ts.
+  #loginState?: ProviderLogins<WebSocket>
+  get #logins(): ProviderLogins<WebSocket> {
+    this.#loginState ??= new ProviderLogins<WebSocket>({
+      store: this.#credentials,
+      info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
+      send,
+      setWakeup: (key, at) => this.alarms.setWakeup(key, at),
+      clearWakeup: (key) => this.alarms.clearWakeup(key),
+      subscriptions: this.env.PROVIDER_OAUTH === "on",
+      fake: process.env.NODE_ENV === "development",
+    })
+    return this.#loginState
+  }
+
   // The socket.
 
   async fetch(request: Request): Promise<Response> {
@@ -134,7 +235,7 @@ export class UserDO extends DurableObject<Env> {
     if (this.#wiped || (await this.ctx.storage.get(DELETING))) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
-    server.serializeAttachment({ ready: false } satisfies Attachment)
+    server.serializeAttachment({ ready: false, origin: new URL(request.url).origin } satisfies Attachment)
     return new Response(null, { status: 101, webSocket: client })
   }
 
@@ -147,21 +248,43 @@ export class UserDO extends DurableObject<Env> {
     }
     if (frame.t === "hello") {
       send(ws, this.resume(frame.lastSeq))
-      ws.serializeAttachment({ ready: true } satisfies Attachment)
+      const before = ws.deserializeAttachment() as Attachment | null
+      ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
+      return
+    }
+    if (frame.t === "connectExecutor" || frame.t === "disconnectExecutor" || frame.t === "executorStatus") {
+      await this.executorFrame(ws, frame)
       return
     }
     if (frame.t === "memory") {
       send(ws, { t: "memory_result", reqId: frame.reqId, result: this.memory.handle(frame.op) })
       return
     }
+    if (frame.t === "theme") {
+      this.saveTheme(frame.theme)
+      return
+    }
     if (frame.t === "search") {
       send(ws, { t: "search", query: frame.query, chats: searchChats(this.sql, frame.query.slice(0, 200)) })
       return
     }
+    if (frame.t === "agent") {
+      this.saveAgent(frame.op.agent)
+      return
+    }
+    // A login runs until it ends, so the handler does not wait for it.
+    if (frame.t === "login.start") return void this.#logins.start(ws, frame.loginId, frame.provider).catch(() => {})
+    if (frame.t === "login.answer") return this.#logins.answer(ws, frame.loginId, frame.promptId, frame.value)
+    if (frame.t === "login.cancel") return this.#logins.cancel(ws, frame.loginId)
     this.apply(frame.op)
   }
 
+  async webSocketError(ws: WebSocket): Promise<void> {
+    this.#loginState?.dropOwner(ws)
+  }
+
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+    this.#loginState?.dropOwner(ws)
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code)
     } catch {
@@ -173,6 +296,7 @@ export class UserDO extends DurableObject<Env> {
     if (this.#wiped || (await this.ctx.storage.get(DELETING))) return
     const due = await this.alarms.dueWakeups(Date.now())
     if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
+    this.#loginState?.expire(due)
   }
 
   /**
@@ -231,23 +355,40 @@ export class UserDO extends DurableObject<Env> {
     return this.commit(applyChatOp(this.sql, op, Date.now()))
   }
 
+  private saveAgent(agent: Agent): Agent | null {
+    const stored = createAgent(this.sql, agent, Date.now())
+    if (stored) this.commit({ t: "agent", agent: stored })
+    return stored
+  }
+
+  private saveTheme(theme: string | null): boolean {
+    if (!setTheme(this.sql, theme)) return false
+    this.commit({ t: "theme", theme })
+    return true
+  }
+
   private currentSeq(): number {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
   /** Stores `change` as the next event and sends it to every socket that said hello. */
-  private commit(change: ChatChange | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | null): UserEvent | null {
     if (!change) return null
     const at = Date.now()
     const seq = this.currentSeq() + 1
     const event = { ...change, seq, at } as UserEvent
     this.sql.exec("INSERT INTO user_events (seq, at, body) VALUES (?, ?, ?)", seq, at, JSON.stringify(event))
     this.sql.exec("DELETE FROM user_events WHERE seq <= ?", seq - REPLAY_LIMIT)
-    const frame = JSON.stringify({ t: "events", events: [event] } satisfies UserToClient)
-    for (const ws of this.ctx.getWebSockets()) {
-      if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, frame)
-    }
+    this.broadcast({ t: "events", events: [event] })
     return event
+  }
+
+  /** Sends a frame to every socket that has said hello. */
+  private broadcast(frame: UserToClient): void {
+    const text = JSON.stringify(frame)
+    for (const ws of this.ctx.getWebSockets()) {
+      if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, text)
+    }
   }
 
   /** The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. */
@@ -255,7 +396,7 @@ export class UserDO extends DurableObject<Env> {
     const seq = this.currentSeq()
     const oldest = this.sql.exec<{ seq: number | null }>("SELECT min(seq) AS seq FROM user_events").one().seq
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
-    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql) } }
+    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()

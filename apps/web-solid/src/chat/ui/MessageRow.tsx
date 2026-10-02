@@ -1,7 +1,9 @@
-import { createSignal, Show, type JSX } from "solid-js"
+import { createResource, createSignal, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
 import { formatTimeOfDay } from "../lib/dayLabel"
+import { draftLinkUrl } from "../../composer/link-draft"
+import { resolveLinkPreview } from "../lib/linkPreview"
 import { replySummary } from "../lib/reply"
 import { MessageDocuments } from "./Documents"
 import { MessageMedia } from "./Media"
@@ -58,6 +60,13 @@ export function MessageRow(props: {
     !hasDocuments() &&
     props.message.body.length === 0 &&
     props.message.webPage === undefined
+  // A message carries its text only, so the card comes from the server's preview of its first
+  // link. The lookup is cached per URL, so scrolling a transcript never refetches.
+  const [linked] = createResource(
+    () => (props.message.webPage === undefined && !hasMedia() ? draftLinkUrl(props.message.body) : null),
+    (url) => resolveLinkPreview(url),
+  )
+  const webPage = () => props.message.webPage ?? linked.latest ?? undefined
   const [fittedWidth, setFittedWidth] = createSignal<number | undefined>(undefined)
   const captionStyle = () => {
     const width = fittedWidth()
@@ -67,9 +76,9 @@ export function MessageRow(props: {
     <div
       class={cn(
         "group/row relative mx-auto flex w-full max-w-(--content-max-w) flex-col items-start",
-        "px-4 pb-px contain-layout touch-pan-y",
+        "px-4 pb-(--row-gap) contain-layout touch-pan-y",
         "[--swipe-gutter-rate:0.2]",
-        props.hasRunGapBefore ? "pt-2" : "pt-px",
+        props.hasRunGapBefore ? "pt-(--run-gap)" : "pt-(--row-gap)",
         "[&>[data-slot=bubble]]:translate-x-(--swipe-x)",
         props.class,
       )}
@@ -130,7 +139,7 @@ export function MessageRow(props: {
           <Show when={hasDocuments() ? props.message.documents : undefined}>
             {(documents) => <MessageDocuments items={documents()} side={props.message.sender} />}
           </Show>
-          <Show when={props.message.body.length > 0 || props.message.webPage !== undefined}>
+          <Show when={props.message.body.length > 0 || webPage() !== undefined}>
             <div
               class={hasAttachment() ? "px-3 pt-[5px] pb-[7px]" : undefined}
               style={captionStyle()}
@@ -138,7 +147,7 @@ export function MessageRow(props: {
               <Collapsible messageId={props.message.id} side={own() ? "user" : "assistant"}>
                 <RichText
                   text={props.message.body.length > 0 ? props.message.body : undefined}
-                  webPage={props.message.media === undefined ? props.message.webPage : undefined}
+                  webPage={props.message.media === undefined ? webPage() : undefined}
                 />
               </Collapsible>
             </div>

@@ -27,9 +27,20 @@ The `verify-kiko` team chat feature: type `@`, pick an agent, send, and see only
 **Build.**
 
 - Build the mention list from room members, replacing the bot fixture list.
-- Show the author name and a small avatar on the first bubble of each agent group. A one-agent room shows neither, as in kat.
+- Lay out a group the way Telegram does (`docs/reference/group-chat/02.png` and `03.png`):
+  - Each agent's run of bubbles has its avatar beside the last bubble of the run, bottom-aligned. While the run is taller than the viewport, the avatar sticks to the bottom edge and slides up with the run's last bubble.
+  - The first bubble of a run shows the agent's name in that agent's color. Later bubbles in the run show no name.
+  - Each member gets a stable color from a fixed palette of kat tokens, chosen from its slug. The same color tints its name, its reply quotes, and its mention chips.
+  - A reply quote inside a bubble shows the quoted author's name in their color and a colored bar.
+  - The human's own messages show no avatar and no name, as in Telegram.
+  - A one-agent room shows no avatars and no names, as in kat.
+- The top bar shows the group's avatar, its name, and `<n> members`.
 - Collapse agent-to-agent messages into a muted thread with a count, expandable in place.
-- A member sheet that lists agents with role, model, and status, and adds, renames, or removes one.
+- The members section of the chat info panel (P2-19) lists agents with role, model, and status, and adds, renames, or removes one.
+- Group chats in the sidebar get a stacked avatar of up to three members, and the row's first line names the group, not one agent.
+- The `+` menu offers "new group": name it and pick agents. The first agent picked is the lead.
+- The composer placeholder reads `message <group name>`.
+- An `@mention` inside an agent's text renders as a chip with the agent's small avatar in its color (`docs/reference/group-chat/01.png`).
 
 **Done when.** A room with one agent looks exactly as it did before this task.
 

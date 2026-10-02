@@ -14,13 +14,13 @@
 
 ## Verification
 
-The `verify-kiko` schedule feature: a reminder appears in the board's schedule tab, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
+The `verify-kiko` schedule feature: a reminder appears in the chat info panel's reminders section, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
 
 ## Task
 
 **Goal.** Show what is scheduled and what fired.
 
-**Files.** Create `apps/web-solid/src/board/schedule.tsx` and `apps/web-solid/src/chat/ReminderBubble.tsx`.
+**Files.** Create `apps/web-solid/src/chat/team/reminders.tsx` (a section of the chat info panel from P2-19) and `apps/web-solid/src/chat/ReminderBubble.tsx`.
 
 **Build.**
 

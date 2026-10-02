@@ -34,10 +34,10 @@ const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/
  * - tier 4: the settings and memory routes have real content. They were placeholders.
  */
 const RECORDED: Record<string, number> = {
-  "tier 1 shell js": 1689,
+  "tier 1 shell js": 1841, // P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
   "tier 2 first paint of /chat": 220198,
   "tier 3 lazy modules": 31724,
-  "tier 4 route chunks": 7978, // settings (P4-05) 3.0 KB plus the memory screen (P5-04) 4.9 KB. CodeMirror is a dynamic import, outside this count.
+  "tier 4 route chunks": 14460, // grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
 };
 
 interface Entry {

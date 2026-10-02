@@ -97,3 +97,37 @@ test("bad paths and oversized declarations are refused", async () => {
 	expect(res.status).toBe(413)
 	await res.body?.cancel()
 })
+
+const sha = async (text: string) =>
+	Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) =>
+		b.toString(16).padStart(2, "0"),
+	).join("")
+
+async function edit(room: string, path: string, body: string, expect: string) {
+	const res = await fetch(`${origin}/api/files/${room}?path=${encodeURIComponent(path)}`, {
+		method: "PUT",
+		headers: { ...as("alice"), "content-type": "text/plain", "x-kiko-if-sha256": expect },
+		body,
+	})
+	return { status: res.status, body: (await res.json()) as FileBody }
+}
+
+test("an edit with a stale sha is refused and never overwrites the other writer", async () => {
+	const room = fresh()
+	await put(room, "a.txt", "one")
+	const theirs = await put(room, "a.txt", "agent wrote this")
+	const stale = await edit(room, "a.txt", "mine", await sha("one"))
+	expect(stale.status).toBe(409)
+	expect(stale.body.file.id).toBe(theirs.body.file.id)
+	// Only the winner's object is left in R2, and the refused bytes are gone.
+	expect(await keys(room)).toEqual([`u/alice/r/${room}/${theirs.body.file.id}`])
+	const fresher = await edit(room, "a.txt", "mine", await sha("agent wrote this"))
+	expect(fresher.status).toBe(200)
+	expect(await keys(room)).toEqual([`u/alice/r/${room}/${fresher.body.file.id}`])
+})
+
+test("none creates a file only when the path is empty", async () => {
+	const room = fresh()
+	expect((await edit(room, "new.txt", "", "none")).status).toBe(200)
+	expect((await edit(room, "new.txt", "again", "none")).status).toBe(409)
+})

@@ -8,20 +8,25 @@
 // ASSUMPTION: chat edits are not written to the outbox, which holds sends
 // only. A chat edit made offline is lost on reload.
 
-import type { Chat, ChatOp, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, Chat, ChatOp, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { allChats, getUserSeq, putChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
+import { allAgents, allChats, getUserSeq, putAgents, putChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, PATCH_TTL_MS, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 
-export type UserData = { seq: number; chats: Chat[] }
+export type UserData = { seq: number; chats: Chat[]; agents: Agent[] }
 
 /** Applies one event in place. An event at or below `data.seq` is skipped. Returns false then. */
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	if (e.seq <= data.seq) return false
 	data.seq = e.seq
+	if (e.t === "theme") return true // the theme client reads these. The chat list has nothing to change.
+	if (e.t === "agent") {
+		if (!data.agents.some((a) => a.id === e.agent.id)) data.agents.push(e.agent)
+		return true
+	}
 	const i = data.chats.findIndex((c) => c.roomId === (e.t === "chat" ? e.chat.roomId : e.roomId))
 	if (e.t === "chat") {
 		if (i === -1) data.chats.push(e.chat)
@@ -46,6 +51,8 @@ export type UserState = UserData & {
 	loaded: boolean
 	connection: SocketStatus
 	patches: UserPatch[]
+	/** Agents made here that the server has not confirmed yet. Sent again after a reconnect. */
+	pendingAgents: Agent[]
 }
 
 export type UserStoreOptions = {
@@ -63,8 +70,12 @@ export type UserStore = {
 	/** Pinned first, then the most recently updated, with pending edits applied. */
 	chats(): Chat[]
 	readonly ready: Promise<void>
-	/** Returns the new room's id. */
-	createChat(title: string): RoomId
+	/** The user's agents, with the ones not yet confirmed. */
+	agents(): Agent[]
+	/** Adds an agent at once and sends it after. The caller makes the id and the unique handle. */
+	createAgent(agent: Agent): void
+	/** Returns the new room's id. `agents` are the ids of the agents it starts with. */
+	createChat(title: string, agents?: readonly string[]): RoomId
 	rename(roomId: RoomId, title: string): void
 	pin(roomId: RoomId, pinned: boolean): void
 	mute(roomId: RoomId, muted: boolean): void
@@ -81,9 +92,11 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	const [state, setState] = createStore<UserState>({
 		seq: 0,
 		chats: [],
+		agents: [],
 		loaded: false,
 		connection: "closed",
 		patches: [],
+		pendingAgents: [],
 	})
 	let socket: SyncSocket | null = null
 	let closed = false
@@ -115,19 +128,25 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 					for (const e of sorted) if (applyUserEvent(s, e)) applied.push(e)
 				}),
 			)
+			const confirmed = applied.flatMap((e) => (e.t === "agent" ? [e.agent.id] : []))
+			if (confirmed.length) setState("pendingAgents", (list) => list.filter((a) => !confirmed.includes(a.id)))
 			const next = settleUser(state.patches, applied)
 			if (next.length !== state.patches.length) setState("patches", next)
 		})
 		for (const e of applied) {
 			if (e.t === "chat") putChats(warm, [e.chat])
-			else removeChat(warm, e.roomId)
+			else if (e.t === "chat_removed") removeChat(warm, e.roomId)
 		}
+		if (applied.some((e) => e.t === "agent")) putAgents(warm, unwrap(state.agents))
 		if (applied.length) setUserSeq(warm, state.seq)
 	}
 
 	function reset(snapshot: UserSnapshot) {
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats] })
+		const agents = [...(snapshot.agents ?? [])]
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents })
+		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
+		putAgents(warm, agents)
 	}
 
 	function onFrame(frame: UserToClient) {
@@ -136,9 +155,9 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	}
 
 	async function boot() {
-		const [chats, seq] = await Promise.all([allChats(warm), getUserSeq(warm)])
+		const [chats, seq, agents] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm)])
 		if (closed) return
-		setState({ chats, seq, loaded: true })
+		setState({ chats, seq, agents, loaded: true })
 		socket = createSyncSocket<UserToClient>({
 			url: options.url,
 			connect: options.connect,
@@ -146,6 +165,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			hello: () => ({ t: "hello", lastSeq: state.seq }),
 			onOpen: () => {
 				for (const p of [...unwrap(state.patches)]) transmit(p)
+				for (const agent of [...unwrap(state.pendingAgents)]) socket?.send({ t: "agent", op: { op: "create", agent } })
 			},
 			onFrame,
 			onStatus: (c) => setState("connection", c),
@@ -158,9 +178,14 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		state,
 		chats: () => overlayChats(state.chats, state.patches),
 		ready,
-		createChat(title) {
+		agents: () => [...state.agents, ...state.pendingAgents.filter((p) => !state.agents.some((a) => a.id === p.id))],
+		createAgent(agent) {
+			setState("pendingAgents", (list) => [...list, agent])
+			socket?.send({ t: "agent", op: { op: "create", agent } })
+		},
+		createChat(title, agents) {
 			const roomId = newRoomId(now())
-			act({ op: "create", roomId, title })
+			act({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
 			return roomId
 		},
 		rename: (roomId, title) => act({ op: "rename", roomId, title }),

@@ -170,30 +170,41 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 **Build.**
 
 - Build the mention list from room members, replacing the bot fixture list.
-- Show the author name and a small avatar on the first bubble of each agent group. A one-agent room shows neither, as in kat.
+- Lay out a group the way Telegram does (`docs/reference/group-chat/02.png` and `03.png`):
+  - Each agent's run of bubbles has its avatar beside the last bubble of the run, bottom-aligned. While the run is taller than the viewport, the avatar sticks to the bottom edge and slides up with the run's last bubble.
+  - The first bubble of a run shows the agent's name in that agent's color. Later bubbles in the run show no name.
+  - Each member gets a stable color from a fixed palette of kat tokens, chosen from its slug. The same color tints its name, its reply quotes, and its mention chips.
+  - A reply quote inside a bubble shows the quoted author's name in their color and a colored bar.
+  - The human's own messages show no avatar and no name, as in Telegram.
+  - A one-agent room shows no avatars and no names, as in kat.
+- The top bar shows the group's avatar, its name, and `<n> members`.
 - Collapse agent-to-agent messages into a muted thread with a count, expandable in place.
-- A member sheet that lists agents with role, model, and status, and adds, renames, or removes one.
+- The members section of the chat info panel (P2-19) lists agents with role, model, and status, and adds, renames, or removes one.
+- Group chats in the sidebar get a stacked avatar of up to three members, and the row's first line names the group, not one agent.
+- The `+` menu offers "new group": name it and pick agents. The first agent picked is the lead.
+- The composer placeholder reads `message <group name>`.
+- An `@mention` inside an agent's text renders as a chip with the agent's small avatar in its color (`docs/reference/group-chat/01.png`).
 
 **Done when.** A room with one agent looks exactly as it did before this task.
 
-### P6-09 Build the board screen
+### P6-09 Show a group's tasks inside the chat
 
-`deps: P6-02, P2-08` `difficulty: 3` `area: frontend`
+`deps: P6-02, P2-08, P2-19` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` board feature: open `/board/:chatId`, see tasks grouped by status with owner and dependencies, change a status by hand, and see the activity log update live when an agent posts.
+**Verify.** The `verify-kiko` team tasks feature: in a group chat, the top bar shows `3 tasks`, clicking it opens the chat info panel at its tasks section with tasks grouped by status, owner, and dependencies, a status changed by hand applies at once, and a task an agent finishes appears as one muted line in the transcript.
 
-**Goal.** Show a team's work in one place.
+**Goal.** Show a team's work where the team talks. There is no separate board section.
 
-**Read first.** Product document, "What replaces kat's terminal and browser panels".
+**Read first.** Product document, "What replaces kat's terminal and browser panels". `docs/reference/group-chat/`.
 
-**Files.** Create `apps/web-solid/src/board/` (`board.tsx`, `tasks.tsx`, `activity.tsx`, `notes.tsx`).
+**Files.** Create `apps/web-solid/src/chat/team/` (`info-sheet.tsx`, `tasks.tsx`, `notes.tsx`). Edit the group top bar from P6-08.
 
 **Build.**
 
-- Tabs for tasks, activity, notes, and schedule, switched with no animation.
-- Task columns by status with owner avatar and a blocked marker. Render columns with `content-visibility: auto`.
-- An activity list on `virtua/solid`.
+- The group top bar shows the open task count next to `<n> members`. It opens the chat info panel from P2-19 with its tasks section in view. Tasks and notes are sections of that panel.
+- Tasks grouped by status, each with owner avatar, a blocked marker, and what it waits on. Human edits go through the room socket and apply optimistically.
 - Notes rendered with the rich text renderer.
-- Human edits to tasks go through the room socket and apply optimistically.
+- A task created, finished, or blocked shows in the transcript as one muted system line, collapsed with its neighbors, using the `SystemMessage` component.
+- Load the sheet lazily, so the chat route does not grow.
 
-**Done when.** The route is a tier 4 chunk and updates from room events with no polling.
+**Done when.** The sheet updates from room events with no polling, and a room with no tasks shows no task count.

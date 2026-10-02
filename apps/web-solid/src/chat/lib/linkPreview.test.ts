@@ -1,123 +1,85 @@
-import { describe, expect, test } from "bun:test"
-import { hasWebPageContent, isOwnOriginImage, ownMedia, parseLinkPreview } from "./linkPreview"
+import { afterEach, describe, expect, test } from "bun:test"
+import {
+  clearLinkPreviewCache,
+  hasWebPageContent,
+  isOwnOriginImage,
+  ownMedia,
+  resolveLinkPreview,
+} from "./linkPreview"
 
 const URL_ = "https://example.com/post"
+const realFetch = globalThis.fetch
 
-function head(...tags: string[]): string {
-  return `<html><head>${tags.join("")}</head><body></body></html>`
+function stubFetch(respond: (url: string) => Response | Promise<Response>): string[] {
+  const calls: string[] = []
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    calls.push(String(input))
+    return Promise.resolve(respond(String(input)))
+  }) as typeof fetch
+  return calls
 }
 
-describe("parseLinkPreview", () => {
-  test("a title alone earns a preview", () => {
-    const page = parseLinkPreview(head("<title>Hello</title>"), URL_)
-    expect(page?.title).toBe("Hello")
-    expect(page?.media).toBeUndefined()
-  })
+afterEach(() => {
+  globalThis.fetch = realFetch
+  clearLinkPreviewCache()
+})
 
-  test("an image alone earns nothing", () => {
-    const html = head('<meta property="og:image" content="https://example.com/a.png">')
-    expect(parseLinkPreview(html, URL_)).toBeNull()
-  })
-
-  test("a square image is a small thumbnail", () => {
-    const html = head(
-      '<meta property="og:title" content="Profile">',
-      '<meta property="og:image" content="https://example.com/a.png">',
-      '<meta property="og:image:width" content="400">',
-      '<meta property="og:image:height" content="400">',
+describe("resolveLinkPreview", () => {
+  test("maps the server fields and calls /api/preview", async () => {
+    const calls = stubFetch(() =>
+      Response.json({
+        cache: "fresh",
+        preview: {
+          url: URL_,
+          title: "Hello",
+          description: "d",
+          siteName: "Example",
+          image: "/api/preview-image/ab",
+          favicon: "/api/preview-image/cd",
+        },
+      }),
     )
-    expect(parseLinkPreview(html, URL_)?.mediaSize).toBe("small")
+    const page = await resolveLinkPreview(URL_)
+    expect(calls).toEqual([`/api/preview?url=${encodeURIComponent(URL_)}`])
+    expect(page).toMatchObject({ site: "Example", title: "Hello", favicon: "/api/preview-image/cd", mediaSize: "large" })
+    expect(page?.media?.src).toBe("/api/preview-image/ab")
   })
 
-  test("a wide image is large", () => {
-    const html = head(
-      '<meta property="og:title" content="Video">',
-      '<meta property="og:image" content="https://example.com/a.png">',
-      '<meta property="og:image:width" content="1200">',
-      '<meta property="og:image:height" content="630">',
+  test("no preview from the server is null", async () => {
+    stubFetch(() => Response.json({ preview: null, cache: "fresh" }))
+    expect(await resolveLinkPreview(URL_)).toBeNull()
+  })
+
+  test("a second lookup for one url does not refetch", async () => {
+    const calls = stubFetch(() => Response.json({ preview: { url: URL_, title: "t" } }))
+    await resolveLinkPreview(URL_)
+    await resolveLinkPreview(URL_)
+    expect(calls.length).toBe(1)
+  })
+
+  test("a failed lookup is not cached", async () => {
+    let status = 429
+    const calls = stubFetch(() =>
+      status === 429 ? new Response("", { status }) : Response.json({ preview: { url: URL_, title: "t" } }),
     )
-    const page = parseLinkPreview(html, URL_)
-    expect(page?.mediaSize).toBe("large")
-    expect(page?.media?.width).toBe(420)
+    expect(await resolveLinkPreview(URL_)).toBeNull()
+    status = 200
+    expect((await resolveLinkPreview(URL_))?.title).toBe("t")
+    expect(calls.length).toBe(2)
   })
 
-  test("an image without declared size is large and reserves 1.91:1", () => {
-    const html = head(
-      '<meta property="og:title" content="Video">',
-      '<meta property="og:image" content="https://example.com/a.png">',
-    )
-    const page = parseLinkPreview(html, URL_)
-    expect(page?.mediaSize).toBe("large")
-    expect(page?.media?.width).toBe(420)
-    expect(page?.media?.height).toBe(Math.round(420 / (1200 / 630)))
+  test("an aborted lookup resolves null", async () => {
+    stubFetch(() => new Promise<Response>(() => {}))
+    const controller = new AbortController()
+    const pending = resolveLinkPreview(URL_, controller.signal)
+    controller.abort()
+    expect(await pending).toBeNull()
   })
 
-  test("twitter summary_large_image wins over a square declared size", () => {
-    const html = head(
-      '<meta property="og:title" content="Repo">',
-      '<meta name="twitter:card" content="summary_large_image">',
-      '<meta property="og:image" content="https://example.com/a.png">',
-      '<meta property="og:image:width" content="400">',
-      '<meta property="og:image:height" content="400">',
-    )
-    expect(parseLinkPreview(html, URL_)?.mediaSize).toBe("large")
-  })
-
-  test("video and article types are large", () => {
-    for (const type of ["video.other", "article"]) {
-      const html = head(
-        '<meta property="og:title" content="Thing">',
-        `<meta property="og:type" content="${type}">`,
-        '<meta property="og:image" content="https://example.com/a.png">',
-        '<meta property="og:image:width" content="300">',
-        '<meta property="og:image:height" content="300">',
-      )
-      expect(parseLinkPreview(html, URL_)?.mediaSize).toBe("large")
-    }
-  })
-
-  test("twitter summary card is small even without a size", () => {
-    const html = head(
-      '<meta property="og:title" content="Someone">',
-      '<meta name="twitter:card" content="summary">',
-      '<meta property="og:image" content="https://example.com/a.png">',
-    )
-    expect(parseLinkPreview(html, URL_)?.mediaSize).toBe("small")
-  })
-
-  test("a narrow image is small", () => {
-    const html = head(
-      '<meta property="og:title" content="Icon">',
-      '<meta property="og:image" content="https://example.com/a.png">',
-      '<meta property="og:image:width" content="150">',
-      '<meta property="og:image:height" content="100">',
-    )
-    expect(parseLinkPreview(html, URL_)?.mediaSize).toBe("small")
-  })
-  test("a profile page is small even when wide", () => {
-    const html = head(
-      '<meta property="og:title" content="Someone">',
-      '<meta property="og:type" content="profile">',
-      '<meta property="og:image" content="https://example.com/a.png">',
-      '<meta property="og:image:width" content="1200">',
-      '<meta property="og:image:height" content="630">',
-    )
-    expect(parseLinkPreview(html, URL_)?.mediaSize).toBe("small")
-  })
-
-  test("a relative image resolves against the page", () => {
-    const html = head(
-      '<meta property="og:title" content="Post">',
-      '<meta property="og:image" content="/cover.jpg">',
-    )
-    expect(parseLinkPreview(html, URL_)?.media?.src).toBe("https://example.com/cover.jpg")
-  })
-
-  test("site name falls back to the hostname and entities decode", () => {
-    const html = head('<meta property="og:title" content="Tom &amp; Jerry">')
-    const page = parseLinkPreview(html, "https://www.example.com/x")
-    expect(page?.site).toBe("example.com")
-    expect(page?.title).toBe("Tom & Jerry")
+  test("a non-http url never reaches the server", async () => {
+    const calls = stubFetch(() => Response.json({ preview: null }))
+    expect(await resolveLinkPreview("javascript:alert(1)")).toBeNull()
+    expect(calls.length).toBe(0)
   })
 })
 

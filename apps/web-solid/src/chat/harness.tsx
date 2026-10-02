@@ -145,6 +145,7 @@ function App() {
           scrollRef={() => {}}
           onStateChange={setThreadState}
           waitingNames={typingNames()}
+          groupChat={params.get("group") === "1"}
           onReact={(id, emoji) => {
             const message = byId().get(id);
             if (message) toggleReaction(message, emoji);

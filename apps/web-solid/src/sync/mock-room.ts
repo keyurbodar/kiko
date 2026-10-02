@@ -288,7 +288,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 	const now = options.now ?? Date.now
 	const resetAfter = options.resetAfter ?? 500
 	const log: UserEvent[] = []
-	const data: UserData = { seq: 0, chats: [] }
+	const data: UserData = { seq: 0, chats: [], agents: [] }
 	const peers = new Set<Peer<UserToClient>>()
 	const received: ClientToUser[] = []
 
@@ -315,18 +315,21 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			if (frame.t === "hello") {
 				const last = log[log.length - 1]?.seq ?? 0
 				if (frame.lastSeq > last || last - frame.lastSeq > resetAfter)
-					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats }) })
+					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
-			if (frame.t === "memory") return // the mock has no memory store
-			if (frame.t === "search") return
+			if (frame.t === "agent") {
+				if (!data.agents.some((a) => a.id === frame.op.agent.id || a.slug === frame.op.agent.slug)) store({ t: "agent", agent: frame.op.agent })
+				return
+			}
+			if (frame.t !== "chat") return // the mock has no memory, search, executor, sign-in, or theme store
 			const op = frame.op
 			const chat = find(op.roomId)
 			if (op.op === "create") {
 				if (chat) return
 				store({
 					t: "chat",
-					chat: { roomId: op.roomId, title: op.title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now() },
+					chat: { roomId: op.roomId, title: op.title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now(), ...(op.agents?.length ? { agents: op.agents } : {}) },
 				})
 			} else if (!chat) return
 			else if (op.op === "delete") store({ t: "chat_removed", roomId: op.roomId })

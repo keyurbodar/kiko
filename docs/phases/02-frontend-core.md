@@ -247,23 +247,22 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 ### P2-17 Fill the sidebar for every section
 
-`deps: P2-09, P5-04, P4-05, P8-08` `difficulty: 3` `area: frontend`
+`deps: P2-19` `difficulty: 2` `area: frontend`
 
-**Verify.** With `agent-browser`, each rail section shows its own sidebar panel and none shows "not built": chat shows pinned tiles and the chat list, files shows the chat picker and the file tree, board shows chats that have tasks with their open count, memory shows the search field and records grouped by type, and settings shows its section list. Switching sections has no animation and keeps each panel's scroll position.
+**Verify.** With `agent-browser`, each rail section shows its own sidebar panel and none shows "not built": chat shows pinned tiles and the chat list, files shows the chat picker and the file tree, and settings shows its section list. Switching sections has no animation and keeps each panel's scroll position.
 
 **Goal.** Give every rail section a sidebar, so the column is never empty.
 
 **Read first.** `apps/web-solid/src/sidebar/sidebar.tsx`, which receives `section` from the shell. `~/kat-images/screenshot 9.png` to `15.png`.
 
-**Files.** `apps/web-solid/src/sidebar/`. Create `memory/sidebar.tsx`, `settings/sidebar.tsx`, `board/sidebar.tsx`. Move the memory record list from the main panel into the sidebar if P5-04 put it there.
+**Files.** `apps/web-solid/src/sidebar/`. Create `settings/sidebar.tsx`. Edit `app/sections.ts`, `app/rail.tsx`, and `app/routes.tsx` to remove the board. Move the memory record list from the main panel into the sidebar if P5-04 put it there.
 
 **Build.**
 
 - One panel component per section, chosen from a table keyed by `SectionId`. Each loads lazily except chat.
-- The header shows the section name and its one primary action: new chat, new file, new task, new memory record, or nothing for settings.
-- Memory: a search field and records grouped by type (profile, now, todo, then the rest), pinned first. Selecting one opens it in the main panel at `/memory/:id`.
+- Remove the board section: the rail has chat, files, and settings (memory moved into the chat info panel in P2-19), and `/board` redirects to `/chat`. A group's tasks live in the chat (P6-09).
+- The header shows the section name and its one primary action: new chat, new file, or nothing for settings.
 - Settings: providers, models, integrations, skills, account. Selecting one routes to `/settings/<name>`.
-- Board: chats that have tasks, with the open task count. Until P6-09 exists, show chats only, each with a zero count.
 - Keep the collapse toggle, width, and resize handle shared by all panels.
 
 **Done when.** `sidebar.tsx` has no "not built" text.
@@ -293,6 +292,37 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 - Document every key with its default in `docs/theming.md`, generated from `schema.ts` by a script so the two never drift.
 
 **Done when.** Every variable in `tokens.md` is reachable from the format, and a theme can never break the app: the worst a bad value does is fail validation.
+
+### P2-19 Build the chat info panel and fold memory into it
+
+`deps: P1-11, P2-09, P5-04, P8-08, P4-05` `difficulty: 4` `area: frontend`
+
+**Verify.** With `agent-browser`: clicking the chat's avatar or title in the tab strip or top bar opens the info panel on the right with no animation, `Escape` closes it, and its scroll survives switching chats. A one-agent chat shows the agent, its model, mute and pin toggles, memory about this chat, links, media, and files. A link or file sent in the chat appears in its card without a reload. Editing a memory record from the panel shows the new version in its history. The rail no longer has a memory item, and `/memory` opens the panel's memory view.
+
+**Goal.** Put everything about one chat behind one click on its name, as Telegram's profile and kat's chat panel do, and remove the separate memory section so the user never leaves the chat.
+
+**Read first.** The owner's kat reference: the panel opened from a chat tab, with header, members, lock and mute, links, and files. `docs/reference/group-chat/`. The memory screen from P5-04 and the files panel from P8-08.
+
+**Files.** Create `apps/web-solid/src/chat/info/` (panel, sections, tests). Create `apps/server/src/room/catalog.ts` for the links and media lists. Edit `app/shell.tsx`, `app/top-bar.tsx`, `app/tab-strip.tsx`, `app/sections.ts`, `app/rail.tsx`, `app/routes.tsx`, and move `apps/web-solid/src/memory/` into the panel.
+
+**Build.**
+
+- A right-hand panel, 360 px, resizable, toggled by the chat avatar or title in the tab strip and top bar, by `⌘I`, and by the command `chat: info`. It is lazy, so the chat route does not grow.
+- Sections, each a card that opens a full list inside the panel with a back arrow:
+  - **Header.** Large avatar, inline-editable name, and a subtitle: `started <date>` for a one-agent chat, `<n> members` for a group.
+  - **Members.** Avatars in a row with names, the human first with a crown, and an `add` button. In a one-agent chat, adding an agent turns it into a group. Each agent opens a card with role, model, status, and rename or remove. P6-08 builds on this.
+  - **Model.** The model this chat uses, with the picker from P4-05.
+  - **Toggles.** Mute and pin. Lock is left out: kiko has no per-chat lock yet.
+  - **Memory.** Records this chat created or used most, then `all memory` for the full searchable list, with view, edit, history, pin, archive, and delete from P5-04. Memory stays per user; the panel only filters it.
+  - **Links.** Every link sent in the chat with title and site, newest first.
+  - **Media.** A grid of photos and videos that opens the media viewer.
+  - **Files.** The room's files with size, opening the file viewer from P8-08.
+  - **Danger zone.** Export as markdown (P8-09 when it lands), clear history, delete chat.
+- A room RPC and socket frame return links and media from the room log, paged, newest first, built from the stored messages and file index. Live updates arrive as room events.
+- Remove the memory rail item and route. `/memory` and `/memory/:id` redirect to the active chat with the panel open on memory.
+- Reserve section slots for tasks and notes (P6-09) and reminders (P5-07). They render only when the feature exists.
+
+**Done when.** Nothing about one chat needs another section of the app, and the rail has chat, files, and settings.
 
 ### P2-10 Add intent-based preloading
 

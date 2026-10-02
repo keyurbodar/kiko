@@ -23,7 +23,8 @@ import { DateChip } from "./ui/DateChip"
 import { SystemMessage } from "./SystemMessage"
 import { EmptyState } from "./ui/EmptyState"
 import { SwipeToReply } from "./ui/SwipeToReply"
-import { TypingRow } from "./ui/TypingRow"
+import { TypingIndicator } from "./typing/TypingIndicator"
+import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
 import { createMediaViewer } from "../chat/media/mediaViewer"
@@ -152,6 +153,8 @@ export function VirtualThread(props: {
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
+  /** A chat with more than one agent: the typing bubble shows the agent's avatar. */
+  groupChat?: boolean
   /** The viewer tapped an emoji on a message. Leave it out and reactions do nothing. */
   onReact?: (messageId: string, emoji: string) => void
   /**
@@ -791,7 +794,16 @@ export function VirtualThread(props: {
               no run and no height in the height table.
             */}
             <Show when={props.waitingNames.length > 0}>
-              <TypingRow typists={props.waitingNames} />
+              <div
+                class={cn(
+                  "mx-auto flex w-full max-w-(--content-max-w) px-4 pb-(--row-gap)",
+                  // The next bubble of the agent's run, or a new run after the human.
+                  props.messages.at(-1)?.sender === "bot" ? "pt-(--row-gap)" : "pt-(--run-gap)",
+                )}
+                data-component="chat-typing-row"
+              >
+                <TypingIndicator typists={[...props.waitingNames]} avatar={props.groupChat} />
+              </div>
             </Show>
           </Show>
         </div>

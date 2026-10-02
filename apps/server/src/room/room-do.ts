@@ -1,9 +1,11 @@
-import type { AgentSlug, RoomEvent, RoomToClient } from "@kiko/protocol"
+import type { AgentSlug, AgentState, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
-import { ROOM_ID_HEADER, USER_ID_HEADER } from "../lib/names"
+import { type Alarms, createAlarms } from "../lib/alarm"
+import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
-import { Deliveries, type ReminderDelivery } from "./deliver"
+import { BURST_WAKEUP, Burst } from "./burst"
+import { Bubbles, Deliveries, type ReminderDelivery } from "./deliver"
 import { type FileMeta, type FileMetaPatch, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { migrate } from "./schema"
@@ -15,9 +17,25 @@ declare const process: { env: { NODE_ENV?: string } }
 // Architecture sections 4.1 and 9. One room per chat. This file holds the
 // socket entry points and the broadcast. The log is in log.ts, frames in socket.ts.
 
+/**
+ * ASSUMPTION: every room has one agent with this slug until membership lands (P6). It is the
+ * lead, so it gets every human message (section 7.2).
+ */
+export const DEFAULT_AGENT = "kiko" as AgentSlug
+/** The first retry after a failed delivery. ASSUMPTION: the number. */
+const DELIVERY_RETRY_MS = 2_000
+
+/** Who an agent is and where it lives. The room passes it with every delivery so the agent can reach back. */
+export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug }
+
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	readonly log: RoomLog
 	private readonly deliveries: Deliveries
+	private readonly alarms: Alarms
+	private readonly burst: Burst
+	private readonly bubbles: Bubbles
+	// Not stored, like typing. Hibernation forgets it, and the next change sends the state as it is then.
+	private readonly states = new Map<AgentSlug, AgentState>()
 	readonly files: RoomFiles
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
@@ -30,6 +48,45 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.log = new RoomLog(ctx.storage)
 		this.deliveries = new Deliveries(ctx.storage, this.log)
 		this.files = new RoomFiles(ctx.storage, this.log)
+		this.alarms = createAlarms(ctx)
+		this.burst = new Burst(ctx.storage, this.alarms)
+		this.bubbles = new Bubbles(ctx.storage, this.log)
+	}
+
+	/** The user and room the Worker named this object for. Set by the first socket. */
+	private home(): { userId: string; roomId: RoomId } | null {
+		const userId = this.log.meta("user_id")
+		const roomId = this.log.meta("room_id")
+		return userId && roomId ? { userId, roomId: roomId as RoomId } : null
+	}
+
+	/** Architecture section 6.1. The burst wakeup fired: deliver every pending human message to the agent. */
+	async alarm(): Promise<void> {
+		const due = await this.alarms.dueWakeups(Date.now())
+		if (due.includes(BURST_WAKEUP)) await this.flush()
+	}
+
+	private async flush(): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		const envelopes = this.burst.envelopes(home.roomId)
+		if (!envelopes.length) return
+		try {
+			const chats = await userStub(this.env.USER, home.userId).listChats()
+			const chat = chats.find((c) => c.roomId === home.roomId)
+			// ASSUMPTION: a room that is not in the user's chat list (never created, or deleted) wakes no
+			// agent. Its messages stay in the log and are dropped from the burst.
+			if (!chat) return this.burst.delivered(envelopes)
+			// Architecture section 7.4. Only the room title for now.
+			const brief = `room: ${chat.title}`
+			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, DEFAULT_AGENT)
+			// receive() only stores and returns, so this wait is short and cannot deadlock.
+			await agent.receive(envelopes, brief, { ...home, slug: DEFAULT_AGENT })
+			this.burst.delivered(envelopes)
+		} catch (error) {
+			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+			await this.burst.retry(DELIVERY_RETRY_MS)
+		}
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -65,7 +122,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** Sends stored events to every socket that has said hello. */
 	publish(events: readonly RoomEvent[]): void {
-		if (events.length) this.broadcast({ t: "events", events })
+		if (!events.length) return
+		this.broadcast({ t: "events", events })
+		// Every stored human message passes here once, so this is where a burst grows.
+		for (const e of events) if (e.t === "message" && e.from.kind === "human") this.ctx.waitUntil(this.burst.add(e))
 	}
 
 	/** Sends a frame that is not stored (typing, draft, status) to every ready socket. */
@@ -103,8 +163,45 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
+	/** Extends a pending burst (section 6.1). Nothing is sent. */
 	humanTyping(): void {
-		// The burst task (P1-11) extends the debounce here. Nothing is stored or sent.
+		this.ctx.waitUntil(this.burst.typing())
+	}
+
+	/**
+	 * RPC for an agent in this room (section 6.3). Stores one closed block of a run's answer. A repeated
+	 * `(runId, attempt, index)` stores nothing. A higher attempt deletes the bubbles of earlier attempts.
+	 * Returns true when this call stored the bubble.
+	 */
+	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string): Promise<boolean> {
+		const events = this.bubbles.post(slug, { runId, attempt, index }, block)
+		this.publish(events)
+		return events.some((e) => e.t === "message")
+	}
+
+	/** RPC for an agent. A growing block past the draft threshold. Sent, never stored. */
+	async draft(slug: AgentSlug, runId: string, index: number, text: string): Promise<void> {
+		this.broadcast({ t: "draft", slug, runId, index, text })
+	}
+
+	/** RPC for an agent. Sends a status change, and the typing set with it. Never stored. */
+	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
+		if ((this.states.get(slug) ?? "idle") === state) return
+		this.states.set(slug, state)
+		this.broadcast({ t: "status", slug, state })
+		await this.setTyping(slug, state === "typing")
+	}
+
+	/**
+	 * RPC for an agent. The run answered or failed. Touches the user's chat list once per run: a repeat
+	 * after a crash finds the run ended, and `touchChat` ignores a `lastSeq` it already has.
+	 */
+	async endRun(slug: AgentSlug, runId: string): Promise<void> {
+		await this.setStatus(slug, "idle")
+		const home = this.home()
+		if (!home || this.bubbles.ended(runId)) return
+		await userStub(this.env.USER, home.userId).touchChat(home.roomId, this.bubbles.touch())
+		this.bubbles.markEnded(runId)
 	}
 
 	/** RPC for an agent in this room. Broadcasts who is typing, without storing it. */

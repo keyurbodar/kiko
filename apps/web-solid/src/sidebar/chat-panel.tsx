@@ -1,4 +1,3 @@
-import { Blobatar } from "@blobatar/solid"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
@@ -6,6 +5,7 @@ import { createEffect, createMemo, createSignal, For, type JSX, Show } from "sol
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { cn } from "../lib/cn"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
 import type { RosterBot } from "../lib/types"
@@ -29,7 +29,7 @@ const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
 /** Row height in px. Fixed, so the virtualizer never measures and never shows a blank row. */
-export const ROW_H = 68
+export const ROW_H = 52
 
 /**
  * The stamp at the end of a row's first line. Relative, not a clock time:
@@ -42,20 +42,6 @@ export function rowStamp(updatedAt: number, now: number): string {
   if (delta < HOUR) return `${Math.floor(delta / MINUTE)}m`
   if (delta < DAY) return `${Math.floor(delta / HOUR)}h`
   return `${Math.floor(delta / DAY)}d`
-}
-
-/**
- * A picture derived from a name. Static, never `animate`: a list of moving
- * avatars is motion in a place the user is not waiting for anything.
- */
-function Avatar(props: { name: string; image?: string; class: string }) {
-  return (
-    <span class={props.class}>
-      <Show when={props.image} fallback={<Blobatar name={props.name} class="size-full rounded-full" />}>
-        {(src) => <img src={src()} alt="" class="size-full rounded-full object-cover" />}
-      </Show>
-    </span>
-  )
 }
 
 const menuClass = cn(
@@ -112,7 +98,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void 
           >
             <span class="pin-tile-circle">
               <span class="pin-tile-icon">
-                <Avatar name={props.bot.name} image={props.bot.avatarImage} class="pin-tile-avatar" />
+                <IdentityAvatar seed={props.bot.id} class="pin-tile-avatar" />
               </span>
               <Show when={unread()}>
                 <span class="pin-tile-dot" aria-hidden="true" />
@@ -145,7 +131,7 @@ function ChatPreview(props: { bot: RosterBot }) {
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
       <div class="flex items-center gap-2.5">
-        <Avatar name={props.bot.name} image={props.bot.avatarImage} class="size-[32px] shrink-0 rounded-full" />
+        <IdentityAvatar seed={props.bot.id} size={32} />
         <div class="min-w-0">
           <div class="truncate text-[13px] font-semibold text-text">{props.bot.name}</div>
           <div class="truncate text-[11px] text-weak">{props.bot.presence}</div>
@@ -212,14 +198,14 @@ function RowTitle(props: { id: string; title: string }) {
 }
 
 /**
- * One conversation, laid out the way MonoCode lays out a thread, in kat's
- * colours: a muted first line (the agent's name, the unread dot, the time), a
- * bold title, a muted one-line preview. The row IS the context menu's trigger,
+ * One conversation as kat lays it out: an avatar, a bold title with the time
+ * right-aligned on the same line, and a muted one-line preview. The avatar and
+ * type sizes are the hover card's, so the two read as one family. The row IS the context menu's trigger,
  * so Kobalte opens it from the real `contextmenu` event on the real element.
  * The hover preview hangs off an overlay, because an element can only be one
  * primitive's trigger.
  */
-function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active: boolean; now: number }) {
+function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number }) {
   /*
    * The preview is nested inside the menu's trigger, so left alone both are
    * open at once, the preview swallows the Escape that would dismiss the menu,
@@ -283,34 +269,32 @@ function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active:
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <Avatar name={props.agent} image={props.bot.avatarImage} class="chat-avatar" />
+        <IdentityAvatar seed={props.bot.id} class="chat-avatar" />
 
-        <span class="chat-meta-line">
-          <span class="chat-agent">{props.agent}</span>
-          <Show when={unread()}>
-            <i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
-          </Show>
-          <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
-        </span>
+        <span class="chat-text">
+          <span class="chat-title-line">
+            <RowTitle id={props.bot.id} title={props.bot.name} />
+            <Show when={unread()}>
+              <i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
+            </Show>
+            <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
+          </span>
 
-        <span class="chat-title-line">
-          <RowTitle id={props.bot.id} title={props.bot.name} />
-        </span>
-
-        <span class="chat-preview" data-typing={props.bot.presence === "typing" ? "" : undefined}>
-          <Show
-            when={props.bot.presence === "typing"}
-            fallback={
-              <Show when={draft()} fallback={props.bot.preview}>
-                <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
-              </Show>
-            }
-          >
-            typing
-            <i class="typing-dot" aria-hidden="true" />
-            <i class="typing-dot" aria-hidden="true" />
-            <i class="typing-dot" aria-hidden="true" />
-          </Show>
+          <span class="chat-preview" data-typing={props.bot.presence === "typing" ? "" : undefined}>
+            <Show
+              when={props.bot.presence === "typing"}
+              fallback={
+                <Show when={draft()} fallback={props.bot.preview}>
+                  <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
+                </Show>
+              }
+            >
+              typing
+              <i class="typing-dot" aria-hidden="true" />
+              <i class="typing-dot" aria-hidden="true" />
+              <i class="typing-dot" aria-hidden="true" />
+            </Show>
+          </span>
         </span>
       </MenuV2.Context.Trigger>
 
@@ -389,10 +373,6 @@ export function ChatPanel() {
   // Rows are looked up by id so a roster change does not remount the rows that did not change.
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
-  // ASSUMPTION: a chat row carries no agent, so the first line names the open
-  // room's lead and falls back to the product name for a room that is not open.
-  const agentName = (id: string) => (useApp.activeThreadId() === id ? (useApp.members().find((m) => m.persona === "lead")?.name ?? "kiko") : "kiko")
-
   const active = () => useApp.activeThreadId()
   const chatCommands: Command[] = [
     { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: () => active() !== null, run: () => active() && startRename(active()!) },
@@ -426,7 +406,7 @@ export function ChatPanel() {
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
           <Show when={byId().get(id)}>
-            {(bot) => <ChatRow bot={bot()} agent={agentName(id)} muted={muted().has(id)} active={active() === id} now={now} />}
+            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now} />}
           </Show>
         )}
       </VList>

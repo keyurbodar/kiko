@@ -1,6 +1,7 @@
 import { useNavigate } from "@solidjs/router"
 import { Command as Cmdk } from "cmdk-solid"
 import { Icon } from "@kiko/ui/icon"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { For, Show, createEffect, createMemo } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
 import { useApp } from "../lib/store"
@@ -57,7 +58,7 @@ export default function Palette() {
                   <For each={chats()}>
                     {(chat) => (
                       <Cmdk.Item class="palette-row" value={`${chat.id} ${chat.name.toLowerCase()}`} onSelect={() => run(() => navigate(`/chat/${chat.id}`))}>
-                        <Icon name="bubble-5" size="small" />
+                        <IdentityAvatar seed={chat.id} size={18} />
                         <span class="palette-label">{chat.name.toLowerCase()}</span>
                       </Cmdk.Item>
                     )}

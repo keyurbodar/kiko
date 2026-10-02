@@ -6,6 +6,7 @@ import type { Chat, ChatOp, RoomId } from "@kiko/protocol"
 
 const MAX_TITLE = 200
 const MAX_PREVIEW = 280
+const MAX_AGENTS = 20
 
 type Row = {
   room_id: string
@@ -16,6 +17,7 @@ type Row = {
   last_preview: string
   unread: number
   updated_at: number
+  agents: string
 }
 
 /** What a room reports once at the end of a run. */
@@ -32,7 +34,9 @@ export type ChatChange = { t: "chat"; chat: Chat } | { t: "chat_removed"; roomId
 const clip = (text: string, max: number) => text.trim().slice(0, max)
 
 function toChat(row: Row): Chat {
+  const agents = JSON.parse(row.agents || "[]") as string[]
   return {
+    ...(agents.length ? { agents } : {}),
     roomId: row.room_id as RoomId,
     title: row.title,
     pinned: row.pinned === 1,
@@ -67,11 +71,11 @@ export function listChats(sql: SqlStorage): Chat[] {
 
 function write(sql: SqlStorage, chat: Chat): ChatChange {
   sql.exec(
-    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(room_id) DO UPDATE SET title = excluded.title, pinned = excluded.pinned, muted = excluded.muted,
        last_seq = excluded.last_seq, last_preview = excluded.last_preview, unread = excluded.unread,
-       updated_at = excluded.updated_at`,
+       updated_at = excluded.updated_at, agents = excluded.agents`,
     chat.roomId,
     chat.title,
     chat.pinned ? 1 : 0,
@@ -80,6 +84,7 @@ function write(sql: SqlStorage, chat: Chat): ChatChange {
     chat.lastPreview,
     chat.unread,
     chat.updatedAt,
+    JSON.stringify(chat.agents ?? []),
   )
   return { t: "chat", chat }
 }
@@ -98,6 +103,7 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
         lastPreview: "",
         unread: 0,
         updatedAt: now,
+        ...(op.agents?.length ? { agents: op.agents.slice(0, MAX_AGENTS).map((id) => id.slice(0, 64)) } : {}),
       }
     case "rename": {
       const title = clip(op.title, MAX_TITLE)

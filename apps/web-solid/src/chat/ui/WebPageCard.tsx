@@ -1,6 +1,6 @@
 import { Show, createMemo, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
-import { MAX_PREVIEW_HEIGHT, MAX_PREVIEW_WIDTH, hasWebPageContent, ownMedia } from "../lib/linkPreview"
+import { MAX_PREVIEW_HEIGHT, MAX_PREVIEW_WIDTH, hasWebPageContent, ownFavicon, ownMedia } from "../lib/linkPreview"
 import type { WebPagePreview } from "../../lib/types"
 
 const TITLE_LENGTH = 80
@@ -50,7 +50,12 @@ export function WebPageCard(props: { page: WebPagePreview; class?: string }): JS
           )}
         </Show>
         <Show when={parts().site}>
-          <span class="chat-webpage__name block truncate font-semibold">{parts().site}</span>
+          <span class="chat-webpage__name flex items-center gap-1.5 font-semibold">
+            <Show when={ownFavicon(props.page)}>
+              {(icon) => <img class="size-4 shrink-0 rounded-[2px]" src={icon()} alt="" width={16} height={16} />}
+            </Show>
+            <span class="truncate">{parts().site}</span>
+          </span>
         </Show>
         <Show when={parts().title}>
           <span class="chat-webpage__title line-clamp-2 block font-semibold wrap-anywhere">

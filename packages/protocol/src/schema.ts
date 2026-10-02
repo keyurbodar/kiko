@@ -234,10 +234,15 @@ export const Chat = Schema.Struct({
 	lastPreview: Schema.String,
 	unread: Count,
 	updatedAt: Count,
+	agents: Schema.optionalKey(Schema.Array(Schema.String)),
 })
 
+export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })
+
+export const AgentOp = Schema.Struct({ op: Schema.Literal("create"), agent: Agent })
+
 export const ChatOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String }),
+	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)) }),
 	Schema.Struct({ op: Schema.Literal("rename"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ op: Schema.Literal("pin"), roomId: RoomId, pinned: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("mute"), roomId: RoomId, muted: Schema.Boolean }),
@@ -247,9 +252,16 @@ export const ChatOp = Schema.Union([
 export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
+	Schema.Struct({ ...stored, t: Schema.Literal("agent"), agent: Agent }),
+	Schema.Struct({ ...stored, t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 ])
 
-export const UserSnapshot = Schema.Struct({ seq: Count, chats: Schema.Array(Chat) })
+export const UserSnapshot = Schema.Struct({
+	seq: Count,
+	chats: Schema.Array(Chat),
+	agents: Schema.optionalKey(Schema.Array(Agent)),
+	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
+})
 
 // Memory
 
@@ -302,18 +314,97 @@ export const MemoryResult = Schema.Union([
 	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 
+export const ExecutorStatus = Schema.Struct({
+	connected: Schema.Boolean,
+	kind: Schema.NullOr(Schema.Union([Schema.Literal("oauth"), Schema.Literal("api_key")])),
+	pending: Schema.Boolean,
+	expiresAt: Schema.NullOr(Schema.Number),
+	issuedAt: Schema.NullOr(Schema.Number),
+	refreshable: Schema.Boolean,
+	organization: Schema.optionalKey(Schema.String),
+	rows: Schema.Number,
+})
+
+export const ExecutorResult = Schema.Union([
+	Schema.Struct({
+		ok: Schema.Literal(true),
+		status: ExecutorStatus,
+		authorizeUrl: Schema.optionalKey(Schema.String),
+		tools: Schema.optionalKey(Schema.Array(Schema.String)),
+	}),
+	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
+])
+
 export const ClientToUser = Schema.Union([
 	Hello,
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
+	Schema.Struct({ t: Schema.Literal("agent"), op: AgentOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
+	Schema.Struct({ t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("connectExecutor"), reqId: Id, apiKey: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({ t: Schema.Literal("disconnectExecutor"), reqId: Id }),
+	Schema.Struct({
+		t: Schema.Literal("executorStatus"),
+		reqId: Id,
+		refresh: Schema.optionalKey(Schema.Boolean),
+		tools: Schema.optionalKey(Schema.Boolean),
+	}),
+	Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
+	Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
 ])
+
+export const LoginEvent = Schema.Union([
+	Schema.Struct({
+		type: Schema.Literal("info"),
+		message: Schema.String,
+		links: Schema.optionalKey(
+			Schema.Array(Schema.Struct({ url: Schema.String, label: Schema.optionalKey(Schema.String) })),
+		),
+	}),
+	Schema.Struct({ type: Schema.Literal("auth_url"), url: Schema.String, instructions: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({
+		type: Schema.Literal("device_code"),
+		userCode: Schema.String,
+		verificationUri: Schema.String,
+		intervalSeconds: Schema.optionalKey(Schema.Number),
+		expiresInSeconds: Schema.optionalKey(Schema.Number),
+	}),
+	Schema.Struct({ type: Schema.Literal("progress"), message: Schema.String }),
+])
+
+export const LoginPrompt = Schema.Union([
+	Schema.Struct({
+		type: Schema.Literals(["text", "secret", "manual_code"]),
+		message: Schema.String,
+		placeholder: Schema.optionalKey(Schema.String),
+	}),
+	Schema.Struct({
+		type: Schema.Literal("select"),
+		message: Schema.String,
+		options: Schema.Array(
+			Schema.Struct({ id: Schema.String, label: Schema.String, description: Schema.optionalKey(Schema.String) }),
+		),
+	}),
+])
+
+export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unknown", "cancelled", "timeout", "failed"])
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
+	Schema.Struct({ t: Schema.Literal("executor"), reqId: Schema.optionalKey(Id), result: ExecutorResult }),
+	Schema.Struct({ t: Schema.Literal("login.notify"), loginId: Id, event: LoginEvent }),
+	Schema.Struct({ t: Schema.Literal("login.prompt"), loginId: Id, promptId: Id, prompt: LoginPrompt }),
+	Schema.Struct({
+		t: Schema.Literal("login.done"),
+		loginId: Id,
+		provider: Schema.Struct({ provider: Id, kind: Schema.Literals(["api_key", "oauth"]), last4: Schema.String }),
+	}),
+	Schema.Struct({ t: Schema.Literal("login.error"), loginId: Id, reason: LoginErrorReason, message: Schema.String }),
 ])
 
 // A schema and its plain type must accept exactly the same values. `Inline`
@@ -338,10 +429,13 @@ export type InSync = Assert<
 	| Same<typeof ClientToRoom.Type, P.ClientToRoom>
 	| Same<typeof RoomToClient.Type, P.RoomToClient>
 	| Same<typeof ChatOp.Type, P.ChatOp>
+	| Same<typeof Agent.Type, P.Agent>
 	| Same<typeof UserEvent.Type, P.UserEvent>
 	| Same<typeof UserSnapshot.Type, P.UserSnapshot>
 	| Same<typeof MemoryOp.Type, P.MemoryOp>
 	| Same<typeof MemoryResult.Type, P.MemoryResult>
+	| Same<typeof ExecutorStatus.Type, P.ExecutorStatus>
+	| Same<typeof ExecutorResult.Type, P.ExecutorResult>
 	| Same<typeof ClientToUser.Type, P.ClientToUser>
 	| Same<typeof UserToClient.Type, P.UserToClient>
 >

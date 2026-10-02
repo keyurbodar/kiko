@@ -187,6 +187,8 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			upsert(data.approvals, e.approval, (x) => x.id === e.approval.id)
 			return { meta: true }
 		case "file":
+			// New bytes at a path replace the old row on the server, so the path is the identity too.
+			removeWhere(data.files, (x) => x.name === e.file.name && x.id !== e.file.id)
 			upsert(data.files, e.file, (x) => x.id === e.file.id)
 			return { meta: true }
 	}

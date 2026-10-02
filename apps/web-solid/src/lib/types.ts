@@ -31,8 +31,6 @@ export interface RosterBot {
   persona?: string;
   /** Tints the author name the way Discord tints a member by role. */
   color?: string;
-  /** Uploaded avatar as a data URL. Absent means derive one from the name. */
-  avatarImage?: string;
 }
 
 /**
@@ -81,6 +79,8 @@ export interface WebPagePreview {
   site?: string
   title?: string
   description?: string
+  /** A path on kiko's origin. */
+  favicon?: string
   media?: { src: string; width: number; height: number }
   mediaSize?: "large" | "small"
 }

@@ -23,7 +23,7 @@ function ulid(): string {
 
 const chatEvents = (frame: UserToClient, rooms: string[]): UserEvent[] =>
   frame.t === "events"
-    ? frame.events.filter((e) => rooms.includes(e.t === "chat" ? e.chat.roomId : e.roomId))
+    ? frame.events.filter((e) => (e.t === "chat" || e.t === "chat_removed") && rooms.includes(e.t === "chat" ? e.chat.roomId : e.roomId))
     : []
 
 const suite: Suite = {
@@ -45,7 +45,7 @@ const suite: Suite = {
 
     const seen: UserEvent[] = []
     while (seen.length < 3) seen.push(...chatEvents(await b.expect((f) => chatEvents(f, rooms).length > 0), rooms))
-    const summary = seen.map((e) => (e.t === "chat" ? [e.chat.roomId, e.chat.title] : [e.roomId, "removed"]))
+    const summary = seen.map((e) => (e.t === "chat" ? [e.chat.roomId, e.chat.title] : e.t === "chat_removed" ? [e.roomId, "removed"] : [e.t, ""]))
     expectEqual(
       summary,
       [

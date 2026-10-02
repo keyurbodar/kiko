@@ -7,6 +7,8 @@ export interface Suite {
   name: string
   /** True when the suite calls a model. `verify --no-model` skips it. */
   model?: boolean
+  /** True when a person must act, such as signing in to a third party. Runs only when named. */
+  human?: boolean
   run(v: Verifier): Promise<void>
 }
 
@@ -30,6 +32,8 @@ export async function loadSuites(dir = suitesDir): Promise<Suite[]> {
 export interface RunOptions {
   url: string
   noModel: boolean
+  /** Lets suites use the fake provider of a development server. */
+  fake?: boolean
   names: string[]
   dir?: string
   log?: (line: string) => void
@@ -49,7 +53,11 @@ export async function runSuites(opts: RunOptions): Promise<string[]> {
       log(`skip ${s.name} (needs a model)`)
       continue
     }
-    const v = createVerifier(opts.url)
+    if (s.human && !opts.names.includes(s.name)) {
+      log(`skip ${s.name} (needs a person; run it by name)`)
+      continue
+    }
+    const v = createVerifier(opts.url, { fake: opts.fake ?? false })
     const t = Date.now()
     try {
       await s.run(v)

@@ -22,8 +22,15 @@ function Root(props: ParentProps) {
    */
   createEffect(() => {
     const s = session();
-    if (s.status === "signed-in") void useApp.start(s.user.id);
-    else if (s.status === "signed-out") useApp.stop();
+    if (s.status === "signed-in") {
+      void useApp.start(s.user.id);
+      // The saved theme loads after the first paint. The shell script painted from the cache.
+      const id = s.user.id;
+      setTimeout(() => void import("./theme/live").then((m) => m.startTheme(id)), 0);
+    } else if (s.status === "signed-out") {
+      useApp.stop();
+      void import("./theme/live").then((m) => m.forgetTheme());
+    }
   });
   return (
     <Switch>

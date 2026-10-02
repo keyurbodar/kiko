@@ -1,22 +1,17 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // Runs the real UserDO inside workerd. The worker is bundled from src so the test
 // cannot drift from the source.
 let mf: Miniflare
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./user-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
   mf = new Miniflare({
     modules: true,
-    script: await built.outputs[0]!.text(),
+    script: await bundleWorker(new URL("./user-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
+    compatibilityFlags: ["nodejs_compat"],
     durableObjects: { USER: { className: "UserDO", useSQLite: true } },
   })
 })
@@ -156,4 +151,53 @@ test("a bad frame is dropped and the socket keeps working", async () => {
   await ws.until(2)
   expect(events((await ws.settle()).slice(1)).map((e) => e.chat.title)).toEqual(["ok"])
   ws.close()
+})
+
+test("a theme saved on one socket reaches the other, survives a snapshot, and refuses bad text", async () => {
+  const user = fresh()
+  const a = await socket(user)
+  const b = await socket(user)
+  const theme = JSON.stringify({ version: 1, name: "t", colors: { accent: "#ff0000" } })
+  a.send({ t: "theme", theme })
+  a.send({ t: "theme", theme }) // a repeat changes nothing
+  a.send({ t: "theme", theme: "not json" }) // refused, nothing stored
+  a.send({ t: "theme", theme: JSON.stringify({ version: 2 }) }) // refused
+  await b.until(2)
+  const got = events((await b.settle()).slice(1))
+  expect(got).toHaveLength(1)
+  expect(got[0]).toMatchObject({ t: "theme", theme, seq: 1 })
+  expect(await rpc(user, "getTheme")).toBe(theme)
+  // a socket that is too far behind gets the theme in its snapshot
+  const c = await socket(user, 99)
+  expect((c.frames[0] as Frame).snapshot.theme).toBe(theme)
+  b.send({ t: "theme", theme: null })
+  await a.until(3)
+  expect(await rpc(user, "getTheme")).toBe(null)
+  a.close()
+  b.close()
+  c.close()
+})
+
+test("an agent is stored once, broadcast to every socket, and the chat keeps the ids it was made with", async () => {
+  const user = fresh()
+  const a = await socket(user)
+  const b = await socket(user)
+  const agent = { id: "ag1", name: "ada", slug: "ada", prompt: "reads code", model: "opencode-go/deepseek-v4.1-flash" }
+  a.send({ t: "agent", op: { op: "create", agent } })
+  a.send({ t: "agent", op: { op: "create", agent } }) // a resend after a reconnect changes nothing
+  expect(await rpc(user, "createAgent", { ...agent, id: "ag2" })).toBeNull() // the handle is taken
+  await b.until(2)
+  const got = events((await b.settle()).slice(1))
+  expect(got).toHaveLength(1)
+  expect(got[0]).toMatchObject({ t: "agent", agent })
+  expect(await rpc(user, "listAgents")).toEqual([agent])
+  a.send({ t: "chat", op: { op: "create", roomId: ROOM_A, title: "ada", agents: ["ag1"] } })
+  await b.until(3)
+  expect(await rpc(user, "listChats")).toMatchObject([{ roomId: ROOM_A, agents: ["ag1"] }])
+  const late = await socket(user, 0)
+  const first = late.frames[0]
+  expect(first.t === "reset" ? first.snapshot.agents : events(late.frames).filter((e) => e.t === "agent").map((e) => e.agent)).toEqual([agent])
+  a.close()
+  b.close()
+  late.close()
 })
