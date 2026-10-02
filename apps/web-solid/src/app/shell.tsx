@@ -7,9 +7,10 @@ import {
 } from "@kiko/ui/context/i18n";
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
-import { createSignal, type ParentProps } from "solid-js";
+import { createSignal, onCleanup, onMount, type ParentProps } from "solid-js";
 import { bindCommandHotkeys } from "../commands/hotkeys";
 import { useKatCommands } from "../commands/use-kat-commands";
+import { Palette, preloadPalette } from "../palette";
 import { Sidebar } from "../sidebar";
 import { Rail } from "./rail";
 import { sectionOf } from "./sections";
@@ -67,6 +68,16 @@ export function Shell(props: ParentProps) {
   const toggle = () => setAndSave(!collapsed());
   useKatCommands({ toggleSidebar: toggle });
   bindCommandHotkeys();
+  // Preload tier 3 on the first modifier key so the palette opens in one frame.
+  onMount(() => {
+    const on = (e: KeyboardEvent) => {
+      if (!e.metaKey && !e.ctrlKey) return;
+      preloadPalette();
+      window.removeEventListener("keydown", on, true);
+    };
+    window.addEventListener("keydown", on, true);
+    onCleanup(() => window.removeEventListener("keydown", on, true));
+  });
   return (
     <I18nProvider value={i18n}>
       <div
@@ -87,6 +98,7 @@ export function Shell(props: ParentProps) {
           <TopBar />
           {props.children}
         </main>
+        <Palette />
         <ToastV2.Region />
       </div>
     </I18nProvider>

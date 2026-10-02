@@ -21,15 +21,15 @@ const FIRST_PAINT_ROUTE = "src/app/routes/chat.tsx";
 const APP_ENTRY = "src/main.tsx";
 
 /* Tier 3 modules load with lazy() or a dynamic import on idle or intent. */
-const TIER3 = ["../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
+const TIER3 = ["src/palette/palette.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
 /* Tier 4 route chunks load on route intent. */
 const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/routes/memory.tsx", "src/app/routes/settings.tsx"];
 
-/* Recorded gzip bytes, measured at P2-03. */
+/* Recorded gzip bytes, measured at P2-03. Tier 3 re-recorded at P3-14: the palette and cmdk-solid add 5.6 KB. */
 const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1524,
   "tier 2 first paint of /chat": 220198,
-  "tier 3 lazy modules": 13408,
+  "tier 3 lazy modules": 18992,
   "tier 4 route chunks": 816,
 };
 
