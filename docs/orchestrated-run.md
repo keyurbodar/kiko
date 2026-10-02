@@ -85,4 +85,7 @@ The coordinator adds to this list as tasks land.
 
 ## Browser checks
 
-Do not use `ego-browser`, even where `.cursor/skills/verify-kiko` tells you to. Do not drive a browser at all. Prove frontend behavior with tests and a successful `bun run build`, and list every browser check from the issue under "left open" in your report. The coordinator runs those checks in its own browser after the merge.
+Run the browser checks your issue names, but only in Claude's built-in browser: the `mcp__Claude_Browser__*` tools (`preview_start` with a `url`, `navigate`, `read_page`, `get_page_text`, `javascript_tool`, `computer` for screenshots). Load them with ToolSearch if they are deferred. Never use `ego-browser` or any other browser, even where `.cursor/skills/verify-kiko` tells you to; use that skill only for what to check, not how to drive. Open `http://localhost:<your web port>`. If the built-in browser tools are not available to you, do not use another browser: prove the behavior with tests and `bun run build`, and list the browser checks under "left open" so the coordinator runs them.
+- Credentials: `UserDO` RPC `connectProvider(provider, apiKey)`, `disconnectProvider(provider)`, `listProviders()` returning `{ provider, kind, last4 }`. HTTP: `GET /api/credentials`, `PUT /api/credentials/<provider>` with `{ apiKey }`, `DELETE /api/credentials/<provider>`. Inside `UserDO`, read keys through the private `#credentials` vault; nothing outside `UserDO` sees a key.
+- Memory: `UserDO.memoryOp(op)` and the user socket frame `{ t: "memory", reqId, op }` answered by `{ t: "memory_result", reqId, result }`.
+- Never run `pkill` or `killall`, including for `wrangler tail`. Kill your own process by port or pid.
