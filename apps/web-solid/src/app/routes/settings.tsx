@@ -1,8 +1,10 @@
 import { useLocation } from "@solidjs/router"
 import { SettingsShell } from "../../settings/settings-shell"
+import { DeleteAccount } from "../delete-account"
 
 export default function SettingsRoute() {
   const location = useLocation()
-  const sectionId = () => (location.pathname.split("/")[2] === "models" ? "models" : "providers")
-  return <SettingsShell sectionId={sectionId()} />
+  const segment = () => location.pathname.split("/")[2]
+  const sectionId = () => (segment() === "models" ? "models" : "providers")
+  return segment() === "account" ? <DeleteAccount /> : <SettingsShell sectionId={sectionId()} />
 }

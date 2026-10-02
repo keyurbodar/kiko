@@ -2,12 +2,13 @@ import type { Env } from "../index"
 import type { Fetcher } from "../lib/safe-fetch"
 import { handleImageJob, isImageJob, type PreviewImageJob } from "../previews/image-job"
 import { type AttachmentJob, handleAttachmentJob, isAttachmentJob } from "./attachment"
+import { type DeleteAccountJob, deletionTargets, isDeleteAccountJob, runDeleteJob } from "./delete-account"
 
 // The one queue consumer. Architecture section 7.9. Every job type is in `Job`, and a
 // handler is safe to run twice, because a queue delivers at least once. A handler that
 // throws is retried with a growing delay. A body that is no known job is dropped.
 
-export type Job = AttachmentJob | PreviewImageJob
+export type Job = AttachmentJob | PreviewImageJob | DeleteAccountJob
 
 const MAX_DELAY_SECONDS = 60
 
@@ -17,6 +18,7 @@ export const retryDelay = (attempts: number) => Math.min(2 ** Math.max(0, attemp
 async function run(body: unknown, env: Env, attempt: number, fetcher?: Fetcher): Promise<void> {
 	if (isAttachmentJob(body)) await handleAttachmentJob(body, env, attempt)
 	else if (isImageJob(body)) await handleImageJob(body, env.FILES, fetcher)
+	else if (isDeleteAccountJob(body)) await runDeleteJob(body, deletionTargets(env, body.userId))
 }
 
 export async function consume(batch: MessageBatch<unknown>, env: Env, fetcher?: Fetcher): Promise<void> {

@@ -5,6 +5,9 @@ import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
 import { buildAgent, DEV_MODEL, devModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
+import { storedRows, wipeStorage } from "../lib/wipe"
+
+declare const process: { env: { NODE_ENV?: string } }
 
 /** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
 export class AgentDO extends DurableObject<Env> {
@@ -44,6 +47,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async alarm() {
+    if (this.#wiped) return
     // The experiment objects (`experiment:turn:*`) keep their own heartbeat key. Real agents never have it.
     const experiment = this.ctx.storage.sql.exec("SELECT 1 FROM wakeups WHERE key = 'experiment-heartbeat'").toArray().length > 0
     if (experiment) return this.experiment.alarm()
@@ -60,5 +64,26 @@ export class AgentDO extends DurableObject<Env> {
 
   experimentCoalescing(coalesce: boolean, streamMs: number) {
     return measureTurn(this.ctx.storage, coalesce, streamMs)
+  }
+
+  // Account deletion (P9-02). The room's deletion job calls these.
+  #wiped = false
+
+  /** Deletes all of the agent's storage. Returns the rows that held data, 0 on a repeat. */
+  async deleteAll(): Promise<number> {
+    if (this.#wiped) return 0
+    const rows = await wipeStorage(this.ctx)
+    this.#wiped = true
+    return rows
+  }
+
+  async storedRows(): Promise<number> {
+    return this.#wiped ? 0 : storedRows(this.ctx.storage)
+  }
+
+  /** Development only. Stores one row, so a deletion check has agent data before agents exist (P1-06). */
+  async devSeed(): Promise<void> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    await this.ctx.storage.put("dev-seed", Date.now())
   }
 }

@@ -2,6 +2,7 @@ import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { authRoute, getSessionUser } from "./auth/auth"
+import { accountRoute } from "./auth/account-route"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { consume } from "./jobs/consumer"
@@ -52,6 +53,8 @@ export default {
     if (filed) return filed
     const previewed = await previewRoute(request, env)
     if (previewed) return previewed
+    const account = await accountRoute(request, env)
+    if (account) return account
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
     if (url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
