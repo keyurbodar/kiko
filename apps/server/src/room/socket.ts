@@ -7,6 +7,7 @@ import type { ClientToRoom, RoomEvent, RoomToClient } from "@kiko/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
+import type { SearchPage } from "./search"
 
 /** Per-socket state. It survives hibernation. */
 export type Attachment = {
@@ -21,6 +22,8 @@ export interface SocketRoom {
 	publish(events: readonly RoomEvent[]): void
 	/** The human is typing. Not stored. */
 	humanTyping(): void
+	/** Searches the room's live messages. */
+	search(query: string, before?: number, limit?: number): SearchPage
 }
 
 /** Close code for a frame that breaks the protocol. */
@@ -111,6 +114,11 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 		case "typing":
 			room.humanTyping()
 			return null
+		case "search": {
+			const page = room.search(frame.query.slice(0, 200), frame.before, frame.limit)
+			send(ws, { t: "search", query: frame.query, ...(frame.before !== undefined ? { before: frame.before } : {}), ...page })
+			return null
+		}
 		case "stop":
 		case "approve":
 		case "task":

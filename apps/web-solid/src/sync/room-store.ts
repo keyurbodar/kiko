@@ -434,6 +434,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		reset: (f) => reset(f.snapshot),
 		typing: (f) => setState("typing", [...f.who]),
 		status: (f) => setState("status", f.slug, f.state),
+		// The search UI (P3-13) reads these answers. Nothing stores them.
+		search: () => {},
 		draft: (f) => setState("drafts", `${f.runId}:${f.index}`, { slug: f.slug, runId: f.runId, index: f.index, text: f.text }),
 	}
 

@@ -6,7 +6,7 @@ import type { Env } from "../index"
 import { createAlarms } from "../lib/alarm"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
-import { applyChatOp, type ChatChange, getChat, listChats, type Touch, touchChat } from "./chats"
+import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
 import { migrate } from "./schema"
 
@@ -74,6 +74,10 @@ export class UserDO extends DurableObject<Env> {
     return this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
   }
 
+  async searchChats(query: string): Promise<Chat[]> {
+    return searchChats(this.sql, query)
+  }
+
   async listChats(): Promise<Chat[]> {
     return listChats(this.sql)
   }
@@ -132,6 +136,10 @@ export class UserDO extends DurableObject<Env> {
     }
     if (frame.t === "memory") {
       send(ws, { t: "memory_result", reqId: frame.reqId, result: this.memory.handle(frame.op) })
+      return
+    }
+    if (frame.t === "search") {
+      send(ws, { t: "search", query: frame.query, chats: searchChats(this.sql, frame.query.slice(0, 200)) })
       return
     }
     this.apply(frame.op)

@@ -130,6 +130,8 @@ export type RoomSnapshot = {
 	files: readonly FileRef[]
 }
 
+export type SearchHit = { id: MessageId; seq: number; snippet: string }
+
 export type ClientToRoom =
 	| { t: "hello"; lastSeq: number }
 	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; files?: readonly FileRef[] }
@@ -141,6 +143,8 @@ export type ClientToRoom =
 	| { t: "stop" }
 	| { t: "approve"; approvalId: string; action: "accept" | "decline" }
 	| { t: "task"; op: TaskOp }
+	/** Searches this room's live messages, newest first. `before` is the `next` of the previous page. */
+	| { t: "search"; query: string; before?: number; limit?: number }
 
 export type RoomToClient =
 	| { t: "events"; events: readonly RoomEvent[] }
@@ -156,3 +160,5 @@ export type RoomToClient =
 	| { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
 	/** Not stored. */
 	| { t: "status"; slug: AgentSlug; state: AgentState }
+	/** Not stored. The answer to `search` for one socket. `next` is the `before` for the following page, or null at the end. */
+	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }

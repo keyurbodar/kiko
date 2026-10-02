@@ -53,6 +53,8 @@ export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
 	| { t: "memory"; reqId: string; op: MemoryOp }
+	/** Searches chat titles. Message text is searched per room. */
+	| { t: "search"; query: string }
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[] }
@@ -60,3 +62,5 @@ export type UserToClient =
 	| { t: "reset"; snapshot: UserSnapshot }
 	/** The answer to one `memory` request. Sent only to the socket that asked. */
 	| { t: "memory_result"; reqId: string; result: MemoryResult }
+	/** Not stored. The answer to `search` for one socket, best match first. */
+	| { t: "search"; query: string; chats: readonly Chat[] }
