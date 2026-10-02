@@ -16,7 +16,7 @@ import { send, ulid, until } from "./mid-run"
 const agentOf = (slug: string): Agent => ({ id: `team-loops-${slug}`, name: slug, slug: slug as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
 const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
 
-async function dev(url: string, cookie: string, path: string, body: unknown): Promise<unknown> {
+export async function dev(url: string, cookie: string, path: string, body: unknown): Promise<unknown> {
   const res = await fetch(new URL(`api/dev/agent/${path}`, base(url)), { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) })
   if (!res.ok) throw new VerifyError(`the dev agent route answered ${res.status}. start the Worker with NODE_ENV=development`)
   return res.json()
@@ -26,13 +26,13 @@ type Status = { inbox: { waiting: number; claimed: number; submitted: number } }
 
 const events = (room: RoomHandle): RoomEvent[] =>
   room.raw.log.flatMap((e) => (e.dir === "in" && (e.frame as RoomToClient).t === "events" ? [...(e.frame as Extract<RoomToClient, { t: "events" }>).events] : []))
-const messages = (room: RoomHandle): Message[] => events(room).flatMap((e) => (e.t === "message" ? [e as Message] : []))
+export const messages = (room: RoomHandle): Message[] => events(room).flatMap((e) => (e.t === "message" ? [e as Message] : []))
 /** Messages agents sent with `send_message` or `broadcast`: an agent message that is not a run's bubble. */
-const agentSends = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && !m.run)
-const bubbles = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && m.run)
-const notices = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "system" && m.from.reason === "run_budget")
+export const agentSends = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && !m.run)
+export const bubbles = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && m.run)
+export const notices = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "system" && m.from.reason === "run_budget")
 
-async function team(v: { url: string }, s: Session, slugs: string[], title: string) {
+export async function team(v: { url: string }, s: Session, slugs: string[], title: string) {
   const user = await s.user()
   for (const slug of slugs) user.send({ t: "agent", op: { op: "create", agent: agentOf(slug) } })
   const roomId = ulid() as RoomId
@@ -49,11 +49,11 @@ async function team(v: { url: string }, s: Session, slugs: string[], title: stri
     }
     return total
   }
-  return { room, received }
+  return { room, received, roomId }
 }
 
 /** Waits until nothing new arrives for `quietMs`. */
-async function settle(count: () => number, quietMs: number, maxMs: number) {
+export async function settle(count: () => number, quietMs: number, maxMs: number) {
   const end = Date.now() + maxMs
   let last = -1
   let since = Date.now()

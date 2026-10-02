@@ -156,6 +156,16 @@ export class Inbox {
     return cursor.rowsWritten > 0
   }
 
+  /** Hands one batch back without submitting it: the run is busy and the batch waits for it to answer (section 7.8). */
+  hold(requestId: string): void {
+    this.sql.exec("UPDATE inbox SET in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ? AND submitted = 0", requestId)
+  }
+
+  /** True when a row waits or is claimed and not yet submitted. */
+  hasOpen(): boolean {
+    return this.sql.exec("SELECT 1 FROM inbox WHERE submitted = 0 LIMIT 1").toArray().length > 0
+  }
+
   /** Hands back every batch this process holds after a failed drain, so the next claim takes it at once. */
   release(): void {
     this.sql.exec("UPDATE inbox SET in_flight_at = NULL, in_flight_by = NULL WHERE submitted = 0 AND in_flight_by = ?", this.process)

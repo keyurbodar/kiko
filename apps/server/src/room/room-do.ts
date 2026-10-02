@@ -217,7 +217,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const seq = this.log.lastSeq()
 		for (const to of out.send.recipients) {
 			const member = members.find((m) => m.slug === to)
-			if (!member) continue
+			// The human pressed stop while this send was delivering (section 7.8).
+			if (!member || this.mail.stopped(out.send.rootId)) continue
 			const d = this.delivery(member, members, goal, [this.mail.envelope(home.roomId, slug, out.send, to)])
 			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, to)
 			const { refused } = await agent.receive(d.envelopes, d.brief, { ...home, slug: to, role: member.role, lead: member.lead })
@@ -346,6 +347,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (!home) return
 		this.burst.delivered(this.burst.envelopes(home.roomId))
+		this.mail.stop()
 		for (const member of this.members.list()) this.stopAgent(home, member.slug)
 	}
 

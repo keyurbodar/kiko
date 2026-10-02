@@ -15,6 +15,11 @@ export type MidRunAction =
   | "queue"
   /** `conversation.abort()`. Nothing is submitted. */
   | "abort"
+  /**
+   * Nothing is submitted. The batch stays in the inbox until the conversation is idle (section 7.8),
+   * so a human message that arrives meanwhile is placed first.
+   */
+  | "hold"
 
 /** The current run, or null when the conversation is idle. */
 export type RunState = {
@@ -42,7 +47,8 @@ export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: 
  * | ------- | ------------------------------------- | ------- |
  * | stop    | any                                   | abort   |
  * | any     | idle                                  | queue   |
- * | agent   | busy                                  | queue   |
+ * | agent   | busy                                  | hold    |
+ * | system  | busy                                  | hold    |
  * | human   | a tool is running                     | steer   |
  * | human   | a bubble was posted                   | queue   |
  * | human   | a tool round started and finished     | steer   |
@@ -53,8 +59,10 @@ export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: 
 export function decide(run: RunState | null, arrival: Arrival): MidRunAction {
   if (arrival.kind === "stop") return "abort"
   if (!run) return "queue"
-  // ASSUMPTION: only a human interrupts. An agent or system message waits for the run to answer (section 7.8).
-  if (arrival.kind !== "human") return "queue"
+  // Only a human interrupts. An agent or system message waits in the inbox until the run answers, so
+  // it is never placed ahead of a human message that comes later (section 7.8). The run may have been
+  // started by an agent message: a human arrival applies the same rows below.
+  if (arrival.kind !== "human") return "hold"
   if (run.toolRunning) return "steer"
   if (run.bubblePosted) return "queue"
   // Never restart after a tool: a rerun would repeat its side effect, and an abort would lose its result.

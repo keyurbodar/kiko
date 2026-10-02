@@ -150,6 +150,15 @@ export class Mail {
 		this.sql.exec("CREATE TABLE IF NOT EXISTS root_counts (root_id TEXT PRIMARY KEY, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS autonomous_runs (id INTEGER PRIMARY KEY CHECK (id = 1), day TEXT NOT NULL, runs INTEGER NOT NULL)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS stopped_roots (root_id TEXT PRIMARY KEY)")
+	}
+
+	/**
+	 * The human pressed stop (section 7.8). Every chain a member is on now is closed, so a send that a
+	 * stopping run makes after its inbox was cleared delivers nothing. A human message starts a new root.
+	 */
+	stop(): void {
+		this.sql.exec("INSERT OR IGNORE INTO stopped_roots (root_id) SELECT root_id FROM agent_chains")
 	}
 
 	/**
@@ -167,6 +176,11 @@ export class Mail {
 			last.hop,
 		)
 		if (envelopes.some((e) => e.from.kind === "human")) this.sql.exec("DELETE FROM autonomous_runs")
+	}
+
+	/** True once the human pressed stop on `rootId`. */
+	stopped(rootId: string): boolean {
+		return this.sql.exec("SELECT 1 FROM stopped_roots WHERE root_id = ?", rootId).toArray().length > 0
 	}
 
 	/** The agent deliveries `rootId` has caused so far. */
@@ -190,6 +204,7 @@ export class Mail {
 			if (!recipients.length) return { ok: false, error: "not sent: you are the only agent in this room.", events: [] }
 			const chain = this.sql.exec<{ root_id: string; hop: number }>("SELECT root_id, hop FROM agent_chains WHERE slug = ?", from).toArray()[0]
 			const rootId = chain?.root_id ?? `agent:${from}`
+			if (this.stopped(rootId)) return { ok: false, error: "not sent: the human pressed stop.", events: [] }
 			const hop = (chain?.hop ?? 0) + 1
 			const check = checkSend(hop, this.deliveries(rootId), recipients.length)
 			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
