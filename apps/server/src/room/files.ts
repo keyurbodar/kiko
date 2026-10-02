@@ -27,7 +27,16 @@ export type NewFile = {
 	type: string
 	sha256: string
 	author: Actor
+	/** What the client measured at upload time. The attachment job computes only what is missing. */
+	width?: number
+	height?: number
+	thumbhash?: string
 }
+
+/** What the attachment job needs to know about a file. */
+export type FileMeta = { r2Key: string; size: number; type: string; width?: number; height?: number; thumbhash?: string }
+
+export type FileMetaPatch = { width?: number; height?: number; thumbhash?: string }
 
 export type PutResult = {
 	file: FileRef
@@ -89,26 +98,68 @@ export class RoomFiles {
 				size: input.size,
 				type: input.type,
 				sha256: input.sha256,
-				width: null,
-				height: null,
-				thumbhash: null,
+				width: input.width ?? null,
+				height: input.height ?? null,
+				thumbhash: input.thumbhash ?? null,
 				author,
 			}
 			const file = toRef(row)
 			const event = this.log.append(author, { t: "file", file })
 			if (current) this.sql.exec("DELETE FROM ws_files WHERE id = ?", current.id)
 			this.sql.exec(
-				"INSERT INTO ws_files (id, path, r2_key, size, type, sha256, author, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO ws_files (id, path, r2_key, size, type, sha256, width, height, thumbhash, author, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				row.id,
 				row.path,
 				row.r2_key,
 				row.size,
 				row.type,
 				row.sha256,
+				row.width,
+				row.height,
+				row.thumbhash,
 				author,
 				event.at,
 			)
 			return { file, drop: current?.r2_key ?? null, event }
+		})
+	}
+
+	/** What the attachment job reads. Null when the file is gone. */
+	meta(id: string): FileMeta | null {
+		const r = this.row("id", id)
+		if (!r) return null
+		return {
+			r2Key: r.r2_key,
+			size: r.size,
+			type: r.type,
+			...(r.width !== null ? { width: r.width } : {}),
+			...(r.height !== null ? { height: r.height } : {}),
+			...(r.thumbhash !== null ? { thumbhash: r.thumbhash } : {}),
+		}
+	}
+
+	/**
+	 * Fills empty metadata fields and nothing else, so a repeated call changes nothing and
+	 * stores no event. Returns the event to publish when something changed.
+	 */
+	fillMeta(id: string, patch: FileMetaPatch): RoomEvent | null {
+		return this.storage.transactionSync(() => {
+			const r = this.row("id", id)
+			if (!r) return null
+			const next = {
+				width: r.width ?? patch.width ?? null,
+				height: r.height ?? patch.height ?? null,
+				thumbhash: r.thumbhash ?? patch.thumbhash ?? null,
+			}
+			if (next.width === r.width && next.height === r.height && next.thumbhash === r.thumbhash) return null
+			this.sql.exec(
+				"UPDATE ws_files SET width = ?, height = ?, thumbhash = ? WHERE id = ?",
+				next.width,
+				next.height,
+				next.thumbhash,
+				id,
+			)
+			return this.log.append(r.author, { t: "file", file: toRef({ ...r, ...next }) })
 		})
 	}
 }

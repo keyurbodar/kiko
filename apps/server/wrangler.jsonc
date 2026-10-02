@@ -27,6 +27,6 @@
   "kv_namespaces": [{ "binding": "PREVIEWS", "id": "00000000000000000000000000000000" }],
   "queues": {
     "producers": [{ "binding": "JOBS", "queue": "kiko-jobs" }],
-    "consumers": [{ "queue": "kiko-jobs" }]
+    "consumers": [{ "queue": "kiko-jobs", "max_batch_timeout": 1, "max_retries": 5 }]
   }
 }
