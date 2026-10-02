@@ -156,7 +156,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),
-        "chat-harness": resolve(import.meta.dirname, "src/chat/harness.html"),
       },
     },
   },

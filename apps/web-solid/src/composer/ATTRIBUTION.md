@@ -18,9 +18,7 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
 | `prompt-input/store.ts` | `packages/session-ui/src/v2/components/prompt-input/store.ts` |
 | `prompt-input/types.ts` | `packages/session-ui/src/v2/components/prompt-input/types.ts` |
 | `prompt-input/attachments.ts` | `packages/session-ui/src/v2/components/prompt-input/attachments.ts` |
-| `prompt-input/attachments.css` | `packages/session-ui/src/v2/components/prompt-input/attachments.css` |
 | `attachment-card-v2.tsx` | `packages/session-ui/src/v2/components/attachment-card-v2.tsx` |
-| `attachment-card-v2.css` | `packages/session-ui/src/v2/components/attachment-card-v2.css` |
 | `comment-card-v2.tsx` | `packages/session-ui/src/v2/components/comment-card-v2.tsx` |
 | `path.ts` | `packages/core/src/util/path.ts` |
 
@@ -53,8 +51,8 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
   advertises `/` for commands and `@` for context, and Kiko has no commands. A
   host that passes `view.placeholder` — Kiko does — never reaches that fallback.
 
-Byte-identical to upstream: `prompt-input/machine.ts`, `prompt-input/store.ts`,
-`prompt-input/attachments.ts` and `prompt-input/attachments.css`. The
+Byte-identical to upstream: `prompt-input/machine.ts`, `prompt-input/store.ts`
+and `prompt-input/attachments.ts`. The
 controller, reducer, part store and DOM reconciliation are upstream's.
 
 `attachment-card-v2.tsx` is NOT byte-identical: an interactive card is a native
