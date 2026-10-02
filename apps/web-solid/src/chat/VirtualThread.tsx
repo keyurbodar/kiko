@@ -21,7 +21,7 @@ import { useApp } from "../lib/store"
 import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
-import { UnreadRule } from "./ui/UnreadRule"
+import { SystemMessage } from "./SystemMessage"
 import { EmptyState } from "./ui/EmptyState"
 import { SwipeToReply } from "./ui/SwipeToReply"
 import { TypingRow } from "./ui/TypingRow"
@@ -136,20 +136,6 @@ const COLUMN_CLASS =
   "[&>[data-component=chat-empty]]:text-weak " +
   "[&>[data-component=chat-empty]>span]:text-sm " +
   "[&>[data-component=chat-empty]>span]:lowercase"
-
-/**
- * The day separator, on kat's `.time-separator` numbers: `justify-content:
- * center`, `padding: 14px 16px 10px`, both spans at `--font-xs`. Ours had no
- * justification, so it sat at the left edge of the column.
- *
- * `items-baseline` with a real gap, because the date and the clock are two
- * spans and without both they read as one jammed word.
- */
-const DIVIDER_CLASS = "flex items-baseline justify-center gap-1.5 px-4 pt-3.5 pb-2.5"
-
-const DIVIDER_LABEL_CLASS = "text-xs font-medium text-weak lowercase"
-
-const DIVIDER_TIME_CLASS = "text-xs font-normal text-weak lowercase"
 
 const ROW_SELECTOR = '[data-component="chat-vrow"]'
 
@@ -656,18 +642,29 @@ export function VirtualThread(props: {
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
       return (
-        <div class={DIVIDER_CLASS} data-component="chat-divider">
-          <span class={DIVIDER_LABEL_CLASS} data-component="chat-day-label">
+        <SystemMessage
+          variant="divider"
+          label={`${dayChipLabel(item.dayStart, now())} ${formatTimeOfDay(item.firstSentAt)}`}
+          data-component="chat-divider"
+        >
+          <span class="font-medium" data-component="chat-day-label">
             {dayChipLabel(item.dayStart, now())}
           </span>
-          <span class={DIVIDER_TIME_CLASS} data-component="chat-day-time">
-            {formatTimeOfDay(item.firstSentAt)}
-          </span>
-        </div>
+          <span data-component="chat-day-time">{formatTimeOfDay(item.firstSentAt)}</span>
+        </SystemMessage>
       )
     }
     if (item.kind === "unread-divider") {
-      return <UnreadRule />
+      return (
+        <SystemMessage
+          variant="divider"
+          tone="accent"
+          label="new messages"
+          data-component="chat-unread-rule"
+        >
+          new messages
+        </SystemMessage>
+      )
     }
     return renderMessage(item)
   }
