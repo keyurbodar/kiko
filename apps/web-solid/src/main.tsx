@@ -4,9 +4,11 @@ import "./styles/app.css";
 import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
 
+/* Called by bootstrap.ts once the first route chunk is loaded. */
+export function start(): void {
 const root = document.getElementById("root");
-
 if (!root) throw new Error("Root element #root not found");
+root.replaceChildren();
 
 /*
  * The URL is the only source of the active route. The shell is the router's
@@ -14,3 +16,4 @@ if (!root) throw new Error("Root element #root not found");
  * the main panel with no transition.
  */
 render(() => <Router root={Shell}>{routes}</Router>, root);
+}
