@@ -1,4 +1,5 @@
 import { A } from "@solidjs/router"
+import { Suspense, lazy } from "solid-js"
 import { ModelList } from "./model-picker"
 import { chatModel, setChatModel } from "./chat-model"
 import { ProviderList } from "./providers"
@@ -12,9 +13,20 @@ import { ProviderList } from "./providers"
 export const SECTIONS = [
   { id: "providers", label: "providers" },
   { id: "models", label: "default model" },
+  { id: "appearance", label: "appearance" },
 ] as const
 
+// The theme editor and its validator load with the section, not with the route.
+const Appearance = lazy(() => import("../theme/editor"))
+
 function section(id: string) {
+  if (id === "appearance") {
+    return (
+      <Suspense>
+        <Appearance />
+      </Suspense>
+    )
+  }
   return id === "providers" ? <ProviderList /> : <DefaultModel />
 }
 

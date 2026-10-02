@@ -143,7 +143,7 @@ export function BubbleContent<T extends ValidComponent = "div">(
       component={local.as}
       data-slot="bubble-content"
       class={cn(
-        "w-fit min-w-0 max-w-full overflow-hidden rounded-bubble px-3 py-[7px] text-base wrap-break-word",
+        "w-fit min-w-0 max-w-full overflow-hidden rounded-bubble px-(--bubble-pad-x) py-(--bubble-pad-y) text-base wrap-break-word",
         local.class,
       )}
       {...others}

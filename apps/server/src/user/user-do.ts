@@ -10,6 +10,7 @@ import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Tou
 import { createMemory, type MemoryStore } from "./memory"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
+import { getTheme, setTheme } from "./theme"
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
 // index and the user socket. Every change is stored as an event with a per-user `seq`
@@ -93,6 +94,16 @@ export class UserDO extends DurableObject<Env> {
     return listChats(this.sql)
   }
 
+  /** The theme JSON text, or null. */
+  async getTheme(): Promise<string | null> {
+    return getTheme(this.sql)
+  }
+
+  /** Saves or clears the theme and tells every socket. Returns false when it changed nothing. */
+  async setTheme(theme: string | null): Promise<boolean> {
+    return this.saveTheme(theme)
+  }
+
   /** Memory. One RPC for every operation, the same one the socket uses. Never throws on a bad id. */
   async memoryOp(op: MemoryOp): Promise<MemoryResult> {
     return this.memory.handle(op)
@@ -149,6 +160,10 @@ export class UserDO extends DurableObject<Env> {
       send(ws, { t: "memory_result", reqId: frame.reqId, result: this.memory.handle(frame.op) })
       return
     }
+    if (frame.t === "theme") {
+      this.saveTheme(frame.theme)
+      return
+    }
     if (frame.t === "search") {
       send(ws, { t: "search", query: frame.query, chats: searchChats(this.sql, frame.query.slice(0, 200)) })
       return
@@ -175,12 +190,18 @@ export class UserDO extends DurableObject<Env> {
     return this.commit(applyChatOp(this.sql, op, Date.now()))
   }
 
+  private saveTheme(theme: string | null): boolean {
+    if (!setTheme(this.sql, theme)) return false
+    this.commit({ t: "theme", theme })
+    return true
+  }
+
   private currentSeq(): number {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
   /** Stores `change` as the next event and sends it to every socket that said hello. */
-  private commit(change: ChatChange | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "theme"; theme: string | null } | null): UserEvent | null {
     if (!change) return null
     const at = Date.now()
     const seq = this.currentSeq() + 1
@@ -199,7 +220,7 @@ export class UserDO extends DurableObject<Env> {
     const seq = this.currentSeq()
     const oldest = this.sql.exec<{ seq: number | null }>("SELECT min(seq) AS seq FROM user_events").one().seq
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
-    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql) } }
+    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), theme: getTheme(this.sql) } }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()

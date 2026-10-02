@@ -157,3 +157,28 @@ test("a bad frame is dropped and the socket keeps working", async () => {
   expect(events((await ws.settle()).slice(1)).map((e) => e.chat.title)).toEqual(["ok"])
   ws.close()
 })
+
+test("a theme saved on one socket reaches the other, survives a snapshot, and refuses bad text", async () => {
+  const user = fresh()
+  const a = await socket(user)
+  const b = await socket(user)
+  const theme = JSON.stringify({ version: 1, name: "t", colors: { accent: "#ff0000" } })
+  a.send({ t: "theme", theme })
+  a.send({ t: "theme", theme }) // a repeat changes nothing
+  a.send({ t: "theme", theme: "not json" }) // refused, nothing stored
+  a.send({ t: "theme", theme: JSON.stringify({ version: 2 }) }) // refused
+  await b.until(2)
+  const got = events((await b.settle()).slice(1))
+  expect(got).toHaveLength(1)
+  expect(got[0]).toMatchObject({ t: "theme", theme, seq: 1 })
+  expect(await rpc(user, "getTheme")).toBe(theme)
+  // a socket that is too far behind gets the theme in its snapshot
+  const c = await socket(user, 99)
+  expect((c.frames[0] as Frame).snapshot.theme).toBe(theme)
+  b.send({ t: "theme", theme: null })
+  await a.until(3)
+  expect(await rpc(user, "getTheme")).toBe(null)
+  a.close()
+  b.close()
+  c.close()
+})

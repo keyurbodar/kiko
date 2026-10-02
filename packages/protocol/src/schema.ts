@@ -247,9 +247,14 @@ export const ChatOp = Schema.Union([
 export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
+	Schema.Struct({ ...stored, t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 ])
 
-export const UserSnapshot = Schema.Struct({ seq: Count, chats: Schema.Array(Chat) })
+export const UserSnapshot = Schema.Struct({
+	seq: Count,
+	chats: Schema.Array(Chat),
+	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
+})
 
 // Memory
 
@@ -306,6 +311,7 @@ export const ClientToUser = Schema.Union([
 	Hello,
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
+	Schema.Struct({ t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
 ])
 
