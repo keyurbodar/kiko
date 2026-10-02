@@ -43,7 +43,7 @@
 /* -----------------------------------------------------------------------------
    2. Theme tiers
 
-       primitives  --l-grey-* / --c-neutral / --l-mauve-* / --c-mauve / --h-mauve
+       primitives  --l-grey-* / --c-neutral / --l-coral-* / --c-coral-* / --h-coral-*
        semantic    --l-<role> / --c-<role> / --h-<role>, built only from primitives
        component   bubbles and their text, built only from semantic roles and primitives
 
@@ -53,33 +53,38 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --l-grey-canvas: 0.218;
-  --l-grey-sidebar: 0.248;
-  --l-grey-elevated: 0.278;
-  --l-grey-menu: 0.305;
-  --l-grey-chip: 0.326;
-  --l-grey-hairline: 0.336;
-  --l-grey-thumb: 0.375;
-  --l-grey-thumb-hover: 0.48;
+  --l-grey-canvas: 0.193;
+  --l-grey-sidebar: 0.216;
+  --l-grey-elevated: 0.247;
+  --l-grey-menu: 0.282;
+  --l-grey-chip: 0.303;
+  --l-grey-hairline: 0.303;
+  --l-grey-thumb: 0.37;
+  --l-grey-thumb-hover: 0.47;
   --l-grey-text-faint: 0.6;
-  --l-grey-text-muted: 0.74;
-  --l-grey-text: 0.947;
-  --c-neutral: 0;
+  --l-grey-text-muted: 0.664;
+  --l-grey-text: 0.949;
+  --c-neutral: 0.008;
 
-  --l-mauve-fill: 0.51;
-  --l-mauve-deep: 0.44;
-  --l-mauve-petal: 0.64;
-  --l-mauve-on: 0.96;
-  --c-mauve: 0.062;
-  --c-mauve-on: 0.01;
-  --h-mauve: 356;
+  --l-orange-fill: 0.585;
+  --l-orange-mark: 0.751;
+  --l-orange-hover: 0.786;
+  --l-orange-on: 1;
+  --c-orange-fill: 0.1528;
+  --c-orange-mark: 0.161;
+  --c-orange-hover: 0.1368;
+  --c-orange-on: 0;
+  --h-orange-fill: 40;
+  --h-orange-mark: 47;
+  --h-orange-hover: 49;
+  --h-orange-on: 40;
 
-  --l-signal-danger: 0.789;
-  --c-signal-danger: 0.12;
+  --l-signal-danger: 0.654;
+  --c-signal-danger: 0.1926;
   --h-signal-danger: 25;
-  --l-signal-success: 0.794;
-  --c-signal-success: 0.09;
-  --h-signal-success: 160;
+  --l-signal-success: 0.776;
+  --c-signal-success: 0.1454;
+  --h-signal-success: 148;
   --l-signal-gold: 0.845;
   --c-signal-gold: 0.15;
   --h-signal-gold: 88;
@@ -120,17 +125,18 @@
   --c-tint-strong: var(--c-neutral);
 
   --l-text: var(--l-grey-text);
-  --c-text: 0.004;
+  --c-text: 0.0086;
   --l-text-muted: var(--l-grey-text-muted);
-  --c-text-muted: 0.004;
+  --c-text-muted: 0.01;
   --l-text-faint: var(--l-grey-text-faint);
-  --c-text-faint: 0.003;
+  --c-text-faint: 0.008;
 
-  --l-accent: var(--l-mauve-petal);
-  --c-accent: 0.055;
-  --h-accent: var(--h-mauve);
-  --l-accent-fill: var(--l-mauve-fill);
-  --c-accent-fill: var(--c-mauve);
+  --l-accent: var(--l-orange-mark);
+  --c-accent: var(--c-orange-mark);
+  --h-accent: var(--h-orange-mark);
+  --l-accent-fill: var(--l-orange-fill);
+  --c-accent-fill: var(--c-orange-fill);
+  --h-accent-fill: var(--h-orange-fill);
   --l-danger: var(--l-signal-danger);
   --c-danger: var(--c-signal-danger);
   --h-danger: var(--h-signal-danger);
@@ -145,16 +151,16 @@
 :root {
   --l-assistant-bubble: var(--l-grey-elevated);
   --c-assistant-bubble: var(--c-neutral);
-  --l-user-bubble: var(--l-mauve-fill);
-  --c-user-bubble: var(--c-mauve);
-  --h-user-bubble: var(--h-mauve);
-  --l-user-bubble-deep: var(--l-mauve-deep);
-  --l-user-bubble-text: var(--l-mauve-on);
-  --c-user-bubble-text: var(--c-mauve-on);
-  --h-user-bubble-text: var(--h-mauve);
-  --l-on-accent: var(--l-mauve-on);
-  --c-on-accent: var(--c-mauve-on);
-  --h-on-accent: var(--h-mauve);
+  --l-user-bubble: var(--l-orange-fill);
+  --c-user-bubble: var(--c-orange-fill);
+  --h-user-bubble: var(--h-orange-fill);
+  --l-user-bubble-deep: var(--l-orange-fill);
+  --l-user-bubble-text: var(--l-orange-on);
+  --c-user-bubble-text: var(--c-orange-on);
+  --h-user-bubble-text: var(--h-orange-on);
+  --l-on-accent: var(--l-orange-on);
+  --c-on-accent: var(--c-orange-on);
+  --h-on-accent: var(--h-orange-on);
   --radius-row: 20px;
   --radius-field: 999px;
 }
@@ -328,7 +334,8 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --hue: 6;
+  --hue: 50;
+  --h-text: 63;
   --cm: 1;
 
   --bg: oklch(var(--l-bg) calc(var(--c-bg) * var(--cm)) var(--hue));
@@ -381,12 +388,12 @@
     var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm))
       var(--h-user-bubble-text)
   );
-  --text: oklch(var(--l-text) calc(var(--c-text) * var(--cm)) var(--hue));
+  --text: oklch(var(--l-text) calc(var(--c-text) * var(--cm)) var(--h-text));
   --text-muted: oklch(
-    var(--l-text-muted) calc(var(--c-text-muted) * var(--cm)) var(--hue)
+    var(--l-text-muted) calc(var(--c-text-muted) * var(--cm)) var(--h-text)
   );
   --text-faint: oklch(
-    var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--hue)
+    var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--h-text)
   );
   --accent: oklch(
     var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--h-accent)
@@ -406,7 +413,17 @@
   --on-accent: oklch(
     var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--h-on-accent)
   );
-  --hairline: oklch(var(--l-grey-hairline) var(--c-neutral) 0);
+  --accent-hover: oklch(
+    var(--l-orange-hover) calc(var(--c-orange-hover) * var(--cm))
+      var(--h-orange-hover)
+  );
+  --out-quote-bg: oklch(0% 0 none / 0.2);
+  --out-quote-bar: oklch(from var(--accent) 0.9 0.062 h);
+  --out-quote-name: oklch(from var(--accent) 0.94 0.04 h);
+  --in-quote-bg: var(--menu-bg);
+  --in-quote-bar: var(--accent);
+  --in-quote-name: var(--accent);
+  --hairline: oklch(var(--l-grey-hairline) var(--c-neutral) var(--hue));
   --petal: var(--accent);
   --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
   --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);

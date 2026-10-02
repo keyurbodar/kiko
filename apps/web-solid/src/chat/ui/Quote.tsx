@@ -1,5 +1,5 @@
 import { FileText, Link } from "lucide-solid"
-import { Show } from "solid-js"
+import { Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
 import type { ReplySummary } from "../lib/reply"
@@ -12,16 +12,29 @@ export function Quote(props: {
   onOpenReplyTarget: (messageId: string) => void
   class?: string
 }) {
+  const tone = (): JSX.CSSProperties =>
+    props.side === "user"
+      ? {
+          "--quote-bg": "var(--out-quote-bg)",
+          "--quote-bar": "var(--out-quote-bar)",
+          "--quote-name": "var(--out-quote-name)",
+        }
+      : {
+          "--quote-bg": "var(--in-quote-bg)",
+          "--quote-bar": "var(--in-quote-bar)",
+          "--quote-name": "var(--in-quote-name)",
+        }
+
   return (
     <button
       type="button"
       data-component="chat-quote"
+      style={tone()}
       class={cn(
         "relative flex w-full cursor-pointer flex-row items-center gap-2 overflow-hidden",
         "mb-1 py-[3px] ps-[11px] pe-2 text-start text-inherit text-sm leading-[1.35]",
-        "rounded-[4px] bg-[oklch(from_currentColor_l_c_h/10%)]",
-        "before:absolute before:inset-y-0 before:start-0 before:w-[3px] before:bg-current before:content-['']",
-        props.side === "bot" && "before:bg-accent",
+        "rounded-[4px] bg-[var(--quote-bg)]",
+        "before:absolute before:inset-y-0 before:start-0 before:w-[3px] before:bg-[var(--quote-bar)] before:content-['']",
         props.class,
       )}
       onClick={() => props.onOpenReplyTarget(props.parent.id)}
@@ -49,12 +62,7 @@ export function Quote(props: {
         )}
       </Show>
       <span class="chat-quote__body flex min-w-0 flex-1 flex-col">
-        <span
-          class={cn(
-            "chat-quote__label min-w-0 max-w-[221px] truncate font-semibold",
-            props.side === "bot" && "text-accent",
-          )}
-        >
+        <span class="chat-quote__label min-w-0 max-w-[221px] truncate font-semibold text-[var(--quote-name)]">
           {props.label}
         </span>
         <span class="chat-quote__text min-w-0 max-w-[221px] truncate opacity-75">
