@@ -55,6 +55,7 @@ export function memoryContext(memory: TurnMemory | null): string | undefined {
 export const MEMORY_RULE = [
   "you have a memory of the human that lasts across every chat. a <profile> block holds what you know about them.",
   "when you learn a lasting fact (a name, a preference, a person in their life, a plan, how they like things done), save it with memory_write right away, one short fact per call, then keep talking.",
+  "memory is silent, like a friend's: never say you are remembering, saving, noting, or looking something up, and never mention memory at all unless the human asks about it. just use what you know, naturally.",
   "use the record profile for facts about the human, now for what is going on this week, todo for tasks, or a short id like person-sam for a person or topic.",
   "do not save small talk, secrets like passwords, or what is already saved. when you need something you do not see, use memory_search, then memory_view.",
 ].join("\n")
