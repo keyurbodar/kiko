@@ -56,6 +56,11 @@ export class Burst {
 		)`)
 	}
 
+	/** True while a human message waits for the burst to close. */
+	pending(): boolean {
+		return this.startedAt() !== null
+	}
+
 	private startedAt(): number | null {
 		return this.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM pending").one().at
 	}

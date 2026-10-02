@@ -118,8 +118,10 @@ const suite: Suite = {
     await until("ada's answer", () => agentSays(room, from, "ada").length > 0, 60_000)
     await quiet(room, 5_000, 60_000)
     print(room, from)
-    if (agentSays(room, from, "kiko").length) fail.push("tagged: kiko spoke on a message tagged only for ada")
-    step("tagged: only ada answered")
+    // kiko may speak here only if ada messaged it (an agent message wakes its addressee).
+    const adaToKiko = agentSays(room, from, "ada").some((m) => /@kiko\b/.test(m.text))
+    if (agentSays(room, from, "kiko").length && !adaToKiko) fail.push("tagged: kiko spoke on a message tagged only for ada")
+    step(`tagged: ada answered${adaToKiko ? " (and messaged kiko, who answered her)" : ", kiko stayed quiet"}`)
 
     // 3. Spawn.
     from = lastSeq(room)

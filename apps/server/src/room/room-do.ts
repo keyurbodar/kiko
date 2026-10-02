@@ -59,6 +59,10 @@ const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
 	reserved: "that handle is reserved. pick another.",
 }
 
+/** An agent message stored while a human burst was pending, delivered right after the burst. */
+type SentMail = Extract<ReturnType<Mail["send"]>, { ok: true }>["send"]
+type HeldMail = { from: AgentSlug; send: SentMail }
+
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	// Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
 	log!: RoomLog
@@ -191,6 +195,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (followers.length) this.log.setMeta(`follow:${lead.slug}`, JSON.stringify({ followers, envelopes }))
 			}
 			this.burst.delivered(envelopes)
+			await this.releaseHeldMail()
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			await this.burst.retry(DELIVERY_RETRY_MS)
@@ -244,8 +249,33 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const out = this.mail.send(slug, send, members)
 		this.publish(out.events)
 		if (!out.ok) return out
+		// The human outranks every agent (section 7.8): while a human message waits for its burst to
+		// close, an agent message is stored and shown but not delivered. The burst goes out first, and
+		// the held mail right after it, so no agent answers a teammate ahead of the human.
+		if (this.burst.pending()) {
+			const held = JSON.parse(this.log.meta("held_mail") ?? "[]") as HeldMail[]
+			held.push({ from: slug, send: out.send })
+			this.log.setMeta("held_mail", JSON.stringify(held))
+			return { ok: true, to: out.send.recipients }
+		}
+		await this.deliverMail(home, slug, out.send)
+		return { ok: true, to: out.send.recipients }
+	}
+
+	/** Delivers the agent messages held while a human burst was pending, in order. */
+	private async releaseHeldMail(): Promise<void> {
+		const home = this.home()
+		const raw = this.log.meta("held_mail")
+		if (!home || !raw) return
+		this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = 'held_mail'")
+		for (const { from, send } of JSON.parse(raw) as HeldMail[]) await this.deliverMail(home, from, send)
+	}
+
+	private async deliverMail(home: { userId: string; roomId: RoomId }, slug: AgentSlug, send: SentMail): Promise<void> {
+		const members = this.members.list()
 		const goal = (await this.chat(home))?.title ?? ""
 		const seq = this.log.lastSeq()
+		const out = { send }
 		for (const to of out.send.recipients) {
 			const member = members.find((m) => m.slug === to)
 			// The human pressed stop while this send was delivering (section 7.8).
@@ -262,7 +292,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.mail.delivered(to, d.envelopes)
 			markReactionsBriefed(this.log, to, d.reactionsUpTo)
 		}
-		return { ok: true, to: out.send.recipients }
 	}
 
 	/** RPC for an agent's `check_agent` (section 7.5). Reads the member row and calls no agent. */
