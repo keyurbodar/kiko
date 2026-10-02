@@ -88,8 +88,12 @@ export function Shell(props: ParentProps) {
     window.addEventListener("keydown", on);
     onCleanup(() => window.removeEventListener("keydown", on));
   });
-  const closed = () => (narrow() ? !drawer() : collapsed());
+  // Settings keeps its own section list in the main panel and the sidebar has nothing for it yet, so the
+  // column stays shut there instead of showing an empty placeholder. Remove this when the sidebar has settings content.
+  const noSidebar = () => sectionOf(location.pathname) === "settings";
+  const closed = () => noSidebar() || (narrow() ? !drawer() : collapsed());
   const setAndSave = (value: boolean) => {
+    if (noSidebar()) return;
     if (narrow()) return setDrawer(!value);
     setCollapsed(value);
     writeCollapsed(value);
