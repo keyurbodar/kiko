@@ -26,18 +26,30 @@ const suite: Suite = {
     await until("the built-in skill's sign-off", () => texts().some((t) => t.includes("haiku by kiko's haiku skill")), 90_000)
     console.log("  ok the built-in haiku skill was loaded and followed")
 
+    room.raw.close()
+
+    // A fresh chat with a room skill named haiku: the room's copy wins over the built-in one.
+    const second = await newRoom(s, "skills, room override")
     const skill = "---\nname: haiku\ndescription: write a haiku when the human asks for one.\n---\nwrite three short lines. then add one more bubble that reads exactly: room haiku wins\n"
-    const res = await fetch(new URL(`api/files/${roomId}?path=${encodeURIComponent("skills/haiku/SKILL.md")}`, v.url.endsWith("/") ? v.url : `${v.url}/`), {
+    const res = await fetch(new URL(`api/files/${second.roomId}?path=${encodeURIComponent("skills/haiku/SKILL.md")}`, v.url.endsWith("/") ? v.url : `${v.url}/`), {
       method: "PUT",
       headers: { "content-type": "text/markdown", cookie: s.cookie },
       body: skill,
     })
     if (!res.ok) throw new VerifyError(`writing the room skill answered ${res.status}`)
-    await Bun.sleep(1_500)
-    await send(room, "now one haiku about the sun.")
-    await until("the room skill's sign-off", () => texts().some((t) => t.includes("room haiku wins")), 90_000)
+    const texts2 = () => {
+      const all = new Map<string, Message>()
+      for (const e of second.room.raw.log) {
+        const f = e.frame as RoomToClient
+        if (e.dir === "in" && f.t === "events") for (const x of f.events) if (x.t === "message" && x.from.kind === "agent") all.set(x.id, x)
+      }
+      return [...all.values()].map((m) => m.text.toLowerCase())
+    }
+    await send(second.room, "write me a haiku about the sun please.")
+    await until("the room skill's sign-off", () => texts2().some((t) => t.includes("room haiku wins")), 90_000)
+    if (texts2().some((t) => t.includes("haiku by kiko's haiku skill"))) throw new VerifyError("the built-in haiku skill ran in a room that has its own")
     console.log("  ok the room skill named haiku won over the built-in one")
-    room.raw.close()
+    second.room.raw.close()
   },
 }
 
