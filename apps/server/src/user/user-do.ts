@@ -10,7 +10,7 @@ import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Tou
 import { createMemory, type MemoryStore } from "./memory"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
-import { storedRows, wipeStorage } from "../lib/wipe"
+import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
 // index and the user socket. Every change is stored as an event with a per-user `seq`
@@ -131,7 +131,7 @@ export class UserDO extends DurableObject<Env> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
     }
-    if (this.#wiped) return new Response("account deleted", { status: 410 })
+    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ ready: false } satisfies Attachment)
@@ -175,6 +175,16 @@ export class UserDO extends DurableObject<Env> {
     if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
   }
 
+  /**
+   * The Worker calls this before it addresses one of the user's rooms, so deletion can
+   * find a room that never became a chat. False once deletion has begun.
+   */
+  async recordRoom(roomId: RoomId): Promise<boolean> {
+    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return false
+    this.sql.exec("INSERT OR IGNORE INTO rooms (room_id) VALUES (?)", roomId)
+    return true
+  }
+
   // Account deletion (P9-02). The account route starts it and the jobs in
   // jobs/delete-account.ts report each room back. This object is deleted last but one,
   // before the D1 rows.
@@ -188,8 +198,10 @@ export class UserDO extends DurableObject<Env> {
     if (this.#wiped) return []
     await this.ctx.storage.put(DELETING, Date.now())
     await this.ctx.storage.deleteAlarm()
+    closeSockets(this.ctx)
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
-    for (const chat of listChats(this.sql)) this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) VALUES (?)", chat.roomId)
+    // Chats and every room ever addressed. A deleted chat's room is still in `rooms`.
+    this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
     return this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
   }
 

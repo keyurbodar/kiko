@@ -3,7 +3,7 @@ import { encode as encodePng } from "fast-png"
 import jpeg from "jpeg-js"
 import { thumbHashToAverageRGBA } from "thumbhash"
 import { handleAttachmentJob } from "../src/jobs/attachment"
-import { consume, retryDelay } from "../src/jobs/consumer"
+import { consume, DEAD_LETTER_QUEUE, retryDelay } from "../src/jobs/consumer"
 import { computeThumbhash, readDimensions } from "../src/jobs/image"
 
 function solidPng(w: number, h: number, rgb: [number, number, number]): Uint8Array {
@@ -116,6 +116,23 @@ test("a job that throws is retried with a growing delay, then succeeds on the th
 	expect([first.seen.retry, second.seen.retry]).toEqual([[{ delaySeconds: 1 }], [{ delaySeconds: 2 }]])
 	expect([first.seen.ack, second.seen.ack, third.seen.ack]).toEqual([0, 0, 1])
 	expect(t.meta().width).toBe(30)
+})
+
+test("a dead account deletion goes back to the main queue, and other dead jobs are dropped", async () => {
+	const sent: unknown[] = []
+	const env = { JOBS: { send: async (body: unknown) => void sent.push(body) } } as never
+	const deletion = { kind: "delete-account", userId: "u1", roomId: null }
+	const dead = (body: unknown) => {
+		const b = batch(body, 1)
+		;(b.b as { queue: string }).queue = DEAD_LETTER_QUEUE
+		return b
+	}
+	const d = dead(deletion)
+	await consume(d.b, env)
+	const other = dead(job)
+	await consume(other.b, env)
+	expect(sent).toEqual([deletion])
+	expect([d.seen.ack, other.seen.ack]).toEqual([1, 1])
 })
 
 test("an unknown job is dropped, not retried forever", async () => {

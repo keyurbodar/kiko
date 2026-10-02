@@ -15,6 +15,9 @@ const TABLES = [
     unread INTEGER NOT NULL DEFAULT 0,
     updated_at INTEGER NOT NULL
   )`,
+  // Every room the Worker has addressed for this user, chat or not, and never pruned.
+  // Account deletion reads it, so a room opened but never listed is still deleted.
+  `CREATE TABLE IF NOT EXISTS rooms (room_id TEXT PRIMARY KEY)`,
   // Small user preferences, one JSON value per key.
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
   // Usage counters, one row per key and window.

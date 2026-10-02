@@ -27,6 +27,11 @@
   "kv_namespaces": [{ "binding": "PREVIEWS", "id": "00000000000000000000000000000000" }],
   "queues": {
     "producers": [{ "binding": "JOBS", "queue": "kiko-jobs" }],
-    "consumers": [{ "queue": "kiko-jobs", "max_batch_timeout": 1, "max_retries": 5 }]
+    // 100 is the Queues limit. A job that still fails goes to the dead-letter queue,
+    // whose consumer sends account deletions back to kiko-jobs, so deletion never gives up.
+    "consumers": [
+      { "queue": "kiko-jobs", "max_batch_timeout": 1, "max_retries": 100, "dead_letter_queue": "kiko-jobs-dead" },
+      { "queue": "kiko-jobs-dead", "max_batch_timeout": 1, "max_retries": 100 }
+    ]
   }
 }

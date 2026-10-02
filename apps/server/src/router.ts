@@ -1,6 +1,6 @@
 import { type AuthEnv, getSessionUser } from "./auth/auth"
 import type { Env } from "./index"
-import { NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
+import { addressRoom, NameError, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "./lib/names"
 
 // Architecture sections 4.2 and 9.1. The Worker checks the session, builds the object
 // name from the session's user id, and forwards the socket upgrade. A client never names
@@ -80,7 +80,8 @@ export async function route(request: Request, env: Env, lookup: SessionLookup = 
       headers.delete(ROOM_ID_HEADER)
       return await userStub(env.USER, user.id).fetch(new Request(request, { headers }))
     }
-    const stub = roomStub(env.ROOM, user.id, target.roomId)
+    const stub = await addressRoom(env, user.id, target.roomId)
+    if (!stub) return error(410, "account deleted")
     headers.set(ROOM_ID_HEADER, target.roomId)
     return await stub.fetch(new Request(request, { headers }))
   } catch (e) {

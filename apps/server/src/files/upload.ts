@@ -1,9 +1,9 @@
 import { type Actor, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { enqueueAttachment } from "../jobs/attachment"
-import { roomStub } from "../lib/names"
-import type { NewFile } from "../room/files"
+import { addressRoom } from "../lib/names"
 import type { SessionLookup } from "../router"
+import type { NewFile } from "../room/files"
 
 // Architecture section 18.1. Bytes go from the client through the Worker to R2 as a
 // stream. The Worker computes SHA-256, then asks the room to index the object. The
@@ -113,7 +113,12 @@ async function sha256Of(stream: ReadableStream): Promise<string> {
 
 /** Indexes a stored object in the room and deletes whatever the room no longer points to. */
 async function index(env: Env, userId: string, roomId: string, input: NewFile, failures?: number): Promise<Response> {
-	const { file, drop, fresh } = await roomStub(env.ROOM, userId, roomId).putFile(input)
+	const room = await addressRoom(env, userId, roomId)
+	if (!room) {
+		await env.FILES.delete(input.r2Key)
+		return error(410, "account deleted")
+	}
+	const { file, drop, fresh } = await room.putFile(input)
 	if (drop) await env.FILES.delete(drop)
 	// Architecture section 7.9: the room is not held awake for image metadata. A queue job fills what the client did not send.
 	if (fresh) await enqueueAttachment(env, userId, roomId, file, failures)

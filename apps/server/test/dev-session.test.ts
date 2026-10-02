@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { Miniflare } from "miniflare"
@@ -48,9 +48,11 @@ async function start(path: string): Promise<string> {
   })
   workers.push(mf)
   const db = await mf.getD1Database("AUTH_DB")
-  const sql = await readFile(join(serverDir, "migrations", "0001_auth.sql"), "utf8")
-  for (const statement of sql.split(";").map((s) => s.trim()).filter(Boolean)) {
-    await db.prepare(statement).run()
+  for (const file of (await readdir(join(serverDir, "migrations"))).filter((f) => f.endsWith(".sql")).sort()) {
+    const sql = await readFile(join(serverDir, "migrations", file), "utf8")
+    for (const statement of sql.split(";").map((s) => s.trim()).filter(Boolean)) {
+      await db.prepare(statement).run()
+    }
   }
   return (await mf.ready).origin
 }

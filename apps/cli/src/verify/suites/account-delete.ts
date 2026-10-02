@@ -2,10 +2,13 @@ import type { RoomId } from "@kiko/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P9-02, architecture section 7.9. A fresh user gets two rooms, a message, files, an
-// agent with stored data, and a provider key. Deleting the account must leave nothing:
-// no room, agent, or user storage, no R2 object, no D1 row. Then the same jobs run a
-// second time and report that they had nothing to do.
+// P9-02, architecture section 7.9. A fresh user gets two chats, a room that was written
+// to but never became a chat, files, an agent with stored data, and a provider key.
+// Deleting the account must leave nothing: no room, agent, or user storage, no R2
+// object, no D1 row. The old cookie, which Better Auth's cookie cache would still trust,
+// gets 401 on `/api/me` and on every socket, sockets opened before deletion are closed,
+// and knocking with it wakes no storage. Then the same jobs run a second time and
+// report that they had nothing to do.
 //
 // The residue and rerun checks use development-only routes in auth/account-route.ts.
 
@@ -54,14 +57,43 @@ const suite: Suite = {
 			return { status: res.status, body: json, headers: res.headers }
 		}
 
+		/** Opens a socket of its own, so the suite can see the server close it. */
+		function watch(cookie: string, path: string) {
+			const url = new URL(path, base)
+			url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+			const ws = new WebSocket(url, { headers: { cookie } } as never)
+			let closed = false
+			const opened = new Promise<void>((resolve, reject) => {
+				ws.onopen = () => resolve()
+				ws.onerror = () => reject(new VerifyError(`cannot open ${path}`))
+			})
+			ws.onclose = () => {
+				closed = true
+			}
+			return { opened, isClosed: () => closed, close: () => ws.close() }
+		}
+		async function until(test: () => boolean, ms: number) {
+			const deadline = Date.now() + ms
+			while (!test() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100))
+			return test()
+		}
+		/** The status of a socket upgrade. The router checks the session before it upgrades. */
+		async function upgradeStatus(cookie: string, path: string) {
+			const headers = { cookie, upgrade: "websocket", connection: "Upgrade", "sec-websocket-version": "13", "sec-websocket-key": btoa("kiko-verify-key!") }
+			const res = await fetch(new URL(path, base), { headers, signal: AbortSignal.timeout(10_000) })
+			await res.body?.cancel()
+			return res.status
+		}
+
 		const s = await v.as(`del-${crypto.randomUUID().slice(0, 8)}`)
-		const rooms = [ulid(), ulid()] as const
+		// The third room is opened and written to, but never created as a chat.
+		const rooms = [ulid(), ulid(), ulid()] as const
 		const agent = `${rooms[0]}:ada`
 
 		// Build an account with something in every place deletion must reach.
 		const user = await s.user()
 		await user.expect({ t: "events" })
-		for (const [i, roomId] of rooms.entries()) {
+		for (const [i, roomId] of rooms.slice(0, 2).entries()) {
 			user.send({ t: "chat", op: { op: "create", roomId, title: `room ${i}` } })
 			await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
 			const room = await s.room(roomId)
@@ -70,6 +102,10 @@ const suite: Suite = {
 			const put = await call(s.cookie, "PUT", `api/files/${roomId}?path=notes%2F${i}.txt`, undefined, `file ${i}`)
 			expectEqual(put.status, 200, `upload ${i} status`)
 		}
+		const stray = await s.room(rooms[2])
+		await stray.expect({ t: "events" })
+		stray.send("never a chat")
+		await stray.expect((f) => f.t === "events" && f.events.some((e) => e.t === "message"))
 		expectEqual((await call(s.cookie, "POST", "api/dev/account/seed-agent", { roomId: rooms[0], slug: "ada" })).status, 200, "seed status")
 		const key = await call(s.cookie, "PUT", "api/credentials/opencode-go", { apiKey: `sk-verify-${crypto.randomUUID()}` })
 		expectEqual(key.status, 200, "credential status")
@@ -86,12 +122,32 @@ const suite: Suite = {
 		const wrong = await call(s.cookie, "POST", "api/account/delete", { confirm: "yes" })
 		expectEqual(wrong.status, 400, "status without the typed confirmation")
 
+		// Sockets opened before deletion. The server must close them.
+		const sockets = [watch(s.cookie, "api/ws/user"), watch(s.cookie, `api/ws/room/${rooms[2]}`)]
+		for (const w of sockets) await w.opened
+		expectEqual((await call(s.cookie, "GET", "api/me")).status, 200, "/api/me before deletion")
+
 		const deleted = await call(s.cookie, "POST", "api/account/delete", { confirm: CONFIRM })
-		expectEqual([deleted.status, deleted.body], [202, { rooms: 2 }], "the delete answer")
+		expectEqual([deleted.status, deleted.body], [202, { rooms: 3 }], "the delete answer, the room that is no chat included")
 		if (!deleted.headers.getSetCookie().some((c) => /max-age=0/i.test(c))) throw new VerifyError("the delete answer did not clear the cookie")
 
+		// The old cookie still carries Better Auth's five-minute cache. It must not sign in.
+		const shut = async (when: string) => {
+			expectEqual((await call(s.cookie, "GET", "api/me")).status, 401, `/api/me with the old cookie ${when}`)
+			expectEqual(await upgradeStatus(s.cookie, "api/ws/user"), 401, `the user socket with the old cookie ${when}`)
+			expectEqual(await upgradeStatus(s.cookie, `api/ws/room/${rooms[0]}`), 401, `a room socket with the old cookie ${when}`)
+			expectEqual(await upgradeStatus(s.cookie, `api/ws/room/${ulid()}`), 401, `a new room socket with the old cookie ${when}`)
+		}
+		await shut("right after deletion")
+
 		// The queue runs the jobs. Wait for every place to be empty.
-		const gone: Residue = { user: 0, rooms: { [rooms[0]]: 0, [rooms[1]]: 0 }, agents: { [agent]: 0 }, objects: 0, auth: { user: 0, session: 0, account: 0 } }
+		const gone: Residue = {
+			user: 0,
+			rooms: Object.fromEntries(rooms.map((r) => [r, 0])),
+			agents: { [agent]: 0 },
+			objects: 0,
+			auth: { user: 0, session: 0, account: 0 },
+		}
 		const deadline = Date.now() + 30_000
 		let after = await residue()
 		while (JSON.stringify(after) !== JSON.stringify(gone) && Date.now() < deadline) {
@@ -99,6 +155,13 @@ const suite: Suite = {
 			after = await residue()
 		}
 		expectEqual(after, gone, "what is left after deletion")
+		if (!(await until(() => sockets.every((w) => w.isClosed()), 5000))) {
+			throw new VerifyError(`sockets opened before deletion are still open: ${sockets.map((w) => w.isClosed())}`)
+		}
+
+		// Knocking with the old cookie after the D1 rows are gone wakes nothing.
+		await shut("after the jobs finished")
+		expectEqual(await residue(), gone, "what is left after the old cookie knocked")
 
 		// A second run of the same jobs succeeds and has nothing to do.
 		const nothing = { agents: 0, rooms: 0, user: 0, objects: 0, authRows: 0, finished: true }
