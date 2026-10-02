@@ -238,11 +238,67 @@ export const UserEvent = Schema.Union([
 
 export const UserSnapshot = Schema.Struct({ seq: Count, chats: Schema.Array(Chat) })
 
-export const ClientToUser = Schema.Union([Hello, Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp })])
+// Memory
+
+const MemoryType = Schema.Literals(["profile", "now", "todo", "preference", "person", "organization", "conversation", "procedure"])
+const Provenance = Schema.Struct({ author: Id, tainted: Schema.optionalKey(Schema.Boolean) })
+
+export const MemoryRecord = Schema.Struct({
+	id: Id,
+	type: MemoryType,
+	title: Schema.String,
+	aliases: Schema.Array(Schema.String),
+	body: Schema.String,
+	pinned: Schema.Boolean,
+	archived: Schema.Boolean,
+	uses: Count,
+	lastUsedAt: Count,
+	createdAt: Count,
+	updatedAt: Count,
+	version: Count,
+})
+
+export const MemoryVersion = Schema.Struct({ recordId: Id, version: Count, body: Schema.String, author: Schema.String, at: Count })
+
+export const MemoryOp = Schema.Union([
+	Schema.Struct({ op: Schema.Literal("list"), includeArchived: Schema.optionalKey(Schema.Boolean) }),
+	Schema.Struct({ op: Schema.Literal("search"), query: Schema.String, limit: Schema.optionalKey(Count) }),
+	Schema.Struct({ op: Schema.Literal("view"), id: Id }),
+	Schema.Struct({ op: Schema.Literal("history"), id: Id }),
+	Schema.Struct({
+		op: Schema.Literal("create"),
+		id: Schema.optionalKey(Id),
+		type: MemoryType,
+		title: Id,
+		aliases: Schema.optionalKey(Schema.Array(Schema.String)),
+		body: Schema.optionalKey(Schema.String),
+		author: Id,
+	}),
+	Schema.Struct({ op: Schema.Literal("append"), id: Id, fact: Id, provenance: Provenance }),
+	Schema.Struct({ op: Schema.Literal("replace"), id: Id, body: Schema.String, author: Id }),
+	Schema.Struct({ op: Schema.Literal("pin"), id: Id, pinned: Schema.Boolean }),
+	Schema.Struct({ op: Schema.Literal("archive"), id: Id, archived: Schema.Boolean }),
+	Schema.Struct({ op: Schema.Literal("remove"), id: Id }),
+])
+
+export const MemoryResult = Schema.Union([
+	Schema.Struct({ ok: Schema.Literal(true), records: Schema.Array(MemoryRecord) }),
+	Schema.Struct({ ok: Schema.Literal(true), record: Schema.NullOr(MemoryRecord) }),
+	Schema.Struct({ ok: Schema.Literal(true), versions: Schema.Array(MemoryVersion) }),
+	Schema.Struct({ ok: Schema.Literal(true), removed: Schema.Boolean }),
+	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
+])
+
+export const ClientToUser = Schema.Union([
+	Hello,
+	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
+	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
+])
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
+	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 ])
 
 // A schema and its plain type must accept exactly the same values. `Inline`
@@ -269,6 +325,8 @@ export type InSync = Assert<
 	| Same<typeof ChatOp.Type, P.ChatOp>
 	| Same<typeof UserEvent.Type, P.UserEvent>
 	| Same<typeof UserSnapshot.Type, P.UserSnapshot>
+	| Same<typeof MemoryOp.Type, P.MemoryOp>
+	| Same<typeof MemoryResult.Type, P.MemoryResult>
 	| Same<typeof ClientToUser.Type, P.ClientToUser>
 	| Same<typeof UserToClient.Type, P.UserToClient>
 >

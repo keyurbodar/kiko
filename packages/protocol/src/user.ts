@@ -5,6 +5,7 @@
 // memory join these unions in the tasks that build them.
 
 import type { RoomId } from "./ids"
+import type { MemoryOp, MemoryResult } from "./memory"
 
 /** One row of the chat list. */
 export type Chat = {
@@ -51,8 +52,11 @@ export type UserSnapshot = {
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
+	| { t: "memory"; reqId: string; op: MemoryOp }
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[] }
 	/** Sent when `lastSeq` is too old to replay. */
 	| { t: "reset"; snapshot: UserSnapshot }
+	/** The answer to one `memory` request. Sent only to the socket that asked. */
+	| { t: "memory_result"; reqId: string; result: MemoryResult }
