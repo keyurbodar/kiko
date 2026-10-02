@@ -1,10 +1,11 @@
-import type { Chat, ChatOp, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Chat, ChatOp, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { createAlarms } from "../lib/alarm"
 import { applyChatOp, type ChatChange, getChat, listChats, type Touch, touchChat } from "./chats"
+import { createMemory, type MemoryStore } from "./memory"
 import { migrate } from "./schema"
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
@@ -24,12 +25,14 @@ export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
   // Reminders and the memory tidy register wakeups here in their own tasks.
   private readonly alarms
+  private readonly memory: MemoryStore
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     this.sql = ctx.storage.sql
     migrate(this.sql)
     this.alarms = createAlarms(ctx)
+    this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
   }
 
   // RPC. The Worker and the user's rooms call these. The object is already the user's
@@ -73,6 +76,11 @@ export class UserDO extends DurableObject<Env> {
     return listChats(this.sql)
   }
 
+  /** Memory. One RPC for every operation, the same one the socket uses. Never throws on a bad id. */
+  async memoryOp(op: MemoryOp): Promise<MemoryResult> {
+    return this.memory.handle(op)
+  }
+
   // The socket.
 
   async fetch(request: Request): Promise<Response> {
@@ -95,6 +103,10 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "hello") {
       send(ws, this.resume(frame.lastSeq))
       ws.serializeAttachment({ ready: true } satisfies Attachment)
+      return
+    }
+    if (frame.t === "memory") {
+      send(ws, { t: "memory_result", reqId: frame.reqId, result: this.memory.handle(frame.op) })
       return
     }
     this.apply(frame.op)

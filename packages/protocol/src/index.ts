@@ -6,6 +6,7 @@
 
 export type * from "./envelope"
 export * from "./ids"
+export type * from "./memory"
 export type * from "./rich-text"
 export type * from "./room"
 export type * from "./user"
