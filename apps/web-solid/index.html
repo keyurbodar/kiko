@@ -11,6 +11,23 @@
       /* theme variables before first paint. dark ships first. */
       (function () {
         var d = document.documentElement;
+        /* the saved theme, cached by src/theme/apply.ts under the same key */
+        try {
+          var c = JSON.parse(localStorage.getItem("kiko:theme"));
+          var t = c && c.v === 1 && c.theme;
+          if (t) {
+            var r = t.light && matchMedia("(prefers-color-scheme: light)").matches ? t.light : t.base;
+            for (var k in r.vars) d.style.setProperty(k, r.vars[k]);
+            d.classList.toggle("dark", r.appearance === "dark");
+            d.style.colorScheme = r.appearance;
+            var b = r.vars["--bg"];
+            if (b) {
+              d.style.setProperty("--boot-bg", b);
+              d.style.backgroundColor = b;
+              return;
+            }
+          }
+        } catch (e) {}
         d.style.setProperty("--boot-bg", "#1c1b1f");
         d.style.setProperty("--boot-fg", "#ddd");
         d.style.backgroundColor = "#1c1b1f";

@@ -34,6 +34,7 @@ The sidebar is darker than the panel.
 | `--radius-bubble` | 18px |
 | `--radius-bubble-tight` | 8px (stacked corners) |
 | `--bubble-gap` | 2px (inside a stack) |
+| `--row-gap`, `--run-gap` | 1px between messages in a run, 8px before a new run |
 | `--font-base`, `--line-height` | 14px, 1.45 |
 
 The font stack is the system stack. The light tokens are `--light-*`. They are defined and nothing reads them.

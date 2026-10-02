@@ -42,11 +42,15 @@ export type UserEvent =
 	/** A chat was added or changed. */
 	| (Stored & { t: "chat"; chat: Chat })
 	| (Stored & { t: "chat_removed"; roomId: RoomId })
+	/** The user's theme changed. `theme` is the theme JSON text, or null after a reset. */
+	| (Stored & { t: "theme"; theme: string | null })
 
 export type UserSnapshot = {
 	/** The sequence this snapshot is current to. */
 	seq: number
 	chats: readonly Chat[]
+	/** The stored theme JSON text, or null when the user has none. */
+	theme?: string | null
 }
 
 /**
@@ -85,6 +89,8 @@ export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
 	| { t: "memory"; reqId: string; op: MemoryOp }
+	/** Saves the user's one theme (JSON text, 32 KB at most), or clears it with null. */
+	| { t: "theme"; theme: string | null }
 	/** Searches chat titles. Message text is searched per room. */
 	| { t: "search"; query: string }
 	/** Starts the Executor sign-in, or stores a pasted Executor API key. */

@@ -318,7 +318,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
-			if (frame.t !== "chat") return // the mock has no memory store, search, executor, or provider sign-in
+			if (frame.t !== "chat") return // the mock has no memory, search, executor, sign-in, or theme store
 			const op = frame.op
 			const chat = find(op.roomId)
 			if (op.op === "create") {

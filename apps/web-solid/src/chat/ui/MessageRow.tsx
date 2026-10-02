@@ -67,9 +67,9 @@ export function MessageRow(props: {
     <div
       class={cn(
         "group/row relative mx-auto flex w-full max-w-(--content-max-w) flex-col items-start",
-        "px-4 pb-px contain-layout touch-pan-y",
+        "px-4 pb-(--row-gap) contain-layout touch-pan-y",
         "[--swipe-gutter-rate:0.2]",
-        props.hasRunGapBefore ? "pt-2" : "pt-px",
+        props.hasRunGapBefore ? "pt-(--run-gap)" : "pt-(--row-gap)",
         "[&>[data-slot=bubble]]:translate-x-(--swipe-x)",
         props.class,
       )}

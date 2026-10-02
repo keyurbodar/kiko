@@ -22,6 +22,7 @@ export type UserData = { seq: number; chats: Chat[] }
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	if (e.seq <= data.seq) return false
 	data.seq = e.seq
+	if (e.t === "theme") return true // the theme client reads these. The chat list has nothing to change.
 	const i = data.chats.findIndex((c) => c.roomId === (e.t === "chat" ? e.chat.roomId : e.roomId))
 	if (e.t === "chat") {
 		if (i === -1) data.chats.push(e.chat)
@@ -120,7 +121,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		})
 		for (const e of applied) {
 			if (e.t === "chat") putChats(warm, [e.chat])
-			else removeChat(warm, e.roomId)
+			else if (e.t === "chat_removed") removeChat(warm, e.roomId)
 		}
 		if (applied.length) setUserSeq(warm, state.seq)
 	}
