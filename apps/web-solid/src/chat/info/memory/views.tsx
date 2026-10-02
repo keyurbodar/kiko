@@ -4,7 +4,7 @@ import { session } from "../../../app/session"
 import { Editor, preloadEditor } from "./editor"
 import { IdentityAvatar } from "../../../lib/IdentityAvatar"
 import { memoryFor } from "./instance"
-import { fact, forChat, groupRecords, parseBody, snippet, splitLinks } from "./records"
+import { fact, groupRecords, parseBody, snippet, splitLinks } from "./records"
 import type { MemoryStore } from "./store"
 
 const button =
@@ -430,19 +430,6 @@ export function MemoryList(props: { store: MemoryStore; onOpen: (id: string) => 
 				</div>
 			</Show>
 		</nav>
-	)
-}
-
-/** The few records this chat leans on, for the panel's home card. */
-export function ChatMemory(props: { store: MemoryStore; chatName: string; onOpen: (id: string) => void }) {
-	const top = createMemo(() => forChat(props.store.state.records, props.chatName))
-	return (
-		<div data-component="memory-chat">
-			<For each={top()}>{(r) => <Row record={r} onOpen={props.onOpen} />}</For>
-			<Show when={props.store.state.loaded && !top().length}>
-				<p class="px-2.5 py-1.5 text-sm text-weak">nothing remembered yet</p>
-			</Show>
-		</div>
 	)
 }
 

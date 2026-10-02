@@ -3,7 +3,7 @@ import type { MemoryOp, MemoryRecord, MemoryResult } from "@kiko/protocol"
 import { createRoot } from "solid-js"
 import type { MemoryClient } from "./client"
 import { createMockMemory } from "./mock"
-import { fact, groupRecords, matches, parseBody, snippet, splitLinks } from "./records"
+import { fact, groupRecords, matches, parseBody, splitLinks } from "./records"
 import { createMemoryStore } from "./store"
 
 const rec = (over: Partial<MemoryRecord> & { id: string }): MemoryRecord => ({

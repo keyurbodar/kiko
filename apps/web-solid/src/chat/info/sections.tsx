@@ -5,7 +5,6 @@ import { nextAfterClose, openTabs } from "../../app/open-tabs"
 import { session } from "../../app/session"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
-import { chatModel } from "../../settings/chat-model"
 import { subtitle } from "./format"
 import { pushInfo } from "./state"
 
@@ -173,52 +172,96 @@ export function Members(props: { members: readonly Member[] }) {
   )
 }
 
-/** The model this chat uses. A card that opens the model list. */
-export function ModelCard(props: { chatId: string }) {
-  const model = () => chatModel(props.chatId)
+/** A colored circle with a line icon. The hue sets the color, so each kind of row reads at a glance. */
+export function Badge(props: { hue: number; path: string; size?: number }) {
+  const size = () => props.size ?? 30
   return (
-    <Card id="model" title="model" onOpen={() => pushInfo({ kind: "model" })}>
-      <p class="truncate px-2 py-1.5 text-sm text-text" data-component="info-model">
-        {model()?.split("/").slice(1).join("/") ?? "no model chosen"}
-      </p>
-    </Card>
+    <span
+      class="grid shrink-0 place-items-center rounded-full"
+      style={{
+        width: `${size()}px`,
+        height: `${size()}px`,
+        background: `oklch(0.62 0.13 ${props.hue} / 0.2)`,
+        color: `oklch(0.8 0.13 ${props.hue})`,
+      }}
+      aria-hidden="true"
+    >
+      <svg width={size() / 2} height={size() / 2} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d={props.path} />
+      </svg>
+    </span>
   )
 }
 
-function Toggle(props: { label: string; on: boolean; onToggle: () => void; id: string }) {
+export const ICON = {
+  mute: "M2.5 6h2.5l3.5-3v10L5 10H2.5zM11 6l3 4M14 6l-3 4",
+  unmute: "M2.5 6h2.5l3.5-3v10L5 10H2.5zM11 5.5a3.5 3.5 0 0 1 0 5",
+  pin: "M10.5 1.5l4 4-2 1-2.5 2.5.5 3-1.5 1.5-7-7L3.5 5l3 .5L9 2.5zM5 11l-3.5 3.5",
+  memory: "M8 2.5c-2.5 0-4.5 1.8-4.5 4.2 0 1.4.7 2.5 1.7 3.3V12h5.6v-2c1-.8 1.7-1.9 1.7-3.3 0-2.4-2-4.2-4.5-4.2zM6 14h4",
+  model: "M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z",
+  links: "M7 9a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.7.7M9 7a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.7-.7",
+  media: "M2 3.5h12v9H2zM2 10.5l3.5-3 3 2.5 2-1.5 3.5 3M10.5 6.5h.01",
+  files: "M4 1.5h5l3 3v10H4zM9 1.5v3h3",
+  trash: "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 9h6l.5-9",
+} as const
+
+/** One round action under the header, Telegram style. */
+export function QuickAction(props: { id: string; label: string; path: string; active?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
-      role="switch"
-      aria-checked={props.on}
-      class={rowButton}
-      data-toggle={props.id}
-      onClick={() => props.onToggle()}
+      class="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl bg-bg-subtle px-1 py-2.5 text-xs text-weak hover:bg-nav-hover hover:text-text aria-pressed:text-accent"
+      data-action={props.id}
+      aria-pressed={props.active}
+      onClick={() => props.onClick()}
     >
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d={props.path} />
+      </svg>
+      <span class="truncate">{props.label}</span>
+    </button>
+  )
+}
+
+/** Mute, pin, memory, files: the actions people reach for, one click each. */
+export function QuickActions(props: { chatId: string }) {
+  const chat = () => chatOf(props.chatId)
+  const muted = () => chat()?.muted ?? false
+  const pinned = () => chat()?.pinned ?? false
+  return (
+    <div class="flex gap-2" data-component="info-actions">
+      <QuickAction id="mute" label={muted() ? "unmute" : "mute"} path={muted() ? ICON.mute : ICON.unmute} active={muted()} onClick={() => useApp.user()?.mute(props.chatId as never, !muted())} />
+      <QuickAction id="pin" label={pinned() ? "unpin" : "pin"} path={ICON.pin} active={pinned()} onClick={() => useApp.user()?.pin(props.chatId as never, !pinned())} />
+      <QuickAction id="memory" label="memory" path={ICON.memory} onClick={() => pushInfo({ kind: "memory" })} />
+      <QuickAction id="files" label="files" path={ICON.files} onClick={() => pushInfo({ kind: "files" })} />
+    </div>
+  )
+}
+
+/** A row in a grouped list: badge, label, a value or count on the right, and a chevron. */
+export function ListRow(props: { id: string; label: string; hue: number; path: string; value?: string | number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[15px] text-text hover:bg-nav-hover"
+      data-action={`open-${props.id}`}
+      data-card={props.id}
+      onClick={() => props.onClick()}
+    >
+      <Badge hue={props.hue} path={props.path} />
       <span class="flex-1">{props.label}</span>
-      <span
-        class="relative h-5 w-9 rounded-full bg-btn data-[on]:bg-[var(--accent)]"
-        data-on={props.on ? "" : undefined}
-        aria-hidden="true"
-      >
-        <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-white data-[on]:left-[18px]" data-on={props.on ? "" : undefined} />
+      <Show when={props.value !== undefined && props.value !== ""}>
+        <span class="max-w-[50%] truncate text-sm text-weak">{props.value}</span>
+      </Show>
+      <span class="text-faint">
+        <Chevron />
       </span>
     </button>
   )
 }
 
-/** Mute and pin. Both apply to the chat list at once. Lock is left out: kiko has no per-chat lock. */
-export function Toggles(props: { chatId: string }) {
-  const chat = () => chatOf(props.chatId)
-  return (
-    <Card id="toggles" title="chat">
-      <Toggle id="mute" label="mute" on={chat()?.muted ?? false} onToggle={() => useApp.user()?.mute(props.chatId as never, !chat()?.muted)} />
-      <Toggle id="pin" label="pin" on={chat()?.pinned ?? false} onToggle={() => useApp.user()?.pin(props.chatId as never, !chat()?.pinned)} />
-    </Card>
-  )
-}
-
-export function Danger(props: { chatId: string }) {
+/** Delete chat on its own, in red. Asks once. */
+export function DeleteChat(props: { chatId: string }) {
   const navigate = useNavigate()
   const [sure, setSure] = createSignal(false)
   const remove = () => {
@@ -229,17 +272,17 @@ export function Danger(props: { chatId: string }) {
     navigate(next ? `/chat/${next}` : "/chat")
   }
   return (
-    <Card id="danger" title="danger zone">
-      {/* ASSUMPTION: export waits for P8-09, and the room has no clear-history frame yet. */}
-      <button type="button" class={`${rowButton} disabled:opacity-50`} data-action="export" disabled title="export arrives with chat export">
-        export as markdown
-      </button>
-      <button type="button" class={`${rowButton} disabled:opacity-50`} data-action="clear" disabled title="clearing history is not built yet">
-        clear history
-      </button>
-      <button type="button" class={`${rowButton} text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))]`} data-action="delete-chat" onClick={remove} onBlur={() => setSure(false)}>
+    <div class={`${flat} p-1`} data-card="danger">
+      <button
+        type="button"
+        class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[15px] text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] hover:bg-nav-hover"
+        data-action="delete-chat"
+        onClick={remove}
+        onBlur={() => setSure(false)}
+      >
+        <Badge hue={25} path={ICON.trash} />
         {sure() ? "sure? delete this chat" : "delete chat"}
       </button>
-    </Card>
+    </div>
   )
 }
