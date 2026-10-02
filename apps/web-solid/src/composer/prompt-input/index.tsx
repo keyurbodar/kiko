@@ -134,6 +134,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             removeLabel={i18n.t("ui.promptInput.removeAttachment")}
             onAttachmentClick={props.controller.openAttachment}
             onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
+            onAttachmentReorder={(id, toId) => props.controller.reorderAttachment(id, toId)}
             onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
             onCommentRemove={(item) => props.controller.removeContext(item.key)}
           />
@@ -335,6 +336,9 @@ function promptInputV2Cursor(editor: HTMLDivElement) {
   return range.toString().length
 }
 
+/** Carries the id of a chip being reordered. Not `text/plain`, which the dock reads as an @mention drop. */
+const REORDER_TYPE = "application/x-kiko-attachment"
+
 export function PromptInputV2Attachments(props: {
   attachments: PromptInputV2Attachment[]
   comments?: PromptInputV2Comment[]
@@ -342,11 +346,13 @@ export function PromptInputV2Attachments(props: {
   removeLabel: string
   onAttachmentClick?: (attachment: PromptInputV2Attachment) => void
   onAttachmentRemove: (attachment: PromptInputV2Attachment) => void
+  onAttachmentReorder?: (id: string, toId: string) => void
   onCommentClick?: (comment: PromptInputV2Comment) => void
   onCommentRemove?: (comment: PromptInputV2Comment) => void
 }) {
   const i18n = useI18n()
   let scroller: HTMLDivElement | undefined
+  const [dropTarget, setDropTarget] = createSignal<string>()
   /** Which edges have more strip beyond them, so each fade earns its place. */
   const [edges, setEdges] = createSignal({ start: false, end: false })
   const syncEdges = () => {
@@ -420,6 +426,28 @@ export function PromptInputV2Attachments(props: {
                     class="attachment-chip"
                     data-component="composer-attachment"
                     data-image={isImage() ? "" : undefined}
+                    data-id={attachment.id}
+                    data-drop={dropTarget() === attachment.id ? "" : undefined}
+                    draggable={props.onAttachmentReorder !== undefined && props.attachments.length > 1}
+                    onDragStart={(event) => {
+                      event.dataTransfer?.setData(REORDER_TYPE, attachment.id)
+                      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+                    }}
+                    onDragOver={(event) => {
+                      if (!event.dataTransfer?.types.includes(REORDER_TYPE)) return
+                      event.preventDefault()
+                      setDropTarget(attachment.id)
+                    }}
+                    onDragLeave={() => setDropTarget(undefined)}
+                    onDragEnd={() => setDropTarget(undefined)}
+                    onDrop={(event) => {
+                      const id = event.dataTransfer?.getData(REORDER_TYPE)
+                      setDropTarget(undefined)
+                      if (!id) return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      props.onAttachmentReorder?.(id, attachment.id)
+                    }}
                   >
                     <Show
                       when={isImage()}
