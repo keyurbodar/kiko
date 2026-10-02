@@ -96,6 +96,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (chat.agents?.length) {
 			const mine = await userStub(this.env.USER, home.userId).listAgents()
 			agents = chat.agents.flatMap((id) => {
+				// The built-in agent is not stored in the user's list. The client names it by its slug.
+				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
 				const a = mine.find((x) => x.id === id)
 				return a ? [{ slug: a.slug, name: a.name, role: a.prompt, model: a.model }] : []
 			})
