@@ -42,7 +42,7 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 **Build.**
 
-- Remove unused dependencies: `class-variance-authority` and the `blobatar` core in the app, `@tanstack/solid-query`, `@thisbeyond/solid-dnd`, `culori`, `@solid-primitives/bounds`, and `@solid-primitives/media` in `packages/ui`. Keep `@solidjs/router` and `@solidjs/meta`, which P2-02 uses.
+- Remove unused dependencies: `class-variance-authority` in the app, `@tanstack/solid-query`, `@thisbeyond/solid-dnd`, `culori`, `@solid-primitives/bounds`, and `@solid-primitives/media` in `packages/ui`. Keep `@solidjs/router` and `@solidjs/meta`, which P2-02 uses. Keep `blobatar`, which nothing imports directly but `@blobatar/solid` requires as a peer dependency.
 - Keep `src/chat/harness.html` for development and drop it from the production build inputs.
 - Delete the stale `dist/` directory. Git already ignores it.
 - Delete `OWNERSHIP.md`. Fix `src/composer/ATTRIBUTION.md` so it names only files that exist.

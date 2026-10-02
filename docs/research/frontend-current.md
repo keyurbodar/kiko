@@ -70,7 +70,7 @@ Read-only audit of apps/web-solid and packages/ui. Paths are repo-relative. "NOT
 ## 7. Dependencies: plan vs reality
 Missing from every package.json and from bun.lock: sugar-high (a stray sugar-high@2.5.0 dir exists in node_modules/.bun, orphaned), CodeMirror 6, @headless-tree, thumbhash, fflate, Effect (stray effect@4.0.0-rc.115 and @effect/atom-react in node_modules/.bun, orphaned; bun.lock grep count 0). Also absent: markdown parser, audio waveform lib, Inter font, any realtime/WS client, any persistence lib.
 Present but unused (candidates to drop):
-- apps/web-solid: @solidjs/router (0 imports; keep if routing planned), @solidjs/meta (0), class-variance-authority (0), `blobatar` core (0; only @blobatar/solid used).
+- apps/web-solid: @solidjs/router (0 imports; keep if routing planned), @solidjs/meta (0), class-variance-authority (0), `blobatar` core (0 direct imports. Correction: it is a required peer dependency of @blobatar/solid, so it must stay).
 - packages/ui: @tanstack/solid-query (0), @thisbeyond/solid-dnd (0), culori (0), @solid-primitives/bounds (0), @solid-primitives/media (0), motion (0 in ui; app uses it). fuzzysort/remeda/solid-list/solid-sonner each 1 import.
 - Large: lucide-solid AND @mingcute/solid AND the Icon/IconV2/file-icon/provider-icon sprites = 4 icon systems. emoji-picker-element + 440k json + thousands of SVGs in public/emoji.
 - Root devDeps (root node_modules): ultracite 7.12, oxlint, oxfmt, prettier, turbo, typescript 6.0.3 (app pins 5.8.2). Root package.json has NO scripts or devDependencies listed (only workspaces), so those are orphans of an earlier setup; no .oxlintrc/biome config checked into root listing (`ls -a` shows no config files found by my listing besides ultracite-agents.md).
