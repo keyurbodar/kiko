@@ -30,7 +30,7 @@ const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1524,
   "tier 2 first paint of /chat": 220198,
   "tier 3 lazy modules": 18992,
-  "tier 4 route chunks": 816,
+  "tier 4 route chunks": 5694, // P5-04: the memory screen. CodeMirror is a dynamic import, outside this count.
 };
 
 interface Entry {
