@@ -10,6 +10,7 @@ import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Tou
 import { createMemory, type MemoryStore } from "./memory"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
+import { storedRows, wipeStorage } from "../lib/wipe"
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
 // index and the user socket. Every change is stored as an event with a per-user `seq`
@@ -23,6 +24,9 @@ const REPLAY_LIMIT = 500
 type Attachment = { ready: boolean }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
+
+/** The storage key that marks an account deletion in progress. */
+const DELETING = "deleting"
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
@@ -127,6 +131,7 @@ export class UserDO extends DurableObject<Env> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
     }
+    if (this.#wiped) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ ready: false } satisfies Attachment)
@@ -165,8 +170,47 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
+    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return
     const due = await this.alarms.dueWakeups(Date.now())
     if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
+  }
+
+  // Account deletion (P9-02). The account route starts it and the jobs in
+  // jobs/delete-account.ts report each room back. This object is deleted last but one,
+  // before the D1 rows.
+  #wiped = false
+
+  /**
+   * Marks the account as being deleted, stops reminders, and records every room in a
+   * ledger. Returns the rooms still to delete. Safe to call again.
+   */
+  async beginDeletion(): Promise<RoomId[]> {
+    if (this.#wiped) return []
+    await this.ctx.storage.put(DELETING, Date.now())
+    await this.ctx.storage.deleteAlarm()
+    this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
+    for (const chat of listChats(this.sql)) this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) VALUES (?)", chat.roomId)
+    return this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
+  }
+
+  /** A room job reports its room gone. Returns how many rooms remain. 0 also when nothing is recorded. */
+  async roomDeleted(roomId: RoomId): Promise<number> {
+    if (this.#wiped) return 0
+    this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
+    this.sql.exec("DELETE FROM deletion_rooms WHERE room_id = ?", roomId)
+    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM deletion_rooms").one().n
+  }
+
+  /** Deletes all of this user's storage. Returns the rows that held data, 0 on a repeat. */
+  async deleteAll(): Promise<number> {
+    if (this.#wiped) return 0
+    const rows = await wipeStorage(this.ctx)
+    this.#wiped = true
+    return rows
+  }
+
+  async storedRows(): Promise<number> {
+    return this.#wiped ? 0 : storedRows(this.ctx.storage)
   }
 
   // Internals.

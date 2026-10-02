@@ -2,6 +2,8 @@ import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { authRoute, getSessionUser } from "./auth/auth"
+import { accountRoute } from "./auth/account-route"
+import { consumeDeleteAccountJob } from "./jobs/delete-account"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { handleImageJob, isImageJob } from "./previews/image-job"
@@ -52,6 +54,8 @@ export default {
     if (filed) return filed
     const previewed = await previewRoute(request, env)
     if (previewed) return previewed
+    const account = await accountRoute(request, env)
+    if (account) return account
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
     if (url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
@@ -63,6 +67,7 @@ export default {
     // P8-04 owns the consumer. Until it lands, only the preview image job is handled here.
     const fetcher = process.env.NODE_ENV === "development" ? devFixtureFetcher : undefined
     for (const message of batch.messages) {
+      if (await consumeDeleteAccountJob(message, env)) continue
       if (isImageJob(message.body)) await handleImageJob(message.body, env.FILES, fetcher)
       message.ack()
     }
