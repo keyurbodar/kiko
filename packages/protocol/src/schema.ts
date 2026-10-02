@@ -19,7 +19,7 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 // Envelope
 
-export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget"])
+export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })

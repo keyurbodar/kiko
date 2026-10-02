@@ -6,6 +6,7 @@ import { Schema } from "effect"
 import type { Env } from "../index"
 import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
+import { type Limits, resolveLimits, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import type { ExecutorTool } from "../integrations/executor/tools"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
@@ -214,6 +215,29 @@ export class UserDO extends DurableObject<Env> {
 
   async listProviders(): Promise<ProviderInfo[]> {
     return this.#credentials.listProviders()
+  }
+
+  /** The plan record (P9-01). */
+  limits(): Limits {
+    const raw = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value
+    return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
+  }
+
+  /** Admin and dev only: replaces fields of the plan record. The Worker's admin route checks who asks. */
+  setLimits(patch: Partial<Limits>): Limits {
+    const next = { ...JSON.parse(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value ?? "{}"), ...patch }
+    this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('limits', ?)", JSON.stringify(next))
+    return this.limits()
+  }
+
+  /** The room asks once per human burst (P9-01). Counts the turn when it is allowed. */
+  takeTurn(): TurnAnswer {
+    const now = Date.now()
+    const key = `turns:${utcDay(now)}`
+    const used = Number(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? 0)
+    const answer = takeTurn(used, this.limits(), now)
+    if (answer.ok) this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", key, String(answer.used))
+    return answer
   }
 
   /**

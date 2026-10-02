@@ -57,6 +57,10 @@ export class FakeUser extends DurableObject {
   async listAgents() {
     return (await this.state()).agents
   }
+  /** Limits are not under test here: every burst gets its turn. */
+  async takeTurn() {
+    return { ok: true as const, used: 1 }
+  }
   /** A run ended. The chat list's touch is not under test here. */
   async touchChat() {}
   /** The room reads one chat row, not the whole list. */

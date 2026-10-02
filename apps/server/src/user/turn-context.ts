@@ -12,15 +12,8 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 // `provider-login.ts` registers the bundled flows too. Registering twice fills the same table.
 registerBunOAuthFlows()
 
-/** Architecture section 7.7. ASSUMPTION: the default numbers, until a plan changes the record. */
-export type Limits = {
-  hops: number
-  deliveriesPerRoot: number
-  membersPerRoom: number
-  autonomousRunsPerDay: number
-}
-
-export const DEFAULT_LIMITS: Limits = { hops: 8, deliveriesPerRoot: 40, membersPerRoom: 8, autonomousRunsPerDay: 50 }
+export { DEFAULT_LIMITS, type Limits } from "./limits"
+import { type Limits, resolveLimits } from "./limits"
 
 /** ASSUMPTION: a user who never set a timezone is on UTC. */
 export const DEFAULT_TIMEZONE = "UTC"
@@ -67,7 +60,7 @@ export async function resolveTurnContext(
   settings: { timezone: string | null; limits: Partial<Limits> | null },
   memory: TurnMemory,
 ): Promise<TurnContext> {
-  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: { ...DEFAULT_LIMITS, ...settings.limits }, ...memory }
+  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), ...memory }
   const found = findProvider(provider)
   if (!found) return { ...base, auth: null }
   const models = createModels({ credentials: store, authContext: NO_AMBIENT })

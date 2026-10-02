@@ -1,63 +1,18 @@
-import { describe, expect, test } from "bun:test"
-import {
-	autonomousRunAllowed,
-	checkSend,
-	limitError,
-	MAX_AUTONOMOUS_RUNS_PER_DAY,
-	MAX_DELIVERIES_PER_ROOT,
-	MAX_HOP,
-	utcDay,
-} from "../src/room/limits"
+import { expect, test } from "bun:test"
+import { DEFAULT_LIMITS, nextReset, resolveLimits, takeTurn, utcDay } from "../src/user/limits"
 
-// Architecture section 7.7. Each limit at its boundary: the last allowed value passes, one more trips.
-
-describe("hop limit", () => {
-	test("a message may carry hop 8 and not hop 9", () => {
-		expect(MAX_HOP).toBe(8)
-		expect(checkSend(MAX_HOP, 0, 1)).toEqual({ ok: true })
-		expect(checkSend(MAX_HOP + 1, 0, 1)).toEqual({ ok: false, limit: "hop" })
-	})
+test("a turn is allowed up to the plan's count, then refused until the next UTC midnight", () => {
+  const limits = resolveLimits({ turnsPerDay: 2 })
+  const now = Date.UTC(2026, 9, 2, 15, 30)
+  expect(takeTurn(0, limits, now)).toEqual({ ok: true, used: 1 })
+  expect(takeTurn(1, limits, now)).toEqual({ ok: true, used: 2 })
+  expect(takeTurn(2, limits, now)).toEqual({ ok: false, limit: 2, resetAt: Date.UTC(2026, 9, 3) })
+  expect(utcDay(now)).toBe("2026-10-02")
+  expect(nextReset(now)).toBe(Date.UTC(2026, 9, 3))
 })
 
-describe("deliveries per root", () => {
-	test("the 40th delivery passes and the 41st trips", () => {
-		expect(MAX_DELIVERIES_PER_ROOT).toBe(40)
-		expect(checkSend(1, MAX_DELIVERIES_PER_ROOT - 1, 1)).toEqual({ ok: true })
-		expect(checkSend(1, MAX_DELIVERIES_PER_ROOT, 1)).toEqual({ ok: false, limit: "root" })
-	})
-
-	test("a broadcast that would pass the limit is refused whole", () => {
-		expect(checkSend(1, MAX_DELIVERIES_PER_ROOT - 2, 2)).toEqual({ ok: true })
-		expect(checkSend(1, MAX_DELIVERIES_PER_ROOT - 1, 2)).toEqual({ ok: false, limit: "root" })
-	})
-
-	test("the hop limit is reported first", () => {
-		expect(checkSend(MAX_HOP + 1, MAX_DELIVERIES_PER_ROOT, 1)).toEqual({ ok: false, limit: "hop" })
-	})
-})
-
-describe("autonomous runs per day", () => {
-	const day = utcDay(Date.UTC(2026, 9, 2, 23, 59))
-	test("the 50th run of a day starts and the 51st is held", () => {
-		expect(MAX_AUTONOMOUS_RUNS_PER_DAY).toBe(50)
-		expect(autonomousRunAllowed({ day, runs: MAX_AUTONOMOUS_RUNS_PER_DAY - 1 }, day)).toBe(true)
-		expect(autonomousRunAllowed({ day, runs: MAX_AUTONOMOUS_RUNS_PER_DAY }, day)).toBe(false)
-	})
-
-	test("a new utc day starts at zero", () => {
-		const next = utcDay(Date.UTC(2026, 9, 3, 0, 0))
-		expect(day).toBe("2026-10-02")
-		expect(next).toBe("2026-10-03")
-		expect(autonomousRunAllowed({ day, runs: MAX_AUTONOMOUS_RUNS_PER_DAY }, next)).toBe(true)
-		expect(autonomousRunAllowed(null, day)).toBe(true)
-	})
-})
-
-test("a tripped limit tells the agent to summarize for the human", () => {
-	for (const limit of ["hop", "root"] as const) {
-		const text = limitError(limit)
-		expect(text).toContain("summarize")
-		expect(text).toContain("for the human")
-		expect(text).toBe(text.toLowerCase())
-	}
+test("the stored record overrides the defaults, and junk is ignored", () => {
+  expect(resolveLimits(null)).toEqual(DEFAULT_LIMITS)
+  const r = resolveLimits({ plan: "pro", turnsPerDay: 5000, hops: -1, nope: 3 } as never)
+  expect([r.plan, r.turnsPerDay, r.hops]).toEqual(["pro", 5000, DEFAULT_LIMITS.hops])
 })

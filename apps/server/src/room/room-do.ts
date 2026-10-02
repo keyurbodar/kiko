@@ -156,6 +156,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			// ASSUMPTION: a room that is not in the user's chat list (never created, or deleted) wakes no
 			// agent. Its messages stay in the log and are dropped from the burst.
 			if (!chat) return this.burst.delivered(envelopes)
+			// P9-01: one turn per burst, counted in UserDO against the plan record. A refused burst starts
+			// no run; the room says when the count resets.
+			const turn = await userStub(this.env.USER, home.userId).takeTurn()
+			if (!turn.ok) {
+				const at = new Date(turn.resetAt).toISOString().slice(11, 16)
+				const { event } = this.log.addMessage({ from: { kind: "system", reason: "limit" }, text: `you've used today's ${turn.limit} replies. they come back at ${at} utc.` })
+				if (event) this.publish([event])
+				return this.burst.delivered(envelopes)
+			}
 			await this.seedMembers(home, chat)
 			const members = this.members.list()
 			const replyAuthor = (id: string) => {

@@ -1,7 +1,7 @@
 import { type Envelope, isAgentSlug, isRoomId } from "@kiko/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
-import { agentStub } from "../lib/names"
+import { agentStub, userStub } from "../lib/names"
 import { DEFAULT_AGENT } from "../room/room-do"
 import { MAX_MEMBERS } from "../room/members"
 
@@ -10,6 +10,7 @@ import { MAX_MEMBERS } from "../room/members"
 //
 //   POST /api/dev/agent/fake    { roomId, slugs? }  -> { ok: true }   slugs default to [DEFAULT_AGENT]
 //   POST /api/dev/agent/status  { roomId, slug }    -> the agent's `status()`: inbox counts and submissions
+//   POST /api/dev/agent/limits  { limits }  -> { limits }   the session user's plan record (P9-01)
 //   GET  /api/dev/agent/children?roomId=        -> { children: [{ id, taskId }] }   (P6-05, `verify subagent`)
 //   POST /api/dev/agent/deliver { roomId, from, body, tainted }  -> { ok: true }
 //
@@ -26,8 +27,15 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (action !== "fake" && action !== "status" && action !== "children" && action !== "deliver") return null
+  if (action !== "fake" && action !== "status" && action !== "children" && action !== "deliver" && action !== "limits") return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
+  // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
+  if (action === "limits") {
+    const user = await getSessionUser(request, env)
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+    const body = (await request.json().catch(() => null)) as { limits?: Record<string, unknown> } | null
+    return Response.json({ limits: await userStub(env.USER, user.id).setLimits(body?.limits ?? {}) })
+  }
   if (action === "children") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
