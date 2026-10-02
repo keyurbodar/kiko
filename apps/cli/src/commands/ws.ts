@@ -1,4 +1,5 @@
 import { CliError, type Context } from "../main"
+import { sessionCookie } from "./login"
 
 /** Opens a WebSocket, sends each stdin line as a frame, prints each received frame as one JSON line. */
 export async function ws(ctx: Context): Promise<void> {
@@ -7,10 +8,17 @@ export async function ws(ctx: Context): Promise<void> {
   const target = new URL(path, ctx.url)
   target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
 
-  const socket = new WebSocket(target)
+  const cookie = await sessionCookie(ctx.url)
+  const headers: Record<string, string> = cookie ? { cookie } : {}
+  // Bun takes headers here. The DOM type that the default lib adds does not know that.
+  const options: Bun.WebSocketOptions = { headers }
+  const socket = new WebSocket(target, options as unknown as string[])
   await new Promise<void>((resolve, reject) => {
     socket.onopen = () => resolve()
-    socket.onerror = () => reject(new CliError(`ws failed: cannot connect to ${target}`))
+    socket.onerror = () => {
+      // A failed upgrade hides its status, so ask again over plain http to report it.
+      void refusal(target, headers).then((why) => reject(new CliError(`ws failed: cannot connect to ${target}${why}`)))
+    }
   })
 
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -44,6 +52,18 @@ export async function ws(ctx: Context): Promise<void> {
       arm()
     })().catch(reject)
   })
+}
+
+async function refusal(target: URL, headers: Record<string, string>): Promise<string> {
+  const http = new URL(target)
+  http.protocol = target.protocol === "wss:" ? "https:" : "http:"
+  try {
+    const res = await fetch(http, { headers: { ...headers, upgrade: "websocket" }, signal: AbortSignal.timeout(5000) })
+    await res.body?.cancel()
+    return ` (${res.status})`
+  } catch {
+    return ""
+  }
 }
 
 async function* lines(): AsyncGenerator<string> {

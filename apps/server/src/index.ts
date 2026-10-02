@@ -2,6 +2,7 @@ import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { authRoute } from "./auth/auth"
+import { route } from "./router"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 
@@ -29,6 +30,8 @@ export default {
     if (url.pathname === "/api/health") return Response.json({ ok: true })
     if (url.pathname.startsWith(executorOAuthPrefix)) return executorOAuth(request)
     if (url.pathname === "/api/experiments/imports") return Response.json(await runImports())
+    const routed = await route(request, env)
+    if (routed) return routed
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
