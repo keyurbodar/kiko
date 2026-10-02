@@ -164,7 +164,7 @@ export function Sidebar(props: SidebarProps) {
 
 /**
  * The `+` in the panel header. the new-chat menu. It no longer owns the sidebar
- * toggle; the rail icon and `cmd+b` do.
+ * toggle; the rail icon and `cmd+s` do.
  */
 function ChatPanelMenu() {
   return (

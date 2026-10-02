@@ -7,7 +7,9 @@ import {
 } from "@kiko/ui/context/i18n";
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
-import { createSignal, onCleanup, onMount, type ParentProps } from "solid-js";
+import { createSignal, type ParentProps } from "solid-js";
+import { bindCommandHotkeys } from "../commands/hotkeys";
+import { useKatCommands } from "../commands/use-kat-commands";
 import { Sidebar } from "../sidebar";
 import { Rail } from "./rail";
 import { sectionOf } from "./sections";
@@ -33,7 +35,6 @@ const i18n: UiI18n = {
 };
 
 const KEY = "kiko:sidebar-collapsed";
-const isMac = /mac|iphone|ipad/i.test(globalThis.navigator?.platform ?? "");
 
 function readCollapsed() {
   try {
@@ -47,13 +48,6 @@ function writeCollapsed(value: boolean) {
   try {
     localStorage.setItem(KEY, value ? "1" : "0");
   } catch {}
-}
-
-/** True while focus is in the composer or any other text field. */
-function inTextField(target: EventTarget | null) {
-  const el = target as HTMLElement | null;
-  if (!el) return false;
-  return el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName);
 }
 
 /*
@@ -71,17 +65,8 @@ export function Shell(props: ParentProps) {
     writeCollapsed(value);
   };
   const toggle = () => setAndSave(!collapsed());
-  onMount(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "b" || event.altKey || event.shiftKey) return;
-      if (!(isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return;
-      if (inTextField(event.target)) return;
-      event.preventDefault();
-      toggle();
-    };
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
-  });
+  useKatCommands({ toggleSidebar: toggle });
+  bindCommandHotkeys();
   return (
     <I18nProvider value={i18n}>
       <div

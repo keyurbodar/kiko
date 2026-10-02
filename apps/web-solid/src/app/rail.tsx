@@ -9,7 +9,7 @@ import { SECTIONS, sectionOf, type SectionId } from "./sections"
  * and the active item is read from the URL. There is no tab signal here.
  *
  * The panel icon at the top is the one control that toggles the sidebar
- * column (`cmd+b` is the other). The shell owns the state and passes it in.
+ * column (`cmd+s` is the other). The shell owns the state and passes it in.
  * Pressing the active section is a plain navigation to where it already is.
  */
 export function Rail(props: { collapsed: boolean; onToggleSidebar: () => void }) {
@@ -45,7 +45,7 @@ export function Rail(props: { collapsed: boolean; onToggleSidebar: () => void })
           data-component="sidebar-toggle"
           aria-label="toggle sidebar"
           aria-expanded={!props.collapsed}
-          aria-keyshortcuts="Control+B Meta+B"
+          aria-keyshortcuts="Control+S Meta+S"
           onClick={() => props.onToggleSidebar()}
         >
           <SidebarPanelIcon open={!props.collapsed} />
