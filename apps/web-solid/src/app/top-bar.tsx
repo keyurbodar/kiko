@@ -1,6 +1,7 @@
 import { useLocation } from "@solidjs/router"
 import { Show } from "solid-js"
 import { sectionOf } from "./sections"
+import { TabStrip } from "./tab-strip"
 
 /*
  * The 50 px bar over the main panel. It names the section and nothing else:
@@ -15,7 +16,12 @@ export function TopBar() {
       class="flex h-[50px] shrink-0 items-center px-4 text-sm font-medium text-muted"
       data-component="top-bar"
     >
-      <Show when={section()}>{(id) => <span data-component="top-bar-title">{id()}</span>}</Show>
+      <Show
+        when={section() === "chat"}
+        fallback={<Show when={section()}>{(id) => <span data-component="top-bar-title">{id()}</span>}</Show>}
+      >
+        <TabStrip />
+      </Show>
     </header>
   )
 }
