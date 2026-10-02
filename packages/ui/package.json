@@ -22,6 +22,7 @@
     "./file-icon": "./src/components/file-icon.tsx",
     "./hooks": "./src/hooks/index.ts",
     "./context/*": "./src/context/*.tsx",
+    "./i18n/*": "./src/i18n/*.ts",
     "./v2/styles/*": "./src/v2/styles/*",
     "./v2/*.css": "./src/v2/components/*.css",
     "./v2/tree/create-tree": "./src/v2/components/tree/create-tree.ts",
