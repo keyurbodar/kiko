@@ -4,7 +4,7 @@ import type { AgentDO } from "./agent/agent-do"
 import { authRoute, getSessionUser } from "./auth/auth"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
-import { handleImageJob, isImageJob } from "./previews/image-job"
+import { consume } from "./jobs/consumer"
 import { devFixtureFetcher, previewRoute } from "./previews/route"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
@@ -60,11 +60,6 @@ export default {
     return env.ASSETS.fetch(request)
   },
   async queue(batch, env) {
-    // P8-04 owns the consumer. Until it lands, only the preview image job is handled here.
-    const fetcher = process.env.NODE_ENV === "development" ? devFixtureFetcher : undefined
-    for (const message of batch.messages) {
-      if (isImageJob(message.body)) await handleImageJob(message.body, env.FILES, fetcher)
-      message.ack()
-    }
+    await consume(batch, env, process.env.NODE_ENV === "development" ? devFixtureFetcher : undefined)
   },
 } satisfies ExportedHandler<Env>

@@ -1,5 +1,6 @@
 import { type Actor, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
+import { enqueueAttachment } from "../jobs/attachment"
 import { roomStub } from "../lib/names"
 import type { NewFile } from "../room/files"
 import type { SessionLookup } from "../router"
@@ -111,10 +112,33 @@ async function sha256Of(stream: ReadableStream): Promise<string> {
 }
 
 /** Indexes a stored object in the room and deletes whatever the room no longer points to. */
-async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
-	const { file, drop } = await roomStub(env.ROOM, userId, roomId).putFile(input)
+async function index(env: Env, userId: string, roomId: string, input: NewFile, failures?: number): Promise<Response> {
+	const { file, drop, fresh } = await roomStub(env.ROOM, userId, roomId).putFile(input)
 	if (drop) await env.FILES.delete(drop)
+	// Architecture section 7.9: the room is not held awake for image metadata. A queue job fills what the client did not send.
+	if (fresh) await enqueueAttachment(env, userId, roomId, file, failures)
 	return Response.json({ file })
+}
+
+/** A dimension or thumbhash the client measured. Anything malformed is ignored and computed later. */
+function measured(raw: { width?: unknown; height?: unknown; thumbhash?: unknown }) {
+	const dim = (v: unknown) => {
+		const n = typeof v === "string" ? Number(v) : v
+		return typeof n === "number" && Number.isSafeInteger(n) && n > 0 && n <= 100_000 ? n : undefined
+	}
+	const width = dim(raw.width)
+	const height = dim(raw.height)
+	const hash = typeof raw.thumbhash === "string" && /^[A-Za-z0-9+/]{8,200}$/.test(raw.thumbhash) ? raw.thumbhash : undefined
+	return { ...(width && height ? { width, height } : {}), ...(hash ? { thumbhash: hash } : {}) }
+}
+
+declare const process: { env: { NODE_ENV?: string } }
+
+/** Development only: a header that makes the attachment job fail that many deliveries first. */
+function testFailures(request: Request): number | undefined {
+	if (process.env.NODE_ENV !== "development") return undefined
+	const n = Number(request.headers.get("x-kiko-test-job-failures"))
+	return Number.isInteger(n) && n > 0 && n <= 5 ? n : undefined
 }
 
 async function json(request: Request): Promise<Record<string, unknown> | null> {
@@ -147,7 +171,12 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 		}),
 		sha256Of(toHash),
 	])
-	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN })
+	const sent = measured({
+		width: request.headers.get("x-kiko-width"),
+		height: request.headers.get("x-kiko-height"),
+		thumbhash: request.headers.get("x-kiko-thumbhash"),
+	})
+	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...sent }, testFailures(request))
 }
 
 async function create(request: Request, env: Env, userId: string, roomId: string): Promise<Response> {
@@ -162,7 +191,7 @@ async function create(request: Request, env: Env, userId: string, roomId: string
 	const fileId = crypto.randomUUID()
 	const upload = await env.FILES.createMultipartUpload(fileKey(userId, roomId, fileId), {
 		httpMetadata: { contentType: mime(body.type) },
-		customMetadata: { path },
+		customMetadata: { path, ...Object.fromEntries(Object.entries(measured(body)).map(([k, v]) => [k, String(v)])) },
 	})
 	return Response.json({ fileId, uploadId: upload.uploadId })
 }
@@ -220,7 +249,8 @@ async function complete(
 	// R2 cannot hash across parts for us, so the Worker reads the object once.
 	const sha256 = await sha256Of(object.body)
 	const type = mime(object.httpMetadata?.contentType)
-	return index(env, userId, roomId, { id: fileId, path, r2Key: key, size: object.size, type, sha256, author: HUMAN })
+	const sent = measured(object.customMetadata ?? {})
+	return index(env, userId, roomId, { id: fileId, path, r2Key: key, size: object.size, type, sha256, author: HUMAN, ...sent }, testFailures(request))
 }
 
 /** Answers the upload routes. Null for any other request. */
