@@ -1,5 +1,5 @@
 import { createPointerListeners } from "@solid-primitives/pointer"
-import { animate } from "motion"
+import { animate } from "../../lib/motion"
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js"
 
 /* ---------------------------------------------------------------------------

@@ -1,11 +1,15 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { Copy, CornerUpLeft, Pencil, Pin, Plus, Trash2 } from "lucide-solid"
-import { createSignal, For, Show, type JSX } from "solid-js"
+import { createSignal, For, lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
 import { Emoji } from "../../lib/emoji"
-import { EmojiPicker, preloadEmojiPicker } from "./EmojiPicker"
+
+/* The picker wrapper loads when a menu opens, not with the transcript. */
+const pickerModule = () => import("./EmojiPicker")
+const EmojiPicker = lazy(() => pickerModule().then((m) => ({ default: m.EmojiPicker })))
+const preloadEmojiPicker = () => void pickerModule().then((m) => m.preloadEmojiPicker())
 
 export interface MessageMenuOptions {
   message: ChatMessage
@@ -209,12 +213,14 @@ export function MessageMenu(props: MessageMenuProps) {
               Escape and an outside click close the menu, so there is no way back
               and none is needed. */}
           <div class="chat-menu__picker">
-            <EmojiPicker
-              onSelect={(emoji) => {
-                props.onReact(emoji)
-                setPickerOpen(false)
-              }}
-            />
+            <Suspense>
+              <EmojiPicker
+                onSelect={(emoji) => {
+                  props.onReact(emoji)
+                  setPickerOpen(false)
+                }}
+              />
+            </Suspense>
           </div>
         </Show>
         </MenuV2.Context.Content>

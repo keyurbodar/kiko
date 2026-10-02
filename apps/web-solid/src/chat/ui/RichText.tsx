@@ -1,11 +1,13 @@
-import { For, Match, Show, Switch, createSignal, type JSX } from "solid-js"
+import { For, Match, Show, Suspense, Switch, createSignal, lazy, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { EmojiText } from "../../lib/emoji"
 import type { WebPagePreview } from "../../lib/types"
 import { richTextSegments } from "../lib/richtext/segments"
 import { Mention } from "./Mention"
-import { SuspiciousLinkDialog } from "./SuspiciousLinkDialog"
 import { WebPageCard } from "./WebPageCard"
+
+/* The warning for a masked link loads on the click that needs it. */
+const SuspiciousLinkDialog = lazy(() => import("./SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })))
 
 export function RichText(props: {
   text?: string
@@ -67,7 +69,9 @@ export function RichText(props: {
       <Show when={props.webPage}>{(page) => <WebPageCard page={page()} class="mt-1" />}</Show>
       <Show when={maskedHref()}>
         {(href) => (
-          <SuspiciousLinkDialog href={href()} onClose={() => setMaskedHref(null)} />
+          <Suspense>
+            <SuspiciousLinkDialog href={href()} onClose={() => setMaskedHref(null)} />
+          </Suspense>
         )}
       </Show>
     </>

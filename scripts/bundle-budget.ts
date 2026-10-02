@@ -21,7 +21,23 @@ const FIRST_PAINT_ROUTE = "src/app/routes/chat.tsx";
 const APP_ENTRY = "src/main.tsx";
 
 /* Tier 3 modules load with lazy() or a dynamic import on idle or intent. */
-const TIER3 = ["src/palette/palette.tsx", "src/chat/info/panel.tsx", "src/chat/ui/DateCalendar.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
+const TIER3 = [
+  "src/palette/palette.tsx",
+  "src/chat/info/panel.tsx",
+  "src/chat/ui/DateCalendar.tsx",
+  "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js",
+  // Loaded after first paint, on idle or first use: Kobalte overlays, the toaster, motion, icon glyphs.
+  "../../packages/ui/src/v2/components/overlays-impl.ts",
+  "../../packages/ui/src/v2/components/toast-v2-impl.tsx",
+  "../../node_modules/.bun/motion@12.34.5/node_modules/motion/dist/es/index.mjs",
+  "../../packages/ui/src/components/icon-paths.ts",
+  "../../packages/ui/src/v2/components/icon-bodies.ts",
+  // Loaded on intent: the composer's attachment strip and popover, its link card, the picker wrapper, the masked link warning.
+  "src/composer/prompt-input/extras.tsx",
+  "src/composer/link-preview.tsx",
+  "src/chat/ui/EmojiPicker.tsx",
+  "src/chat/ui/SuspiciousLinkDialog.tsx",
+];
 /* Tier 4 route chunks load on route intent. */
 const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/settings.tsx"];
 
@@ -32,12 +48,16 @@ const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/settings.tsx"];
  *   (@tanstack/solid-hotkeys), the corvu day calendar and fuzzysort out of tier 2 into lazy
  *   chunks, which adds about 12 KB here. Tier 2 shrank by the same code.
  * - tier 4: the settings and memory routes have real content. They were placeholders. P2-19 then removed the memory route: memory is a view in the info panel.
+ * - The first-paint pass moved motion, solid-sonner, Kobalte (menus, tooltips, hover cards,
+ *   dialogs, the dismissable layer, the button), the icon glyphs not shown at rest, and the
+ *   composer's attachment strip, popover and link card out of tier 2, and listed those lazy
+ *   modules in tier 3. Tier 2 fell from 231871 to 142468. Every number below is the new size.
  */
 const RECORDED: Record<string, number> = {
-  "tier 1 shell js": 1841, // P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
-  "tier 2 first paint of /chat": 231871, // P2-08 bubble pacing and drafts, the chat QA pass (group sender names and gutter avatar, bubble-in motion, empty-chat tips, start-chat button), and one chatSeed for every avatar.
-  "tier 3 lazy modules": 45525, // The Telegram-style info panel and memory redesign (action tiles, grouped list, core tiles, record header) add ~3 KB. P2-19: the chat info panel (10.5 KB gzip) is a lazy module. It loads on first open or on idle, never in tier 2.
-  "tier 4 route chunks": 12670, // The kat-style settings (sidebar rows with icons, provider logos, grouped cards, executor card) and the files chat switcher add ~2 KB. QA shell pass: the account section with sign out, provider search, and the narrow-screen settings tabs add ~1.2 KB to the settings route (the previous note still applies: grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
+  "tier 1 shell js": 1750, // First-paint pass: re-recorded at the measured size. P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
+  "tier 2 first paint of /chat": 142468, // First-paint pass: motion, sonner, Kobalte, idle icon glyphs and composer extras moved to tier 3. Before: 231871. P2-08 bubble pacing and drafts, the chat QA pass (group sender names and gutter avatar, bubble-in motion, empty-chat tips, start-chat button), and one chatSeed for every avatar.
+  "tier 3 lazy modules": 165808, // First-paint pass: now also lists the overlays chunk, the toaster, motion, the icon glyphs and the composer extras, which left tier 2. Before: 45525. The Telegram-style info panel and memory redesign (action tiles, grouped list, core tiles, record header) add ~3 KB. P2-19: the chat info panel (10.5 KB gzip) is a lazy module. It loads on first open or on idle, never in tier 2.
+  "tier 4 route chunks": 12651, // First-paint pass: re-recorded at the measured size. The kat-style settings (sidebar rows with icons, provider logos, grouped cards, executor card) and the files chat switcher add ~2 KB. QA shell pass: the account section with sign out, provider search, and the narrow-screen settings tabs add ~1.2 KB to the settings route (the previous note still applies: grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
 };
 
 interface Entry {
