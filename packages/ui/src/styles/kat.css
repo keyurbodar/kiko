@@ -43,7 +43,7 @@
 /* -----------------------------------------------------------------------------
    2. Theme tiers
 
-       primitives  --l-grey-* / --c-neutral / --l-coral-* / --c-coral-* / --h-coral-*
+       primitives  --l-grey-* / --c-neutral* / --l-orange-* / --c-orange-* / --l-signal-*
        semantic    --l-<role> / --c-<role> / --h-<role>, built only from primitives
        component   bubbles and their text, built only from semantic roles and primitives
 
@@ -53,41 +53,66 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --l-grey-canvas: 0.193;
-  --l-grey-sidebar: 0.216;
-  --l-grey-elevated: 0.247;
-  --l-grey-menu: 0.282;
-  --l-grey-chip: 0.303;
-  --l-grey-hairline: 0.303;
-  --l-grey-thumb: 0.37;
-  --l-grey-thumb-hover: 0.47;
-  --l-grey-text-faint: 0.6;
-  --l-grey-text-muted: 0.664;
-  --l-grey-text: 0.949;
-  --c-neutral: 0.008;
+  /* Dark values from kat-replica tokens.css; the screenshot pixels match them.
+     The sidebar is DARKER than the panel. */
+  --l-grey-sidebar: 0.1442;
+  --l-grey-canvas: 0.1837;
+  --l-grey-subtle: 0.2383;
+  --l-grey-elevated: 0.2332;
+  --l-grey-assistant: 0.2423;
+  --l-grey-input: 0.228;
+  --l-grey-menu: 0.273;
+  --l-grey-chip: 0.3432;
+  --l-grey-hairline: 0.3015;
+  --l-grey-thumb: 0.3749;
+  --l-grey-thumb-hover: 0.4815;
+  --l-grey-text-faint: 0.6686;
+  --l-grey-text-muted: 0.7678;
+  --l-grey-text: 0.884;
+  --c-neutral: 0.003;
+  --c-neutral-raised: 0.005;
+  --c-neutral-assistant: 0.005;
 
-  --l-orange-fill: 0.585;
-  --l-orange-mark: 0.751;
-  --l-orange-hover: 0.786;
-  --l-orange-on: 1;
-  --c-orange-fill: 0.1528;
-  --c-orange-mark: 0.161;
-  --c-orange-hover: 0.1368;
-  --c-orange-on: 0;
-  --h-orange-fill: 40;
-  --h-orange-mark: 47;
-  --h-orange-hover: 49;
-  --h-orange-on: 40;
+  /* The kiko orange: kat's hue 55 at kat's low chroma. `--cm` moves it. */
+  --l-orange-user: 0.4156;
+  --h-orange-user: 48.4;
+  --l-orange-fill: 0.5514;
+  --l-orange-mark: 0.7075;
+  --l-orange-hover: 0.7475;
+  --l-orange-on: 0.9571;
+  --c-orange-user: 0.0585;
+  --c-orange-fill: 0.09;
+  --c-orange-mark: 0.08;
+  --c-orange-hover: 0.08;
+  --c-orange-on: 0.008;
 
-  --l-signal-danger: 0.654;
-  --c-signal-danger: 0.1926;
+  --l-signal-danger: 0.7894;
+  --c-signal-danger: 0.12;
   --h-signal-danger: 25;
-  --l-signal-success: 0.776;
-  --c-signal-success: 0.1454;
-  --h-signal-success: 148;
-  --l-signal-gold: 0.845;
+  --l-signal-success: 0.7937;
+  --c-signal-success: 0.12;
+  --h-signal-success: 150;
+  --l-signal-gold: 0.8453;
   --c-signal-gold: 0.15;
   --h-signal-gold: 88;
+}
+
+/* Light tokens, defined and unused. Nothing selects them: there is no
+   `prefers-color-scheme` block and no `data-theme` switch. They exist so a
+   light theme can be wired later by overriding the primitives above. */
+:root {
+  --light-l-bg-sidebar: 0.9485;
+  --light-l-bg: 0.97;
+  --light-l-bg-subtle: 0.9356;
+  --light-l-surface-raised: 1;
+  --light-l-assistant-bubble: 0.927;
+  --light-l-user-bubble: 0.499;
+  --light-c-user-bubble: 0.08;
+  --light-l-text: 0.3248;
+  --light-l-text-muted: 0.5906;
+  --light-l-text-faint: 0.7118;
+  --light-l-accent: 0.499;
+  --light-l-nav-active-bg: 0.8023;
 }
 
 :root {
@@ -95,49 +120,47 @@
   --c-bg: var(--c-neutral);
   --l-bg-sidebar: var(--l-grey-sidebar);
   --c-bg-sidebar: var(--c-neutral);
-  --l-bg-subtle: var(--l-grey-sidebar);
-  --c-bg-subtle: var(--c-neutral);
+  --l-bg-subtle: var(--l-grey-subtle);
+  --c-bg-subtle: var(--c-neutral-raised);
   --l-surface-raised: var(--l-grey-elevated);
-  --c-surface-raised: var(--c-neutral);
+  --c-surface-raised: var(--c-neutral-raised);
   --l-menu-bg: var(--l-grey-menu);
-  --c-menu-bg: var(--c-neutral);
-  --l-input-bg: var(--l-grey-elevated);
-  --c-input-bg: var(--c-neutral);
-  --l-hover-bg: 0.27;
-  --c-hover-bg: var(--c-neutral);
-  --l-selected-bg: var(--l-grey-elevated);
-  --c-selected-bg: var(--c-neutral);
-  --l-nav-active-bg: var(--l-grey-elevated);
-  --c-nav-active-bg: var(--c-neutral);
-  --l-nav-hover-bg: 0.27;
-  --c-nav-hover-bg: var(--c-neutral);
-  --l-tooltip-bg: var(--l-grey-chip);
-  --c-tooltip-bg: var(--c-neutral);
+  --c-menu-bg: var(--c-neutral-raised);
+  --l-input-bg: var(--l-grey-input);
+  --c-input-bg: var(--c-neutral-raised);
+  --l-hover-bg: 0.2066;
+  --c-hover-bg: 0.008;
+  --l-selected-bg: 0.2583;
+  --c-selected-bg: 0.014;
+  --l-nav-active-bg: 0.3202;
+  --c-nav-active-bg: 0.03;
+  --l-nav-hover-bg: 0.2121;
+  --c-nav-hover-bg: 0.008;
+  --l-tooltip-bg: 0.3294;
+  --c-tooltip-bg: var(--c-neutral-raised);
   --l-scrollbar-thumb: var(--l-grey-thumb);
   --c-scrollbar-thumb: var(--c-neutral);
   --l-scrollbar-thumb-hover: var(--l-grey-thumb-hover);
   --c-scrollbar-thumb-hover: var(--c-neutral);
-  --l-tint-subtle: 0.3;
-  --c-tint-subtle: var(--c-neutral);
+  --l-tint-subtle: 0.2921;
+  --c-tint-subtle: var(--c-neutral-raised);
   --l-tint: var(--l-grey-chip);
-  --c-tint: var(--c-neutral);
-  --l-tint-strong: var(--l-grey-thumb);
-  --c-tint-strong: var(--c-neutral);
+  --c-tint: var(--c-neutral-raised);
+  --l-tint-strong: 0.4107;
+  --c-tint-strong: var(--c-neutral-raised);
 
   --l-text: var(--l-grey-text);
-  --c-text: 0.0086;
+  --c-text: 0.012;
   --l-text-muted: var(--l-grey-text-muted);
-  --c-text-muted: 0.01;
+  --c-text-muted: 0.02;
   --l-text-faint: var(--l-grey-text-faint);
-  --c-text-faint: 0.008;
+  --c-text-faint: 0.015;
 
   --l-accent: var(--l-orange-mark);
   --c-accent: var(--c-orange-mark);
-  --h-accent: var(--h-orange-mark);
-  --l-accent-fill: var(--l-orange-fill);
+    --l-accent-fill: var(--l-orange-fill);
   --c-accent-fill: var(--c-orange-fill);
-  --h-accent-fill: var(--h-orange-fill);
-  --l-danger: var(--l-signal-danger);
+    --l-danger: var(--l-signal-danger);
   --c-danger: var(--c-signal-danger);
   --h-danger: var(--h-signal-danger);
   --l-success: var(--l-signal-success);
@@ -149,18 +172,15 @@
 }
 
 :root {
-  --l-assistant-bubble: var(--l-grey-elevated);
-  --c-assistant-bubble: var(--c-neutral);
-  --l-user-bubble: var(--l-orange-fill);
-  --c-user-bubble: var(--c-orange-fill);
-  --h-user-bubble: var(--h-orange-fill);
-  --l-user-bubble-deep: var(--l-orange-fill);
+  --l-assistant-bubble: var(--l-grey-assistant);
+  --c-assistant-bubble: var(--c-neutral-assistant);
+  --l-user-bubble: var(--l-orange-user);
+  --c-user-bubble: var(--c-orange-user);
+  --l-user-bubble-deep: var(--l-orange-user);
   --l-user-bubble-text: var(--l-orange-on);
   --c-user-bubble-text: var(--c-orange-on);
-  --h-user-bubble-text: var(--h-orange-on);
   --l-on-accent: var(--l-orange-on);
   --c-on-accent: var(--c-orange-on);
-  --h-on-accent: var(--h-orange-on);
   --radius-row: 20px;
   --radius-field: 999px;
 }
@@ -334,8 +354,8 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --hue: 50;
-  --h-text: 63;
+  --hue: 55;
+  --h-text: var(--hue);
   --cm: 1;
 
   --bg: oklch(var(--l-bg) calc(var(--c-bg) * var(--cm)) var(--hue));
@@ -382,11 +402,11 @@
   --assistant-bubble-text: var(--text);
   --user-bubble: oklch(
     var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm))
-      var(--h-user-bubble)
+      var(--h-orange-user)
   );
   --user-bubble-text: oklch(
     var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm))
-      var(--h-user-bubble-text)
+      var(--hue)
   );
   --text: oklch(var(--l-text) calc(var(--c-text) * var(--cm)) var(--h-text));
   --text-muted: oklch(
@@ -396,14 +416,14 @@
     var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--h-text)
   );
   --accent: oklch(
-    var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--h-accent)
+    var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--hue)
   );
   --accent-fill: oklch(
-    var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--h-accent)
+    var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--hue)
   );
   --user-bubble-deep: oklch(
     var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm))
-      var(--h-user-bubble)
+      var(--h-orange-user)
   );
   --user-bubble-gradient: linear-gradient(
     135deg,
@@ -411,11 +431,11 @@
     var(--user-bubble-deep)
   );
   --on-accent: oklch(
-    var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--h-on-accent)
+    var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--hue)
   );
   --accent-hover: oklch(
     var(--l-orange-hover) calc(var(--c-orange-hover) * var(--cm))
-      var(--h-orange-hover)
+      var(--hue)
   );
   --out-quote-bg: oklch(0% 0 none / 0.2);
   --out-quote-bar: oklch(from var(--accent) 0.9 0.062 h);
@@ -423,7 +443,10 @@
   --in-quote-bg: var(--menu-bg);
   --in-quote-bar: var(--accent);
   --in-quote-name: var(--accent);
-  --hairline: oklch(var(--l-grey-hairline) var(--c-neutral) var(--hue));
+  --hairline: oklch(var(--l-grey-hairline) var(--c-neutral-raised) var(--hue));
+  --btn-bg: oklch(from var(--text) l c h / 7%);
+  --btn-bg-hover: oklch(from var(--text) l c h / 11%);
+  --panel-edge: oklch(from var(--text) l c h / 6%);
   --petal: var(--accent);
   --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
   --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
@@ -437,10 +460,10 @@
   /* Selected follows the accent instead of inventing a second one. It shares
      the accent hue so selected rows and accent marks read as one family. */
   --selected-bg: oklch(
-    var(--l-selected-bg) calc(var(--c-selected-bg) * var(--cm)) var(--h-accent)
+    var(--l-selected-bg) calc(var(--c-selected-bg) * var(--cm)) var(--hue)
   );
   --nav-active-bg: oklch(
-    var(--l-nav-active-bg) calc(var(--c-nav-active-bg) * var(--cm)) var(--h-accent)
+    var(--l-nav-active-bg) calc(var(--c-nav-active-bg) * var(--cm)) var(--hue)
   );
   --nav-hover-bg: oklch(
     var(--l-nav-hover-bg) calc(var(--c-nav-hover-bg) * var(--cm)) var(--hue)
@@ -475,6 +498,12 @@
   --content-max-w: 768px;
   --sidebar-content-w: 280px;
   --sidebar-nav-w: 60px;
+  --topbar-h: 50px;
+
+  /* Bubbles, measured from the screenshots. */
+  --bubble-pad-y: 7px;
+  --bubble-pad-x: 12px;
+  --bubble-gap: 2px;
   --popup-max-w: 560px;
 
   /* Sidebar component constants. The rail is `--sidebar-nav-w` wide, so the
@@ -494,6 +523,92 @@
     "Fantasque Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
     "Liberation Mono", monospace;
   --font-family-text: var(--font-family-sans);
+}
+
+/* -----------------------------------------------------------------------------
+   4b. Surface tokens for the screens the plan adds
+
+   Every one is built from the semantic roles above, so `--hue` and `--cm` move
+   them with the rest of the theme. A component names the token or its Tailwind
+   utility from section 5 and never writes a colour.
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* tab strip */
+  --tab-h: 28px;
+  --tab-max-w: 172px;
+  --tab-bg: transparent;
+  --tab-bg-hover: var(--nav-hover-bg);
+  --tab-bg-active: var(--surface-raised);
+  --tab-text: var(--text-muted);
+  --tab-text-active: var(--text);
+  --tab-shadow: 0 1px 2px oklch(0% 0 none / 0.1);
+
+  /* date pill and calendar */
+  --date-pill-bg: oklch(from var(--bg) calc(l + 0.1) c h / 80%);
+  --date-pill-text: var(--text-muted);
+  --calendar-bg: var(--menu-bg);
+  --calendar-day-hover: oklch(from var(--text) l c h / 6%);
+  --calendar-day-selected: var(--accent-fill);
+  --calendar-day-selected-text: var(--on-accent);
+  --calendar-day-today: oklch(from var(--accent) l c h / 22%);
+  --calendar-day-outside: var(--text-faint);
+
+  /* command palette */
+  --palette-bg: var(--menu-bg);
+  --palette-row-hover: var(--nav-hover-bg);
+  --palette-row-active: var(--nav-active-bg);
+  --palette-kbd-bg: var(--tint-subtle);
+  --palette-kbd-text: var(--text-muted);
+  --palette-max-w: var(--popup-max-w);
+
+  /* code editor */
+  --editor-bg: var(--bg);
+  --editor-gutter-bg: var(--bg);
+  --editor-gutter-text: var(--text-faint);
+  --editor-line-active: oklch(0.2 var(--c-neutral) var(--hue));
+  --editor-selection: oklch(from var(--accent) l c h / 25%);
+  --tree-row-h: 30px;
+  --tree-indent: 16px;
+
+  /* clamp fade: the gradient that hides the cut edge of a long message */
+  --clamp-fade-h: 48px;
+  --clamp-fade-assistant: linear-gradient(
+    to bottom,
+    transparent,
+    var(--assistant-bubble)
+  );
+  --clamp-fade-user: linear-gradient(to bottom, transparent, var(--user-bubble));
+  --clamp-fade-panel: linear-gradient(to bottom, transparent, var(--bg));
+
+  /* reply bar above the composer */
+  --reply-bar-bg: var(--surface-raised);
+  --reply-bar-accent: var(--accent);
+  --reply-bar-name: var(--accent);
+  --reply-bar-text: var(--text-muted);
+
+  /* approval card for a tainted run */
+  --approval-bg: oklch(from var(--gold) l c h / 10%);
+  --approval-edge: oklch(from var(--gold) l c h / 35%);
+  --approval-title: var(--gold);
+  --approval-allow: var(--accent-fill);
+  --approval-deny: var(--btn-bg);
+
+  /* board */
+  --board-bg: var(--bg);
+  --board-column-bg: var(--bg-subtle);
+  --board-card-bg: var(--surface-raised);
+  --board-card-hover: var(--menu-bg);
+  --board-column-gap: 12px;
+  --board-card-gap: 8px;
+
+  /* shared accent mixes, so a component never writes `oklch(from ...)` */
+  --accent-wash: oklch(from var(--accent) l c h / 12%);
+  --accent-wash-strong: oklch(from var(--accent) l c h / 22%);
+  --accent-wash-faint: oklch(from var(--accent) l c h / 16%);
+  --text-wash: oklch(from var(--text) l c h / 6%);
+  --danger-wash: oklch(from var(--danger) l c h / 12%);
+  --scrim: oklch(0% 0 none / 0.6);
 }
 
 /* Kat bumps `--brm` to 1 where the browser can draw a continuous corner, so a
@@ -605,7 +720,7 @@
    * use these two, or the `calc(Npx * var(--brm))` idiom. */
   --radius-sm: 8px;
   --radius-bubble: 18px;
-  --radius-bubble-tight: 6px;
+  --radius-bubble-tight: 8px;
   --radius-row: 20px;
   --radius-field: 999px;
 }
@@ -660,6 +775,27 @@
   --color-hairline: var(--hairline);
   --color-on-accent: var(--on-accent);
   --color-chip: var(--tint);
+  --color-tab: var(--tab-bg);
+  --color-tab-hover: var(--tab-bg-hover);
+  --color-tab-active: var(--tab-bg-active);
+  --color-date-pill: var(--date-pill-bg);
+  --color-calendar: var(--calendar-bg);
+  --color-palette: var(--palette-bg);
+  --color-palette-kbd: var(--palette-kbd-bg);
+  --color-editor: var(--editor-bg);
+  --color-editor-gutter: var(--editor-gutter-bg);
+  --color-editor-line: var(--editor-line-active);
+  --color-reply-bar: var(--reply-bar-bg);
+  --color-approval: var(--approval-bg);
+  --color-approval-edge: var(--approval-edge);
+  --color-board: var(--board-bg);
+  --color-board-column: var(--board-column-bg);
+  --color-board-card: var(--board-card-bg);
+  --color-accent-wash: var(--accent-wash);
+  --color-accent-wash-strong: var(--accent-wash-strong);
+  --color-text-wash: var(--text-wash);
+  --color-danger-wash: var(--danger-wash);
+  --color-scrim: var(--scrim);
   --shadow-row: var(--row-shadow);
   --shadow-segment: var(--segment-shadow);
   --color-file-pdf: oklch(0.6 0.17 25);
