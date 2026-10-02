@@ -24,11 +24,13 @@
     "./context/*": "./src/context/*.tsx",
     "./v2/styles/*": "./src/v2/styles/*",
     "./v2/*.css": "./src/v2/components/*.css",
+    "./v2/tree/create-tree": "./src/v2/components/tree/create-tree.ts",
     "./v2/*": "./src/v2/components/*.tsx",
     "./package.json": "./package.json"
   },
   "dependencies": {
     "@corvu/calendar": "0.1.2",
+    "@headless-tree/core": "^1.7.0",
     "@kobalte/core": "0.13.11",
     "@solid-primitives/event-listener": "2.4.5",
     "@solid-primitives/resize-observer": "2.1.3",
