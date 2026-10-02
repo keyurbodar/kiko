@@ -9,6 +9,7 @@ import { fakeSetup } from "./dev-fake"
 import { buildAgent, DEV_MODEL, devModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
+import { instrument } from "../lib/dev-stats"
 
 declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
@@ -20,7 +21,13 @@ export class AgentDO extends DurableObject<Env> {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
-  private readonly experiment = new TurnExperiment(this.ctx, this.env)
+  private readonly experiment: TurnExperiment
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    instrument(ctx, "agent")
+    this.experiment = new TurnExperiment(ctx, env)
+  }
 
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {

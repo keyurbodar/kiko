@@ -2,6 +2,7 @@ import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { devAgentRoute } from "./agent/dev-route"
+import { devStatsRoute } from "./lib/dev-stats"
 import { authRoute, getSessionUser } from "./auth/auth"
 import { accountRoute } from "./auth/account-route"
 import { downloadRoute } from "./files/download"
@@ -61,6 +62,8 @@ export default {
     if (previewed) return previewed
     const devAgent = await devAgentRoute(request, env)
     if (devAgent) return devAgent
+    const devStats = devStatsRoute(request)
+    if (devStats) return devStats
     const account = await accountRoute(request, env)
     if (account) return account
     const authResponse = await authRoute(request, env)

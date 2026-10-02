@@ -1,6 +1,7 @@
 import type { Agent, Chat, ChatOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
+import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
@@ -45,6 +46,7 @@ export class UserDO extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
+    instrument(ctx, "user")
     this.sql = ctx.storage.sql
     migrate(this.sql)
     this.alarms = createAlarms(ctx)

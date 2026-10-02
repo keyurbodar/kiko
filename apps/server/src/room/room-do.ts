@@ -1,5 +1,6 @@
 import type { AgentSlug, AgentState, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
+import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
@@ -45,6 +46,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env)
+		instrument(ctx, "room")
 		migrate(ctx.storage)
 		this.log = new RoomLog(ctx.storage)
 		this.deliveries = new Deliveries(ctx.storage, this.log)
