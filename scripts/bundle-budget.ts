@@ -37,7 +37,7 @@ const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1841, // P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
   "tier 2 first paint of /chat": 220198,
   "tier 3 lazy modules": 31724,
-  "tier 4 route chunks": 11986, // the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
+  "tier 4 route chunks": 14460, // grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
 };
 
 interface Entry {
