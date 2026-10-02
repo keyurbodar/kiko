@@ -40,3 +40,13 @@ If the consent step rejects the dynamic client, use a personal API key for Execu
 ## Result
 
 Tools seen: not yet run.
+
+## Owner sign-in result (2026-10-02)
+
+The owner signed in to Executor Cloud and approved kiko's dynamically registered client. `bun kiko verify executor-connect` passed in 161 s against local `wrangler dev`:
+
+- The consent screen accepted the registered public client, and the code exchange returned a token the MCP endpoint accepts.
+- Access token lifetime: 86,400 s (24 hours).
+- `tools/list` returned: `execute`, `skills`, `resume`, `create-artifact`, `edit-artifact`, `list-artifacts`, `show-artifact`.
+
+Kiko must still read tool names at run time and never hard-code them.
