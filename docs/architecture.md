@@ -827,7 +827,7 @@ Kobalte provides dialog, menus, popover, tooltip, tabs, toast, select, combobox,
 
 tweb is licensed GPL-3.0 (`solid-refs/tweb/LICENSE`). The app already contains code described as ports of tweb, `src/lib/album.ts` and the entity parser. Code derived from tweb may carry that license into the client that kiko ships to browsers. This is a decision for the owner, not an engineering one. The plan treats tweb as a reference for behavior and asks every task to write its own code.
 
-`@headless-tree/core` 1.7.0 has a React adapter only. Kiko writes a small Solid binding over the core. UNVERIFIED: that the core works without React. Section 21 checks it.
+`@headless-tree/core` 1.7.0 has a React adapter only. Kiko writes a small Solid binding over the core. The core works without React. `docs/research/experiment-9-headless-tree.md` records the run and the 6.0 kB gzip cost.
 
 ## 20. Repository layout and tooling
 
