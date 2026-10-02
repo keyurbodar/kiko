@@ -186,6 +186,7 @@ export default defineConfig({
   plugins: [solid(), tailwindcss(), linkPreviewProxy(), modelCatalog()],
   server: {
     port: 3001,
+    proxy: { "/api": `http://localhost:${process.env.KIKO_SERVER_PORT ?? 8787}` },
   },
   build: {
     rollupOptions: {

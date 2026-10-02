@@ -72,6 +72,11 @@ export async function getSessionUser(request: Request, env: AuthEnv): Promise<Se
 export async function authRoute(request: Request, env: AuthEnv): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   if (pathname.startsWith(`${AUTH_PATH}/`)) return createAuth(env, request).handler(request)
+  if (pathname === "/api/providers") {
+    // Which sign-in buttons the client shows. `dev` is true only in a development bundle.
+    const on = socialProviders(env)
+    return Response.json({ google: "google" in on, github: "github" in on, dev: process.env.NODE_ENV === "development" })
+  }
   if (pathname !== "/api/me") return null
   const user = await getSessionUser(request, env)
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
