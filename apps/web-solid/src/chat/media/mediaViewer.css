@@ -8,13 +8,10 @@
  * with the transcript and the composer, and this file ships alongside both in
  * one global namespace, so an unscoped rule would reach them.
  *
- * NO MOTION AT ALL. Nothing here moves, and that is the one deliberate
- * difference from the reference: tweb animates its open and close, its slide
- * between items and its zoom, and all of it is gone here. The viewer appears
- * and disappears instantly and a switch is a swap, not a slide. A viewer that
- * eases in is one the reader waits on before they see the picture they tapped
- * for, and a picture that slides in lands them on a frame of a picture they
- * had already seen.
+ * MOTION IS THE FLIGHT AND NOTHING ELSE. The picture moves between its
+ * thumbnail and its fitted place, and the backdrop and chrome fade, both from
+ * `viewer.tsx` with the Web Animations API on transform and opacity. Nothing in
+ * this file transitions or animates, and a switch between items is a swap.
  *
  * NO BORDERS. `--border` is literally `none` in this token layer, so a border
  * declaration here would draw nothing anyway. The stage is separated from the
@@ -36,14 +33,23 @@
  * window and `transform: none` undoes the centring, because a viewer that is
  * centred in the viewport is a letterboxed viewer.
  *
- * The scrim is a literal opaque black rather than a token: the tokens
- * describe the app's own surfaces and every scrim token is translucent, and a
- * surface under a picture has to occlude the app whatever the theme is. tweb's
- * viewer does the same. Two translucent layers stacked — this one and the
- * shell's overlay beneath it — composite to mud, and the transcript reads
- * straight through a "modal". So this one owns the backdrop outright and the
- * scrim under it has nothing left to do. */
+ * The backdrop is `.media-viewer-backdrop`, an opaque layer built from
+ * `--scrim` (see the locals below): the surface under a picture has to occlude
+ * the app whatever the theme is, and the shell's translucent overlay beneath
+ * would let the transcript read through a "modal". */
 .media-viewer {
+  /* Ink and shade come from `--scrim`, which is black at 60 percent: an opaque
+   * copy of it is the backdrop, and its inverse at the strengths below is the
+   * chrome. The viewer is dark in every theme, so these do not follow `--bg`. */
+  --viewer-shade: oklch(from var(--scrim) l c h / 1);
+  --viewer-shade-soft: var(--scrim);
+  --viewer-ink: oklch(from var(--scrim) calc(1 - l) c h / 0.62);
+  --viewer-ink-strong: oklch(from var(--scrim) calc(1 - l) c h / 0.95);
+  --viewer-ink-track: oklch(from var(--scrim) calc(1 - l) c h / 0.35);
+  --viewer-ink-hover: oklch(from var(--scrim) calc(1 - l) c h / 0.12);
+  --viewer-ink-press: oklch(from var(--scrim) calc(1 - l) c h / 0.2);
+  --viewer-ink-ring: oklch(from var(--scrim) calc(1 - l) c h / 0.7);
+
   position: fixed;
   inset: 0;
   transform: none;
@@ -53,8 +59,8 @@
   max-width: none;
   padding: 0;
   overflow: hidden;
-  background: rgb(0 0 0);
-  color: rgb(255 255 255 / 0.62);
+  background: transparent;
+  color: var(--viewer-ink);
   user-select: none;
 
   /* The room the chrome takes. The stage is inset by both, so the picture is
@@ -68,6 +74,23 @@
 /* A clip has no zoom pill, so it gets the bottom of the window back. */
 .media-viewer--photo {
   --media-viewer-foot: 4.25rem;
+}
+
+/* The opaque backdrop. It is its own layer so the flight can fade it without
+ * fading the picture, and `pointer-events: none` keeps it out of every gesture. */
+.media-viewer .media-viewer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--viewer-shade);
+  pointer-events: none;
+}
+
+/* Until the flight starts nothing is on screen, so the first painted frame is
+ * the thumbnail's, not a full-size picture that then jumps back. */
+.media-viewer--entering .media-viewer-backdrop,
+.media-viewer--entering .media-viewer-canvas,
+.media-viewer--entering [data-viewer-fade] {
+  opacity: 0;
 }
 
 /* The picture's own box: the box the zoom is measured against, the box the
@@ -128,6 +151,7 @@
   min-height: 0;
   place-items: center;
   transform-origin: center;
+  will-change: transform;
 }
 
 .media-viewer .media-viewer-image,
@@ -218,11 +242,11 @@
 /* Hover answers with a fill, not with motion: the chrome brightens (see the
  * hover rule on `.media-viewer`) and the button shows where it is. */
 .media-viewer .media-viewer-icon-button:hover {
-  background: rgb(255 255 255 / 0.12);
+  background: var(--viewer-ink-hover);
 }
 
 .media-viewer .media-viewer-icon-button:active {
-  background: rgb(255 255 255 / 0.2);
+  background: var(--viewer-ink-press);
 }
 
 /* ===== Switcher -------------------------------------------------------- */
@@ -302,7 +326,7 @@
   gap: 0.25rem;
   padding: 0.25rem 0.375rem;
   border-radius: calc(16px * var(--brm));
-  background: rgb(0 0 0 / 0.55);
+  background: var(--viewer-shade-soft);
   box-shadow: var(--shadow-menu);
   transform: translateX(-50%);
   corner-shape: squircle;
@@ -319,7 +343,7 @@
 
 .media-viewer .media-viewer-zoom-range::-webkit-slider-runnable-track {
   height: 2px;
-  background: rgb(255 255 255 / 0.35);
+  background: var(--viewer-ink-track);
 }
 
 .media-viewer .media-viewer-zoom-range::-webkit-slider-thumb {
@@ -329,12 +353,12 @@
   appearance: none;
   border: none;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.95);
+  background: var(--viewer-ink-strong);
 }
 
 .media-viewer .media-viewer-zoom-range::-moz-range-track {
   height: 2px;
-  background: rgb(255 255 255 / 0.35);
+  background: var(--viewer-ink-track);
 }
 
 .media-viewer .media-viewer-zoom-range::-moz-range-thumb {
@@ -342,13 +366,13 @@
   height: 12px;
   border: none;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.95);
+  background: var(--viewer-ink-strong);
 }
 
 /* `:focus-visible:not(input, …)` in `kat.css` skips inputs, so the range is the
  * one control here that has to say where it is itself. */
 .media-viewer .media-viewer-zoom-range:focus-visible {
-  outline: 2px solid rgb(255 255 255 / 0.7);
+  outline: 2px solid var(--viewer-ink-ring);
   outline-offset: 2px;
 }
 
@@ -359,10 +383,10 @@
  * chevrons and the close button are not already at full strength. */
 @media (hover: hover) {
   .media-viewer:hover {
-    color: rgb(255 255 255 / 0.95);
+    color: var(--viewer-ink-strong);
   }
 }
 
 .media-viewer:focus-within {
-  color: rgb(255 255 255 / 0.95);
+  color: var(--viewer-ink-strong);
 }
