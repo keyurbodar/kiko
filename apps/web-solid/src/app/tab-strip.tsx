@@ -32,7 +32,7 @@ export function TabStrip() {
     if (id) untrack(() => openTabs.open(id))
   })
 
-  const label = (id: string) => useApp.chatById(id)?.name ?? id
+  const label = (id: string) => useApp.chatById(id)?.name || "chat"
   const unread = (id: string) => (useApp.chatById(id)?.unread ?? 0) > 0
   const go = (id: string | null) => navigate(id ? `/chat/${id}` : "/chat")
 
@@ -126,7 +126,7 @@ export function TabStrip() {
                   tabindex="-1"
                   aria-label={`close ${label(id)}`}
                   data-component="tab-close"
-                  class="hidden size-4 items-center justify-center rounded-full text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-hover)] group-hover:flex group-data-[active]:flex"
+                  class="relative hidden size-4 items-center justify-center rounded-full before:absolute before:-inset-[10px] before:content-[''] before:md:-inset-1 text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-hover)] group-hover:flex group-data-[active]:flex"
                   onClick={(event) => {
                     event.stopPropagation()
                     close(id)

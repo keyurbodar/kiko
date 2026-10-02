@@ -102,7 +102,7 @@ export function ModelPickerButton(props: { chatId: string | null }) {
         aria-label={needsProvider() ? "connect a provider" : "choose model"}
         onClick={() => (needsProvider() ? navigate("/settings/providers") : setOpen(true))}
       >
-        {needsProvider() ? "connect a provider" : (current()?.split("/").slice(1).join("/") ?? "choose model")}
+        {needsProvider() ? <><span class="md:hidden">connect</span><span class="hidden md:inline">connect a provider</span></> : (current()?.split("/").slice(1).join("/") ?? "choose model")}
       </button>
       <ModalV2.Portal>
         <ModalV2.Overlay />
