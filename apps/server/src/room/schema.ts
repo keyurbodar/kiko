@@ -81,6 +81,43 @@ const MIGRATIONS: readonly string[] = [
 		at INTEGER NOT NULL
 	);
 	`,
+	`
+	-- The workspace (workspace.ts, architecture sections 4.3 and 7.6). Actors are actor keys, as in
+	-- events. unblocked_seq is the event that finished a task's last open dependency; woken_at is set
+	-- once its owner admitted the task_unblocked envelope, so the wake happens once.
+	CREATE TABLE ws_tasks (
+		id TEXT PRIMARY KEY,
+		title TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('todo', 'doing', 'blocked', 'review', 'done', 'cancelled')),
+		owner TEXT,
+		note TEXT,
+		created_by TEXT NOT NULL,
+		created_seq INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL,
+		unblocked_seq INTEGER,
+		woken_at INTEGER
+	);
+	CREATE TABLE ws_task_deps (
+		task_id TEXT NOT NULL,
+		depends_on TEXT NOT NULL,
+		PRIMARY KEY (task_id, depends_on)
+	);
+	CREATE INDEX ws_task_deps_on ON ws_task_deps (depends_on);
+	CREATE TABLE ws_activity (
+		id TEXT PRIMARY KEY,
+		at INTEGER NOT NULL,
+		actor TEXT NOT NULL,
+		task_id TEXT,
+		text TEXT NOT NULL
+	);
+	CREATE INDEX ws_activity_at ON ws_activity (at);
+	CREATE TABLE ws_notes (
+		title TEXT PRIMARY KEY,
+		body TEXT NOT NULL,
+		author TEXT NOT NULL,
+		at INTEGER NOT NULL
+	);
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

@@ -1,4 +1,4 @@
-import type { AgentSlug, AgentState, Chat, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
@@ -16,6 +16,7 @@ import { migrate } from "./schema"
 import { listCatalog } from "./catalog"
 import { searchMessages } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
+import { applyTaskOp, RoomWorkspace, runCall, wakeEnvelope, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 
 declare const process: { env: { NODE_ENV?: string } }
 
@@ -29,6 +30,8 @@ declare const process: { env: { NODE_ENV?: string } }
 export const DEFAULT_AGENT = "kiko" as AgentSlug
 /** The first retry after a failed delivery. ASSUMPTION: the number. */
 const DELIVERY_RETRY_MS = 2_000
+/** The wakeup key for `task_unblocked` deliveries that failed (section 7.6). */
+const WAKES_WAKEUP = "ws_wakes"
 
 /**
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
@@ -45,6 +48,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private bubbles!: Bubbles
 	members!: Members
 	files!: RoomFiles
+	workspace!: RoomWorkspace
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -62,6 +66,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log)
 			this.members = new Members(ctx.storage, this.log)
+			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 		})
 	}
 
@@ -102,6 +107,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const due = await this.alarms.dueWakeups(Date.now())
 		if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
 		if (due.includes(BURST_WAKEUP)) await this.flush()
+		if (due.includes(WAKES_WAKEUP)) await this.deliverWakes()
 	}
 
 	private async flush(): Promise<void> {
@@ -285,6 +291,55 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
 		return null
+	}
+
+	/** A human's `task` frame (section 7.6). A refused op stores nothing; the client's patch expires. */
+	taskOp(op: TaskOp): void {
+		this.publish(applyTaskOp(this.workspace, op, this.members.list().map((m) => m.slug)))
+		this.ctx.waitUntil(this.deliverWakes())
+	}
+
+	/** RPC for an agent's workspace tools (section 7.5). Lead rights come from the member row, never from the agent. */
+	async workspaceCall(slug: AgentSlug, call: WorkspaceCall): Promise<WorkspaceAnswer> {
+		const members = this.members.list()
+		const member = members.find((m) => m.slug === slug)
+		if (!member) return { ok: false, error: "you are not a member of this room" }
+		const { answer, events } = runCall(this.workspace, slug, member.lead, call, members.map((m) => m.slug))
+		this.publish(events)
+		this.ctx.waitUntil(this.deliverWakes())
+		return answer
+	}
+
+	/**
+	 * Section 7.6. Delivers one `task_unblocked` envelope, id `unblocked:<taskId>`, to the owner of each
+	 * task a finished dependency unblocked. A wake is recorded once the agent admits it, and the agent's
+	 * inbox ignores an id it has, so a repeat after a crash delivers nothing twice. A failure retries
+	 * from the alarm. `receive()` only stores, so this wait cannot deadlock.
+	 */
+	private async deliverWakes(): Promise<void> {
+		const home = this.home()
+		const wakes = this.workspace.pendingWakes()
+		if (!home || !wakes.length) return
+		try {
+			const chat = await this.chat(home)
+			if (!chat) return
+			for (const wake of wakes) {
+				const members = this.members.list()
+				const member = members.find((m) => m.slug === wake.owner)
+				if (!member) continue
+				const seq = this.log.lastSeq()
+				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat.title, new Set(), null))
+				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
+				const { refused } = await agent.receive([wakeEnvelope(home.roomId, wake)], brief, { ...home, slug: member.slug, role: member.role, lead: member.lead })
+				if (refused === "full") throw new Error("inbox full")
+				if (refused) console.error(`task_unblocked delivery to ${member.slug} refused: ${refused}`)
+				this.members.markDelivered(member.slug, seq)
+				this.workspace.markWoken(wake.taskId)
+			}
+		} catch (error) {
+			console.error(`task_unblocked delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+			await this.alarms.setWakeup(WAKES_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
+		}
 	}
 
 	/** Extends a pending burst (section 6.1). Nothing is sent. */

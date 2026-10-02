@@ -11,6 +11,7 @@ import type { AgentHome } from "../room/room-do"
 import { findProvider } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
 import { roomFilesPort } from "./extensions/files"
+import { roomWorkspacePort } from "./extensions/workspace"
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
@@ -129,12 +130,12 @@ export class AgentDO extends DurableObject<Env> {
   protected async setup(): Promise<AgentSetup> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
-    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role)
+    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()))
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
     const files = roomFilesPort(this.env, () => this.home(), user.models)
     return {
-      ...buildAgent({ ...role, model: await this.model(), files }),
+      ...buildAgent({ ...role, model: await this.model(), files, workspace: roomWorkspacePort(this.env, () => this.home()) }),
       ...user,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
     }
