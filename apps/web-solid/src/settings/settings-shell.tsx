@@ -1,9 +1,11 @@
 import { A } from "@solidjs/router"
-import { Suspense, lazy } from "solid-js"
+import { Suspense, createEffect, lazy } from "solid-js"
 import { ModelList } from "./model-picker"
 import { chatModel, setChatModel } from "./chat-model"
 import { ProviderList } from "./providers"
 import { Integrations } from "./integrations"
+import { DeleteAccount } from "../app/delete-account"
+import { session, signOut } from "../app/session"
 import type { JSX } from "solid-js"
 
 /*
@@ -17,13 +19,41 @@ export const SECTIONS = [
   { id: "models", label: "default model" },
   { id: "integrations", label: "integrations" },
   { id: "appearance", label: "appearance" },
+  { id: "account", label: "account" },
 ] as const
 
 // The theme editor and its validator load with the section, not with the route.
 const Appearance = lazy(() => import("../theme/editor"))
 
+function Account() {
+  const user = () => {
+    const s = session()
+    return s.status === "signed-in" ? s.user : null
+  }
+  return (
+    <div class="flex flex-col gap-4" data-component="account">
+      <div class="flex items-center justify-between gap-3 rounded-[10px] bg-[var(--surface-raised)] px-3 py-3">
+        <span class="min-w-0">
+          <span class="block truncate text-sm text-[var(--tab-text-active)]">{(user()?.name ?? "you").toLowerCase()}</span>
+          <span class="block truncate text-xs text-weak">{user()?.email ?? ""}</span>
+        </span>
+        <button
+          type="button"
+          class="h-10 shrink-0 rounded-[10px] bg-[var(--tab-bg-active)] px-4 text-sm text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-hover)] md:h-8"
+          data-action="sign-out"
+          onClick={() => void signOut()}
+        >
+          sign out
+        </button>
+      </div>
+      <DeleteAccount />
+    </div>
+  )
+}
+
 const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   providers: ProviderList,
+  account: Account,
   integrations: Integrations,
   appearance: () => (
     <Suspense>
@@ -50,13 +80,27 @@ function DefaultModel() {
 }
 
 export function SettingsShell(props: { sectionId: string }) {
+  let nav: HTMLElement | undefined
+  // On a phone the tabs scroll sideways, so the open one must be in view after a reload or a deep link.
+  createEffect(() => {
+    props.sectionId
+    queueMicrotask(() => nav?.querySelector("[aria-current=page]")?.scrollIntoView({ inline: "center", block: "nearest" }))
+  })
   return (
-    <div class="flex min-h-0 flex-1 gap-4 overflow-hidden px-4 pb-4" data-component="settings">
-      <nav class="flex w-40 shrink-0 flex-col gap-1" aria-label="settings sections">
+    <div
+      class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-3 md:flex-row md:gap-4 md:px-4 md:pb-4"
+      data-component="settings"
+    >
+      {/* A row of tabs on a phone, a column beside the section from 768 px up. */}
+      <nav
+        ref={nav}
+        class="flex shrink-0 gap-1 overflow-x-auto [scrollbar-width:none] md:w-40 md:flex-col md:overflow-visible [&::-webkit-scrollbar]:hidden"
+        aria-label="settings sections"
+      >
         {SECTIONS.map((s) => (
           <A
             href={`/settings/${s.id}`}
-            class="rounded-[10px] px-3 py-2 text-sm text-muted hover:bg-[var(--tab-bg-hover)]"
+            class="flex h-10 shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-sm text-muted outline-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-9"
             activeClass="bg-[var(--tab-bg-active)] text-[var(--tab-text-active)]"
           >
             {s.label}
