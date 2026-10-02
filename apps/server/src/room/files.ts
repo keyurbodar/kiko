@@ -31,6 +31,11 @@ export type NewFile = {
 	width?: number
 	height?: number
 	thumbhash?: string
+	/**
+	 * A precondition for an edit. A SHA-256 means the path must hold exactly those bytes,
+	 * and "none" means the path must be empty. Anything else is a conflict and nothing is written.
+	 */
+	expectSha256?: string
 }
 
 /** What the attachment job needs to know about a file. */
@@ -39,10 +44,13 @@ export type FileMeta = { r2Key: string; size: number; type: string; width?: numb
 export type FileMetaPatch = { width?: number; height?: number; thumbhash?: string }
 
 export type PutResult = {
-	file: FileRef
+	/** Null only for a conflict on a path that holds no file. */
+	file: FileRef | null
 	/** An R2 key nothing points to any more. The caller deletes it. */
 	drop: string | null
 	event: RoomEvent | null
+	/** True when `expectSha256` did not match. `file` is then what the path holds now, and nothing was written. */
+	conflict?: boolean
 }
 
 // ASSUMPTION: a FileRef's `name` is the full path in the room's file space. The
@@ -89,6 +97,9 @@ export class RoomFiles {
 			const same = this.row("id", input.id)
 			if (same) return { file: toRef(same), drop: null, event: null }
 			const current = this.row("path", input.path)
+			if (input.expectSha256 !== undefined && (current?.sha256 ?? "none") !== input.expectSha256) {
+				return { file: current ? toRef(current) : null, drop: input.r2Key, event: null, conflict: true }
+			}
 			if (current?.sha256 === input.sha256) return { file: toRef(current), drop: input.r2Key, event: null }
 			const author = actorKey(input.author)
 			const row: FileRow = {

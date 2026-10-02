@@ -1,0 +1,25 @@
+.files-panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.files-panel .fp-picker {
+  flex: none;
+  height: 32px;
+  margin: 0 8px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.files-panel .fp-tree {
+  min-height: 0;
+  flex: 1;
+}

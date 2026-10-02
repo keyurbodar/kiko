@@ -34,10 +34,10 @@ const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/
  * - tier 4: the settings and memory routes have real content. They were placeholders.
  */
 const RECORDED: Record<string, number> = {
-  "tier 1 shell js": 1689,
+  "tier 1 shell js": 1841, // P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
   "tier 2 first paint of /chat": 220198,
   "tier 3 lazy modules": 31724,
-  "tier 4 route chunks": 11986, // settings now holds providers, models, integrations (P7-06), appearance (P2-18), and account deletion (P9-02). The theme editor and CodeMirror stay lazy.
+  "tier 4 route chunks": 11986, // the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
 };
 
 interface Entry {

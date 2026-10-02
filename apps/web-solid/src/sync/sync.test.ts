@@ -72,6 +72,17 @@ describe("the reducer", () => {
 		expect(applyRoomEvent(data, first)).toBeNull()
 		expect(data.messages).toHaveLength(1)
 	})
+
+	test("new bytes at a path replace the file, and a metadata fill keeps it", () => {
+		const data = emptyRoom()
+		const at = (seq: number, id: string, extra = {}): RoomEvent =>
+			({ t: "file", seq, at: seq, by: { kind: "human" }, file: { id, name: "a.txt", size: 1, type: "text/plain", ...extra } }) as RoomEvent
+		applyRoomEvent(data, at(1, "v1"))
+		applyRoomEvent(data, at(2, "v2"))
+		expect(data.files.map((f) => f.id)).toEqual(["v2"])
+		applyRoomEvent(data, at(3, "v2", { width: 4 }))
+		expect(data.files).toEqual([{ id: "v2", name: "a.txt", size: 1, type: "text/plain", width: 4 }])
+	})
 })
 
 describe("patches", () => {

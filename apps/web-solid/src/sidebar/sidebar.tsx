@@ -1,13 +1,16 @@
 import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
-import { createSignal, Show } from "solid-js"
+import { createSignal, lazy, Match, Switch } from "solid-js"
 import type { SectionId } from "../app/sections"
 import { cn } from "../lib/cn"
 import { newChat } from "./actions"
 import { ChatPanel } from "./chat-panel"
 import { PlusIcon } from "./icons"
 import "./sidebar.css"
+
+// The files tree and its chat picker load with the files route, not with the first paint.
+const FilesPanel = lazy(() => import("../files/panel"))
 
 /** Width is a user decision, so it is clamped rather than free. */
 const MIN_W = 200
@@ -123,16 +126,20 @@ export function Sidebar(props: SidebarProps) {
         </header>
 
         <div class="panel-scroll">
-          <Show
-            when={props.section === "chat"}
+          <Switch
             fallback={
               <p class="px-3 py-2 text-xs text-weak" data-component="sidebar-panel-empty">
                 the {props.section} panel is not built
               </p>
             }
           >
-            <ChatPanel />
-          </Show>
+            <Match when={props.section === "chat"}>
+              <ChatPanel />
+            </Match>
+            <Match when={props.section === "files"}>
+              <FilesPanel />
+            </Match>
+          </Switch>
         </div>
 
         {/* The handle lives INSIDE the panel, not beside it: the panel is the
