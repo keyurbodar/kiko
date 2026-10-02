@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
-import { useLocation, useParams } from "@solidjs/router";
+import { A, useLocation, useParams } from "@solidjs/router";
 import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
@@ -186,6 +186,22 @@ export default function ChatRoute() {
             >
               <IconV2 name="chevron-down" />
             </button>
+          </Show>
+          <Show when={useApp.room()?.state.noProvider}>
+            {(np) => (
+              <div
+                class="mx-auto mb-2 flex w-full max-w-[720px] items-center gap-3 rounded-2xl bg-[oklch(from_var(--accent)_l_c_h_/_12%)] px-4 py-2.5 text-sm text-text"
+                role="status"
+                data-component="no-provider"
+              >
+                <span class="min-w-0 flex-1">
+                  {np().slug} can't reply yet: no {np().provider} key is connected.
+                </span>
+                <A href="/settings/providers" class="shrink-0 rounded-xl bg-[var(--accent-fill)] px-3 py-1.5 text-[var(--on-accent)] no-underline">
+                  connect
+                </A>
+              </div>
+            )}
           </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}

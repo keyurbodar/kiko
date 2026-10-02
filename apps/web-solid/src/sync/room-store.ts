@@ -66,6 +66,8 @@ export type RoomData = {
 	tasks: Task[]
 	approvals: Approval[]
 	files: FileRef[]
+	/** The newest "no provider" refusal (P4-02), until an agent next speaks. The chat shows a connect notice. */
+	noProvider?: { slug: AgentSlug; provider: string } | null
 }
 
 export const emptyRoom = (): RoomData => ({
@@ -134,6 +136,7 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 	data.seq = e.seq
 	switch (e.t) {
 		case "message": {
+			if (e.from.kind === "agent" && data.noProvider) data.noProvider = null
 			const m = toMessage(e)
 			const i = findMessage(data.messages, m.id)
 			if (i === -1) data.messages.push(m)
@@ -193,8 +196,9 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			upsert(data.files, e.file, (x) => x.id === e.file.id)
 			return { meta: true }
 		case "no_provider":
-			// The connect card that renders it is P4-06. Until then only the sequence moves.
-			return {}
+			// The full connect card is P4-06. Until then the chat shows a one-line notice from this.
+			data.noProvider = { slug: e.slug, provider: e.provider }
+			return { meta: true }
 	}
 }
 
