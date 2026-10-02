@@ -65,4 +65,4 @@ The plan has 104 tasks in 10 phases and 11 waves. One task is one agent session.
 
 P0-05 proves that `pi-durable` runs inside a Durable Object. If it fails, the foundation is wrong and the plan stops there. The other nine experiments each have a fallback, listed in architecture section 21.
 
-The Free plan is small. The estimate is 8 daily users as shipped and about 35 with coalesced writes. P0-06 and P0-07 replace that estimate with measurements.
+The Free plan is small. P0-06 measured about 4 daily users as shipped and about 24 with coalesced writes (derived). P0-07 measures the coalesced number.

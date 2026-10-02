@@ -9,6 +9,7 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { openDurableObjectSqlite } from "../agent/sqlite"
 import type { Env } from "../index"
 import { createAlarms } from "../lib/alarm"
+import { countRows, type RowCounts } from "./count-rows"
 
 const context = BACKGROUND_CONTEXT
 const MODEL = { provider: "opencode-go", modelId: "deepseek-v4.1-flash" }
@@ -22,17 +23,21 @@ const text = (message: AssistantMessage | undefined) =>
 
 /** The Worker side: one fixed Durable Object, named here and nowhere else. */
 export async function experimentTurnRoute(request: Request, env: Env): Promise<Response> {
-  const stub = env.AGENT.get(env.AGENT.idFromName("experiment:turn"))
+  // `?name=` picks a fresh object, so a measurement run starts from an empty database.
+  const name = new URL(request.url).searchParams.get("name")
+  const stub = env.AGENT.get(env.AGENT.idFromName(name ? `experiment:turn:${name}` : "experiment:turn"))
   if (request.method === "GET") return Response.json(await stub.experimentStatus())
   if (request.method !== "POST") return new Response("method not allowed", { status: 405 })
   const requestId = new URL(request.url).searchParams.get("id") ?? "turn-1"
-  return Response.json(await stub.experimentTurn(requestId))
+  // `?heartbeat=0` skips the heartbeat alarm, so a measurement can leave it out.
+  return Response.json(await stub.experimentTurn(requestId, new URL(request.url).searchParams.get("heartbeat") !== "0"))
 }
 
 /** The Durable Object side. AgentDO owns one instance and forwards to it. */
 export class TurnExperiment {
   private harness?: Promise<{ harness: Harness; openMs: number }>
   private readonly alarms
+  private counter?: ReturnType<typeof countRows>
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -53,7 +58,9 @@ export class TurnExperiment {
         },
       })
       models.setProvider(opencodeGoProvider())
-      const storage = await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage))
+      // Experiment 2: count rows behind a debug flag.
+      this.counter = (this.env as { KIKO_DEBUG_ROWS?: string }).KIKO_DEBUG_ROWS === "1" ? countRows(this.ctx.storage) : undefined
+      const storage = await SqliteStorage.open(openDurableObjectSqlite(this.counter?.storage ?? this.ctx.storage))
       // WORKAROUND: OpenCode Go rejects a request without `x-opencode-session` (400 MissingSessionID).
       // pi-ai adds it only from a `sessionId` stream option, which pi-durable never passes. The
       // settings' stream headers are the extension point that reaches the request.
@@ -69,17 +76,29 @@ export class TurnExperiment {
     await this.ctx.storage.put("experiment:events", events)
   }
 
-  async turn(requestId: string) {
+  async turn(requestId: string, heartbeat = true) {
+    const wallStarted = performance.now()
     const { harness, openMs } = await this.open()
+    const afterOpen = this.counter?.snapshot()
     await this.log(`request ${requestId} (open ${openMs} ms)`)
-    await this.alarms.setWakeup(HEARTBEAT, Date.now() + HEARTBEAT_MS)
+    if (heartbeat) await this.alarms.setWakeup(HEARTBEAT, Date.now() + HEARTBEAT_MS)
     const root = await harness.root(context, { agent: { model: MODEL } })
     const submission = await root.submit({ type: "input", content: PROMPT, requestId }, context)
     const settled = await submission.wait(context)
-    await this.alarms.clearWakeup(HEARTBEAT)
+    if (heartbeat) await this.alarms.clearWakeup(HEARTBEAT)
     const failure = settled.status === "unanswered" ? ` ${settled.reason} ${JSON.stringify(settled.detail ?? null)}` : ""
     await this.log(`request ${requestId} settled ${settled.status}${failure}`)
-    return { ...(await this.report(harness)), status: settled.status, openMs }
+    const wallMs = Math.round(performance.now() - wallStarted)
+    const end = this.counter?.snapshot()
+    // `open` is the one-time migration and load. `turn` is everything after it.
+    const rows =
+      end && afterOpen
+        ? {
+            open: afterOpen,
+            turn: { rowsRead: end.rowsRead - afterOpen.rowsRead, rowsWritten: end.rowsWritten - afterOpen.rowsWritten, statements: end.statements - afterOpen.statements } satisfies RowCounts,
+          }
+        : undefined
+    return { ...(await this.report(harness)), status: settled.status, openMs, wallMs, rows, objectId: this.ctx.id.toString() }
   }
 
   // The heartbeat. After a restart this is what wakes the object and finishes the run.
