@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-104 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+105 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -65,6 +65,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P2-06](wave-03/P2-06-build-the-sync-client-with-optimistic-patches.md) | Build the sync client with optimistic patches | frontend | 5 | P2-05 | yes |
 | [P2-12](wave-03/P2-12-mount-toasts-and-i18n-and-lowercase-every.md) | Mount toasts and i18n, and lowercase every string | frontend | 1 | P2-02 | yes |
 | [P2-13](wave-03/P2-13-build-sign-in-and-session-bootstrap.md) | Build sign-in and session bootstrap | frontend | 2 | P2-02, P1-02 | yes |
+| [P2-15](wave-03/P2-15-give-the-sidebar-its-own-toggle.md) | Give the sidebar its own toggle | frontend | 2 | P2-02 | yes |
 | [P8-02](wave-03/P8-02-build-the-link-preview-route.md) | Build the link preview route | backend | 3 | P8-01, P1-03 | yes |
 | [P9-04](wave-03/P9-04-run-the-model-free-suites-in-ci.md) | Run the model-free suites in CI | infra | 3 | P1-09, P0-12 | yes |
 

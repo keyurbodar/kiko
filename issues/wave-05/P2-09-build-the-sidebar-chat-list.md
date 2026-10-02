@@ -28,7 +28,9 @@ Run the `verify-kiko` sidebar feature with 2,000 chats in the mock: the list scr
 
 - Render the chat list with `virtua/solid`. Rows have a 28 px avatar, a name, and a one-line preview.
 - Keep the pinned tiles at 48 px with a two-line caption.
-- Add the header with `chat` and a `+` button, the new-chat popover, and the context menu from kat (rename, pin, mute, mark as unread, close, delete).
+- Add the header with `chat` and a `+` button, the new-chat popover, and the context menu from kat (rename, pin, mute, mark as unread, close, delete). The `+` only starts a chat. It never toggles the sidebar.
+- Put a search field with a filter button at the top of the list, as MonoCode does. Typing filters the list by title and preview locally.
+- Lay each row out the way MonoCode does, in kat's colors: a muted first line with the agent's avatar and name on the left and the relative time on the right, with an unread dot before the time; a bold title line; and a muted one-line preview.
 - Apply every action optimistically through the user store.
 
 **Done when.** The list stays on `virtua/solid` and no row renders outside the viewport plus overscan.
