@@ -26,7 +26,7 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
     <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="model-list">
       <input
         type="search"
-        class="h-9 shrink-0 rounded-[10px] bg-[var(--tab-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        class="h-9 shrink-0 rounded-[10px] bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         placeholder="search models"
         aria-label="search models"
         autofocus={props.autofocus}

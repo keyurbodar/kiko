@@ -128,7 +128,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 	return (
 		<div class="flex min-h-0 flex-1 flex-col gap-3" data-component="integrations">
 			<Show when={error()}>
-				<p class="text-xs text-[var(--accent)]" role="alert" data-component="integrations-error">{error()}</p>
+				<p class="text-xs text-[var(--danger)]" role="alert" data-component="integrations-error">{error()}</p>
 			</Show>
 			<Show when={status()} fallback={<p class="p-3 text-sm text-weak">loading</p>}>
 				<Show
@@ -147,7 +147,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 							<div class="flex items-center gap-2">
 								<button
 									type="button"
-									class="h-9 rounded-[10px] bg-[var(--accent)] px-3 text-sm text-white disabled:opacity-50"
+									class="h-10 rounded-[10px] bg-[var(--accent-fill)] px-4 text-sm text-[var(--on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50 md:h-9"
 									data-action="connect"
 									disabled={busy()}
 									onClick={() => void signIn()}
@@ -166,13 +166,13 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 										autocomplete="off"
 										autocapitalize="off"
 										spellcheck={false}
-										class="h-9 min-w-0 flex-1 rounded-[10px] bg-[var(--tab-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+										class="h-10 min-w-0 flex-1 rounded-[10px] md:h-9 bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 										data-component="integrations-key"
 									/>
 									<button
 										type="submit"
 										disabled={busy()}
-										class="h-9 rounded-[10px] bg-[var(--tab-bg)] px-3 text-sm text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-active)] disabled:opacity-50"
+										class="h-10 rounded-[10px] bg-[var(--btn-bg)] px-3 text-sm text-[var(--tab-text-active)] hover:bg-[var(--btn-bg-hover)] disabled:opacity-50 md:h-9"
 										data-action="save-key"
 									>
 										save key
@@ -183,7 +183,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 					}
 				>
 					<section class="flex min-h-0 flex-1 flex-col gap-3" data-state="connected">
-						<div class="flex items-center justify-between gap-3 rounded-[10px] bg-[var(--tab-bg)] px-3 py-2">
+						<div class="flex items-center justify-between gap-3 rounded-[10px] bg-[var(--surface-raised)] px-3 py-2">
 							<span class="min-w-0">
 								<span class="block truncate text-sm text-[var(--tab-text-active)]" data-field="organization">
 									{status()?.organization?.toLowerCase() ?? "connected"}
@@ -196,7 +196,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 							</span>
 							<button
 								type="button"
-								class="h-7 rounded-[10px] px-2 text-xs text-muted hover:bg-[var(--tab-bg-active)] disabled:opacity-50"
+								class="h-9 rounded-[10px] px-3 text-xs text-muted hover:bg-[var(--tab-bg-active)] disabled:opacity-50 md:h-7 md:px-2"
 								data-action="disconnect"
 								disabled={busy()}
 								onClick={() => setConfirming(true)}
@@ -207,7 +207,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 						<label class="flex items-center justify-between gap-3 text-xs text-weak">
 							mode
 							<select
-								class="h-8 rounded-[10px] bg-[var(--tab-bg)] px-2 text-sm text-[var(--tab-text-active)]"
+								class="h-10 rounded-[10px] bg-[var(--input-bg)] px-2 text-sm md:h-8 text-[var(--tab-text-active)]"
 								data-component="integrations-mode"
 								value={mode()}
 								onChange={(e) => pickMode(e.currentTarget.value as Mode)}
@@ -238,10 +238,10 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 						<ModalV2.Title class="text-sm font-medium text-muted">disconnect?</ModalV2.Title>
 						<p class="text-xs text-weak">your agents lose these tools until you connect again.</p>
 						<div class="flex justify-end gap-2">
-							<button type="button" class="h-8 rounded-[10px] px-3 text-sm text-muted hover:bg-[var(--tab-bg-hover)]" data-action="cancel-disconnect" onClick={() => setConfirming(false)}>
+							<button type="button" class="h-10 rounded-[10px] px-4 text-sm text-muted hover:bg-[var(--tab-bg-hover)] md:h-8" data-action="cancel-disconnect" onClick={() => setConfirming(false)}>
 								cancel
 							</button>
-							<button type="button" class="h-8 rounded-[10px] bg-[var(--accent)] px-3 text-sm text-white" data-action="confirm-disconnect" onClick={disconnect}>
+							<button type="button" class="h-10 rounded-[10px] bg-[var(--danger-wash)] px-4 text-sm text-[var(--danger)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)] md:h-8" data-action="confirm-disconnect" onClick={disconnect}>
 								disconnect
 							</button>
 						</div>
