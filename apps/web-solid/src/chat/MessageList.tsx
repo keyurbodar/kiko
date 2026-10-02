@@ -20,6 +20,8 @@ export function MessageList(props: {
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
+  /** The viewer tapped an emoji on a message. */
+  onReact?: (messageId: string, emoji: string) => void
   /**
    * Controlled reply target. When this prop is supplied the transcript stops
    * owning the reply and renders whatever the parent says; `null` means no

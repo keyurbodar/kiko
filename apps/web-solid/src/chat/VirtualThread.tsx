@@ -17,7 +17,6 @@ import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dayChipLabel, formatTimeOfDay } from "./lib/dayLabel"
 import { animate } from "motion"
-import { useApp } from "../lib/store"
 import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
@@ -152,6 +151,8 @@ export function VirtualThread(props: {
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
+  /** The viewer tapped an emoji on a message. Leave it out and reactions do nothing. */
+  onReact?: (messageId: string, emoji: string) => void
   /**
    * Controlled reply target. When this prop is supplied the transcript stops
    * owning the reply and renders whatever the parent says; `null` means no
@@ -606,7 +607,7 @@ export function VirtualThread(props: {
       /* Pin, edit and delete have no store mutation behind them yet, so they are
          omitted rather than wired to an empty handler: a menu item that accepts
          a click and then does nothing is worse than a missing one. */
-      onReact: (emoji) => useApp.toggleReaction(menu.targetId() ?? message.id, emoji),
+      onReact: (emoji) => props.onReact?.(menu.targetId() ?? message.id, emoji),
     })
     return (
       <>
@@ -615,6 +616,7 @@ export function VirtualThread(props: {
             message={message}
             bot={props.botById(message.botId)}
             parent={props.replyParent(message.replyToId)}
+            parentBot={props.botById(props.replyParent(message.replyToId)?.botId)}
             isRunStart={item.isRunStart}
             isRunEnd={item.isRunEnd}
             hasRunGapBefore={item.hasRunGapBefore}
@@ -629,7 +631,7 @@ export function VirtualThread(props: {
              */
             jumboClass={jumboEmojiClass(message.body)}
             onOpenReplyTarget={jumpToMessage}
-            onReact={(emoji) => useApp.toggleReaction(message.id, emoji)}
+            onReact={(emoji) => props.onReact?.(message.id, emoji)}
             onContextMenu={menu.onContextMenu}
             onOpenMedia={(media, index) => viewer.open(media, index, message.body)}
           />

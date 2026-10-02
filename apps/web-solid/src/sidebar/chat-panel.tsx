@@ -101,15 +101,6 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void 
           data-component="sidebar-pin-menu"
         >
           <MenuV2.Item onSelect={() => useApp.togglePinned(props.bot.id)}>unpin</MenuV2.Item>
-          <MenuV2.Separator />
-          <Show
-            when={props.bot.unread > 0}
-            fallback={
-              <MenuV2.Item onSelect={() => useApp.markUnread(props.bot.id)}>mark as unread</MenuV2.Item>
-            }
-          >
-            <MenuV2.Item onSelect={() => useApp.markRead(props.bot.id)}>mark as read</MenuV2.Item>
-          </Show>
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>
@@ -163,7 +154,7 @@ function ChatPreview(props: { bot: RosterBot }) {
           <For each={tail()}>
             {(message) => (
               <p class="line-clamp-2 text-[12px] leading-snug text-muted">
-                <span class="font-medium text-weak">{message.sender === "user" ? "you" : props.bot.name}</span>{" "}
+                <span class="font-medium text-weak">{message.sender === "user" ? "you" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}</span>{" "}
                 {message.body}
               </p>
             )}
@@ -206,7 +197,6 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
 
   const select = () => {
     navigate(`/chat/${props.bot.id}`)
-    useApp.markRead(props.bot.id)
   }
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -279,15 +269,6 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
           <MenuV2.Item onSelect={() => useApp.togglePinned(props.bot.id)}>
             {props.bot.pinned ? "unpin" : "pin"}
           </MenuV2.Item>
-          <MenuV2.Separator />
-          <Show
-            when={props.bot.unread > 0}
-            fallback={
-              <MenuV2.Item onSelect={() => useApp.markUnread(props.bot.id)}>mark as unread</MenuV2.Item>
-            }
-          >
-            <MenuV2.Item onSelect={() => useApp.markRead(props.bot.id)}>mark as read</MenuV2.Item>
-          </Show>
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>
@@ -317,7 +298,6 @@ export function ChatPanel() {
                 active={useApp.activeThreadId() === bot.id}
                 onSelect={() => {
                   navigate(`/chat/${bot.id}`)
-                  useApp.markRead(bot.id)
                 }}
               />
             )}

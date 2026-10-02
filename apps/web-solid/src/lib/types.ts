@@ -1,16 +1,22 @@
-// Domain contract, frozen before the UI slices were fanned out so chat,
-// composer, and sidebar build side by side against the same shapes.
+// The view types the components draw. The data behind them is the protocol:
+// `Message`, `Member`, and `Chat` from `@kiko/protocol`, held by the sync
+// stores. `lib/store.ts` turns each protocol value into one of these shapes in
+// one place, so no component reads a wire type and none invents one.
 //
-// v1 is text-first. Everything the transcript can show on top of a text body
-// is optional rather than absent, because a message is one row: widening these
-// to carry an image, a link card, or a send state is cheap now and expensive
-// once a data layer has to satisfy them. Fields stay optional so the store's
-// `appendMessage` keeps working with a body and nothing else — and a send that
-// carries attachments says so with an `OutgoingMessage` rather than by making
-// the body optional.
+// DEVIATION: the transcript keeps a message view (`ChatMessage`) instead of
+// reading `Message` directly. Its height model, grouping, quote, and menu all
+// read this shape, and none of those files belongs to P2-07. The view is now
+// derived from `Message` by `toChatMessage`, and only the store and the dev
+// harness fixtures build one.
+
+import type { MessageId, RichText } from "@kiko/protocol";
 
 export type BotPresence = "idle" | "typing" | "working" | "sleeping";
 
+/**
+ * An avatar with a name. The sidebar draws a chat as one (`id` is the room id),
+ * and the transcript draws each room member as one (`id` is the agent slug).
+ */
 export interface RosterBot {
   id: string;
   name: string;
@@ -29,13 +35,11 @@ export interface RosterBot {
   avatarImage?: string;
 }
 
-export interface RosterGroup {
-  id: string;
-  name: string;
-  memberIds: string[];
-  updatedAt: number;
-}
-
+/**
+ * One chip under a message: an emoji and how many reacted with it. The protocol
+ * stores at most one reaction per actor (`Reaction` in `@kiko/protocol`), and
+ * the store folds those into chips.
+ */
 export interface Reaction {
   emoji: string;
   count: number;
@@ -90,23 +94,30 @@ export interface DocumentItem {
   src: string
 }
 
-
-/** A single message in a conversation. A media-only message has an empty body. */
+/**
+ * A single message as the transcript draws it. The store builds it from a
+ * protocol `Message` with `toChatMessage`. A media-only message has an empty body.
+ */
 export interface ChatMessage {
-  id: string;
-  /** Which conversation this belongs to: a bot id or a group id. */
+  /** The protocol `MessageId`, or `local:<clientId>` while a send is unacknowledged. */
+  id: MessageId | string;
+  /** The room it belongs to. */
   threadId: string;
   /** Who sent it. "user" is the person typing in the composer. */
   sender: "user" | "bot";
-  /** Bot id when `sender` is "bot". */
+  /** The agent slug when an agent wrote it. Absent on a system message. */
   botId?: string;
+  /** The room's sequence. Absent in harness fixtures and on a pending send. */
+  seq?: number;
+  /** Plain text. An agent message also carries `rich`. */
   body: string;
+  /** The tree the server parsed from an agent's markdown. */
+  rich?: RichText;
   /** Epoch ms, used for date dividers and the per-message timestamp. */
   sentAt: number;
   /**
-   * One chip per emoji, each carrying its own count. Every person is at most
-   * one reactor on any chip, so `viewerReacted` is per chip rather than per
-   * message: reacting with a second emoji must not disturb the first.
+   * One chip per emoji, each carrying its own count. `viewerReacted` is per
+   * chip, so the chip the viewer chose reads as pressed.
    */
   reactions?: Reaction[];
   /** The message this one answers. Absent on a root message. */
@@ -149,29 +160,6 @@ export interface OutgoingMessage {
   documents?: DocumentItem[]
   /** The preview the composer resolved for the draft's link, unless dismissed. */
   webPage?: WebPagePreview
-}
-
-/** What the sidebar renders for one conversation. Either kind, never both. */
-export type Thread =
-  | { kind: "bot"; id: string; bot: RosterBot; messageCount: number }
-  | { kind: "group"; id: string; group: RosterGroup; messageCount: number };
-
-/** Props every slice receives. Kept flat so a slice never imports another. */
-export interface SidebarProps {
-  bots: readonly RosterBot[];
-  groups: readonly RosterGroup[];
-  /** Currently open conversation, or null before one is picked. */
-  activeThreadId: string | null;
-  onSelectThread: (threadId: string) => void;
-}
-
-export interface ChatProps {
-  /** The open conversation's messages, oldest first. */
-  messages: readonly ChatMessage[];
-  /** Lookup for avatars and names; a thread may reference any bot id. */
-  bots: ReadonlyMap<string, RosterBot>;
-  /** Who the person typing is, so the thread can render their own messages. */
-  viewerId: string;
 }
 
 export interface ComposerProps {
