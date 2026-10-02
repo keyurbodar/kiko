@@ -1,0 +1,75 @@
+name: model-suites
+
+# Manual only. The model suites spend tokens, so nothing starts this on a pull request.
+on:
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: "suite names, space separated. empty runs every suite"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - name: build the client assets
+        run: bun run build
+        working-directory: apps/web-solid
+      - name: write dev vars
+        # The key reaches the file through the environment, never a command line.
+        # GitHub masks the secret in logs and nothing here echoes it.
+        working-directory: apps/server
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          test -n "$OPENCODE_API_KEY" || { echo "the OPENCODE_API_KEY repository secret is not set"; exit 1; }
+          {
+            echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+            echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
+            printf 'OPENCODE_API_KEY=%s\n' "$OPENCODE_API_KEY"
+          } > .dev.vars
+      - name: apply the local database migration
+        working-directory: apps/server
+        run: bunx wrangler d1 migrations apply kiko-auth --local
+      - name: start the worker
+        working-directory: apps/server
+        env:
+          NODE_ENV: development
+        run: nohup bunx wrangler dev --port 8787 --inspector-port 9229 > "$RUNNER_TEMP/wrangler.log" 2>&1 &
+      - name: wait for health
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8787/api/health && exit 0
+            sleep 2
+          done
+          echo "the worker did not become healthy"
+          exit 1
+      - name: run the suites
+        shell: bash
+        env:
+          SUITES: ${{ inputs.suites }}
+        # SUITES is unquoted on purpose so several names become several arguments.
+        run: |
+          set -o pipefail
+          bun kiko verify $SUITES --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
+      - name: upload the last frames
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-suite-frames
+          path: ${{ runner.temp }}/verify.log
+          if-no-files-found: ignore
+          retention-days: 7
