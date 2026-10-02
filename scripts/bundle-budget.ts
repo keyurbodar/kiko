@@ -9,7 +9,7 @@
  * say why. Sizes are gzip bytes of the JS and CSS files in that tier.
  */
 import { gzipSync } from "node:zlib";
-import { existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const DIST = join(import.meta.dir, "../apps/web-solid/dist");
@@ -83,18 +83,54 @@ const measured: Record<string, number> = {
   "tier 4 route chunks": size(tier4),
 };
 
+/* Libraries that must never reach tiers 1 to 3. Found by text that only the library's own code holds. */
+const BANNED: Record<string, RegExp> = {
+  effect: /["'`]effect\/[A-Z]/,
+  codemirror: /@codemirror|cm-editor|cm-content/,
+  "markdown parser (marked)": /markedjs\/marked/,
+};
+
 let failed = false;
+const rows: string[] = [];
+const fail = (message: string) => {
+  failed = true;
+  console.error(`FAIL ${message}`);
+};
+
+const banned: Array<[string, Set<string>]> = [
+  ["tier 1 shell js", tier1],
+  ["tier 2 first paint of /chat", tier2],
+  ["tier 3 lazy modules", tier3],
+];
+for (const [name, files] of banned) {
+  for (const file of files) {
+    if (!file.endsWith(".js")) continue;
+    const text = readFileSync(join(DIST, file), "utf8");
+    for (const [lib, pattern] of Object.entries(BANNED)) {
+      if (pattern.test(text)) fail(`${name} contains ${lib} in ${file} (${gz(file)} bytes gzip). ${lib} may not load before tier 4.`);
+    }
+  }
+}
+
 const htmlBytes = readFileSync(join(DIST, "index.html")).length;
 const htmlOk = htmlBytes <= HTML_MAX_BYTES;
-failed ||= !htmlOk;
+if (!htmlOk) fail(`shell index.html is ${htmlBytes} bytes raw, over the ${HTML_MAX_BYTES} byte max`);
 console.log(`${htmlOk ? "ok  " : "FAIL"} index.html ${htmlBytes} bytes raw (max ${HTML_MAX_BYTES})`);
+rows.push(`| shell index.html (raw) | ${htmlBytes} | ${HTML_MAX_BYTES} | ${htmlOk ? "ok" : "FAIL"} |`);
 
 for (const [name, bytes] of Object.entries(measured)) {
   const recorded = RECORDED[name] ?? 0;
   const limit = Math.floor(recorded * TOLERANCE);
   const ok = bytes <= limit;
-  failed ||= !ok;
+  if (!ok) fail(`${name} is ${bytes} bytes gzip, over its limit of ${limit} (recorded ${recorded} plus 5 percent). Fix the growth, or edit RECORDED in scripts/bundle-budget.ts and say why.`);
   console.log(`${ok ? "ok  " : "FAIL"} ${name} ${bytes} bytes gzip (recorded ${recorded}, limit ${limit})`);
+  rows.push(`| ${name} | ${bytes} | ${limit} | ${ok ? "ok" : "FAIL"} |`);
+}
+
+/* The job summary on GitHub Actions. */
+const summary = process.env.GITHUB_STEP_SUMMARY;
+if (summary) {
+  appendFileSync(summary, `### client bundle budget\n\n| tier | bytes | limit | result |\n| --- | ---: | ---: | --- |\n${rows.join("\n")}\n`);
 }
 
 process.exit(failed ? 1 : 0);
