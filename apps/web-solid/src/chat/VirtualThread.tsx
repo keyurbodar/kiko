@@ -17,7 +17,7 @@ import { buildTimelineItems, dayStartOf, type TimelineItem } from "./lib/groupin
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dividerLabel } from "./lib/time-label"
-import { animate } from "motion"
+import { animate } from "../lib/motion"
 import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"

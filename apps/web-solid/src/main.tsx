@@ -6,6 +6,7 @@ import { bootstrapSession, session } from "./app/session";
 import "./styles/app.css";
 import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
+import { loadMotion } from "./lib/motion";
 
 const SignIn = lazy(() => import("./app/sign-in"));
 
@@ -51,4 +52,18 @@ export function start(): void {
   root.replaceChildren();
   void bootstrapSession();
   render(() => <Router root={Root}>{routes}</Router>, root);
+  whenIdle(preload);
+}
+
+/*
+ * Code that first paint does not need, fetched once the shell has painted. Each module also
+ * loads itself on first use, so this only makes that first use instant.
+ */
+function preload(): void {
+  void loadMotion();
+}
+
+function whenIdle(task: () => void): void {
+  if ("requestIdleCallback" in window) requestIdleCallback(task, { timeout: 1500 });
+  else setTimeout(task, 200);
 }
