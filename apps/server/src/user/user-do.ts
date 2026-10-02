@@ -108,6 +108,11 @@ export class UserDO extends DurableObject<Env> {
     return listChats(this.sql)
   }
 
+  /** One chat, or null when the user has no chat for the room. The room asks before each delivery. */
+  async getChat(roomId: RoomId): Promise<Chat | null> {
+    return getChat(this.sql, roomId)
+  }
+
   /** Adds an agent and tells every socket. Returns null when the id or the handle is taken or the input is refused. */
   async createAgent(agent: Agent): Promise<Agent | null> {
     return this.saveAgent(agent)

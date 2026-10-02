@@ -75,8 +75,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const envelopes = this.burst.envelopes(home.roomId)
 		if (!envelopes.length) return
 		try {
-			const chats = await userStub(this.env.USER, home.userId).listChats()
-			const chat = chats.find((c) => c.roomId === home.roomId)
+			// One row, not the whole chat list, so the hop costs the same for a user with a thousand chats.
+			const chat = await userStub(this.env.USER, home.userId).getChat(home.roomId)
 			// ASSUMPTION: a room that is not in the user's chat list (never created, or deleted) wakes no
 			// agent. Its messages stay in the log and are dropped from the burst.
 			if (!chat) return this.burst.delivered(envelopes)
@@ -239,13 +239,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** RPC for an agent. Sends a status change, and the typing set with it. Never stored. */
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
-		if ((this.states.get(slug) ?? "idle") === state) return
+		const was = this.states.get(slug) ?? "idle"
+		if (was === state) return
 		this.states.set(slug, state)
-		// Stored, unlike the state, so a room process that starts after a restart knows a run was live.
-		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
-		else this.log.setMeta(`live:${slug}`, "1")
 		this.broadcast({ t: "status", slug, state })
 		await this.setTyping(slug, state === "typing")
+		// Stored after the frames go out, unlike the state, so a room process that starts after a
+		// restart knows a run was live. Only a change to or from idle writes.
+		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
+		else if (was === "idle") this.log.setMeta(`live:${slug}`, "1")
 	}
 
 	/**
