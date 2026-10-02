@@ -16,7 +16,7 @@ describe("nav commands", () => {
   test("each screen has a command that goes to its route", () => {
     for (const c of list.filter((x) => x.id.startsWith("go.") || x.id.startsWith("settings."))) c.run()
     expect(went).toEqual([
-      "/chat", "/files", "/settings", "/settings/providers", "/settings/models",
+      "/chat", "/settings", "/settings/providers", "/settings/models",
       "/settings/integrations", "/settings/appearance", "/settings/account",
     ])
   })

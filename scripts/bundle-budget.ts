@@ -22,8 +22,8 @@ const APP_ENTRY = "src/main.tsx";
 
 /* Tier 3 modules load with lazy() or a dynamic import on idle or intent. */
 const TIER3 = ["src/palette/palette.tsx", "src/chat/info/panel.tsx", "src/chat/ui/DateCalendar.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
-/* Tier 4 route chunks load on route intent. */
-const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/settings.tsx"];
+/* Tier 4 chunks load on intent: the settings route and the right panel's files tab. */
+const TIER4 = ["src/files/pane.tsx", "src/app/routes/settings.tsx"];
 
 /*
  * Recorded gzip bytes, measured at P2-03. Re-recorded on purpose:
@@ -37,7 +37,7 @@ const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1841, // P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
   "tier 2 first paint of /chat": 231871, // P2-08 bubble pacing and drafts, the chat QA pass (group sender names and gutter avatar, bubble-in motion, empty-chat tips, start-chat button), and one chatSeed for every avatar.
   "tier 3 lazy modules": 45525, // The Telegram-style info panel and memory redesign (action tiles, grouped list, core tiles, record header) add ~3 KB. P2-19: the chat info panel (10.5 KB gzip) is a lazy module. It loads on first open or on idle, never in tier 2.
-  "tier 4 route chunks": 12670, // The kat-style settings (sidebar rows with icons, provider logos, grouped cards, executor card) and the files chat switcher add ~2 KB. QA shell pass: the account section with sign out, provider search, and the narrow-screen settings tabs add ~1.2 KB to the settings route (the previous note still applies: grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
+  "tier 4 route chunks": 23389, // The files section left the rail for the chat's right panel. Its route chunk is gone, and the panel's files tab (src/files/pane.tsx) is measured here instead, with the file tree it draws at once (headless-tree, virtua, file icons): about 10.7 KB that was a dynamic import outside this count. The viewers (CodeMirror, the markdown parser, the table, pdf and media views) stay lazy chunks outside it. Earlier: The kat-style settings (sidebar rows with icons, provider logos, grouped cards, executor card) and the files chat switcher add ~2 KB. QA shell pass: the account section with sign out, provider search, and the narrow-screen settings tabs add ~1.2 KB to the settings route (the previous note still applies: grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
 };
 
 interface Entry {

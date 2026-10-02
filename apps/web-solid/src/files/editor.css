@@ -9,6 +9,19 @@
   color: var(--text);
 }
 
+/* sugar-high's token colors, the same as the chat's code blocks. */
+.file-editor {
+  --sh-class: #2d5e9d;
+  --sh-identifier: inherit;
+  --sh-sign: #8996a3;
+  --sh-property: #0550ae;
+  --sh-entity: #249a97;
+  --sh-jsxliterals: #6266d1;
+  --sh-string: #00a99a;
+  --sh-keyword: #f47067;
+  --sh-comment: #a19595;
+}
+
 .file-editor .fe-body {
   min-height: 0;
   flex: 1;
@@ -21,7 +34,7 @@
   flex: none;
   align-items: center;
   gap: 8px;
-  padding: 0 12px 0 16px;
+  padding: 0 8px 0 16px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -36,8 +49,8 @@
 }
 
 .file-editor .fe-btn {
-  height: 26px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 8px;
   border: none;
   border-radius: 8px;
   background: var(--hover-bg);
@@ -62,26 +75,133 @@
   flex: 1;
   place-content: center;
   justify-items: center;
-  gap: 12px;
-  padding: 24px;
+  gap: 8px;
+  padding: 16px;
   font-size: 13px;
   color: var(--text-muted);
 }
 
-.file-view .fv-media {
-  max-width: 100%;
-  max-height: 100%;
-  border: none;
-  border-radius: 12px;
-  object-fit: contain;
-  background: none;
-  padding: 0;
-  cursor: pointer;
+.file-view .fv-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 8px 24px 24px;
 }
 
-.file-view .fv-link {
+.file-view .fv-note {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.file-view .fv-markdown {
+  max-width: 720px;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--text);
-  text-decoration: underline;
+}
+
+.file-view .fv-table-scroll {
+  padding: 0;
+}
+
+.file-view .fv-table {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-view .fv-table th,
+.file-view .fv-table td {
+  max-width: 320px;
+  padding: 4px 16px 4px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-view .fv-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-subtle);
+  font-weight: 600;
+}
+
+.file-view .fv-table tbody tr:nth-child(even) {
+  background: var(--hover-bg);
+}
+
+.file-view .fv-frame {
+  min-height: 0;
+  flex: 1;
+  border: none;
+  background: #fff;
+}
+
+.file-view .fv-image {
+  display: grid;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: zoom-in;
+}
+
+.file-view .fv-image img {
+  max-width: 100%;
+  max-height: calc(100cqh - 32px);
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.file-view {
+  container-type: size;
+}
+
+.file-view .fv-audio {
+  width: min(360px, 100%);
+}
+
+.file-view .fv-video {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+}
+
+.file-view .fv-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 32px;
+  border-radius: 16px;
+  background: var(--bg-subtle);
+}
+
+.file-view .fv-card-name {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-view .fv-download {
+  display: inline-grid;
+  height: 32px;
+  margin-top: 8px;
+  padding: 0 16px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg, #fff);
+  font-weight: 500;
 }
 
 /* Touch targets: the editor bar and its buttons are too small to hit on a phone. */
@@ -91,17 +211,13 @@
   }
   .file-editor .fe-btn {
     height: 36px;
-    padding: 0 14px;
+    padding: 0 16px;
   }
 }
 
 .file-editor .fe-btn:focus-visible,
-.file-view .fv-link:focus-visible,
-.file-view button.fv-media:focus-visible {
+.file-view .fv-download:focus-visible,
+.file-view .fv-image:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-.file-view .fv-link {
-  padding: 6px 4px;
 }

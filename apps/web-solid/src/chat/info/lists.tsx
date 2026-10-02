@@ -1,11 +1,9 @@
-import type { CatalogItem, FileRef } from "@kiko/protocol"
-import { useNavigate } from "@solidjs/router"
+import type { CatalogItem } from "@kiko/protocol"
 import { createSignal, For, Show } from "solid-js"
 import { urls, useApp } from "../../lib/store"
 import type { MediaItem } from "../../lib/types"
 import { createMediaViewer } from "../media/mediaViewer"
 import type { createCatalog } from "./catalog"
-import { formatBytes } from "./format"
 import { Card } from "./sections"
 import { pushInfo } from "./state"
 
@@ -157,33 +155,6 @@ export function MediaList(props: { catalog: Catalog }) {
       <Grid catalog={props.catalog} />
       <Empty loaded={props.catalog.loaded() && !props.catalog.items().length} text="no photos or videos yet" />
       <MoreButton catalog={props.catalog} />
-    </div>
-  )
-}
-
-// The same path the files route uses (`/files/<room>/<path>`). It is written here so the
-// panel does not import the file tree.
-const fileHref = (roomId: string, path: string) => `/files/${roomId}/${path.split("/").map(encodeURIComponent).join("/")}`
-
-function FileRow(props: { file: FileRef }) {
-  const navigate = useNavigate()
-  const open = () => navigate(fileHref(useApp.room()?.state.roomId ?? "", props.file.name))
-  return (
-    <button type="button" class={rowClass} data-component="info-file" data-path={props.file.name} onClick={open}>
-      <span class="min-w-0 flex-1 truncate">{props.file.name}</span>
-      <span class="shrink-0 text-xs text-weak">{formatBytes(props.file.size)}</span>
-    </button>
-  )
-}
-
-export function FilesList() {
-  const files = () => useApp.activeFiles()
-  return (
-    <div data-component="info-files">
-      <For each={files()}>{(f) => <FileRow file={f} />}</For>
-      <Show when={!files().length}>
-        <p class="px-2 py-2 text-sm text-weak">no files yet</p>
-      </Show>
     </div>
   )
 }

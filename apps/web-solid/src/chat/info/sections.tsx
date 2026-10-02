@@ -6,7 +6,7 @@ import { session } from "../../app/session"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { subtitle } from "./format"
-import { pushInfo } from "./state"
+import { pushInfo, setInfoTab } from "./state"
 
 /*
  * The cards on the panel's home view. Each is small and draws from the stores the app
@@ -233,7 +233,7 @@ export function QuickActions(props: { chatId: string }) {
       <QuickAction id="mute" label={muted() ? "unmute" : "mute"} path={muted() ? ICON.mute : ICON.unmute} active={muted()} onClick={() => useApp.user()?.mute(props.chatId as never, !muted())} />
       <QuickAction id="pin" label={pinned() ? "unpin" : "pin"} path={ICON.pin} active={pinned()} onClick={() => useApp.user()?.pin(props.chatId as never, !pinned())} />
       <QuickAction id="memory" label="memory" path={ICON.memory} onClick={() => pushInfo({ kind: "memory" })} />
-      <QuickAction id="files" label="files" path={ICON.files} onClick={() => pushInfo({ kind: "files" })} />
+      <QuickAction id="files" label="files" path={ICON.files} onClick={() => setInfoTab("files")} />
     </div>
   )
 }

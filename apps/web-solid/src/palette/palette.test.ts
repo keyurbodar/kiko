@@ -10,6 +10,7 @@ const deps = (over: { newChat?: () => void } = {}) => ({
   closeChat() {},
   hasActiveChat: () => false,
   toggleInfo() {},
+  toggleFiles() {},
   openPalette() {},
   openChats() {},
 })

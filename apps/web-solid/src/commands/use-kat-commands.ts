@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { nextAfterClose, openTabs } from "../app/open-tabs"
 import { signOut } from "../app/session"
-import { toggleInfo } from "../chat/info/state"
+import { toggleFiles, toggleInfo } from "../chat/info/state"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { katCommands } from "./kat-commands"
@@ -30,6 +30,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
       toggleInfo,
+      toggleFiles,
       closeChat: () => {
         const id = activeId()
         if (!id) return
