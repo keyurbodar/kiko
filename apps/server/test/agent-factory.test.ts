@@ -7,6 +7,7 @@ import { BASE, type BuildAgentInput, buildAgent } from "../src/agent/factory"
 import { TRUST } from "../src/agent/extensions/trust"
 import { SUBAGENT } from "../src/agent/extensions/subagent"
 import { WEB } from "../src/agent/extensions/web"
+import { SKILLS } from "../src/agent/extensions/skills"
 import { SECTION_ORDER } from "../src/agent/prompt"
 
 // The factory is the one place that configures an agent (architecture section 16). These tests run
@@ -56,8 +57,9 @@ describe("buildAgent", () => {
     expect(at(system, "reactions")).toBeLessThan(at(system, "role"))
     expect(system).toContain("[react:👍]")
     expect(system).toContain("you plan trips.")
-    // The slots render nothing until an extension fills them.
-    expect(at(system, "skills")).toBe(-1)
+    // The skills slot holds the built-in skills (P5-08), after the role; profile renders nothing without memory.
+    expect(at(system, "skills")).toBeGreaterThan(at(system, "role"))
+    expect(system).toContain("<name>haiku</name>")
     expect(at(system, "profile")).toBe(-1)
   })
 
@@ -105,7 +107,7 @@ describe("buildAgent", () => {
     const extra = defineExtension({ name: "extra" })
     for (const lead of [true, false]) {
       const names = (buildAgent({ role: "", lead, model: FAUX, testExtensions: [extra] }).agent.extensions as readonly { name: string }[]).map((e) => e.name)
-      expect(names).toEqual([BASE, WEB, SUBAGENT, "extra", TRUST])
+      expect(names).toEqual([BASE, SKILLS, WEB, SUBAGENT, "extra", TRUST])
     }
   })
 

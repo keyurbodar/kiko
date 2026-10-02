@@ -11,6 +11,7 @@ import { type MemoryPort, memoryExtension } from "./extensions/memory"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
+import { skillsExtension } from "./extensions/skills"
 import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import { baseSections, type RoleInput } from "./prompt"
 
@@ -58,6 +59,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.memory ? [memoryExtension(input.memory)] : []),
     ...(input.files ? [filesExtension(input.files)] : []),
+    skillsExtension(input.files),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(),
     ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),
