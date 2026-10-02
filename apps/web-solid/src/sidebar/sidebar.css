@@ -688,3 +688,7 @@
     display: none;
   }
 }
+
+.sidebar-shell .chat-draft {
+	color: var(--accent);
+}

@@ -21,6 +21,7 @@ import type { ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
+import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import { newestMessages } from "../warm/messages"
 import type { BotPresence, ChatMessage, DocumentItem, OutgoingMessage, Reaction, RosterBot } from "./types"
@@ -155,6 +156,7 @@ export function createApp(options: AppOptions = {}) {
   return createRoot(() => {
     const [userStore, setUserStore] = createSignal<UserStore | null>(null)
     const [room, setRoom] = createSignal<RoomStore | null>(null)
+    const [drafts, setDrafts] = createSignal<DraftBook | null>(null)
     const [activeId, setActiveId] = createSignal<RoomId | null>(null)
 
     /** Newest messages of chats the pointer rested on, read from IndexedDB. Only for rooms that are not open. */
@@ -231,6 +233,7 @@ export function createApp(options: AppOptions = {}) {
           if (bootUser !== userId) return void warm.close()
           session = { userId, warm, transport }
           batch(() => {
+            setDrafts(createDraftBook(warm))
             setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff }))
             openRoom(activeId())
           })
@@ -244,6 +247,7 @@ export function createApp(options: AppOptions = {}) {
         booting = null
         room()?.close()
         userStore()?.close()
+        drafts()?.close()
         session?.warm.close()
         session = null
         views = new Map()
@@ -251,6 +255,7 @@ export function createApp(options: AppOptions = {}) {
           setPreloaded({})
           setRoom(null)
           setUserStore(null)
+          setDrafts(null)
         })
       },
 
@@ -262,6 +267,8 @@ export function createApp(options: AppOptions = {}) {
         if (session !== current) return
         setPreloaded((all) => ({ ...all, [threadId]: rows }))
       },
+      /** Unsent text, reply targets, and scroll positions for every chat. Null before sign-in. */
+      drafts,
 
       /** The sync stores, for code that needs more than this surface. */
       room,
