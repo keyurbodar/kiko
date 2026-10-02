@@ -1,11 +1,9 @@
 import { DurableObject } from "cloudflare:workers"
-import { createModels } from "@earendil-works/pi-ai/models"
-import { opencodeGoProvider } from "@earendil-works/pi-ai/providers/opencode-go"
-import { createRegistry } from "@earendil-works/pi-durable"
 import type { Envelope } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
+import { buildAgent, DEV_MODEL, devModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
 
 /** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
@@ -33,23 +31,15 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /**
-   * DEV ONLY until the agent factory (P1-10) and per-user credentials (P4-02) land. The key comes from
-   * the Worker's env and never leaves this object.
+   * The factory builds every agent. DEV ONLY: the model and key come from the Worker's env until
+   * per-user credentials (P4-02) land; the key never leaves this object. ASSUMPTION: every agent is
+   * a lead with the default role until the room passes membership (P1-11).
    */
   protected setup(): AgentSetup {
-    const models = createModels({
-      authContext: {
-        env: async (name) => (name === "OPENCODE_API_KEY" ? this.env.OPENCODE_API_KEY || undefined : undefined),
-        fileExists: async () => false,
-      },
-    })
-    models.setProvider(opencodeGoProvider())
     return {
-      models,
-      registry: createRegistry(),
-      agent: { model: { provider: "opencode-go", modelId: "deepseek-v4.1-flash" } },
-      // WORKAROUND: OpenCode Go answers 400 MissingSessionID without this header (P0-05).
-      settings: { stream: { headers: { "x-opencode-session": this.ctx.id.toString() } } },
+      ...buildAgent({ role: "", lead: true, model: DEV_MODEL }),
+      // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
+      ...devModels(this.env.OPENCODE_API_KEY, this.ctx.id.toString()),
     }
   }
 

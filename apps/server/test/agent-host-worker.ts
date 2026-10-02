@@ -1,9 +1,9 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
-import { createRegistry } from "@earendil-works/pi-durable"
 import type { Envelope } from "@kiko/protocol"
 import { AgentDO } from "../src/agent/agent-do"
+import { buildAgent } from "../src/agent/factory"
 import type { AgentSetup, HostOptions } from "../src/agent/host"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 
@@ -47,7 +47,7 @@ export class T extends AgentDO {
     faux.setResponses(Array.from({ length: 20 }, () => answer))
     const models = createModels()
     models.setProvider(faux.provider)
-    return { models, registry: createRegistry(), agent: { model: { provider: "faux", modelId: "faux-1" } } }
+    return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }) }
   }
 
   override async fetch(request: Request) {

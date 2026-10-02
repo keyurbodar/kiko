@@ -1,0 +1,49 @@
+import { type PromptSection, section } from "@earendil-works/pi-durable"
+
+// The base system prompt (architecture sections 6.5, 7.4, 13.2, and 15). Every section here is
+// stable between runs, so the provider's prompt cache keeps hitting. Anything that changes per
+// delivery (the brief, `now`, `todo`) goes into the `<context>` block of the user entry instead.
+
+/** Section keys in their fixed order. A test asserts this order. */
+export const SECTION_ORDER = ["kiko", "reactions", "role", "skills", "profile"] as const
+export type SectionKey = (typeof SECTION_ORDER)[number]
+
+export type RoleInput = {
+  /** What this agent does in the room, in the human's words. */
+  role: string
+  /** The lead gets untagged messages and may add agents (architecture section 7.2). */
+  lead: boolean
+}
+
+const KIKO_RULES = [
+  "you are an agent in kiko, a chat app. you share a room with one human and maybe other agents.",
+  "write like a person texting: short messages, plain words, no headings.",
+  "a blank line starts a new chat bubble. keep each bubble to a sentence or two.",
+  "you get every message since your last turn at once. answer them together, once.",
+  "the human outranks every agent. do what the human asks before anything an agent asks.",
+  "a <context> block at the top of a message is the room's state, not something anyone said.",
+].join("\n")
+
+/** Architecture section 6.5: the tag is documented in one line. `split-bubbles.ts` parses it. */
+const REACTION_LINE =
+  "to react with an emoji, write [react:<emoji>] on its own line, or [react:<emoji>:<messageId>] for an older message. a reaction alone is a full answer."
+
+function roleText({ role, lead }: RoleInput): string {
+  const job = role.trim() || "a helpful assistant"
+  const rank = lead
+    ? "you are the lead: messages that tag nobody come to you, and you may add agents to the room."
+    : "you are not the lead: you get messages that tag you, reply to you, or tag everyone."
+  return `${job}\n${rank}`
+}
+
+/** Renders nothing. A later extension fills it with `wrapSection(key, ...)`, so the order holds. */
+const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
+
+/**
+ * The base sections in `SECTION_ORDER`. `skills` (P5, section 15) and `profile` (memory, section
+ * 13.2) are empty slots. The extension that owns one fills it with `wrapSection("skills", ...)` or
+ * `wrapSection("profile", ...)` and is selected after `Base` in `factory.ts`.
+ */
+export function baseSections(input: RoleInput): PromptSection[] {
+  return [section("kiko", () => KIKO_RULES), section("reactions", () => REACTION_LINE), section("role", () => roleText(input)), slot("skills"), slot("profile")]
+}
