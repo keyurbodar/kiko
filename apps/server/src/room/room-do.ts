@@ -100,9 +100,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		let agents: NewMember[] = []
 		if (chat.agents?.length) {
 			const mine = await userStub(this.env.USER, home.userId).listAgents()
-			agents = chat.agents.flatMap((id) => {
+			agents = chat.agents.flatMap((id): NewMember[] => {
 				// The built-in agent is not a stored record: the new-chat picker sends its slug as its id.
-				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
+				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: "kiko" }]
 				const a = mine.find((x) => x.id === id)
 				return a ? [{ slug: a.slug, name: a.name, role: a.prompt, model: a.model }] : []
 			})
