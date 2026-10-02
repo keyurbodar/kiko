@@ -60,10 +60,29 @@ export function createAuth(env: AuthEnv, request: Request) {
   })
 }
 
-/** The signed-in user of a request, or null. The only source of a user id in the Worker. */
+/** True when the account with this id was deleted. */
+export async function isDeletedUser(db: D1Database, userId: string): Promise<boolean> {
+  return (await db.prepare(`SELECT 1 AS hit FROM "deleted_user" WHERE "id" = ?`).bind(userId).first("hit")) !== null
+}
+
+/**
+ * Ends an account's access before any of its data is touched: writes the tombstone and
+ * revokes every session in one batch. Safe to run twice.
+ */
+export async function revokeUser(db: D1Database, userId: string): Promise<void> {
+  await db.batch([
+    db.prepare(`INSERT OR IGNORE INTO "deleted_user" ("id", "deletedAt") VALUES (?, ?)`).bind(userId, Date.now()),
+    db.prepare(`DELETE FROM "session" WHERE "userId" = ?`).bind(userId),
+  ])
+}
+
+/**
+ * The signed-in user of a request, or null. The only source of a user id in the Worker.
+ * The cookie cache can still vouch for a deleted user's session, so the tombstone wins.
+ */
 export async function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
   const session = await createAuth(env, request).api.getSession({ headers: request.headers })
-  if (!session) return null
+  if (!session || (await isDeletedUser(env.AUTH_DB, session.user.id))) return null
   const { id, name, email, image } = session.user
   return { id, name, email, image: image ?? null }
 }

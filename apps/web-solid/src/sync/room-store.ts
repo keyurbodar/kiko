@@ -233,6 +233,8 @@ export type RoomStoreOptions = {
 export type CatalogPage = { items: readonly CatalogItem[]; next: number | null }
 
 const CATALOG_TIMEOUT_MS = 8000
+/** The composer's `typing` frames are spaced at least this far apart. */
+export const TYPING_EVERY_MS = 2000
 
 export type SendOptions = { replyTo?: MessageId; files?: readonly FileRef[] }
 
@@ -310,6 +312,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	const asked = new Map<string, ((page: CatalogPage | null) => void)[]>()
 	const askKey = (kind: string, before: number | undefined) => `${kind}:${before ?? ""}`
 	let closed = false
+	let lastTypingAt: number | undefined
 	let suspended = false
 	let queue: RoomEvent[] = []
 	let draining = false
@@ -448,7 +451,18 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		reset: (f) => reset(f.snapshot),
 		typing: (f) => setState("typing", [...f.who]),
-		status: (f) => setState("status", f.slug, f.state),
+		status: (f) =>
+			batch(() => {
+				setState("status", f.slug, f.state)
+				// A run that ended, or was restarted, leaves no draft behind.
+				if (f.state === "idle")
+					setState(
+						"drafts",
+						produce((d) => {
+							for (const [key, x] of Object.entries(d)) if (x.slug === f.slug) delete d[key]
+						}),
+					)
+			}),
 		// The search UI (P3-13) reads these answers. Nothing stores them.
 		search: () => {},
 		catalog: (f) => {
@@ -554,7 +568,12 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			if (seq <= overlayReadSeq(state.readSeq, state.patches)) return
 			act({ t: "read", seq })
 		},
-		typing: () => void socket?.send({ t: "typing" }),
+		typing() {
+			// At most one frame every TYPING_EVERY_MS. The room only needs to know the human is still typing.
+			const t = now()
+			if (lastTypingAt !== undefined && t - lastTypingAt < TYPING_EVERY_MS) return
+			if (socket?.send({ t: "typing" })) lastTypingAt = t
+		},
 		stop: () => void socket?.send({ t: "stop" }),
 		suspend() {
 			suspended = true

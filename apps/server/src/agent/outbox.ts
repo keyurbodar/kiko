@@ -2,7 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState } from "@kiko/protocol"
 import type { RunState } from "./mid-run"
-import { createSplitter, type Splitter } from "./split-bubbles"
+import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 // Architecture section 6.3. The outbox watches the root conversation and turns the assistant's
 // text into bubbles. A block is posted to the room as soon as the splitter closes it, a long open
@@ -14,6 +14,11 @@ import { createSplitter, type Splitter } from "./split-bubbles"
 // posted, the model may write different text, so the attempt number goes up and every stored
 // block is posted again under the new attempt. The room then deletes the earlier attempt's
 // bubbles. A block is idempotent on `(runId, attempt, index)`, so a repeated post stores nothing.
+//
+// Reactions (section 6.5). A `[react:<emoji>]` tag in a finished generation becomes one `react`
+// call, after that generation's bubbles. A reply of only a tag posts no bubble. A repeated
+// reaction stores nothing in the room, so a resent one is harmless. ASSUMPTION: reactions wait in
+// memory until posted, so a crash between the entry and the call drops them.
 
 const context = BACKGROUND_CONTEXT
 export const DRAFT_INTERVAL_MS = 300
@@ -24,6 +29,8 @@ export interface RoomPort {
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
   endRun(runId: string): Promise<void>
+  /** Section 6.5. With no `messageId`, the room picks the last human message it handed over. */
+  react(emoji: string, messageId?: string): Promise<unknown>
 }
 
 type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
@@ -35,11 +42,16 @@ function textOf(message: AssistantLike | undefined): string {
   return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n")
 }
 
-/** Every block the splitter closes for a whole text. Pure, so a partial's blocks are a prefix of the final's. */
-export function blocksOf(text: string): string[] {
+/** Every block and reaction the splitter finds in a whole text. Pure, so a partial's blocks are a prefix of the final's. */
+export function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
   const splitter = createSplitter()
-  return [...splitter.push(text).blocks, ...splitter.end().blocks]
+  const head = splitter.push(text)
+  const tail = splitter.end()
+  return { blocks: [...head.blocks, ...tail.blocks], reactions: [...head.reactions, ...tail.reactions] }
 }
+
+/** Every block the splitter closes for a whole text. */
+export const blocksOf = (text: string): string[] => partsOf(text).blocks
 
 const assistant = (entry: EntryRecord): AssistantLike | undefined => {
   const message = entry.model?.[0] as AssistantLike | undefined
@@ -61,6 +73,8 @@ type Run = {
   cursor: number
   blocks: string[]
   posted: number
+  /** Reactions of finished generations not yet sent to the room. */
+  reactions: Reaction[]
   generation: Generation | null
   bubbled: boolean
   toolStarted: boolean
@@ -250,7 +264,7 @@ export class Outbox {
     const out = generation.splitter.push(text.slice(generation.fed.length))
     generation.fed = text
     generation.blocks.push(...out.blocks)
-    // ASSUMPTION: reaction tags are dropped until reactions land (P6-08).
+    // The generation's reactions are sent from its finished entry, so a lost partial reacts with nothing.
     await this.flush()
     if (out.draft !== null && this.now() - this.lastDraft >= DRAFT_INTERVAL_MS) {
       this.lastDraft = this.now()
@@ -282,8 +296,9 @@ export class Outbox {
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
-    const final = blocksOf(textOf(message))
+    const { blocks: final, reactions } = partsOf(textOf(message))
     run.blocks.push(...final)
+    run.reactions.push(...reactions)
     return streamed.some((block, i) => block !== final[i])
   }
 
@@ -304,6 +319,11 @@ export class Outbox {
       await room.post(run.id, run.attempt, run.posted, all[run.posted]!)
       run.posted++
       this.sql.exec("UPDATE outbox SET posted = ?, attempt = ? WHERE run_id = ?", run.posted, run.attempt, run.id)
+    }
+    while (run.reactions.length) {
+      const { emoji, messageId } = run.reactions[0]!
+      await room.react(emoji, messageId)
+      run.reactions.shift()
     }
   }
 
@@ -338,6 +358,7 @@ export class Outbox {
       cursor: row.cursor,
       blocks: JSON.parse(row.blocks) as string[],
       posted: row.posted,
+      reactions: [],
       generation: null,
       bubbled: false,
       toolStarted: false,

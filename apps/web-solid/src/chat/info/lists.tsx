@@ -70,18 +70,6 @@ function Empty(props: { loaded: boolean; text: string }) {
   )
 }
 
-export function LinksCard(props: { catalog: Catalog }) {
-  const links = () => props.catalog.items().filter((i): i is Link => i.kind === "link")
-  return (
-    <Card id="links" title="links" hint={links().length ? String(links().length) : undefined} onOpen={() => pushInfo({ kind: "links" })}>
-      <For each={links().slice(0, 3)}>{(l) => <LinkRow link={l} />}</For>
-      <Show when={!links().length}>
-        <Empty loaded={props.catalog.loaded()} text="no links yet" />
-      </Show>
-    </Card>
-  )
-}
-
 export function LinksList(props: { catalog: Catalog }) {
   const links = () => props.catalog.items().filter((i): i is Link => i.kind === "link")
   return (
@@ -129,7 +117,16 @@ function Grid(props: { catalog: Catalog; max?: number }) {
               aria-label={`open ${m.file.name}`}
               onClick={() => viewer.open(media().map((x) => mediaItem(roomId(), x)), index())}
             >
-              <img class="size-full object-cover" src={urls.file(roomId(), m.file.id)} alt="" loading="lazy" />
+              <svg class="absolute inset-0 m-auto text-faint" width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 3.5h12v9H2zM2 10.5l3.5-3 3 2.5 2-1.5 3.5 3" />
+              </svg>
+              <img
+                class="relative size-full object-cover"
+                src={urls.file(roomId(), m.file.id)}
+                alt=""
+                loading="lazy"
+                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+              />
               <Show when={m.file.type.startsWith("video/")}>
                 <span class="absolute right-1 bottom-1 rounded bg-black/60 px-1 text-[10px] text-white">video</span>
               </Show>
@@ -176,18 +173,6 @@ function FileRow(props: { file: FileRef }) {
       <span class="min-w-0 flex-1 truncate">{props.file.name}</span>
       <span class="shrink-0 text-xs text-weak">{formatBytes(props.file.size)}</span>
     </button>
-  )
-}
-
-export function FilesCard() {
-  const files = () => useApp.activeFiles()
-  return (
-    <Card id="files" title="files" hint={files().length ? String(files().length) : undefined} onOpen={() => pushInfo({ kind: "files" })}>
-      <For each={files().slice(0, 3)}>{(f) => <FileRow file={f} />}</For>
-      <Show when={!files().length}>
-        <p class="px-2 py-2 text-sm text-weak">no files yet</p>
-      </Show>
-    </Card>
   )
 }
 

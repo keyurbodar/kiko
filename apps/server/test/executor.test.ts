@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // P7-03. The real `UserDO` runs in workerd. Executor Cloud is faked here, through
 // Miniflare's outbound service, with the endpoints experiment 8 saw: protected resource
@@ -122,16 +123,9 @@ let output = ""
 let origin = ""
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./executor-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers", "node:*"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
   mf = new Miniflare({
     modules: true,
-    script: await built.outputs[0]!.text(),
+    script: await bundleWorker(new URL("./executor-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     bindings: { CREDENTIALS_KEK: `kek-${crypto.randomUUID()}` },

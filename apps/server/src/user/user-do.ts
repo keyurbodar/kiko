@@ -5,7 +5,8 @@ import { Schema } from "effect"
 import type { Env } from "../index"
 import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
-import { createAlarms } from "../lib/alarm"
+import { type Alarms, createAlarms } from "../lib/alarm"
+import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
@@ -15,7 +16,7 @@ import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
 import { getTheme, setTheme } from "./theme"
-import { storedRows, wipeStorage } from "../lib/wipe"
+import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }
@@ -30,7 +31,7 @@ declare const process: { env: { NODE_ENV?: string } }
 const REPLAY_LIMIT = 500
 
 /** `origin` is the Worker origin the socket came through. The Executor callback URL is built from it. */
-type Attachment = { ready: boolean; origin?: string }
+type Attachment = { ready: boolean; helloBy?: number; origin?: string }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
@@ -40,21 +41,25 @@ const DELETING = "deleting"
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
   // Reminders and the memory tidy register wakeups here in their own tasks.
-  private readonly alarms
-  private readonly memory: MemoryStore
+  // Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
+  private alarms!: Alarms
+  private memory!: MemoryStore
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     this.sql = ctx.storage.sql
-    migrate(this.sql)
-    this.alarms = createAlarms(ctx)
-    this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
-    this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
+    // Architecture section 23: the schema migration runs before any other work on every start.
+    void ctx.blockConcurrencyWhile(async () => {
+      migrate(this.sql)
+      this.alarms = createAlarms(ctx)
+      this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
+      this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
+    })
   }
 
   // Reminders, architecture section 14. The logic is in reminders.ts. `owner` is the
   // session's user id from the Worker, the one place this object learns it.
-  private readonly reminders: Reminders
+  private reminders!: Reminders
   async createReminder(owner: string, input: NewReminder) { return asResult(() => this.reminders.create(owner, input)) }
   async listReminders() { return this.reminders.list() }
   async cancelReminder(id: string) { return asResult(() => this.reminders.cancel(id)) }
@@ -232,10 +237,11 @@ export class UserDO extends DurableObject<Env> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
     }
-    if (this.#wiped) return new Response("account deleted", { status: 410 })
+    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
-    server.serializeAttachment({ ready: false, origin: new URL(request.url).origin } satisfies Attachment)
+    server.serializeAttachment({ ready: false, helloBy: helloBy(), origin: new URL(request.url).origin } satisfies Attachment)
+    await enforceHello(this.ctx, this.alarms)
     return new Response(null, { status: 101, webSocket: client })
   }
 
@@ -295,8 +301,19 @@ export class UserDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     if (this.#wiped || (await this.ctx.storage.get(DELETING))) return
     const due = await this.alarms.dueWakeups(Date.now())
+    if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
     if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
     this.#loginState?.expire(due)
+  }
+
+  /**
+   * The Worker calls this before it addresses one of the user's rooms, so deletion can
+   * find a room that never became a chat. False once deletion has begun.
+   */
+  async recordRoom(roomId: RoomId): Promise<boolean> {
+    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return false
+    this.sql.exec("INSERT OR IGNORE INTO rooms (room_id) VALUES (?)", roomId)
+    return true
   }
 
   // Account deletion (P9-02). The account route starts it and the jobs in
@@ -312,8 +329,10 @@ export class UserDO extends DurableObject<Env> {
     if (this.#wiped) return []
     await this.ctx.storage.put(DELETING, Date.now())
     await this.ctx.storage.deleteAlarm()
+    closeSockets(this.ctx)
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
-    for (const chat of listChats(this.sql)) this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) VALUES (?)", chat.roomId)
+    // Chats and every room ever addressed. A deleted chat's room is still in `rooms`.
+    this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
     return this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
   }
 

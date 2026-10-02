@@ -14,6 +14,8 @@ import type { SearchPage } from "./search"
 export type Attachment = {
 	/** True after `hello` is answered. Only ready sockets get broadcasts. */
 	ready: boolean
+	/** The time by which the socket must say hello (`lib/hello-deadline.ts`). */
+	helloBy?: number
 }
 
 /** What the socket needs from the room. */

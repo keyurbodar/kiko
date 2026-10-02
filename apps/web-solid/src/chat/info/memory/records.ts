@@ -82,7 +82,7 @@ export function parseBody(body: string): Block[] {
 export function snippet(record: MemoryRecord): string {
 	const first = parseBody(record.body)[0]
 	if (!first) return ""
-	return first.text.replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").slice(0, 90)
+	return first.text.replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/\s*\((human|agent|[a-z0-9-]+ agent)\)\s*$/i, "").slice(0, 90)
 }
 
 /**
@@ -101,4 +101,14 @@ export function forChat(records: readonly MemoryRecord[], chatName: string, max 
 		.sort((a, b) => b.score - a.score || b.r.updatedAt - a.r.updatedAt || a.r.id.localeCompare(b.r.id))
 		.slice(0, max)
 		.map((x) => x.r)
+}
+
+export type Fact = { text: string; date: string | null; author: string | null }
+
+/** A body line as a fact: `2026-09-03: likes tea (human)` becomes the text, the date, and who wrote it. */
+export function fact(line: string): Fact {
+	const dated = /^(\d{4}-\d{2}-\d{2}):\s*(.*)$/.exec(line)
+	const rest = dated ? dated[2] : line
+	const by = /^(.*?)\s*\(([a-z0-9 -]{1,32})\)\s*$/i.exec(rest)
+	return { text: by ? by[1] : rest, date: dated ? dated[1] : null, author: by ? by[2] : null }
 }

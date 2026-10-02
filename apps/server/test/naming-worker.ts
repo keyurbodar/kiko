@@ -23,6 +23,11 @@ export class UserDO extends DurableObject {
   async fetch(request: Request) {
     return echo(this.ctx, request)
   }
+
+  // The router records a room here before it opens the room's socket.
+  async recordRoom() {
+    return true
+  }
 }
 
 export class RoomDO extends DurableObject {

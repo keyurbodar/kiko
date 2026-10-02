@@ -5,9 +5,11 @@ import { useApp } from "../../lib/store"
 import { chatModel, setChatModel } from "../../settings/chat-model"
 import { ModelList } from "../../settings/model-picker"
 import { createCatalog } from "./catalog"
-import { FilesCard, FilesList, LinksCard, LinksList, MediaCard, MediaList } from "./lists"
-import { ChatMemory, MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
-import { Card, chatOf, Danger, Header, Members, ModelCard, roomMembers, Toggles } from "./sections"
+import { FilesList, LinksList, MediaCard, MediaList } from "./lists"
+import { MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
+import { Card, DeleteChat, flat, Header, ICON, ListRow, Members, QuickActions, roomMembers } from "./sections"
+
+const count = (n: number) => (n ? String(n) : "")
 import {
   closeInfo,
   type InfoView,
@@ -89,24 +91,23 @@ function AgentCard(props: { slug: string; chatId: string }) {
 function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; media: ReturnType<typeof createCatalog> }) {
   const members = roomMembers
   const memory = useMemoryStore()
-  const name = () => chatOf(props.chatId)?.title ?? useApp.chatById(props.chatId)?.name ?? ""
+  const memoryCount = () => count(memory()?.state.records.filter((r) => !r.archived).length ?? 0)
   const extras = createMemo(() => infoSections().filter((s) => !s.when || s.when(props.chatId)))
   return (
     <div class="flex flex-col gap-3" data-component="info-home">
       <Header chatId={props.chatId} members={members()} />
+      <QuickActions chatId={props.chatId} />
       <Members members={members()} />
-      <ModelCard chatId={props.chatId} />
-      <Toggles chatId={props.chatId} />
-      <Card id="memory" title="memory" hint="all memory" onOpen={() => pushInfo({ kind: "memory" })}>
-        <Show when={memory()} fallback={<p class="px-2 py-1 text-sm text-weak">loading</p>}>
-          {(store) => (
-            <ChatMemory store={store()} chatName={name()} onOpen={(id) => pushInfo({ kind: "record", id })} />
-          )}
-        </Show>
-      </Card>
-      <LinksCard catalog={props.links} />
-      <MediaCard catalog={props.media} />
-      <FilesCard />
+      <Show when={props.media.items().length}>
+        <MediaCard catalog={props.media} />
+      </Show>
+      <div class={`${flat} flex flex-col p-1`} data-component="info-shared">
+        <ListRow id="model" label="model" hue={265} path={ICON.model} value={chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "choose"} onClick={() => pushInfo({ kind: "model" })} />
+        <ListRow id="memory" label="memory" hue={330} path={ICON.memory} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
+        <ListRow id="media" label="photos and videos" hue={150} path={ICON.media} value={count(props.media.items().length)} onClick={() => pushInfo({ kind: "media" })} />
+        <ListRow id="files" label="files" hue={210} path={ICON.files} value={count(useApp.activeFiles().length)} onClick={() => pushInfo({ kind: "files" })} />
+        <ListRow id="links" label="links" hue={45} path={ICON.links} value={count(props.links.items().filter((i) => i.kind === "link").length)} onClick={() => pushInfo({ kind: "links" })} />
+      </div>
       <For each={extras()}>
         {(section) => (
           <Card id={section.id} title={section.title}>
@@ -114,7 +115,7 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
           </Card>
         )}
       </For>
-      <Danger chatId={props.chatId} />
+      <DeleteChat chatId={props.chatId} />
     </div>
   )
 }

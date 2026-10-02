@@ -1,4 +1,4 @@
-import type { Actor, MessageId, Sender, Task } from "@kiko/protocol"
+import type { MessageId, Sender, Task } from "@kiko/protocol"
 import type { MemberRow } from "./members"
 
 // Architecture section 7.4. The workspace brief the room attaches to every delivery. The agent
@@ -12,7 +12,6 @@ export const BRIEF_MESSAGES = 30
 const MAX_LINE = 400
 
 export type BriefMessage = { id: MessageId; seq: number; from: Sender; text: string }
-export type BriefReaction = { seq: number; messageId: MessageId; by: Actor; emoji: string | null }
 
 export type BriefView = {
 	/** ASSUMPTION: the chat title until the workspace stores a goal of its own. */
@@ -22,7 +21,8 @@ export type BriefView = {
 	tasks: readonly Task[]
 	/** Messages since the member's last delivery, oldest first. `buildBrief` keeps the newest 30. */
 	messages: readonly BriefMessage[]
-	reactions: readonly BriefReaction[]
+	/** Reactions on the member's own messages since its last brief, as `reactionBrief` in reactions.ts writes them. */
+	reactions: string | null
 }
 
 /** The header of the missed-message section. The fake agent of the `team-routing` suite looks for it. */
@@ -47,22 +47,27 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 	if (view.tasks.length) for (const t of view.tasks) lines.push(`- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`)
 	else lines.push("- none")
 	const missed = view.messages.slice(-BRIEF_MESSAGES)
-	if (missed.length || view.reactions.length) {
+	if (missed.length) {
 		lines.push(MISSED_HEADER)
 		if (view.messages.length > missed.length) lines.push("- (older messages not shown)")
 		for (const m of missed) lines.push(`- [${m.id}] ${who(m.from)}: ${escape(oneLine(m.text))}`)
-		for (const r of view.reactions) {
-			lines.push(r.emoji === null ? `- ${who(r.by)} removed a reaction from [${r.messageId}]` : `- ${who(r.by)} reacted ${r.emoji} to [${r.messageId}]`)
-		}
 	}
+	if (view.reactions) lines.push(escape(view.reactions))
 	return lines.join("\n")
 }
 
 /**
  * Reads the view for `member` from the room's tables. Leaves out the member's own messages and
- * reactions, which it already knows, and the messages in `delivering`, which arrive as envelopes.
+ * messages, which it already knows, and the messages in `delivering`, which arrive as envelopes.
  */
-export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, delivering: ReadonlySet<number>): BriefView {
+export function readBriefView(
+	sql: SqlStorage,
+	member: MemberRow,
+	members: readonly MemberRow[],
+	goal: string,
+	delivering: ReadonlySet<number>,
+	reactions: string | null,
+): BriefView {
 	const rows = sql
 		.exec<{ id: string; seq: number; sender: string; text: string }>(
 			// One more than the brief shows, so it can say that older messages were left out.
@@ -76,17 +81,5 @@ export function readBriefView(sql: SqlStorage, member: MemberRow, members: reado
 		.filter((r) => !delivering.has(r.seq))
 		.reverse()
 	const messages = rows.map((r) => ({ id: r.id as MessageId, seq: r.seq, from: JSON.parse(r.sender) as Sender, text: r.text }))
-	const reactions = sql
-		.exec<{ seq: number; actor: string; payload: string }>(
-			"SELECT seq, actor, payload FROM events WHERE kind = 'react' AND seq > ? AND actor != ? ORDER BY seq",
-			member.lastDeliveredSeq,
-			`agent:${member.slug}`,
-		)
-		.toArray()
-		.map((r) => {
-			const e = JSON.parse(r.payload) as { messageId: MessageId; by: Actor; emoji: string | null }
-			return { seq: r.seq, messageId: e.messageId, by: e.by, emoji: e.emoji }
-		})
-		.slice(-BRIEF_MESSAGES)
 	return { goal, members, tasks: [], messages, reactions }
 }

@@ -24,12 +24,8 @@ export async function storedRows(storage: DurableObjectStorage): Promise<number>
 	return rows
 }
 
-/**
- * Closes every socket, clears the alarm, and deletes all storage. Returns the rows that
- * held data, so a second wipe of the same object reports 0. Safe to call twice.
- */
-export async function wipeStorage(ctx: DurableObjectState): Promise<number> {
-	const rows = await storedRows(ctx.storage)
+/** Closes every socket the object holds. A socket that sent nothing more never wakes it again. */
+export function closeSockets(ctx: DurableObjectState): void {
 	for (const ws of ctx.getWebSockets()) {
 		try {
 			ws.close(1000, "account deleted")
@@ -37,6 +33,15 @@ export async function wipeStorage(ctx: DurableObjectState): Promise<number> {
 			// already closed
 		}
 	}
+}
+
+/**
+ * Closes every socket, clears the alarm, and deletes all storage. Returns the rows that
+ * held data, so a second wipe of the same object reports 0. Safe to call twice.
+ */
+export async function wipeStorage(ctx: DurableObjectState): Promise<number> {
+	const rows = await storedRows(ctx.storage)
+	closeSockets(ctx)
 	await ctx.storage.deleteAlarm()
 	await ctx.storage.deleteAll()
 	return rows

@@ -7,7 +7,7 @@ import { send, ulid, until } from "./mid-run"
 // P6-01, architecture sections 7.2 and 7.4. A chat made from the new-chat screen with three of
 // the user's agents: bob (the lead, first in the list), ada, and cy. Each is the scripted fake
 // agent of `apps/server/src/agent/dev-fake.ts`, so the suite is deterministic and spends no
-// tokens. The fake answers `heard: <the turns it got>`, and with `[brief]` in the text it adds
+// tokens. The fake answers `heard: <the turns it got>`, and with `[missed]` in the text it adds
 // `; missed: <the missed messages of the room's brief>`. Needs a development server.
 //
 //   an untagged message reaches only the lead
@@ -99,11 +99,11 @@ const suite: Suite = {
     console.log(`  ok untagged: only bob answered; ada and cy received 0 envelopes and ran ${adaStatus.submissions} model calls`)
 
     // 2. @ada: only ada, and her brief carries what she missed.
-    await send(room, "@ada [brief] your turn")
+    await send(room, "@ada [missed] your turn")
     await until("ada's answer", () => bubbles(room).ada!.length === 1, 15_000)
     await Bun.sleep(2_500)
     const b = bubbles(room)
-    expectEqual(b.ada, ["heard: @ada [brief] your turn; missed: human: hello team | @bob: heard: hello team"], "ada's answer")
+    expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: hello team | @bob: heard: hello team"], "ada's answer")
     expectEqual([b.bob!.length, b.cy!.length], [1, 0], "bob's and cy's bubbles after @ada")
     expectEqual(await received("cy"), 0, "envelopes cy received")
     console.log(`  ok @ada: ${JSON.stringify(b.ada![0])}`)
@@ -116,14 +116,46 @@ const suite: Suite = {
       bubbles(room),
       {
         bob: ["heard: hello team", "heard: @all ping"],
-        ada: ["heard: @ada [brief] your turn; missed: human: hello team | @bob: heard: hello team", "heard: @all ping"],
+        ada: ["heard: @ada [missed] your turn; missed: human: hello team | @bob: heard: hello team", "heard: @all ping"],
         cy: ["heard: @all ping"],
       },
       "bubbles after @all",
     )
     console.log(`  ok @all: bob, ada, and cy each answered once`)
 
-    // 4. The room stores each member's latest status, and a reset snapshot carries the members.
+    // 4. P6-07: agents that react to every message start no runs. All three answer one human
+    // message with only a reaction tag. The human message starts one run each; the three stored
+    // reactions start none, for longer than a burst.
+    const from = room.raw.log.length
+    const runsSince = () => {
+      const runs: Record<string, number> = Object.fromEntries(TEAM.map((n) => [n, 0]))
+      const busy = new Set<string>()
+      for (const e of room.raw.log.slice(from)) {
+        const f = e.frame as RoomToClient
+        if (e.dir !== "in" || f.t !== "status") continue
+        if (f.state === "idle") busy.delete(f.slug)
+        else if (!busy.has(f.slug)) {
+          busy.add(f.slug)
+          runs[f.slug] = (runs[f.slug] ?? 0) + 1
+        }
+      }
+      return runs
+    }
+    const reactsSince = () =>
+      room.raw.log.slice(from).flatMap((e) => {
+        const f = e.frame as RoomToClient
+        return e.dir === "in" && f.t === "events" ? f.events.filter((x) => x.t === "react" && x.by.kind === "agent") : []
+      })
+    const before = bubbles(room)
+    await send(room, "@all [reply] [react:👍]")
+    await until("three reactions", () => reactsSince().length === 3, 20_000)
+    await Bun.sleep(5_000)
+    expectEqual(runsSince(), { bob: 1, ada: 1, cy: 1 }, "runs after three agents reacted")
+    expectEqual(bubbles(room), before, "bubbles after the reactions")
+    expectEqual(reactsSince().length, 3, "agent reactions")
+    console.log(`  ok reactions: three agents reacted, one run each, and no reaction started a run`)
+
+    // 5. The room stores each member's latest status, and a reset snapshot carries the members.
     room.raw.send({ t: "hello", lastSeq: 1_000_000 })
     const reset = await room.expect((f) => f.t === "reset", 5_000)
     if (reset.t !== "reset") throw new VerifyError("no reset")

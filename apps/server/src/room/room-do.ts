@@ -2,14 +2,16 @@ import type { AgentSlug, AgentState, Chat, MemberOp, MemberRefusal, RoomEvent, R
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
+import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
-import { storedRows, wipeStorage } from "../lib/wipe"
+import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { Bubbles, Deliveries, type ReminderDelivery, route } from "./deliver"
 import { type FileMeta, type FileMetaPatch, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { Members, type NewMember } from "./members"
+import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
 import { migrate } from "./schema"
 import { listCatalog } from "./catalog"
 import { searchMessages } from "./search"
@@ -35,13 +37,14 @@ const DELIVERY_RETRY_MS = 2_000
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean }
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
-	readonly log: RoomLog
-	private readonly deliveries: Deliveries
-	private readonly alarms: Alarms
-	private readonly burst: Burst
-	private readonly bubbles: Bubbles
-	readonly members: Members
-	readonly files: RoomFiles
+	// Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
+	log!: RoomLog
+	private deliveries!: Deliveries
+	private alarms!: Alarms
+	private burst!: Burst
+	private bubbles!: Bubbles
+	members!: Members
+	files!: RoomFiles
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -49,14 +52,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env)
-		migrate(ctx.storage)
-		this.log = new RoomLog(ctx.storage)
-		this.deliveries = new Deliveries(ctx.storage, this.log)
-		this.files = new RoomFiles(ctx.storage, this.log)
-		this.alarms = createAlarms(ctx)
-		this.burst = new Burst(ctx.storage, this.alarms)
-		this.bubbles = new Bubbles(ctx.storage, this.log)
-		this.members = new Members(ctx.storage, this.log)
+		// Architecture section 23: the schema migration runs before any other work on every start.
+		void ctx.blockConcurrencyWhile(async () => {
+			migrate(ctx.storage)
+			this.log = new RoomLog(ctx.storage)
+			this.deliveries = new Deliveries(ctx.storage, this.log)
+			this.files = new RoomFiles(ctx.storage, this.log)
+			this.alarms = createAlarms(ctx)
+			this.burst = new Burst(ctx.storage, this.alarms)
+			this.bubbles = new Bubbles(ctx.storage, this.log)
+			this.members = new Members(ctx.storage, this.log)
+		})
 	}
 
 	/** The user and room the Worker named this object for. Set by the first socket. */
@@ -94,6 +100,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** Architecture sections 6.1 and 7.2. The burst wakeup fired: deliver the pending human messages to their recipients. */
 	async alarm(): Promise<void> {
 		const due = await this.alarms.dueWakeups(Date.now())
+		if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
 		if (due.includes(BURST_WAKEUP)) await this.flush()
 	}
 
@@ -115,24 +122,32 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			})
 			// Every brief is read in this one synchronous stretch, so `seq` is what they all cover. A
 			// member's brief leaves out only its own envelopes, so a burst message addressed to someone
-			// else shows up in it.
+			// else shows up in it. Reactions on the member's own messages come from reactions.ts (section 6.5).
 			const seq = this.log.lastSeq()
 			const deliveries = [...routes].map(([slug, mine]) => {
 				const member = members.find((m) => m.slug === slug)!
-				const view = readBriefView(this.ctx.storage.sql, member, members, chat.title, new Set(mine.map((e) => e.seq)))
-				return { member, envelopes: mine, brief: buildBrief(member, view) }
+				const reactions = reactionBrief(this.log, this.ctx.storage.sql, slug)
+				const view = readBriefView(this.ctx.storage.sql, member, members, chat.title, new Set(mine.map((e) => e.seq)), reactions.text)
+				return { member, envelopes: mine, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 			})
 			// receive() only stores and returns, so these waits are short and cannot deadlock. A repeat
-			// after a partial failure is harmless: the agent's inbox ignores envelope ids it has.
+			// after a partial failure or a full inbox is harmless: the agent's inbox ignores envelope ids it has.
 			const results = await Promise.allSettled(
-				deliveries.map(async ({ member, envelopes: mine, brief }) => {
+				deliveries.map(async ({ member, envelopes: mine, brief, reactionsUpTo }) => {
 					const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
-					await agent.receive(mine, brief, { ...home, slug: member.slug, role: member.role, lead: member.lead })
+					const { refused } = await agent.receive(mine, brief, { ...home, slug: member.slug, role: member.role, lead: member.lead })
+					// ASSUMPTION (P1-13): a full inbox is backpressure, so the burst waits and tries again. An entry past
+					// the size cap can never fit, so it is dropped. The messages stay in the log either way.
+					if (refused === "full") return "full"
+					if (refused) console.error(`burst delivery to ${member.slug} refused: ${refused}`)
 					this.members.markDelivered(member.slug, seq)
+					markReactionsBriefed(this.log, member.slug, reactionsUpTo)
+					return "admitted"
 				}),
 			)
 			const failed = results.find((r) => r.status === "rejected")
 			if (failed) throw failed.reason
+			if (results.some((r) => r.status === "fulfilled" && r.value === "full")) return await this.burst.retry(DELIVERY_RETRY_MS)
 			this.burst.delivered(envelopes)
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -148,6 +163,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const userId = request.headers.get(USER_ID_HEADER)
 		const roomId = request.headers.get(ROOM_ID_HEADER)
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
+		if (this.#closed || this.#wiped) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
@@ -160,7 +176,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 		const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
 		this.ctx.acceptWebSocket(server)
-		server.serializeAttachment({ ready: false } satisfies Attachment)
+		server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
+		await enforceHello(this.ctx, this.alarms)
 		return new Response(null, { status: 101, webSocket: client })
 	}
 
@@ -275,6 +292,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return events.some((e) => e.t === "message")
 	}
 
+	/**
+	 * RPC for an agent (section 6.5). Stores the agent's reaction on `messageId`, or on the last human
+	 * message handed to the agents. An emoji off the allowlist is dropped. Starts no run. Returns
+	 * true when this call changed the reaction.
+	 */
+	async react(slug: AgentSlug, emoji: string, messageId?: string): Promise<boolean> {
+		const event = agentReact(this.log, this.ctx.storage.sql, slug, emoji, messageId)
+		if (event) this.publish([event])
+		return event !== null
+	}
+
 	/** RPC for an agent. A growing block past the draft threshold. Sent, never stored. */
 	async draft(slug: AgentSlug, runId: string, index: number, text: string): Promise<void> {
 		this.broadcast({ t: "draft", slug, runId, index, text })
@@ -313,6 +341,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	// Account deletion (P9-02). The job in jobs/delete-account.ts calls these.
 	#wiped = false
+
+	/**
+	 * Closes every socket and refuses new ones until the object is evicted. After that the
+	 * Worker's tombstone check keeps the deleted user out.
+	 */
+	async close(): Promise<void> {
+		this.#closed = true
+		closeSockets(this.ctx)
+	}
+	#closed = false
 
 	/** Every agent that was ever a member of this room, removed ones included, and the R2 keys its file index holds. */
 	async inventory(): Promise<{ agents: AgentSlug[]; keys: string[] }> {

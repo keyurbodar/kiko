@@ -18,7 +18,7 @@ beforeAll(async () => {
 		script: await built.outputs[0]!.text(),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true } },
+		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true } },
 		r2Buckets: ["FILES"],
 	})
 	origin = (await mf.ready).origin

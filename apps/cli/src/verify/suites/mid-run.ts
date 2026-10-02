@@ -74,7 +74,7 @@ export async function send(room: RoomHandle, text: string): Promise<void> {
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 
 /** Asks the dev server for the fake agent in this room. It must happen before the first message. */
-async function fake(v: { url: string }, s: Session, roomId: string): Promise<void> {
+export async function fake(v: { url: string }, s: Session, roomId: string): Promise<void> {
   const res = await fetch(new URL("api/dev/agent/fake", v.url.endsWith("/") ? v.url : `${v.url}/`), {
     method: "POST",
     headers: { "content-type": "application/json", cookie: s.cookie },

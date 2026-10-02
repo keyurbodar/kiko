@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers"
 import { downloadRoute } from "../src/files/download"
 import { uploadRoute } from "../src/files/upload"
 import type { Env } from "../src/index"
@@ -6,6 +7,13 @@ import type { Env } from "../src/index"
 // from an `x-test-user` header. `/keys` lists every R2 key.
 
 export { RoomDO } from "../src/room/room-do"
+
+/** The upload route records each room in `UserDO` first. This one accepts every room. */
+export class UserDO extends DurableObject {
+	async recordRoom() {
+		return true
+	}
+}
 
 const lookup = async (request: Request) => {
 	const id = request.headers.get("x-test-user")

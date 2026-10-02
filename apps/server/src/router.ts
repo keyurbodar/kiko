@@ -1,6 +1,6 @@
 import { type AuthEnv, getSessionUser } from "./auth/auth"
 import type { Env } from "./index"
-import { NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
+import { addressRoom, NameError, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "./lib/names"
 
 // Architecture sections 4.2 and 9.1. The Worker checks the session, builds the object
 // name from the session's user id, and forwards the socket upgrade. A client never names
@@ -60,13 +60,51 @@ export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean
  * Answers the socket routes and refuses any `/api/` request that carries a user id.
  * Returns null for every other path. `/api/auth/*` belongs to Better Auth and is skipped.
  */
-export async function route(request: Request, env: Env, lookup: SessionLookup = getSessionUser): Promise<Response | null> {
+export async function route(
+  request: Request,
+  env: Env,
+  lookup: SessionLookup = getSessionUser,
+  timeoutMs = UPGRADE_TIMEOUT_MS,
+): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/") || url.pathname.startsWith("/api/auth/")) return null
   if (await carriesUserId(request, url)) return error(400, "a user id comes from the session, not the request")
 
   const target = match(url.pathname)
   if (!target) return null
+  return within(timeoutMs, upgrade(request, env, url, target, lookup))
+}
+
+/** Architecture section 23. The session check and the object's upgrade together get this long. */
+export const UPGRADE_TIMEOUT_MS = 5_000
+
+/**
+ * Answers 504 when `work` takes longer than `ms`. A socket the object accepts after that is closed
+ * with a reason; if this Worker invocation ends first, the object's own hello deadline closes it.
+ */
+async function within(ms: number, work: Promise<Response>): Promise<Response> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms)
+  })
+  try {
+    const answer = await Promise.race([work, late])
+    if (answer) return answer
+    work.then(
+      (response) => {
+        if (!response.webSocket) return
+        response.webSocket.accept()
+        response.webSocket.close(1013, "socket setup timed out")
+      },
+      () => {},
+    )
+    return error(504, "socket setup timed out")
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function upgrade(request: Request, env: Env, url: URL, target: Target, lookup: SessionLookup): Promise<Response> {
   if (!originAllowed(request, url, env)) return error(403, "forbidden origin")
   const user = await lookup(request, env)
   if (!user) return error(401, "unauthorized")
@@ -80,7 +118,8 @@ export async function route(request: Request, env: Env, lookup: SessionLookup = 
       headers.delete(ROOM_ID_HEADER)
       return await userStub(env.USER, user.id).fetch(new Request(request, { headers }))
     }
-    const stub = roomStub(env.ROOM, user.id, target.roomId)
+    const stub = await addressRoom(env, user.id, target.roomId)
+    if (!stub) return error(410, "account deleted")
     headers.set(ROOM_ID_HEADER, target.roomId)
     return await stub.fetch(new Request(request, { headers }))
   } catch (e) {

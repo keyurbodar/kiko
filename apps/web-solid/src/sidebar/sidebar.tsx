@@ -1,14 +1,32 @@
 import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { useNavigate } from "@solidjs/router"
-import { createSignal, lazy, Match, Switch } from "solid-js"
-import type { SectionId } from "../app/sections"
+import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
+import { SECTIONS, type SectionId } from "../app/sections"
 import { cn } from "../lib/cn"
 import { ChatPanel } from "./chat-panel"
 import { PlusIcon } from "./icons"
+import { requestNewFile } from "./new-file"
 import "./sidebar.css"
 
-// The files tree and its chat picker load with the files route, not with the first paint.
-const FilesPanel = lazy(() => import("../files/panel"))
+/*
+ * One panel per section, chosen from this table. Chat paints with the first frame; the others
+ * load the first time their section opens, and then stay mounted so each keeps its scroll.
+ */
+const PANELS: Record<SectionId, Component> = {
+  chat: ChatPanel,
+  files: lazy(() => import("../files/panel")),
+  settings: lazy(() => import("./settings/sidebar")),
+}
+const SECTION_IDS = SECTIONS.map((section) => section.id)
+
+type PanelAction = { label: string; run: (navigate: (to: string) => void) => void }
+
+/** The header's one primary action. Settings has none. */
+const ACTIONS: Record<SectionId, PanelAction | null> = {
+  chat: { label: "new chat", run: (navigate) => navigate("/chat/new") },
+  files: { label: "new file", run: () => requestNewFile() },
+  settings: null,
+}
 
 /** Width is a user decision, so it is clamped rather than free. */
 const MIN_W = 200
@@ -42,6 +60,11 @@ export function Sidebar(props: SidebarProps) {
   const setCollapsed = props.onCollapsedChange
   const [width, setWidth] = createSignal<number | null>(null)
   const [resizing, setResizing] = createSignal(false)
+  const [visited, setVisited] = createSignal<ReadonlySet<SectionId>>(new Set())
+  createEffect(() => {
+    const id = props.section
+    if (id && !visited().has(id)) setVisited((seen) => new Set(seen).add(id))
+  })
 
   let panelEl: HTMLElement | undefined
   let handleEl: HTMLDivElement | undefined
@@ -120,24 +143,24 @@ export function Sidebar(props: SidebarProps) {
       >
         <header class="panel-header">
           <span class="panel-title">{props.section}</span>
-          <ChatPanelMenu />
+          <Show when={props.section && ACTIONS[props.section]}>{(action) => <HeaderAction action={action()} />}</Show>
         </header>
 
         <div class="panel-scroll">
-          <Switch
-            fallback={
-              <p class="px-3 py-2 text-xs text-weak" data-component="sidebar-panel-empty">
-                the {props.section} panel is not built
-              </p>
-            }
-          >
-            <Match when={props.section === "chat"}>
-              <ChatPanel />
-            </Match>
-            <Match when={props.section === "files"}>
-              <FilesPanel />
-            </Match>
-          </Switch>
+          <For each={SECTION_IDS}>
+            {(id) => {
+              const Panel = PANELS[id]
+              return (
+                <Show when={id === "chat" || visited().has(id)}>
+                  <div class="panel-slot" data-slot={id} data-hidden={props.section === id ? undefined : ""}>
+                    <Suspense>
+                      <Panel />
+                    </Suspense>
+                  </div>
+                </Show>
+              )
+            }}
+          </For>
         </div>
 
         {/* The handle lives INSIDE the panel, not beside it: the panel is the
@@ -170,11 +193,10 @@ export function Sidebar(props: SidebarProps) {
 }
 
 /**
- * The `+` in the panel header. It opens the "to:" bar in the main panel, the
- * same as `Mod+N`. It does not own the sidebar toggle; the rail icon and
- * `cmd+s` do.
+ * The `+` in the panel header: the section's one primary action. On chat it opens the "to:" bar,
+ * the same as `Mod+N`. It does not own the sidebar toggle; the rail icon and `cmd+s` do.
  */
-function ChatPanelMenu() {
+function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
   return (
     <button
@@ -185,8 +207,8 @@ function ChatPanelMenu() {
         "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] focus-visible:text-text",
       )}
       data-component="sidebar-add"
-      aria-label="new chat"
-      onClick={() => navigate("/chat/new")}
+      aria-label={props.action.label}
+      onClick={() => props.action.run(navigate)}
     >
       <PlusIcon />
     </button>
