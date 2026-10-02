@@ -107,7 +107,7 @@ const suite: Suite = {
     // agents the hop limit trips first. Each broadcast is 4 deliveries, and one root may cause at most 40.
     {
       const { room, received } = await team(v, s, ["cat", "dov", "eli", "fay", "gus"], "shout forever")
-      await send(room, "@ana [shout]")
+      await send(room, "@cat [shout]")
       await until("the loop notice", () => notices(room).length > 0, 90_000)
       await settle(() => messages(room).length, 5_000, 60_000)
       const deliveries = agentSends(room).length * 4
