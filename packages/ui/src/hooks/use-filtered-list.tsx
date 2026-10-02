@@ -1,4 +1,3 @@
-import fuzzysort from "fuzzysort"
 import { entries, flatMap, groupBy, map, pipe } from "remeda"
 import { createEffect, createMemo, createResource, on } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -32,6 +31,8 @@ export function useFilteredList<T>(props: FilteredListProps<T>) {
       const query = filter ?? ""
       const needle = query.toLowerCase()
       const all = (await Promise.resolve(items)) || []
+      // fuzzysort loads on the first typed filter, so it stays out of the first paint.
+      const fuzzysort = needle ? (await import("fuzzysort")).default : undefined
       const result = pipe(
         all,
         (x) => {
@@ -41,8 +42,8 @@ export function useFilteredList<T>(props: FilteredListProps<T>) {
           const skipped = skipFilter ? x.filter(skipFilter) : []
           const filtered =
             !props.filterKeys && Array.isArray(filterable) && filterable.every((e) => typeof e === "string")
-              ? (fuzzysort.go(needle, filterable).map((x) => x.target) as T[])
-              : fuzzysort.go(needle, filterable, { keys: props.filterKeys! }).map((x) => x.obj)
+              ? (fuzzysort!.go(needle, filterable).map((x) => x.target) as T[])
+              : fuzzysort!.go(needle, filterable, { keys: props.filterKeys! }).map((x) => x.obj)
           return skipped.length ? [...filtered, ...skipped] : filtered
         },
         groupBy((x) => (props.groupBy ? props.groupBy(x) : "")),
