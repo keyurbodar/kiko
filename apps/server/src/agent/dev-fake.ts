@@ -3,6 +3,8 @@ import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
+import { declareEffect } from "./effects"
+import { isRunTainted, markRunTainted } from "./extensions/trust"
 import { buildAgent } from "./factory"
 import type { AgentSetup } from "./host"
 
@@ -16,6 +18,12 @@ import type { AgentSetup } from "./host"
 //   [tool]      the model calls `slow_tool` first, which sleeps SLOW_TOOL_MS
 //   [reply] x   the answer is exactly `x`, such as `[react:👍]` (P6-07)
 //   [brief]     the answer is the reaction lines of the room's brief, or `brief: none` (P6-07)
+//   [fetch] x   the model calls `fake_fetch` with page `x`, outside content (P7-01)
+//   [mark] x    the model calls `fake_mark`, which returns `x` and marks the run tainted (P7-01)
+//   [call t]    the model calls trust tool `t`, from a user turn or from a tool result, which is
+//               how a fooled model obeys an injected instruction (P7-01)
+//
+// After trust tools ran, the answer is `tools: <name> ran|ran tainted|blocked, ...` (P7-01).
 //
 // Every answer is `heard: <the user turns since the last answer, joined by " | ">`, plus
 // `; tool: <result>` when a tool ran since then. The text shows which turns one run answered.
@@ -28,7 +36,7 @@ const TOKENS_PER_SECOND = 25
 const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
 
 type Part = { type: string; text?: string }
-type Message = { role?: string; content?: string | Part[]; stopReason?: string }
+type Message = { role?: string; content?: string | Part[]; stopReason?: string; toolName?: string }
 
 /** The text of a message without the room's `<context>` brief. */
 const textOf = (m: Message) =>
@@ -49,6 +57,10 @@ export function fakeReply(transcript: readonly Message[]) {
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
+  const calls = trustCalls(messages)
+  if (calls.length) return fauxAssistantMessage(calls, { stopReason: "toolUse" })
+  const ran = trustResults(since)
+  if (ran) return fauxAssistantMessage(ran)
   const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}`
   const newest = last?.role === "user" ? textOf(last) : ""
   const scripted = /^\[reply\]\s*([\s\S]*)$/.exec(newest)
@@ -75,7 +87,80 @@ const slowTool = defineTool({
   },
 })
 
-export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [slowTool] })
+export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [declareEffect("read", slowTool)] })
+
+// P7-01, architecture section 16. Fake tools, one per effect, for `bun kiko verify injection`.
+// `fake_send` stands for any action outside kiko. The trust gate must stop it in a tainted run.
+
+const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] })
+/** `x`, or `x (tainted)` when the trust extension says the run is tainted. */
+const flagged = (word: string, api: Parameters<typeof isRunTainted>[0]) => text(isRunTainted(api) ? `${word} (tainted)` : word)
+const page = Type.Object({ page: Type.String() })
+
+export const TRUST_TOOLS = {
+  fake_fetch: declareEffect(
+    "read",
+    defineTool({ name: "fake_fetch", description: "fetches a page.", parameters: page, execute: async ({ page }) => text(page) }),
+    { outside: "web" },
+  ),
+  fake_mark: declareEffect(
+    "read",
+    defineTool({
+      name: "fake_mark",
+      description: "reads a file.",
+      parameters: page,
+      execute: async ({ page }, api) => {
+        markRunTainted(api, "file")
+        return text(page)
+      },
+    }),
+  ),
+  fake_lookup: declareEffect(
+    "read",
+    defineTool({ name: "fake_lookup", description: "looks something up in kiko.", parameters: Type.Object({}), execute: async () => text("found") }),
+  ),
+  fake_note: declareEffect(
+    "write",
+    defineTool({ name: "fake_note", description: "writes a note.", parameters: Type.Object({}), execute: async (_a, api) => flagged("noted", api) }),
+  ),
+  fake_ask: declareEffect(
+    "message",
+    defineTool({ name: "fake_ask", description: "messages a teammate.", parameters: Type.Object({}), execute: async (_a, api) => flagged("asked", api) }),
+  ),
+  fake_send: declareEffect(
+    "external",
+    defineTool({ name: "fake_send", description: "sends an email outside kiko.", parameters: Type.Object({}), execute: async () => text("sent") }),
+  ),
+}
+
+export const TRUST_TOOLS_EXTENSION: Extension = defineExtension({ name: "test-trust-tools", tools: Object.values(TRUST_TOOLS) })
+
+const isTrustTool = (name: string): name is keyof typeof TRUST_TOOLS => Object.hasOwn(TRUST_TOOLS, name)
+
+/** The trust tool calls the newest turn asks for: a user turn, or the tool results since the last call. */
+function trustCalls(messages: readonly Message[]) {
+  const last = messages.at(-1)
+  if (last?.role === "user") {
+    const turn = textOf(last)
+    const fetch = /^\[(fetch|mark)\]\s*([\s\S]*)$/.exec(turn)
+    if (fetch) return [fauxToolCall(`fake_${fetch[1]}`, { page: fetch[2]! })]
+    return directives(turn)
+  }
+  if (last?.role !== "toolResult") return []
+  const round = messages.slice(messages.findLastIndex((m) => m.role === "assistant") + 1)
+  return round.flatMap((m) => directives(textOf(m)))
+}
+
+const directives = (text: string) =>
+  [...text.matchAll(/\[call (\w+)\]/g)].flatMap(([, name]) => (isTrustTool(name!) && name !== "fake_fetch" && name !== "fake_mark" ? [fauxToolCall(name!, {})] : []))
+
+/** `tools: fake_fetch ran, fake_send blocked`, or null when no trust tool ran this run. */
+function trustResults(since: readonly Message[]): string | null {
+  const results = since.filter((m) => m.role === "toolResult" && isTrustTool(m.toolName ?? ""))
+  if (!results.length) return null
+  const state = (t: string) => (t.includes("Tool call blocked") ? "blocked" : t.includes("(tainted)") ? "ran tainted" : "ran")
+  return `tools: ${results.map((m) => `${m.toolName} ${state(textOf(m))}`).join(", ")}`
+}
 
 /** The fake agent's setup. The factory builds it, with the slow tool as a test extension. */
 export function fakeSetup(): AgentSetup {
@@ -84,5 +169,5 @@ export function fakeSetup(): AgentSetup {
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ role: "", lead: true, model: FAKE_MODEL, testExtensions: [SLOW_TOOL_EXTENSION] }) }
+  return { models, ...buildAgent({ role: "", lead: true, model: FAKE_MODEL, testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
 }

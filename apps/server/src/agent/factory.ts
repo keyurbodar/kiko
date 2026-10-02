@@ -2,6 +2,8 @@ import type { Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { opencodeGoProvider } from "@earendil-works/pi-ai/providers/opencode-go"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
+import { effectTable } from "./effects"
+import { type Approvals, trustExtension } from "./extensions/trust"
 import { baseSections, type RoleInput } from "./prompt"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses
@@ -12,6 +14,8 @@ export type BuildAgentInput = RoleInput & {
   model: ModelRef
   /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
   testExtensions?: readonly Extension[]
+  /** Human approval records for `external` tools in a tainted run (P7-02). Default: none. */
+  approvals?: Approvals
 }
 
 export type BuiltAgent = {
@@ -33,8 +37,17 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
   return [defineExtension({ name: BASE, sections: baseSections(input) }), ...(input.testExtensions ?? [])]
 }
 
+/**
+ * Architecture section 16. `Trust` is always selected, last, so its `beforeTool` sees the final
+ * arguments and its `afterTool` wraps the final result. `effectTable` throws for a tool with no
+ * declared effect, so such an agent is never built.
+ */
+function withTrust(extensions: Extension[], input: BuildAgentInput): Extension[] {
+  return [...extensions, trustExtension({ effects: effectTable(extensions), approvals: input.approvals })]
+}
+
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
-  const extensions = extensionsFor(input)
+  const extensions = withTrust(extensionsFor(input), input)
   const registry = createRegistry()
   for (const extension of extensions) registry.install(extension)
   return { registry, agent: { model: input.model, extensions } }
