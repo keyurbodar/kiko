@@ -13,6 +13,7 @@ import { fakeSetup } from "./dev-fake"
 import { roomFilesPort } from "./extensions/files"
 import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
+import type { MessagingPort } from "./extensions/messaging"
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { createAlarms } from "../lib/alarm"
 import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
@@ -140,6 +141,14 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
+  /** The team tools' side of the room (P6-03), bound to this agent's slug. The room sets the hop and root. */
+  private messagingPort(): MessagingPort | null {
+    const home = this.home()
+    if (!home) return null
+    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug) }
+  }
+
   /**
    * The factory builds every agent. Every model request uses the user's own credential, which
    * `beginRun` loads once per run (architecture section 11.3). The role and lead flag are the member
@@ -149,13 +158,14 @@ export class AgentDO extends DurableObject<Env> {
   protected async setup(): Promise<AgentSetup> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
-    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()))
+    const messaging = () => this.messagingPort()
+    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging)
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
     const files = roomFilesPort(this.env, () => this.home(), user.models)
     const memory = this.memoryPort()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, memory, workspace: roomWorkspacePort(this.env, () => this.home()) }),
+      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, workspace: roomWorkspacePort(this.env, () => this.home()) }),
       ...user,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
       inputContext: async () => memoryContext(this.#run?.memory ?? null),

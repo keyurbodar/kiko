@@ -9,6 +9,7 @@ import { type FilesPort, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
 import { type MemoryPort, memoryExtension } from "./extensions/memory"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
+import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { baseSections, type RoleInput } from "./prompt"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses
@@ -23,6 +24,8 @@ export type BuildAgentInput = RoleInput & {
   memory?: MemoryPort
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
   workspace?: WorkspacePort
+  /** The room's team tools (P6-03). Without it the agent has no messaging tools. */
+  messaging?: () => MessagingPort | null
   /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
   testExtensions?: readonly Extension[]
   /** Human approval records for `external` tools in a tainted run (P7-02). Default: none. */
@@ -51,6 +54,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.files ? [filesExtension(input.files)] : []),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(),
+    ...(input.messaging ? [messagingExtension(input.messaging)] : []),
     Subagent,
     ...(input.testExtensions ?? []),
   ]
