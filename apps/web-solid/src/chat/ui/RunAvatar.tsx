@@ -1,37 +1,47 @@
-import { createSignal, onCleanup, onMount, type JSX } from "solid-js"
+import { createEffect, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 
-/** The avatar beside a group run, in pixels. Telegram's is 34 to 40; kat's bubbles are smaller. */
+/** The avatar beside a group run, in pixels. */
 export const RUN_AVATAR_PX = 32
 
 /**
- * How far above the last row a track may reach when the run's first row is not rendered. The
- * virtualizer drops rows that are well above the viewport, and then the run's top is above the
- * viewport too, so a track that reaches past it changes nothing a reader can see.
+ * How far a track reaches up when the run's first row is not mounted. That row is above the
+ * viewport, so a track that reaches past it changes nothing a reader can see.
  */
 const FAR = 100_000
 
+/** Bumped whenever a run row mounts or unmounts, so every track re-measures. */
+const [rowsChanged, bumpRows] = createSignal(0)
+
 /**
- * The avatar of an agent's run of bubbles in a group, drawn in the run's last row.
+ * The avatar of an agent's run of bubbles in a group.
  *
  * Telegram puts the face beside the last bubble, bottom-aligned, and while the run is taller
  * than the viewport the face sticks to the bottom edge and rides up with the last bubble. The
- * transcript is virtual, so the run is not one element to stick inside. Instead the last row
- * holds a track that reaches up to the top of the run's first row, and the face is
- * `position: sticky` at the bottom of that track: it can travel the whole run and no further.
- * The track's height is measured on mount and on scroll, which is when rows come and go.
+ * transcript is virtual, so the run is not one element to stick inside, and its last row may
+ * not be mounted yet. So every row of the run carries a track, and only the run's last mounted
+ * row shows it. The track reaches up to the run's first row and, unless that row is the run's
+ * real end, down past the viewport; the face is `position: sticky` at the track's bottom, so it
+ * travels the whole run and no further. Tracks are measured on mount, on scroll, and whenever a
+ * run row comes or goes.
  */
-export function RunAvatar(props: { seed: string; runKey: string }): JSX.Element {
+export function RunAvatar(props: { seed: string; runKey: string; isRunEnd: boolean }): JSX.Element {
   let track!: HTMLDivElement
-  const [above, setAbove] = createSignal(0)
+  const [shape, setShape] = createSignal<{ above: number; below: number } | null>(null)
 
   const measure = () => {
     const row = track.parentElement
     const scroller = row?.closest<HTMLElement>("[data-virtual-scroll]")
     if (!row || !scroller) return
-    const first = scroller.querySelector<HTMLElement>(`[data-run-first][data-run-key="${CSS.escape(props.runKey)}"]`)
-    const next = first ? Math.max(0, row.getBoundingClientRect().top - first.getBoundingClientRect().top) : FAR
-    if (next !== above()) setAbove(next)
+    const rows = scroller.querySelectorAll<HTMLElement>(`[data-run-key="${CSS.escape(props.runKey)}"]`)
+    if (rows[rows.length - 1] !== row) return setShape(null)
+    const first = rows[0]!
+    const above = first.hasAttribute("data-run-first") ? Math.max(0, row.getBoundingClientRect().top - first.getBoundingClientRect().top) : FAR
+    // A run whose end is not mounted continues below the viewport: reach just past its bottom
+    // edge, and no further, so the track never makes the transcript taller.
+    const below = props.isRunEnd ? 0 : Math.max(0, Math.ceil(scroller.getBoundingClientRect().bottom - row.getBoundingClientRect().bottom)) + RUN_AVATAR_PX
+    const now = shape()
+    if (!now || now.above !== above || now.below !== below) setShape({ above, below })
   }
 
   onMount(() => {
@@ -43,24 +53,34 @@ export function RunAvatar(props: { seed: string; runKey: string }): JSX.Element 
         measure()
       })
     }
-    schedule()
     const scroller = track.closest<HTMLElement>("[data-virtual-scroll]")
     scroller?.addEventListener("scroll", schedule, { passive: true })
+    createEffect(on([rowsChanged, () => props.isRunEnd], schedule))
+    bumpRows((n) => n + 1)
     onCleanup(() => {
       cancelAnimationFrame(frame)
       scroller?.removeEventListener("scroll", schedule)
+      bumpRows((n) => n + 1)
     })
   })
 
   return (
     <div
       ref={track}
-      class="pointer-events-none absolute bottom-(--row-gap) left-4 flex flex-col justify-end"
-      style={{ top: `-${above()}px`, width: `${RUN_AVATAR_PX}px` }}
+      class="pointer-events-none absolute left-4 flex flex-col justify-end"
+      style={{
+        top: `-${shape()?.above ?? 0}px`,
+        bottom: shape()?.below ? `-${shape()!.below}px` : "var(--row-gap)",
+        width: `${RUN_AVATAR_PX}px`,
+        visibility: shape() ? undefined : "hidden",
+      }}
       data-component="chat-run-avatar"
+      data-shown={shape() ? "" : undefined}
       aria-hidden="true"
     >
-      <IdentityAvatar seed={props.seed} size={RUN_AVATAR_PX} class="sticky bottom-2" />
+      <Show when={shape()}>
+        <IdentityAvatar seed={props.seed} size={RUN_AVATAR_PX} class="sticky bottom-2" />
+      </Show>
     </div>
   )
 }
