@@ -51,7 +51,7 @@ describe("buildAgent", () => {
     for (const key of ["kiko", "reactions", "role"]) expect(at(system, key)).toBeGreaterThanOrEqual(0)
     expect(at(system, "kiko")).toBeLessThan(at(system, "reactions"))
     expect(at(system, "reactions")).toBeLessThan(at(system, "role"))
-    expect(system).toContain("[react:<emoji>]")
+    expect(system).toContain("[react:👍]")
     expect(system).toContain("you plan trips.")
     // The slots render nothing until an extension fills them.
     expect(at(system, "skills")).toBe(-1)

@@ -46,6 +46,7 @@ export class T extends AgentDO {
       draft: (runId, index, text) => record({ t: "draft", runId, index, chars: text.length }),
       status: (state: AgentState) => record({ t: "status", state }),
       endRun: (runId) => record({ t: "end", runId }),
+      react: (emoji, messageId) => record({ t: "react", emoji, messageId }),
     }
   }
 

@@ -8,6 +8,7 @@ import { BURST_WAKEUP, Burst } from "./burst"
 import { Bubbles, Deliveries, type ReminderDelivery } from "./deliver"
 import { type FileMeta, type FileMetaPatch, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
+import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
 import { migrate } from "./schema"
 import { listCatalog } from "./catalog"
 import { searchMessages } from "./search"
@@ -78,12 +79,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			// ASSUMPTION: a room that is not in the user's chat list (never created, or deleted) wakes no
 			// agent. Its messages stay in the log and are dropped from the burst.
 			if (!chat) return this.burst.delivered(envelopes)
-			// Architecture section 7.4. Only the room title for now.
-			const brief = `room: ${chat.title}`
+			// Architecture section 7.4. The room title, and reactions on the agent's messages (section 6.5).
+			const reactions = reactionBrief(this.log, this.ctx.storage.sql, DEFAULT_AGENT)
+			const brief = [`room: ${chat.title}`, reactions.text].filter(Boolean).join("\n")
 			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, DEFAULT_AGENT)
 			// receive() only stores and returns, so this wait is short and cannot deadlock.
 			await agent.receive(envelopes, brief, { ...home, slug: DEFAULT_AGENT })
 			this.burst.delivered(envelopes)
+			markReactionsBriefed(this.log, DEFAULT_AGENT, reactions.upTo)
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			await this.burst.retry(DELIVERY_RETRY_MS)
@@ -200,6 +203,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const events = this.bubbles.post(slug, { runId, attempt, index }, block)
 		this.publish(events)
 		return events.some((e) => e.t === "message")
+	}
+
+	/**
+	 * RPC for an agent (section 6.5). Stores the agent's reaction on `messageId`, or on the last human
+	 * message handed to the agents. An emoji off the allowlist is dropped. Starts no run. Returns
+	 * true when this call changed the reaction.
+	 */
+	async react(slug: AgentSlug, emoji: string, messageId?: string): Promise<boolean> {
+		const event = agentReact(this.log, this.ctx.storage.sql, slug, emoji, messageId)
+		if (event) this.publish([event])
+		return event !== null
 	}
 
 	/** RPC for an agent. A growing block past the draft threshold. Sent, never stored. */
