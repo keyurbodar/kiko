@@ -60,3 +60,7 @@ The coordinator adds to this list as tasks land.
 - `apps/server/wrangler.jsonc` serves assets from `../web-solid/dist`, which git ignores. If `wrangler dev` or `wrangler deploy --dry-run` complains about the assets directory, run `bun run build` in `apps/web-solid` first.
 - Run `bun test` inside a package directory. At the repo root it picks up reference code and fails.
 - The root `dev:server` script uses port 8787. Do not use it in this run. Start wrangler with your own ports.
+- Server tests run in workerd through Miniflare. See `apps/server/test/alarm.test.ts` and `test/alarm-worker.ts` for the pattern. Use compatibility date `2026-07-01` in tests, because the installed workerd rejects later dates.
+- `apps/server/src/lib/alarm.ts` exports `createAlarms(ctx)` which returns `{ setWakeup(key, at), clearWakeup(key), dueWakeups(now) }`. `dueWakeups` removes the due keys and re-arms the alarm for the rest.
+- The CLI entry is `apps/cli/src/index.ts`, which calls `main()` in `apps/cli/src/main.ts`. It has `health` and `ws` commands.
+- `.wrangler/` is ignored by git. Never commit it.
