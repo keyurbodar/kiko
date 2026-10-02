@@ -1,7 +1,11 @@
 import type { Component, JSX } from "solid-js"
 import { createMemo, createUniqueId, splitProps, Show } from "solid-js"
 import sprite from "./file-icons/sprite.svg"
+import { spriteSubset } from "./sprite-subset"
 import type { IconName } from "./file-icons/types"
+
+/** Only the icons in use are copied into the page. See `sprite-subset.ts`. */
+const fileIcon = spriteSubset(sprite, "file-icon-")
 
 export type FileIconProps = JSX.GSVGAttributes<SVGSVGElement> & {
   node: { path: string; type: "file" | "directory" }
@@ -22,10 +26,10 @@ export const FileIcon: Component<FileIconProps> = (props) => {
         [local.class ?? ""]: !!local.class,
       }}
     >
-      <Show when={local.mono} fallback={<use href={`${sprite}#${name()}`} />}>
+      <Show when={local.mono} fallback={<use href={fileIcon(name())} />}>
         <defs>
           <mask id={id} mask-type="alpha">
-            <use href={`${sprite}#${name()}`} />
+            <use href={fileIcon(name())} />
           </mask>
         </defs>
         <rect width="100%" height="100%" fill="currentColor" mask={`url(#${id})`} />

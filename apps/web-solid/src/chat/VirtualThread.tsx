@@ -13,7 +13,7 @@ import {
 } from "solid-js"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import type { ChatMessage, RosterBot } from "../lib/types"
-import { buildTimelineItems, dayStartOf, type Notice, type TimelineItem } from "./lib/grouping"
+import { buildTimelineItems, dayStartOf, keepUnchanged, type Notice, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dividerLabel } from "./lib/time-label"
@@ -201,12 +201,17 @@ export function VirtualThread(props: {
       return next
     })
   const memberSet = createMemo(() => (props.groupChat ? new Set(props.memberSlugs ?? []) : undefined))
+  /** The items last built, by key, so an unchanged row keeps its object and the list keeps its DOM. */
+  const lastItems = new Map<string, TimelineItem>()
   const items = createMemo<TimelineItem[]>(() =>
-    buildTimelineItems(props.messages, props.firstUnreadMessageId, {
-      notices: props.groupChat ? props.notices : undefined,
-      members: memberSet(),
-      expanded: expanded(),
-    }),
+    keepUnchanged(
+      lastItems,
+      buildTimelineItems(props.messages, props.firstUnreadMessageId, {
+        notices: props.groupChat ? props.notices : undefined,
+        members: memberSet(),
+        expanded: expanded(),
+      }),
+    ),
   )
 
   /*

@@ -17,7 +17,8 @@ import { onChatModelChange } from "../settings/chat-model"
 // the pure functions below, and nowhere else.
 
 import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
-import { batch, createComputed, createRoot, createSignal, untrack } from "solid-js"
+import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
+import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
@@ -148,6 +149,23 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle"): RosterBot {
   }
 }
 
+/**
+ * A derived value computed once per change and shared by every reader. Solid's server build,
+ * which the tests run on, never updates a memo, so there it is the plain function.
+ */
+function shared<T>(fn: () => T): () => T {
+  return isServer ? fn : createMemo(fn)
+}
+
+/** True when two sidebar rows show the same thing. Rows are flat, so a shallow compare is enough. */
+export function sameRow(a: RosterBot, b: RosterBot): boolean {
+  const x = a as unknown as Record<string, unknown>
+  const y = b as unknown as Record<string, unknown>
+  for (const k in x) if (x[k] !== y[k]) return false
+  for (const k in y) if (!(k in x)) return false
+  return true
+}
+
 export function memberRow(member: Member, presence: BotPresence = "idle"): RosterBot {
   const row: RosterBot = { id: member.slug, name: member.name, preview: "", updatedAt: 0, presence, unread: 0, pinned: false }
   if (member.lead) row.persona = "lead"
@@ -173,6 +191,12 @@ export function createApp(options: AppOptions = {}) {
     const [room, setRoom] = createSignal<RoomStore | null>(null)
     const [drafts, setDrafts] = createSignal<DraftBook | null>(null)
     const [activeId, setActiveId] = createSignal<RoomId | null>(null)
+    /*
+     * The open room's messages with every pending action applied. Built once per change and
+     * shared: the transcript, the chat list's unread count, the unread divider, and the typing
+     * dots all read it, and each used to walk the whole room through the store on its own.
+     */
+    const roomMessages = shared(() => room()?.messages() ?? [])
 
     /** Newest messages of chats the pointer rested on, read from IndexedDB. Only for rooms that are not open. */
     const [preloaded, setPreloaded] = createSignal<Record<string, ViewMessage[]>>({})
@@ -202,7 +226,7 @@ export function createApp(options: AppOptions = {}) {
     createComputed(() => {
       const r = room()
       if (!r) return
-      const list = r.messages()
+      const list = roomMessages()
       const loaded = r.state.loaded
       untrack(() => {
         if (pacedRoom !== r) {
@@ -287,10 +311,37 @@ export function createApp(options: AppOptions = {}) {
       return r.state.loaded && lastSeq !== undefined && r.state.seq >= lastSeq && (lastSeq > 0 || r.state.connection === "open")
     }
 
+    /*
+     * The chat list as rows, built once per change. A row that did not change keeps its object,
+     * so the sidebar, the tabs, and the palette keep their DOM (and the avatars in it) when
+     * something else in the list moves.
+     */
+    let lastRows = new Map<string, RosterBot>()
+    const botRows = shared<RosterBot[]>(() => {
+      const r = room()
+      const next = new Map<string, RosterBot>()
+      const rows = (userStore()?.chats() ?? []).map((c) => {
+        let row: RosterBot
+        if (!r || r.state.roomId !== c.roomId) row = chatRow(c)
+        else {
+          const typing = r.state.typing.length > 0
+          const working = Object.values(r.state.status).includes("working")
+          row = chatRow(c, presenceOf(typing, working ? "working" : undefined))
+          // The open room is read as soon as the reader marks it, before the server's count catches up.
+          if (r.readSeq() >= newestSeq(roomMessages())) row.unread = 0
+        }
+        const old = lastRows.get(row.id)
+        if (old && sameRow(old, row)) row = old
+        next.set(row.id, row)
+        return row
+      })
+      lastRows = next
+      return rows
+    })
+    const botIndex = shared(() => new Map(botRows().map((row) => [row.id, row])))
+
     function findView(id: string): ViewMessage | undefined {
-      return room()
-        ?.messages()
-        .find((m) => m.id === id)
+      return roomMessages().find((m) => m.id === id)
     }
 
     function members(): RosterBot[] {
@@ -377,20 +428,11 @@ export function createApp(options: AppOptions = {}) {
 
       /** The chat list as sidebar rows. Pinned first, then the most recent. */
       bots(): RosterBot[] {
-        const r = room()
-        return (userStore()?.chats() ?? []).map((c) => {
-          if (!r || r.state.roomId !== c.roomId) return chatRow(c)
-          const typing = r.state.typing.length > 0
-          const working = Object.values(r.state.status).includes("working")
-          const row = chatRow(c, presenceOf(typing, working ? "working" : undefined))
-          // The open room is read as soon as the reader marks it, before the server's count catches up.
-          if (r.readSeq() >= newestSeq(r.messages())) row.unread = 0
-          return row
-        })
+        return botRows()
       },
 
       chatById(id: string): RosterBot | undefined {
-        return app.bots().find((row) => row.id === id)
+        return botIndex().get(id)
       },
 
       /** The open room's agents, for avatars, names, and the `@` menu. */
@@ -419,26 +461,33 @@ export function createApp(options: AppOptions = {}) {
         const r = room()
         if (!r) return []
         const roomId = r.state.roomId
+        const prev = views
         const next = new Map<string, { sig: string; view: ChatMessage }>()
         paced()
-        const out = r.messages().filter((m) => !pacer.isHeld(m.id)).map((m) => {
+        const list = roomMessages()
+        const out = list.filter((m) => !pacer.isHeld(m.id)).map((m) => {
           const sig = signature(m)
           const key = m.clientId ?? m.id
-          const cached = views.get(key)
+          const cached = prev.get(key)
           const entry = cached && cached.sig === sig ? cached : { sig, view: toChatMessage(m, roomId) }
           next.set(key, entry)
           return entry.view
         })
-        views = next
         // A growing block shows until its final message is on screen. A held final keeps its dots.
         const shown = new Set(out.map((m) => m.id))
-        const finals = new Set(r.messages().filter((m) => m.run && shown.has(m.id)).map((m) => `${m.run!.runId}:${m.run!.index}`))
+        const finals = new Set(list.filter((m) => m.run && shown.has(m.id)).map((m) => `${m.run!.runId}:${m.run!.index}`))
         for (const [key, d] of Object.entries(r.state.drafts)) {
           if (finals.has(key) || d.text === "") continue
           const since = draftSince.get(key) ?? Date.now()
           draftSince.set(key, since)
-          out.push({ id: `draft:${key}`, threadId: roomId, sender: "bot", botId: d.slug, body: d.text, sentAt: since })
+          // An unchanged draft keeps its object, so its row is not built again.
+          const id = `draft:${key}`
+          const cached = prev.get(id)
+          const view = cached && cached.sig === d.text ? cached.view : { id, threadId: roomId, sender: "bot" as const, botId: d.slug, body: d.text, sentAt: since }
+          next.set(id, { sig: d.text, view })
+          out.push(view)
         }
+        views = next
         return out
       },
 
@@ -462,7 +511,7 @@ export function createApp(options: AppOptions = {}) {
         const r = room()
         if (!r) return null
         if (anchors.has(r)) return anchors.get(r) ?? null
-        const live = firstUnread(r.messages(), r.state.readSeq)
+        const live = firstUnread(roomMessages(), r.state.readSeq)
         if (caughtUp(r)) anchors.set(r, live)
         return live
       },
@@ -535,7 +584,7 @@ export function createApp(options: AppOptions = {}) {
       /** True when the open room has a stored message newer than the read marker and the socket is up. */
       hasUnread(): boolean {
         const r = room()
-        return !!r && r.state.connection === "open" && newestSeq(r.messages()) > r.readSeq()
+        return !!r && r.state.connection === "open" && newestSeq(roomMessages()) > r.readSeq()
       },
 
       /** One reaction per actor: the same emoji removes it, another replaces it. */
@@ -559,8 +608,8 @@ export function createApp(options: AppOptions = {}) {
       markRead(threadId: string) {
         const r = room()
         if (!r || r.state.roomId !== threadId) return
-        if (!anchors.has(r)) anchors.set(r, firstUnread(r.messages(), r.state.readSeq))
-        r.markRead(newestSeq(r.messages()))
+        if (!anchors.has(r)) anchors.set(r, firstUnread(roomMessages(), r.state.readSeq))
+        r.markRead(newestSeq(roomMessages()))
       },
 
       /** The user's own agents, in the order they were made. */

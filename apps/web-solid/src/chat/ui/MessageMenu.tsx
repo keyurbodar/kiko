@@ -253,9 +253,12 @@ export function createMessageMenu(
     const id = targetId()
     return { ...options, message: id === null ? fallback : options.messageFor(id) } as MessageMenuProps
   }
+  // Nothing is built until the first right-click. Setting the target mounts the menu, and its
+  // trigger, in the same update, so the replayed event below finds it. A transcript of rows
+  // used to build a whole menu root per row that nobody opened.
   const view = (
-    <Show when={targetId()} fallback={<MessageMenu {...{ ...options, message: fallback } as MessageMenuProps} ref={setTrigger} />}>
-      {(id) => <MessageMenu {...liveProps()} ref={setTrigger} />}
+    <Show when={targetId()}>
+      <MessageMenu {...liveProps()} ref={setTrigger} />
     </Show>
   )
   return {

@@ -6,6 +6,7 @@ import {
   canGroup,
   dayStartOf,
   firstUnreadIndex,
+  keepUnchanged,
   type TimelineItem,
 } from "./grouping";
 
@@ -277,5 +278,33 @@ describe("group timeline", () => {
 
   test("a one-agent room folds nothing", () => {
     expect(shape(buildTimelineItems([k("a", 1, "@piko hi")], null, {}))).toEqual(["a<>"]);
+  });
+});
+
+describe("keepUnchanged", () => {
+  const a = bot("a", at(0));
+  const b = bot("b", at(1_000));
+  const c = bot("c", at(2_000));
+
+  test("an unchanged row keeps its object, so the virtual list keeps its DOM", () => {
+    const seen = new Map<string, TimelineItem>();
+    const first = keepUnchanged(seen, buildTimelineItems([a, b], null));
+    const second = keepUnchanged(seen, buildTimelineItems([a, b], null));
+    expect(second).toHaveLength(first.length);
+    second.forEach((item, i) => expect(item).toBe(first[i]));
+  });
+
+  test("a row whose run changed or whose message changed is a new object", () => {
+    const seen = new Map<string, TimelineItem>();
+    const [, rowB] = messageRows(keepUnchanged(seen, buildTimelineItems([a, b], null)));
+    const [rowA, rowB2, rowC] = messageRows(keepUnchanged(seen, buildTimelineItems([a, b, c], null)));
+    // b ended the run and now sits inside it, so it renders again. c is new.
+    expect(rowB2).not.toBe(rowB);
+    expect(rowB2.isRunEnd).toBe(false);
+    expect(rowC.message).toBe(c);
+    const edited = { ...a, body: "edited" };
+    const [rowA2] = messageRows(keepUnchanged(seen, buildTimelineItems([edited, b, c], null)));
+    expect(rowA2).not.toBe(rowA);
+    expect(rowA2.message.body).toBe("edited");
   });
 });
