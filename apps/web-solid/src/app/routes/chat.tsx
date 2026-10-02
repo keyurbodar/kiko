@@ -147,6 +147,7 @@ export default function ChatRoute() {
             scrollRef={() => {}}
             onStateChange={setThreadState}
             waitingNames={useApp.typingNames()}
+            waitingSlugs={useApp.typingSlugs()}
             groupChat={members().size > 1}
             onReact={useApp.toggleReaction}
             replyTarget={replyTarget()}

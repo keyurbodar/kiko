@@ -19,7 +19,7 @@ export function EmptyState(props: { hint?: string; class?: string }) {
       )}
       data-component="chat-empty"
     >
-      <Show when={useApp.activeThreadId()}>{(id) => <IdentityAvatar seed={id()} size={64} />}</Show>
+      <Show when={useApp.activeThreadId()}>{(id) => <IdentityAvatar seed={useApp.chatSeed(id())} size={64} />}</Show>
       <Show when={useApp.activeThreadId()}>
         {(id) => (
           <span class="mt-1 text-base font-medium text-text" data-component="chat-empty-name">

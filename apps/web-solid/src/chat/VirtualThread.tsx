@@ -154,6 +154,7 @@ export function VirtualThread(props: {
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
+  waitingSlugs?: readonly string[]
   /** A chat with more than one agent: the typing bubble shows the agent's avatar. */
   groupChat?: boolean
   /** The viewer tapped an emoji on a message. Leave it out and reactions do nothing. */
@@ -843,7 +844,7 @@ export function VirtualThread(props: {
                 )}
                 data-component="chat-typing-row"
               >
-                <TypingIndicator typists={[...props.waitingNames]} avatar={props.groupChat} />
+                <TypingIndicator typists={[...props.waitingNames]} avatar={props.groupChat} seed={props.waitingSlugs?.[0]} />
               </div>
             </Show>
           </Show>

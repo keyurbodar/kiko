@@ -76,7 +76,7 @@ function ChatSwitcher(props: { chats: readonly { id: string; name: string }[]; r
 				onClick={() => setOpen(!open())}
 				onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
 			>
-				<IdentityAvatar seed={props.roomId || "none"} size={24} />
+				<IdentityAvatar seed={props.roomId ? useApp.chatSeed(props.roomId) : "none"} size={24} />
 				<span class="fp-switch-name">{current()?.name || "new chat"}</span>
 				<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M3 4.5L6 7.5l3-3" />
@@ -96,7 +96,7 @@ function ChatSwitcher(props: { chats: readonly { id: string; name: string }[]; r
 									props.onPick(c.id)
 								}}
 							>
-								<IdentityAvatar seed={c.id} size={22} />
+								<IdentityAvatar seed={useApp.chatSeed(c.id)} size={22} />
 								<span class="fp-switch-name">{c.name || "new chat"}</span>
 							</button>
 						)}

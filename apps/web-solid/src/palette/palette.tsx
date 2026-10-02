@@ -69,7 +69,7 @@ export default function Palette() {
                   <For each={chats()}>
                     {(chat) => (
                       <Cmdk.Item class="palette-row" value={`${chat.id} ${chat.name.toLowerCase()}`} onSelect={() => run(() => navigate(`/chat/${chat.id}`))}>
-                        <IdentityAvatar seed={chat.id} size={18} />
+                        <IdentityAvatar seed={useApp.chatSeed(chat.id)} size={18} />
                         <span class="palette-label">{chat.name.toLowerCase()}</span>
                       </Cmdk.Item>
                     )}

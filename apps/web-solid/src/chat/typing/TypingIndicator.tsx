@@ -10,6 +10,8 @@ const SEND_MS = 340;
 
 export interface TypingIndicatorProps {
   typists: string[];
+  /** The first typist's slug, so the avatar matches the agent everywhere else. Falls back to the name. */
+  seed?: string;
   sending?: boolean;
   max?: number;
   /** Group chat: draw the typing agent's small avatar at the bubble's left. */
@@ -112,7 +114,7 @@ export function TypingIndicator(props: TypingIndicatorProps) {
   return (
     <div class={`typing ${props.class ?? ""}`} data-component="typing-indicator">
       <Show when={props.avatar && props.typists[0]}>
-        {(name) => <IdentityAvatar seed={name()} size={28} class="typing-avatar" />}
+        {(name) => <IdentityAvatar seed={props.seed ?? name()} size={28} class="typing-avatar" />}
       </Show>
       {/* One-line bubble: the strut is a text-base line, so the height is a
           message bubble's. The width is three dots plus the bubble padding. */}

@@ -89,7 +89,7 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
   }
   return (
     <header class="flex flex-col items-center gap-2 pt-2 pb-1 text-center" data-component="info-header">
-      <IdentityAvatar seed={props.chatId} size={96} />
+      <IdentityAvatar seed={useApp.chatSeed(props.chatId)} size={96} />
       <Show
         when={editing()}
         fallback={

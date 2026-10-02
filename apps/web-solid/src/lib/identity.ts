@@ -37,3 +37,18 @@ function hash(text: string): number {
 export function identityLook(seed: string): IdentityLook {
   return { seed, accent: ACCENTS[hash(seed) % ACCENTS.length]! }
 }
+
+/** The agent a chat made without a pick talks to. It matches the server's `DEFAULT_AGENT`. */
+export const DEFAULT_AGENT_SLUG = "kiko"
+
+/**
+ * The seed for a chat's avatar. A chat with one agent wears that agent's face, as a Telegram
+ * chat with a bot shows the bot, so the same bot looks the same in the chat list, the tab,
+ * the header, the members list, and its bubbles. Only a group has a face of its own.
+ */
+export function chatSeed(chat: { roomId: string; agents?: readonly string[] }, agents: readonly { id: string; slug: string }[]): string {
+  const ids = chat.agents ?? []
+  if (ids.length > 1) return chat.roomId
+  if (!ids.length) return DEFAULT_AGENT_SLUG
+  return agents.find((a) => a.id === ids[0])?.slug ?? ids[0]!
+}

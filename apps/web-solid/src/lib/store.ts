@@ -1,3 +1,4 @@
+import { chatSeed } from "./identity"
 // The app's state, backed by the sync stores. Sidebar, transcript, and composer
 // all read and write it through `useApp`, so none of them knows about sockets,
 // IndexedDB, or wire types.
@@ -443,6 +444,23 @@ export function createApp(options: AppOptions = {}) {
       },
 
       /** The display names of the agents typing in the open room. */
+      /** The avatar seed for a chat: its one agent's slug, or the room id for a group. See `lib/identity.ts`. */
+      chatSeed(roomId: string): string {
+        const chat = userStore()?.chats().find((c) => c.roomId === roomId)
+        return chatSeed(chat ?? { roomId }, userStore()?.agents() ?? [])
+      },
+
+      /** The slugs of the agents typing now, for the typing bubble's avatar. */
+      typingSlugs(): string[] {
+        const r = room()
+        if (!r) return []
+        paced()
+        const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
+        slugs.delete("")
+        for (const d of Object.values(r.state.drafts)) slugs.delete(d.slug)
+        return [...slugs]
+      },
+
       typingNames(): string[] {
         const r = room()
         if (!r) return []

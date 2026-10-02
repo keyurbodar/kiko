@@ -21,6 +21,8 @@ export function MessageList(props: {
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
+  /** The typing agents' slugs, same order as `waitingNames`, for the avatar. */
+  waitingSlugs?: readonly string[]
   groupChat?: boolean
   /** The viewer tapped an emoji on a message. */
   onReact?: (messageId: string, emoji: string) => void

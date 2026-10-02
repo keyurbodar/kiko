@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { ACCENTS, identityLook } from "./identity"
+import { ACCENTS, chatSeed, identityLook } from "./identity"
 
 describe("identity look", () => {
   test("the same seed gives the same look", () => {
@@ -47,4 +47,14 @@ describe("render sites", () => {
       expect(f.text).not.toMatch(/glyphHue|oklch\(0\.72 0\.12 \$\{/)
     }
   })
+})
+
+describe("chatSeed", () => {
+  const agents = [{ id: "a1", slug: "ada" }]
+  test.each([
+    ["a chat with one agent wears that agent's face", { roomId: "r1", agents: ["a1"] }, "ada"],
+    ["a chat made without a pick is the default agent", { roomId: "r2" }, "kiko"],
+    ["a group has a face of its own", { roomId: "r3", agents: ["a1", "a2"] }, "r3"],
+    ["an agent the list does not know yet falls back to its id", { roomId: "r4", agents: ["zz"] }, "zz"],
+  ])("%s", (_name, chat, want) => expect(chatSeed(chat, agents)).toBe(want))
 })
