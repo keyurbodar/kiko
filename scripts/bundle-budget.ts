@@ -35,9 +35,9 @@ const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/settings.tsx"];
  */
 const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1841, // P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
-  "tier 2 first paint of /chat": 220198,
-  "tier 3 lazy modules": 42306, // P2-19: the chat info panel (10.5 KB gzip) is a lazy module. It loads on first open or on idle, never in tier 2.
-  "tier 4 route chunks": 10573, // QA shell pass: the account section with sign out, provider search, and the narrow-screen settings tabs add ~1.2 KB to the settings route (the previous note still applies: grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
+  "tier 2 first paint of /chat": 231871, // P2-08 bubble pacing and drafts, the chat QA pass (group sender names and gutter avatar, bubble-in motion, empty-chat tips, start-chat button), and one chatSeed for every avatar.
+  "tier 3 lazy modules": 45525, // The Telegram-style info panel and memory redesign (action tiles, grouped list, core tiles, record header) add ~3 KB. P2-19: the chat info panel (10.5 KB gzip) is a lazy module. It loads on first open or on idle, never in tier 2.
+  "tier 4 route chunks": 12670, // The kat-style settings (sidebar rows with icons, provider logos, grouped cards, executor card) and the files chat switcher add ~2 KB. QA shell pass: the account section with sign out, provider search, and the narrow-screen settings tabs add ~1.2 KB to the settings route (the previous note still applies: grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
 };
 
 interface Entry {
