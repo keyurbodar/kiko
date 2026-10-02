@@ -64,3 +64,5 @@ The coordinator adds to this list as tasks land.
 - `apps/server/src/lib/alarm.ts` exports `createAlarms(ctx)` which returns `{ setWakeup(key, at), clearWakeup(key), dueWakeups(now) }`. `dueWakeups` removes the due keys and re-arms the alarm for the rest.
 - The CLI entry is `apps/cli/src/index.ts`, which calls `main()` in `apps/cli/src/main.ts`. It has `health` and `ws` commands.
 - `.wrangler/` is ignored by git. Never commit it.
+- Write server tests for `bun test`, run from `apps/server`. For Durable Object behavior use the Miniflare pattern above. A vitest config also exists (`bun run test:workerd`), but do not add new vitest-only tests.
+- `apps/server/src/user/` has `nextOccurrence(rrule, tz, afterUtc)` built on the `rrule` package. Find it with grep before writing recurrence code.
