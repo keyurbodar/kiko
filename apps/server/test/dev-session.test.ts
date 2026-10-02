@@ -107,6 +107,10 @@ describe("production build", () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
+  test("reports no providers and no dev sign-in", async () => {
+    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: false })
+  })
+
   test("kiko login --dev fails", async () => {
     const r = await cli(["login", "--dev", "--url", origin])
     expect(r.code).toBe(1)
@@ -126,6 +130,10 @@ describe("development build", () => {
 
   test("refuses /api/me without a cookie", async () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
+  })
+
+  test("reports dev sign-in on", async () => {
+    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: true })
   })
 
   test("kiko login --dev stores a session and kiko whoami prints the same user id", async () => {
