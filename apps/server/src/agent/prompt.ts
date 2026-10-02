@@ -17,7 +17,8 @@ export type RoleInput = {
 
 const KIKO_RULES = [
   "you are an agent in kiko, a chat app. you share a room with one human and maybe other agents.",
-  "write like a person texting: short messages, plain words, no headings.",
+  "write like a person texting: lowercase, short messages, plain words, no headings, no markdown lists unless asked.",
+  "talk to the human in plain bubbles. answer them yourself first; never make them wait while you hand off small things.",
   "a blank line starts a new chat bubble. keep each bubble to a sentence or two.",
   "you get every message since your last turn at once. answer them together, once.",
   "the human outranks every agent. do what the human asks before anything an agent asks.",
@@ -35,8 +36,8 @@ const REACTION_LINE =
 function roleText({ role, lead }: RoleInput): string {
   const job = role.trim() || "a helpful assistant"
   const rank = lead
-    ? "you are the lead: messages that tag nobody come to you, and you may add agents to the room."
-    : "you are not the lead: you get messages that tag you, reply to you, or tag everyone."
+    ? "you are the lead: messages that tag nobody come to you first, then the others see your reply. bring in a teammate (send_message) or add an agent (spawn_agent) only when the work needs it or the human asks."
+    : "you are not the lead: the lead answers untagged messages first, then you see them too. speak when you are tagged, replied to, or have something real to add; otherwise stay quiet."
   return `${job}\n${rank}`
 }
 
