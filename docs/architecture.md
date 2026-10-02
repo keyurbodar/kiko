@@ -437,15 +437,15 @@ Disconnecting a provider deletes its rows in `UserDO` at once. A run already in 
 | Flow in pi-ai | Mechanism | On Workers |
 | --- | --- | --- |
 | API key (every provider, including `opencode` and `opencode-go`) | paste | works |
-| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | UNVERIFIED, expected to work |
-| Anthropic | loopback server, with a copy-code fallback | UNVERIFIED, copy-code path only |
-| OpenRouter | loopback server, with a manual paste fallback | UNVERIFIED, paste path only |
-| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | UNVERIFIED, may not import |
+| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | module imports under `wrangler dev` (experiment 6). The flow itself is not yet run. |
+| Anthropic | loopback server, with a copy-code fallback | module imports. Use the copy-code path only. |
+| OpenRouter | loopback server, with a manual paste fallback | module imports. Use the paste path only. |
+| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | module imports with `nodejs_compat` |
 
 Two cautions for the owner to decide on.
 
 - The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. A hosted multi-user service that signs users in with that client id may break the provider's terms. The plan ships API keys first and puts subscription sign-in behind a flag that is off by default.
-- pi-ai's generated model catalog is gitignored in `refs/pi`. UNVERIFIED: that the published npm package contains it. Section 21 checks it.
+- pi-ai's generated model catalog is gitignored in `refs/pi`, but the published npm package does contain it, as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5, [results](research/experiment-5-bundle-and-catalog.md)).
 
 ### 11.5 Model catalog for the client
 
@@ -453,7 +453,7 @@ A build step reads the pi-ai catalog and writes a hashed JSON asset. The setting
 
 ### 11.6 Test provider
 
-Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. UNVERIFIED: the catalog id for "deepseek v4.1 flash". An older catalog has `opencode-go/deepseek-v4-flash`, and the pi changelog names `deepseek-flash` for the `deepseek` provider. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
+Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
 
 ## 12. Executor integration and code mode
 
