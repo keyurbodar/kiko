@@ -96,3 +96,4 @@ Run the browser checks your issue names with `agent-browser`, the CLI the owner 
 - Room search: socket frame `search { query, before?, limit? }` on the room; chat-title search on the user socket.
 - The client data layer uses the mock room unless `VITE_KIKO_SYNC=live`. `useApp.chatById`, `members`, `memberById` replace `botById` and `groups`.
 - Queue jobs: add a job type to the `Job` union in `apps/server/src/jobs/consumer.ts` and one branch in `run()`. A throwing handler is retried with backoff.
+- Agent host: `AgentDO.receive(envelopes, brief) -> { admitted }` and `status()`. `new AgentHost(ctx, { setup, onOpen?, heartbeatMs? })` in `apps/server/src/agent/host.ts`; `setup()` returns `{ models, registry, agent, settings? }` (the factory plugs in here); `onOpen({ harness, root, storage })` runs once per process before resume. Wakeup keys `inbox` and `heartbeat`. `inbox.ts` exports `Inbox`, `requestIdFor`, `renderInput`.
