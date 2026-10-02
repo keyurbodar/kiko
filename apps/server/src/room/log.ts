@@ -119,12 +119,25 @@ export class RoomLog {
 				SNAPSHOT_MESSAGES,
 			)
 			.toArray()
+		// One query for the reactions of every row, not one per message.
+		const reactions = new Map<string, Reaction[]>()
+		for (const x of this.sql
+			.exec<{ message_id: string; actor: string; emoji: string }>(
+				`SELECT message_id, actor, emoji FROM reactions WHERE message_id IN
+				 (SELECT id FROM messages WHERE deleted_at IS NULL ORDER BY seq DESC LIMIT ?) ORDER BY at`,
+				SNAPSHOT_MESSAGES,
+			)
+			.toArray()) {
+			const list = reactions.get(x.message_id) ?? []
+			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
+			reactions.set(x.message_id, list)
+		}
 		// ASSUMPTION: tasks and approvals are empty until the tasks that own those tables fill them in.
 		return {
 			seq: this.lastSeq(),
 			readSeq: this.readSeq(),
 			members: listMembers(this.storage),
-			messages: rows.map((r) => this.toMessage(r)),
+			messages: rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [])),
 			tasks: [],
 			approvals: [],
 			files: listFiles(this.storage),
@@ -303,14 +316,17 @@ export class RoomLog {
 		return { ...body, seq, at } as RoomEvent
 	}
 
-	private toMessage(r: MessageRow): Message {
-		const reactions: Reaction[] = this.sql
-			.exec<{ actor: string; emoji: string }>(
-				"SELECT actor, emoji FROM reactions WHERE message_id = ? ORDER BY at",
-				r.id,
-			)
-			.toArray()
-			.map((x) => ({ by: actorFromKey(x.actor), emoji: x.emoji }))
+	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
+	private toMessage(r: MessageRow, preloaded?: Reaction[]): Message {
+		const reactions: Reaction[] =
+			preloaded ??
+			this.sql
+				.exec<{ actor: string; emoji: string }>(
+					"SELECT actor, emoji FROM reactions WHERE message_id = ? ORDER BY at",
+					r.id,
+				)
+				.toArray()
+				.map((x) => ({ by: actorFromKey(x.actor), emoji: x.emoji }))
 		return {
 			id: r.id as MessageId,
 			seq: r.seq,

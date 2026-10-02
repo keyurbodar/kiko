@@ -1,6 +1,7 @@
 import type { Agent, Chat, ChatOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
+import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
@@ -48,6 +49,7 @@ export class UserDO extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
+    instrument(ctx, "user")
     this.sql = ctx.storage.sql
     // Architecture section 23: the schema migration runs before any other work on every start.
     void ctx.blockConcurrencyWhile(async () => {
@@ -110,6 +112,11 @@ export class UserDO extends DurableObject<Env> {
 
   async listChats(): Promise<Chat[]> {
     return listChats(this.sql)
+  }
+
+  /** One chat, or null when the user has no chat for the room. The room asks before each delivery. */
+  async getChat(roomId: RoomId): Promise<Chat | null> {
+    return getChat(this.sql, roomId)
   }
 
   /** Adds an agent and tells every socket. Returns null when the id or the handle is taken or the input is refused. */
@@ -404,6 +411,11 @@ export class UserDO extends DurableObject<Env> {
     return event
   }
 
+  /** Rows a snapshot carries: every chat and agent, and the theme. */
+  private snapshotRows(): number {
+    return this.sql.exec<{ n: number }>("SELECT (SELECT count(*) FROM chats) + (SELECT count(*) FROM agents) + 1 AS n").one().n
+  }
+
   /** Sends a frame to every socket that has said hello. */
   private broadcast(frame: UserToClient): void {
     const text = JSON.stringify(frame)
@@ -412,12 +424,20 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  /** The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. */
+  /**
+   * The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. A client
+   * with nothing (`lastSeq` 0) also gets the snapshot when it is shorter: every run touches a chat
+   * and stores one more event, so the replay grows to 500 events while the snapshot is one row per
+   * chat and agent.
+   */
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
-    const oldest = this.sql.exec<{ seq: number | null }>("SELECT min(seq) AS seq FROM user_events").one().seq
+    const { oldest, stored } = this.sql
+      .exec<{ oldest: number | null; stored: number }>("SELECT min(seq) AS oldest, count(*) AS stored FROM user_events")
+      .one()
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
-    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
+    const fresher = lastSeq === 0 && stored > this.snapshotRows()
+    if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()

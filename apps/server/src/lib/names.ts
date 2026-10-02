@@ -2,6 +2,7 @@ import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from 
 import type { AgentDO } from "../agent/agent-do"
 import type { RoomDO } from "../room/room-do"
 import type { UserDO } from "../user/user-do"
+import { rpc } from "./dev-stats"
 
 // Architecture section 4.2. Every Durable Object name starts with the user id, and the
 // Worker builds `user:` and `room:` names only from the session. No code path accepts a
@@ -46,11 +47,11 @@ export function agentName(userId: string, roomId: string, slug: string): string 
 }
 
 export function userStub(ns: DurableObjectNamespace<UserDO>, userId: string): DurableObjectStub<UserDO> {
-  return ns.get(ns.idFromName(userName(userId)))
+  return rpc(ns.get(ns.idFromName(userName(userId))), "user")
 }
 
 export function roomStub(ns: DurableObjectNamespace<RoomDO>, userId: string, roomId: string): DurableObjectStub<RoomDO> {
-  return ns.get(ns.idFromName(roomName(userId, roomId)))
+  return rpc(ns.get(ns.idFromName(roomName(userId, roomId))), "room")
 }
 
 /**
@@ -79,5 +80,5 @@ export function agentStub(
   roomId: string,
   slug: string,
 ): DurableObjectStub<AgentDO> {
-  return ns.get(ns.idFromName(agentName(userId, roomId, slug)))
+  return rpc(ns.get(ns.idFromName(agentName(userId, roomId, slug))), "agent")
 }

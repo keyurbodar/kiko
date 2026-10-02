@@ -123,7 +123,7 @@ A Durable Object has one alarm. Each class multiplexes it with a small shared he
 | `AgentDO` | inbox ready, run heartbeat, `pi-durable` retry time |
 | `UserDO` | next reminder, daily memory tidy |
 
-`pi-durable` keeps retry and polling timers with in-process `setTimeout` (`src/harness/scheduler.ts`). A timer does not wake a Durable Object that was evicted. While any task is unfinished, `AgentDO` keeps a heartbeat alarm at most 30 seconds ahead. The alarm handler opens the harness if needed and calls `harness.resume()`. An alarm handler may run for 15 minutes at most (Cloudflare docs), so a long run continues across heartbeats and never depends on one handler invocation.
+`pi-durable` keeps retry and polling timers with in-process `setTimeout` (`src/harness/scheduler.ts`). A timer does not wake a Durable Object that was evicted. While any task is unfinished, `AgentDO` keeps a heartbeat alarm at most 30 seconds ahead. The alarm handler opens the harness if needed and calls `harness.resume()`. An alarm handler may run for 15 minutes at most (Cloudflare docs), so a long run continues across heartbeats and never depends on one handler invocation. After a restart, a run would wait for the next heartbeat, up to 30 seconds. So `RoomDO` stores a `live:<slug>` marker while an agent's status is not idle, and the first socket of a new room process calls `AgentDO.wake()` for each marked agent. `wake()` moves a pending heartbeat to now and returns, like `receive()`. Measured with `bun kiko verify latency`: the agent came back after 24.5 s at p50 before, 58 ms after.
 
 Alarms deliver at least once. Every alarm handler in kiko is idempotent: it reads what is due from a table, acts with a stable id, and marks the row done in the same transaction.
 
