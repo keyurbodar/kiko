@@ -10,6 +10,7 @@ import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { createEffect, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
+import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { Sidebar } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
@@ -99,6 +100,8 @@ export function Shell(props: ParentProps) {
   createEffect((prev: string | undefined) => {
     const path = location.pathname;
     if (prev !== undefined && prev !== path && narrow()) setDrawer(false);
+    // The startup screen is taken once after each route change, not on a timer.
+    if (prev !== path) snapshotAfterRoute();
     return path;
   });
   /** The chat the panel describes: the one named by the URL. */
