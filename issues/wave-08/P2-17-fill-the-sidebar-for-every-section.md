@@ -3,9 +3,9 @@
 | Field | Value |
 | --- | --- |
 | Phase | 2 (`docs/phases/02-frontend-core.md`) |
-| Wave | 7 |
-| Depends on | P2-09, P5-04, P4-05, P8-08 |
-| Difficulty | 3 of 5 |
+| Wave | 8 |
+| Depends on | P2-19 |
+| Difficulty | 2 of 5 |
 | Area | frontend |
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
@@ -14,7 +14,7 @@
 
 ## Verification
 
-With `agent-browser`, each rail section shows its own sidebar panel and none shows "not built": chat shows pinned tiles and the chat list, files shows the chat picker and the file tree, memory shows the search field and records grouped by type, and settings shows its section list. Switching sections has no animation and keeps each panel's scroll position.
+With `agent-browser`, each rail section shows its own sidebar panel and none shows "not built": chat shows pinned tiles and the chat list, files shows the chat picker and the file tree, and settings shows its section list. Switching sections has no animation and keeps each panel's scroll position.
 
 ## Task
 
@@ -22,14 +22,13 @@ With `agent-browser`, each rail section shows its own sidebar panel and none sho
 
 **Read first.** `apps/web-solid/src/sidebar/sidebar.tsx`, which receives `section` from the shell. `~/kat-images/screenshot 9.png` to `15.png`.
 
-**Files.** `apps/web-solid/src/sidebar/`. Create `memory/sidebar.tsx` and `settings/sidebar.tsx`. Edit `app/sections.ts`, `app/rail.tsx`, and `app/routes.tsx` to remove the board. Move the memory record list from the main panel into the sidebar if P5-04 put it there.
+**Files.** `apps/web-solid/src/sidebar/`. Create `settings/sidebar.tsx`. Edit `app/sections.ts`, `app/rail.tsx`, and `app/routes.tsx` to remove the board. Move the memory record list from the main panel into the sidebar if P5-04 put it there.
 
 **Build.**
 
 - One panel component per section, chosen from a table keyed by `SectionId`. Each loads lazily except chat.
-- Remove the board section: the rail has chat, files, memory, and settings, and `/board` redirects to `/chat`. A group's tasks live in the chat (P6-09).
-- The header shows the section name and its one primary action: new chat, new file, new memory record, or nothing for settings.
-- Memory: a search field and records grouped by type (profile, now, todo, then the rest), pinned first. Selecting one opens it in the main panel at `/memory/:id`.
+- Remove the board section: the rail has chat, files, and settings (memory moved into the chat info panel in P2-19), and `/board` redirects to `/chat`. A group's tasks live in the chat (P6-09).
+- The header shows the section name and its one primary action: new chat, new file, or nothing for settings.
 - Settings: providers, models, integrations, skills, account. Selecting one routes to `/settings/<name>`.
 - Keep the collapse toggle, width, and resize handle shared by all panels.
 

@@ -36,7 +36,7 @@ The `verify-kiko` team chat feature: type `@`, pick an agent, send, and see only
   - A one-agent room shows no avatars and no names, as in kat.
 - The top bar shows the group's avatar, its name, and `<n> members`.
 - Collapse agent-to-agent messages into a muted thread with a count, expandable in place.
-- A member sheet that lists agents with role, model, and status, and adds, renames, or removes one.
+- The members section of the chat info panel (P2-19) lists agents with role, model, and status, and adds, renames, or removes one.
 - Group chats in the sidebar get a stacked avatar of up to three members, and the row's first line names the group, not one agent.
 - The `+` menu offers "new group": name it and pick agents. The first agent picked is the lead.
 - The composer placeholder reads `message <group name>`.

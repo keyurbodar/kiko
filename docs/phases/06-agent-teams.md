@@ -179,7 +179,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
   - A one-agent room shows no avatars and no names, as in kat.
 - The top bar shows the group's avatar, its name, and `<n> members`.
 - Collapse agent-to-agent messages into a muted thread with a count, expandable in place.
-- A member sheet that lists agents with role, model, and status, and adds, renames, or removes one.
+- The members section of the chat info panel (P2-19) lists agents with role, model, and status, and adds, renames, or removes one.
 - Group chats in the sidebar get a stacked avatar of up to three members, and the row's first line names the group, not one agent.
 - The `+` menu offers "new group": name it and pick agents. The first agent picked is the lead.
 - The composer placeholder reads `message <group name>`.
@@ -189,9 +189,9 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 ### P6-09 Show a group's tasks inside the chat
 
-`deps: P6-02, P2-08` `difficulty: 3` `area: frontend`
+`deps: P6-02, P2-08, P2-19` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` team tasks feature: in a group chat, the top bar shows `3 tasks`, clicking it opens the group info sheet on its tasks tab with tasks grouped by status, owner, and dependencies, a status changed by hand applies at once, and a task an agent finishes appears as one muted line in the transcript.
+**Verify.** The `verify-kiko` team tasks feature: in a group chat, the top bar shows `3 tasks`, clicking it opens the chat info panel at its tasks section with tasks grouped by status, owner, and dependencies, a status changed by hand applies at once, and a task an agent finishes appears as one muted line in the transcript.
 
 **Goal.** Show a team's work where the team talks. There is no separate board section.
 
@@ -201,7 +201,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 **Build.**
 
-- The group top bar shows the open task count next to `<n> members`. It opens the group info sheet, which has tabs for members, tasks, and notes, switched with no animation. P6-08 owns the members tab.
+- The group top bar shows the open task count next to `<n> members`. It opens the chat info panel from P2-19 with its tasks section in view. Tasks and notes are sections of that panel.
 - Tasks grouped by status, each with owner avatar, a blocked marker, and what it waits on. Human edits go through the room socket and apply optimistically.
 - Notes rendered with the rich text renderer.
 - A task created, finished, or blocked shows in the transcript as one muted system line, collapsed with its neighbors, using the `SystemMessage` component.

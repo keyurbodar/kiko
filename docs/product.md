@@ -157,7 +157,7 @@ Kat has four rail items: chat, terminal, code, browser. Kiko has no terminal and
 | B | activity (live agent log) | integrations | rejected. Activity alone is thin, and integrations are visited once |
 | C | schedule (calendar of reminders) | memory | rejected. A schedule tab inside the board covers it |
 
-Option A was chosen at first. On 2026-10-02 the owner made group chats of agents, laid out like Telegram groups, the center of team work. A separate board then duplicates the chat, so it was dropped. DEVIATION from option A: kiko has one free slot, memory. A group's tasks and notes live in the group's info sheet (P6-09), and reminders live in every chat's info sheet (P5-07). Kat's code slot becomes files.
+Option A was chosen at first. On 2026-10-02 the owner made group chats of agents, laid out like Telegram groups, the center of team work. A separate board then duplicates the chat, so it was dropped. The same day the owner asked to fold memory into a per-chat info panel opened from the chat's name, as Telegram and kat do (P2-19). DEVIATION from option A: the rail has chat, files, and settings. A group's tasks and notes live in the group's info sheet (P6-09), and reminders live in every chat's info sheet (P5-07). Kat's code slot becomes files.
 
 ## Non-goals
 
