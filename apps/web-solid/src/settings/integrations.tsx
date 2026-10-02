@@ -134,29 +134,34 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 				<Show
 					when={status()?.connected}
 					fallback={
-						<section class="flex flex-col gap-3" data-state="empty">
-							<p class="text-sm text-muted" data-component="integrations-about">
-								executor gives your agents one place to reach the apps and services you use.
-								<br />
-								connect your account and every tool it offers shows up here.
-								{" "}
-								<a class="underline" href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
-									learn more
-								</a>
-							</p>
-							<div class="flex items-center gap-2">
+						<section class="flex flex-col overflow-hidden rounded-2xl bg-[var(--surface-raised)]" data-state="empty">
+							<div class="flex items-center gap-3 p-4">
+								<span class="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--input-bg)] text-[var(--accent)]">
+									<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+										<path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" />
+									</svg>
+								</span>
+								<span class="min-w-0 flex-1">
+									<span class="block text-[15px] text-text">executor</span>
+									<span class="block text-xs text-weak" data-component="integrations-about">
+										one place for your agents to reach the apps you use.{" "}
+										<a class="underline" href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
+											learn more
+										</a>
+									</span>
+								</span>
 								<button
 									type="button"
-									class="h-10 rounded-[10px] bg-[var(--accent-fill)] px-4 text-sm text-[var(--on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50 md:h-9"
+									class="h-9 shrink-0 rounded-xl bg-[var(--accent-fill)] px-4 text-sm text-[var(--on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
 									data-action="connect"
 									disabled={busy()}
 									onClick={() => void signIn()}
 								>
-									{status()?.pending ? "continue sign-in" : "sign in to connect"}
+									{status()?.pending ? "continue" : "connect"}
 								</button>
 							</div>
-							<form class="flex flex-col gap-2" onSubmit={submitKey} data-method="api_key">
-								<label class="text-xs text-weak" for="integrations-key">or paste an api key</label>
+							<form class="flex flex-col gap-2 bg-[oklch(from_var(--surface-raised)_calc(l-0.02)_c_h)] px-4 py-3" onSubmit={submitKey} data-method="api_key">
+								<label class="text-xs text-weak" for="integrations-key">or paste an executor api key</label>
 								<div class="flex gap-2">
 									<input
 										id="integrations-key"
@@ -166,16 +171,17 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 										autocomplete="off"
 										autocapitalize="off"
 										spellcheck={false}
-										class="h-10 min-w-0 flex-1 rounded-[10px] md:h-9 bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+										placeholder="exec_..."
+										class="h-9 min-w-0 flex-1 rounded-xl bg-[var(--input-bg)] px-3 text-sm text-text outline-none placeholder:text-weak focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 										data-component="integrations-key"
 									/>
 									<button
 										type="submit"
 										disabled={busy()}
-										class="h-10 rounded-[10px] bg-[var(--btn-bg)] px-3 text-sm text-[var(--tab-text-active)] hover:bg-[var(--btn-bg-hover)] disabled:opacity-50 md:h-9"
+										class="h-9 rounded-xl bg-[var(--btn-bg)] px-3 text-sm text-text hover:bg-[var(--btn-bg-hover)] disabled:opacity-50"
 										data-action="save-key"
 									>
-										save key
+										save
 									</button>
 								</div>
 							</form>
@@ -183,9 +189,9 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 					}
 				>
 					<section class="flex min-h-0 flex-1 flex-col gap-3" data-state="connected">
-						<div class="flex items-center justify-between gap-3 rounded-[10px] bg-[var(--surface-raised)] px-3 py-2">
+						<div class="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-raised)] p-4">
 							<span class="min-w-0">
-								<span class="block truncate text-sm text-[var(--tab-text-active)]" data-field="organization">
+								<span class="block truncate text-[15px] text-text" data-field="organization">
 									{status()?.organization?.toLowerCase() ?? "connected"}
 								</span>
 								<span class="block truncate text-xs text-weak" data-field="tool-count">
@@ -215,7 +221,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 								<For each={MODES}>{(m) => <option value={m.id}>{m.label}</option>}</For>
 							</select>
 						</label>
-						<ul class="flex min-h-0 flex-col overflow-y-auto" data-component="tool-list">
+						<ul class="flex min-h-0 flex-col overflow-y-auto rounded-2xl bg-[var(--surface-raised)] p-1" data-component="tool-list">
 							<For each={view().tools ?? []}>
 								{(name) => (
 									<li
