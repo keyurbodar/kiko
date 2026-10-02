@@ -146,7 +146,8 @@ export async function signInWithProvider(provider: "google" | "github"): Promise
     body: JSON.stringify({ provider, callbackURL: "/chat" }),
   })
   const { url } = (await res.json()) as { url?: string }
-  if (url) location.assign(url)
+  if (!url) throw new Error("no sign-in url")
+  location.assign(url)
 }
 
 /** Development Workers only. Mints a session for a test user, then reads it back. */
@@ -156,7 +157,8 @@ export async function signInAsDev(name = "dev"): Promise<void> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name }),
   })
-  if (!res.ok) return
+  if (!res.ok) throw new Error("dev sign-in failed")
   const me = await fetch("/api/me")
-  if (me.ok) signedIn(((await me.json()) as { user: SessionUser }).user)
+  if (!me.ok) throw new Error("dev sign-in failed")
+  signedIn(((await me.json()) as { user: SessionUser }).user)
 }
