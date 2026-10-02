@@ -17,7 +17,7 @@ export function RichText(props: {
     <>
       <Show when={props.text}>
         {(body) => (
-          <span class={cn("chat-text whitespace-pre-wrap wrap-anywhere", props.class)}>
+          <span class={cn("bubble-text whitespace-pre-wrap wrap-anywhere", props.class)}>
             <For each={richTextSegments(body())}>
               {(segment) => (
                 <Show
