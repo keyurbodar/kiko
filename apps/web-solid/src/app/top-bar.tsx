@@ -1,5 +1,6 @@
 import { useLocation } from "@solidjs/router"
 import { Show } from "solid-js"
+import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
 
@@ -11,6 +12,10 @@ import { TabStrip } from "./tab-strip"
 export function TopBar() {
   const location = useLocation()
   const section = () => sectionOf(location.pathname)
+  const chatId = () => {
+    const id = /^\/chat\/([^/]+)$/.exec(location.pathname)?.[1]
+    return id && id !== "new" ? decodeURIComponent(id) : null
+  }
   return (
     <header
       class="flex h-[50px] shrink-0 items-center px-4 text-sm font-medium text-muted"
@@ -21,6 +26,7 @@ export function TopBar() {
         fallback={<Show when={section()}>{(id) => <span data-component="top-bar-title">{id()}</span>}</Show>}
       >
         <TabStrip />
+        <ModelPickerButton chatId={chatId()} />
       </Show>
     </header>
   )
