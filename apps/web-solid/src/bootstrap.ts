@@ -10,7 +10,6 @@ const RELOAD_KEY = "kiko:preload-reload";
 function firstRouteChunk(path: string): Promise<unknown> {
   if (path.startsWith("/files")) return import("./app/routes/files");
   if (path.startsWith("/board")) return import("./app/routes/board");
-  if (path.startsWith("/memory")) return import("./app/routes/memory");
   if (path.startsWith("/settings")) return import("./app/routes/settings");
   return import("./app/routes/chat");
 }

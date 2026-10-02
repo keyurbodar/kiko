@@ -9,6 +9,7 @@ const deps = (over: { newChat?: () => void } = {}) => ({
   newChat: over.newChat ?? (() => {}),
   closeChat() {},
   hasActiveChat: () => false,
+  toggleInfo() {},
   openPalette() {},
   openChats() {},
 })

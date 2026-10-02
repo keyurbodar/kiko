@@ -191,6 +191,25 @@ describe("the socket", () => {
 })
 
 describe("the room store", () => {
+	test("catalog asks the room for links and pages by the cursor it gave", async () => {
+		const { mock, make } = setup()
+		const { store } = await make()
+		await until(() => store.state.connection === "open")
+		store.send("one https://a.dev/1")
+		store.send("two https://b.dev/2")
+		store.send("no link here")
+		await until(() => store.state.messages.filter((m) => m.from.kind === "human").length >= 3)
+		const first = await store.catalog("links", undefined, 1)
+		expect(first?.items.map((i) => (i.kind === "link" ? i.url : ""))).toEqual(["https://b.dev/2"])
+		expect(first?.next).not.toBeNull()
+		const rest = await store.catalog("links", first!.next!, 1)
+		expect(rest?.items.map((i) => (i.kind === "link" ? i.url : ""))).toEqual(["https://a.dev/1"])
+		expect(rest?.next).toBeNull()
+		expect((await store.catalog("media"))?.items.map((i) => i.kind)).toEqual(["media"])
+		store.close()
+		expect(await store.catalog("links")).toBeNull()
+	})
+
 	test("paints from the warm tier, then says hello with its lastSeq", async () => {
 		const { mock, make } = setup()
 		const warm = await freshWarm()

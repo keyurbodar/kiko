@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { nextAfterClose, openTabs } from "../app/open-tabs"
+import { toggleInfo } from "../chat/info/state"
 import { openPalette } from "../palette/state"
 import { katCommands } from "./kat-commands"
 import { useCommands } from "./registry"
@@ -25,6 +26,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openPalette: () => openPalette("commands"),
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
+      toggleInfo,
       closeChat: () => {
         const id = activeId()
         if (!id) return

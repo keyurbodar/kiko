@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { For, Show, createEffect, createMemo, untrack } from "solid-js"
+import { infoOpen, loadInfoPanel, toggleInfo } from "../chat/info/state"
 import { intentRef } from "../lib/intent"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
@@ -95,9 +96,24 @@ export function TabStrip() {
               }}
               onKeyDown={(event) => onKeyDown(event, id)}
             >
-              <IdentityAvatar seed={id} size={16} />
-              <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-12px),transparent)] group-data-[unread]:[-webkit-text-stroke:0.3px]">
-                {label(id)}
+              {/* On the open chat, the avatar and the name are the way into its info panel. */}
+              <span
+                class="flex min-w-0 flex-1 items-center gap-[6px]"
+                data-component="tab-identity"
+                data-info-toggle={active() ? "" : undefined}
+                aria-expanded={active() ? infoOpen() : undefined}
+                title={active() ? "chat info" : undefined}
+                onPointerEnter={() => active() && void loadInfoPanel()}
+                onClick={(event) => {
+                  if (!active()) return
+                  event.stopPropagation()
+                  toggleInfo()
+                }}
+              >
+                <IdentityAvatar seed={id} size={16} />
+                <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-12px),transparent)] group-data-[unread]:[-webkit-text-stroke:0.3px]">
+                  {label(id)}
+                </span>
               </span>
               <Show when={!active() && useApp.drafts()?.has(id)}>
                 <span class="shrink-0 text-[10px] text-[var(--accent)]" data-component="tab-draft">
