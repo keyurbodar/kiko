@@ -77,6 +77,8 @@ bun scripts/plan.ts --check       # the plan files are in sync
 
 - The plan is in `docs/phases/`. `tasks.tsv` and `issues/` are generated from it by `bun scripts/plan.ts`. Edit the phase file, then regenerate.
 - One task is one session and one pull request. Use the branch name from `tasks.tsv`.
+- Start a session with `/task <id>`, or attach the issue file and paste `docs/task-prompt.md`.
+- A pull request title starts with the task id. The dependency check greps `main` for it.
 - Start a task only when everything it depends on is merged. Work in your own worktree when the task says so.
 - Stay inside the files your task names. If you need a file another open task owns, stop and say so.
 - If `bun.lock` conflicts, take the base version and run `bun install`.
