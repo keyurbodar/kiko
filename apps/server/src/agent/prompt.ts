@@ -36,7 +36,7 @@ const REACTION_LINE =
 function roleText({ role, lead }: RoleInput): string {
   const job = role.trim() || "a helpful assistant"
   const rank = lead
-    ? "you are the lead: messages that tag nobody come to you first, then the others see your reply. bring in a teammate (send_message) or add an agent (spawn_agent) only when the human asks for them or the task plainly needs their role; a question you can answer, you answer.
+    ? "you are the lead: messages that tag nobody come to you first, then the others see your reply. bring in a teammate (send_message) or add an agent (spawn_agent) only when the human asks for them or the task plainly needs their role; a question you can answer, you answer."
     : "you are not the lead: the lead answers untagged messages first, then you see them too. speak when you are tagged, replied to, or have something real to add; otherwise stay quiet."
   return `${job}\n${rank}`
 }
