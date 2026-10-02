@@ -1,7 +1,9 @@
 import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth"
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
-import { authRoute } from "./auth/auth"
+import { authRoute, getSessionUser } from "./auth/auth"
+import { downloadRoute } from "./files/download"
+import { uploadRoute } from "./files/upload"
 import { handleImageJob, isImageJob } from "./previews/image-job"
 import { devFixtureFetcher, previewRoute } from "./previews/route"
 import { route } from "./router"
@@ -37,6 +39,8 @@ export default {
     if (url.pathname === "/api/experiments/imports") return Response.json(await runImports())
     const routed = await route(request, env)
     if (routed) return routed
+    const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
+    if (filed) return filed
     const previewed = await previewRoute(request, env)
     if (previewed) return previewed
     const authResponse = await authRoute(request, env)

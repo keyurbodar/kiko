@@ -2,6 +2,7 @@ import type { AgentSlug, RoomEvent, RoomToClient } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../lib/names"
+import { type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { migrate } from "./schema"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
@@ -11,6 +12,7 @@ import { type Attachment, attachment, handleFrame, send, type SocketRoom } from 
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	readonly log: RoomLog
+	readonly files: RoomFiles
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -20,6 +22,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		super(ctx, env)
 		migrate(ctx.storage)
 		this.log = new RoomLog(ctx.storage)
+		this.files = new RoomFiles(ctx.storage, this.log)
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -60,6 +63,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** Sends a frame that is not stored (typing, draft, status) to every ready socket. */
 	broadcast(frame: RoomToClient): void {
 		for (const ws of this.ctx.getWebSockets()) if (attachment(ws).ready) send(ws, frame)
+	}
+
+	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
+	async putFile(input: NewFile): Promise<Omit<PutResult, "event">> {
+		const { event, ...result } = this.files.put(input)
+		if (event) this.publish([event])
+		return result
 	}
 
 	humanTyping(): void {

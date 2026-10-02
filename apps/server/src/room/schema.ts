@@ -50,6 +50,23 @@ const MIGRATIONS: readonly string[] = [
 		seq INTEGER NOT NULL
 	);
 	`,
+	`
+	-- The room's file index (files.ts). Bytes are in R2 under r2_key. A path holds
+	-- one file. author is an actor key, as in events.
+	CREATE TABLE ws_files (
+		id TEXT PRIMARY KEY,
+		path TEXT NOT NULL UNIQUE,
+		r2_key TEXT NOT NULL,
+		size INTEGER NOT NULL,
+		type TEXT NOT NULL,
+		sha256 TEXT NOT NULL,
+		width INTEGER,
+		height INTEGER,
+		thumbhash TEXT,
+		author TEXT NOT NULL,
+		at INTEGER NOT NULL
+	);
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */
