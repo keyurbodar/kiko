@@ -4,17 +4,17 @@ import { Dynamic } from "solid-js/web";
 import AddRegular from "@mingcute/solid/core-regular/add";
 import Chat1Filled from "@mingcute/solid/core-filled/chat-1";
 import Chat1Regular from "@mingcute/solid/core-regular/chat-1";
-import CodeFilled from "@mingcute/solid/core-filled/code";
-import CodeRegular from "@mingcute/solid/core-regular/code";
-import GlobeFilled from "@mingcute/solid/core-filled/globe";
-import GlobeRegular from "@mingcute/solid/core-regular/globe";
+import BrainFilled from "@mingcute/solid/core-filled/brain";
+import BrainRegular from "@mingcute/solid/core-regular/brain";
+import DashboardFilled from "@mingcute/solid/core-filled/dashboard";
+import DashboardRegular from "@mingcute/solid/core-regular/dashboard";
+import FolderFilled from "@mingcute/solid/core-filled/folder";
+import FolderRegular from "@mingcute/solid/core-regular/folder";
 import Settings3Filled from "@mingcute/solid/core-filled/settings-3";
 import Settings3Regular from "@mingcute/solid/core-regular/settings-3";
-import TerminalBoxFilled from "@mingcute/solid/core-filled/terminal-box";
-import TerminalBoxRegular from "@mingcute/solid/core-regular/terminal-box";
 
-/** The four panels, in rail order. */
-export type PanelId = "chats" | "terminal" | "code" | "browser";
+/** The four panels above settings, in rail order. */
+export type PanelId = "chat" | "files" | "board" | "memory";
 
 /** Mirrors `--rail-icon`; the rail tab sizes its `svg` to this. */
 const RAIL_ICON = 22;
@@ -26,10 +26,10 @@ type Glyph = Component<{ size?: number | string }>;
  * every closed panel renders the REGULAR one.
  */
 const PANEL_GLYPHS: Record<PanelId, { filled: Glyph; regular: Glyph }> = {
-  chats: { filled: Chat1Filled, regular: Chat1Regular },
-  terminal: { filled: TerminalBoxFilled, regular: TerminalBoxRegular },
-  code: { filled: CodeFilled, regular: CodeRegular },
-  browser: { filled: GlobeFilled, regular: GlobeRegular },
+  chat: { filled: Chat1Filled, regular: Chat1Regular },
+  files: { filled: FolderFilled, regular: FolderRegular },
+  board: { filled: DashboardFilled, regular: DashboardRegular },
+  memory: { filled: BrainFilled, regular: BrainRegular },
 };
 
 export function RailIcon(props: {

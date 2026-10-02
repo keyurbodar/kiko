@@ -1,6 +1,7 @@
 import { Blobatar } from "@blobatar/solid"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { useNavigate } from "@solidjs/router"
 import { cn } from "../lib/cn"
 import { useApp } from "../lib/store"
 import type { RosterBot } from "../lib/types"
@@ -201,9 +202,10 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
    */
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = createSignal(false)
+  const navigate = useNavigate()
 
   const select = () => {
-    useApp.selectThread(props.bot.id)
+    navigate(`/chat/${props.bot.id}`)
     useApp.markRead(props.bot.id)
   }
 
@@ -301,6 +303,7 @@ function ChatRow(props: { bot: RosterBot; active: boolean; now: number }) {
  */
 export function ChatPanel(props: { onToggleSidebar: () => void }) {
   const now = Date.now()
+  const navigate = useNavigate()
   const pinned = createMemo(() => useApp.bots().filter((bot) => bot.pinned))
   const rows = createMemo(() => useApp.bots().filter((bot) => !bot.pinned))
   return (
@@ -313,7 +316,7 @@ export function ChatPanel(props: { onToggleSidebar: () => void }) {
                 bot={bot}
                 active={useApp.activeThreadId() === bot.id}
                 onSelect={() => {
-                  useApp.selectThread(bot.id)
+                  navigate(`/chat/${bot.id}`)
                   useApp.markRead(bot.id)
                 }}
               />
