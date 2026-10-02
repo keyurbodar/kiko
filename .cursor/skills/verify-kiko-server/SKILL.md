@@ -59,3 +59,4 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | --- | --- |
 | `kiko health` | [health](./features/health.md) |
 | `selftest` | runner self check, no feature file |
+| `executor-connect` | [executor-connect](./features/executor-connect.md), needs a human sign-in |

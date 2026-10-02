@@ -9,6 +9,7 @@ import { consume } from "./jobs/consumer"
 import { devFixtureFetcher, previewRoute } from "./previews/route"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
+import { executorCallbackRoute } from "./integrations/executor/connect"
 import { experimentTurnRoute } from "./experiments/turn"
 import { experimentCoalescingRoute } from "./experiments/coalescing"
 import type { RoomDO } from "./room/room-do"
@@ -47,6 +48,8 @@ export default {
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)
     if (credentials) return credentials
+    const executorCallback = await executorCallbackRoute(request, env, getSessionUser)
+    if (executorCallback) return executorCallback
     const reminders = await remindersRoute(request, env)
     if (reminders) return reminders
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
