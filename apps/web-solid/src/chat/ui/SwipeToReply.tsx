@@ -16,9 +16,8 @@ export interface SwipeToReplyProps {
  * indicator underneath is revealed without anything re-rendering per move.
  *
  * Two gestures feed it: a pointer drag and a trackpad two-finger swipe, which
- * arrives as `wheel`. Both are LEFTWARD only, so the indicator has exactly one
- * edge to live on and there is no direction to mirror — a rightward drag does
- * nothing at all.
+ * arrives as `wheel`. Both are RIGHTWARD only, so the indicator lives on the left
+ * edge and a leftward drag does nothing at all.
  *
  * This element is also the whole grab area. It is a full-column-width block,
  * not a wrapper sized to the bubble, so a reader can start a swipe anywhere
@@ -70,7 +69,9 @@ export function SwipeToReply(props: SwipeToReplyProps) {
           // Nothing is drawn until the axis lock is behind us, so a tap leaves
           // no trace.
           "group-data-[swiping]/swipe:flex",
-          "right-4",
+          "left-4",
+          // Reduced motion: fade only, no scale.
+          "motion-reduce:[transform:translateY(-50%)]",
         )}
         data-component="chat-swipe-indicator"
         aria-hidden="true"
