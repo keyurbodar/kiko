@@ -173,6 +173,10 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 - Show the author name and a small avatar on the first bubble of each agent group. A one-agent room shows neither, as in kat.
 - Collapse agent-to-agent messages into a muted thread with a count, expandable in place.
 - A member sheet that lists agents with role, model, and status, and adds, renames, or removes one.
+- Group chats in the sidebar get a stacked avatar of up to three members, and the row's first line names the group, not one agent.
+- The `+` menu offers "new group": name it and pick agents. The first agent picked is the lead.
+- The top bar shows the group's avatar and name, and the composer placeholder reads `message <group name>`.
+- An `@mention` inside an agent's text renders as a chip with the agent's small avatar in its color, as in the owner's reference screenshot.
 
 **Done when.** A room with one agent looks exactly as it did before this task.
 
