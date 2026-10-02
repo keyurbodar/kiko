@@ -17,6 +17,7 @@
 // `messages()` and the other views are plain functions over the store. They
 // are reactive where they are read. Wrap one in `createMemo` to share it.
 
+import type { LocalAttachment } from "./patches"
 import type {
 	Actor,
 	AgentSlug,
@@ -243,7 +244,13 @@ const CATALOG_TIMEOUT_MS = 8000
 /** The composer's `typing` frames are spaced at least this far apart. */
 export const TYPING_EVERY_MS = 2000
 
-export type SendOptions = { replyTo?: MessageId; files?: readonly FileRef[] }
+export type SendOptions = {
+	replyTo?: MessageId
+	files?: readonly FileRef[]
+	/** Attachments still uploading: the message shows them now and leaves when `uploads` resolves (P8-06). */
+	local?: readonly LocalAttachment[]
+	uploads?: Promise<readonly FileRef[]>
+}
 
 export type RoomStore = {
 	readonly state: RoomState
@@ -331,6 +338,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	const setPatches = (fn: (p: RoomPatch[]) => RoomPatch[]) => setState("patches", (p) => fn(p))
 
 	function transmit(p: RoomPatch) {
+		if (p.held) return
 		if (!socket?.send(p.frame)) return
 		const sentAt = now()
 		setPatches((list) => list.map((x) => (x.clientId === p.clientId ? { ...x, sentAt } : x)))
@@ -562,6 +570,23 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			if (opts.replyTo) frame.replyTo = opts.replyTo
 			if (opts.files?.length) frame.files = opts.files
 			const p: RoomPatch = { clientId, frame, at: now() }
+			if (opts.uploads) {
+				// Shown now from the local files. The frame leaves, and reaches the outbox, once every upload landed.
+				p.local = opts.local
+				p.held = true
+				setPatches((list) => [...list, p])
+				opts.uploads.then(
+					(files) => {
+						const sent = { ...frame, files } as Extract<RoomPatchFrame, { t: "send" }>
+						const ready: RoomPatch = { ...p, held: false, frame: sent, local: undefined }
+						void addToOutbox(warm, { roomId, frame: sent, createdAt: p.at })
+						setPatches((list) => list.map((x) => (x.clientId === clientId ? ready : x)))
+						transmit(ready)
+					},
+					() => setPatches((list) => list.map((x) => (x.clientId === clientId ? { ...x, failed: true } : x))),
+				)
+				return clientId
+			}
 			// The outbox write is queued before the socket sees the frame. Its flush is not awaited.
 			void addToOutbox(warm, { roomId, frame, createdAt: p.at })
 			setPatches((list) => [...list, p])

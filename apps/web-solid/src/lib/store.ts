@@ -19,14 +19,15 @@ import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MessageId, Re
 import { batch, createComputed, createRoot, createSignal, untrack } from "solid-js"
 import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
-import type { ViewMessage } from "../sync/patches"
-import { createRoomStore, type RoomStore } from "../sync/room-store"
+import type { LocalAttachment, ViewMessage } from "../sync/patches"
+import { uploadAll } from "../sync/uploads"
+import { createRoomStore, type RoomStore, type SendOptions } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import { newestMessages } from "../warm/messages"
-import type { BotPresence, ChatMessage, DocumentItem, OutgoingMessage, Reaction, RosterBot } from "./types"
+import type { BotPresence, ChatMessage, DocumentItem, MediaItem, OutgoingMessage, Reaction, RosterBot } from "./types"
 
 // The URLs. The one place a socket or file URL is built.
 
@@ -96,10 +97,21 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   if (m.files?.length) {
-    // Every file is a document row until the media tasks in phase 8 draw images and video.
-    out.documents = m.files.map((f): DocumentItem => ({ name: f.name, size: f.size, mime: f.type, src: urls.file(roomId, f.id) }))
+    // Pictures and video with known dimensions are media; everything else is a document row.
+    const visual = (f: FileRef) => (f.type.startsWith("image/") || f.type.startsWith("video/")) && !!f.width && !!f.height
+    const media = m.files.filter(visual).map(
+      (f): MediaItem => ({ kind: f.type.startsWith("video/") ? "video" : "photo", src: urls.file(roomId, f.id), width: f.width!, height: f.height!, alt: f.name }),
+    )
+    const docs = m.files.filter((f) => !visual(f)).map((f): DocumentItem => ({ name: f.name, size: f.size, mime: f.type, src: urls.file(roomId, f.id) }))
+    if (media.length) out.media = media
+    if (docs.length) out.documents = docs
+  } else if (m.local?.length) {
+    const media = m.local.filter((f) => f.width && f.height).map((f): MediaItem => ({ kind: "photo", src: f.src, width: f.width!, height: f.height!, alt: f.name }))
+    const docs = m.local.filter((f) => !(f.width && f.height)).map((f): DocumentItem => ({ name: f.name, size: 0, mime: f.mime, src: f.src }))
+    if (media.length) out.media = media
+    if (docs.length) out.documents = docs
   }
-  if (m.from.kind === "human") out.status = m.pending ? "sending" : "sent"
+  if (m.from.kind === "human") out.status = m.failed ? "failed" : m.pending ? "sending" : "sent"
   return out
 }
 
@@ -288,11 +300,16 @@ export function createApp(options: AppOptions = {}) {
 
     function send(message: OutgoingMessage, replyTo?: string): string | undefined {
       const r = room()
-      // ASSUMPTION: attachments wait for uploads (P8-03). Until then only the text goes out.
-      const text = message.body.trim()
-      if (!r || text.length === 0) return undefined
+      const local: LocalAttachment[] = [
+        ...(message.media ?? []).map((m) => ({ src: m.src, name: m.alt || "photo", mime: "", width: m.width, height: m.height })),
+        ...(message.documents ?? []).map((d) => ({ src: d.src, name: d.name, mime: d.mime })),
+      ]
+      if (!r || (message.body.trim().length === 0 && local.length === 0)) return undefined
       const stored = replyTo !== undefined && !replyTo.startsWith("local:")
-      const clientId = r.send(message.body, stored ? { replyTo: replyTo as MessageId } : {})
+      const opts: SendOptions = stored ? { replyTo: replyTo as MessageId } : {}
+      // Attachments show at once from their blob URLs and upload in the background (P8-06).
+      if (local.length) Object.assign(opts, { local, uploads: uploadAll(r.state.roomId, local) })
+      const clientId = r.send(message.body, opts)
       return `local:${clientId}`
     }
 

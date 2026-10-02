@@ -39,7 +39,17 @@ export type RoomPatch = {
 	sentAt?: number
 	/** Set by an `ack`. The patch stays until the store has applied `seq`, so the bubble never blinks. */
 	ack?: { id: MessageId; seq: number }
+	/**
+	 * A send whose attachments are still uploading (P8-06). It shows at once from these local files
+	 * and leaves only once `held` clears. Never written to the outbox while held.
+	 */
+	local?: readonly LocalAttachment[]
+	held?: boolean
+	failed?: boolean
 }
+
+/** An attachment drawn from a local blob URL until its upload lands. */
+export type LocalAttachment = { src: string; name: string; mime: string; width?: number; height?: number }
 
 export type UserPatch = {
 	clientId: string
@@ -49,7 +59,7 @@ export type UserPatch = {
 }
 
 /** A message as the transcript draws it. A pending send has `pending` and its `clientId`. */
-export type ViewMessage = Message & { clientId?: string; pending?: boolean }
+export type ViewMessage = Message & { clientId?: string; pending?: boolean; local?: readonly LocalAttachment[]; failed?: boolean }
 
 /** How long an unconfirmed action may stay after it went out. */
 export const PATCH_TTL_MS = 15_000
@@ -132,6 +142,8 @@ function pendingMessage(p: RoomPatch & { frame: SendFrame }): ViewMessage {
 	}
 	if (p.frame.replyTo) m.replyTo = p.frame.replyTo
 	if (p.frame.files?.length) m.files = p.frame.files
+	else if (p.local?.length) m.local = p.local
+	if (p.failed) m.failed = true
 	return m
 }
 
