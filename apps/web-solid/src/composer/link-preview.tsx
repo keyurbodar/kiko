@@ -4,7 +4,7 @@ import { Icon } from "@kiko/ui/icon"
 import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { IconButtonV2 } from "@kiko/ui/v2/icon-button-v2"
 import { cn } from "../lib/cn"
-import { hasWebPageContent } from "../chat/lib/linkPreview"
+import { hasWebPageContent, ownMedia } from "../chat/lib/linkPreview"
 import type { WebPagePreview } from "../lib/types"
 
 export interface ComposerLinkPreviewProps {
@@ -49,7 +49,7 @@ export function ComposerLinkPreview(props: ComposerLinkPreviewProps): JSX.Elemen
                 {shown().description || props.url}
               </span>
             </span>
-            <Show when={shown().media}>
+            <Show when={ownMedia(shown())}>
               {(media) => (
                 <img
                   class="size-8 shrink-0 rounded-[2px] object-cover"

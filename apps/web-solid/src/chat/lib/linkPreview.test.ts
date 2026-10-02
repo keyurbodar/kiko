@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { hasWebPageContent, parseLinkPreview } from "./linkPreview"
+import { hasWebPageContent, isOwnOriginImage, ownMedia, parseLinkPreview } from "./linkPreview"
 
 const URL_ = "https://example.com/post"
 
@@ -125,5 +125,20 @@ describe("hasWebPageContent", () => {
   test("needs a title or description", () => {
     expect(hasWebPageContent({ url: URL_, site: "example.com" })).toBe(false)
     expect(hasWebPageContent({ url: URL_, description: "d" })).toBe(true)
+  })
+})
+
+describe("own-origin images", () => {
+  const origin = "http://localhost:5339"
+  test("a third-party image is refused", () => {
+    expect(isOwnOriginImage("https://example.com/a.png", origin)).toBe(false)
+  })
+  test("a relative path and the same origin load", () => {
+    expect(isOwnOriginImage("/api/img/a.png", origin)).toBe(true)
+    expect(isOwnOriginImage(`${origin}/a.png`, origin)).toBe(true)
+  })
+  test("ownMedia drops a foreign image", () => {
+    const media = { src: "https://example.com/a.png", width: 10, height: 10 }
+    expect(ownMedia({ url: "https://example.com", title: "t", media })).toBeUndefined()
   })
 })
