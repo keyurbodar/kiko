@@ -8,44 +8,16 @@ import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js"
    a reader should not have to think about whether a swipe is going to work.
    --------------------------------------------------------------------------- */
 
-/**
- * Furthest the row contents travel, in px.
- *
- * 40, down from 64. The old number was 2/3 of the old 48px arm point, so the
- * row kept sliding for a third of the gesture after it had already said yes;
- * that overshoot is what read as a journey. 40 against a 28px arm point keeps
- * 12px of "past the point" slack, which is enough to feel like it caught.
- */
-export const SWIPE_MAX_TRAVEL_PX = 40
+/** Furthest the row contents travel to the right, in px. */
+export const SWIPE_MAX_TRAVEL_PX = 64
 
-/**
- * Travel at which the gesture arms the reply, released.
- *
- * 28, down from 48. 48px is roughly the width of a two-finger trackpad sweep
- * and well past what a thumb produces in one lateral flick, so it demanded a
- * deliberate shove. 28 is a thumb flick; below ~24 the scroller's own residual
- * jitter starts tripping it.
- */
-export const SWIPE_REPLY_THRESHOLD_PX = 24
+/** Travel at which a release arms the reply. */
+export const SWIPE_REPLY_THRESHOLD_PX = 48
 
-/**
- * Vertical movement that loses the axis to the scroller before the lock closes.
- *
- * 16, down from 20. This is the one guard standing between a vertical scroll
- * and a stolen gesture, and it has to stay: a real scroll passes 16px inside a
- * single frame. It came down only because it is measured against the arm point
- * — at 20px a flick angled as shallowly as 55° was cancelled before it could
- * reach a 28px travel.
- */
-export const SWIPE_AXIS_LOCK_PX = 16
+/** Vertical movement that hands the gesture to the scroller before the axis locks. */
+export const SWIPE_AXIS_LOCK_PX = 20
 
-/**
- * Horizontal movement that wins the axis before anything is drawn.
- *
- * 6, down from 8. This is the dead zone at the start of every drag, and a
- * trackpad's very first event already carries more than 6px, so the smaller
- * value costs nothing in false positives — a resting finger moves 1-2px.
- */
+/** Horizontal movement that wins the axis before anything is drawn. */
 export const SWIPE_INTENT_PX = 6
 
 const INDICATOR_SCALE_MIN = 0.55
@@ -89,13 +61,10 @@ export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
   const [progress, setProgress] = createSignal(0)
   const [scale, setScale] = createSignal(INDICATOR_SCALE_MIN)
 
-  /** `travel` is how far the row has been pulled left, always >= 0. */
+  /** `travel` is how far the row has been pulled right, always >= 0. */
   const paint = (travel: number) => {
     const ratio = Math.min(1, travel / SWIPE_REPLY_THRESHOLD_PX)
-    // `travel > 0` rather than a bare `-travel`: at rest this has to be a plain
-    // zero, and `-0` is a different number that serialises into `--swipe-x` as
-    // `-0px`.
-    setOffset(travel > 0 ? -travel : 0)
+    setOffset(travel)
     setProgress(ratio)
     setScale(INDICATOR_SCALE_MIN + (1 - INDICATOR_SCALE_MIN) * ratio)
   }
@@ -141,22 +110,9 @@ export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
           return
         }
         if (Math.abs(dx) < SWIPE_INTENT_PX) return
-        /*
-         * LEFT ONLY.
-         *
-         * A rightward drag is not a reply, so it never claims the axis at all:
-         * cancelling here — rather than claiming it and then ignoring the
-         * travel — is what keeps the promise that a right drag paints nothing,
-         * arms nothing, and leaves `data-swiping` unset. It also means the row
-         * is never handed to the snap-back for a drag the reader did not make,
-         * so there is nothing to spring home afterwards.
-         *
-         * The gesture is deliberately NOT handed the rightward drag as a scroll:
-         * the transcript scroller is `overflow-x-hidden`, so there is no
-         * horizontal scroll to hand it to, and inventing one would be scope the
-         * transcript does not have. Inert is the honest answer.
-         */
-        if (dx > 0) {
+        // RIGHT ONLY. A leftward drag is not a reply: it never claims the
+        // axis, paints nothing, arms nothing and leaves `data-swiping` unset.
+        if (dx < 0) {
           axis = "cancelled"
           return
         }
@@ -166,13 +122,8 @@ export function createSwipeGesture(options: SwipeGestureOptions): SwipeGesture {
         setSwiping(true)
       }
 
-      /*
-       * Travel is leftward distance only, and it is re-derived on every move
-       * rather than latched at the claim: a reader who overshoots and drags
-       * back has genuinely un-armed the gesture, and the row follows them back
-       * to zero instead of staying parked at the overshoot.
-       */
-      const travel = Math.min(SWIPE_MAX_TRAVEL_PX, Math.max(0, -dx))
+      // Re-derived on every move: dragging back un-arms the gesture.
+      const travel = Math.min(SWIPE_MAX_TRAVEL_PX, Math.max(0, dx))
       armed = travel >= SWIPE_REPLY_THRESHOLD_PX
       paint(travel)
     },
@@ -226,7 +177,10 @@ export interface UseSwipeToReply {
   handlers: SwipeRowHandlers
 }
 
-const clamp = (value: number) => Math.max(-SWIPE_MAX_TRAVEL_PX, Math.min(SWIPE_MAX_TRAVEL_PX, value))
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+const clamp = (value: number) => Math.max(0, Math.min(SWIPE_MAX_TRAVEL_PX, value))
 
 /* ---------------------------------------------------------------------------
    Trackpad swipe.
@@ -270,7 +224,7 @@ function innerScrollsToward(from: EventTarget | null, stop: HTMLElement, deltaX:
       const overflow = getComputedStyle(element).overflowX
       if (overflow === "auto" || overflow === "scroll") {
         const max = element.scrollWidth - element.clientWidth
-        if (deltaX > 0 ? element.scrollLeft > 0 : element.scrollLeft < max - 1) return true
+        if (deltaX < 0 ? element.scrollLeft > 0 : element.scrollLeft < max - 1) return true
       }
     }
     element = element.parentElement
@@ -281,7 +235,7 @@ function innerScrollsToward(from: EventTarget | null, stop: HTMLElement, deltaX:
 /**
  * Wires the swipe gesture to a row. Two input paths share one state machine: a
  * pointer drag (mouse, touch, pen) and a trackpad two-finger swipe, which the
- * browser delivers as `wheel` events with a dominant `deltaX`. Only a LEFTWARD
+ * browser delivers as `wheel` events with a dominant `deltaX`. Only a RIGHTWARD
  * swipe is a reply, on any message; the row's `--swipe-x`, `--swipe-progress`
  * and `--swipe-scale` come out, written straight to the custom properties
  * rather than through a style binding, so the contents translate on the
@@ -308,7 +262,7 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
   }
 
   const settle: SwipeSettle = (from, done) => {
-    if (!row() || from === 0) {
+    if (!row() || from === 0 || prefersReducedMotion()) {
       clear()
       done()
       return
@@ -396,7 +350,7 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
   /*
    * The trackpad path. It drives the SAME state machine as the pointer path, by
    * feeding it synthetic coordinates rather than by growing a second machine:
-   * `-travel` is exactly the x a leftward drag produces, so the axis lock, the
+   * `travel` is exactly the x a rightward drag produces, so the axis lock, the
    * arming threshold, the snap-back and the commit stay in one place.
    *
    * The gesture ends when the wheel goes quiet, or when the deltas are seen to
@@ -450,9 +404,9 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
 
       if (axis === undefined) {
         /*
-         * Engage only on a horizontal-dominant LEFTWARD swipe. Vertical
-         * scrolling, inner horizontal scrollers and — per the pointer path —
-         * a rightward flick are all left entirely alone, so the only wheel
+         * Engage only on a horizontal-dominant RIGHTWARD swipe (negative deltaX). Vertical
+         * scrolling, inner horizontal scrollers and — as in the pointer path —
+         * a leftward flick are all left entirely alone, so the only wheel
          * gesture claimed is a deliberately sideways one that means something
          * here. Nothing is prevented on the way out, so whatever the reader
          * would have done with the others still happens.
@@ -492,7 +446,7 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
       }
 
       travel = Math.max(0, Math.min(SWIPE_MAX_TRAVEL_PX, travel + Math.abs(raw) * WHEEL_SCALE))
-      gesture.move(-travel, 0)
+      gesture.move(travel, 0)
       paint(gesture.offset)
 
 

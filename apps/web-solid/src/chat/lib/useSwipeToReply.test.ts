@@ -33,8 +33,8 @@ function harness(): Harness {
 }
 
 /**
- * Drags from the origin in one step. `travel` carries its own sign: negative is
- * a leftward drag, which is the only one that replies; positive is a rightward
+ * Drags from the origin in one step. `travel` carries its own sign: positive is
+ * a rightward drag, which is the only one that replies; negative is a leftward
  * drag, which is inert.
  */
 function drag(gesture: SwipeGesture, travel: number, rise = 0) {
@@ -43,29 +43,29 @@ function drag(gesture: SwipeGesture, travel: number, rise = 0) {
 }
 
 describe("swipe to reply", () => {
-  test("fires the reply at 24px of leftward travel", () => {
+  test("fires the reply at 48px of rightward travel", () => {
     const { gesture, replies } = harness()
-    drag(gesture, -SWIPE_REPLY_THRESHOLD_PX)
-    expect(gesture.offset).toBe(-24)
+    drag(gesture, SWIPE_REPLY_THRESHOLD_PX)
+    expect(gesture.offset).toBe(48)
     expect(gesture.progress).toBe(1)
     gesture.release()
     expect(replies).toHaveLength(1)
   })
   test("does not fire one pixel short of the threshold", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, -(SWIPE_REPLY_THRESHOLD_PX - 1))
-    expect(gesture.offset).toBe(-23)
-    expect(gesture.progress).toBeCloseTo(23 / SWIPE_REPLY_THRESHOLD_PX, 5)
+    drag(gesture, SWIPE_REPLY_THRESHOLD_PX - 1)
+    expect(gesture.offset).toBe(47)
+    expect(gesture.progress).toBeCloseTo(47 / SWIPE_REPLY_THRESHOLD_PX, 5)
     gesture.release()
     expect(replies).toHaveLength(0)
-    expect(settles).toEqual([-23])
+    expect(settles).toEqual([47])
   })
 
-  test("a rightward drag is inert: it never arms, paints, or settles", () => {
+  test("a leftward drag is inert: it never arms, paints, or settles", () => {
     const { gesture, replies, settles } = harness()
     gesture.down(0, 0)
-    gesture.move(SWIPE_MAX_TRAVEL_PX, 0)
-    gesture.move(SWIPE_MAX_TRAVEL_PX * 4, 0)
+    gesture.move(-SWIPE_MAX_TRAVEL_PX, 0)
+    gesture.move(-SWIPE_MAX_TRAVEL_PX * 4, 0)
     expect(gesture.swiping).toBe(false)
     expect(gesture.offset).toBe(0)
     expect(gesture.progress).toBe(0)
@@ -75,15 +75,15 @@ describe("swipe to reply", () => {
     expect(settles).toEqual([])
   })
 
-  test("a rightward drag cannot be walked back into a left swipe", () => {
+  test("a leftward drag cannot be walked back into a right swipe", () => {
     // The axis is claimed, not latched: once a drag has gone right it is
     // finished. Letting it recover would mean the reader's first 6px decided
     // nothing, and a gesture that appears to start twice is harder to trust
     // than one that is simply refused.
     const { gesture, replies, settles } = harness()
     gesture.down(0, 0)
-    gesture.move(10, 0)
-    gesture.move(-60, 0)
+    gesture.move(-10, 0)
+    gesture.move(60, 0)
     expect(gesture.swiping).toBe(false)
     gesture.release()
     expect(replies).toHaveLength(0)
@@ -93,10 +93,10 @@ describe("swipe to reply", () => {
   test("dragging back past the origin un-arms and returns the row to rest", () => {
     const { gesture, replies, settles } = harness()
     gesture.down(0, 0)
-    gesture.move(-SWIPE_MAX_TRAVEL_PX, 0)
-    expect(gesture.offset).toBe(-SWIPE_MAX_TRAVEL_PX)
-    gesture.move(-5, 0)
-    expect(gesture.offset).toBe(-5)
+    gesture.move(SWIPE_MAX_TRAVEL_PX, 0)
+    expect(gesture.offset).toBe(SWIPE_MAX_TRAVEL_PX)
+    gesture.move(5, 0)
+    expect(gesture.offset).toBe(5)
     gesture.move(0, 0)
     expect(gesture.offset).toBe(0)
     gesture.release()
@@ -108,7 +108,7 @@ describe("swipe to reply", () => {
 
   test("fires once even if the release is delivered twice", () => {
     const { gesture, replies } = harness()
-    drag(gesture, -60)
+    drag(gesture, 60)
     gesture.release()
     gesture.release()
     expect(replies).toHaveLength(1)
@@ -144,7 +144,7 @@ describe("swipe to reply", () => {
     }) as unknown as { gesture: SwipeGesture }
     const g = gesture!
     g.down(0, 0)
-    g.move(-50, 0)
+    g.move(60, 0)
     g.release()
     expect(order).toEqual(["reply", "settle"])
     // And the snap-back finishing must not fire it a second time.
@@ -152,26 +152,26 @@ describe("swipe to reply", () => {
     expect(order).toEqual(["reply", "settle"])
   })
 
-  test("travel caps at 40px and the progress stops at 1", () => {
+  test("travel caps at 64px and the progress stops at 1", () => {
     const { gesture } = harness()
-    drag(gesture, -200)
-    expect(gesture.offset).toBe(-SWIPE_MAX_TRAVEL_PX)
+    drag(gesture, 200)
+    expect(gesture.offset).toBe(SWIPE_MAX_TRAVEL_PX)
     expect(gesture.progress).toBe(1)
     expect(gesture.scale).toBe(1)
   })
 
-  test("the arm point sits just past half the row's total travel", () => {
-    expect(SWIPE_REPLY_THRESHOLD_PX / SWIPE_MAX_TRAVEL_PX).toBeCloseTo(0.6, 2)
+  test("the arm point sits three quarters of the row's total travel", () => {
+    expect(SWIPE_REPLY_THRESHOLD_PX / SWIPE_MAX_TRAVEL_PX).toBeCloseTo(0.75, 2)
   })
 
   test("a vertical-first gesture never fires and never claims the axis", () => {
     const { gesture, replies, settles } = harness()
     gesture.down(0, 0)
-    gesture.move(-4, 21)
+    gesture.move(4, 21)
     expect(gesture.swiping).toBe(false)
     // The scroller took the gesture; every later move is ignored, including a
     // long leftward one.
-    gesture.move(-90, 21)
+    gesture.move(90, 21)
     expect(gesture.swiping).toBe(false)
     expect(gesture.offset).toBe(0)
     gesture.release()
@@ -179,20 +179,20 @@ describe("swipe to reply", () => {
     expect(settles).toEqual([])
   })
 
-  test("exactly 16px of vertical drift still leaves the axis undecided", () => {
+  test("exactly 20px of vertical drift still leaves the axis undecided", () => {
     const { gesture } = harness()
     gesture.down(0, 0)
-    gesture.move(-4, 16)
-    gesture.move(-SWIPE_MAX_TRAVEL_PX, 16)
+    gesture.move(4, 20)
+    gesture.move(SWIPE_MAX_TRAVEL_PX, 20)
     expect(gesture.swiping).toBe(true)
-    expect(gesture.offset).toBe(-SWIPE_MAX_TRAVEL_PX)
+    expect(gesture.offset).toBe(SWIPE_MAX_TRAVEL_PX)
   })
 
-  test("a 17px vertical drift hands the gesture to the scroller", () => {
+  test("a 21px vertical drift hands the gesture to the scroller", () => {
     const { gesture, replies } = harness()
     gesture.down(0, 0)
-    gesture.move(-4, 17)
-    gesture.move(-60, 17)
+    gesture.move(4, 21)
+    gesture.move(60, 21)
     expect(gesture.swiping).toBe(false)
     gesture.release()
     expect(replies).toHaveLength(0)
@@ -205,7 +205,7 @@ describe("swipe to reply", () => {
     // vertical run never gets that far.
     const flick = harness()
     flick.gesture.down(0, 0)
-    flick.gesture.move(-28, 16)
+    flick.gesture.move(50, 20)
     expect(flick.gesture.swiping).toBe(true)
     flick.gesture.release()
     expect(flick.replies).toHaveLength(1)
@@ -225,16 +225,16 @@ describe("swipe to reply", () => {
     expect(gesture.swiping).toBe(false)
   })
 
-  test("a leftward swipe replies on the reader's own row and the agent's", () => {
+  test("a rightward swipe replies on the reader's own row and the agent's", () => {
     // Which way a row is allowed to move is a property of the gesture, not of
     // who sent the message. An earlier design gated each direction to one
     // sender, so a leftward swipe was silently discarded on the agent's row —
     // a dead gesture, because nothing on screen said which rows were allowed
     // to move. One direction, every row.
-    for (const travel of [-30, -90]) {
+    for (const travel of [50, 90]) {
       const { gesture, replies } = harness()
       drag(gesture, travel)
-      expect(gesture.offset).toBe(travel > -SWIPE_MAX_TRAVEL_PX ? travel : -SWIPE_MAX_TRAVEL_PX)
+      expect(gesture.offset).toBe(travel < SWIPE_MAX_TRAVEL_PX ? travel : SWIPE_MAX_TRAVEL_PX)
       gesture.release()
       expect(replies).toHaveLength(1)
     }
@@ -242,11 +242,11 @@ describe("swipe to reply", () => {
 
   test("a cancelled gesture settles back but never replies", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, -35)
+    drag(gesture, 35)
     expect(gesture.swiping).toBe(true)
     gesture.cancel()
     expect(replies).toHaveLength(0)
-    expect(settles).toEqual([-35])
+    expect(settles).toEqual([35])
     expect(gesture.swiping).toBe(false)
     expect(gesture.offset).toBe(0)
   })
@@ -264,10 +264,10 @@ describe("swipe to reply", () => {
     }) as unknown as { gesture: SwipeGesture }
     const g = gesture!
     g.down(0, 0)
-    g.move(-35, 0)
+    g.move(35, 0)
     g.release()
     g.move(0, 0)
-    expect(g.offset).toBe(-35)
+    expect(g.offset).toBe(35)
     pending?.()
     expect(g.offset).toBe(0)
     expect(g.swiping).toBe(false)
@@ -275,14 +275,14 @@ describe("swipe to reply", () => {
 
   test("a second gesture starts from rest", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, -35)
+    drag(gesture, 35)
     gesture.release()
-    expect(settles).toEqual([-35])
-    drag(gesture, -20)
+    expect(settles).toEqual([35])
+    drag(gesture, 20)
     expect(gesture.swiping).toBe(true)
-    expect(gesture.offset).toBe(-20)
+    expect(gesture.offset).toBe(20)
     gesture.release()
-    expect(settles).toEqual([-35, -20])
+    expect(settles).toEqual([35, 20])
 
   })
 })
