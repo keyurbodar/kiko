@@ -21,9 +21,9 @@ const FIRST_PAINT_ROUTE = "src/app/routes/chat.tsx";
 const APP_ENTRY = "src/main.tsx";
 
 /* Tier 3 modules load with lazy() or a dynamic import on idle or intent. */
-const TIER3 = ["src/palette/palette.tsx", "src/chat/ui/DateCalendar.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
+const TIER3 = ["src/palette/palette.tsx", "src/chat/info/panel.tsx", "src/chat/ui/DateCalendar.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
 /* Tier 4 route chunks load on route intent. */
-const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/routes/memory.tsx", "src/app/routes/settings.tsx"];
+const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/routes/settings.tsx"];
 
 /*
  * Recorded gzip bytes, measured at P2-03. Re-recorded on purpose:
@@ -31,13 +31,13 @@ const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/
  * - tier 3: P3-14 palette and cmdk-solid add 5.6 KB. The budget fix moved the hotkey library
  *   (@tanstack/solid-hotkeys), the corvu day calendar and fuzzysort out of tier 2 into lazy
  *   chunks, which adds about 12 KB here. Tier 2 shrank by the same code.
- * - tier 4: the settings and memory routes have real content. They were placeholders.
+ * - tier 4: the settings and memory routes have real content. They were placeholders. P2-19 then removed the memory route: memory is a view in the info panel.
  */
 const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1841, // P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
   "tier 2 first paint of /chat": 220198,
-  "tier 3 lazy modules": 31724,
-  "tier 4 route chunks": 14460, // grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
+  "tier 3 lazy modules": 42306, // P2-19: the chat info panel (10.5 KB gzip) is a lazy module. It loads on first open or on idle, never in tier 2.
+  "tier 4 route chunks": 9340, // grew 2.5 KB when every screen moved to the one IdentityAvatar (blobatar now loads with the routes that draw it); the real settings (providers, models, integrations, appearance, account), memory, and files routes. CodeMirror, the theme editor, and the file tree are dynamic imports, outside this count.
 };
 
 interface Entry {

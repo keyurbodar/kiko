@@ -1,5 +1,8 @@
-import { Navigate, type RouteDefinition } from "@solidjs/router"
+import { Navigate, type RouteDefinition, useParams } from "@solidjs/router"
 import { lazy } from "solid-js"
+import { useApp } from "../lib/store"
+import { openInfo } from "../chat/info/state"
+import { openTabs } from "./open-tabs"
 import { sectionOf } from "./sections"
 
 /*
@@ -12,7 +15,6 @@ const pages = {
   chat: lazy(() => import("./routes/chat")),
   files: lazy(() => import("./routes/files")),
   board: lazy(() => import("./routes/board")),
-  memory: lazy(() => import("./routes/memory")),
   settings: lazy(() => import("./routes/settings")),
 }
 
@@ -22,12 +24,24 @@ export function preloadRoute(href: string): void {
   if (id) void pages[id].preload()
 }
 
+/*
+ * Memory is part of a chat now. `/memory` and `/memory/:id` open the active chat with the panel on
+ * memory (and on the record, when the path names one). The active chat is the last one the reader
+ * had open, else the first open tab, else the chat home.
+ */
+function MemoryRedirect() {
+  const params = useParams<{ id?: string }>()
+  const chat = useApp.activeThreadId() ?? openTabs.ids()[0] ?? null
+  openInfo(params.id ? { kind: "record", id: params.id } : { kind: "memory" })
+  return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
+}
+
 export const routes: RouteDefinition[] = [
   { path: "/", component: () => <Navigate href="/chat" /> },
   { path: ["/chat", "/chat/new", "/chat/:id"], component: pages.chat },
   { path: ["/files", "/files/:chatId/*path"], component: pages.files },
   { path: ["/board", "/board/:chatId"], component: pages.board },
-  { path: ["/memory", "/memory/:id"], component: pages.memory },
+  { path: ["/memory", "/memory/:id"], component: MemoryRedirect },
   { path: "/settings/*", component: pages.settings },
   { path: "*", component: () => <Navigate href="/chat" /> },
 ]

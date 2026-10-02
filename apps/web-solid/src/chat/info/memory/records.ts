@@ -84,3 +84,21 @@ export function snippet(record: MemoryRecord): string {
 	if (!first) return ""
 	return first.text.replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").slice(0, 90)
 }
+
+/**
+ * The records the chat info panel shows first. ASSUMPTION: a record keeps no chat of its
+ * own, so "this chat created or used most" is read as: the record names the chat, or the
+ * agent has used it a lot. Pinned records lead, then the ones that name the chat, then the
+ * most used.
+ */
+export function forChat(records: readonly MemoryRecord[], chatName: string, max = 4): MemoryRecord[] {
+	const name = chatName.trim().toLowerCase()
+	const names = (r: MemoryRecord) => name.length > 2 && `${r.title}\n${r.body}`.toLowerCase().includes(name)
+	return records
+		.filter((r) => !r.archived)
+		.map((r) => ({ r, score: Number(r.pinned) * 1000 + Number(names(r)) * 500 + r.uses }))
+		.filter((x) => x.score > 0)
+		.sort((a, b) => b.score - a.score || b.r.updatedAt - a.r.updatedAt || a.r.id.localeCompare(b.r.id))
+		.slice(0, max)
+		.map((x) => x.r)
+}

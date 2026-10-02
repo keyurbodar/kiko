@@ -15,6 +15,7 @@ export function katCommands(deps: {
   newChat: () => void
   closeChat: () => void
   hasActiveChat: () => boolean
+  toggleInfo: () => void
   openPalette: () => void
   openChats: () => void
 }): Command[] {
@@ -25,6 +26,7 @@ export function katCommands(deps: {
     { id: "chat.attach", title: "chat: attach file...", group: "chat", icon: "attach", shortcut: "Mod+O", when: never, run: nothing },
     { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: never, run: nothing },
     { id: "chat.pin", title: "chat: pin", group: "chat", icon: "pin", shortcut: "Mod+D", when: never, run: nothing },
+    { id: "chat.info", title: "chat: info", group: "chat", icon: "info", shortcut: "Mod+I", global: true, when: deps.hasActiveChat, run: deps.toggleInfo },
     { id: "chat.close", title: "chat: close", group: "chat", icon: "close", shortcut: "Mod+W", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "chat: delete", group: "chat", icon: "trash", when: never, run: nothing },
     { id: "chats.go", title: "chats: go to chat...", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },

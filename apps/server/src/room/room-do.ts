@@ -9,6 +9,7 @@ import { Bubbles, Deliveries, type ReminderDelivery } from "./deliver"
 import { type FileMeta, type FileMetaPatch, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { migrate } from "./schema"
+import { listCatalog } from "./catalog"
 import { searchMessages } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
 
@@ -134,6 +135,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	search(query: string, before?: number, limit?: number) {
 		return searchMessages(this.ctx.storage.sql, query, before, limit)
+	}
+
+	catalog(kind: "links" | "media", before?: number, limit?: number) {
+		return listCatalog(this.ctx.storage.sql, kind, before, limit)
 	}
 
 	/** RPC for the user's `UserDO`. Returns false when `id` was delivered before. */

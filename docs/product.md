@@ -142,7 +142,7 @@ The layout follows the kat screenshots in `~/kat-images`. A 60 px icon rail, a 2
 | --- | --- | --- | --- |
 | `/chat`, `/chat/new`, `/chat/:id` | chat | pinned tiles and chat list | tab strip, transcript, composer |
 | `/files`, `/files/:chatId/*path` | files | file tree | viewer and editor |
-| `/memory`, `/memory/:id` | memory | note list and search | note viewer and editor, history |
+| `/memory`, `/memory/:id` | none | none | redirects to the active chat with the info panel open on memory (P2-19) |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
 Overlays: command palette, calendar jump, context menus, media viewer, approval card, onboarding.

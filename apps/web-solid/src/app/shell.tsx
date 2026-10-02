@@ -7,7 +7,8 @@ import {
 } from "@kiko/ui/context/i18n";
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
-import { createSignal, getOwner, onCleanup, onMount, runWithOwner, type ParentProps } from "solid-js";
+import { createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
+import { infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { Palette, preloadPalette } from "../palette";
 import { Sidebar } from "../sidebar";
@@ -33,6 +34,10 @@ const i18n: UiI18n = {
       count,
     }),
 };
+
+// The info panel loads on the first open, or on idle after the first paint. The chat route does not carry it.
+const InfoPanel = lazy(loadInfoPanel);
+const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
 const KEY = "kiko:sidebar-collapsed";
 
@@ -65,11 +70,21 @@ export function Shell(props: ParentProps) {
     writeCollapsed(value);
   };
   const toggle = () => setAndSave(!collapsed());
+  /** The chat the panel describes: the one named by the URL. */
+  const infoChat = () => {
+    const id = CHAT_PATH.exec(location.pathname)?.[1];
+    return id && id !== "new" ? decodeURIComponent(id) : null;
+  };
   useKatCommands({ toggleSidebar: toggle });
   // The hotkey library loads right after first paint. Shortcuts are keyboard only, so nothing waits on it.
   const owner = getOwner();
   onMount(() => {
     void import("../commands/hotkeys").then((m) => runWithOwner(owner, () => m.bindCommandHotkeys()));
+  });
+  onMount(() => {
+    const idle = (globalThis as { requestIdleCallback?: (run: () => void) => number }).requestIdleCallback;
+    if (infoOpen()) void loadInfoPanel();
+    else if (idle) idle(() => void loadInfoPanel());
   });
   // Preload tier 3 on the first modifier key so the palette opens in one frame.
   onMount(() => {
@@ -98,8 +113,19 @@ export function Shell(props: ParentProps) {
           class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-tl-[32px] bg-bg"
           data-component="main-panel"
         >
-          <TopBar />
-          {props.children}
+          <div class="flex min-h-0 min-w-0 flex-1">
+            <div class="flex min-w-0 flex-1 flex-col">
+              <TopBar />
+              {props.children}
+            </div>
+            <Show when={infoOpen() ? infoChat() : null}>
+              {(chatId) => (
+                <Suspense>
+                  <InfoPanel chatId={chatId()} />
+                </Suspense>
+              )}
+            </Show>
+          </div>
         </main>
         <Palette />
         <ToastV2.Region />

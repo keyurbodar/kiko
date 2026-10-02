@@ -22,6 +22,7 @@ import type {
 	AgentSlug,
 	AgentState,
 	Approval,
+	CatalogItem,
 	FileRef,
 	Member,
 	Message,
@@ -229,6 +230,10 @@ export type RoomStoreOptions = {
 	ttlMs?: number
 }
 
+export type CatalogPage = { items: readonly CatalogItem[]; next: number | null }
+
+const CATALOG_TIMEOUT_MS = 8000
+
 export type SendOptions = { replyTo?: MessageId; files?: readonly FileRef[] }
 
 export type RoomStore = {
@@ -254,6 +259,11 @@ export type RoomStore = {
 	resume(): void
 	approve(approvalId: string, action: "accept" | "decline"): void
 	task(op: TaskOp): void
+	/**
+	 * Asks the room for the links or the media sent in it, newest first. `before` is the `next` of the
+	 * previous page. Resolves to null when the socket is down or the room does not answer.
+	 */
+	catalog(kind: "links" | "media", before?: number, limit?: number): Promise<CatalogPage | null>
 	/** Prepends up to `limit` older messages from IndexedDB. Resolves to how many. */
 	loadOlder(limit?: number): Promise<number>
 	/** Resolves when every queued event is applied. */
@@ -296,6 +306,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	})
 
 	let socket: SyncSocket | null = null
+	/** Catalog questions waiting for their answer, by kind and cursor. */
+	const asked = new Map<string, ((page: CatalogPage | null) => void)[]>()
+	const askKey = (kind: string, before: number | undefined) => `${kind}:${before ?? ""}`
 	let closed = false
 	let suspended = false
 	let queue: RoomEvent[] = []
@@ -438,6 +451,12 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		status: (f) => setState("status", f.slug, f.state),
 		// The search UI (P3-13) reads these answers. Nothing stores them.
 		search: () => {},
+		catalog: (f) => {
+			const key = askKey(f.kind, f.before)
+			const waiting = asked.get(key)
+			asked.delete(key)
+			for (const done of waiting ?? []) done({ items: f.items, next: f.next })
+		},
 		draft: (f) => setState("drafts", `${f.runId}:${f.index}`, { slug: f.slug, runId: f.runId, index: f.index, text: f.text }),
 	}
 
@@ -547,6 +566,21 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		approve: (approvalId, action) => void act({ t: "approve", approvalId, action }),
 		task: (op) => void act({ t: "task", op }),
+		catalog(kind, before, limit) {
+			return new Promise<CatalogPage | null>((resolve) => {
+				const key = askKey(kind, before)
+				const timer = setTimeout(() => finish(null), CATALOG_TIMEOUT_MS)
+				const finish = (page: CatalogPage | null) => {
+					clearTimeout(timer)
+					const list = asked.get(key)
+					if (list) asked.set(key, list.filter((x) => x !== finish))
+					resolve(page)
+				}
+				const sent = socket?.send({ t: "catalog", kind, ...(before !== undefined ? { before } : {}), ...(limit !== undefined ? { limit } : {}) })
+				if (!sent) return finish(null)
+				asked.set(key, [...(asked.get(key) ?? []), finish])
+			})
+		},
 		async loadOlder(limit = 50) {
 			const oldest = state.messages[0]?.seq ?? state.seq + 1
 			const older = await messagesBefore(warm, roomId, oldest, limit)
@@ -560,6 +594,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		close() {
 			closed = true
+			for (const waiting of asked.values()) for (const done of waiting) done(null)
+			asked.clear()
 			if (expiry !== undefined) clearTimeout(expiry)
 			socket?.close()
 			for (const w of waiters) w()

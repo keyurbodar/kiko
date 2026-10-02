@@ -205,6 +205,17 @@ export const ClientToRoom = Schema.Union([
 		before: Schema.optionalKey(Count),
 		limit: Schema.optionalKey(Count),
 	}),
+	Schema.Struct({
+		t: Schema.Literal("catalog"),
+		kind: Schema.Literals(["links", "media"]),
+		before: Schema.optionalKey(Count),
+		limit: Schema.optionalKey(Count),
+	}),
+])
+
+export const CatalogItem = Schema.Union([
+	Schema.Struct({ kind: Schema.Literal("link"), url: Schema.String, site: Schema.String, messageId: MessageId, seq: Count, at: Count }),
+	Schema.Struct({ kind: Schema.Literal("media"), file: FileRef, messageId: MessageId, seq: Count, at: Count }),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -219,6 +230,13 @@ export const RoomToClient = Schema.Union([
 		query: Schema.String,
 		before: Schema.optionalKey(Count),
 		results: Schema.Array(Schema.Struct({ id: MessageId, seq: Count, snippet: Schema.String })),
+		next: Schema.NullOr(Count),
+	}),
+	Schema.Struct({
+		t: Schema.Literal("catalog"),
+		kind: Schema.Literals(["links", "media"]),
+		before: Schema.optionalKey(Count),
+		items: Schema.Array(CatalogItem),
 		next: Schema.NullOr(Count),
 	}),
 ])

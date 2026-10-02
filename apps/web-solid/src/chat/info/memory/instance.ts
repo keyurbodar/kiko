@@ -1,7 +1,7 @@
 // The one memory store for the signed-in user. It outlives the route, so coming back to
 // /memory paints the list from what is already here, then refreshes it.
 
-import { urls } from "../lib/store"
+import { urls } from "../../../lib/store"
 import { createMemoryClient, type MemoryClient } from "./client"
 import { createMemoryStore, type MemoryStore } from "./store"
 

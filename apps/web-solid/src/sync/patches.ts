@@ -27,7 +27,7 @@ import type {
 } from "@kiko/protocol"
 
 /** The room frames that change state. `hello`, `typing`, and `stop` change nothing to show. */
-export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" }>
+export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "catalog" }>
 export type SendFrame = Extract<ClientToRoom, { t: "send" }>
 
 export type RoomPatch = {

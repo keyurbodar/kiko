@@ -132,6 +132,11 @@ export type RoomSnapshot = {
 
 export type SearchHit = { id: MessageId; seq: number; snippet: string }
 
+/** One link or one picture or clip sent in the chat. `seq` is the message it came from. */
+export type CatalogItem =
+	| { kind: "link"; url: string; site: string; messageId: MessageId; seq: number; at: number }
+	| { kind: "media"; file: FileRef; messageId: MessageId; seq: number; at: number }
+
 export type ClientToRoom =
 	| { t: "hello"; lastSeq: number }
 	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; files?: readonly FileRef[] }
@@ -145,6 +150,8 @@ export type ClientToRoom =
 	| { t: "task"; op: TaskOp }
 	/** Searches this room's live messages, newest first. `before` is the `next` of the previous page. */
 	| { t: "search"; query: string; before?: number; limit?: number }
+	/** The links or the media sent in this room, newest first. `before` is the `next` of the previous page. */
+	| { t: "catalog"; kind: "links" | "media"; before?: number; limit?: number }
 
 export type RoomToClient =
 	| { t: "events"; events: readonly RoomEvent[] }
@@ -162,3 +169,5 @@ export type RoomToClient =
 	| { t: "status"; slug: AgentSlug; state: AgentState }
 	/** Not stored. The answer to `search` for one socket. `next` is the `before` for the following page, or null at the end. */
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
+	/** Not stored. The answer to `catalog` for one socket. `next` is the `before` for the following page, or null at the end. */
+	| { t: "catalog"; kind: "links" | "media"; before?: number; items: readonly CatalogItem[]; next: number | null }
