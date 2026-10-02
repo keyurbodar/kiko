@@ -412,26 +412,33 @@ export function createApp(options: AppOptions = {}) {
         const r = room()
         if (!r) return []
         const roomId = r.state.roomId
+        const prev = views
         const next = new Map<string, { sig: string; view: ChatMessage }>()
         paced()
-        const out = r.messages().filter((m) => !pacer.isHeld(m.id)).map((m) => {
+        const list = r.messages()
+        const out = list.filter((m) => !pacer.isHeld(m.id)).map((m) => {
           const sig = signature(m)
           const key = m.clientId ?? m.id
-          const cached = views.get(key)
+          const cached = prev.get(key)
           const entry = cached && cached.sig === sig ? cached : { sig, view: toChatMessage(m, roomId) }
           next.set(key, entry)
           return entry.view
         })
-        views = next
         // A growing block shows until its final message is on screen. A held final keeps its dots.
         const shown = new Set(out.map((m) => m.id))
-        const finals = new Set(r.messages().filter((m) => m.run && shown.has(m.id)).map((m) => `${m.run!.runId}:${m.run!.index}`))
+        const finals = new Set(list.filter((m) => m.run && shown.has(m.id)).map((m) => `${m.run!.runId}:${m.run!.index}`))
         for (const [key, d] of Object.entries(r.state.drafts)) {
           if (finals.has(key) || d.text === "") continue
           const since = draftSince.get(key) ?? Date.now()
           draftSince.set(key, since)
-          out.push({ id: `draft:${key}`, threadId: roomId, sender: "bot", botId: d.slug, body: d.text, sentAt: since })
+          // An unchanged draft keeps its object, so its row is not built again.
+          const id = `draft:${key}`
+          const cached = prev.get(id)
+          const view = cached && cached.sig === d.text ? cached.view : { id, threadId: roomId, sender: "bot" as const, botId: d.slug, body: d.text, sentAt: since }
+          next.set(id, { sig: d.text, view })
+          out.push(view)
         }
+        views = next
         return out
       },
 

@@ -247,6 +247,39 @@ export function buildTimelineItems(
   return items;
 }
 
+const sameValue = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+};
+
+function sameItem(a: TimelineItem, b: TimelineItem): boolean {
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  for (const k in x) if (!sameValue(x[k], y[k])) return false;
+  for (const k in y) if (!(k in x)) return false;
+  return true;
+}
+
+/**
+ * `next` with every item that did not change replaced by the object it had last time.
+ *
+ * The virtual list keys its rows by object, so a new object for an unchanged message is a
+ * row torn down and built again: its menu, its swipe, its bubble. Without this, every frame
+ * that touched the transcript (a draft growing, a typing change, one new message) rebuilt
+ * every visible row. `previous` maps key to item and is updated in place.
+ */
+export function keepUnchanged(previous: Map<string, TimelineItem>, next: TimelineItem[]): TimelineItem[] {
+  const out = next.map((item) => {
+    const old = previous.get(item.key);
+    return old && sameItem(old, item) ? old : item;
+  });
+  previous.clear();
+  for (const item of out) previous.set(item.key, item);
+  return out;
+}
+
 /** Index of the unread rule for `firstUnreadMessageId`, or -1 when none exists. */
 export function firstUnreadIndex(
   items: readonly TimelineItem[],
