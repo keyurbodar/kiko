@@ -1,0 +1,58 @@
+.rich { min-width: 0; overflow-wrap: anywhere; }
+.rich > * + *, .rich li > * + * { margin-top: 0.5em; }
+.rich p { margin: 0; }
+.rich h1, .rich h2, .rich h3, .rich h4, .rich h5, .rich h6 { margin: 0; font-weight: 600; line-height: 1.25; }
+.rich h1 { font-size: 1.25em; }
+.rich h2 { font-size: 1.15em; }
+.rich h3, .rich h4, .rich h5, .rich h6 { font-size: 1em; }
+.rich ul, .rich ol { margin: 0; padding-inline-start: 1.4em; }
+.rich ul { list-style: disc; }
+.rich ol { list-style: decimal; }
+.rich blockquote { margin: 0; padding-inline-start: 0.75em; border-inline-start: 2px solid currentColor; opacity: 0.85; }
+.rich-link { text-decoration: underline; color: inherit; }
+.rich-mention { font-weight: 500; }
+.rich-inline-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: rgb(127 127 127 / 0.18);
+}
+
+.rich-table-scroll { max-width: 100%; overflow-x: auto; }
+.rich-table-scroll table { border-collapse: collapse; white-space: nowrap; }
+.rich-table-scroll th, .rich-table-scroll td { padding: 0.25em 0.75em; border: 1px solid rgb(127 127 127 / 0.35); }
+.rich-table-scroll th { font-weight: 600; }
+
+.rich-code {
+  border-radius: 8px;
+  background: rgb(127 127 127 / 0.12);
+  overflow: hidden;
+  /* Off-screen blocks skip layout and paint, so 50 blocks scroll cheaply. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 8em;
+  --sh-class: #2d5e9d;
+  --sh-identifier: inherit;
+  --sh-sign: #8996a3;
+  --sh-property: #0550ae;
+  --sh-entity: #249a97;
+  --sh-jsxliterals: #6266d1;
+  --sh-string: #00a99a;
+  --sh-keyword: #f47067;
+  --sh-comment: #a19595;
+  --sh-space: inherit;
+  --sh-break: inherit;
+}
+.rich-code-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.25em 0.5em 0 0.75em; font-size: 0.75em; opacity: 0.7; }
+.rich-code-copy { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0.15em 0.4em; border-radius: 4px; }
+.rich-code-copy:hover { background: rgb(127 127 127 / 0.2); }
+.rich-code-pre {
+  margin: 0;
+  padding: 0.25em 0.75em 0.75em;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.45;
+  white-space: pre;
+  tab-size: 2;
+}
