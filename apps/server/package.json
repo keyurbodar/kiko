@@ -22,11 +22,8 @@
     "@earendil-works/pi-durable": "^1.0.0",
     "@earendil-works/pi-mcp": "1.0.0",
     "@kiko/protocol": "workspace:*",
-<<<<<<< HEAD
     "better-auth": "^1.7.7",
-=======
     "effect": "4.0.0",
->>>>>>> 090fc27
     "marked": "18.0.14",
     "rrule": "2.8.1",
     "typebox": "^1.3.34"
