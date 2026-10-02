@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-107 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+108 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -116,6 +116,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P2-08](wave-07/P2-08-connect-the-chat-to-the-real-server.md) | Connect the chat to the real server | frontend | 3 | P2-07, P1-12 | yes |
+| [P2-17](wave-07/P2-17-fill-the-sidebar-for-every-section.md) | Fill the sidebar for every section | frontend | 3 | P2-09, P5-04, P4-05, P8-08 | yes |
 | [P4-02](wave-07/P4-02-use-each-user-s-credentials-in-a.md) | Use each user's credentials in a run | backend | 3 | P4-01, P1-12 | yes |
 | [P5-06](wave-07/P5-06-add-the-reminder-tool-and-agent-wakes.md) | Add the reminder tool and agent wakes | backend | 3 | P5-05, P1-12 | yes |
 | [P5-08](wave-07/P5-08-port-skill-loading.md) | Port skill loading | backend | 3 | P1-12 | yes |
