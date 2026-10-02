@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { TurnExperiment } from "../experiments/turn"
+import { measureTurn } from "../experiments/coalescing"
 import type { Env } from "../index"
 
 export class AgentDO extends DurableObject<Env> {
@@ -11,6 +12,10 @@ export class AgentDO extends DurableObject<Env> {
 
   experimentStatus() {
     return this.experiment.status()
+  }
+
+  experimentCoalescing(coalesce: boolean, streamMs: number) {
+    return measureTurn(this.ctx.storage, coalesce, streamMs)
   }
 
   async alarm() {

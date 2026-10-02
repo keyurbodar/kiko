@@ -699,11 +699,22 @@ Model cost is the user's own and is not in these numbers. A team turn that wakes
 
 Rows written is the limit that binds first, and partial commits cause most of it. `PARTIAL_THROTTLE_MS` is a constant, not a setting.
 
-**Decision.** Kiko wraps `SqliteStorage` in a `Storage` implementation that batches partial-output writes and flushes them every 2 seconds and before any other write. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing.
+**Decision, verified by experiment 3.** Kiko wraps `SqliteStorage` in `createCoalescingStorage` (`apps/server/src/agent/coalescing-storage.ts`). It holds partial-output commits in memory and writes each window of them as one commit. A window is written when a partial arrives 2 seconds or more after the window opened, and before any other write, any document read, and `close()`. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing. The agent host (P1-06) opens its harness on this wrapper. Details are in [research/experiment-3-coalescing.md](research/experiment-3-coalescing.md).
 
-**Reasoning.** A partial commit protects streamed text against a crash. After a crash mid-stream, `pi-durable` marks the partial as aborted and sends the request again, so the saved partial is not reused. Losing up to 2 seconds of it changes nothing the user sees.
+**How a partial is told apart.** A partial commit is exactly one `document.change` delta to the conversation's `pi.live` document, and every op in it changes `generation`. One other commit has that shape, the marker that sets `generation` to `{ attempt }` before a request. Holding it is safe, because after a crash the task sends the request again from its checkpoint. The other commits in `src/harness/generation.ts` that change `generation` also write a task checkpoint, so they have more than one write. The wrapper also holds only a delta to a document without history, at the version stored, so the inner storage would accept it and no read can ask for a point inside a window.
 
-UNVERIFIED: that a wrapper can tell a partial write from other writes by its `StorageWrite` shape, and that the wrapper passes the conformance suite. If it cannot, kiko ships with the as-shipped numbers and the Free plan is a demo tier.
+**Measured rows written per turn.** One turn on an empty `AgentDO`, with a faux model that streams 3,000 characters for 15 seconds, counted with `cursor.rowsWritten` (`bun kiko measure turn`):
+
+| | Commits | Rows written |
+| --- | --- | --- |
+| As shipped | 100 | 536 |
+| Coalesced | 99, of which 95 held | 96 |
+
+A partial commit writes about 5 rows, not the 2 that section 17.2 assumed, because index rows count. These numbers cover `pi-durable` only. Kiko's own tables and alarms add about 25 rows a turn. At 30 turns a day that is about 16,800 rows as shipped and about 3,600 coalesced, so the Free plan's 100,000 rows a day covers about 6 daily users as shipped and about 27 coalesced. A real model that streams faster raises the as-shipped count, because `pi-durable` commits a partial every 100 ms of output. The coalesced count stays close to one flush per 2 seconds. Section 21 experiment 2 replaces the estimates in sections 17.2 and 17.3 with a real-model run.
+
+**Reasoning.** A partial commit protects streamed text against a crash. After a crash mid-stream, `pi-durable` turns the stored partial into an aborted assistant entry and sends the request again. A crash inside a window loses at most 2 seconds of that aborted text. The new answer is complete. The test `apps/server/test/coalescing-storage.test.ts` kills the object with three partials held and shows exactly that.
+
+DEVIATION: the `Storage` contract says a seq is strictly increasing per commit. A held commit returns the seq its flush will get, so the commits in one window share one seq. Nothing in `pi-durable` reads that seq. A kiko commit listener must not assume each publication has a seq of its own.
 
 ### 17.6 Latency
 

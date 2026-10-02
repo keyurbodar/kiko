@@ -51,7 +51,7 @@ function matches(actual: unknown, expected: unknown, subset: boolean): boolean {
   return false
 }
 
-const assertions: StorageConformanceAssertions = {
+export const assertions: StorageConformanceAssertions = {
   ok: (value, message) => void (value || fail(message ?? `expected truthy, got ${show(value)}`)),
   strictEqual: (a, b) => void (Object.is(a, b) || fail(`expected ${show(b)}, got ${show(a)}`)),
   deepEqual: (a, b) => void (matches(a, b, false) || fail(`expected ${show(b)}, got ${show(a)}`)),
