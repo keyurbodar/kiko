@@ -61,7 +61,7 @@ export function TextEditor(props: {
 			if (!cm) {
 				const { mountEditor } = await import("./editor-cm")
 				if (!host.isConnected) return
-				cm = mountEditor(host, shown(text), { path: props.path, readOnly: !props.editing, onChange: markDirty, onSave: () => void save() })
+				cm = mountEditor(host, shown(text), { path: props.path, readOnly: !props.editing, onChange: markDirty })
 			} else cm.setValue(shown(text))
 			setTheirs(null)
 			setState("clean")
@@ -124,6 +124,20 @@ export function TextEditor(props: {
 	onMount(() => void load(props.initial))
 	onCleanup(() => cm?.destroy())
 
+	// Mod+S inside the editor saves. It is caught on the window in the capture phase, before the
+	// hotkey library sees it, so the same key does not also toggle the sidebar.
+	onMount(() => {
+		const onKey = (e: KeyboardEvent) => {
+			if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "s") return
+			if (!(e.target instanceof Node) || !host.contains(e.target)) return
+			e.preventDefault()
+			e.stopImmediatePropagation()
+			void save()
+		}
+		window.addEventListener("keydown", onKey, true)
+		onCleanup(() => window.removeEventListener("keydown", onKey, true))
+	})
+
 	// Edit on and off. Clean text swaps between its pretty and raw forms; unsaved text stays as typed.
 	createEffect(
 		on(
@@ -155,7 +169,7 @@ export function TextEditor(props: {
 		),
 	)
 
-	// In the palette. The key is CodeMirror's own Mod-s, so it never reaches the sidebar toggle.
+	// In the palette. The key is caught above, inside the editor only.
 	useCommands([
 		{
 			id: "files.save",

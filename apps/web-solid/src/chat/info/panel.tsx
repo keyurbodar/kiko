@@ -220,7 +220,15 @@ const iconButton = "grid size-8 shrink-0 place-items-center rounded-lg text-mute
 export default function InfoPanel(props: { chatId: string }) {
   // Escape steps back one level: an open file closes to its tree, then the panel closes. It is a
   // command like every shortcut, and a dialog above the panel (the media viewer, a picker) keeps
-  // its own Escape.
+  // its own Escape. Whether a dialog was open is read before anyone handles the key, because the
+  // dialog closes itself on the same keydown, before this command runs.
+  const DIALOG = '[role="dialog"], [role="alertdialog"], [aria-modal="true"]'
+  let dialogOnKey = false
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") dialogOnKey = !!document.querySelector(DIALOG)
+  }
+  window.addEventListener("keydown", onKey, true)
+  onCleanup(() => window.removeEventListener("keydown", onKey, true))
   useCommands([
     {
       id: "chat.info-close",
@@ -228,8 +236,9 @@ export default function InfoPanel(props: { chatId: string }) {
       group: "chat",
       icon: "close",
       shortcut: "Escape",
+      passive: true,
       run: () => {
-        if (document.querySelector('[role="dialog"]')) return
+        if (dialogOnKey || document.querySelector(DIALOG)) return
         if (infoTab() === "files" && openFilePath(props.chatId)) closeFile(props.chatId)
         else closeInfo()
       },
@@ -255,9 +264,10 @@ export default function InfoPanel(props: { chatId: string }) {
   )
 
   const view = infoView
+  // Beside the chat the panel leaves the chat at least 400 px. Below 760 px it covers the chat instead.
   return (
     <aside
-      class="relative flex min-h-0 shrink-0 flex-col bg-[var(--bg-sidebar)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:shadow-[-12px_0_32px_rgb(0_0_0/0.35)]"
+      class="relative flex min-h-0 shrink-0 flex-col bg-[var(--bg-sidebar)] @min-[761px]/main:max-w-[calc(100%-400px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:shadow-[-12px_0_32px_rgb(0_0_0/0.35)]"
       style={{ width: `min(${panelWidth(props.chatId)}px, 100%)` }}
       data-component="info-panel"
       data-tab={infoTab()}

@@ -73,6 +73,12 @@ describe("kat commands", () => {
     for (const c of list) expect(hotkeyOptions(c).ignoreInputs).toBe(!c.global)
   })
 
+  test("a passive shortcut leaves the key for the dialog above it, and others consume it", () => {
+    const passive = hotkeyOptions({ id: "x", title: "x: y", group: "chat", icon: "close", shortcut: "Escape", passive: true, run() {} })
+    expect([passive.preventDefault, passive.stopPropagation]).toEqual([false, false])
+    for (const c of list) expect([hotkeyOptions(c).preventDefault, hotkeyOptions(c).stopPropagation]).toEqual([true, true])
+  })
+
   test("the cheatsheet lists every shortcut once", () => {
     const off = registerCommands(list)
     const ids = shortcuts().map((s) => s.id)

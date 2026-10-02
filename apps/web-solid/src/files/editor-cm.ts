@@ -103,7 +103,7 @@ function highlighter(path: string): Extension {
 export function mountEditor(
 	parent: HTMLElement,
 	doc: string,
-	opts: { path: string; readOnly: boolean; onChange: () => void; onSave: () => void },
+	opts: { path: string; readOnly: boolean; onChange: () => void },
 ): Mounted {
 	const editable = new Compartment()
 	const lock = (readOnly: boolean) => [
@@ -118,13 +118,7 @@ export function mountEditor(
 		drawSelection(),
 		highlightSelectionMatches(),
 		history(),
-		keymap.of([
-			{ key: "Mod-s", preventDefault: true, run: () => (opts.onSave(), true) },
-			...searchKeymap,
-			...defaultKeymap,
-			...historyKeymap,
-			indentWithTab,
-		]),
+		keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
 		theme,
 		highlighter(opts.path),
 		EditorView.updateListener.of((u) => {

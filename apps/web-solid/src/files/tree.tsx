@@ -268,11 +268,9 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 					style={{ "--ft-depth": item.getItemMeta().level }}
 					onClick={(e: MouseEvent) => {
 						const handler = (tree.itemProps(item) as { onClick?: (e: MouseEvent) => void }).onClick
+						// The core's click focuses, selects, and toggles a folder. A file also opens.
 						handler?.(e)
-						if (folder()) {
-							if (open()) item.collapse()
-							else item.expand()
-						} else props.onOpen?.(id)
+						if (!folder()) props.onOpen?.(id)
 					}}
 					onDblClick={() => startRename(id)}
 				>

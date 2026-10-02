@@ -96,9 +96,14 @@
 
 .file-view .fv-markdown {
   max-width: 720px;
+  padding-top: 8px;
   font-size: 14px;
   line-height: 1.6;
   color: var(--text);
+}
+
+.file-view .fv-markdown > * + * {
+  margin-top: 0.75em;
 }
 
 .file-view .fv-table-scroll {
