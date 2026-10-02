@@ -8,6 +8,7 @@ import { route } from "./router"
 import { experimentTurnRoute } from "./experiments/turn"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
+import { remindersRoute } from "./user/reminders-route"
 
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
@@ -37,6 +38,8 @@ export default {
     if (url.pathname === "/api/experiments/imports") return Response.json(await runImports())
     const routed = await route(request, env)
     if (routed) return routed
+    const reminders = await remindersRoute(request, env)
+    if (reminders) return reminders
     const previewed = await previewRoute(request, env)
     if (previewed) return previewed
     const authResponse = await authRoute(request, env)

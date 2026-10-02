@@ -577,6 +577,13 @@ reminders(id, text, due_utc, tz, rrule, room_id, target, created_by, status, las
 - The delivery id is `<reminderId>:<due_utc>`. The room ignores an id it has seen, so a repeated alarm delivers nothing twice.
 - For a recurring reminder, `UserDO` computes the next occurrence in the stored timezone and updates `due_utc`. A one-off reminder is marked done.
 
+The code is `apps/server/src/user/reminders.ts` and `apps/server/src/room/deliver.ts`.
+
+- `UserDO` RPC: `createReminder(owner, input)`, `listReminders()`, `cancelReminder(id)`, `snoozeReminder(id, time)`, and `rewindReminder(id)` for development. The writes return `{ ok, reminder }` or `{ ok: false, error }`. `owner` is the session's user id from the Worker. The object stores it and uses it to reach the room.
+- `RoomDO` RPC: `deliverReminder(id, { text, target })`. It returns false for an id it has seen.
+- HTTP: `GET` and `POST /api/reminders`, `POST /api/reminders/<id>/cancel`, `/snooze`, and `/rewind` (development only). It replays the last occurrence, as after a crash between the post and the row update.
+- A time must carry an offset or `Z`. It is rounded up to a whole second because `rrule` works in seconds. ASSUMPTION: a recurring row that missed occurrences while the object was down skips them. ASSUMPTION: until P5-06, an agent-target reminder is a room message addressed to the agent, not an envelope.
+
 Agents schedule their own work with the same tool by naming themselves as the target. There is one scheduling mechanism in the product.
 
 Delivery is into the chat only. The spec excludes notifications.
