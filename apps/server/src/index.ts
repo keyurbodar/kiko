@@ -9,6 +9,7 @@ import { credentialsRoute } from "./user/credentials-route"
 import { experimentTurnRoute } from "./experiments/turn"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
+import { remindersRoute } from "./user/reminders-route"
 
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
@@ -42,6 +43,8 @@ export default {
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)
     if (credentials) return credentials
+    const reminders = await remindersRoute(request, env)
+    if (reminders) return reminders
     const previewed = await previewRoute(request, env)
     if (previewed) return previewed
     const authResponse = await authRoute(request, env)

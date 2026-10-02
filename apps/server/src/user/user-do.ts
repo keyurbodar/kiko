@@ -8,6 +8,7 @@ import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
+import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
@@ -35,7 +36,17 @@ export class UserDO extends DurableObject<Env> {
     migrate(this.sql)
     this.alarms = createAlarms(ctx)
     this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
+    this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
   }
+
+  // Reminders, architecture section 14. The logic is in reminders.ts. `owner` is the
+  // session's user id from the Worker, the one place this object learns it.
+  private readonly reminders: Reminders
+  async createReminder(owner: string, input: NewReminder) { return asResult(() => this.reminders.create(owner, input)) }
+  async listReminders() { return this.reminders.list() }
+  async cancelReminder(id: string) { return asResult(() => this.reminders.cancel(id)) }
+  async snoozeReminder(id: string, time: string) { return asResult(() => this.reminders.snooze(id, time)) }
+  async rewindReminder(id: string) { return asResult(() => this.reminders.rewind(id)) }
 
   // RPC. The Worker and the user's rooms call these. The object is already the user's
   // own, so no method takes a user id.
@@ -154,7 +165,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    await this.alarms.dueWakeups(Date.now())
+    const due = await this.alarms.dueWakeups(Date.now())
+    if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
   }
 
   // Internals.

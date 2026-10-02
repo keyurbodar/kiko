@@ -2,6 +2,7 @@ import type { AgentSlug, RoomEvent, RoomToClient } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../lib/names"
+import { Deliveries, type ReminderDelivery } from "./deliver"
 import { RoomLog } from "./log"
 import { migrate } from "./schema"
 import { searchMessages } from "./search"
@@ -12,6 +13,7 @@ import { type Attachment, attachment, handleFrame, send, type SocketRoom } from 
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	readonly log: RoomLog
+	private readonly deliveries: Deliveries
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -21,6 +23,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		super(ctx, env)
 		migrate(ctx.storage)
 		this.log = new RoomLog(ctx.storage)
+		this.deliveries = new Deliveries(ctx.storage, this.log)
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -65,6 +68,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	search(query: string, before?: number, limit?: number) {
 		return searchMessages(this.ctx.storage.sql, query, before, limit)
+	}
+
+	/** RPC for the user's `UserDO`. Returns false when `id` was delivered before. */
+	async deliverReminder(id: string, reminder: ReminderDelivery): Promise<boolean> {
+		const event = this.deliveries.reminder(id, reminder)
+		if (event) this.publish([event])
+		return event !== null
 	}
 
 	humanTyping(): void {
