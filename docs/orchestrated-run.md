@@ -80,3 +80,4 @@ The coordinator adds to this list as tasks land.
 - The client sync layer is `apps/web-solid/src/sync/`: `createRoomStore({ roomId, warm, url })`, `createUserStore({ warm, url })`, and `createMockRoom` / `createMockUser` for tests. Wrap `messages()` in `createMemo` to share it.
 - Link previews are `GET /api/preview?url=` returning `{ preview, cache }`. Images are served from `/api/preview-image/<hash>`.
 - Server tests are a little flaky when the machine is busy. Rerun once before assuming your change broke something.
+- `UserDO` RPC: `createChat(roomId, title)`, `renameChat`, `pinChat`, `muteChat`, `deleteChat`, `touchChat(roomId, { lastSeq, lastPreview, unread })`, `listChats()`. A chat must exist before `touchChat` updates it.
