@@ -8,7 +8,11 @@ import { baseSections, type RoleInput } from "./prompt"
 // a conversation's extensions. `pi-durable` applies hooks only for selected extensions, so a
 // guard such as `Trust` holds only if every agent is built here.
 
-export type BuildAgentInput = RoleInput & { model: ModelRef }
+export type BuildAgentInput = RoleInput & {
+  model: ModelRef
+  /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
+  testExtensions?: readonly Extension[]
+}
 
 export type BuiltAgent = {
   /** Every extension below, installed in selection order. One registry per agent process. */
@@ -26,7 +30,7 @@ export const BASE = "base"
  * fills a prompt slot (`skills`, `profile`) does it with `wrapSection` and goes after `Base`.
  */
 function extensionsFor(input: BuildAgentInput): Extension[] {
-  return [defineExtension({ name: BASE, sections: baseSections(input) })]
+  return [defineExtension({ name: BASE, sections: baseSections(input) }), ...(input.testExtensions ?? [])]
 }
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {

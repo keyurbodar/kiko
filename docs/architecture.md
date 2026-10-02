@@ -182,6 +182,13 @@ Two guards apply.
 - A burst can restart a run at most twice. The third arrival steers or queues. This stops a fast typist from starving the answer.
 - A run that started a tool is never restarted automatically. `pi-durable` reruns a tool after a crash only if the tool declares `replay: "safe"`, and an abort after a side effect would leave the model without the result.
 
+The table is `decide()` in `agent/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
+
+- ASSUMPTION: only a human message interrupts. An agent or system message is queued.
+- A tool that is running steers even after a bubble. A finished tool round with bubbles queues.
+- When inputs already wait in the conversation's queue, or the cap is reached, a human message steers, because an abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers.
+- ASSUMPTION: stop also drops the room's pending burst, so a message sent just before stop starts no run. The messages stay in the log.
+
 **Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). Queueing avoids rewriting bubbles the human has already read.
 
 Human messages always outrank agent messages. The inbox sorts by priority first, so a human burst is placed before any waiting agent message, and the table above applies even when the current run was started by another agent.

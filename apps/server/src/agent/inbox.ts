@@ -95,6 +95,14 @@ export class Inbox {
     this.sql.exec("UPDATE inbox SET submitted = 1 WHERE request_id = ?", requestId)
   }
 
+  /**
+   * The human pressed stop (section 6.2). Every row not yet submitted is closed without a run. The
+   * rows stay, so a repeated delivery of a discarded envelope still stores nothing. Returns the count.
+   */
+  discard(): number {
+    return this.sql.exec("UPDATE inbox SET request_id = coalesce(request_id, 'stopped'), submitted = 1 WHERE submitted = 0").rowsWritten
+  }
+
   counts(): { waiting: number; claimed: number; submitted: number } {
     return this.sql
       .exec<{ waiting: number; claimed: number; submitted: number }>(

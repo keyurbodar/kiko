@@ -1,0 +1,78 @@
+import { awaitWithContext } from "@earendil-works/chord/context"
+import { Type } from "@earendil-works/pi-ai"
+import { createModels } from "@earendil-works/pi-ai/models"
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
+import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
+import { buildAgent } from "./factory"
+import type { AgentSetup } from "./host"
+
+// DEV AND TESTS ONLY. A scripted agent for `bun kiko verify mid-run` (P1-12): pi-ai's faux provider
+// answers from the transcript, and one slow tool makes "a tool is running" last long enough to
+// test. It spends no tokens and is deterministic. `AgentDO` uses it only in a development build and
+// only for an agent the dev route marked. The markers in the human's text pick the script:
+//
+//   [slow]      the answer is one long paragraph, about six seconds with no bubble
+//   [two-part]  a short first bubble, then a long second paragraph, about six seconds
+//   [tool]      the model calls `slow_tool` first, which sleeps SLOW_TOOL_MS
+//
+// Every answer is `heard: <the user turns since the last answer, joined by " | ">`, plus
+// `; tool: <result>` when a tool ran since then. The text shows which turns one run answered.
+
+export const FAKE_MODEL = { provider: "faux", modelId: "faux-1" } as const
+export const SLOW_TOOL = "slow_tool"
+export const SLOW_TOOL_MS = 5_000
+/** Faux tokens are about four characters. 25 a second is about 100 characters a second. */
+const TOKENS_PER_SECOND = 25
+const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
+
+type Part = { type: string; text?: string }
+type Message = { role?: string; content?: string | Part[]; stopReason?: string }
+
+/** The text of a message without the room's `<context>` brief. */
+const textOf = (m: Message) =>
+  (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join(""))
+    .replace(/<context>[\s\S]*?<\/context>\s*/g, "")
+    .trim()
+const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
+
+/** One scripted reply to the transcript so far. Pure, so the suite can predict every answer. */
+export function fakeReply(transcript: readonly Message[]) {
+  // The prompt and the tool list travel as system messages, and one may follow the newest turn.
+  const messages = transcript.filter((m) => m.role !== "system")
+  const answered = messages.findLastIndex((m) => m.role === "assistant" && !callsTool(m) && m.stopReason !== "aborted")
+  const since = messages.slice(answered + 1)
+  const users = since.filter((m) => m.role === "user").map(textOf)
+  const results = since.filter((m) => m.role === "toolResult").map(textOf)
+  const last = messages.at(-1)
+  if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
+    return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
+  }
+  const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}`
+  const newest = last?.role === "user" ? textOf(last) : ""
+  if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
+  if (newest.includes("[two-part]")) return fauxAssistantMessage(`part one.\n\n${LONG} ${heard}`)
+  return fauxAssistantMessage(heard)
+}
+
+/** Sleeps, and stops sleeping when the run is aborted. Effect: read (it touches nothing). */
+const slowTool = defineTool({
+  name: SLOW_TOOL,
+  description: "waits a few seconds, then says slept.",
+  parameters: Type.Object({}),
+  execute: async (_args, _api, context) => {
+    await awaitWithContext(new Promise((resolve) => setTimeout(resolve, SLOW_TOOL_MS)), context)
+    return { content: [{ type: "text", text: "slept" }] }
+  },
+})
+
+export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [slowTool] })
+
+/** The fake agent's setup. The factory builds it, with the slow tool as a test extension. */
+export function fakeSetup(): AgentSetup {
+  const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
+  const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
+  faux.setResponses(Array.from({ length: 500 }, () => step))
+  const models = createModels()
+  models.setProvider(faux.provider)
+  return { models, ...buildAgent({ role: "", lead: true, model: FAKE_MODEL, testExtensions: [SLOW_TOOL_EXTENSION] }) }
+}
