@@ -20,10 +20,12 @@ export function hotkeyOptions(command: Command) {
 }
 
 export function bindCommandHotkeys(): void {
-  const bound = createMemo(() => commands().filter((c) => c.shortcut))
-  const owners = mapArray(bound, (command) => {
+  const bound = createMemo(() =>
+    commands().flatMap((c) => [...(c.shortcut ? [{ command: c, key: c.shortcut }] : []), ...(c.alias ? [{ command: c, key: c.alias }] : [])]),
+  )
+  const owners = mapArray(bound, ({ command, key }) => {
     createHotkey(
-      command.shortcut as RegisterableHotkey,
+      key as RegisterableHotkey,
       () => {
         if (isEnabled(command)) command.run()
       },

@@ -13,7 +13,17 @@ const TABLES = [
     last_seq INTEGER NOT NULL DEFAULT 0,
     last_preview TEXT NOT NULL DEFAULT '',
     unread INTEGER NOT NULL DEFAULT 0,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    agents TEXT NOT NULL DEFAULT '[]'
+  )`,
+  // The user's agents. A user-level record; a room's membership is its own table.
+  `CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    prompt TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
   )`,
   // Small user preferences, one JSON value per key.
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -53,4 +63,7 @@ const TABLES = [
 
 export function migrate(sql: SqlStorage): void {
   for (const statement of TABLES) sql.exec(statement)
+  // A chats table made before agents existed has no column for them.
+  const columns = sql.exec<{ name: string }>("PRAGMA table_info(chats)").toArray()
+  if (!columns.some((c) => c.name === "agents")) sql.exec("ALTER TABLE chats ADD COLUMN agents TEXT NOT NULL DEFAULT '[]'")
 }

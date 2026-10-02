@@ -1,11 +1,14 @@
-import { Show, createEffect, createMemo, createSignal, on } from "solid-js";
-import { useParams } from "@solidjs/router";
+import { Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
+import { useLocation, useParams } from "@solidjs/router";
 import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
+
+// The "to:" bar loads when `/chat/new` is first opened, not with the transcript.
+const NewChat = lazy(() => import("../../chat/new-chat").then((m) => ({ default: m.NewChat })));
 
 /*
  * The composed app: the transcript over the open room in the sync store. The
@@ -26,6 +29,9 @@ export default function ChatRoute() {
    * what changes it.
    */
   const params = useParams<{ id?: string }>();
+  const location = useLocation();
+  /* `/chat/new` is the "to:" bar. It stands in for the thread until a chat is made. */
+  const isNew = () => location.pathname === "/chat/new";
   createEffect(() => {
     const id = params.id;
     if (id && id !== useApp.activeThreadId()) useApp.selectThread(id);
@@ -95,9 +101,10 @@ export default function ChatRoute() {
   };
 
   return (
-    /* The shell owns the row and the rail. The transcript pane keeps
+    <Show when={!isNew()} fallback={<NewChat />}>
+    {/* The shell owns the row and the rail. The transcript pane keeps
        `data-component="chat-shell"`, the stable handle the verify skill scopes
-       by, and keeps `min-w-0` so the column narrows with the window. */
+       by, and keeps `min-w-0` so the column narrows with the window. */}
       <div
         class="flex min-h-0 min-w-0 flex-1 flex-col"
         data-component="chat-shell"
@@ -196,5 +203,6 @@ export default function ChatRoute() {
           />
         </div>
       </div>
+    </Show>
   );
 }

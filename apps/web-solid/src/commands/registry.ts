@@ -20,6 +20,8 @@ export interface Command {
   icon: string
   /** A TanStack hotkey string, for example `Mod+Shift+T` or `F2`. */
   shortcut?: string
+  /** A second key for the same action. The cheatsheet shows `shortcut` only. */
+  alias?: string
   /** A global shortcut also fires while a text field has focus. */
   global?: boolean
   /** Enabled while this returns true. Absent means always enabled. */

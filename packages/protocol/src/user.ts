@@ -4,7 +4,7 @@
 // This file covers the chat index. Reminders, provider sign-in, settings, and
 // memory join these unions in the tasks that build them.
 
-import type { RoomId } from "./ids"
+import type { AgentSlug, RoomId } from "./ids"
 import type { MemoryOp, MemoryResult } from "./memory"
 
 /** One row of the chat list. */
@@ -19,12 +19,29 @@ export type Chat = {
 	unread: number
 	/** Epoch milliseconds. */
 	updatedAt: number
+	/** The ids of the agents the chat was created with. Absent for a chat made without any. */
+	agents?: readonly string[]
 }
+
+/**
+ * One of the user's agents. A user-level record: a name, a handle, a one-line prompt,
+ * and a model reference. The room-side membership comes with the team tasks.
+ */
+export type Agent = {
+	id: string
+	name: string
+	slug: AgentSlug
+	prompt: string
+	/** A `provider/model` reference from the catalog. */
+	model: string
+}
+
+export type AgentOp = { op: "create"; agent: Agent }
 
 // ASSUMPTION: chat edits travel on the user socket as one `chat` frame, the
 // way task edits travel on the room socket.
 export type ChatOp =
-	| { op: "create"; roomId: RoomId; title: string }
+	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[] }
 	| { op: "rename"; roomId: RoomId; title: string }
 	| { op: "pin"; roomId: RoomId; pinned: boolean }
 	| { op: "mute"; roomId: RoomId; muted: boolean }
@@ -42,6 +59,8 @@ export type UserEvent =
 	/** A chat was added or changed. */
 	| (Stored & { t: "chat"; chat: Chat })
 	| (Stored & { t: "chat_removed"; roomId: RoomId })
+	/** An agent was added. */
+	| (Stored & { t: "agent"; agent: Agent })
 	/** The user's theme changed. `theme` is the theme JSON text, or null after a reset. */
 	| (Stored & { t: "theme"; theme: string | null })
 
@@ -49,6 +68,7 @@ export type UserSnapshot = {
 	/** The sequence this snapshot is current to. */
 	seq: number
 	chats: readonly Chat[]
+	agents?: readonly Agent[]
 	/** The stored theme JSON text, or null when the user has none. */
 	theme?: string | null
 }
@@ -88,6 +108,7 @@ export type ExecutorResult =
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
+	| { t: "agent"; op: AgentOp }
 	| { t: "memory"; reqId: string; op: MemoryOp }
 	/** Saves the user's one theme (JSON text, 32 KB at most), or clears it with null. */
 	| { t: "theme"; theme: string | null }

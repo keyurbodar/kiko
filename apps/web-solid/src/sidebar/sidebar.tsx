@@ -1,10 +1,8 @@
 import { createPerPointerListeners } from "@solid-primitives/pointer"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, lazy, Match, Switch } from "solid-js"
 import type { SectionId } from "../app/sections"
 import { cn } from "../lib/cn"
-import { newChat } from "./actions"
 import { ChatPanel } from "./chat-panel"
 import { PlusIcon } from "./icons"
 import "./sidebar.css"
@@ -172,46 +170,25 @@ export function Sidebar(props: SidebarProps) {
 }
 
 /**
- * The `+` in the panel header. the new-chat menu. It no longer owns the sidebar
- * toggle; the rail icon and `cmd+s` do.
+ * The `+` in the panel header. It opens the "to:" bar in the main panel, the
+ * same as `Mod+N`. It does not own the sidebar toggle; the rail icon and
+ * `cmd+s` do.
  */
 function ChatPanelMenu() {
   const navigate = useNavigate()
   return (
-    <MenuV2>
-      <MenuV2.Trigger
-        as="button"
-        type="button"
-        class={cn(
-          "grid size-7 shrink-0 place-items-center rounded-full border-none bg-transparent p-0",
-          "text-weak hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] hover:text-text",
-          "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] focus-visible:text-text",
-        )}
-        data-component="sidebar-add"
-        aria-label="new chat menu"
-      >
-        <PlusIcon />
-      </MenuV2.Trigger>
-      <MenuV2.Portal>
-        <MenuV2.Content
-          class={cn(
-            "min-w-[180px] rounded-[calc(20px*var(--brm))] p-2",
-            "border-none bg-menu text-base text-text shadow-menu",
-          )}
-          data-component="sidebar-add-menu"
-        >
-          {/* Optimistic: the chat is in the list before this returns, and its
-              title is open for editing. */}
-          <MenuV2.Item
-            onSelect={() => {
-              const id = newChat()
-              if (id) navigate(`/chat/${id}`)
-            }}
-          >
-            new chat
-          </MenuV2.Item>
-        </MenuV2.Content>
-      </MenuV2.Portal>
-    </MenuV2>
+    <button
+      type="button"
+      class={cn(
+        "grid size-7 shrink-0 place-items-center rounded-full border-none bg-transparent p-0",
+        "text-weak hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] hover:text-text",
+        "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] focus-visible:text-text",
+      )}
+      data-component="sidebar-add"
+      aria-label="new chat"
+      onClick={() => navigate("/chat/new")}
+    >
+      <PlusIcon />
+    </button>
   )
 }

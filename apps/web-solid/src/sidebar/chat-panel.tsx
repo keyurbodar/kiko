@@ -29,7 +29,7 @@ const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
 /** Row height in px. Fixed, so the virtualizer never measures and never shows a blank row. */
-export const ROW_H = 68
+export const ROW_H = 52
 
 /**
  * The stamp at the end of a row's first line. Relative, not a clock time:
@@ -198,14 +198,14 @@ function RowTitle(props: { id: string; title: string }) {
 }
 
 /**
- * One conversation, laid out the way MonoCode lays out a thread, in kat's
- * colours: a muted first line (the agent's name, the unread dot, the time), a
- * bold title, a muted one-line preview. The row IS the context menu's trigger,
+ * One conversation as kat lays it out: an avatar, a bold title with the time
+ * right-aligned on the same line, and a muted one-line preview. The avatar and
+ * type sizes are the hover card's, so the two read as one family. The row IS the context menu's trigger,
  * so Kobalte opens it from the real `contextmenu` event on the real element.
  * The hover preview hangs off an overlay, because an element can only be one
  * primitive's trigger.
  */
-function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active: boolean; now: number }) {
+function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number }) {
   /*
    * The preview is nested inside the menu's trigger, so left alone both are
    * open at once, the preview swallows the Escape that would dismiss the menu,
@@ -271,32 +271,30 @@ function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active:
 
         <IdentityAvatar seed={props.bot.id} class="chat-avatar" />
 
-        <span class="chat-meta-line">
-          <span class="chat-agent">{props.agent}</span>
-          <Show when={unread()}>
-            <i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
-          </Show>
-          <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
-        </span>
+        <span class="chat-text">
+          <span class="chat-title-line">
+            <RowTitle id={props.bot.id} title={props.bot.name} />
+            <Show when={unread()}>
+              <i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
+            </Show>
+            <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
+          </span>
 
-        <span class="chat-title-line">
-          <RowTitle id={props.bot.id} title={props.bot.name} />
-        </span>
-
-        <span class="chat-preview" data-typing={props.bot.presence === "typing" ? "" : undefined}>
-          <Show
-            when={props.bot.presence === "typing"}
-            fallback={
-              <Show when={draft()} fallback={props.bot.preview}>
-                <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
-              </Show>
-            }
-          >
-            typing
-            <i class="typing-dot" aria-hidden="true" />
-            <i class="typing-dot" aria-hidden="true" />
-            <i class="typing-dot" aria-hidden="true" />
-          </Show>
+          <span class="chat-preview" data-typing={props.bot.presence === "typing" ? "" : undefined}>
+            <Show
+              when={props.bot.presence === "typing"}
+              fallback={
+                <Show when={draft()} fallback={props.bot.preview}>
+                  <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
+                </Show>
+              }
+            >
+              typing
+              <i class="typing-dot" aria-hidden="true" />
+              <i class="typing-dot" aria-hidden="true" />
+              <i class="typing-dot" aria-hidden="true" />
+            </Show>
+          </span>
         </span>
       </MenuV2.Context.Trigger>
 
@@ -375,10 +373,6 @@ export function ChatPanel() {
   // Rows are looked up by id so a roster change does not remount the rows that did not change.
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
-  // ASSUMPTION: a chat row carries no agent, so the first line names the open
-  // room's lead and falls back to the product name for a room that is not open.
-  const agentName = (id: string) => (useApp.activeThreadId() === id ? (useApp.members().find((m) => m.persona === "lead")?.name ?? "kiko") : "kiko")
-
   const active = () => useApp.activeThreadId()
   const chatCommands: Command[] = [
     { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: () => active() !== null, run: () => active() && startRename(active()!) },
@@ -412,7 +406,7 @@ export function ChatPanel() {
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
           <Show when={byId().get(id)}>
-            {(bot) => <ChatRow bot={bot()} agent={agentName(id)} muted={muted().has(id)} active={active() === id} now={now} />}
+            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now} />}
           </Show>
         )}
       </VList>

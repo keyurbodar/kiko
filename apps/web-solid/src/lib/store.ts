@@ -14,7 +14,7 @@
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { AgentSlug, AgentState, Chat, FileRef, Member, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
 import { batch, createRoot, createSignal } from "solid-js"
 import type { MockRoom } from "../sync/mock-room"
 import type { ViewMessage } from "../sync/patches"
@@ -392,6 +392,20 @@ export function createApp(options: AppOptions = {}) {
         if (!r || r.state.roomId !== threadId) return
         if (!anchors.has(r)) anchors.set(r, firstUnread(r.messages(), r.state.readSeq))
         r.markRead(newestSeq(r.messages()))
+      },
+
+      /** The user's own agents, in the order they were made. */
+      agents(): Agent[] {
+        return userStore()?.agents() ?? []
+      },
+
+      createAgent(agent: Agent) {
+        userStore()?.createAgent(agent)
+      },
+
+      /** Starts a chat with `agents` (their ids) and returns its room id. It is in the list before the server hears of it. */
+      createChat(title: string, agents?: readonly string[]): RoomId | undefined {
+        return userStore()?.createChat(title, agents)
       },
 
       togglePinned(threadId: string) {

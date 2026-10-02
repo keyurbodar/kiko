@@ -43,7 +43,7 @@ describe("kat commands", () => {
     const map = Object.fromEntries(list.map((c) => [c.title, c.shortcut]))
     expect(map).toEqual({
       "view: toggle sidebar": "Mod+S",
-      "chat: new": "Mod+T",
+      "chat: new": "Mod+N",
       "chat: reopen closed": "Mod+Shift+T",
       "chat: attach file...": "Mod+O",
       "chat: rename": "F2",
@@ -56,6 +56,11 @@ describe("kat commands", () => {
       "palette: open": "Mod+K",
     })
     for (const c of list) expect(c.title).toBe(c.title.toLowerCase())
+  })
+
+  test("new chat answers to Mod+N and keeps Mod+T as an alias", () => {
+    const c = list.find((x) => x.id === "chat.new")!
+    expect([c.shortcut, c.alias]).toEqual(["Mod+N", "Mod+T"])
   })
 
   test("only the sidebar toggle and the palette are global", () => {
