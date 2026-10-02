@@ -73,3 +73,4 @@ The coordinator adds to this list as tasks land.
 - The bubble splitter is `apps/server/src/agent/split-bubbles.ts` (`createSplitter()`). The markdown parser is `parseRichText(markdown)` in `apps/server/src/room/rich-text.ts`.
 - Client routes live in `apps/web-solid/src/app/routes.tsx`; the shell is `app/shell.tsx`, the rail `app/rail.tsx`.
 - `safeFetch(url, fetcher?)` in `apps/server/src/lib/safe-fetch.ts` returns `{ ok: true, url, status, headers, body, truncated }` or `{ ok: false, reason, url }`. Every fetch of a user or model supplied URL uses it.
+- The warm tier is `apps/web-solid/src/warm/`: `openWarm({ userId })` in `db.ts`, plus `messages.ts`, `chats.ts`, `outbox.ts`, `drafts.ts`. One database per user.
