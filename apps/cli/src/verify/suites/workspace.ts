@@ -62,7 +62,7 @@ const suite: Suite = {
 		// 1. The human creates A for ada; the lead's tool adds B for cy, after A.
 		room.raw.send({ t: "task", op: { op: "create", id: "task-a", title: "draft the plan", owner: "ada" as AgentSlug } })
 		await until("task a", () => tasks(room).has("task-a"), 5_000)
-		await send(room, `[ws create_task {"title":"review the plan","owner":"cy","depends_on":["task-a"]}]`)
+		await send(room, `@bob [ws create_task {"title":"review the plan","owner":"cy","depends_on":["task-a"]}]`)
 		await until("task b", () => tasks(room).size === 2, 15_000)
 		const b = [...tasks(room).values()].find((t) => t.id !== "task-a")!
 		expectEqual({ owner: b.owner, status: b.status, dependsOn: b.dependsOn }, { owner: "cy", status: "todo", dependsOn: ["task-a"] }, "task b")

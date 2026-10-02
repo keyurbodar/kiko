@@ -159,6 +159,11 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
+  /** RPC from the room: a human message is in its burst window (section 7.8). Only stores. */
+  async humanComing(): Promise<void> {
+    this.host.humanComing()
+  }
+
   private messagingPort(): MessagingPort | null {
     const home = this.home()
     if (!home) return null

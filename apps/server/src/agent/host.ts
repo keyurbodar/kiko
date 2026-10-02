@@ -64,6 +64,11 @@ export type HostStatus = {
   submissions: number
 }
 
+/** A row key in the wakeups table that is not a wakeup: the time until which a human message is expected. */
+const HUMAN_COMING = "human-coming"
+/** The longest a burst stays open (MAX_BURST_MS) plus a margin. */
+const HUMAN_COMING_MS = 10_000
+
 /** Consecutive failures of one kind before the harness state is rebuilt. */
 const RESET_AFTER = 3
 /** Failures that come from stored harness state, not from the provider or the network. */
@@ -206,6 +211,14 @@ export class AgentHost {
       }
       const action = decide(run, arrivalOf(batch))
       // Only a running root turn holds a batch. Background tasks alone (a subagent) do not.
+      const humanSoon = this.humanComingUntil() > Date.now()
+      if (arrivalOf(batch).kind === "human") this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
+      // A human message is on its way (the room's burst is still open): agent and system mail waits for it.
+      if (humanSoon && arrivalOf(batch).kind !== "human") {
+        this.inbox.hold(batch.requestId)
+        await this.alarms.setWakeup(INBOX_WAKEUP, this.humanComingUntil())
+        continue
+      }
       if (action === "hold" && (await this.rootPlaced(harness, root))) {
         // The batch waits in the inbox. `watchIdle` sets the inbox wakeup when the run answers.
         this.inbox.hold(batch.requestId)
@@ -238,6 +251,19 @@ export class AgentHost {
       queued: mine.some((s) => s.status === "queued"),
       restarts: (await this.ctx.storage.get<number>(RESTARTS_KEY)) ?? 0,
     }
+  }
+
+  /**
+   * Section 7.8. The room says a human message is in its burst window. Until it arrives (or
+   * `HUMAN_COMING_MS` passes), no agent or system batch is placed. Stored as a row in the wakeups
+   * table's sibling key so it survives eviction; it is a hint, so a lost one only costs ordering.
+   */
+  humanComing(): void {
+    this.ctx.storage.sql.exec("INSERT OR REPLACE INTO wakeups (key, at) VALUES (?, ?)", HUMAN_COMING, Date.now() + HUMAN_COMING_MS)
+  }
+
+  private humanComingUntil(): number {
+    return this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HUMAN_COMING).toArray()[0]?.at ?? 0
   }
 
   /** True while a root input is placed, that is, while the root conversation is answering. */

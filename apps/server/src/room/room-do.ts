@@ -262,6 +262,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, to: out.send.recipients }
 	}
 
+	private async warnBusyAgents(): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		const busy = this.members.list().filter((m) => m.status !== "idle")
+		await Promise.allSettled(busy.map((m) => agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).humanComing()))
+	}
+
 	/** Delivers the agent messages held while a human burst was pending, in order. */
 	private async releaseHeldMail(): Promise<void> {
 		const home = this.home()
@@ -345,6 +352,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.broadcast({ t: "events", events })
 		// Every stored human message passes here once, so this is where a burst grows.
 		for (const e of events) if (e.t === "message" && e.from.kind === "human") this.ctx.waitUntil(this.burst.add(e))
+		// Section 7.8: a busy agent learns at once that a human message is coming, so it keeps holding
+		// agent mail until the burst closes and the human's message arrives first.
+		if (events.some((e) => e.t === "message" && e.from.kind === "human")) this.ctx.waitUntil(this.warnBusyAgents())
 	}
 
 	/** Sends a frame that is not stored (typing, draft, status) to every ready socket. */
