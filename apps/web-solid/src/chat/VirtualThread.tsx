@@ -1,6 +1,7 @@
 import { createEventListener } from "@solid-primitives/event-listener"
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
 import {
+  createComputed,
   createEffect,
   createMemo,
   createSignal,
@@ -187,6 +188,43 @@ export function VirtualThread(props: {
   const items = createMemo<TimelineItem[]>(() =>
     buildTimelineItems(props.messages, props.firstUnreadMessageId),
   )
+
+  /*
+   * A message that arrives while the thread is open eases in (`motion-bubble-in`, 180 ms).
+   * Messages that were there when the thread opened, older pages, and the server's echo of a
+   * message the reader just sent do not, so nothing replays on a scroll or a reload. The
+   * signature is sender plus body, with a count, so an echo is matched to its optimistic row.
+   */
+  const heard = new Map<string, number>()
+  const fresh = new Set<string>()
+  let heardKey: string | undefined
+  let primed = false
+  createComputed(() => {
+    const messages = props.messages
+    const key = props.scrollKey
+    const sign = (m: (typeof messages)[number]) => `${m.sender}|${m.body}`
+    if (!primed || key !== heardKey) {
+      primed = true
+      heardKey = key
+      heard.clear()
+      fresh.clear()
+      for (const m of messages) heard.set(sign(m), (heard.get(sign(m)) ?? 0) + 1)
+      return
+    }
+    const now = new Map<string, number>()
+    for (const m of messages) {
+      const sig = sign(m)
+      const n = (now.get(sig) ?? 0) + 1
+      now.set(sig, n)
+      if (n > (heard.get(sig) ?? 0) && Date.now() - m.sentAt < 10_000) {
+        fresh.add(m.id)
+        const id = m.id
+        setTimeout(() => fresh.delete(id), 600)
+      }
+    }
+    heard.clear()
+    for (const [sig, n] of now) heard.set(sig, n)
+  })
 
   /**
    * The message a reply is aimed at. The thread holds it rather than only
@@ -695,6 +733,7 @@ export function VirtualThread(props: {
             isRunStart={item.isRunStart}
             isRunEnd={item.isRunEnd}
             hasRunGapBefore={item.hasRunGapBefore}
+            class={fresh.has(message.id) ? "motion-bubble-in" : undefined}
             highlighted={landed() === message.id}
             replying={activeReply() === message.id}
             /*
