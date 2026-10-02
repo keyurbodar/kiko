@@ -279,20 +279,22 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 ### P3-14 Build the command palette and slash commands
 
-`deps: P2-09` `difficulty: 3` `area: frontend`
+`deps: P2-16, P2-07` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` palette feature: `⌘K` opens the palette, `chat: new` creates a chat, and typing `/` in the composer lists commands.
+**Verify.** The `verify-kiko` palette feature: `⌘K` opens the palette with `type a command...` focused and the first row highlighted, typing filters, Enter on `chat: new` creates a chat, `chats: go to chat...` (`⌘P`) lists chats, Escape closes, and typing `/` in the composer lists commands.
 
-**Goal.** Port kat's command palette and add composer commands.
+**Goal.** Build kat's command palette on the command registry, and add composer commands.
 
-**Read first.** `docs/research/kat-ui.md`, the overlays list.
+**Read first.** `~/kat-images/screenshot 20.png`, which the owner named as the target. `docs/research/kat-ui.md`, the overlays list and screenshot 20 notes.
 
 **Files.** Create `apps/web-solid/src/palette/` and `apps/web-solid/src/composer/slash.ts`.
 
 **Build.**
 
-- A 560 px palette with fuzzy search over a registry of `noun: verb` commands, each with an optional shortcut.
-- A command registry that routes and features add to.
+- Use `cmdk-solid` for filtering and keyboard navigation, styled with kat tokens. If it does not fit, use Kobalte's combobox and say why.
+- Match screenshot 20: a centred panel about 560 px wide near the top of the window, the menu background, about 14 px radius, a borderless `type a command...` input, 32 px rows with an icon, the label, and the shortcut keys right-aligned and muted. The first row is highlighted. No animation.
+- Rows come from the registry in P2-16, in registry order when the input is empty, and ranked by match when it is not. Disabled commands do not show.
+- `⌘P` opens the same palette in chat mode, listing chats from the user store.
 - Slash commands in the composer from the same registry (`/new`, `/remind`, `/skill:`), filling the existing empty slash list.
 - Load the palette as tier 3 and preload it on the first modifier key press.
 

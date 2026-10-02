@@ -205,7 +205,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 `deps: P2-02` `difficulty: 2` `area: frontend`
 
-**Verify.** In a real browser, the panel icon at the top of the rail and `cmd+b` (`ctrl+b` off macOS) each collapse and reopen the sidebar with no animation, the `+` button opens only the new-chat menu, and the collapsed state survives a reload.
+**Verify.** In a real browser, the panel icon at the top of the rail and the toggle shortcut each collapse and reopen the sidebar with no animation, the `+` button opens only the new-chat menu, and the collapsed state survives a reload.
 
 **Goal.** Stop hiding the sidebar toggle behind the `+` menu and behind clicking the active rail item.
 
@@ -217,10 +217,33 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 - Add a sidebar-panel icon as the first rail item, above the sections. It toggles the sidebar and shows its state with `aria-expanded`.
 - Remove `toggle sidebar` from the `+` menu, and stop toggling when the active rail item is pressed. One control, one shortcut.
-- Bind `cmd+b` / `ctrl+b`, ignoring it while focus is in the composer or another text field.
+- Bind a toggle shortcut, ignoring it while focus is in the composer or another text field. P2-16 moves it to kat's `⌘S`.
 - Keep the collapsed state in the shell and persist it in `localStorage`.
 
 **Done when.** No code path other than the rail icon and the shortcut changes the collapsed state, except the resize handle snapping shut.
+
+### P2-16 Add the command registry and keyboard shortcuts
+
+`deps: P2-15` `difficulty: 3` `area: frontend`
+
+**Verify.** `bun test apps/web-solid/src/commands` passes, and in a real browser `⌘S` toggles the sidebar, `⌘T` opens a new chat, `⌘W` closes the active tab, and none of them fire while the composer has focus except those marked global.
+
+**Goal.** Give every action one entry in one registry, with its shortcut, so the palette, the menus, and the keyboard all run the same code.
+
+**Read first.** `~/kat-images/screenshot 20.png`, kat's command palette and its shortcut map. The `@tanstack/solid-hotkeys` README in `node_modules` after install.
+
+**Files.** Create `apps/web-solid/src/commands/` (`registry.ts`, `hotkeys.ts`, `kat-commands.ts`, tests). Edit `app/shell.tsx` and `sidebar/sidebar.tsx` only to register their actions.
+
+**Build.**
+
+- A typed registry: `{ id, title, group, icon, shortcut?, global?, when?, run }`. Titles use kat's `noun: verb` form in lowercase. A route or feature registers its commands on mount and they leave on unmount.
+- Bind shortcuts with `@tanstack/solid-hotkeys` (`createHotkey`, `Mod` for `⌘` or `ctrl`). If it fails in practice, use `tinykeys` and say why in the pull request.
+- Start with kat's map: `view: toggle sidebar ⌘S`, `chat: new ⌘T`, `chat: reopen closed ⌘⇧T`, `chat: attach file... ⌘O`, `chat: rename F2`, `chat: pin ⌘D`, `chat: close ⌘W`, `chat: delete`, `chats: go to chat... ⌘P`, `chats: search messages in current chat ⌘F`, `chats: search all chats ⌘⇧F`, and `palette: open ⌘K`. A command whose feature does not exist yet stays registered and disabled. Leave out `chat: share`, since kiko has no share links.
+- Move the sidebar toggle from P2-15 to `⌘S` through the registry.
+- Single-key and plain shortcuts never fire while a text field has focus. `⌘K` and `⌘S` are global.
+- Export a list of all shortcuts for a later cheatsheet.
+
+**Done when.** No component calls `addEventListener("keydown")` for an app shortcut. Every shortcut lives in the registry.
 
 ### P2-10 Add intent-based preloading
 

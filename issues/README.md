@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-105 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+106 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -76,6 +76,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-10](wave-04/P1-10-build-the-agent-factory-and-the-base.md) | Build the agent factory and the base prompt | backend | 3 | P1-06 | yes |
 | [P2-07](wave-04/P2-07-replace-the-fixture-store-with-the-sync.md) | Replace the fixture store with the sync client | frontend | 4 | P2-06, P2-02 | yes |
 | [P2-11](wave-04/P2-11-throttle-work-in-background-tabs.md) | Throttle work in background tabs | frontend | 2 | P2-06 | yes |
+| [P2-16](wave-04/P2-16-add-the-command-registry-and-keyboard-shortcuts.md) | Add the command registry and keyboard shortcuts | frontend | 3 | P2-15 | yes |
 | [P3-03](wave-04/P3-03-render-rich-text-and-code-blocks.md) | Render rich text and code blocks | frontend | 3 | P0-03, P2-03 | yes |
 | [P3-12](wave-04/P3-12-add-message-search-to-the-room.md) | Add message search to the room | backend | 3 | P1-04 | yes |
 | [P4-01](wave-04/P4-01-build-the-encrypted-credential-store.md) | Build the encrypted credential store | backend | 4 | P1-05 | yes |
@@ -91,6 +92,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-11](wave-05/P1-11-run-a-full-turn-between-the-room.md) | Run a full turn between the room and the agent | backend | 5 | P1-04, P1-05, P1-07, P1-08, P1-09, P1-10 | yes |
 | [P2-09](wave-05/P2-09-build-the-sidebar-chat-list.md) | Build the sidebar chat list | frontend | 3 | P2-07, P2-01 | yes |
 | [P2-10](wave-05/P2-10-add-intent-based-preloading.md) | Add intent-based preloading | frontend | 3 | P2-03, P2-07 | yes |
+| [P3-14](wave-05/P3-14-build-the-command-palette-and-slash-commands.md) | Build the command palette and slash commands | frontend | 3 | P2-16, P2-07 | yes |
 | [P3-16](wave-05/P3-16-persist-drafts-and-scroll-position.md) | Persist drafts and scroll position | frontend | 2 | P2-07 | yes |
 | [P4-04](wave-05/P4-04-bridge-provider-sign-in-flows-to-the.md) | Bridge provider sign-in flows to the browser | backend | 4 | P4-01, P0-08 | yes |
 | [P4-05](wave-05/P4-05-build-the-provider-and-model-settings.md) | Build the provider and model settings | frontend | 3 | P4-03, P4-01, P2-07 | yes |
@@ -105,7 +107,6 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P1-12](wave-06/P1-12-apply-the-mid-run-rules.md) | Apply the mid-run rules | backend | 4 | P1-11 | yes |
-| [P3-14](wave-06/P3-14-build-the-command-palette-and-slash-commands.md) | Build the command palette and slash commands | frontend | 3 | P2-09 | yes |
 | [P7-06](wave-06/P7-06-build-the-integrations-settings.md) | Build the integrations settings | frontend | 2 | P7-03, P4-05 | yes |
 | [P8-08](wave-06/P8-08-build-the-file-viewer-and-editor.md) | Build the file viewer and editor | frontend | 3 | P8-07 | yes |
 

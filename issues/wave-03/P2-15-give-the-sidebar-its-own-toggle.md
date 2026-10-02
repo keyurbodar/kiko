@@ -14,7 +14,7 @@
 
 ## Verification
 
-In a real browser, the panel icon at the top of the rail and `cmd+b` (`ctrl+b` off macOS) each collapse and reopen the sidebar with no animation, the `+` button opens only the new-chat menu, and the collapsed state survives a reload.
+In a real browser, the panel icon at the top of the rail and the toggle shortcut each collapse and reopen the sidebar with no animation, the `+` button opens only the new-chat menu, and the collapsed state survives a reload.
 
 ## Task
 
@@ -28,7 +28,7 @@ In a real browser, the panel icon at the top of the rail and `cmd+b` (`ctrl+b` o
 
 - Add a sidebar-panel icon as the first rail item, above the sections. It toggles the sidebar and shows its state with `aria-expanded`.
 - Remove `toggle sidebar` from the `+` menu, and stop toggling when the active rail item is pressed. One control, one shortcut.
-- Bind `cmd+b` / `ctrl+b`, ignoring it while focus is in the composer or another text field.
+- Bind a toggle shortcut, ignoring it while focus is in the composer or another text field. P2-16 moves it to kat's `⌘S`.
 - Keep the collapsed state in the shell and persist it in `localStorage`.
 
 **Done when.** No code path other than the rail icon and the shortcut changes the collapsed state, except the resize handle snapping shut.
