@@ -153,6 +153,7 @@ export default defineConfig({
     port: 3001,
   },
   build: {
+    manifest: true,
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),
