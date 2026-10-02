@@ -18,7 +18,7 @@
 import { createMemo, createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import { BOTS, FIXTURE_STATES, NOW, UNREAD_ANCHOR_ID, VIEWER_ID } from "../lib/fixtures";
-import type { ChatMessage, RosterBot } from "../lib/types";
+import type { ChatMessage, Reaction, RosterBot } from "../lib/types";
 import { MessageList, type VirtualThreadState } from "./MessageList";
 import "../styles/app.css";
 
@@ -54,9 +54,36 @@ const [openOverlay, setOpenOverlay] = createSignal<"menu" | "picker" | null>(nul
 /** The last scroll state the shell reported, for scroll-anchoring checks. */
 const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
 
-const messages = createMemo<readonly ChatMessage[]>(
-  () => FIXTURE_STATES[slug()] ?? FIXTURE_STATES[DEFAULT_STATE],
-);
+/**
+ * Reactions the viewer changed on this page, by message id. The harness has no
+ * room behind it, so a tap changes these chips and nothing else. The app sends
+ * the same tap to the room through `useApp.toggleReaction`.
+ */
+const [reacted, setReacted] = createSignal<ReadonlyMap<string, Reaction[]>>(new Map());
+
+function toggleReaction(message: ChatMessage, emoji: string) {
+  const chips = (reacted().get(message.id) ?? message.reactions ?? []).map((chip) => ({ ...chip }));
+  const chip = chips.find((c) => c.emoji === emoji);
+  const next = !chip
+    ? [...chips, { emoji, count: 1, viewerReacted: true }]
+    : chip.viewerReacted
+      ? chip.count > 1
+        ? chips.map((c) => (c === chip ? { ...c, count: c.count - 1, viewerReacted: false } : c))
+        : chips.filter((c) => c !== chip)
+      : chips.map((c) => (c === chip ? { ...c, count: c.count + 1, viewerReacted: true } : c));
+  setReacted((map) => new Map(map).set(message.id, next));
+}
+
+const messages = createMemo<readonly ChatMessage[]>(() => {
+  const base = FIXTURE_STATES[slug()] ?? FIXTURE_STATES[DEFAULT_STATE];
+  const changed = reacted();
+  return changed.size === 0
+    ? base
+    : base.map((message) => {
+        const reactions = changed.get(message.id);
+        return reactions ? { ...message, reactions } : message;
+      });
+});
 
 /** Lookup maps, built once. The transcript only ever reads from these. */
 const botById: ReadonlyMap<string, RosterBot> = new Map(
@@ -118,6 +145,10 @@ function App() {
           scrollRef={() => {}}
           onStateChange={setThreadState}
           waitingNames={typingNames()}
+          onReact={(id, emoji) => {
+            const message = byId().get(id);
+            if (message) toggleReaction(message, emoji);
+          }}
         />
       </div>
     </div>

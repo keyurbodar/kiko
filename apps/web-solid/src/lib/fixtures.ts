@@ -1,6 +1,7 @@
-// Static data. There is no backend, no database, and no networking: every state
-// the UI can reach has to be reachable from here, which is the point of
-// building the interface first.
+// Static transcript states for the chat harness (`chat/harness.tsx`) and the
+// tests. The app reads the sync stores instead, so nothing in the production
+// import graph may import this file. The mock room starts from the protocol
+// fixtures in `@kiko/protocol/fixtures`.
 //
 // Two layers, and the split matters:
 //
@@ -19,7 +20,7 @@
 // Every timestamp is relative to the exported NOW, so the day labels ("three
 // days ago", "yesterday", "today") are stable no matter when this is read.
 
-import type { ChatMessage, MediaItem, RosterBot, RosterGroup } from "./types";
+import type { ChatMessage, MediaItem, RosterBot } from "./types";
 
 export const VIEWER_ID = "viewer";
 
@@ -116,15 +117,6 @@ export const BOTS: readonly RosterBot[] = [
     presence: "sleeping",
     unread: 0,
     pinned: false,
-  },
-];
-
-export const GROUPS: readonly RosterGroup[] = [
-  {
-    id: "launch",
-    name: "Launch",
-    memberIds: ["ada", "grace", "alan"],
-    updatedAt: NOW,
   },
 ];
 

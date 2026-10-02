@@ -7,9 +7,9 @@ import { useApp } from "../../lib/store";
 import type { ChatMessage } from "../../lib/types";
 
 /*
- * The composed app: the transcript over the store's real state, with the
- * fixtures as its only data source. The same props the harness passes, driven
- * from `useApp` instead of a fixture slice, so a difference between this page
+ * The composed app: the transcript over the open room in the sync store. The
+ * same props the harness passes, driven from `useApp` instead of a fixture
+ * slice, so a difference between this page
  * and the harness is a difference in the data and never in the wiring.
  *
  * The transcript's own styling reaches the page through MessageList, not
@@ -36,7 +36,15 @@ export default function ChatRoute() {
       setReplyTarget(null);
     }),
   );
-  const bots = useApp.botById();
+  /*
+   * Reading the open room marks it read. The anchor for the unread divider is
+   * frozen first, inside `markRead`, so the divider stays where it was.
+   */
+  createEffect(() => {
+    const id = useApp.activeThreadId();
+    if (id && useApp.hasUnread()) useApp.markRead(id);
+  });
+  const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
   const messages = createMemo(() => useApp.activeMessages());
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
@@ -87,14 +95,15 @@ export default function ChatRoute() {
         <div class="flex min-h-0 flex-1 flex-col">
           <MessageList
             messages={messages()}
-            botById={(id) => (id === undefined ? undefined : bots.get(id))}
+            botById={(id) => (id === undefined ? undefined : members().get(id))}
             replyParent={(id) => (id === undefined ? undefined : byId().get(id))}
-            firstUnreadMessageId={null}
+            firstUnreadMessageId={useApp.firstUnreadMessageId()}
             onJumpToMessage={() => {}}
             onReplyTarget={setReplyTarget}
             scrollRef={() => {}}
             onStateChange={setThreadState}
-            waitingNames={[]}
+            waitingNames={useApp.typingNames()}
+            onReact={useApp.toggleReaction}
             replyTarget={replyTarget()}
             onJumpHandle={(handle) => {
               jumpToMessage = handle.jumpToMessage;
@@ -132,7 +141,7 @@ export default function ChatRoute() {
           </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
-            bots={useApp.bots()}
+            bots={useApp.members()}
             /*
              * A send while a reply is armed is a REPLY, and the two store
              * mutations are different: `appendMessage` writes a root message
@@ -144,8 +153,8 @@ export default function ChatRoute() {
               const target = replyTarget();
               const sent =
                 target === null
-                  ? useApp.appendMessage(message, Date.now())
-                  : useApp.appendReply(message, target, Date.now());
+                  ? useApp.appendMessage(message)
+                  : useApp.appendReply(message, target);
               /*
                * Sending is a statement about where you want to be looking. If
                * the reader had scrolled up and then sent, leaving them parked

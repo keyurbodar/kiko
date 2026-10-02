@@ -35,12 +35,8 @@ export function TabStrip() {
     if (id) untrack(() => openTabs.open(id))
   })
 
-  const label = (id: string) => {
-    const bot = useApp.botById().get(id)
-    if (bot) return bot.name
-    return useApp.groups().find((group) => group.id === id)?.name ?? id
-  }
-  const unread = (id: string) => (useApp.botById().get(id)?.unread ?? 0) > 0
+  const label = (id: string) => useApp.chatById(id)?.name ?? id
+  const unread = (id: string) => (useApp.chatById(id)?.unread ?? 0) > 0
   const go = (id: string | null) => navigate(id ? `/chat/${id}` : "/chat")
 
   const close = (id: string) => {

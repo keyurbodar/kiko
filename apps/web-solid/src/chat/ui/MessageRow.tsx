@@ -1,6 +1,5 @@
 import { createSignal, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
-import { useApp } from "../../lib/store"
 import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
 import { formatTimeOfDay } from "../lib/dayLabel"
 import { replySummary } from "../lib/reply"
@@ -25,17 +24,19 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
   return "mid"
 }
 
-function quoteSender(message: ChatMessage, ownBot: RosterBot | undefined): string {
+/** The quoted message's author. The parent's own author is passed in, so the row never looks up a roster. */
+function quoteSender(message: ChatMessage, parentBot: RosterBot | undefined): string {
   if (message.sender === "user") return "you"
-  if (ownBot !== undefined && ownBot.id === message.botId) return ownBot.name
-  for (const bot of useApp.bots()) if (bot.id === message.botId) return bot.name
-  return "bot"
+  return parentBot?.name ?? "bot"
 }
 
 export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
   parent: ChatMessage | undefined
+  /** The author of `parent`, when an agent wrote it. */
+  parentBot?: RosterBot
+
   isRunStart: boolean
   isRunEnd: boolean
   hasRunGapBefore: boolean
@@ -107,7 +108,7 @@ export function MessageRow(props: {
               <div class={hasAttachment() ? "px-2 pt-2" : undefined}>
                 <Quote
                   parent={parent()}
-                  label={quoteSender(parent(), props.bot)}
+                  label={quoteSender(parent(), props.parentBot)}
                   summary={replySummary(parent())}
                   side={props.message.sender}
                   onOpenReplyTarget={props.onOpenReplyTarget}
