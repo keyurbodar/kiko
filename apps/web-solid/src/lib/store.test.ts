@@ -188,6 +188,21 @@ describe("useApp over the mock room", () => {
     app.stop()
   })
 
+  test("a chat row that did not change keeps its object, so the list keeps its DOM", async () => {
+    const { app } = await boot()
+    app.createChat("another chat")
+    const before = app.bots()
+    expect(before.length).toBeGreaterThan(1)
+    expect(app.chatById(before[0].id)).toBe(before[0])
+    app.togglePinned(fixtures.roomId)
+    const after = app.bots()
+    const changed = after.find((row) => row.id === fixtures.roomId)!
+    expect(changed).not.toBe(before.find((row) => row.id === fixtures.roomId))
+    expect(changed.pinned).toBe(false)
+    for (const row of after) if (row.id !== fixtures.roomId) expect(row).toBe(before.find((b) => b.id === row.id)!)
+    app.stop()
+  })
+
   test("opening another chat closes the first room's socket", async () => {
     const { app, room, other } = await boot()
     expect(room.peers).toBe(1)
