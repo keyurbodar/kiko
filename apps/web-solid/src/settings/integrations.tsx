@@ -34,7 +34,7 @@ function readMode(): Mode {
 
 async function openClient(): Promise<ExecutorClient> {
 	// The dev mock, same rule as the chat data layer. A production build drops this branch.
-	if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC !== "live") return createMockExecutor()
+	if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") return createMockExecutor()
 	return createExecutorClient({ url: urls.user() })
 }
 

@@ -1,6 +1,6 @@
 # Drafts and scroll position
 
-Run with `agent-browser --session <id>`, a Worker on `KIKO_SERVER_PORT`, and `VITE_KIKO_SYNC=live`.
+Run with `agent-browser --session <id>`, a Worker on `KIKO_SERVER_PORT`. Dev builds talk to the Worker by default.
 
 1. Continue as dev. Open a chat and send about 30 messages.
 2. Scroll the `[data-component=chat-scroll]` element up, then type text in the prompt.
