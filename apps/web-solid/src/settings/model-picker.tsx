@@ -24,16 +24,24 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
   })
   return (
     <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="model-list">
-      <input
-        type="search"
-        class="h-9 shrink-0 rounded-[10px] bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-        placeholder="search models"
-        aria-label="search models"
-        autofocus={props.autofocus}
-        value={query()}
-        onInput={(e) => setQuery(e.currentTarget.value)}
-        data-component="model-search"
-      />
+      <Show when={connectedIds().size > 0}>
+        <label class="flex h-9 shrink-0 items-center gap-2 rounded-full bg-[var(--input-bg)] px-3.5 text-weak focus-within:bg-[var(--nav-hover-bg)]">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.75" />
+            <path d="M10.5 10.5L14 14" />
+          </svg>
+          <input
+            type="search"
+            class="h-full min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
+            placeholder="search models"
+            aria-label="search models"
+            autofocus={props.autofocus}
+            value={query()}
+            onInput={(e) => setQuery(e.currentTarget.value)}
+            data-component="model-search"
+          />
+        </label>
+      </Show>
       <Show
         when={connectedIds().size > 0}
         fallback={
