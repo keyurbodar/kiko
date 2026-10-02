@@ -209,5 +209,8 @@ export function renderInput(batch: Pick<Batch, "envelopes" | "briefs">): string 
     else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}"${taint}>\n${escape(body)}\n</agent-message>`)
     else parts.push(`<system-event reason="${from.reason}"${taint}>\n${escape(body)}\n</system-event>`)
   }
+  // The ids of the human's messages, so `[react:<emoji>:<id>]` can target one that is not the newest.
+  const ids = batch.envelopes.flatMap((e) => (e.from.kind === "human" && e.id.startsWith("human:") ? [`${e.id.slice(6)}: ${escape(e.body.slice(0, 40))}`] : []))
+  if (ids.length > 1) parts.push(`<context>\nmessage ids, oldest first:\n${ids.join("\n")}\n</context>`)
   return parts.join("\n\n")
 }

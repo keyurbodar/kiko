@@ -15,8 +15,8 @@ import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 // block is posted again under the new attempt. The room then deletes the earlier attempt's
 // bubbles. A block is idempotent on `(runId, attempt, index)`, so a repeated post stores nothing.
 //
-// Reactions (section 6.5). A `[react:<emoji>]` tag in a finished generation becomes one `react`
-// call, after that generation's bubbles. A reply of only a tag posts no bubble. A repeated
+// Reactions (section 6.5). A `[react:<emoji>]` tag becomes one `react` call as soon as the
+// splitter closes it in the stream, and again from the finished generation, which the room ignores. A reply of only a tag posts no bubble. A repeated
 // reaction stores nothing in the room, so a resent one is harmless. ASSUMPTION: reactions wait in
 // memory until posted, so a crash between the entry and the call drops them.
 
@@ -264,7 +264,9 @@ export class Outbox {
     const out = generation.splitter.push(text.slice(generation.fed.length))
     generation.fed = text
     generation.blocks.push(...out.blocks)
-    // The generation's reactions are sent from its finished entry, so a lost partial reacts with nothing.
+    // A reaction goes out the moment its tag streams in, so it lands while the agent is still
+    // typing. The finished entry sends it again, which the room stores once.
+    run.reactions.push(...out.reactions)
     await this.flush()
     if (out.draft !== null && this.now() - this.lastDraft >= DRAFT_INTERVAL_MS) {
       this.lastDraft = this.now()
