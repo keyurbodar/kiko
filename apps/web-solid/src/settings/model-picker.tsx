@@ -80,9 +80,14 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
   )
 }
 
+/** Whether the picker is open. A command opens it, so `chat: choose model` works from the keyboard. */
+const [pickerOpen, setPickerOpen] = createSignal(false)
+export const openModelPicker = () => setPickerOpen(true)
+
 /** The chat top bar control: shows the chat's model and opens the picker. Picking applies at once. */
 export function ModelPickerButton(props: { chatId: string | null }) {
-  const [open, setOpen] = createSignal(false)
+  const open = pickerOpen
+  const setOpen = setPickerOpen
   const current = () => chatModel(props.chatId)
   return (
     <ModalV2 open={open()} onOpenChange={setOpen}>
