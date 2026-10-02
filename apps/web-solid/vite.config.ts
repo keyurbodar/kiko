@@ -42,7 +42,7 @@ export default defineConfig({
   plugins: [solid(), tailwindcss(), modelCatalog()],
   server: {
     port: 3001,
-    proxy: { "/api": `http://localhost:${process.env.KIKO_SERVER_PORT ?? 8787}` },
+    proxy: { "/api": { target: `http://localhost:${process.env.KIKO_SERVER_PORT ?? 8787}`, ws: true } },
   },
   build: {
     manifest: true,
