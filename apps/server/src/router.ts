@@ -48,7 +48,7 @@ async function carriesUserId(request: Request, url: URL): Promise<boolean> {
 
 // A browser sends cookies on a cross-site socket upgrade, so a page on another origin could
 // open a socket as the user. A request without an Origin header is not from a browser page.
-function originAllowed(request: Request, url: URL, env: AuthEnv): boolean {
+export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean {
   const origin = request.headers.get("origin")
   if (!origin || origin === url.origin) return true
   const trusted = env.TRUSTED_ORIGINS?.split(",").map((o) => o.trim()) ?? []

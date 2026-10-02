@@ -426,6 +426,12 @@ record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || provider
 
 `CREDENTIALS_KEK` is a Worker secret. Each record stores `kek_version`, so the secret can rotate. The plaintext exists only in memory inside `UserDO` and inside the `AgentDO` that is making a model request. Kiko never logs a key and never sends one to the client. The client receives the provider id, the kind of credential, and the last four characters.
 
+- The code is `apps/server/src/lib/crypto.ts` and `apps/server/src/user/credentials.ts`. `UserDO` takes its user id from `ctx.id.name`.
+- Rotation: move the old secret to `CREDENTIALS_KEK_PREVIOUS`, set the new `CREDENTIALS_KEK`, and add 1 to `CREDENTIALS_KEK_VERSION` (default 1). A row sealed with the old secret is re-sealed on its next read.
+- ASSUMPTION: the additional data is `userId:providerId`. A user id cannot contain ":", so no two pairs share bytes.
+- DEVIATION: the RPC methods are `connectProvider`, `disconnectProvider`, and `listProviders`. `connect` is the `DurableObject` handler for TCP sockets, so the plan's name cannot be used.
+- HTTP: `GET /api/credentials`, `PUT /api/credentials/<provider>` with `{ apiKey }`, and `DELETE /api/credentials/<provider>`. None returns a key.
+
 ### 11.3 Use during a run
 
 At the start of a run, `AgentDO` calls `UserDO.turnContext(provider)` once. The call returns the request auth for that provider, the profile and the "what's going on" page (section 13), the todo index, the timezone, and the limits. The auth is kept in memory for that run only.
