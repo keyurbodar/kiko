@@ -1092,6 +1092,26 @@ export const MESSAGES: readonly ChatMessage[] = [
 // typo, and a typo should stop the harness, not silently shrink a state.
 // ---------------------------------------------------------------------------
 
+function readMore(): readonly ChatMessage[] {
+  const sentence = "The transcript keeps one scroll owner and every row is remeasured after it changes. ";
+  const body = sentence.repeat(36).slice(0, 3000);
+  const at = NOW - 20 * MINUTE;
+  const row = (id: string, text: string, n: number, sender: "user" | "bot"): ChatMessage => ({
+    id,
+    threadId: "ada",
+    sender,
+    ...(sender === "bot" ? { botId: BOTS[0].id } : {}),
+    body: text,
+    sentAt: at + n * MINUTE,
+  });
+  return [
+    row("rm-1", "before the long one", 0, "bot"),
+    row("rm-2", body, 1, "bot"),
+    row("rm-3", "after one", 2, "user"),
+    row("rm-4", "after two", 3, "user"),
+  ];
+}
+
 const BY_ID: Record<string, ChatMessage> = Object.fromEntries(
   MESSAGES.map((message) => [message.id, message]),
 );
@@ -1105,6 +1125,8 @@ function slice(...ids: readonly string[]): readonly ChatMessage[] {
 }
 
 export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = {
+  // A 3,000 character body between short rows: clamped, then expanded in place.
+  "read-more": readMore(),
   // Three consecutive agent messages inside the window: one run, not three.
   grouped: slice("a-06", "a-07", "a-08"),
   // Same author either side of a gap longer than the 300s window: two runs.
