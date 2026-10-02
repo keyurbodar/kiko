@@ -1,3 +1,4 @@
+import { reorderById } from "../../chat/lib/album"
 import { batch, type Accessor } from "solid-js"
 import type { SetStoreFunction, Store } from "solid-js/store"
 import type {
@@ -84,6 +85,15 @@ export function createPromptInputV2Store(input: PromptInputV2StoreInput) {
     },
     addAttachment(attachment: PromptInputV2Attachment) {
       setStore()("prompt", (prompt) => [...prompt, attachment])
+    },
+    /** Moves attachment `id` into the slot `toId` holds; the strip's order is the album's order. */
+    reorderAttachment(id: string, toId: string) {
+      setStore()("prompt", (parts) => {
+        const images = parts.filter((part): part is PromptInputV2Attachment => part.type === "image")
+        const order = reorderById(images, id, toId)
+        let next = 0
+        return parts.map((part) => (part.type === "image" ? order[next++] : part))
+      })
     },
     removeAttachment(id: string) {
       setStore()("prompt", (parts) => parts.filter((part) => part.type !== "image" || part.id !== id))

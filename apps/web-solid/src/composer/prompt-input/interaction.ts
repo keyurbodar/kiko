@@ -324,6 +324,9 @@ export function createPromptInputV2Controller(input: {
     openAttachment(attachment: PromptInputV2Attachment) {
       input.openAttachment?.(attachment)
     },
+    reorderAttachment(id: string, toId: string) {
+      draft.reorderAttachment(id, toId)
+    },
     removeAttachment(id: string) {
       draft.removeAttachment(id)
     },

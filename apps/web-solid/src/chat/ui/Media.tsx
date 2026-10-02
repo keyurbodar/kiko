@@ -2,13 +2,24 @@ import { createEffect, For, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { MediaItem } from "../../lib/types"
 import { Play } from "lucide-solid"
-import { albumLayout, singleMediaBox } from "../lib/album"
+import { albumLayout, cornerRadii, singleMediaBox } from "../lib/album"
 import { mediaThumbnail } from "../lib/media"
 
 const ALBUM_SPACING = 2
 
 const CELL_BASE =
   "cursor-zoom-in overflow-hidden border-none bg-tint p-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+
+/** Rounds only the corners a cell shares with the album's outline. */
+function radiusClass(sides: number, hasText: boolean): string {
+  const r = cornerRadii(sides, { bottom: hasText })
+  return cn(
+    r.startStart && "rounded-ss-bubble",
+    r.startEnd && "rounded-se-bubble",
+    r.endStart && "rounded-es-bubble",
+    r.endEnd && "rounded-ee-bubble",
+  )
+}
 
 function durationLabel(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds))
@@ -101,7 +112,7 @@ export function MessageMedia(props: {
           {(rect, index) => (
             <button
               type="button"
-              class={cn("absolute", CELL_BASE)}
+              class={cn("absolute", CELL_BASE, radiusClass(rect.sides, props.hasText))}
               style={{
                 left: `${(rect.x / layout().width) * 100}%`,
                 top: `${(rect.y / layout().height) * 100}%`,
