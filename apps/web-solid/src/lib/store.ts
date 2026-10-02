@@ -22,6 +22,7 @@ import { createRoomStore, type RoomStore } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
+import { newestMessages } from "../warm/messages"
 import type { BotPresence, ChatMessage, DocumentItem, OutgoingMessage, Reaction, RosterBot } from "./types"
 
 // The URLs. The one place a socket or file URL is built.
@@ -156,6 +157,9 @@ export function createApp(options: AppOptions = {}) {
     const [room, setRoom] = createSignal<RoomStore | null>(null)
     const [activeId, setActiveId] = createSignal<RoomId | null>(null)
 
+    /** Newest messages of chats the pointer rested on, read from IndexedDB. Only for rooms that are not open. */
+    const [preloaded, setPreloaded] = createSignal<Record<string, ViewMessage[]>>({})
+
     let session: { userId: string; warm: Warm; transport: Transport } | null = null
     let booting: Promise<void> | null = null
     let bootUser: string | null = null
@@ -244,9 +248,19 @@ export function createApp(options: AppOptions = {}) {
         session = null
         views = new Map()
         batch(() => {
+          setPreloaded({})
           setRoom(null)
           setUserStore(null)
         })
+      },
+
+      /** Intent: reads a chat's newest messages from IndexedDB into memory. No network. */
+      async preloadChat(threadId: string): Promise<void> {
+        const current = session
+        if (!current || threadId === activeId() || threadId in preloaded()) return
+        const rows = await newestMessages(current.warm, threadId as RoomId, 3)
+        if (session !== current) return
+        setPreloaded((all) => ({ ...all, [threadId]: rows }))
       },
 
       /** The sync stores, for code that needs more than this surface. */
@@ -313,7 +327,8 @@ export function createApp(options: AppOptions = {}) {
 
       /** Hover previews. Only the open room is in memory, so another room has none. */
       messagesFor(threadId: string): ChatMessage[] {
-        return room()?.state.roomId === threadId ? app.activeMessages() : []
+        if (room()?.state.roomId === threadId) return app.activeMessages()
+        return (preloaded()[threadId] ?? []).map((m) => toChatMessage(m, threadId))
       },
 
       /**

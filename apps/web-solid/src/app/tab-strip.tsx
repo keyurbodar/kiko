@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { For, createEffect, createMemo, untrack } from "solid-js"
+import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
 import { nextAfterClose, openTabs, stepTab } from "./open-tabs"
 
@@ -84,6 +85,7 @@ export function TabStrip() {
               role="tab"
               tabindex={active() || (activeId() === null && openTabs.ids()[0] === id) ? 0 : -1}
               aria-selected={active()}
+              ref={intentRef(() => void useApp.preloadChat(id))}
               data-component="tab"
               data-tab-id={id}
               data-active={active() ? "" : undefined}
