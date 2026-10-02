@@ -776,7 +776,7 @@ Each stored value carries a schema version. A version mismatch drops the warm ti
 
 Routing uses `@solidjs/router` with lazy routes. Intent means pointer hover for 80 ms, pointer down, or keyboard focus on a link or a chat row. Intent preloads the route chunk and warms the chat from IndexedDB. solid-primitives has no intent-prefetch package, so kiko composes one from `@solid-primitives/event-listener` and `@solid-primitives/scheduled`.
 
-The build stays on Vite. ASSUMPTION: upgrade from Vite 7 to Vite 8 (latest 8.3.2, Rolldown-based) in the first phase and keep it if the build output is smaller. The dev harness page leaves the production build.
+The build stays on Vite, now Vite 8 (8.3.2, Rolldown-based) with `@tailwindcss/vite` 4.3.3 and `vite-plugin-solid` 2.11.14. Measured in P0-14: JS 621.9 KB raw and 206.6 KB gzip before, 620.9 KB raw and 201.8 KB gzip after. CSS 121.0 KB raw and 21.2 KB gzip before, 122.9 KB raw and 21.7 KB gzip after. Total gzip fell by 4.3 KB, so the upgrade stays. The dev harness page leaves the production build.
 
 **DEVIATION.** The spec names CodeMirror 6 as the text editor. Kiko uses it for the files route only. The composer keeps the existing `contenteditable` input, because the composer is in tier 2 and CodeMirror would be most of that tier's bytes.
 
