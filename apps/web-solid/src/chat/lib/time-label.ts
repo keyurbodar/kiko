@@ -1,7 +1,7 @@
 import { dayStartOf } from "./grouping";
 
-/** A pause longer than this earns a time divider. ASSUMPTION: 1 hour, as in iMessage. */
-export const TIME_DIVIDER_GAP_MS = 3_600_000;
+/** A pause longer than this earns a time divider. ASSUMPTION: 20 minutes, so a same-day pause shows its time the way Instagram does. */
+export const TIME_DIVIDER_GAP_MS = 20 * 60_000;
 
 /** True when `at` opens a new calendar day or comes more than the gap after `prev`. */
 export function startsTimeBreak(prev: number, at: number): boolean {

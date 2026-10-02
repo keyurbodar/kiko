@@ -7,7 +7,8 @@ const NOW = d(2026, 10, 2, 15, 0); // friday
 
 const cases: Array<[string, number, number, string | undefined]> = [
   ["ten minutes apart", d(2026, 10, 2, 12, 2), d(2026, 10, 2, 12, 12), undefined],
-  ["exactly one hour apart", d(2026, 10, 2, 12, 0), d(2026, 10, 2, 13, 0), undefined],
+  ["exactly twenty minutes apart", d(2026, 10, 2, 12, 0), d(2026, 10, 2, 12, 20), undefined],
+  ["twenty-one minutes apart", d(2026, 10, 2, 12, 0), d(2026, 10, 2, 12, 21), "today 12:21 pm"],
   ["one hour and a minute apart", d(2026, 10, 2, 12, 0), d(2026, 10, 2, 13, 1), "today 1:01 pm"],
   ["two hours apart today", d(2026, 10, 2, 12, 2), d(2026, 10, 2, 14, 22), "today 2:22 pm"],
   ["new day inside the hour", d(2026, 10, 1, 23, 50), d(2026, 10, 2, 0, 10), "today 12:10 am"],
@@ -24,5 +25,5 @@ describe("timeLabel", () => {
     test(name, () => expect(timeLabel(prev, at, NOW, L)).toBe(want));
   }
 
-  test("the gap is one hour", () => expect(TIME_DIVIDER_GAP_MS).toBe(3_600_000));
+  test("the gap is twenty minutes", () => expect(TIME_DIVIDER_GAP_MS).toBe(20 * 60_000));
 });

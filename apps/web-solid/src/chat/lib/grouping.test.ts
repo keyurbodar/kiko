@@ -234,12 +234,12 @@ describe("dayStartOf", () => {
 });
 
 describe("time dividers", () => {
-  test("a burst gets none, and one pause over an hour gets exactly one", () => {
+  test("a burst gets none, and one pause over twenty minutes gets exactly one", () => {
     const items = buildTimelineItems([
       bot("a", at(0)),
-      bot("b", at(10 * 60_000)),
-      bot("c", at(10 * 60_000 + 3_600_001)),
-      bot("d", at(10 * 60_000 + 3_600_001 + 1_000)),
+      bot("b", at(5 * 60_000)),
+      bot("c", at(5 * 60_000 + 20 * 60_000 + 1)),
+      bot("d", at(5 * 60_000 + 20 * 60_000 + 1 + 1_000)),
     ]);
     expect(items.map((item) => item.kind)).toEqual(["message", "message", "day-divider", "message", "message"]);
     expect(items.filter((item) => item.kind === "day-divider").map((item) => item.key)).toEqual(["gap:c"]);
