@@ -7,6 +7,7 @@ import "./styles/app.css";
 import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
 import { loadMotion } from "./lib/motion";
+import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
 
 const SignIn = lazy(() => import("./app/sign-in"));
 
@@ -60,6 +61,7 @@ export function start(): void {
  * loads itself on first use, so this only makes that first use instant.
  */
 function preload(): void {
+  void loadOverlaysV2();
   void loadMotion();
 }
 
