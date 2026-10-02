@@ -30,7 +30,7 @@ export function TopBar() {
   }
   return (
     <header
-      class="flex h-[50px] shrink-0 items-center px-4 text-sm font-medium text-muted"
+      class="flex h-[50px] shrink-0 items-center gap-2 px-4 text-sm font-medium text-muted"
       data-component="top-bar"
     >
       <Show

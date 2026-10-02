@@ -27,3 +27,12 @@
  * needed an icon. */
 @import "@kiko/ui/icon.css";
 @import "@kiko/ui/file-icon.css";
+
+/* The dim behind the mobile sidebar drawer. It sits under the panel (z 30) and over the main panel. */
+.drawer-scrim {
+  position: absolute;
+  inset: 0;
+  inset-inline-start: var(--sidebar-nav-w);
+  z-index: 25;
+  background: var(--scrim);
+}

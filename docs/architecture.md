@@ -445,6 +445,14 @@ At the start of a run, `AgentDO` calls `UserDO.turnContext(provider)` once. The 
 
 Disconnecting a provider deletes its rows in `UserDO` at once. A run already in flight finishes its current model request with the auth it holds. The next request fails with a clear error and the chat shows the connect prompt.
 
+How kiko does it (P4-02):
+
+- `UserDO.turnContext(provider)` (`apps/server/src/user/turn-context.ts`) resolves the auth with pi-ai's `Models.getAuth` over the vault, so an OAuth token is refreshed and written back inside `UserDO`. It also returns the timezone (setting `timezone`, ASSUMPTION: default UTC) and the limits (setting `limits` over the section 7.7 defaults). Memory joins the same call later.
+- The host calls the setup's `beginRun` before a batch starts a new run, never for a batch that steers or queues into a live one. No auth means no submit: the batch is dropped and `RoomDO.noProvider` stores one `no_provider` room event per agent and input. The human's messages stay in the log.
+- DEVIATION: the harness keeps one `Models` per process, because pi-durable takes it at open. Its providers (all of pi-ai's built-in ones) read auth only from the run's held `turnContext` answer, never from env or files. A run resumed after an eviction calls `turnContext` again. With every provider bundled, `wrangler deploy --dry-run` reports 8157 KiB, 1313 KiB gzip.
+- DEVIATION: a run that is already going when the user disconnects keeps its held auth until it ends, not only for its current request. The next run gets `no_provider`.
+- The chosen model lives in each `AgentDO` (one per room and agent), set by the `setModel` RPC and applied with `configure` at the next run start. ASSUMPTION: without a choice, the model is the test model of section 11.6.
+
 ### 11.4 Sign-in flows
 
 `UserDO` runs `Models.login(interaction)` and bridges the two interaction callbacks over the user WebSocket. `notify` pushes the sign-in URL or device code to the client. `prompt` asks the client for the pasted code.
@@ -478,7 +486,7 @@ A build step reads the pi-ai catalog and writes a hashed JSON asset. The setting
 ### 11.6 Test provider
 
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
-Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers` (see [research/experiment-1-durable-in-do.md](research/experiment-1-durable-in-do.md)).
+Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers` (see [research/experiment-1-durable-in-do.md](research/experiment-1-durable-in-do.md)). Since P4-02 the Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
 
 ## 12. Executor integration and code mode
 

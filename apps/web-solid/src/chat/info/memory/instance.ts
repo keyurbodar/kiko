@@ -9,7 +9,7 @@ let current: { userId: string; store: MemoryStore; client: MemoryClient } | null
 
 async function openClient(): Promise<MemoryClient> {
 	// The dev mock, same rule as the chat data layer. A production build drops this branch.
-	if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC !== "live") return (await import("./mock")).createMockMemory()
+	if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") return (await import("./mock")).createMockMemory()
 	return createMemoryClient({ url: urls.user() })
 }
 

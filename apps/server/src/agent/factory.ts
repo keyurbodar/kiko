@@ -2,6 +2,7 @@ import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
+import { Subagent } from "./extensions/subagent"
 import { baseSections, type RoleInput } from "./prompt"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses
@@ -30,7 +31,7 @@ export const BASE = "base"
  * fills a prompt slot (`skills`, `profile`) does it with `wrapSection` and goes after `Base`.
  */
 function extensionsFor(input: BuildAgentInput): Extension[] {
-  return [defineExtension({ name: BASE, sections: baseSections(input) }), ...(input.testExtensions ?? [])]
+  return [defineExtension({ name: BASE, sections: baseSections(input) }), Subagent, ...(input.testExtensions ?? [])]
 }
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {

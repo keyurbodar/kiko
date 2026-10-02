@@ -475,6 +475,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			for (const done of waiting ?? []) done({ items: f.items, next: f.next })
 		},
 		draft: (f) => setState("drafts", `${f.runId}:${f.index}`, { slug: f.slug, runId: f.runId, index: f.index, text: f.text }),
+		// The room refused a member change. Its patch expires after PATCH_TTL_MS. The group chat UI (P6-08) may drop it sooner.
+		member_refused: () => {},
 	}
 
 	function onFrame(frame: RoomToClient) {

@@ -7,11 +7,12 @@ import {
 } from "@kiko/ui/context/i18n";
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
-import { createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
+import { createEffect, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { Palette, preloadPalette } from "../palette";
 import { Sidebar } from "../sidebar";
+import { drawerOpen, setDrawerOpen } from "./drawer";
 import { Rail } from "./rail";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
@@ -65,11 +66,41 @@ function writeCollapsed(value: boolean) {
 export function Shell(props: ParentProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = createSignal(readCollapsed());
+  // Below 768 px the sidebar is a drawer over the transcript. It starts closed on every load and
+  // is never saved, so the saved wide-screen preference does not bury the chat on a phone.
+  const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined;
+  const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
+  const drawer = drawerOpen;
+  const setDrawer = setDrawerOpen;
+  onMount(() => {
+    const on = () => {
+      setNarrow(narrowQuery!.matches);
+      setDrawer(false);
+    };
+    narrowQuery?.addEventListener("change", on);
+    onCleanup(() => narrowQuery?.removeEventListener("change", on));
+  });
+  createEffect(() => {
+    if (!(narrow() && drawer())) return;
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) setDrawer(false);
+    };
+    window.addEventListener("keydown", on);
+    onCleanup(() => window.removeEventListener("keydown", on));
+  });
+  const closed = () => (narrow() ? !drawer() : collapsed());
   const setAndSave = (value: boolean) => {
+    if (narrow()) return setDrawer(!value);
     setCollapsed(value);
     writeCollapsed(value);
   };
-  const toggle = () => setAndSave(!collapsed());
+  const toggle = () => setAndSave(!closed());
+  // Going anywhere closes the drawer, so picking a chat shows it.
+  createEffect((prev: string | undefined) => {
+    const path = location.pathname;
+    if (prev !== undefined && prev !== path && narrow()) setDrawer(false);
+    return path;
+  });
   /** The chat the panel describes: the one named by the URL. */
   const infoChat = () => {
     const id = CHAT_PATH.exec(location.pathname)?.[1];
@@ -103,17 +134,25 @@ export function Shell(props: ParentProps) {
         data-component="app-shell"
         data-section={sectionOf(location.pathname) ?? undefined}
       >
-        <Rail collapsed={collapsed()} onToggleSidebar={toggle} />
+        <Rail collapsed={closed()} onToggleSidebar={toggle} />
         <Sidebar
           section={sectionOf(location.pathname)}
-          collapsed={collapsed()}
+          collapsed={closed()}
           onCollapsedChange={setAndSave}
         />
+        <Show when={narrow() && drawer()}>
+          <div
+            class="drawer-scrim"
+            data-component="drawer-scrim"
+            aria-hidden="true"
+            onPointerDown={() => setDrawer(false)}
+          />
+        </Show>
         <main
           class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-tl-[32px] bg-bg"
           data-component="main-panel"
         >
-          <div class="flex min-h-0 min-w-0 flex-1">
+          <div class="@container/main relative flex min-h-0 min-w-0 flex-1">
             <div class="flex min-w-0 flex-1 flex-col">
               <TopBar />
               {props.children}

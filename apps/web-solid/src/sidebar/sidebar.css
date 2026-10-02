@@ -681,20 +681,97 @@
 
 .sidebar-shell .settings-panel {
   display: flex;
+  min-height: 100%;
   flex-direction: column;
-  gap: 2px;
-  padding-left: 8px;
+  gap: 4px;
+  padding: 0 8px 12px;
+}
+
+.sidebar-shell .settings-search {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--text-weak);
+}
+
+.sidebar-shell .settings-search input {
+  min-width: 0;
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--font-sm);
+  outline: none;
+}
+
+.sidebar-shell .settings-search input::placeholder {
+  color: var(--text-weak);
+}
+
+.sidebar-shell .settings-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+  color: var(--text-weak);
+  text-decoration: none;
+}
+
+.sidebar-shell .settings-user:hover {
+  background: var(--nav-hover-bg);
+}
+
+.sidebar-shell .settings-user-name {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--font-md, 15px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-shell .settings-user-sub,
+.sidebar-shell .settings-row-hint {
+  display: block;
+  overflow: hidden;
+  color: var(--text-weak);
+  font-size: var(--font-xs, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-shell .settings-panel-row {
   display: flex;
-  height: 32px;
+  min-height: 52px;
   align-items: center;
-  padding: 0 10px;
-  border-radius: 10px;
-  color: var(--text-muted);
-  font-size: var(--font-sm);
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: var(--text-weak);
   text-decoration: none;
+}
+
+.sidebar-shell .settings-row-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 24px;
+}
+
+.sidebar-shell .settings-row-label {
+  display: block;
+  color: var(--text);
+  font-size: var(--font-sm);
+  font-weight: 500;
 }
 
 .sidebar-shell .settings-panel-row:hover {
@@ -703,5 +780,35 @@
 
 .sidebar-shell .settings-panel-row-active {
   background: var(--nav-active-bg);
-  color: var(--text);
+  color: var(--accent);
+}
+
+.sidebar-shell .settings-empty {
+  padding: 12px;
+  color: var(--text-weak);
+  font-size: var(--font-sm);
+}
+
+.sidebar-shell .settings-foot {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.sidebar-shell .settings-signout {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 12px;
+  background: oklch(from var(--danger) l c h / 12%);
+  color: var(--danger);
+  font-size: var(--font-sm);
+  cursor: pointer;
+}
+
+.sidebar-shell .settings-signout:hover {
+  background: oklch(from var(--danger) l c h / 18%);
 }

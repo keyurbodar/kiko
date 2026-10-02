@@ -47,3 +47,10 @@
 .palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-keys { color: color-mix(in srgb, currentColor 55%, transparent); font-size: 12px; }
 .palette-empty { padding: 12px 10px; font-size: 14px; color: color-mix(in srgb, currentColor 55%, transparent); }
+
+/* Phones: a thumb-sized row, and the panel sits higher so the keyboard does not cover the list. */
+@media (width < 768px) {
+  .palette-scrim { padding-top: 8vh; }
+  .palette-row { height: 44px; }
+  .palette-list { max-height: 50dvh; }
+}

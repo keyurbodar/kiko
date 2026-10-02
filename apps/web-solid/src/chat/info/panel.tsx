@@ -227,8 +227,8 @@ export default function InfoPanel(props: { chatId: string }) {
   const view = infoView
   return (
     <aside
-      class="relative flex min-h-0 shrink-0 flex-col border-l border-[var(--border-weak,transparent)] bg-bg"
-      style={{ width: `${infoWidth()}px` }}
+      class="relative flex min-h-0 shrink-0 flex-col border-l border-[var(--border-weak,transparent)] bg-bg @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:shadow-[-12px_0_32px_rgb(0_0_0/0.35)]"
+      style={{ width: `min(${infoWidth()}px, 100%)` }}
       data-component="info-panel"
       aria-label="chat info"
     >

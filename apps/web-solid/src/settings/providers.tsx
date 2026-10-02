@@ -1,4 +1,4 @@
-import { For, Show, createResource, createSignal, onCleanup } from "solid-js"
+import { For, Show, createMemo, createResource, createSignal, onCleanup } from "solid-js"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { loadCatalog, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { connectedProviders, refreshConnected } from "./connected"
@@ -22,6 +22,21 @@ export function ProviderList() {
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
   const [removing, setRemoving] = createSignal<string | null>(null)
+  const [query, setQuery] = createSignal("")
+  // Connected providers first, then the rest in catalog order. A search narrows both.
+  const shown = createMemo(() => {
+    const q = query().trim().toLowerCase()
+    const all = catalog()?.providers ?? []
+    const hits = q ? all.filter((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : all
+    const on = hits.filter((p) => saved(p.id))
+    return [...on, ...hits.filter((p) => !saved(p.id))]
+  })
+  // Enter on the search connects the first hit, so the common case is type, enter, paste the key.
+  const connectFirst = (event: SubmitEvent) => {
+    event.preventDefault()
+    const first = shown().find((p) => !saved(p.id))
+    if (first) setDialog(first)
+  }
 
   async function remove(id: string) {
     setRemoving(id)
@@ -35,6 +50,18 @@ export function ProviderList() {
 
   return (
     <div class="flex flex-col gap-1" data-component="provider-list">
+      <form class="sticky top-0 z-10 bg-bg pb-2" role="search" onSubmit={connectFirst}>
+        <input
+          type="search"
+          class="h-10 w-full rounded-[10px] bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-9"
+          placeholder="search providers"
+          aria-label="search providers"
+          autocomplete="off"
+          value={query()}
+          onInput={(e) => setQuery(e.currentTarget.value)}
+          data-component="provider-search"
+        />
+      </form>
       <Show when={catalog.error}>
         <p class="p-3 text-sm text-weak">the model catalog did not load. reload to try again.</p>
       </Show>
@@ -42,11 +69,11 @@ export function ProviderList() {
         <p class="p-3 text-sm text-weak">loading providers</p>
       </Show>
       <ul class="flex flex-col">
-        <For each={catalog()?.providers}>
+        <For each={shown()} fallback={<li class="p-3 text-sm text-weak">{catalog.loading ? "" : "no provider matches"}</li>}>
           {(provider) => (
             <li
-              class="flex items-center justify-between gap-3 rounded-[10px] px-3 py-2 hover:bg-[var(--tab-bg-hover)]"
-              style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 52px" }}
+              class="flex min-h-12 items-center justify-between gap-3 rounded-[10px] px-3 py-2 hover:bg-[var(--tab-bg-hover)]"
+              style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 56px" }}
               data-provider={provider.id}
               data-connected={saved(provider.id) ? "true" : undefined}
             >
@@ -60,12 +87,12 @@ export function ProviderList() {
                 <Show when={saved(provider.id)}>
                   {(info) => (
                     <>
-                      <span class="text-xs text-weak" data-field="last4">
+                      <span class="hidden text-xs text-weak sm:inline" data-field="last4">
                         {info().kind === "api_key" ? `key ending ${info().last4}` : `connected ${info().last4}`}
                       </span>
                       <button
                         type="button"
-                        class="h-7 rounded-[10px] px-2 text-xs text-muted hover:bg-[var(--tab-bg-active)] disabled:opacity-50"
+                        class="h-9 rounded-[10px] px-3 text-xs text-muted outline-none hover:bg-[var(--tab-bg-active)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50 md:h-7 md:px-2"
                         data-action="disconnect"
                         disabled={removing() === provider.id}
                         onClick={() => void remove(provider.id)}
@@ -78,7 +105,7 @@ export function ProviderList() {
                 <Show when={!saved(provider.id)}>
                   <button
                     type="button"
-                    class="h-7 rounded-[10px] bg-[var(--tab-bg)] px-3 text-xs text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-active)]"
+                    class="h-9 rounded-[10px] bg-[var(--btn-bg)] px-4 text-xs text-[var(--tab-text-active)] outline-none hover:bg-[var(--btn-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-7 md:px-3"
                     data-action="connect"
                     onClick={() => setDialog(provider)}
                   >
@@ -155,16 +182,16 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
                     autocapitalize="off"
                     spellcheck={false}
                     autofocus
-                    class="h-9 rounded-[10px] bg-[var(--tab-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    class="h-9 rounded-[10px] bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                     data-component="provider-key"
                   />
                   <Show when={error()}>
-                    <p class="text-xs text-[var(--accent)]" role="alert" data-component="connect-error">{error()}</p>
+                    <p class="text-xs text-[var(--danger)]" role="alert" data-component="connect-error">{error()}</p>
                   </Show>
                   <button
                     type="submit"
                     disabled={busy()}
-                    class="h-9 rounded-[10px] bg-[var(--accent)] px-3 text-sm text-white disabled:opacity-50"
+                    class="h-10 rounded-[10px] bg-[var(--accent-fill)] px-3 text-sm text-[var(--on-accent)] disabled:opacity-50"
                     data-action="save-key"
                   >
                     save key
@@ -227,7 +254,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
           fallback={
             <button
               type="button"
-              class="h-8 rounded-[10px] bg-[var(--tab-bg)] px-3 text-xs text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-active)]"
+              class="h-8 rounded-[10px] bg-[var(--btn-bg)] px-3 text-xs text-[var(--tab-text-active)] hover:bg-[var(--btn-bg-hover)]"
               data-action="sign-in"
               onClick={start}
             >
@@ -253,7 +280,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
           <>
             <Show when={s().code}>
               {(code) => (
-                <div class="flex flex-col gap-1 rounded-[10px] bg-[var(--tab-bg)] p-3" data-component="device-code">
+                <div class="flex flex-col gap-1 rounded-[10px] bg-[var(--surface-raised)] p-3" data-component="device-code">
                   <span class="text-xs text-weak">enter this code at the provider</span>
                   <span class="select-all font-mono text-lg tracking-widest text-[var(--tab-text-active)]">{code().userCode}</span>
                   <a
@@ -269,7 +296,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
             </Show>
             <Show when={s().link}>
               {(link) => (
-                <div class="flex flex-col gap-1 rounded-[10px] bg-[var(--tab-bg)] p-3" data-component="sign-in-link">
+                <div class="flex flex-col gap-1 rounded-[10px] bg-[var(--surface-raised)] p-3" data-component="sign-in-link">
                   <Show when={link().instructions}>
                     <span class="text-xs text-weak">{link().instructions!.toLowerCase()}</span>
                   </Show>
@@ -292,7 +319,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
                       {(option) => (
                         <button
                           type="button"
-                          class="h-8 rounded-[10px] bg-[var(--tab-bg)] px-3 text-left text-xs text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-active)]"
+                          class="h-8 rounded-[10px] bg-[var(--btn-bg)] px-3 text-left text-xs text-[var(--tab-text-active)] hover:bg-[var(--btn-bg-hover)]"
                           onClick={() => handle?.answer(p().promptId, option.id)}
                         >
                           {option.label.toLowerCase()}
@@ -312,11 +339,11 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
                       autocapitalize="off"
                       spellcheck={false}
                       autofocus
-                      class="h-9 rounded-[10px] bg-[var(--tab-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                      class="h-9 rounded-[10px] bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                     />
                     <button
                       type="submit"
-                      class="h-9 rounded-[10px] bg-[var(--accent)] px-3 text-sm text-white"
+                      class="h-10 rounded-[10px] bg-[var(--accent-fill)] px-3 text-sm text-[var(--on-accent)]"
                       data-action="answer-sign-in"
                     >
                       continue
@@ -330,7 +357,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
       </Show>
       <Show when={state()?.status === "error" ? state()?.error : null}>
         {(error) => (
-          <p class="text-xs text-[var(--accent)]" role="alert" data-component="sign-in-error">{error().toLowerCase()}</p>
+          <p class="text-xs text-[var(--danger)]" role="alert" data-component="sign-in-error">{error().toLowerCase()}</p>
         )}
       </Show>
     </div>

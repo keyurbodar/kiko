@@ -184,6 +184,53 @@
   text-align: center;
 }
 
+.new-chat-start {
+  display: flex;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  color: var(--bg);
+  font: inherit;
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-bold);
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.new-chat-start:hover {
+  filter: brightness(1.08);
+}
+
+.new-chat-start:active {
+  filter: brightness(0.94);
+}
+
+.new-chat-start-key {
+  font-size: var(--font-sm);
+  font-weight: normal;
+  opacity: 0.6;
+}
+
+@media (pointer: coarse) {
+  .new-chat-start-key {
+    display: none;
+  }
+
+  .new-chat-chip-x {
+    width: 28px;
+    height: 28px;
+  }
+
+  .new-chat-item {
+    min-height: 48px;
+  }
+}
+
 /* The inline new agent form. */
 
 .new-chat-form {
@@ -267,4 +314,26 @@
 .new-chat-form-actions .new-chat-primary {
   color: var(--bg);
   background: var(--accent);
+}
+
+/* iOS zooms the page when a field under 16px takes focus. */
+@media (pointer: coarse) {
+  .new-chat-search input,
+  .new-chat-group,
+  .new-chat-form input,
+  .new-chat-form select {
+    font-size: 16px;
+  }
+}
+
+@media (pointer: coarse) {
+  .new-chat-form input,
+  .new-chat-form select,
+  .new-chat-handle {
+    height: 44px;
+  }
+
+  .new-chat-form-actions button {
+    height: 40px;
+  }
 }

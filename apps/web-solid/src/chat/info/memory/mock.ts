@@ -1,4 +1,4 @@
-// The dev mock. A dev build without `VITE_KIKO_SYNC=live` answers memory requests from
+// The dev mock. A dev build with `VITE_KIKO_SYNC=mock` answers memory requests from
 // this in-memory store, the way the dev mock answers chats. It follows the server's rules
 // for the three singletons, versions, and archived records, and no more.
 

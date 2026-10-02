@@ -44,7 +44,12 @@ function JsonEditor(props: { value: string; onChange: (value: string) => void })
     gone = true
     mounted?.destroy()
   })
-  createEffect(() => mounted?.set(props.value))
+  // Read the value first. `mounted?.set(props.value)` never reads it while the editor is still loading,
+  // so the effect would track nothing and a preset click would never reach the editor.
+  createEffect(() => {
+    const value = props.value
+    mounted?.set(value)
+  })
 
   return (
     <div class="min-h-48 flex-1 overflow-auto rounded-lg bg-input p-3" data-component="theme-editor">
@@ -61,7 +66,8 @@ function JsonEditor(props: { value: string; onChange: (value: string) => void })
   )
 }
 
-const button = "h-8 rounded-[10px] bg-[var(--tab-bg)] px-3 text-xs text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-active)] disabled:opacity-50"
+const button =
+  "h-10 rounded-[10px] bg-[var(--btn-bg)] px-4 text-xs text-[var(--tab-text-active)] outline-none hover:bg-[var(--btn-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:px-3"
 
 export default function Appearance() {
   const [draft, setDraft] = createSignal(savedTheme() ?? STARTER)
@@ -148,7 +154,14 @@ export default function Appearance() {
       <div class="flex flex-wrap gap-2" data-component="theme-presets">
         <For each={PRESET_LABELS}>
           {([id, label]) => (
-            <button type="button" class={button} data-preset={id} onClick={() => edit(presetText(id))}>
+            <button
+              type="button"
+              class={`${button} data-[active]:bg-[var(--accent-wash-strong)] data-[active]:text-[var(--accent)]`}
+              data-preset={id}
+              data-active={draft().trim() === presetText(id).trim() ? "" : undefined}
+              aria-pressed={draft().trim() === presetText(id).trim()}
+              onClick={() => edit(presetText(id))}
+            >
               {label}
             </button>
           )}
@@ -156,7 +169,7 @@ export default function Appearance() {
       </div>
       <JsonEditor value={draft()} onChange={edit} />
       <Show when={errors().length}>
-        <ul class="flex flex-col gap-1 text-xs text-[var(--accent)]" role="alert" data-component="theme-errors">
+        <ul class="flex flex-col gap-1 text-xs text-[var(--danger)]" role="alert" data-component="theme-errors">
           <For each={errors()}>{(e) => <li>{e}</li>}</For>
         </ul>
       </Show>
@@ -171,7 +184,7 @@ export default function Appearance() {
       <div class="flex flex-wrap gap-2">
         <button
           type="button"
-          class="h-8 rounded-[10px] bg-[var(--accent-fill)] px-3 text-xs text-[var(--on-accent)] disabled:opacity-50"
+          class="h-10 rounded-[10px] bg-[var(--accent-fill)] px-4 text-xs text-[var(--on-accent)] outline-none hover:bg-[var(--accent-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:px-3"
           data-action="save-theme"
           disabled={!dirty() || errors().length > 0}
           onClick={save}
@@ -184,9 +197,9 @@ export default function Appearance() {
         <button type="button" class={button} data-action="paste-theme" onClick={() => void paste()}>
           paste
         </button>
-        <label class={`${button} inline-flex cursor-default items-center`}>
+        <label class={`${button} inline-flex cursor-default items-center has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--accent)]`}>
           import file
-          <input type="file" accept=".json,application/json" class="hidden" data-action="import-theme" onChange={(e) => void importFile(e)} />
+          <input type="file" accept=".json,application/json" class="sr-only" data-action="import-theme" onChange={(e) => void importFile(e)} />
         </label>
         <button type="button" class={button} data-action="export-theme" onClick={exportFile}>
           export

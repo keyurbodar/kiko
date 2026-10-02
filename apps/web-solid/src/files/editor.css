@@ -83,3 +83,25 @@
   color: var(--text);
   text-decoration: underline;
 }
+
+/* Touch targets: the editor bar and its buttons are too small to hit on a phone. */
+@media (width < 768px) {
+  .file-editor .fe-bar {
+    height: 48px;
+  }
+  .file-editor .fe-btn {
+    height: 36px;
+    padding: 0 14px;
+  }
+}
+
+.file-editor .fe-btn:focus-visible,
+.file-view .fv-link:focus-visible,
+.file-view button.fv-media:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.file-view .fv-link {
+  padding: 6px 4px;
+}

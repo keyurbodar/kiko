@@ -3,7 +3,7 @@
 // The object can hibernate between any two frames, so a socket's state lives in
 // its attachment and the room's state lives in SQLite. Nothing here is kept in memory.
 
-import type { ClientToRoom, RoomEvent, RoomToClient } from "@kiko/protocol"
+import type { ClientToRoom, MemberOp, MemberRefusal, RoomEvent, RoomToClient } from "@kiko/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
@@ -31,6 +31,8 @@ export interface SocketRoom {
 	search(query: string, before?: number, limit?: number): SearchPage
 	/** The links or the media sent in the room. */
 	catalog(kind: "links" | "media", before?: number, limit?: number): CatalogPage
+	/** Adds, removes, or renames an agent (section 7.7) and publishes the change. Returns why it was refused, or null. */
+	memberOp(op: MemberOp): MemberRefusal | null
 }
 
 /** Close code for a frame that breaks the protocol. */
@@ -72,6 +74,8 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji))
 				? frame
 				: null
+		case "member":
+			return frame.op.op === "remove" || frame.op.name.trim() !== "" ? frame : null
 		default:
 			return frame
 	}
@@ -134,6 +138,11 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 		case "stop":
 			room.stop()
 			return null
+		case "member": {
+			const refused = room.memberOp(frame.op)
+			if (refused) send(ws, { t: "member_refused", op: frame.op, reason: refused })
+			return null
+		}
 		case "approve":
 		case "task":
 			// Owned by later tasks: approvals (P7), the task board (P6).

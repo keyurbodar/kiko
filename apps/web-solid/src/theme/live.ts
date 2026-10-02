@@ -64,7 +64,7 @@ function onFrame(frame: UserToClient): void {
   }
 }
 
-const mocked = () => import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC !== "live"
+const mocked = () => import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock"
 
 /** Starts once per user. A different user closes the old socket first. */
 export function startTheme(userId: string, connect?: Connect): void {

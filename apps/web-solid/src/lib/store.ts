@@ -143,7 +143,7 @@ export function memberRow(member: Member, presence: BotPresence = "idle"): Roste
 // The store.
 
 export type AppOptions = {
-  /** Defaults to the dev mock in a dev build, unless `VITE_KIKO_SYNC=live`, and to the browser's `WebSocket` otherwise. */
+  /** The browser's `WebSocket`, or the dev mock in a dev build with `VITE_KIKO_SYNC=mock`. */
   transport?: () => Promise<Transport>
   /** Passed to `openWarm`, for tests. */
   warm?: Omit<WarmOptions, "userId">
@@ -514,13 +514,13 @@ export function createApp(options: AppOptions = {}) {
   })
 }
 
-// The dev mock. A dev build without `VITE_KIKO_SYNC=live` talks to the mock
+// The dev mock. A dev build with `VITE_KIKO_SYNC=mock` talks to the mock
 // room and user from `sync/mock-room.ts`, because the room and user sockets on
 // the server are not built yet. A production build drops this branch and the
 // mock with it.
 
 async function defaultTransport(): Promise<Transport> {
-  if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC !== "live") {
+  if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") {
     const [mock, fixtures] = await Promise.all([import("../sync/mock-room"), import("@kiko/protocol/fixtures")])
     return devTransport(mock, fixtures.roomId)
   }

@@ -8,3 +8,9 @@ const [tick, setTick] = createSignal(0)
 
 export const newFileRequests = tick
 export const requestNewFile = () => setTick((n) => n + 1)
+
+/** The same channel for "new folder", from the button beside the chat switcher. */
+const [folderTick, setFolderTick] = createSignal(0)
+
+export const newFolderRequests = folderTick
+export const requestNewFolder = () => setFolderTick((n) => n + 1)

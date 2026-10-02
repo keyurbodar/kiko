@@ -152,6 +152,13 @@ export class AgentHost {
     return opening
   }
 
+  /** The child conversations of the root, with the task that owns each (P6-05). Opens the harness. */
+  async children(): Promise<{ id: string; taskId: string }[]> {
+    const { root, storage } = await this.open()
+    const page = await storage.scanConversations({ ownerConversationId: root.id }, 100, undefined, context)
+    return page.items.map((c) => ({ id: String(c.id), taskId: String(c.owner?.taskId ?? "") }))
+  }
+
   async status(): Promise<HostStatus> {
     const inbox = this.inbox.counts()
     if (!this.opened) return { open: false, inbox, tasks: 0, submissions: 0 }

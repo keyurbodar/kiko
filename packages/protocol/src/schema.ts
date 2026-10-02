@@ -104,7 +104,25 @@ export const Message = Schema.Struct({
 	reactions: Schema.optionalKey(Schema.Array(Reaction)),
 })
 
-export const Member = Schema.Struct({ slug: AgentSlug, name: Schema.String, lead: Schema.Boolean })
+export const Member = Schema.Struct({
+	slug: AgentSlug,
+	name: Schema.String,
+	lead: Schema.Boolean,
+	role: Schema.optionalKey(Schema.String),
+	model: Schema.optionalKey(Schema.String),
+})
+
+export const MemberOp = Schema.Union([
+	Schema.Struct({
+		op: Schema.Literal("add"),
+		slug: AgentSlug,
+		name: Schema.String,
+		role: Schema.optionalKey(Schema.String),
+		model: Schema.optionalKey(Schema.String),
+	}),
+	Schema.Struct({ op: Schema.Literal("remove"), slug: AgentSlug }),
+	Schema.Struct({ op: Schema.Literal("rename"), slug: AgentSlug, name: Schema.String }),
+])
 
 export const TaskStatus = Schema.Literals(["todo", "doing", "blocked", "review", "done", "cancelled"])
 
@@ -200,6 +218,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("stop") }),
 	Schema.Struct({ t: Schema.Literal("approve"), approvalId: Id, action: Schema.Literals(["accept", "decline"]) }),
 	Schema.Struct({ t: Schema.Literal("task"), op: TaskOp }),
+	Schema.Struct({ t: Schema.Literal("member"), op: MemberOp }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
 		query: Schema.String,
@@ -226,6 +245,11 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("status"), slug: AgentSlug, state: AgentState }),
+	Schema.Struct({
+		t: Schema.Literal("member_refused"),
+		op: MemberOp,
+		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved"]),
+	}),
 	Schema.Struct({
 		t: Schema.Literal("search"),
 		query: Schema.String,
@@ -443,6 +467,8 @@ export type InSync = Assert<
 	| Same<typeof RichText.Type, P.RichText>
 	| Same<typeof Message.Type, P.Message>
 	| Same<typeof TaskOp.Type, P.TaskOp>
+	| Same<typeof MemberOp.Type, P.MemberOp>
+	| Same<typeof Member.Type, P.Member>
 	| Same<typeof RoomEvent.Type, P.RoomEvent>
 	| Same<typeof RoomSnapshot.Type, P.RoomSnapshot>
 	| Same<typeof ClientToRoom.Type, P.ClientToRoom>

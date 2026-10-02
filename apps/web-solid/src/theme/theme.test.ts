@@ -182,9 +182,9 @@ describe("the files that follow kat.css", () => {
 
   test("every field variable is declared in kat.css or is derived from one", () => {
     const defaults = parseKat(css)
-    // --danger, --success and --gold are registered and read, but kat.css never declares them.
+    // --danger, --success and --gold were once registered but never declared, so they rendered transparent.
     const undeclared = FIELDS.filter((f) => !f.variable.endsWith("-scale") && !defaults.has(f.variable)).map((f) => f.variable)
-    expect(undeclared.sort()).toEqual(["--danger", "--gold", "--success"])
+    expect(undeclared.sort()).toEqual([])
   })
 })
 

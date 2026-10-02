@@ -72,6 +72,8 @@ const roomConfirms: Confirms = {
 	task: (f, e) =>
 		f.op.op === "delete" ? e.t === "task_removed" && e.id === f.op.id : e.t === "task" && e.task.id === f.op.id,
 	approve: (f, e) => e.t === "approval" && e.approval.id === f.approvalId && e.approval.state !== "pending",
+	member: (f, e) =>
+		f.op.op === "remove" ? e.t === "member_removed" && e.slug === f.op.slug : e.t === "member" && e.member.slug === f.op.slug,
 }
 
 export function roomConfirmedBy(patch: RoomPatch, event: RoomEvent): boolean {

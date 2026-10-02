@@ -36,6 +36,25 @@ export default function ChatRoute() {
     const id = params.id;
     if (id && id !== useApp.activeThreadId()) useApp.selectThread(id);
   });
+  /*
+   * Opening a chat puts the cursor in the composer, the way kat and Telegram do, so the
+   * next keystroke is a message. Not on a touch screen, where focus raises the keyboard
+   * over the transcript, and not while the reader is typing somewhere else.
+   */
+  createEffect(
+    on(
+      () => (isNew() ? null : params.id),
+      (id) => {
+        if (!id || window.matchMedia("(pointer: coarse)").matches) return;
+        requestAnimationFrame(() => {
+          const active = document.activeElement;
+          const typing = active instanceof HTMLElement && (active.isContentEditable || /^(input|textarea|select)$/i.test(active.tagName));
+          if (typing) return;
+          document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus();
+        });
+      },
+    ),
+  );
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null);
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
   /*
@@ -169,6 +188,7 @@ export default function ChatRoute() {
           </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
+            title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => {

@@ -71,7 +71,8 @@ export class AgentDO extends DurableObject<Env> {
   /**
    * Called by `RoomDO` only. Stores the envelopes and returns. It never waits on a model or on
    * another Durable Object, so two agents that message each other cannot deadlock. `home` says which
-   * room this agent belongs to; the room passes it on every delivery and the agent keeps the first.
+   * room this agent belongs to and its member row; the room passes it on every delivery and the agent
+   * keeps the latest. The name of this object already fixes the user, room, and slug.
    */
   receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     if (home) this.setHome(home)
@@ -99,8 +100,9 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   private setHome(home: AgentHome): void {
-    if (this.home()) return
-    this.ctx.storage.sql.exec("INSERT OR IGNORE INTO agent_home (id, home) VALUES (1, ?)", JSON.stringify(home))
+    const text = JSON.stringify(home)
+    if (this.home() && this.ctx.storage.sql.exec("SELECT 1 FROM agent_home WHERE home = ?", text).toArray().length) return
+    this.ctx.storage.sql.exec("INSERT INTO agent_home (id, home) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET home = excluded.home", text)
   }
 
   /** The room's RPC, bound to this agent's slug. Tests override it. */
@@ -119,13 +121,16 @@ export class AgentDO extends DurableObject<Env> {
 
   /**
    * The factory builds every agent. Every model request uses the user's own credential, which
-   * `beginRun` loads once per run (architecture section 11.3). ASSUMPTION: every agent is a lead
-   * with the default role until the room passes membership (P6).
+   * `beginRun` loads once per run (architecture section 11.3). The role and lead flag are the member
+   * row at the latest delivery. ASSUMPTION: they are read when the harness opens, so a change
+   * reaches the prompt when the root conversation is created, not later.
    */
   protected async setup(): Promise<AgentSetup> {
-    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup()
+    const home = this.home()
+    const role = { role: home?.role ?? "", lead: home?.lead ?? true }
+    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role)
     return {
-      ...buildAgent({ role: "", lead: true, model: await this.model() }),
+      ...buildAgent({ ...role, model: await this.model() }),
       // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
       ...userModels((provider) => this.runAuth(provider), this.ctx.id.toString()),
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
@@ -221,6 +226,12 @@ export class AgentDO extends DurableObject<Env> {
   async devFake(): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     await this.ctx.storage.put(DEV_FAKE_KEY, true)
+  }
+
+  /** Development only. The agent's subagent conversations, so `verify subagent` can count them. */
+  async devChildren(): Promise<{ id: string; taskId: string }[]> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    return this.host.children()
   }
 
   /** Development only. Stores one row, so a deletion check has agent data before agents exist (P1-06). */

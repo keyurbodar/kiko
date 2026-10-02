@@ -226,6 +226,19 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			}
 			peer.push({ t: "catalog", kind: f.kind, ...(f.before !== undefined ? { before: f.before } : {}), items, next })
 		},
+		member(peer, f) {
+			const op = f.op
+			const current = data.members.find((m) => m.slug === op.slug)
+			if (op.op === "add") {
+				if (current || data.members.length >= 8) return peer.push({ t: "member_refused", op, reason: current ? "exists" : "limit" })
+				const { op: _, ...member } = op
+				return void store({ t: "member", member: { ...member, lead: data.members.length === 0 } })
+			}
+			if (!current) return peer.push({ t: "member_refused", op, reason: "unknown" })
+			if (op.op === "rename") return void store({ t: "member", member: { ...current, name: op.name } })
+			if (data.members.length === 1) return peer.push({ t: "member_refused", op, reason: "last" })
+			store({ t: "member_removed", slug: op.slug })
+		},
 		task(_, f) {
 			const op = f.op
 			if (op.op === "delete") return void store({ t: "task_removed", id: op.id })

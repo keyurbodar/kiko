@@ -165,6 +165,8 @@ export interface OutgoingMessage {
 export interface ComposerProps {
   /** Conversation a sent message lands in. */
   threadId: string;
+  /** The chat's name. The placeholder reads `message <title>`, the way kat's reads `message kat`. */
+  title?: string;
   /** A send carries its text and its attachments together. */
   onSend: (message: OutgoingMessage) => void;
   /** Roster the `@` menu filters. A mention is text; this is the only source. */

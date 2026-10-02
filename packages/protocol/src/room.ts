@@ -54,7 +54,23 @@ export type Member = {
 	/** The display name. The slug never changes. */
 	name: string
 	lead: boolean
+	/** What the agent does in the room, in the human's words. */
+	role?: string
+	/** A `provider/model` reference from the catalog. */
+	model?: string
 }
+
+/**
+ * A human's change to the room's agents (architecture section 7.7: at most 8). The slug never
+ * changes; `rename` changes the display name. Adding a slug that was removed brings it back.
+ */
+export type MemberOp =
+	| { op: "add"; slug: AgentSlug; name: string; role?: string; model?: string }
+	| { op: "remove"; slug: AgentSlug }
+	| { op: "rename"; slug: AgentSlug; name: string }
+
+/** Why the room refused a `member` frame. */
+export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved"
 
 /** Architecture section 7.6. */
 export type TaskStatus = "todo" | "doing" | "blocked" | "review" | "done" | "cancelled"
@@ -150,6 +166,7 @@ export type ClientToRoom =
 	| { t: "stop" }
 	| { t: "approve"; approvalId: string; action: "accept" | "decline" }
 	| { t: "task"; op: TaskOp }
+	| { t: "member"; op: MemberOp }
 	/** Searches this room's live messages, newest first. `before` is the `next` of the previous page. */
 	| { t: "search"; query: string; before?: number; limit?: number }
 	/** The links or the media sent in this room, newest first. `before` is the `next` of the previous page. */
@@ -169,6 +186,8 @@ export type RoomToClient =
 	| { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
 	/** Not stored. */
 	| { t: "status"; slug: AgentSlug; state: AgentState }
+	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
+	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
 	/** Not stored. The answer to `search` for one socket. `next` is the `before` for the following page, or null at the end. */
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
 	/** Not stored. The answer to `catalog` for one socket. `next` is the `before` for the following page, or null at the end. */

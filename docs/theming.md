@@ -60,9 +60,9 @@ DEVIATION from the plan: `kat.css` has five radius variables, so `radius` has `b
 | `userBubble` | `--user-bubble` | a CSS color | `oklch( var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--h-orange-user) )` |  |
 | `userBubbleDeep` | `--user-bubble-deep` | a CSS color | `oklch( var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm)) var(--h-orange-user) )` | the far end of the user bubble gradient |
 | `userBubbleText` | `--user-bubble-text` | a CSS color | `oklch( var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm)) var(--hue) )` |  |
-| `danger` | `--danger` | a CSS color | `not declared in kat.css` | status |
-| `success` | `--success` | a CSS color | `not declared in kat.css` | status |
-| `gold` | `--gold` | a CSS color | `not declared in kat.css` | status and the approval card |
+| `danger` | `--danger` | a CSS color | `oklch(var(--l-danger) calc(var(--c-danger) * var(--cm)) var(--h-danger))` | status |
+| `success` | `--success` | a CSS color | `oklch(var(--l-success) calc(var(--c-success) * var(--cm)) var(--h-success))` | status |
+| `gold` | `--gold` | a CSS color | `oklch(var(--l-gold) calc(var(--c-gold) * var(--cm)) var(--h-gold))` | status and the approval card |
 | `hairline` | `--hairline` | a CSS color | `oklch(var(--l-grey-hairline) var(--c-neutral-raised) var(--hue))` |  |
 | `button` | `--btn-bg` | a CSS color | `oklch(from var(--text) l c h / 7%)` |  |
 | `buttonHover` | `--btn-bg-hover` | a CSS color | `oklch(from var(--text) l c h / 11%)` |  |
@@ -274,6 +274,9 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--text` | color | `oklch(var(--l-text) calc(var(--c-text) * var(--cm)) var(--h-text))` |
 | `--text-muted` | color | `oklch( var(--l-text-muted) calc(var(--c-text-muted) * var(--cm)) var(--h-text) )` |
 | `--text-faint` | color | `oklch( var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--h-text) )` |
+| `--danger` | color | `oklch(var(--l-danger) calc(var(--c-danger) * var(--cm)) var(--h-danger))` |
+| `--success` | color | `oklch(var(--l-success) calc(var(--c-success) * var(--cm)) var(--h-success))` |
+| `--gold` | color | `oklch(var(--l-gold) calc(var(--c-gold) * var(--cm)) var(--h-gold))` |
 | `--accent` | color | `oklch( var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--hue) )` |
 | `--accent-fill` | color | `oklch( var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--hue) )` |
 | `--user-bubble-deep` | color | `oklch( var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm)) var(--h-orange-user) )` |
@@ -370,7 +373,7 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--reply-bar-text` | color | `var(--text-muted)` |
 | `--approval-bg` | color | `oklch(from var(--gold) l c h / 10%)` |
 | `--approval-edge` | color | `oklch(from var(--gold) l c h / 35%)` |
-| `--approval-title` | any | `var(--gold)` |
+| `--approval-title` | color | `var(--gold)` |
 | `--approval-allow` | color | `var(--accent-fill)` |
 | `--approval-deny` | color | `var(--btn-bg)` |
 | `--board-bg` | color | `var(--bg)` |
@@ -425,13 +428,13 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--v2-overlay-simple-tab-hover-scrim` | color | `transparent` |
 | `--v2-overlay-simple-tab-scrim` | color | `transparent` |
 | `--v2-state-bg-success` | color | `oklch(from var(--success) l c h / 12%)` |
-| `--v2-state-fg-success` | any | `var(--success)` |
+| `--v2-state-fg-success` | color | `var(--success)` |
 | `--v2-state-border-success` | color | `oklch(from var(--success) l c h / 35%)` |
 | `--v2-state-bg-warning` | color | `oklch(from var(--gold) l c h / 12%)` |
-| `--v2-state-fg-warning` | any | `var(--gold)` |
+| `--v2-state-fg-warning` | color | `var(--gold)` |
 | `--v2-state-border-warning` | color | `oklch(from var(--gold) l c h / 35%)` |
 | `--v2-state-bg-danger` | color | `oklch(from var(--danger) l c h / 12%)` |
-| `--v2-state-fg-danger` | any | `var(--danger)` |
+| `--v2-state-fg-danger` | color | `var(--danger)` |
 | `--v2-state-border-danger` | color | `oklch(from var(--danger) l c h / 35%)` |
 | `--v2-state-bg-info` | color | `oklch(from var(--accent) l c h / 12%)` |
 | `--v2-state-fg-info` | color | `var(--accent)` |
@@ -439,13 +442,13 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--v2-agent-plan-solid` | color | `var(--accent)` |
 | `--v2-agent-plan-border` | color | `oklch(from var(--accent) l c h / 35%)` |
 | `--v2-agent-plan-background` | color | `oklch(from var(--accent) l c h / 10%)` |
-| `--v2-agent-build-solid` | any | `var(--success)` |
+| `--v2-agent-build-solid` | color | `var(--success)` |
 | `--v2-agent-build-border` | color | `oklch(from var(--success) l c h / 35%)` |
 | `--v2-agent-build-background` | color | `oklch(from var(--success) l c h / 10%)` |
-| `--v2-agent-explore-solid` | any | `var(--gold)` |
+| `--v2-agent-explore-solid` | color | `var(--gold)` |
 | `--v2-agent-explore-border` | color | `oklch(from var(--gold) l c h / 35%)` |
 | `--v2-agent-explore-background` | color | `oklch(from var(--gold) l c h / 10%)` |
-| `--v2-agent-review-solid` | any | `var(--success)` |
+| `--v2-agent-review-solid` | color | `var(--success)` |
 | `--v2-agent-writer-solid` | color | `var(--text)` |
 | `--v2-elevation-raised` | any | `0 1px 2px oklch(0% 0 none / 0.3)` |
 | `--v2-elevation-floating` | any | `0 8px 20px -8px oklch(0% 0 none / 0.4), 0 0 0 0.5px oklch(0% 0 none / 0.35)` |
@@ -472,13 +475,13 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--syntax-constant` | color | `oklch(74% 0.11 75)` |
 | `--syntax-punctuation` | color | `oklch(55% 0.015 var(--hue))` |
 | `--syntax-object` | color | `oklch(84% 0.012 var(--hue))` |
-| `--syntax-success` | any | `var(--success)` |
-| `--syntax-warning` | any | `var(--gold)` |
-| `--syntax-critical` | any | `var(--danger)` |
+| `--syntax-success` | color | `var(--success)` |
+| `--syntax-warning` | color | `var(--gold)` |
+| `--syntax-critical` | color | `var(--danger)` |
 | `--syntax-info` | color | `var(--accent)` |
-| `--syntax-diff-add` | any | `var(--success)` |
-| `--syntax-diff-delete` | any | `var(--danger)` |
-| `--syntax-diff-unknown` | any | `var(--danger)` |
+| `--syntax-diff-add` | color | `var(--success)` |
+| `--syntax-diff-delete` | color | `var(--danger)` |
+| `--syntax-diff-unknown` | color | `var(--danger)` |
 | `--radius-sm` | length | `8px` |
 | `--radius-bubble` | length | `18px` |
 | `--radius-bubble-tight` | length | `8px` |
