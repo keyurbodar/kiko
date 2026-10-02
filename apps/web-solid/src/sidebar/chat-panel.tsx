@@ -1,4 +1,3 @@
-import { Blobatar } from "@blobatar/solid"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
@@ -6,6 +5,7 @@ import { createEffect, createMemo, createSignal, For, type JSX, Show } from "sol
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { cn } from "../lib/cn"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
 import type { RosterBot } from "../lib/types"
@@ -42,20 +42,6 @@ export function rowStamp(updatedAt: number, now: number): string {
   if (delta < HOUR) return `${Math.floor(delta / MINUTE)}m`
   if (delta < DAY) return `${Math.floor(delta / HOUR)}h`
   return `${Math.floor(delta / DAY)}d`
-}
-
-/**
- * A picture derived from a name. Static, never `animate`: a list of moving
- * avatars is motion in a place the user is not waiting for anything.
- */
-function Avatar(props: { name: string; image?: string; class: string }) {
-  return (
-    <span class={props.class}>
-      <Show when={props.image} fallback={<Blobatar name={props.name} class="size-full rounded-full" />}>
-        {(src) => <img src={src()} alt="" class="size-full rounded-full object-cover" />}
-      </Show>
-    </span>
-  )
 }
 
 const menuClass = cn(
@@ -112,7 +98,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void 
           >
             <span class="pin-tile-circle">
               <span class="pin-tile-icon">
-                <Avatar name={props.bot.name} image={props.bot.avatarImage} class="pin-tile-avatar" />
+                <IdentityAvatar seed={props.bot.id} class="pin-tile-avatar" />
               </span>
               <Show when={unread()}>
                 <span class="pin-tile-dot" aria-hidden="true" />
@@ -145,7 +131,7 @@ function ChatPreview(props: { bot: RosterBot }) {
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
       <div class="flex items-center gap-2.5">
-        <Avatar name={props.bot.name} image={props.bot.avatarImage} class="size-[32px] shrink-0 rounded-full" />
+        <IdentityAvatar seed={props.bot.id} size={32} />
         <div class="min-w-0">
           <div class="truncate text-[13px] font-semibold text-text">{props.bot.name}</div>
           <div class="truncate text-[11px] text-weak">{props.bot.presence}</div>
@@ -283,7 +269,7 @@ function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active:
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <Avatar name={props.agent} image={props.bot.avatarImage} class="chat-avatar" />
+        <IdentityAvatar seed={props.bot.id} class="chat-avatar" />
 
         <span class="chat-meta-line">
           <span class="chat-agent">{props.agent}</span>

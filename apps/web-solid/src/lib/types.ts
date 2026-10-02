@@ -31,8 +31,6 @@ export interface RosterBot {
   persona?: string;
   /** Tints the author name the way Discord tints a member by role. */
   color?: string;
-  /** Uploaded avatar as a data URL. Absent means derive one from the name. */
-  avatarImage?: string;
 }
 
 /**
