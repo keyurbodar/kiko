@@ -21,10 +21,10 @@
     { "tag": "v1", "new_sqlite_classes": ["UserDO", "RoomDO", "AgentDO"] }
   ],
   "d1_databases": [
-    { "binding": "AUTH_DB", "database_name": "kiko-auth", "database_id": "00000000-0000-0000-0000-000000000000" }
+    { "binding": "AUTH_DB", "database_name": "kiko-auth", "database_id": "6ca8b7aa-6428-4d81-ade5-ceab9cdf76fa" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }],
-  "kv_namespaces": [{ "binding": "PREVIEWS", "id": "00000000000000000000000000000000" }],
+  "kv_namespaces": [{ "binding": "PREVIEWS", "id": "fa5a6507f92b413a824f60f08b051483" }],
   "queues": {
     "producers": [{ "binding": "JOBS", "queue": "kiko-jobs" }],
     // 100 is the Queues limit. A job that still fails goes to the dead-letter queue,
