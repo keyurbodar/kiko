@@ -17,6 +17,7 @@
 import type {
 	Approval,
 	Chat,
+	Member,
 	ChatOp,
 	ClientToRoom,
 	Message,
@@ -215,6 +216,28 @@ export function overlayApprovals(approvals: readonly Approval[], patches: readon
 		if (f.t !== "approve") continue
 		const state = f.action === "accept" ? "accepted" : "declined"
 		out = out.map((a) => (a.id === f.approvalId && a.state === "pending" ? { ...a, state } : a))
+	}
+	return out
+}
+
+/** The members with pending adds, renames, and removes applied. A new member joins at the end and is never the lead. */
+export function overlayMembers(members: readonly Member[], patches: readonly RoomPatch[]): Member[] {
+	let out = members as Member[]
+	for (const p of patches) {
+		const f = p.frame
+		if (f.t !== "member") continue
+		const op = f.op
+		if (op.op === "add") {
+			if (out.some((m) => m.slug === op.slug)) continue
+			const m: Member = { slug: op.slug, name: op.name, lead: out.length === 0 }
+			if (op.role) m.role = op.role
+			if (op.model) m.model = op.model
+			out = [...out, m]
+		} else if (op.op === "remove") {
+			out = out.filter((m) => m.slug !== op.slug)
+		} else {
+			out = out.map((m) => (m.slug === op.slug ? { ...m, name: op.name } : m))
+		}
 	}
 	return out
 }

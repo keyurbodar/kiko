@@ -62,7 +62,18 @@ describe("the reducer", () => {
 	test("replaying the fixture events gives the fixture snapshot", () => {
 		const data = { ...emptyRoom(), members: [...fixtures.members] }
 		for (const e of structuredClone(fixtures.roomEvents) as RoomEvent[]) applyRoomEvent(data, e)
-		expect(data).toEqual({ ...fixtures.roomSnapshot } as never)
+		const { roster, ...rest } = data
+		expect(rest).toEqual({ ...fixtures.roomSnapshot } as never)
+		// cy joins at seq 11 and leaves at 12; the transcript shows both as system lines.
+		expect(roster.map((n) => `${n.seq} ${n.name} ${n.kind}`)).toEqual(["11 cy joined", "12 cy left"])
+	})
+
+	test("a change to a current member is not a join", () => {
+		const data = { ...emptyRoom(), members: [...fixtures.members] }
+		const lead = fixtures.members[0]!
+		applyRoomEvent(data, { seq: 1, at: 1, t: "member", member: { ...lead, name: "renamed" } })
+		expect(data.roster).toEqual([])
+		expect(data.members[0]!.name).toBe("renamed")
 	})
 
 	test("an event at or below the applied seq is skipped", () => {
@@ -191,6 +202,33 @@ describe("the socket", () => {
 })
 
 describe("the room store", () => {
+	test("a member change shows at once, and a refusal rolls it back and is reported", async () => {
+		const { make } = setup({ resetAfter: 0 }) // a snapshot, which carries the members
+		const { store } = await make()
+		await until(() => store.state.connection === "open" && store.state.seq === 17)
+		const refused: string[] = []
+		store.onMemberRefused((op, reason) => refused.push(`${op.op} ${op.slug} ${reason}`))
+		const slugs = () => store.members().map((m) => `${m.slug}:${m.name}`)
+
+		store.member({ op: "add", slug: "cy" as never, name: "cy" })
+		store.member({ op: "rename", slug: fixtures.ada, name: "ada two" })
+		expect(slugs()).toEqual(["ada:ada two", "bob:bob", "cy:cy"])
+		await until(() => store.state.patches.length === 0)
+		expect(store.state.members.map((m) => m.slug as string)).toEqual(["ada", "bob", "cy"])
+		expect(store.state.roster.map((n) => `${n.name} ${n.kind}`)).toEqual(["cy joined"])
+
+		store.member({ op: "remove", slug: "bob" as never })
+		store.member({ op: "remove", slug: "cy" as never })
+		store.member({ op: "remove", slug: fixtures.ada })
+		// All three go at once; the room takes two and refuses the last one standing.
+		expect(store.members()).toEqual([])
+		await until(() => refused.length === 1 && store.state.patches.length === 0)
+		expect(refused).toEqual(["remove ada last"])
+		expect(slugs()).toEqual(["ada:ada two"])
+		expect(store.state.roster.map((n) => `${n.name} ${n.kind}`)).toEqual(["cy joined", "bob left", "cy left"])
+		store.close()
+	})
+
 	test("catalog asks the room for links and pages by the cursor it gave", async () => {
 		const { mock, make } = setup()
 		const { store } = await make()

@@ -1,4 +1,4 @@
-import { chatSeed } from "./identity"
+import { chatFaces, chatSeed } from "./identity"
 // The app's state, backed by the sync stores. Sidebar, transcript, and composer
 // all read and write it through `useApp`, so none of them knows about sockets,
 // IndexedDB, or wire types.
@@ -15,12 +15,12 @@ import { chatSeed } from "./identity"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
 import { batch, createComputed, createRoot, createSignal, untrack } from "solid-js"
 import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { ViewMessage } from "../sync/patches"
-import { createRoomStore, type RoomStore } from "../sync/room-store"
+import { createRoomStore, type MemberNotice, type RoomStore } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
@@ -283,7 +283,7 @@ export function createApp(options: AppOptions = {}) {
     function members(): RosterBot[] {
       const r = room()
       if (!r) return []
-      return r.state.members.map((m) => memberRow(m, presenceOf(r.state.typing.includes(m.slug), r.state.status[m.slug])))
+      return r.members().map((m) => memberRow(m, presenceOf(r.state.typing.includes(m.slug), r.state.status[m.slug])))
     }
 
     function send(message: OutgoingMessage, replyTo?: string): string | undefined {
@@ -448,6 +448,37 @@ export function createApp(options: AppOptions = {}) {
       chatSeed(roomId: string): string {
         const chat = userStore()?.chats().find((c) => c.roomId === roomId)
         return chatSeed(chat ?? { roomId }, userStore()?.agents() ?? [])
+      },
+
+      /**
+       * The faces of a chat's avatar: one for a chat with one agent, up to three for a group.
+       * The open room's live members win over the agents the chat was made with.
+       */
+      chatFaces(roomId: string): string[] {
+        const chat = userStore()?.chats().find((c) => c.roomId === roomId)
+        const r = room()
+        const live = r && r.state.roomId === roomId ? r.members().map((m) => m.slug) : undefined
+        return chatFaces(chat ?? { roomId }, userStore()?.agents() ?? [], live)
+      },
+
+      /** The open room's agents as the protocol has them: role, model, and lead included. */
+      roomMembers(): Member[] {
+        return room()?.members() ?? []
+      },
+
+      /** Adds, renames, or removes an agent in the open room. It applies at once; a refusal rolls it back. */
+      memberOp(op: MemberOp) {
+        room()?.member(op)
+      },
+
+      /** Calls `listener` when the open room refuses a member change. Returns the unsubscribe. */
+      onMemberRefused(listener: (op: MemberOp, reason: MemberRefusal) => void): () => void {
+        return room()?.onMemberRefused(listener) ?? (() => {})
+      },
+
+      /** Who joined and left the open room, for the transcript's system lines. */
+      memberNotices(): MemberNotice[] {
+        return room()?.state.roster ?? []
       },
 
       /** The slugs of the agents typing now, for the typing bubble's avatar. */
