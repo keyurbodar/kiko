@@ -168,6 +168,12 @@ export class AgentDO extends DurableObject<Env> {
     await this.ctx.storage.put(DEV_FAKE_KEY, true)
   }
 
+  /** Development only. The agent's subagent conversations, so `verify subagent` can count them. */
+  async devChildren(): Promise<{ id: string; taskId: string }[]> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    return this.host.children()
+  }
+
   /** Development only. Stores one row, so a deletion check has agent data before agents exist (P1-06). */
   async devSeed(): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")

@@ -1,0 +1,41 @@
+import { Type, type AssistantMessage } from "@earendil-works/pi-ai"
+import { AssistantEntry, configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
+
+// Architecture section 8. A private child conversation inside this agent's own object, from
+// pi-durable's foreground subagent pattern. The child starts as a copy of this agent without
+// this extension, so depth is 1. It is not a room member and posts nothing to the room.
+// Effect: `read`. The child's own tools carry their own effects and taint.
+
+export const SUBAGENT = "subagent"
+
+export const Subagent: Extension = defineExtension({
+	name: SUBAGENT,
+	tools: [
+		defineTool({
+			name: "spawn_subagent",
+			description: "Delegate a self-contained task to a private helper and get its answer back. Use it for focused research or drafting that would clutter the chat.",
+			parameters: Type.Object({ task: Type.String({ description: "What the helper should do, with everything it needs to know" }) }),
+			// A rerun after a crash finds the child it made and the submission it sent.
+			replay: "safe",
+			execute: async ({ task }, api, ctx) => {
+				const child = await api.commit(async (tx) => {
+					const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items[0]
+					if (existing !== undefined) return existing.id
+					const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } })
+					// The messaging tools (P6-03) must leave the child too, once they exist.
+					await configure(tx, created.id, { extensions: { remove: [Subagent] } })
+					return created.id
+				}, ctx)
+				await api.details({ conversationId: child }, ctx)
+				const handle = (await api.conversation(child, ctx))!
+				const request = { type: "input", content: task, requestId: `subagent:${api.taskId}` } as const
+				const settled = await (await handle.submit(request, ctx)).wait(ctx)
+				if (settled.status !== "done" || settled.type !== "input") throw new Error(`the helper stopped: ${settled.status}`)
+				const entry = await api.commit((tx) => tx.entry(AssistantEntry, settled.answer), ctx)
+				const message = entry?.model?.[0] as AssistantMessage | undefined
+				const text = (message?.content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
+				return { content: [{ type: "text", text }], details: { conversationId: child } }
+			},
+		}),
+	],
+})
