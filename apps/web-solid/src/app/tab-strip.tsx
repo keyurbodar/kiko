@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "@solidjs/router"
 import { For, Show, createEffect, createMemo, untrack } from "solid-js"
 import { infoOpen, loadInfoPanel, toggleInfo } from "../chat/info/state"
 import { intentRef } from "../lib/intent"
-import { IdentityAvatar } from "../lib/IdentityAvatar"
+import { ChatAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { nextAfterClose, openTabs, stepTab } from "./open-tabs"
 
@@ -120,7 +120,7 @@ export function TabStrip() {
                   toggleInfo()
                 }}
               >
-                <IdentityAvatar seed={useApp.chatSeed(id)} size={16} />
+                <ChatAvatar faces={useApp.chatFaces(id)} size={16} />
                 <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-12px),transparent)] group-data-[unread]:[-webkit-text-stroke:0.3px]">
                   {label(id)}
                 </span>

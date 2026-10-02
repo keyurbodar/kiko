@@ -5,7 +5,7 @@ import { createEffect, createMemo, createSignal, For, type JSX, Show } from "sol
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { cn } from "../lib/cn"
-import { IdentityAvatar } from "../lib/IdentityAvatar"
+import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
 import type { RosterBot } from "../lib/types"
@@ -98,7 +98,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void 
           >
             <span class="pin-tile-circle">
               <span class="pin-tile-icon">
-                <IdentityAvatar seed={useApp.chatSeed(props.bot.id)} class="pin-tile-avatar" />
+                <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="pin-tile-avatar" />
               </span>
               <Show when={unread()}>
                 <span class="pin-tile-dot" aria-hidden="true" />
@@ -131,7 +131,7 @@ function ChatPreview(props: { bot: RosterBot }) {
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
       <div class="flex items-center gap-2.5">
-        <IdentityAvatar seed={useApp.chatSeed(props.bot.id)} size={32} />
+        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} size={32} />
         <div class="min-w-0">
           <div class="truncate text-[13px] font-semibold text-text">{props.bot.name}</div>
           <div class="truncate text-[11px] text-weak">{props.bot.presence}</div>
@@ -269,7 +269,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <IdentityAvatar seed={useApp.chatSeed(props.bot.id)} class="chat-avatar" />
+        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" />
 
         <span class="chat-text">
           <span class="chat-title-line">

@@ -1,7 +1,7 @@
 import { useNavigate } from "@solidjs/router"
 import { Command as Cmdk } from "cmdk-solid"
 import { Icon } from "@kiko/ui/icon"
-import { IdentityAvatar } from "../lib/IdentityAvatar"
+import { ChatAvatar } from "../lib/IdentityAvatar"
 import { For, Show, createEffect, createMemo } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
 import { useApp } from "../lib/store"
@@ -69,7 +69,7 @@ export default function Palette() {
                   <For each={chats()}>
                     {(chat) => (
                       <Cmdk.Item class="palette-row" value={`${chat.id} ${chat.name.toLowerCase()}`} onSelect={() => run(() => navigate(`/chat/${chat.id}`))}>
-                        <IdentityAvatar seed={useApp.chatSeed(chat.id)} size={18} />
+                        <ChatAvatar faces={useApp.chatFaces(chat.id)} size={18} />
                         <span class="palette-label">{chat.name.toLowerCase()}</span>
                       </Cmdk.Item>
                     )}
