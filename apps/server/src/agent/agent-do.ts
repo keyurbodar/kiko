@@ -20,7 +20,23 @@ export class AgentDO extends DurableObject<Env> {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
-  private readonly experiment = new TurnExperiment(this.ctx, this.env)
+  private experimentInstance?: TurnExperiment
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    // Architecture section 23: the schema migration runs before any other work on every start. The
+    // inbox, the wakeups, the outbox, and the home table create or upgrade their tables here.
+    void ctx.blockConcurrencyWhile(async () => {
+      void this.host
+      void this.outbox
+      this.home()
+    })
+  }
+
+  private get experiment(): TurnExperiment {
+    this.experimentInstance ??= new TurnExperiment(this.ctx, this.env)
+    return this.experimentInstance
+  }
 
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
