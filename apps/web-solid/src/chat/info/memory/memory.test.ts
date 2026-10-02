@@ -1,9 +1,9 @@
-import { expect, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import type { MemoryOp, MemoryRecord, MemoryResult } from "@kiko/protocol"
 import { createRoot } from "solid-js"
 import type { MemoryClient } from "./client"
 import { createMockMemory } from "./mock"
-import { groupRecords, matches, parseBody, splitLinks } from "./records"
+import { fact, groupRecords, matches, parseBody, snippet, splitLinks } from "./records"
 import { createMemoryStore } from "./store"
 
 const rec = (over: Partial<MemoryRecord> & { id: string }): MemoryRecord => ({
@@ -110,4 +110,12 @@ test("a delete leaves the list at once and comes back when refused", async () =>
 		expect(store.state.error).toContain("cannot be removed")
 		dispose()
 	})
+})
+
+describe("fact", () => {
+	test.each([
+		["2026-09-03: likes tea (human)", { text: "likes tea", date: "2026-09-03", author: "human" }],
+		["likes tea", { text: "likes tea", date: null, author: null }],
+		["2026-09-03: met at (the) cafe", { text: "met at (the) cafe", date: "2026-09-03", author: null }],
+	])("%s", (line, want) => expect(fact(line)).toEqual(want))
 })

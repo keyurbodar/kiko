@@ -4,7 +4,7 @@ import { session } from "../../../app/session"
 import { Editor, preloadEditor } from "./editor"
 import { IdentityAvatar } from "../../../lib/IdentityAvatar"
 import { memoryFor } from "./instance"
-import { forChat, groupRecords, parseBody, snippet, splitLinks } from "./records"
+import { fact, forChat, groupRecords, parseBody, snippet, splitLinks } from "./records"
 import type { MemoryStore } from "./store"
 
 const button =
@@ -38,23 +38,36 @@ function Linked(props: { text: string; store: MemoryStore; onOpen: (id: string) 
 	)
 }
 
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+const shortDay = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
+
 function Body(props: { body: string; store: MemoryStore; onOpen: (id: string) => void }) {
 	const blocks = createMemo(() => parseBody(props.body))
 	return (
-		<div class="flex flex-col gap-2 text-sm leading-relaxed text-text" data-component="memory-body">
-			<Show when={blocks().length} fallback={<p class="text-weak">empty. click to write what kiko should remember.</p>}>
+		<div class="flex flex-col text-[15px] leading-relaxed text-text" data-component="memory-body">
+			<Show when={blocks().length} fallback={<p class="text-sm text-weak">empty. click to write what kiko should remember.</p>}>
 				<For each={blocks()}>
-					{(b) =>
-						b.kind === "heading" ? (
-							<h3 class="mt-2 font-medium">
-								<Linked text={b.text} store={props.store} onOpen={props.onOpen} />
-							</h3>
-						) : (
-							<p class={b.kind === "bullet" ? "relative pl-4 before:absolute before:left-1 before:content-['\\2022']" : ""}>
-								<Linked text={b.text} store={props.store} onOpen={props.onOpen} />
-							</p>
+					{(b) => {
+						if (b.kind === "heading")
+							return (
+								<h3 class="mt-3 mb-1 text-xs font-medium text-weak first:mt-0">
+									<Linked text={b.text} store={props.store} onOpen={props.onOpen} />
+								</h3>
+							)
+						const f = fact(b.text)
+						return (
+							<div class="flex items-baseline gap-3 py-1" data-component="memory-fact">
+								<span class="min-w-0 flex-1">
+									<Linked text={f.text} store={props.store} onOpen={props.onOpen} />
+								</span>
+								<Show when={f.date}>
+									<span class="shrink-0 text-xs text-faint" title={f.author ? `added by ${f.author}` : undefined}>
+										{shortDay(f.date!)}
+									</span>
+								</Show>
+							</div>
 						)
-					}
+					}}
 				</For>
 			</Show>
 		</div>
@@ -192,7 +205,7 @@ export function RecordView(props: { record: MemoryRecord; store: MemoryStore; on
 				fallback={
 					<button
 						type="button"
-						class="rounded-2xl bg-bg-subtle p-4 text-left hover:bg-nav-hover"
+						class="rounded-2xl bg-bg-subtle px-4 py-2.5 text-left hover:bg-nav-hover"
 						data-action="edit-body"
 						title="click to edit"
 						onPointerEnter={() => void preloadEditor()}
