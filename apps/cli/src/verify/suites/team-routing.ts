@@ -10,7 +10,8 @@ import { send, ulid, until } from "./mid-run"
 // tokens. The fake answers `heard: <the turns it got>`, and with `[missed]` in the text it adds
 // `; missed: <the missed messages of the room's brief>`. Needs a development server.
 //
-//   an untagged message reaches only the lead
+//   an untagged message reaches the lead, and the others only after the lead's run ends, as a
+//   follow-up they may answer or [skip] (the fake skips)
 //   @ada reaches only ada, and her delivery carries the messages she missed
 //   @all reaches everyone
 //   an agent that was not addressed ran no model call (its inbox never received anything)
@@ -88,24 +89,33 @@ const suite: Suite = {
       return st.inbox.waiting + st.inbox.claimed + st.inbox.submitted
     }
 
-    // 1. Untagged: only the lead.
+    // 1. Untagged: the lead first, then the others as a follow-up, which the fake skips.
     await send(room, "hello team")
     await until("bob's answer", () => bubbles(room).bob!.length === 1, 15_000)
+    const followed = async () => (await received("ada")) === 1 && (await received("cy")) === 1
+    const end = Date.now() + 15_000
+    while (!(await followed())) {
+      if (Date.now() > end) throw new VerifyError(`ada and cy did not each get the follow-up: ${await received("ada")}, ${await received("cy")}`)
+      await Bun.sleep(200)
+    }
     await Bun.sleep(2_500)
     expectEqual(bubbles(room), { bob: ["heard: hello team"], ada: [], cy: [] }, "bubbles after an untagged message")
-    expectEqual([await received("ada"), await received("cy")], [0, 0], "envelopes ada and cy received")
-    const adaStatus = await status("ada")
-    expectEqual(adaStatus.submissions, 0, "ada's model runs")
-    console.log(`  ok untagged: only bob answered; ada and cy received 0 envelopes and ran ${adaStatus.submissions} model calls`)
+    console.log("  ok untagged: bob answered first; ada and cy got it after him and stayed quiet")
 
-    // 2. @ada: only ada, and her brief carries what she missed.
+    // 2. @bob reaches only bob, so ada and cy miss it.
+    await send(room, "@bob [reply] noted")
+    await until("bob's second answer", () => bubbles(room).bob!.length === 2, 15_000)
+    await Bun.sleep(2_500)
+    expectEqual([await received("ada"), await received("cy")], [1, 1], "envelopes ada and cy received after @bob")
+
+    // @ada: only ada, and her brief carries what she missed.
     await send(room, "@ada [missed] your turn")
     await until("ada's answer", () => bubbles(room).ada!.length === 1, 15_000)
     await Bun.sleep(2_500)
     const b = bubbles(room)
-    expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: hello team | @bob: heard: hello team"], "ada's answer")
-    expectEqual([b.bob!.length, b.cy!.length], [1, 0], "bob's and cy's bubbles after @ada")
-    expectEqual(await received("cy"), 0, "envelopes cy received")
+    expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: @bob [reply] noted | @bob: noted"], "ada's answer")
+    expectEqual([b.bob!.length, b.cy!.length], [2, 0], "bob's and cy's bubbles after @ada")
+    expectEqual(await received("cy"), 1, "envelopes cy received")
     console.log(`  ok @ada: ${JSON.stringify(b.ada![0])}`)
 
     // 3. @all: everyone.
@@ -115,8 +125,8 @@ const suite: Suite = {
     expectEqual(
       bubbles(room),
       {
-        bob: ["heard: hello team", "heard: @all ping"],
-        ada: ["heard: @ada [missed] your turn; missed: human: hello team | @bob: heard: hello team", "heard: @all ping"],
+        bob: ["heard: hello team", "noted", "heard: @all ping"],
+        ada: ["heard: @ada [missed] your turn; missed: human: @bob [reply] noted | @bob: noted", "heard: @all ping"],
         cy: ["heard: @all ping"],
       },
       "bubbles after @all",

@@ -76,7 +76,7 @@ const suite: Suite = {
     // 1. Two agents that always echo each other. ana gets the human message and starts the chain.
     {
       const { room, received } = await team(v, s, ["ana", "ben"], "echo forever")
-      await send(room, "[send ben] [echo]")
+      await send(room, "@ana [send ben] [echo]")
       await until("the loop notice", () => notices(room).length > 0, 60_000)
       await settle(() => messages(room).length, 4_000, 30_000)
       const sends = agentSends(room)
@@ -93,7 +93,7 @@ const suite: Suite = {
       console.log(`  ok echo: 8 hops sent, hop 9 refused; notice: ${JSON.stringify(notices(room)[0]!.text)}`)
 
       // check_agent reads the room and wakes nobody.
-      await send(room, "[check ben]")
+      await send(room, "@ana [check ben]")
       await until("ana's check", () => bubbles(room).some((m) => m.text.includes("status:")), 15_000)
       await Bun.sleep(1_500)
       const check = bubbles(room).find((m) => m.text.includes("status:"))!
@@ -107,7 +107,7 @@ const suite: Suite = {
     // agents the hop limit trips first. Each broadcast is 4 deliveries, and one root may cause at most 40.
     {
       const { room, received } = await team(v, s, ["cat", "dov", "eli", "fay", "gus"], "shout forever")
-      await send(room, "[shout]")
+      await send(room, "@ana [shout]")
       await until("the loop notice", () => notices(room).length > 0, 90_000)
       await settle(() => messages(room).length, 5_000, 60_000)
       const deliveries = agentSends(room).length * 4

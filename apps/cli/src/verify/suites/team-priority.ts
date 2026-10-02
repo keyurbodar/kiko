@@ -21,12 +21,12 @@ const suite: Suite = {
     const { room, received, roomId } = await team(v, s, slugs, "priority")
 
     // 1. ana is the lead. The echo chain runs between ana and ben until the human speaks.
-    await send(room, "[send ben] [echo]")
+    await send(room, "@ana [send ben] [echo]")
     await until("ben's first echo", () => agentSends(room).some((m) => slugOf(m) === "ben"), 30_000)
-    await send(room, "[reply] human first")
+    await send(room, "@ana [reply] human first")
     // The ack arrives before the stored message's event, so wait for the event.
-    await until("the human message", () => messages(room).some((m) => m.from.kind === "human" && m.text === "[reply] human first"), 5_000)
-    const human = messages(room).find((m) => m.from.kind === "human" && m.text === "[reply] human first")
+    await until("the human message", () => messages(room).some((m) => m.from.kind === "human" && m.text === "@ana [reply] human first"), 5_000)
+    const human = messages(room).find((m) => m.from.kind === "human" && m.text === "@ana [reply] human first")
     if (!human) throw new VerifyError("the human message never came back")
     await until("ana's answer to the human", () => bubbles(room).some((m) => m.text === "human first"), 30_000)
     // Every ana bubble after the human message, up to the answer. Only the run that was already

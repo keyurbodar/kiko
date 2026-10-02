@@ -21,6 +21,7 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [tool]      the model calls `slow_tool` first, which sleeps SLOW_TOOL_MS
 //   [reply] x   the answer is exactly `x`, such as `[react:👍]` (P6-07). A tag such as `@all` may come first
 //   [brief]     the answer is the reaction lines of the room's brief, or `brief: none` (P6-07)
+//   a follow-up (the lead already answered)  the answer is [skip], which posts nothing
 //   [missed]    the answer ends with `; missed: <the brief's missed messages, joined by " | ">` (P6-01)
 //   [fetch] x   the model calls `fake_fetch` with page `x`, outside content (P7-01)
 //   [mark] x    the model calls `fake_mark`, which returns `x` and marks the run tainted (P7-01)
@@ -80,6 +81,9 @@ export function fakeReply(transcript: readonly Message[]) {
   const users = since.filter((m) => m.role === "user").map(textOf)
   const results = since.filter((m) => m.role === "toolResult").map(textOf)
   const last = messages.at(-1)
+  // A follow-up after the lead answered (section 7.2): the fake, like a quiet teammate, stays quiet.
+  // The note sits in the brief, which `textOf` strips, so it is read from the raw text.
+  if (last?.role === "user" && rawOf(last).includes("already answered this")) return fauxAssistantMessage("[skip]")
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
