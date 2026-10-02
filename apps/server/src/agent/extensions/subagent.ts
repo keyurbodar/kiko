@@ -1,17 +1,19 @@
 import { Type, type AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
+import { declareEffect } from "../effects"
 
 // Architecture section 8. A private child conversation inside this agent's own object, from
 // pi-durable's foreground subagent pattern. The child starts as a copy of this agent without
 // this extension, so depth is 1. It is not a room member and posts nothing to the room.
-// Effect: `read`. The child's own tools carry their own effects and taint.
+// Effect: `read`. The child is built with the same trust extension, so its own tools keep their
+// effects and the gate.
 
 export const SUBAGENT = "subagent"
 
 export const Subagent: Extension = defineExtension({
 	name: SUBAGENT,
 	tools: [
-		defineTool({
+		declareEffect("read", defineTool({
 			name: "spawn_subagent",
 			description: "Delegate a self-contained task to a private helper and get its answer back. Use it for focused research or drafting that would clutter the chat.",
 			parameters: Type.Object({ task: Type.String({ description: "What the helper should do, with everything it needs to know" }) }),
@@ -36,6 +38,6 @@ export const Subagent: Extension = defineExtension({
 				const text = (message?.content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
 				return { content: [{ type: "text", text }], details: { conversationId: child } }
 			},
-		}),
+		})),
 	],
 })

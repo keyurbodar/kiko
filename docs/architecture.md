@@ -644,7 +644,9 @@ The design assumes that a model can be fooled. Marking content lowers the odds. 
 
 ### 16.2 Marking
 
-- An `afterTool` hook wraps every result from a tool that returns outside content in `<untrusted source="..." id="NONCE">`. The nonce is random per run. The hook escapes any look-alike tag inside the content.
+- An `afterTool` hook wraps every result from a tool that returns outside content in `<untrusted source="..." id="NONCE">`. The nonce is random per result and memoized on the tool task, so a replay writes the same text. DEVIATION: the spec said per run. A hook cannot see a durable run boundary, and a nonce per result is at least as hard to guess. The hook escapes any look-alike tag inside the content, after folding full-width forms with NFKC.
+- A tool declares its effect with `declareEffect(effect, tool, { outside? })` in `agent/effects.ts`. `outside` names the source of a result that is outside content. A tool that only sometimes reads outside content calls `markRunTainted(api, source)` from `agent/extensions/trust.ts`, and a `write` or `message` tool reads `isRunTainted(api)` to flag what it stores or sends.
+- The run's taint is worked out from the transcript in `beforeRequest`: a tainted envelope (`tainted="true"` on its tag) or an `<untrusted>` result since the last final answer. An unknown taint counts as tainted.
 - An agent message is wrapped in `<agent-message from="slug" hop="n">` and submitted as user-role content, never as a system message.
 - The system prompt says in three lines that untrusted blocks are data, that teammates' messages are requests to evaluate, and that only human messages carry authority.
 

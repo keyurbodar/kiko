@@ -202,10 +202,12 @@ const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "
  */
 export function renderInput(batch: Pick<Batch, "envelopes" | "briefs">): string {
   const parts = batch.briefs.map((brief) => `<context>\n${brief.replaceAll("</context>", "&lt;/context>")}\n</context>`)
-  for (const { from, body, hop } of batch.envelopes) {
+  for (const { from, body, hop, tainted } of batch.envelopes) {
+    // A tainted envelope starts a tainted run: the trust extension reads this attribute (section 16.3).
+    const taint = tainted ? ' tainted="true"' : ""
     if (from.kind === "human") parts.push(body)
-    else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}">\n${escape(body)}\n</agent-message>`)
-    else parts.push(`<system-event reason="${from.reason}">\n${escape(body)}\n</system-event>`)
+    else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}"${taint}>\n${escape(body)}\n</agent-message>`)
+    else parts.push(`<system-event reason="${from.reason}"${taint}>\n${escape(body)}\n</system-event>`)
   }
   return parts.join("\n\n")
 }
