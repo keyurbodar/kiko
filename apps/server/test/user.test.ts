@@ -1,22 +1,17 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // Runs the real UserDO inside workerd. The worker is bundled from src so the test
 // cannot drift from the source.
 let mf: Miniflare
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./user-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
   mf = new Miniflare({
     modules: true,
-    script: await built.outputs[0]!.text(),
+    script: await bundleWorker(new URL("./user-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
+    compatibilityFlags: ["nodejs_compat"],
     durableObjects: { USER: { className: "UserDO", useSQLite: true } },
   })
 })

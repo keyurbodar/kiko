@@ -91,6 +91,12 @@ export type ClientToUser =
 	| { t: "disconnectExecutor"; reqId: string }
 	/** `refresh` forces a token refresh. `tools` calls `tools/list` with the stored credential. */
 	| { t: "executorStatus"; reqId: string; refresh?: boolean; tools?: boolean }
+	/** Starts a provider sign-in (architecture 11.4). `loginId` is the client's own id for it. */
+	| { t: "login.start"; loginId: string; provider: string }
+	/** The answer to one `login.prompt`. */
+	| { t: "login.answer"; loginId: string; promptId: string; value: string }
+	/** The user gave up. Closing the socket does the same. */
+	| { t: "login.cancel"; loginId: string }
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[] }
@@ -105,3 +111,39 @@ export type UserToClient =
 	 * `reqId` it goes to every socket, when a sign-in finishes in the browser.
 	 */
 	| { t: "executor"; reqId?: string; result: ExecutorResult }
+	// Provider sign-in. Not stored. Sent only to the socket that started the login.
+	| { t: "login.notify"; loginId: string; event: LoginEvent }
+	| { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }
+	/** The credential is stored. `provider` is the row the credentials list shows, never a token. */
+	| { t: "login.done"; loginId: string; provider: { provider: string; kind: "api_key" | "oauth"; last4: string } }
+	| { t: "login.error"; loginId: string; reason: LoginErrorReason; message: string }
+
+/** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */
+export type LoginEvent =
+	| { type: "info"; message: string; links?: readonly { url: string; label?: string }[] }
+	| { type: "auth_url"; url: string; instructions?: string }
+	| {
+			type: "device_code"
+			userCode: string
+			verificationUri: string
+			intervalSeconds?: number
+			expiresInSeconds?: number
+	  }
+	| { type: "progress"; message: string }
+
+/** What a sign-in flow asks the user. The same shapes as pi-ai's `AuthPrompt`, without its signal. */
+export type LoginPrompt =
+	| { type: "text" | "secret" | "manual_code"; message: string; placeholder?: string }
+	| { type: "select"; message: string; options: readonly { id: string; label: string; description?: string }[] }
+
+export type LoginErrorReason =
+	/** The provider has no sign-in flow that kiko runs on Workers. */
+	| "unsupported"
+	/** Subscription sign-in is off on this server (`PROVIDER_OAUTH`). */
+	| "disabled"
+	/** No login with this id is running. It finished, timed out, or the server restarted. */
+	| "unknown"
+	| "cancelled"
+	| "timeout"
+	/** The flow itself failed, for example a wrong code. */
+	| "failed"
