@@ -1,20 +1,14 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // The real UserDO and RoomDO in workerd, with real alarms. Each test uses its own user.
 let mf: Miniflare
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./reminders-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
   mf = new Miniflare({
     modules: true,
-    script: await built.outputs[0]!.text(),
+    script: await bundleWorker(new URL("./reminders-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     durableObjects: {

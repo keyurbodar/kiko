@@ -34,6 +34,8 @@ export interface Env {
   CREDENTIALS_KEK_VERSION?: string
   CREDENTIALS_KEK_PREVIOUS?: string
   BETTER_AUTH_SECRET: string
+  /** "on" turns on subscription sign-in (architecture 11.4). Off when unset. */
+  PROVIDER_OAUTH?: string
 }
 
 export default {

@@ -194,6 +194,8 @@ export interface Session {
 
 export interface Verifier {
   url: string
+  /** `verify --fake`: the server is a development build and its fake provider may be used. */
+  fake: boolean
   /** Signs in as a dev user. The same name is the same user. Sockets open when asked for. */
   as(name: string): Promise<Session>
   closeAll(): void
@@ -222,7 +224,7 @@ export async function devSession(url: string, name: string): Promise<{ cookie: s
   return { cookie, userId: user.id }
 }
 
-export function createVerifier(url: string): Verifier {
+export function createVerifier(url: string, options: { fake?: boolean } = {}): Verifier {
   const open: { close(): void }[] = []
   const wsUrl = (path: string) => {
     const u = new URL(path, withSlash(url))
@@ -231,6 +233,7 @@ export function createVerifier(url: string): Verifier {
   }
   return {
     url,
+    fake: options.fake ?? false,
     async as(name) {
       const { cookie, userId } = await devSession(url, name)
       return {

@@ -210,6 +210,9 @@ export const clientToUser: readonly ClientToUser[] = [
 	{ t: "chat", op: { op: "mute", roomId, muted: true } },
 	{ t: "chat", op: { op: "delete", roomId: otherRoomId } },
 	{ t: "search", query: "protocol" },
+	{ t: "login.start", loginId: "l1", provider: "github-copilot" },
+	{ t: "login.answer", loginId: "l1", promptId: "p1", value: "" },
+	{ t: "login.cancel", loginId: "l1" },
 ]
 
 export const userToClient: readonly UserToClient[] = [
@@ -222,6 +225,10 @@ export const userToClient: readonly UserToClient[] = [
 	},
 	{ t: "reset", snapshot: { seq: 2, chats: [chat] } },
 	{ t: "search", query: "protocol", chats: [chat] },
+	{ t: "login.prompt", loginId: "l1", promptId: "p1", prompt: { type: "text", message: "enterprise domain", placeholder: "company.ghe.com" } },
+	{ t: "login.notify", loginId: "l1", event: { type: "device_code", userCode: "ABCD-1234", verificationUri: "https://github.com/login/device", intervalSeconds: 5 } },
+	{ t: "login.done", loginId: "l1", provider: { provider: "github-copilot", kind: "oauth", last4: "" } },
+	{ t: "login.error", loginId: "l2", reason: "timeout", message: "sign-in timed out" },
 ]
 
 /** One envelope from each kind of sender. */

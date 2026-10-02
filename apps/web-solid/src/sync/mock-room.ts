@@ -320,6 +320,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			}
 			if (frame.t === "memory") return // the mock has no memory store
 			if (frame.t === "search") return
+			if (frame.t !== "chat") return // the mock runs no provider sign-in
 			const op = frame.op
 			const chat = find(op.roomId)
 			if (op.op === "create") {

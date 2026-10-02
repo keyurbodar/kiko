@@ -30,6 +30,8 @@ export async function loadSuites(dir = suitesDir): Promise<Suite[]> {
 export interface RunOptions {
   url: string
   noModel: boolean
+  /** Lets suites use the fake provider of a development server. */
+  fake?: boolean
   names: string[]
   dir?: string
   log?: (line: string) => void
@@ -49,7 +51,7 @@ export async function runSuites(opts: RunOptions): Promise<string[]> {
       log(`skip ${s.name} (needs a model)`)
       continue
     }
-    const v = createVerifier(opts.url)
+    const v = createVerifier(opts.url, { fake: opts.fake ?? false })
     const t = Date.now()
     try {
       await s.run(v)

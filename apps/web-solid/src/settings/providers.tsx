@@ -1,8 +1,9 @@
-import { For, Show, createResource, createSignal } from "solid-js"
+import { For, Show, createResource, createSignal, onCleanup } from "solid-js"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { loadCatalog, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { connectedProviders, refreshConnected } from "./connected"
 import { connectProvider, disconnectProvider } from "./credentials"
+import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
 
 const METHOD_LABEL: Record<ConnectMethod, string> = {
   api_key: "api key",
@@ -13,8 +14,8 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
 /*
  * The provider list, generated from the catalog asset. Each row names the
  * provider, the methods the catalog lists for it, and the last four characters
- * of a saved key. The sign-in methods are P4-04: they are listed but their
- * button is disabled until that task lands.
+ * of a saved key. A sign-in method runs the provider's own flow on the server
+ * (provider-login.ts); the server says when a flow is off or not supported.
  */
 export function ProviderList() {
   const [catalog] = createResource(loadCatalog)
@@ -170,23 +171,168 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
                   </button>
                 </form>
               ) : (
-                <div class="flex items-center justify-between gap-2" data-method={method}>
-                  <span class="text-sm text-muted">{METHOD_LABEL[method]}</span>
-                  <button
-                    type="button"
-                    disabled
-                    title="sign-in is not built yet"
-                    class="h-8 rounded-[10px] bg-[var(--tab-bg)] px-3 text-xs text-weak opacity-50"
-                    data-action="sign-in"
-                  >
-                    sign in
-                  </button>
-                </div>
+                <SignInMethod
+                  provider={props.provider!.id}
+                  method={method}
+                  onDone={async () => {
+                    await refreshConnected()
+                    props.onClose()
+                  }}
+                />
               )
             }
           </For>
         </ModalV2.Content>
       </ModalV2.Portal>
     </ModalV2>
+  )
+}
+
+/*
+ * One sign-in method in the connect dialog. The server runs the flow and this
+ * shows what it sends: a device code or a sign-in link, a progress line, and a
+ * question to answer. Closing the dialog ends the sign-in.
+ */
+function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: () => void }) {
+  const [state, setState] = createSignal<SignIn | null>(null)
+  let handle: SignInHandle | undefined
+  let input: HTMLInputElement | undefined
+  onCleanup(() => handle?.cancel())
+
+  function start() {
+    handle?.cancel()
+    handle = startSignIn(props.provider, (next) => {
+      setState(next)
+      if (next.status === "done") props.onDone()
+    })
+  }
+
+  function answer(event: SubmitEvent) {
+    event.preventDefault()
+    const prompt = state()?.prompt
+    if (!prompt || !input) return
+    const value = input.value
+    input.value = ""
+    handle?.answer(prompt.promptId, value)
+  }
+
+  const running = () => state()?.status === "running"
+
+  return (
+    <div class="flex flex-col gap-2" data-method={props.method} data-sign-in={state()?.status ?? "idle"}>
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-sm text-muted">{METHOD_LABEL[props.method]}</span>
+        <Show
+          when={running()}
+          fallback={
+            <button
+              type="button"
+              class="h-8 rounded-[10px] bg-[var(--tab-bg)] px-3 text-xs text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-active)]"
+              data-action="sign-in"
+              onClick={start}
+            >
+              {state()?.status === "error" ? "try again" : "sign in"}
+            </button>
+          }
+        >
+          <button
+            type="button"
+            class="h-8 rounded-[10px] px-3 text-xs text-muted hover:bg-[var(--tab-bg-active)]"
+            data-action="cancel-sign-in"
+            onClick={() => {
+              handle?.cancel()
+              setState(null)
+            }}
+          >
+            cancel
+          </button>
+        </Show>
+      </div>
+      <Show when={running() ? state() : null}>
+        {(s) => (
+          <>
+            <Show when={s().code}>
+              {(code) => (
+                <div class="flex flex-col gap-1 rounded-[10px] bg-[var(--tab-bg)] p-3" data-component="device-code">
+                  <span class="text-xs text-weak">enter this code at the provider</span>
+                  <span class="select-all font-mono text-lg tracking-widest text-[var(--tab-text-active)]">{code().userCode}</span>
+                  <a
+                    href={code().verificationUri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="truncate text-xs text-[var(--accent)]"
+                  >
+                    open {code().verificationUri.replace(/^https?:\/\//, "")}
+                  </a>
+                </div>
+              )}
+            </Show>
+            <Show when={s().link}>
+              {(link) => (
+                <div class="flex flex-col gap-1 rounded-[10px] bg-[var(--tab-bg)] p-3" data-component="sign-in-link">
+                  <Show when={link().instructions}>
+                    <span class="text-xs text-weak">{link().instructions!.toLowerCase()}</span>
+                  </Show>
+                  <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-sm text-[var(--accent)]">
+                    open the sign-in page
+                  </a>
+                </div>
+              )}
+            </Show>
+            <Show when={s().note}>
+              <p class="text-xs text-weak" data-component="sign-in-note">{s().note!.toLowerCase()}</p>
+            </Show>
+            <Show when={s().prompt}>
+              {(p) => {
+                const prompt = p().prompt
+                return prompt.type === "select" ? (
+                  <div class="flex flex-col gap-1" data-component="sign-in-select">
+                    <span class="text-xs text-weak">{prompt.message.toLowerCase()}</span>
+                    <For each={prompt.options}>
+                      {(option) => (
+                        <button
+                          type="button"
+                          class="h-8 rounded-[10px] bg-[var(--tab-bg)] px-3 text-left text-xs text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-active)]"
+                          onClick={() => handle?.answer(p().promptId, option.id)}
+                        >
+                          {option.label.toLowerCase()}
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                ) : (
+                  <form class="flex flex-col gap-2" onSubmit={answer} data-component="sign-in-prompt">
+                    <label class="text-xs text-weak" for="sign-in-answer">{prompt.message.toLowerCase()}</label>
+                    <input
+                      id="sign-in-answer"
+                      ref={input}
+                      type={prompt.type === "secret" ? "password" : "text"}
+                      placeholder={prompt.placeholder}
+                      autocomplete="off"
+                      autocapitalize="off"
+                      spellcheck={false}
+                      autofocus
+                      class="h-9 rounded-[10px] bg-[var(--tab-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    />
+                    <button
+                      type="submit"
+                      class="h-9 rounded-[10px] bg-[var(--accent)] px-3 text-sm text-white"
+                      data-action="answer-sign-in"
+                    >
+                      continue
+                    </button>
+                  </form>
+                )
+              }}
+            </Show>
+          </>
+        )}
+      </Show>
+      <Show when={state()?.status === "error" ? state()?.error : null}>
+        {(error) => (
+          <p class="text-xs text-[var(--accent)]" role="alert" data-component="sign-in-error">{error().toLowerCase()}</p>
+        )}
+      </Show>
+    </div>
   )
 }

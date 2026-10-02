@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "../src/lib/crypto"
 
 // P4-01. The crypto runs here in Bun. The store runs inside workerd through Miniflare,
@@ -22,17 +23,11 @@ let mf: Miniflare
 let output = ""
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./credentials-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
   mf = new Miniflare({
     modules: true,
-    script: await built.outputs[0]!.text(),
+    script: await bundleWorker(new URL("./credentials-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
+    compatibilityFlags: ["nodejs_compat"],
     bindings: { CREDENTIALS_KEK: V1.current.secret },
     durableObjects: {
       USER: { className: "UserDO", useSQLite: true },

@@ -307,13 +307,60 @@ export const ClientToUser = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
+	Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
 ])
+
+export const LoginEvent = Schema.Union([
+	Schema.Struct({
+		type: Schema.Literal("info"),
+		message: Schema.String,
+		links: Schema.optionalKey(
+			Schema.Array(Schema.Struct({ url: Schema.String, label: Schema.optionalKey(Schema.String) })),
+		),
+	}),
+	Schema.Struct({ type: Schema.Literal("auth_url"), url: Schema.String, instructions: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({
+		type: Schema.Literal("device_code"),
+		userCode: Schema.String,
+		verificationUri: Schema.String,
+		intervalSeconds: Schema.optionalKey(Schema.Number),
+		expiresInSeconds: Schema.optionalKey(Schema.Number),
+	}),
+	Schema.Struct({ type: Schema.Literal("progress"), message: Schema.String }),
+])
+
+export const LoginPrompt = Schema.Union([
+	Schema.Struct({
+		type: Schema.Literals(["text", "secret", "manual_code"]),
+		message: Schema.String,
+		placeholder: Schema.optionalKey(Schema.String),
+	}),
+	Schema.Struct({
+		type: Schema.Literal("select"),
+		message: Schema.String,
+		options: Schema.Array(
+			Schema.Struct({ id: Schema.String, label: Schema.String, description: Schema.optionalKey(Schema.String) }),
+		),
+	}),
+])
+
+export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unknown", "cancelled", "timeout", "failed"])
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
+	Schema.Struct({ t: Schema.Literal("login.notify"), loginId: Id, event: LoginEvent }),
+	Schema.Struct({ t: Schema.Literal("login.prompt"), loginId: Id, promptId: Id, prompt: LoginPrompt }),
+	Schema.Struct({
+		t: Schema.Literal("login.done"),
+		loginId: Id,
+		provider: Schema.Struct({ provider: Id, kind: Schema.Literals(["api_key", "oauth"]), last4: Schema.String }),
+	}),
+	Schema.Struct({ t: Schema.Literal("login.error"), loginId: Id, reason: LoginErrorReason, message: Schema.String }),
 ])
 
 // A schema and its plain type must accept exactly the same values. `Inline`

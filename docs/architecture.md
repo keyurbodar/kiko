@@ -445,10 +445,18 @@ Disconnecting a provider deletes its rows in `UserDO` at once. A run already in 
 | Flow in pi-ai | Mechanism | On Workers |
 | --- | --- | --- |
 | API key (every provider, including `opencode` and `opencode-go`) | paste | works |
-| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | module imports under `wrangler dev` (experiment 6). The flow itself is not yet run. |
-| Anthropic | loopback server, with a copy-code fallback | module imports. Use the copy-code path only. |
-| OpenRouter | loopback server, with a manual paste fallback | module imports. Use the paste path only. |
-| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | module imports with `nodejs_compat` |
+| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | enabled. The GitHub Copilot flow ran under `wrangler dev` up to the device code from github.com (P4-04). No flow has been completed against a real account. |
+| Anthropic | loopback server, with a copy-code fallback | enabled, copy-code path only. The server answers the method question itself. |
+| OpenRouter | loopback server always, with a manual paste fallback | not enabled. The flow starts its loopback server before it offers the paste path, and a Worker cannot listen. |
+| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | not enabled. Loopback server only. |
+
+How kiko runs them (P4-04, `apps/server/src/user/provider-login.ts`):
+
+- The client sends `login.start`, gets `login.notify` and `login.prompt` frames, answers with `login.answer`, and ends with `login.done` or `login.error`. A sign-in opens its own user socket.
+- A login lives in `UserDO` memory, tied to its socket. It ends when the credential is stored, the flow fails, the user cancels, the socket closes, or a 10-minute wakeup fires. Each ending removes all of its state. A login does not survive an eviction; the client hears `unknown` and starts again.
+- pi-ai loads flow modules with a computed `import()` that a Worker bundle cannot follow. `registerBunOAuthFlows()` from `@earendil-works/pi-ai/bun-oauth` fills pi-ai's loader table with the bundled flows instead. ASSUMPTION: the helper is named for Bun binaries but does only that. P4-02's token refresh depends on it too.
+- Every enabled flow is a subscription flow, so all of them need `PROVIDER_OAUTH=on`. A development bundle also offers the `kiko-fake` provider for `bun kiko verify provider-login --fake`.
+- UNVERIFIED: pi-ai's device-code polling waits with `setTimeout` between `fetch` calls. Whether a deployed Durable Object stays awake through a long poll has not been measured.
 
 Two cautions for the owner to decide on.
 

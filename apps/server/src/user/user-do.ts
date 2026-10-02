@@ -8,8 +8,12 @@ import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
+import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
+
+// Wrangler replaces this when it bundles: "development" under `wrangler dev`.
+declare const process: { env: { NODE_ENV?: string } }
 
 // Architecture sections 4.1 and 9. One object per user. This part owns the chat
 // index and the user socket. Every change is stored as an event with a per-user `seq`
@@ -121,6 +125,21 @@ export class UserDO extends DurableObject<Env> {
     return this.#vault
   }
 
+  // Provider sign-in (P4-04, architecture 11.4). The logic is in provider-login.ts.
+  #loginState?: ProviderLogins<WebSocket>
+  get #logins(): ProviderLogins<WebSocket> {
+    this.#loginState ??= new ProviderLogins<WebSocket>({
+      store: this.#credentials,
+      info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
+      send,
+      setWakeup: (key, at) => this.alarms.setWakeup(key, at),
+      clearWakeup: (key) => this.alarms.clearWakeup(key),
+      subscriptions: this.env.PROVIDER_OAUTH === "on",
+      fake: process.env.NODE_ENV === "development",
+    })
+    return this.#loginState
+  }
+
   // The socket.
 
   async fetch(request: Request): Promise<Response> {
@@ -153,10 +172,19 @@ export class UserDO extends DurableObject<Env> {
       send(ws, { t: "search", query: frame.query, chats: searchChats(this.sql, frame.query.slice(0, 200)) })
       return
     }
+    // A login runs until it ends, so the handler does not wait for it.
+    if (frame.t === "login.start") return void this.#logins.start(ws, frame.loginId, frame.provider).catch(() => {})
+    if (frame.t === "login.answer") return this.#logins.answer(ws, frame.loginId, frame.promptId, frame.value)
+    if (frame.t === "login.cancel") return this.#logins.cancel(ws, frame.loginId)
     this.apply(frame.op)
   }
 
+  async webSocketError(ws: WebSocket): Promise<void> {
+    this.#loginState?.dropOwner(ws)
+  }
+
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+    this.#loginState?.dropOwner(ws)
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code)
     } catch {
@@ -167,6 +195,7 @@ export class UserDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const due = await this.alarms.dueWakeups(Date.now())
     if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
+    this.#loginState?.expire(due)
   }
 
   // Internals.
