@@ -9,7 +9,7 @@ import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
-import { type AgentSend, Bubbles, Deliveries, Mail, type ReminderDelivery, route } from "./deliver"
+import { type AgentSend, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
 import { type FileMeta, type FileMetaPatch, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
@@ -43,6 +43,10 @@ const WAKES_WAKEUP = "ws_wakes"
 export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask">
 
 export type AgentHome ={ userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean }
+
+/** What a member reads when the lead already answered. It may add to the reply, react, or stay quiet. */
+const FOLLOW_UP_NOTE = (lead: AgentSlug) =>
+`@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat what @${lead} said.`
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	// Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
@@ -139,10 +143,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (!chat) return this.burst.delivered(envelopes)
 			await this.seedMembers(home, chat)
 			const members = this.members.list()
-			const routes = route(envelopes, members, (id) => {
+			const replyAuthor = (id: string) => {
 				const from = this.log.message(id)?.from
 				return from?.kind === "agent" ? from.slug : undefined
-			})
+			}
+			const routes = route(envelopes, members, replyAuthor)
 			// Every brief is read in this one synchronous stretch, so `seq` is what they all cover. A
 			// member's brief leaves out only its own envelopes, so a burst message addressed to someone
 			// else shows up in it. Reactions on the member's own messages come from reactions.ts (section 6.5).
@@ -167,6 +172,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const failed = results.find((r) => r.status === "rejected")
 			if (failed) throw failed.reason
 			if (results.some((r) => r.status === "fulfilled" && r.value === "full")) return await this.burst.retry(DELIVERY_RETRY_MS)
+			// A group is all awake: an untagged burst goes to the lead first, and every other member gets it
+			// once the lead's run ends, with the lead's reply in its brief (section 7.2, DEVIATION).
+			const lead = members.find((m) => m.lead)
+			if (lead && members.length > 1 && untagged(envelopes, replyAuthor)) {
+				const followers = members.filter((m) => !routes.has(m.slug)).map((m) => m.slug)
+				if (followers.length) this.log.setMeta(`follow:${lead.slug}`, JSON.stringify({ followers, envelopes }))
+			}
 			this.burst.delivered(envelopes)
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -563,6 +575,36 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!home || this.bubbles.ended(runId)) return
 		await userStub(this.env.USER, home.userId).touchChat(home.roomId, this.bubbles.touch())
 		this.bubbles.markEnded(runId)
+		await this.followUp(slug)
+	}
+
+	/** After the lead answered an untagged burst, the other members get it, to add to the reply or stay quiet. */
+	private async followUp(lead: AgentSlug): Promise<void> {
+		const home = this.home()
+		const raw = this.log.meta(`follow:${lead}`)
+		if (!home || !raw) return
+		this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `follow:${lead}`)
+		const { followers, envelopes } = JSON.parse(raw) as { followers: AgentSlug[]; envelopes: Envelope[] }
+		const members = this.members.list()
+		const goal = (await this.chat(home))?.title ?? ""
+		const seq = this.log.lastSeq()
+		await Promise.allSettled(
+			followers.map(async (slug) => {
+				const member = members.find((m) => m.slug === slug)
+				if (!member) return
+				const d = this.delivery(member, members, goal, envelopes)
+				const brief = `${d.brief}\n\n${FOLLOW_UP_NOTE(lead)}`
+				const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, brief, {
+					...home,
+					slug,
+					role: member.role,
+					lead: member.lead,
+				})
+				if (refused) return
+				this.members.markDelivered(slug, seq)
+				markReactionsBriefed(this.log, slug, d.reactionsUpTo)
+			}),
+		)
 	}
 
 	/** RPC for an agent in this room. Broadcasts who is typing, without storing it. */

@@ -1,6 +1,7 @@
 export const DRAFT_THRESHOLD = 400;
 const MAX_TAG = 96;
 const TAG_PREFIX = "[react:";
+const SKIP = /^\[skip\]$/i;
 const FENCE = /^ {0,3}(```|~~~)/;
 const TAG = /^\[react:([^\]\s:]+)(?::([^\]\s]+))?\]$/;
 
@@ -40,7 +41,8 @@ export function createSplitter(): Splitter {
 
 	const close = () => {
 		const text = block.trim();
-		if (text) blocks.push(text);
+		// `[skip]` is how a group member that has nothing to add stays quiet (section 7.2). It never posts.
+		if (text && !SKIP.test(text)) blocks.push(text);
 		block = "";
 	};
 

@@ -154,6 +154,24 @@ test("a group with the built-in agent seeds kiko too: the client names it by its
   ws.ws.close()
 })
 
+test("an untagged burst reaches the others after the lead's run ends, with a note to add or skip", async () => {
+  const { room, ws } = await team()
+  await ws.say("anyone around?")
+  await delivered(room, "bob", 1)
+  await Bun.sleep(300)
+  expect(await counts(room)).toEqual({ bob: 1, ada: 0, cy: 0 })
+  await call(`/end/${room}/bob/bob:r1`)
+  const [toAda] = await delivered(room, "ada", 1)
+  await delivered(room, "cy", 1)
+  expect(toAda!.envelopes.map((e) => e.body)).toEqual(["anyone around?"])
+  expect(toAda!.brief).toContain("already answered this")
+  // A second end of the same run delivers nothing more.
+  await call(`/end/${room}/bob/bob:r1`)
+  await Bun.sleep(300)
+  expect(await counts(room)).toEqual({ bob: 1, ada: 1, cy: 1 })
+  ws.ws.close()
+})
+
 test("untagged reaches only the lead, @ada only ada, @all everyone, and ada's next brief carries what she missed", async () => {
   const { room, ws } = await team()
   await ws.say("hello team")

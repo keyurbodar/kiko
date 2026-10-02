@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { Envelope, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
 import { blocksOf } from "../src/agent/outbox"
-import { debounce } from "../src/room/burst"
+import { debounce, isFragment } from "../src/room/burst"
 import { AFTER, BEFORE } from "./turn-fixtures"
 
 // P1-11. The room's bubble store and the agent's outbox inside workerd, through Miniflare. The
@@ -163,3 +163,18 @@ test("a repeated post stores one message, and a higher attempt replaces the earl
   expect(await post(0, 2, "late")).toBe(false)
   expect(await snapshot(roomId)).toEqual([[1, 0, "rewritten", 1]])
 }, 30_000)
+
+test.each([
+  ["if you", true],
+  ["like how things", true],
+  ["hi", true],
+  ["hi!", false],
+  ["what time is it?", false],
+  ["ok 👍", false],
+  ["planning a weekend in lisbon with friends", false],
+])("isFragment(%p) is %p", (text, want) => expect(isFragment(text)).toBe(want))
+
+test("a fragment holds the burst open longer than a full message", () => {
+  expect(debounce("fragment", 10_000, 10_000)).toBe(12_500)
+  expect(debounce("fragment", 17_000, 10_000)).toBe(18_000)
+})

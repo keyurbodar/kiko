@@ -95,3 +95,14 @@ describe("splitBubbles", () => {
 		}
 	});
 });
+
+test("[skip] posts nothing, alone or around a reaction", () => {
+  const blocks = (text: string) => {
+    const s = createSplitter()
+    return [...s.push(text).blocks, ...s.end().blocks]
+  }
+  expect(blocks("[skip]")).toEqual([])
+  expect(blocks("[SKIP]\n")).toEqual([])
+  expect(blocks("[react:👍]\n\n[skip]")).toEqual([])
+  expect(blocks("i'd skip that one")).toEqual(["i'd skip that one"])
+})

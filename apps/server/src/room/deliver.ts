@@ -1,7 +1,7 @@
 import type { AgentSlug, Envelope, RoomEvent, RoomId, RunRef } from "@kiko/protocol"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
-import { type RecipientMember, resolveRecipients } from "./recipients"
+import { type RecipientMember, resolveRecipients, tags } from "./recipients"
 import { parseRichText } from "./rich-text"
 
 /**
@@ -9,6 +9,14 @@ import { parseRichText } from "./rich-text"
  * picks for it, and each member gets its own envelopes in one `receive()` call. A member that is not
  * in the result is not woken. `replyAuthor` names the agent whose bubble a message replies to.
  */
+/**
+ * True when no envelope of the burst names a recipient, so it went to the lead by default. Then the
+ * other members get the burst too, after the lead's reply, to add to it or stay quiet (section 7.2).
+ */
+export function untagged(envelopes: readonly Envelope[], replyAuthor: (messageId: string) => AgentSlug | undefined): boolean {
+	return envelopes.some((e) => !tags(e.body).length && !(e.replyTo && replyAuthor(e.replyTo)))
+}
+
 export function route(
 	envelopes: readonly Envelope[],
 	members: readonly RecipientMember[],

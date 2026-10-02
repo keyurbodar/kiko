@@ -12,13 +12,26 @@ export const BURST_WAKEUP = "burst"
 // ASSUMPTION: the three numbers of the table in section 6.1. A per-user reply speed may override them later.
 export const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
+/** A short message with no closing punctuation ("like how things", "if you") is a thought still going. */
+export const AFTER_FRAGMENT_MS = 2_500
 export const MAX_BURST_MS = 8_000
 
 type Row = { id: string; seq: number; at: number; text: string; reply_to: string | null }
 
+/**
+ * True for a message that reads unfinished: three words or fewer, with no closing punctuation or emoji.
+ * People who text in bursts break one thought over several of these.
+ */
+export function isFragment(text: string): boolean {
+	const t = text.trim()
+	if (!t) return false
+	if (/[.!?…)\]"']$|\p{Extended_Pictographic}$/u.test(t)) return false
+	return t.split(/\s+/).length <= 3
+}
+
 /** The wakeup for an event while a burst that began at `startedAt` is pending. A pure table. */
-export function debounce(event: "message" | "typing", now: number, startedAt: number): number {
-	const wait = event === "message" ? AFTER_MESSAGE_MS : AFTER_TYPING_MS
+export function debounce(event: "message" | "typing" | "fragment", now: number, startedAt: number): number {
+	const wait = event === "message" ? AFTER_MESSAGE_MS : event === "fragment" ? AFTER_FRAGMENT_MS : AFTER_TYPING_MS
 	return Math.min(now + wait, startedAt + MAX_BURST_MS)
 }
 
@@ -58,7 +71,7 @@ export class Burst {
 			message.text,
 			message.replyTo ?? null,
 		)
-		await this.alarms.setWakeup(BURST_WAKEUP, debounce("message", now, this.startedAt() ?? now))
+		await this.alarms.setWakeup(BURST_WAKEUP, debounce(isFragment(message.text) ? "fragment" : "message", now, this.startedAt() ?? now))
 	}
 
 	/** The human is typing. Extends a pending burst and does nothing otherwise. */

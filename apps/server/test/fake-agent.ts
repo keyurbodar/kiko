@@ -57,6 +57,8 @@ export class FakeUser extends DurableObject {
   async listAgents() {
     return (await this.state()).agents
   }
+  /** A run ended. The chat list's touch is not under test here. */
+  async touchChat() {}
   /** The room reads one chat row, not the whole list. */
   async getChat(roomId: string) {
     return (await this.state()).chats.find((c) => c.roomId === roomId) ?? null
@@ -73,6 +75,7 @@ const ALICE = "alice"
 // `/status/<roomId>/<slug>/<state>` an agent reports its state
 // `/inventory/<roomId>`             the room's inventory for account deletion
 // `/post/<roomId>/<slug>`           the agent posts one bubble
+// `/end/<roomId>/<slug>/<runId>`    the agent's run ends
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, roomId, slug, state] = new URL(request.url).pathname.split("/")
@@ -87,6 +90,10 @@ export default {
       return Response.json({ ok: true })
     }
     if (kind === "inventory") return Response.json(await room.inventory())
+    if (kind === "end") {
+      await room.endRun(slug as AgentSlug, state!)
+      return Response.json({ ok: true })
+    }
     if (kind === "post") return Response.json(await room.post(slug as AgentSlug, `${slug}:r1`, 0, 0, "i can help"))
     const headers = new Headers(request.headers)
     headers.set(USER_ID_HEADER, ALICE)

@@ -604,6 +604,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		readSeq: () => overlayReadSeq(state.readSeq, state.patches),
 		ready,
 		send(text, opts = {}) {
+			// The next keystroke after a send must reach the room at once: it is what holds a burst open.
+			lastTypingAt = Number.NEGATIVE_INFINITY
 			const clientId = newId()
 			const frame: RoomPatchFrame = { t: "send", clientId, text }
 			if (opts.replyTo) frame.replyTo = opts.replyTo
