@@ -7,6 +7,7 @@ import { effectTable } from "./effects"
 import { type Approvals, trustExtension } from "./extensions/trust"
 import { type FilesPort, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
+import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { baseSections, type RoleInput } from "./prompt"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses
@@ -17,6 +18,8 @@ export type BuildAgentInput = RoleInput & {
   model: ModelRef
   /** The room's files (P8-05). Without it the agent has no file tools, as in the fake agent. */
   files?: FilesPort
+  /** The room's team tools (P6-03). Without it the agent has no messaging tools. */
+  messaging?: () => MessagingPort | null
   /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
   testExtensions?: readonly Extension[]
   /** Human approval records for `external` tools in a tainted run (P7-02). Default: none. */
@@ -43,6 +46,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.files ? [filesExtension(input.files)] : []),
     webExtension(),
+    ...(input.messaging ? [messagingExtension(input.messaging)] : []),
     Subagent,
     ...(input.testExtensions ?? []),
   ]

@@ -1,4 +1,5 @@
-import type { AgentSlug, Envelope, RoomEvent, RunRef } from "@kiko/protocol"
+import type { AgentSlug, Envelope, RoomEvent, RoomId, RunRef } from "@kiko/protocol"
+import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 import { parseRichText } from "./rich-text"
@@ -120,5 +121,127 @@ export class Bubbles {
 			)
 			.one()
 		return { lastSeq: this.log.lastSeq(), lastPreview: last?.text ?? "", unread }
+	}
+}
+
+// Architecture sections 7.5 and 7.7. Agent-to-agent messages. Every one goes through the room,
+// which stores it in the log with its addressee, then delivers it with `hop + 1` and the sender's
+// `rootId`. The room remembers each member's chain (the root and hop of its latest delivery), so
+// a message sent during a run inherits that run's root, and the agent cannot set either number.
+// A plain reply bubble (`Bubbles.post`) goes through none of this, so it wakes nobody.
+
+/** One `send_message` or `broadcast` call. `id` is stable per tool call, so a repeat stores nothing. */
+export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean }
+
+/** A stored agent message and who it goes to. */
+export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[] }
+
+export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[] } | { ok: false; error: string; events: RoomEvent[] }
+
+export class Mail {
+	private readonly sql: SqlStorage
+
+	constructor(
+		private readonly storage: DurableObjectStorage,
+		private readonly log: RoomLog,
+	) {
+		this.sql = storage.sql
+		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_chains (slug TEXT PRIMARY KEY, root_id TEXT NOT NULL, hop INTEGER NOT NULL)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS root_counts (root_id TEXT PRIMARY KEY, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS autonomous_runs (id INTEGER PRIMARY KEY CHECK (id = 1), day TEXT NOT NULL, runs INTEGER NOT NULL)")
+	}
+
+	/**
+	 * Records what `slug` was handed, so its next send inherits the chain. The last envelope wins: a
+	 * human message during an agent chain starts a new chain at hop 0. A human message also releases
+	 * autonomous runs held for the day (section 7.7).
+	 */
+	delivered(slug: AgentSlug, envelopes: readonly Envelope[]): void {
+		const last = envelopes.at(-1)
+		if (!last) return
+		this.sql.exec(
+			"INSERT INTO agent_chains (slug, root_id, hop) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop",
+			slug,
+			last.rootId,
+			last.hop,
+		)
+		if (envelopes.some((e) => e.from.kind === "human")) this.sql.exec("DELETE FROM autonomous_runs")
+	}
+
+	/** The agent deliveries `rootId` has caused so far. */
+	deliveries(rootId: string): number {
+		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?", rootId).toArray()[0]?.n ?? 0
+	}
+
+	/** Checks the limits, then stores the message and counts its deliveries. Returns the stored send for a repeated id. */
+	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[]): SendOutcome {
+		return this.storage.transactionSync((): SendOutcome => {
+			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
+			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [] }
+			const text = input.text.trim()
+			if (!text) return { ok: false, error: "not sent: the message is empty.", events: [] }
+			if (input.to === from) return { ok: false, error: "not sent: you cannot message yourself.", events: [] }
+			const others = members.filter((m) => m.slug !== from).map((m) => m.slug)
+			if (input.to !== "all" && !others.includes(input.to)) {
+				return { ok: false, error: `not sent: no agent @${input.to} in this room. members: ${others.map((s) => `@${s}`).join(", ") || "none"}.`, events: [] }
+			}
+			const recipients = input.to === "all" ? others : [input.to]
+			if (!recipients.length) return { ok: false, error: "not sent: you are the only agent in this room.", events: [] }
+			const chain = this.sql.exec<{ root_id: string; hop: number }>("SELECT root_id, hop FROM agent_chains WHERE slug = ?", from).toArray()[0]
+			const rootId = chain?.root_id ?? `agent:${from}`
+			const hop = (chain?.hop ?? 0) + 1
+			const check = checkSend(hop, this.deliveries(rootId), recipients.length)
+			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
+			// The addressee is part of the stored text, as a Telegram mention. ASSUMPTION: no wire field for it.
+			const shown = `@${input.to} ${text}`
+			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown) })
+			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients }
+			this.sql.exec(
+				"INSERT INTO root_counts (root_id, deliveries) VALUES (?, ?) ON CONFLICT(root_id) DO UPDATE SET deliveries = deliveries + excluded.deliveries",
+				rootId,
+				recipients.length,
+			)
+			this.sql.exec("INSERT INTO agent_sends (id, send) VALUES (?, ?)", input.id, JSON.stringify(send))
+			return { ok: true, send, events: stored.event ? [stored.event] : [] }
+		})
+	}
+
+	/** The envelope `send` becomes for one recipient. Its id is stable, so the inbox ignores a repeated delivery. */
+	envelope(roomId: RoomId, from: AgentSlug, send: StoredSend, to: AgentSlug): Envelope {
+		return {
+			id: `agent:${send.messageId}:${to}`,
+			roomId,
+			from: { kind: "agent", slug: from },
+			body: send.text,
+			hop: send.hop,
+			rootId: send.rootId,
+			tainted: send.tainted,
+			seq: send.seq,
+		}
+	}
+
+	/** One system event per root, when a limit first trips. */
+	private trip(rootId: string, limit: Limit): RoomEvent[] {
+		const row = this.sql.exec<{ tripped: number }>("SELECT tripped FROM root_counts WHERE root_id = ?", rootId).toArray()[0]
+		if (row?.tripped) return []
+		this.sql.exec("INSERT INTO root_counts (root_id, deliveries, tripped) VALUES (?, 0, 1) ON CONFLICT(root_id) DO UPDATE SET tripped = 1", rootId)
+		const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text: limitNotice(limit) })
+		return event ? [event] : []
+	}
+
+	/**
+	 * Takes one of the day's autonomous runs (a scheduled or task-triggered wake, section 7.7). False
+	 * means the wake is held until the next UTC day or the next human message.
+	 */
+	takeAutonomousRun(now: number): boolean {
+		return this.storage.transactionSync(() => {
+			const day = utcDay(now)
+			const counter = this.sql.exec<{ day: string; runs: number }>("SELECT day, runs FROM autonomous_runs WHERE id = 1").toArray()[0] ?? null
+			if (!autonomousRunAllowed(counter, day)) return false
+			const runs = counter?.day === day ? counter.runs + 1 : 1
+			this.sql.exec("INSERT INTO autonomous_runs (id, day, runs) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET day = excluded.day, runs = excluded.runs", day, runs)
+			return true
+		})
 	}
 }

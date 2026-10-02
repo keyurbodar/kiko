@@ -1,4 +1,4 @@
-import type { AgentSlug, AgentState, Chat, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, Envelope, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
@@ -7,10 +7,10 @@ import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/name
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
-import { Bubbles, Deliveries, type ReminderDelivery, route } from "./deliver"
+import { type AgentSend, Bubbles, Deliveries, Mail, type ReminderDelivery, route } from "./deliver"
 import { type FileMeta, type FileMetaPatch, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
-import { Members, type NewMember } from "./members"
+import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
 import { migrate } from "./schema"
 import { listCatalog } from "./catalog"
@@ -34,7 +34,10 @@ const DELIVERY_RETRY_MS = 2_000
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
  * back. `role` and `lead` are the member row at that delivery; the agent builds its prompt from them.
  */
-export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean }
+/** What `check_agent` shows of a member. */
+export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask">
+
+export type AgentHome ={ userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean }
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	// Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
@@ -43,6 +46,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private alarms!: Alarms
 	private burst!: Burst
 	private bubbles!: Bubbles
+	private mail!: Mail
 	members!: Members
 	files!: RoomFiles
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
@@ -61,6 +65,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.alarms = createAlarms(ctx)
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log)
+			this.mail = new Mail(ctx.storage, this.log)
 			this.members = new Members(ctx.storage, this.log)
 		})
 	}
@@ -124,12 +129,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			// member's brief leaves out only its own envelopes, so a burst message addressed to someone
 			// else shows up in it. Reactions on the member's own messages come from reactions.ts (section 6.5).
 			const seq = this.log.lastSeq()
-			const deliveries = [...routes].map(([slug, mine]) => {
-				const member = members.find((m) => m.slug === slug)!
-				const reactions = reactionBrief(this.log, this.ctx.storage.sql, slug)
-				const view = readBriefView(this.ctx.storage.sql, member, members, chat.title, new Set(mine.map((e) => e.seq)), reactions.text)
-				return { member, envelopes: mine, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
-			})
+			const deliveries = [...routes].map(([slug, mine]) => this.delivery(members.find((m) => m.slug === slug)!, members, chat.title, mine))
 			// receive() only stores and returns, so these waits are short and cannot deadlock. A repeat
 			// after a partial failure or a full inbox is harmless: the agent's inbox ignores envelope ids it has.
 			const results = await Promise.allSettled(
@@ -141,6 +141,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 					if (refused === "full") return "full"
 					if (refused) console.error(`burst delivery to ${member.slug} refused: ${refused}`)
 					this.members.markDelivered(member.slug, seq)
+					this.mail.delivered(member.slug, mine)
 					markReactionsBriefed(this.log, member.slug, reactionsUpTo)
 					return "admitted"
 				}),
@@ -153,6 +154,52 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			await this.burst.retry(DELIVERY_RETRY_MS)
 		}
+	}
+
+	/** One member's envelopes with its brief (section 7.4). Reactions on the member's own messages come from reactions.ts. */
+	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, envelopes: Envelope[]) {
+		const reactions = reactionBrief(this.log, this.ctx.storage.sql, member.slug)
+		const view = readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text)
+		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
+	}
+
+	/**
+	 * RPC for an agent's `send_message` or `broadcast` (sections 7.5 and 7.7). Stores the message with
+	 * its addressee, then hands each recipient its envelope. `receive()` only stores, so this wait is
+	 * short and cannot deadlock. A repeated `send.id` stores nothing and delivers the same envelope ids,
+	 * which the inboxes ignore. A tripped limit returns the error the tool shows the agent.
+	 */
+	async agentMessage(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
+		const home = this.home()
+		const members = this.members.list()
+		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
+		const out = this.mail.send(slug, send, members)
+		this.publish(out.events)
+		if (!out.ok) return out
+		const goal = (await this.chat(home))?.title ?? ""
+		const seq = this.log.lastSeq()
+		for (const to of out.send.recipients) {
+			const member = members.find((m) => m.slug === to)
+			if (!member) continue
+			const d = this.delivery(member, members, goal, [this.mail.envelope(home.roomId, slug, out.send, to)])
+			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, to)
+			const { refused } = await agent.receive(d.envelopes, d.brief, { ...home, slug: to, role: member.role, lead: member.lead })
+			// ASSUMPTION: a refused delivery is dropped. The message stays in the log, and the next brief shows it.
+			if (refused) {
+				console.error(`agent message to ${to} refused: ${refused}`)
+				continue
+			}
+			this.members.markDelivered(to, seq)
+			this.mail.delivered(to, d.envelopes)
+			markReactionsBriefed(this.log, to, d.reactionsUpTo)
+		}
+		return { ok: true, to: out.send.recipients }
+	}
+
+	/** RPC for an agent's `check_agent` (section 7.5). Reads the member row and calls no agent. */
+	async checkAgent(slug: AgentSlug): Promise<AgentCheck | null> {
+		const m = this.members.list().find((x) => x.slug === slug)
+		return m ? { slug: m.slug, name: m.name, role: m.role, lead: m.lead, status: m.status, currentTask: m.currentTask } : null
 	}
 
 	async fetch(request: Request): Promise<Response> {

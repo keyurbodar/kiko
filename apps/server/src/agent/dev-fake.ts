@@ -6,7 +6,7 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 import { MISSED_HEADER } from "../room/brief"
 import { declareEffect } from "./effects"
 import { isRunTainted, markRunTainted } from "./extensions/trust"
-import { buildAgent } from "./factory"
+import { type BuildAgentInput, buildAgent } from "./factory"
 import type { AgentSetup } from "./host"
 import type { RoleInput } from "./prompt"
 
@@ -25,6 +25,10 @@ import type { RoleInput } from "./prompt"
 //   [mark] x    the model calls `fake_mark`, which returns `x` and marks the run tainted (P7-01)
 //   [call t]    the model calls trust tool `t`, from a user turn or from a tool result, which is
 //               how a fooled model obeys an injected instruction (P7-01)
+//   [send s] x  the model calls `send_message` to `s` with `x` (P6-03)
+//   [echo]      in a teammate's message: the model sends `[echo]` back to that teammate, forever (P6-03)
+//   [shout]     the model calls `broadcast` with `[shout]`, from a human or a teammate, forever (P6-03)
+//   [check s]   the model calls `check_agent` on `s` (P6-03)
 //
 // After trust tools ran, the answer is `tools: <name> ran|ran tainted|blocked, ...` (P7-01).
 //
@@ -75,6 +79,8 @@ export function fakeReply(transcript: readonly Message[]) {
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
+  const team = last?.role === "user" ? teamCall(textOf(last)) : null
+  if (team) return fauxAssistantMessage(team, { stopReason: "toolUse" })
   const calls = trustCalls(messages)
   if (calls.length) return fauxAssistantMessage(calls, { stopReason: "toolUse" })
   const ran = trustResults(since)
@@ -183,11 +189,22 @@ function trustResults(since: readonly Message[]): string | null {
 }
 
 /** The fake agent's setup. The factory builds it, with the slow tool as a test extension. */
-export function fakeSetup(role: RoleInput = { role: "", lead: true }): AgentSetup {
+/** The team tool call a user turn asks for (P6-03), or null. A teammate's `[echo]` goes back to that teammate. */
+function teamCall(turn: string) {
+  const agent = [...turn.matchAll(/<agent-message from="([^"]+)"[^>]*>([\s\S]*?)<\/agent-message>/g)].at(-1)
+  if (agent && agent[2]!.includes("[echo]")) return fauxToolCall("send_message", { to: agent[1]!, text: "[echo]" })
+  const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
+  if (send) return fauxToolCall("send_message", { to: send[1]!, text: send[2]! })
+  if (turn.includes("[shout]")) return fauxToolCall("broadcast", { text: "[shout]" })
+  const check = /\[check ([a-z0-9-]+)\]/.exec(turn)
+  return check ? fauxToolCall("check_agent", { slug: check[1]! }) : null
+}
+
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, messaging?: BuildAgentInput["messaging"]): AgentSetup {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
+  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, messaging, testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
 }
