@@ -37,6 +37,21 @@ function pathOf(el: Element, root: Element): string {
   return parts.join("/")
 }
 
+function sheets(): { links: string[]; styles: string[] } {
+  const links: string[] = []
+  const styles: string[] = []
+  for (const sheet of document.styleSheets) {
+    const owner = sheet.ownerNode as Element | null
+    if (owner?.hasAttribute("data-snap")) continue
+    try {
+      styles.push([...sheet.cssRules].map((r) => r.cssText).join("\n"))
+    } catch {
+      if (sheet.href) links.push(sheet.href)
+    }
+  }
+  return { links, styles }
+}
+
 function capture(): Snap | null {
   const root = document.getElementById("root")
   if (!root || !root.firstElementChild || root.querySelector("#boot")) return null
@@ -46,8 +61,9 @@ function capture(): Snap | null {
     v: 1,
     path: location.pathname,
     html: root.innerHTML,
-    links: [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map((l) => l.href),
-    styles: [...document.querySelectorAll("style")].filter((s) => !s.closest("#snap")).map((s) => s.textContent ?? ""),
+    // Every rule in force, as text, so the shell paints with no request at all. A sheet whose rules
+    // cannot be read (another origin) is kept as a link.
+    ...sheets(),
     scroll,
   }
 }
