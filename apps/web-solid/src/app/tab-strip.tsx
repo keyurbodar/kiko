@@ -136,7 +136,7 @@ export function TabStrip() {
                   tabindex="-1"
                   aria-label={`close ${label(id)}`}
                   data-component="tab-close"
-                  class="hidden size-4 items-center justify-center rounded-full text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-hover)] group-hover:flex group-data-[active]:flex"
+                  class="relative hidden size-4 items-center justify-center rounded-full pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-[''] text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-hover)] group-hover:flex group-data-[active]:flex"
                   onClick={(event) => {
                     event.stopPropagation()
                     close(id)
