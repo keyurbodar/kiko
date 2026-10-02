@@ -6,6 +6,7 @@ import { createEffect, createMemo, createSignal, For, type JSX, Show } from "sol
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { cn } from "../lib/cn"
+import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
 import type { RosterBot } from "../lib/types"
 import {
@@ -101,6 +102,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void 
             as="button"
             type="button"
             class="pin-tile"
+            ref={intentRef(() => void useApp.preloadChat(props.bot.id))}
             data-component="sidebar-pin-tile"
             data-chat-id={props.bot.id}
             data-active={props.active ? "" : undefined}
@@ -246,6 +248,7 @@ function ChatRow(props: { bot: RosterBot; agent: string; muted: boolean; active:
       <MenuV2.Context.Trigger
         as="div"
         class="chat-row"
+        ref={intentRef(() => void useApp.preloadChat(props.bot.id))}
         data-component="sidebar-row"
         data-chat-id={props.bot.id}
         data-active={props.active ? "" : undefined}

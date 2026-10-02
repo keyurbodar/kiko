@@ -2,6 +2,8 @@ import { A, useLocation } from "@solidjs/router"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { For } from "solid-js"
 import { RailIcon, SettingsIcon, SidebarPanelIcon } from "../sidebar/icons"
+import { intentRef } from "../lib/intent"
+import { preloadRoute } from "./routes"
 import { SECTIONS, sectionOf, type SectionId } from "./sections"
 
 /*
@@ -21,6 +23,7 @@ export function Rail(props: { collapsed: boolean; onToggleSidebar: () => void })
       <A
         href={href}
         class="rail-tab"
+        ref={intentRef(() => preloadRoute(href))}
         data-component="sidebar-rail-tab"
         data-panel={id}
         data-active={active() === id ? "" : undefined}
