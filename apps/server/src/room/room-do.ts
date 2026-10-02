@@ -1,3 +1,4 @@
+import { isAgentSlug } from "@kiko/protocol"
 import type { AgentSlug, AgentState, Chat, Envelope, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -47,6 +48,16 @@ export type AgentHome ={ userId: string; roomId: RoomId; slug: AgentSlug; role?:
 /** What a member reads when the lead already answered. It may add to the reply, react, or stay quiet. */
 const FOLLOW_UP_NOTE = (lead: AgentSlug) =>
 `@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat what @${lead} said.`
+
+export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string; tainted: boolean }
+
+const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
+	limit: "the room is full: it holds at most 8 agents.",
+	exists: "an agent with that handle is already here.",
+	unknown: "no such agent.",
+	last: "the room needs at least one agent.",
+	reserved: "that handle is reserved. pick another.",
+}
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	// Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
@@ -324,6 +335,31 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async deliverReminder(id: string, reminder: ReminderDelivery): Promise<boolean> {
 		const event = this.deliveries.reminder(id, reminder)
 		if (event) this.publish([event])
+		// A reminder for an agent also wakes it (P5-06): a system envelope, reason `reminder`, hop 0. The
+		// envelope id is the delivery id, so a repeat is ignored by the inbox.
+		const home = this.home()
+		const member = this.members.list().find((m) => m.slug === reminder.target)
+		if (event && home && member && event.t === "message") {
+			const envelope: Envelope = {
+				id: `reminder:${id}`,
+				roomId: home.roomId,
+				from: { kind: "system", reason: "reminder" },
+				body: `reminder: ${reminder.text}`,
+				hop: 0,
+				rootId: `reminder:${id}`,
+				tainted: false,
+				seq: event.seq,
+			}
+			const goal = (await this.chat(home))?.title ?? ""
+			const d = this.delivery(member, this.members.list(), goal, [envelope])
+			const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).receive(d.envelopes, d.brief, {
+				...home,
+				slug: member.slug,
+				role: member.role,
+				lead: member.lead,
+			})
+			if (!refused) this.members.markDelivered(member.slug, event.seq)
+		}
 		return event !== null
 	}
 
@@ -392,6 +428,26 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
 		return null
+	}
+
+	/**
+	 * RPC for the lead's `spawn_agent` (section 7.5). Adds a member, gives it a first task on the board,
+	 * and sends it that task as an agent message, so it wakes and starts. Lead rights come from the
+	 * member row. A replayed call finds the member and the task already there and sends nothing twice.
+	 */
+	async spawnAgent(by: AgentSlug, input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }> {
+		const members = this.members.list()
+		const me = members.find((m) => m.slug === by)
+		if (!me?.lead) return { ok: false, error: "only the lead can add an agent to this room." }
+		const slug = input.slug.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32)
+		if (!isAgentSlug(slug)) return { ok: false, error: `"${input.slug}" is not a usable handle. use lowercase letters, digits, and dashes.` }
+		if (!members.some((m) => m.slug === slug)) {
+			const refused = this.memberOp({ op: "add", slug, name: input.name?.trim() || slug, role: input.role, ...(me.model ? { model: me.model } : {}) })
+			if (refused) return { ok: false, error: SPAWN_REFUSAL[refused] }
+		}
+		await this.workspaceCall(by, { op: "create_task", id: `spawn-${input.id}`.slice(0, 64), title: input.task.slice(0, 140), owner: slug })
+		const sent = await this.agentMessage(by, { id: `spawn:${input.id}`, to: slug, text: input.task, tainted: input.tainted })
+		return sent.ok ? { ok: true, slug } : sent
 	}
 
 	/** A human's `task` frame (section 7.6). A refused op stores nothing; the client's patch expires. */

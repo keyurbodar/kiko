@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
 import type { Conversation, ModelRef } from "@earendil-works/pi-durable"
-import type { Envelope } from "@kiko/protocol"
+import type { Envelope, RoomId } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
@@ -15,6 +15,7 @@ import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
 import type { MessagingPort } from "./extensions/messaging"
+import type { RemindersPort } from "./extensions/reminders"
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { createAlarms } from "../lib/alarm"
 import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
@@ -143,11 +144,26 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /** The team tools' side of the room (P6-03), bound to this agent's slug. The room sets the hop and root. */
+  /** The reminder tools' port (P5-06): the user's reminders, scoped to this room, created as this agent. */
+  private remindersPort(): RemindersPort | null {
+    const home = this.home()
+    if (!home) return null
+    const user = () => userStub(this.env.USER, home.userId)
+    return {
+      create: (input) => user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug }),
+      list: async () => (await user().listReminders()).filter((r) => r.roomId === home.roomId),
+      cancel: async (id) => {
+        const out = await user().cancelReminder(id)
+        return out.ok ? { ok: true } : { ok: false, error: out.error }
+      },
+    }
+  }
+
   private messagingPort(): MessagingPort | null {
     const home = this.home()
     if (!home) return null
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
-    return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug) }
+    return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input) }
   }
 
   /**
@@ -166,10 +182,15 @@ export class AgentDO extends DurableObject<Env> {
     const files = roomFilesPort(this.env, () => this.home(), user.models)
     const memory = this.memoryPort()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
-      inputContext: async () => memoryContext(this.#run?.memory ?? null),
+      // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
+      inputContext: async () => {
+        const tz = this.#run?.timezone ?? "UTC"
+        const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
+        return [clock, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
+      },
     }
   }
 
@@ -204,7 +225,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   // Per-run credentials (P4-02). The auth lives in this process's memory only, never in storage.
-  #run: { provider: string; auth: AuthResult | null; memory: TurnMemory | null } | null = null
+  #run: { provider: string; auth: AuthResult | null; memory: TurnMemory | null; timezone: string } | null = null
 
   /** Before a run: applies a newly chosen model, then loads the user's auth for its provider. */
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
@@ -232,7 +253,7 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider) : null
     const memory = context ? { profile: context.profile, now: context.now, todo: context.todo } : null
-    this.#run = { provider, auth: context?.auth ?? null, memory }
+    this.#run = { provider, auth: context?.auth ?? null, memory, timezone: context?.timezone ?? "UTC" }
     return this.#run.auth
   }
 

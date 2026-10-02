@@ -10,6 +10,7 @@ import { webExtension } from "./extensions/web"
 import { type MemoryPort, memoryExtension } from "./extensions/memory"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
+import { type RemindersPort, remindersExtension } from "./extensions/reminders"
 import { baseSections, type RoleInput } from "./prompt"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses
@@ -24,6 +25,8 @@ export type BuildAgentInput = RoleInput & {
   memory?: MemoryPort
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
   workspace?: WorkspacePort
+  /** The user's reminders (P5-06). Without it the agent has no reminder tools. */
+  reminders?: { port: () => RemindersPort | null; tz: () => string }
   /** The room's team tools (P6-03). Without it the agent has no messaging tools. */
   messaging?: () => MessagingPort | null
   /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
@@ -54,7 +57,8 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.files ? [filesExtension(input.files)] : []),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(),
-    ...(input.messaging ? [messagingExtension(input.messaging)] : []),
+    ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),
+    ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     Subagent,
     ...(input.testExtensions ?? []),
   ]
