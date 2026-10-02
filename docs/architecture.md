@@ -942,3 +942,16 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 - `packages/durable` has subagent patterns and no Cloudflare code. Kiko writes the Durable Object host.
 - `pi-durable` has no skills and no prompt injection defense.
 - Swipe to reply in the current app matches Telegram (icon on the right). The spec's direction (icon from the left) is a product choice and the plan follows it.
+
+## 23. Rivet considered
+
+Rivet (rivetkit 2.3.20, Apache-2.0) was read on 2026-10-02 at the owner's request. Its Cloudflare driver does not use Durable Objects. It runs Rivet's Rust core as wasm inside a Worker and tunnels to a separate Rivet Engine (`rivetkit-typescript/packages/cloudflare-workers/src/mod.ts`), which holds actor state, alarms, and sleep. Adopting it would add a service and a vendor outside Cloudflare and give up DO WebSocket hibernation and Worker-built names. Kiko stays on hand-rolled Durable Objects.
+
+Kiko copies four patterns, built in P1-13:
+
+- Wakeups are claimed in one transaction, capped per object, and keep a short history (Rivet `actor/schedule.rs`).
+- An inbox entry is marked in flight when a run takes it and is reclaimed after a timeout, completing it twice is a no-op, and the inbox has a size cap (Rivet `actor/queue.rs`).
+- Schema migration runs inside `blockConcurrencyWhile` on every start, before any other work.
+- The Worker's socket upgrade and the first `hello` frame have a hard timeout.
+
+Rivet's actor keys are client-supplied arrays checked in a connect hook. Kiko's rule that only the Worker builds a name from the session is stricter and stays.

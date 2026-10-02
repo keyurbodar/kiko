@@ -259,3 +259,25 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 - Add a slow fake tool, registered in tests only, so the steer case is deterministic.
 
 **Done when.** A run that started a tool is never restarted by a new message.
+
+### P1-13 Harden wakeups, inboxes, and socket setup
+
+`deps: P1-11` `difficulty: 3` `area: backend`
+
+**Verify.** `bun test apps/server/test/hardening.test.ts` passes: a run that dies after taking an inbox entry gets it back after the timeout and handles it once, a full inbox refuses a delivery with a `full` reason, the 1,001st wakeup on one object is refused, and a socket that never sends `hello` is closed after 5 seconds.
+
+**Goal.** Copy the four Rivet patterns that architecture section 23 adopts.
+
+**Read first.** Architecture section 23. `apps/server/src/lib/alarm.ts`, `apps/server/src/agent/inbox.ts`, and the socket code in `room/` and `user/`.
+
+**Files.** `apps/server/src/lib/alarm.ts`, `agent/inbox.ts`, the room and user socket handlers, `index.ts`. Tests in `apps/server/test/hardening.test.ts`.
+
+**Build.**
+
+- `alarm.ts`: claim due wakeups in one transaction, cap wakeups per object at 1,000, and keep the last 100 fired keys with their times for debugging.
+- `inbox.ts`: an `in_flight_at` column, reclaim after 5 minutes, completion that is a no-op the second time, and caps on entry count and entry size. The room sees a refused delivery as a `full` event, never an exception.
+- Every Durable Object runs its schema migration inside `blockConcurrencyWhile` in the constructor.
+- A 5-second timeout on the Worker's upgrade checks and on the first `hello` frame. A late socket is closed with a reason.
+
+**Done when.** No inbox entry can be lost or handled twice across a crash, and no Durable Object can be grown without bound by one caller.
+
