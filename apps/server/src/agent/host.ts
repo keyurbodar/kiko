@@ -64,6 +64,13 @@ export type HostStatus = {
   submissions: number
 }
 
+/** Consecutive failures of one kind before the harness state is rebuilt. */
+const RESET_AFTER = 3
+/** Failures that come from stored harness state, not from the provider or the network. */
+const UNRECOVERABLE = /unresolvable path|unsafe path|sqlite database is closed|malformed/i
+/** The tables `pi-durable`'s SQLite storage creates (its migrations.ts). Kiko's own tables are kept. */
+const PI_DURABLE_TABLES = ["document_revisions", "documents", "submissions", "tasks", "entries", "conversations", "record_ids", "durable_metadata", "durable_schema"]
+
 export class AgentHost {
   readonly inbox: Inbox
   private readonly alarms: Alarms
@@ -121,8 +128,17 @@ export class AgentHost {
     } catch (error) {
       this.failures++
       // Only the message: a provider error never carries the key, and nothing else is logged.
-      console.error(`agent alarm failed (${this.failures}): ${error instanceof Error ? error.message : String(error)}`)
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`agent alarm failed (${this.failures}): ${message}`)
       await this.drop()
+      // A harness whose stored state cannot replay (a write lost under SQLITE_BUSY leaves a streaming
+      // document that no later delta applies to) fails the same way on every retry, and the agent goes
+      // silent for good. After three such failures the harness state is rebuilt and the newest batch is
+      // answered again. The room log keeps the transcript, so the agent loses only its private history.
+      if (this.failures >= RESET_AFTER && UNRECOVERABLE.test(message)) {
+        this.reset()
+        this.failures = 0
+      }
       // The batches this drain took go back, so the retry submits them at once.
       this.inbox.release()
       const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), this.heartbeatMs)
@@ -268,6 +284,18 @@ export class AgentHost {
   }
 
   /** Forgets the harness after a failure. A fatal storage error poisons the session, so it is never reused. */
+  /** Drops every `pi-durable` table and the outbox's run state, and puts the newest batch back in the inbox. */
+  private reset(): void {
+    const sql = this.ctx.storage.sql
+    for (const table of PI_DURABLE_TABLES) sql.exec(`DROP TABLE IF EXISTS ${table}`)
+    sql.exec("DELETE FROM outbox")
+    const newest = sql
+      .exec<{ request_id: string }>("SELECT request_id FROM inbox WHERE submitted = 1 AND request_id IS NOT NULL AND request_id != 'stopped' ORDER BY arrival DESC LIMIT 1")
+      .toArray()[0]
+    if (newest) sql.exec("UPDATE inbox SET submitted = 0, in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ?", newest.request_id)
+    console.error("agent harness reset after repeated unrecoverable failures")
+  }
+
   private async drop(): Promise<void> {
     const opened = this.opened
     this.opened = undefined
