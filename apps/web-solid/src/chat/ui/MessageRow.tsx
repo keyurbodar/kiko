@@ -9,6 +9,7 @@ import { MessageMedia } from "./Media"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { RichText } from "./RichText"
+import { Collapsible } from "../Collapsible"
 import { Bubble, BubbleContent, type BubblePosition } from "./bubble"
 
 function bubblePosition(isRunStart: boolean, isRunEnd: boolean): BubblePosition {
@@ -133,10 +134,12 @@ export function MessageRow(props: {
               class={hasAttachment() ? "px-3 pt-[5px] pb-[7px]" : undefined}
               style={captionStyle()}
             >
-              <RichText
-                text={props.message.body.length > 0 ? props.message.body : undefined}
-                webPage={props.message.media === undefined ? props.message.webPage : undefined}
-              />
+              <Collapsible messageId={props.message.id} side={own() ? "user" : "assistant"}>
+                <RichText
+                  text={props.message.body.length > 0 ? props.message.body : undefined}
+                  webPage={props.message.media === undefined ? props.message.webPage : undefined}
+                />
+              </Collapsible>
             </div>
           </Show>
           <Show when={floatingTime()}>
