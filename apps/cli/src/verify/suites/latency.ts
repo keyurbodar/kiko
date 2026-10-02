@@ -17,7 +17,7 @@ import { ulid } from "./mid-run"
 // restart. Every other number is for reading, not for asserting.
 
 /** The room's burst pause after a message (room/burst.ts AFTER_MESSAGE_MS). Subtracted from the burst step. */
-const BURST_MS = 1_500
+const BURST_MS = 1_000
 const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
 const RESTART = process.env.KIKO_LATENCY_RESTART
 const RESTART_RUNS = Number(process.env.KIKO_LATENCY_RESTART_RUNS ?? 3)

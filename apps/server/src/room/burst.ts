@@ -10,7 +10,7 @@ import type { Alarms } from "../lib/alarm"
 export const BURST_WAKEUP = "burst"
 
 // ASSUMPTION: the three numbers of the table in section 6.1. A per-user reply speed may override them later.
-export const AFTER_MESSAGE_MS = 1_500
+export const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
 export const MAX_BURST_MS = 8_000
 

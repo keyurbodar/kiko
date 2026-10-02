@@ -158,7 +158,7 @@ The debounce window uses the human's typing signal, which the room already recei
 
 | Event | Wakeup is set to |
 | --- | --- |
-| message arrives | now + 1500 ms |
+| message arrives | now + 1000 ms |
 | typing ping arrives while a burst is pending | now + 2500 ms |
 | burst has been pending for 8000 ms | now |
 
@@ -953,7 +953,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 
 | # | Assumption | Section |
 | --- | --- | --- |
-| A1 | debounce is 1500 ms, 2500 ms while typing, 8000 ms cap | 6.1 |
+| A1 | debounce is 1000 ms, 2500 ms while typing, 8000 ms cap (lowered from 1500 ms so a reply starts sooner) | 6.1 |
 | A2 | loop limits are 8 hops, 40 deliveries per root, 8 members, 50 autonomous runs a day | 7.7 |
 | A3 | sign-in is Google and GitHub only | 10 |
 | A4 | subscription sign-in for model providers is off by default | 11.4 |

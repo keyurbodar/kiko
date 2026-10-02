@@ -83,7 +83,7 @@ const posts = (calls: Call[]) => calls.filter((c): c is Extract<Call, { t: "post
 const ended = (calls: Call[]) => calls.some((c) => c.t === "end")
 
 test("the debounce follows the table in section 6.1", () => {
-  expect(debounce("message", 10_000, 10_000)).toBe(11_500)
+  expect(debounce("message", 10_000, 10_000)).toBe(11_000)
   expect(debounce("typing", 12_000, 10_000)).toBe(14_500)
   // Pending for 8 seconds: now, and never later.
   expect(debounce("message", 17_000, 10_000)).toBe(18_000)
