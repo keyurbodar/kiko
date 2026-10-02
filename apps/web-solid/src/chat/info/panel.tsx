@@ -75,15 +75,24 @@ function AgentCard(props: { slug: string; chatId: string }) {
           </div>
         </dl>
       </Card>
-      {/* ASSUMPTION: rename and remove need the team frames of P6-08, so they wait. */}
-      <div class="flex gap-2">
-        <button type="button" class="h-8 rounded-lg bg-btn px-3 text-sm text-text disabled:opacity-40" disabled title="renaming agents arrives with teams">
-          rename
-        </button>
-        <button type="button" class="h-8 rounded-lg bg-btn px-3 text-sm text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] disabled:opacity-40" disabled title="removing agents arrives with teams">
-          remove
-        </button>
-      </div>
+      <Show when={member()}>
+        {(m) => (
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="h-8 rounded-lg bg-btn px-3 text-sm text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] disabled:opacity-40"
+              disabled={roomMembers().length < 2}
+              data-action="remove-agent"
+              onClick={() => {
+                useApp.memberOp({ op: "remove", slug: m().slug })
+                popInfo()
+              }}
+            >
+              remove
+            </button>
+          </div>
+        )}
+      </Show>
     </div>
   )
 }

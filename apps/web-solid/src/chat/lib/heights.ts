@@ -85,6 +85,9 @@ function bubbleTextLines(body: string): number {
 export function estimateRowHeight(item: TimelineItem): number {
   if (item.kind === "day-divider") return Math.ceil(DAY_DIVIDER_PAD_Y + LINE_BOX_CHROME);
   if (item.kind === "unread-divider") return Math.ceil(UNREAD_RULE_PAD_Y + LINE_BOX_CHROME);
+  // A notice is one `py-1` line of 12px text; a thread line is a 28px pill with the run gap above.
+  if (item.kind === "notice") return Math.ceil(8 + LINE_BOX_CHROME);
+  if (item.kind === "thread") return RUN_GAP_PX + 28 + 2;
 
   const { message } = item;
   const attachments =

@@ -9,11 +9,19 @@ export function Quote(props: {
   label: string
   summary: ReplySummary
   side?: "user" | "bot"
+  /** The quoted author's colour in a group: it tints the name, the bar, and the background. */
+  tint?: string
   onOpenReplyTarget: (messageId: string) => void
   class?: string
 }) {
   const tone = (): JSX.CSSProperties =>
-    props.side === "user"
+    props.tint
+      ? {
+          "--quote-bg": `color-mix(in oklch, ${props.tint} 14%, transparent)`,
+          "--quote-bar": props.tint,
+          "--quote-name": props.tint,
+        }
+      : props.side === "user"
       ? {
           "--quote-bg": "var(--out-quote-bg)",
           "--quote-bar": "var(--out-quote-bar)",

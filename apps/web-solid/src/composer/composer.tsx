@@ -184,13 +184,17 @@ export function Composer(props: ComposerProps) {
   const botById = (botId: string | undefined) =>
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
 
+  /*
+   * The `@` list is the open room's members. A mention is the slug, because the slug is what
+   * the room routes by and it never changes; a rename only changes the display name.
+   */
   const context = (): PromptInputV2Suggestion[] =>
     props.bots.map((bot) => ({
       id: `agent-${bot.id}`,
       kind: "agent",
-      label: `@${bot.name}`,
-      description: bot.persona ?? "agent",
-      mention: { type: "agent", name: bot.name, content: `@${bot.name}`, start: 0, end: 0 },
+      label: `@${bot.id}`,
+      description: [bot.name.toLowerCase() === bot.id ? "" : bot.name.toLowerCase(), bot.persona ?? "agent"].filter(Boolean).join(" · "),
+      mention: { type: "agent", name: bot.id, content: `@${bot.id}`, start: 0, end: 0 },
     }))
 
   /*

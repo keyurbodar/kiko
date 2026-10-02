@@ -1,8 +1,9 @@
-import { For, Show, createSignal, type JSX } from "solid-js"
+import { For, Match, Show, Switch, createSignal, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { EmojiText } from "../../lib/emoji"
 import type { WebPagePreview } from "../../lib/types"
 import { richTextSegments } from "../lib/richtext/segments"
+import { Mention } from "./Mention"
 import { SuspiciousLinkDialog } from "./SuspiciousLinkDialog"
 import { WebPageCard } from "./WebPageCard"
 
@@ -23,12 +24,14 @@ export function RichText(props: {
                 <Show
                   when={segment.href}
                   fallback={
-                    <Show
-                      when={segment.kind === "mention" || segment.kind === "hashtag"}
-                      fallback={<EmojiText text={segment.text} />}
-                    >
-                      <span class="font-medium">{segment.text}</span>
-                    </Show>
+                    <Switch fallback={<EmojiText text={segment.text} />}>
+                      <Match when={segment.kind === "mention"}>
+                        <Mention slug={segment.text.slice(1).toLowerCase()} text={segment.text} />
+                      </Match>
+                      <Match when={segment.kind === "hashtag"}>
+                        <span class="font-medium">{segment.text}</span>
+                      </Match>
+                    </Switch>
                   }
                 >
                   {(href) => (

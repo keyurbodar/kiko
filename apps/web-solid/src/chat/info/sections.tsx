@@ -2,8 +2,8 @@ import type { Chat, Member } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, For, type JSX, Show } from "solid-js"
 import { nextAfterClose, openTabs } from "../../app/open-tabs"
-import { session } from "../../app/session"
-import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { ChatAvatar } from "../../lib/IdentityAvatar"
+import { MemberList } from "../members/members"
 import { useApp } from "../../lib/store"
 import { subtitle } from "./format"
 import { pushInfo } from "./state"
@@ -53,23 +53,15 @@ export function Chevron() {
   )
 }
 
-function Crown() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-label="you" data-component="info-crown">
-      <path d="M1 3.5l2.5 2L6 2l2.5 3.5 2.5-2L10 9H2z" />
-    </svg>
-  )
-}
-
 /*
  * ASSUMPTION: until teams (P6) a room stores no member record, and its one agent is `kiko` (the
  * server's DEFAULT_AGENT). The sidebar already falls back to that name, so the panel does too.
  */
 const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "kiko", lead: true }
 
-/** The open room's agents, or the one default agent while the room lists none. */
+/** The open room's agents with pending changes applied, or the one default agent while the room lists none. */
 export function roomMembers(): readonly Member[] {
-  const members = useApp.room()?.state.members ?? []
+  const members = useApp.roomMembers()
   return members.length ? members : [DEFAULT_MEMBER]
 }
 
@@ -89,7 +81,7 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
   }
   return (
     <header class="flex flex-col items-center gap-2 pt-2 pb-1 text-center" data-component="info-header">
-      <IdentityAvatar seed={useApp.chatSeed(props.chatId)} size={96} />
+      <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={96} />
       <Show
         when={editing()}
         fallback={
@@ -128,46 +120,11 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
   )
 }
 
+/** The members card. Its list, with add, rename, and remove, is the group chat's (`chat/members/`). */
 export function Members(props: { members: readonly Member[] }) {
-  const me = () => {
-    const s = session()
-    return s.status === "signed-in" ? s.user : null
-  }
   return (
     <Card id="members" title="members">
-      <ul class="flex flex-col" data-component="info-members">
-        <li>
-          <div class={rowButton} data-member="human">
-            <IdentityAvatar seed={me()?.id ?? "you"} size={32} />
-            <span class="min-w-0 flex-1 truncate">{(me()?.name ?? "you").toLowerCase()}</span>
-            <span class="text-weak">
-              <Crown />
-            </span>
-          </div>
-        </li>
-        <For each={props.members}>
-          {(m) => (
-            <li>
-              <button type="button" class={rowButton} data-member={m.slug} onClick={() => pushInfo({ kind: "agent", slug: m.slug })}>
-                <IdentityAvatar seed={m.slug} size={32} />
-                <span class="min-w-0 flex-1 truncate">{m.name}</span>
-                <span class="text-xs text-weak">{m.lead ? "lead" : "agent"}</span>
-              </button>
-            </li>
-          )}
-        </For>
-      </ul>
-      {/* ASSUMPTION: the room has no add-agent frame until teams (P6-08), so the button waits. */}
-      <button
-        type="button"
-        class={`${rowButton} text-weak disabled:opacity-50`}
-        data-action="add-agent"
-        disabled
-        title="agents can be added once teams land"
-      >
-        <span class="grid size-8 place-items-center rounded-full bg-btn text-base">+</span>
-        add
-      </button>
+      <MemberList members={props.members} onOpen={(slug) => pushInfo({ kind: "agent", slug })} />
     </Card>
   )
 }

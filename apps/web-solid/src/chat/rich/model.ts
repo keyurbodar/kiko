@@ -6,6 +6,7 @@ import type { Block, ColumnAlign, Inline, RichText } from "@kiko/protocol"
 export type RichNode =
   | { kind: "text"; text: string }
   | { kind: "code"; lang?: string; text: string }
+  | { kind: "mention"; slug: string }
   | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[] }
 
 const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {}): RichNode => ({
@@ -23,7 +24,8 @@ export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(hr
 export function inline(node: Inline): RichNode {
   switch (node.t) {
     case "text":
-      return text(node.text)
+      // The parser spells a hard break as a lone newline. Soft breaks stay inside text and fold to a space.
+      return node.text === "\n" ? el("br", []) : text(node.text)
     case "bold":
       return el("strong", node.children.map(inline))
     case "italic":
@@ -33,7 +35,7 @@ export function inline(node: Inline): RichNode {
     case "code":
       return el("code", [text(node.text)], { class: "rich-inline-code" })
     case "mention":
-      return el("span", [text(`@${node.slug}`)], { class: "rich-mention" })
+      return { kind: "mention", slug: node.slug }
     case "link":
       if (!safeHref(node.href)) return el("span", node.children.map(inline))
       return el("a", node.children.map(inline), {
