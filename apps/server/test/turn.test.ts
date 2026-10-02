@@ -20,7 +20,7 @@ beforeAll(async () => {
   })
   if (!built.success) throw new Error(built.logs.join("\n"))
   // The same pi-ai dynamic import workaround as `agent-host.test.ts`.
-  const dynamic = /import\(__rewriteRelativeImportExtension\d*\(specifier\)\)/g
+  const dynamic = /import\(__rewriteRelativeImportExtension\d*\(\w+\)\)/g
   const script = await built.outputs[0]!.text()
   if (!dynamic.test(script)) throw new Error("the pi-ai dynamic import moved; update this test")
   mf = new Miniflare({

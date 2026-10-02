@@ -192,6 +192,9 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			removeWhere(data.files, (x) => x.name === e.file.name && x.id !== e.file.id)
 			upsert(data.files, e.file, (x) => x.id === e.file.id)
 			return { meta: true }
+		case "no_provider":
+			// The connect card that renders it is P4-06. Until then only the sequence moves.
+			return {}
 	}
 }
 

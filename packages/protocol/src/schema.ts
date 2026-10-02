@@ -168,6 +168,7 @@ export const RoomEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("task_removed"), id: Id }),
 	Schema.Struct({ ...stored, t: Schema.Literal("approval"), approval: Approval }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
+	Schema.Struct({ ...stored, t: Schema.Literal("no_provider"), slug: AgentSlug, provider: Schema.String }),
 ])
 
 export const RoomSnapshot = Schema.Struct({

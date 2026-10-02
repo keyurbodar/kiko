@@ -1,6 +1,6 @@
 import type { Message, RoomToClient, UserToClient } from "@kiko/protocol"
 import type { RoomHandle, UserChannel } from "../client"
-import { expectEqual, VerifyError } from "../client"
+import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 // P1-11, architecture sections 6.1, 6.3, and 7.3. Three human messages 400 ms apart are one
@@ -93,6 +93,7 @@ const suite: Suite = {
   model: true,
   async run(v) {
     const s = await v.as("turn")
+    await connectTestModel(s)
     const roomId = ulid()
     const user = await s.user()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "turn check" } })

@@ -18,7 +18,7 @@ beforeAll(async () => {
   if (!built.success) throw new Error(built.logs.join("\n"))
   // pi-ai loads Node modules with computed `import()` calls that Miniflare refuses. The faux model
   // never reaches them. The same workaround as `coalescing-storage.test.ts`, for each copy the bundle has.
-  const dynamic = /import\(__rewriteRelativeImportExtension\d*\(specifier\)\)/g
+  const dynamic = /import\(__rewriteRelativeImportExtension\d*\(\w+\)\)/g
   const script = await built.outputs[0]!.text()
   if (!dynamic.test(script)) throw new Error("the pi-ai dynamic import moved; update this test")
   mf = new Miniflare({

@@ -2,13 +2,14 @@
 // AgentDO and recovers it after the process dies. Delete it once AgentDO has its real host.
 
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import { createModels } from "@earendil-works/pi-ai/models"
-import { opencodeGoProvider } from "@earendil-works/pi-ai/providers/opencode-go"
 import { AssistantEntry, createRegistry, Harness, LiveDoc, ROOT_CONVERSATION_ID } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
+import { userModels } from "../agent/factory"
 import { openDurableObjectSqlite } from "../agent/sqlite"
+import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { createAlarms } from "../lib/alarm"
+import { userStub } from "../lib/names"
 import { countRows, type RowCounts } from "./count-rows"
 
 const context = BACKGROUND_CONTEXT
@@ -16,6 +17,8 @@ const MODEL = { provider: "opencode-go", modelId: "deepseek-v4.1-flash" }
 const PROMPT = "write the numbers from one to three hundred in english words, comma separated, nothing else."
 const HEARTBEAT = "experiment-heartbeat"
 const HEARTBEAT_MS = 5_000
+/** The user whose credential the experiment's model calls use. */
+const USER_KEY = "experiment:user"
 
 type AssistantMessage = { content?: { type: string; text?: string }[]; stopReason?: string }
 const text = (message: AssistantMessage | undefined) =>
@@ -23,6 +26,9 @@ const text = (message: AssistantMessage | undefined) =>
 
 /** The Worker side: one fixed Durable Object, named here and nowhere else. */
 export async function experimentTurnRoute(request: Request, env: Env): Promise<Response> {
+  // The model call uses the signed-in user's own `opencode-go` credential (P4-02).
+  const user = await getSessionUser(request, env)
+  if (!user) return new Response("sign in first", { status: 401 })
   // `?name=` picks a fresh object, so a measurement run starts from an empty database.
   const name = new URL(request.url).searchParams.get("name")
   const stub = env.AGENT.get(env.AGENT.idFromName(name ? `experiment:turn:${name}` : "experiment:turn"))
@@ -30,7 +36,7 @@ export async function experimentTurnRoute(request: Request, env: Env): Promise<R
   if (request.method !== "POST") return new Response("method not allowed", { status: 405 })
   const requestId = new URL(request.url).searchParams.get("id") ?? "turn-1"
   // `?heartbeat=0` skips the heartbeat alarm, so a measurement can leave it out.
-  return Response.json(await stub.experimentTurn(requestId, new URL(request.url).searchParams.get("heartbeat") !== "0"))
+  return Response.json(await stub.experimentTurn(requestId, new URL(request.url).searchParams.get("heartbeat") !== "0", user.id))
 }
 
 /** The Durable Object side. AgentDO owns one instance and forwards to it. */
@@ -50,21 +56,15 @@ export class TurnExperiment {
   private open() {
     this.harness ??= (async () => {
       const started = performance.now()
-      const models = createModels({
-        // The key comes from the Worker's env, not process.env, and never leaves this object.
-        authContext: {
-          env: async (name) => (name === "OPENCODE_API_KEY" ? this.env.OPENCODE_API_KEY || undefined : undefined),
-          fileExists: async () => false,
-        },
-      })
-      models.setProvider(opencodeGoProvider())
+      // The auth comes from the user who asked for the turn, through `UserDO.turnContext`, and stays in memory.
+      // WORKAROUND inside: OpenCode Go rejects a request without `x-opencode-session` (400 MissingSessionID).
+      const { models, settings } = userModels(async (provider) => {
+        const userId = await this.ctx.storage.get<string>(USER_KEY)
+        return userId ? ((await userStub(this.env.USER, userId).turnContext(provider)).auth ?? undefined) : undefined
+      }, this.ctx.id.toString())
       // Experiment 2: count rows behind a debug flag.
       this.counter = (this.env as { KIKO_DEBUG_ROWS?: string }).KIKO_DEBUG_ROWS === "1" ? countRows(this.ctx.storage) : undefined
       const storage = await SqliteStorage.open(openDurableObjectSqlite(this.counter?.storage ?? this.ctx.storage))
-      // WORKAROUND: OpenCode Go rejects a request without `x-opencode-session` (400 MissingSessionID).
-      // pi-ai adds it only from a `sessionId` stream option, which pi-durable never passes. The
-      // settings' stream headers are the extension point that reaches the request.
-      const settings = { stream: { headers: { "x-opencode-session": this.ctx.id.toString() } } }
       const harness = await Harness.open(storage, { models, registry: createRegistry(), settings }, context)
       return { harness, openMs: Math.round(performance.now() - started) }
     })()
@@ -76,8 +76,9 @@ export class TurnExperiment {
     await this.ctx.storage.put("experiment:events", events)
   }
 
-  async turn(requestId: string, heartbeat = true) {
+  async turn(requestId: string, heartbeat: boolean, userId: string) {
     const wallStarted = performance.now()
+    await this.ctx.storage.put(USER_KEY, userId)
     const { harness, openMs } = await this.open()
     const afterOpen = this.counter?.snapshot()
     await this.log(`request ${requestId} (open ${openMs} ms)`)
