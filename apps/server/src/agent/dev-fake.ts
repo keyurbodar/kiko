@@ -14,6 +14,8 @@ import type { AgentSetup } from "./host"
 //   [slow]      the answer is one long paragraph, about six seconds with no bubble
 //   [two-part]  a short first bubble, then a long second paragraph, about six seconds
 //   [tool]      the model calls `slow_tool` first, which sleeps SLOW_TOOL_MS
+//   [reply] x   the answer is exactly `x`, such as `[react:👍]` (P6-07)
+//   [brief]     the answer is the reaction lines of the room's brief, or `brief: none` (P6-07)
 //
 // Every answer is `heard: <the user turns since the last answer, joined by " | ">`, plus
 // `; tool: <result>` when a tool ran since then. The text shows which turns one run answered.
@@ -49,6 +51,14 @@ export function fakeReply(transcript: readonly Message[]) {
   }
   const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}`
   const newest = last?.role === "user" ? textOf(last) : ""
+  const scripted = /^\[reply\]\s*([\s\S]*)$/.exec(newest)
+  if (scripted) return fauxAssistantMessage(scripted[1]!)
+  if (newest.includes("[brief]")) {
+    // The reaction lines of the room's brief (section 7.4), which `textOf` strips.
+    const raw = typeof last?.content === "string" ? last.content : (last?.content ?? []).map((p) => p.text ?? "").join("")
+    const lines = raw.split("\n").filter((l) => l.startsWith("- ") && l.includes(" reacted "))
+    return fauxAssistantMessage(lines.length ? `brief: ${lines.map((l) => l.slice(2)).join(" | ")}` : "brief: none")
+  }
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
   if (newest.includes("[two-part]")) return fauxAssistantMessage(`part one.\n\n${LONG} ${heard}`)
   return fauxAssistantMessage(heard)

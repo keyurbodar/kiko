@@ -90,6 +90,7 @@ export class AgentDO extends DurableObject<Env> {
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
       status: (state) => room().setStatus(home.slug, state),
       endRun: (runId) => room().endRun(home.slug, runId),
+      react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
     }
   }
 

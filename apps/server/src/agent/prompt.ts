@@ -26,7 +26,7 @@ const KIKO_RULES = [
 
 /** Architecture section 6.5: the tag is documented in one line. `split-bubbles.ts` parses it. */
 const REACTION_LINE =
-  "to react with an emoji, write [react:<emoji>] on its own line, or [react:<emoji>:<messageId>] for an older message. a reaction alone is a full answer."
+  "when a message needs no real answer (ok, thanks, lol, got it), react like a person would: reply with just [react:👍] (or ❤️ 😂 🙏 🔥 👀 🎉), or one tiny bubble; [react:<emoji>:<messageId>] targets an older message."
 
 function roleText({ role, lead }: RoleInput): string {
   const job = role.trim() || "a helpful assistant"
