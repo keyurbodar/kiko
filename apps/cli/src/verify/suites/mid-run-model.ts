@@ -1,5 +1,5 @@
 import type { RoomToClient } from "@kiko/protocol"
-import { expectEqual, VerifyError } from "../client"
+import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { newRoom, seen, send, until } from "./mid-run"
 
@@ -12,6 +12,7 @@ const suite: Suite = {
   model: true,
   async run(v) {
     const s = await v.as("mid-run-model")
+    await connectTestModel(s)
     const { room } = await newRoom(s, "mid-run model check")
     await send(room, "count from 1 to 300, one number per paragraph, separated by blank lines. nothing else.")
     await until("the first bubble", () => seen(room).live.length > 0, 60_000)

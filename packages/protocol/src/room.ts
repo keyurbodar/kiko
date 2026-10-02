@@ -132,6 +132,8 @@ export type RoomEvent =
 	/** An approval card was posted or changed state. */
 	| (Stored & { t: "approval"; approval: Approval })
 	| (Stored & { t: "file"; file: FileRef })
+	/** Architecture section 11.3. The agent started no run: the user has no credential for `provider`. */
+	| (Stored & { t: "no_provider"; slug: AgentSlug; provider: string })
 
 /** The room's current state. It replaces everything the client holds for the room. */
 export type RoomSnapshot = {

@@ -15,6 +15,7 @@ import { createMemory, type MemoryStore } from "./memory"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
+import { resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 
@@ -149,6 +150,17 @@ export class UserDO extends DurableObject<Env> {
 
   async listProviders(): Promise<ProviderInfo[]> {
     return this.#credentials.listProviders()
+  }
+
+  /**
+   * Architecture section 11.3. Only an `AgentDO` of this user calls it, once at the start of a run.
+   * The answer holds the request auth, so the Worker's HTTP layer never calls it.
+   */
+  async turnContext(provider: string): Promise<TurnContext> {
+    const setting = (key: string) =>
+      this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
+    const limits = setting("limits")
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null })
   }
 
   // pi-ai's `CredentialStore` for this user. A `#` member, so RPC can never reach it.

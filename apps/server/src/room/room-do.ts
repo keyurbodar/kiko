@@ -314,6 +314,22 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
+	/**
+	 * RPC for an agent (section 11.3). The agent's run could not start because the user has no
+	 * credential for `provider`. Stores one `no_provider` event per agent and input, so a repeated
+	 * call after a crash stores nothing. The human's messages stay in the log for a resend.
+	 */
+	async noProvider(slug: AgentSlug, provider: string, requestId: string): Promise<boolean> {
+		const key = `no_provider:${slug}:${requestId}`
+		const event = this.ctx.storage.transactionSync(() => {
+			if (this.log.meta(key) !== null) return null
+			this.log.setMeta(key, "1")
+			return this.log.append(`agent:${slug}`, { t: "no_provider", slug, provider })
+		})
+		if (event) this.publish([event])
+		return event !== null
+	}
+
 	/** RPC for an agent. A growing block past the draft threshold. Sent, never stored. */
 	async draft(slug: AgentSlug, runId: string, index: number, text: string): Promise<void> {
 		this.broadcast({ t: "draft", slug, runId, index, text })

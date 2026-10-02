@@ -32,7 +32,6 @@ export interface Env {
   PREVIEWS: KVNamespace
   JOBS: Queue
   ASSETS: Fetcher
-  OPENCODE_API_KEY: string
   CREDENTIALS_KEK: string
   CREDENTIALS_KEK_VERSION?: string
   CREDENTIALS_KEK_PREVIOUS?: string

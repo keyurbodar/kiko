@@ -190,6 +190,23 @@ export interface Session {
   user(): Promise<UserChannel>
   /** Opens the socket for one room, `/api/ws/room/:id`. */
   room(roomId: string): Promise<RoomHandle>
+  /** Saves an API key for `provider` through `PUT /api/credentials/<provider>`, like any user. */
+  connectProvider(provider: string, apiKey: string): Promise<void>
+  /** `DELETE /api/credentials/<provider>`. */
+  disconnectProvider(provider: string): Promise<void>
+}
+
+/** The test provider of architecture section 11.6. */
+export const TEST_PROVIDER = "opencode-go"
+
+/**
+ * Connects the test provider for `s` with `OPENCODE_API_KEY` from the CLI's environment. A suite
+ * that calls the model runs this first: the server holds no key of its own (P4-02).
+ */
+export async function connectTestModel(s: Session): Promise<void> {
+  const key = process.env.OPENCODE_API_KEY
+  if (!key) throw new VerifyError("OPENCODE_API_KEY is not set in this shell. source the dev vars first")
+  await s.connectProvider(TEST_PROVIDER, key)
 }
 
 export interface Verifier {
@@ -226,6 +243,16 @@ export async function devSession(url: string, name: string): Promise<{ cookie: s
 
 export function createVerifier(url: string, options: { fake?: boolean } = {}): Verifier {
   const open: { close(): void }[] = []
+  /** The answer is only the provider row; the key is never echoed or printed. */
+  async function credentials(cookie: string, method: "PUT" | "DELETE", provider: string, body?: unknown): Promise<void> {
+    const res = await fetch(new URL(`api/credentials/${provider}`, withSlash(url)), {
+      method,
+      headers: body === undefined ? { cookie } : { cookie, "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) throw new VerifyError(`${method} api/credentials/${provider} answered ${res.status}`)
+  }
   const wsUrl = (path: string) => {
     const u = new URL(path, withSlash(url))
     u.protocol = u.protocol === "https:" ? "wss:" : "ws:"
@@ -271,6 +298,12 @@ export function createVerifier(url: string, options: { fake?: boolean } = {}): V
             expectNone: raw.expectNone.bind(raw),
             reconnect: () => raw.reconnect(),
           }
+        },
+        async connectProvider(provider, apiKey) {
+          await credentials(cookie, "PUT", provider, { apiKey })
+        },
+        async disconnectProvider(provider) {
+          await credentials(cookie, "DELETE", provider)
         },
       }
     },

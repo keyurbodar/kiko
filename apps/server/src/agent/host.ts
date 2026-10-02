@@ -35,6 +35,12 @@ export type AgentSetup = {
   /** Applied when the root conversation is created. */
   agent: AgentChange
   settings?: HarnessSettings
+  /**
+   * Called once before a batch starts a new run (architecture section 11.3), never for a batch that
+   * joins a live run. It loads the run's credentials. False means the run may not start: the batch is
+   * dropped and nothing is submitted. Absent means every run may start.
+   */
+  beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
 }
 
 export type HostOptions = {
@@ -47,7 +53,7 @@ export type HostOptions = {
   progress?: () => RunProgress | null
 }
 
-export type Opened = { harness: Harness; root: Conversation; storage: CoalescingStorage }
+export type Opened = { harness: Harness; root: Conversation; storage: CoalescingStorage; beginRun?: AgentSetup["beginRun"] }
 
 export type HostStatus = {
   open: boolean
@@ -133,7 +139,7 @@ export class AgentHost {
       const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
       const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings }, context)
       const root = await harness.root(context, { agent: setup.agent })
-      const opened = { harness, root, storage }
+      const opened = { harness, root, storage, beginRun: setup.beginRun }
       await this.options.onOpen?.(opened)
       harness.resume()
       return opened
@@ -167,7 +173,7 @@ export class AgentHost {
    * round, and a queue waits for its answer. A batch claimed before a crash is submitted again with
    * the same request id, which `pi-durable` ignores.
    */
-  private async drain({ harness, root }: Opened): Promise<void> {
+  private async drain({ harness, root, beginRun }: Opened): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       // Withdraws every queued input and aborts the run's tasks, then waits until the conversation is idle.
       await root.abort(context)
@@ -175,6 +181,11 @@ export class AgentHost {
     }
     for (const batch of await this.inbox.claim()) {
       const run = await this.runState(harness, root)
+      // A batch for an idle conversation starts a run. Without credentials it starts nothing.
+      if (!run && beginRun && !(await beginRun(batch, root))) {
+        this.inbox.submitted(batch.requestId)
+        continue
+      }
       const action = decide(run, arrivalOf(batch))
       // The restart count belongs to the run chain. A submit to an idle conversation starts a new one.
       let restarts = run?.restarts ?? 0

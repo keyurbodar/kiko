@@ -1,4 +1,5 @@
 import { CliError, type Context } from "../main"
+import { sessionCookie } from "./login"
 
 // kiko measure turn --runs N [--tail <file>]
 // Runs the experiment turn route on a fresh Durable Object per run and prints what each turn cost.
@@ -56,9 +57,12 @@ export async function measure(ctx: Context): Promise<void> {
   const batch = Date.now().toString(36)
   const rows: Record<string, number | string>[] = []
   const objectIds: Record<string, string> = {}
+  // The turn uses the signed-in user's own `opencode-go` credential. Run `kiko login` and connect it first.
+  const cookie = await sessionCookie(ctx.url)
+  if (!cookie) throw new CliError("not signed in. run kiko login first")
   for (let i = 1; i <= runs; i++) {
     const name = `${batch}-${i}`
-    const res = await fetch(new URL(`api/experiments/turn?name=${name}&id=${name}${process.env.KIKO_MEASURE_HEARTBEAT === "0" ? "&heartbeat=0" : ""}`, base), { method: "POST", signal: AbortSignal.timeout(120_000) })
+    const res = await fetch(new URL(`api/experiments/turn?name=${name}&id=${name}${process.env.KIKO_MEASURE_HEARTBEAT === "0" ? "&heartbeat=0" : ""}`, base), { method: "POST", headers: { cookie }, signal: AbortSignal.timeout(120_000) })
     if (!res.ok) throw new CliError(`run ${i} failed: ${res.status}`)
     const reply = (await res.json()) as TurnReply
     if (reply.status !== "done") throw new CliError(`run ${i} did not answer: ${reply.status}`)

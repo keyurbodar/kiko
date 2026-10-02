@@ -1,13 +1,17 @@
 import { DurableObject } from "cloudflare:workers"
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
+import type { AuthResult } from "@earendil-works/pi-ai"
+import type { Conversation, ModelRef } from "@earendil-works/pi-durable"
 import type { Envelope } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
-import { roomStub } from "../lib/names"
+import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
+import { findProvider } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
 import { roomFilesPort } from "./extensions/files"
-import { buildAgent, DEV_MODEL, devModels } from "./factory"
+import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { AgentHost, type AgentSetup, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
 
@@ -15,6 +19,9 @@ declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
+/** The model chosen for this agent in this room, and the one last applied to its conversation. */
+const MODEL_KEY = "model"
+const MODEL_APPLIED_KEY = "model:applied"
 
 /** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
 export class AgentDO extends DurableObject<Env> {
@@ -114,19 +121,70 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /**
-   * The factory builds every agent. DEV ONLY: the model and key come from the Worker's env until
-   * per-user credentials (P4-02) land; the key never leaves this object. The role and lead flag are
-   * the member row at the latest delivery. ASSUMPTION: they are read when the harness opens, so a
-   * change reaches the prompt when the root conversation is created, not later.
+   * The factory builds every agent. Every model request uses the user's own credential, which
+   * `beginRun` loads once per run (architecture section 11.3). The role and lead flag are the member
+   * row at the latest delivery. ASSUMPTION: they are read when the harness opens, so a change
+   * reaches the prompt when the root conversation is created, not later.
    */
   protected async setup(): Promise<AgentSetup> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role)
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
-    const dev = devModels(this.env.OPENCODE_API_KEY, this.ctx.id.toString())
-    const files = roomFilesPort(this.env, () => this.home(), dev.models)
-    return { ...buildAgent({ ...role, model: DEV_MODEL, files }), ...dev }
+    const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
+    const files = roomFilesPort(this.env, () => this.home(), user.models)
+    return {
+      ...buildAgent({ ...role, model: await this.model(), files }),
+      ...user,
+      beginRun: (batch, root) => this.beginRun(batch.requestId, root),
+    }
+  }
+
+  // Per-run credentials (P4-02). The auth lives in this process's memory only, never in storage.
+  #run: { provider: string; auth: AuthResult | null } | null = null
+
+  /** Before a run: applies a newly chosen model, then loads the user's auth for its provider. */
+  private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
+    const home = this.home()
+    if (!home) return false
+    const chosen = await this.ctx.storage.get<ModelRef>(MODEL_KEY)
+    if (chosen && JSON.stringify(chosen) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
+      await root.configure({ model: chosen }, BACKGROUND_CONTEXT)
+      await this.ctx.storage.put(MODEL_APPLIED_KEY, chosen)
+    }
+    const model = chosen ?? DEFAULT_MODEL
+    const auth = await this.loadAuth(model.provider)
+    if (auth) return true
+    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId)
+    return false
+  }
+
+  /** The auth `Models` asks for on each request. A run resumed after an eviction loads it again. */
+  private async runAuth(provider: string): Promise<AuthResult | undefined> {
+    if (this.#run?.provider === provider) return this.#run.auth ?? undefined
+    return (await this.loadAuth(provider)) ?? undefined
+  }
+
+  private async loadAuth(provider: string): Promise<AuthResult | null> {
+    const home = this.home()
+    const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider) : null
+    this.#run = { provider, auth: context?.auth ?? null }
+    return this.#run.auth
+  }
+
+  /** The model this agent in this room uses. A chosen model, or the default. */
+  async model(): Promise<ModelRef> {
+    return (await this.ctx.storage.get<ModelRef>(MODEL_KEY)) ?? DEFAULT_MODEL
+  }
+
+  /**
+   * Chooses this agent's model in this room. It applies from the next run. Returns false for a model
+   * pi-ai's catalog does not have; kiko keeps no model list of its own.
+   */
+  async setModel(model: ModelRef): Promise<boolean> {
+    if (!findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return false
+    await this.ctx.storage.put(MODEL_KEY, { provider: model.provider, modelId: model.modelId })
+    return true
   }
 
   async alarm() {
@@ -137,8 +195,8 @@ export class AgentDO extends DurableObject<Env> {
     await this.host.alarm()
   }
 
-  experimentTurn(requestId: string, heartbeat = true) {
-    return this.experiment.turn(requestId, heartbeat)
+  experimentTurn(requestId: string, heartbeat: boolean, userId: string) {
+    return this.experiment.turn(requestId, heartbeat, userId)
   }
 
   experimentStatus() {

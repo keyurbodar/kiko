@@ -1,5 +1,5 @@
 import type { RoomHandle, Session } from "../client"
-import { expectEqual, VerifyError } from "../client"
+import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { newRoom, seen, send, statuses, until } from "./mid-run"
 
@@ -36,6 +36,7 @@ const suite: Suite = {
   model: true,
   async run(v) {
     const s = await v.as("subagent")
+    await connectTestModel(s)
     const { roomId, room } = await newRoom(s, "subagent")
     const step = (what: string) => console.log(`  ok ${what}`)
     try {
