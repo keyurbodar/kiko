@@ -1,5 +1,6 @@
 import { useLocation } from "@solidjs/router"
 import { Show } from "solid-js"
+import { GroupHeader } from "../chat/members/count"
 import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
@@ -54,6 +55,7 @@ export function TopBar() {
         }
       >
         <TabStrip />
+        <GroupHeader chatId={chatId()} />
         <ModelPickerButton chatId={chatId()} />
       </Show>
     </header>

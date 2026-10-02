@@ -489,6 +489,15 @@
   height: 100%;
 }
 
+/* A group's stacked faces overlap past the circle, so its box neither clips nor stretches them. */
+.sidebar-shell [data-component="chat-avatar-stack"] {
+  overflow: visible;
+  border-radius: 0;
+}
+.sidebar-shell [data-component="chat-avatar-stack"] > * {
+  display: block;
+}
+
 .sidebar-shell .chat-title-line {
   display: flex;
   min-width: 0;

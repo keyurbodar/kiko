@@ -1,20 +1,28 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { ACCENTS, chatSeed, identityLook } from "./identity"
+import { ramp, traits } from "blobatar"
+import { chatFaces, chatSeed, identityLook } from "./identity"
 
 describe("identity look", () => {
   test("the same seed gives the same look", () => {
     expect(identityLook("ada")).toEqual(identityLook("ada"))
   })
 
-  test("the accent is always from the fixed palette", () => {
-    for (const seed of ["a", "b", "01J0ROOM", "ada", ""]) expect(ACCENTS).toContain(identityLook(seed).accent)
+  test("the colour is the blob's own head colour, lifted to read on the dark palette", () => {
+    for (const seed of ["kiko", "piko", "ada", "01J0ROOM"]) {
+      const t = traits(seed, true)
+      const head = ramp(t.num("hue", 0, 360), true, t("tone")).head!
+      const [, l, c, h] = /oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/.exec(identityLook(seed).color)!.map(Number)
+      expect(h).toBeCloseTo(head.h, 0)
+      expect(c).toBeCloseTo(head.c, 2)
+      expect(l).toBeGreaterThanOrEqual(0.72)
+    }
   })
 
-  test("different seeds spread over the palette", () => {
-    const used = new Set(Array.from({ length: 60 }, (_, i) => identityLook(`room-${i}`).accent))
-    expect(used.size).toBeGreaterThanOrEqual(4)
+  test("different seeds spread over the hue circle", () => {
+    const hues = new Set(Array.from({ length: 60 }, (_, i) => Math.round(Number(/ ([\d.]+)\)$/.exec(identityLook(`room-${i}`).color)![1]) / 60)))
+    expect(hues.size).toBeGreaterThanOrEqual(4)
   })
 })
 
@@ -35,9 +43,9 @@ describe("render sites", () => {
     expect(users).toEqual(["lib/IdentityAvatar.tsx"])
   })
 
-  test("every chat render site uses IdentityAvatar", () => {
+  test("every chat render site draws a group's stacked faces", () => {
     for (const site of ["sidebar/chat-panel.tsx", "app/tab-strip.tsx", "chat/ui/EmptyState.tsx", "palette/palette.tsx"]) {
-      expect(files.find((f) => f.path.endsWith(site))?.text).toContain("IdentityAvatar")
+      expect(files.find((f) => f.path.endsWith(site))?.text).toContain("<ChatAvatar faces={useApp.chatFaces(")
     }
   })
 
@@ -57,4 +65,21 @@ describe("chatSeed", () => {
     ["a group has a face of its own", { roomId: "r3", agents: ["a1", "a2"] }, "r3"],
     ["an agent the list does not know yet falls back to its id", { roomId: "r4", agents: ["zz"] }, "zz"],
   ])("%s", (_name, chat, want) => expect(chatSeed(chat, agents)).toBe(want))
+})
+
+describe("chatFaces", () => {
+  const agents = [
+    { id: "a1", slug: "ada" },
+    { id: "a2", slug: "bo" },
+  ]
+  test.each([
+    ["one agent wears its own face", { roomId: "r1", agents: ["a1"] }, undefined, ["ada"]],
+    ["a chat made without a pick is the default agent", { roomId: "r2" }, undefined, ["kiko"]],
+    ["a group stacks its members, the built-in agent by its slug", { roomId: "r3", agents: ["kiko", "a1", "a2"] }, undefined, ["kiko", "ada", "bo"]],
+    ["a group shows at most three", { roomId: "r4", agents: ["kiko", "a1", "a2", "zz"] }, undefined, ["kiko", "ada", "bo"]],
+    ["the open room's live members win", { roomId: "r5", agents: ["a1", "a2"] }, ["bo", "cy"], ["bo", "cy"]],
+    ["a group that lost all but one wears that one's face", { roomId: "r6", agents: ["a1", "a2"] }, ["bo"], ["bo"]],
+  ] as const)("%s", (_name, chat, members, want) =>
+    expect(chatFaces(chat, agents, members as readonly string[] | undefined)).toEqual([...want]),
+  )
 })

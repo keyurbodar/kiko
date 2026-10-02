@@ -37,6 +37,7 @@ function heightOf(message: ChatMessage, hasRunGapBefore = true): number {
     kind: "message",
     key: `msg:${message.id}`,
     message,
+    runKey: message.id,
     runIndex: 0,
     runSize: 1,
     isRunStart: hasRunGapBefore,

@@ -89,6 +89,10 @@ export default function ChatRoute() {
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
   const messages = createMemo(() => useApp.activeMessages());
+  /* "kiko joined", "piko left": one muted line each, placed by the room's sequence. */
+  const notices = createMemo(() =>
+    useApp.memberNotices().map((n) => ({ key: `${n.seq}`, seq: n.seq, at: n.at, text: `${n.name.toLowerCase()} ${n.kind}` })),
+  );
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
   );
@@ -149,6 +153,8 @@ export default function ChatRoute() {
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
             groupChat={members().size > 1}
+            memberSlugs={[...members().keys()]}
+            notices={notices()}
             onReact={useApp.toggleReaction}
             replyTarget={replyTarget()}
             scrollKey={useApp.activeThreadId() ?? undefined}

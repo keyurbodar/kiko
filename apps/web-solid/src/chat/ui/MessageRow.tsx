@@ -11,7 +11,8 @@ import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { RichText } from "./RichText"
 import { Collapsible } from "../Collapsible"
-import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { identityLook } from "../../lib/identity"
+import { RunAvatar } from "./RunAvatar"
 import { Bubble, BubbleContent, type BubblePosition } from "./bubble"
 
 function bubblePosition(isRunStart: boolean, isRunEnd: boolean): BubblePosition {
@@ -33,15 +34,8 @@ function quoteSender(message: ChatMessage, parentBot: RosterBot | undefined): st
   return parentBot?.name ?? "bot"
 }
 
-/** A stable hue per sender, so a name keeps its colour for the life of the chat. */
-function senderTint(slug: string): string {
-  let hash = 0
-  for (let i = 0; i < slug.length; i++) hash = (hash * 31 + slug.charCodeAt(i)) >>> 0
-  return `oklch(0.78 0.12 ${hash % 360})`
-}
-
-/** Width of the avatar gutter in a group chat: a 28px avatar and an 8px gap. */
-const GROUP_GUTTER = "pl-[calc(1rem+36px)]"
+/** Width of the avatar gutter in a group chat: the 32px run avatar and an 8px gap. */
+const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 export function MessageRow(props: {
   message: ChatMessage
@@ -52,6 +46,8 @@ export function MessageRow(props: {
 
   isRunStart: boolean
   isRunEnd: boolean
+  /** The id of the run's first message. The run avatar measures from that row. */
+  runKey?: string
   hasRunGapBefore: boolean
   /** The room has more than one agent: say who wrote each run. */
   group?: boolean
@@ -102,16 +98,14 @@ export function MessageRow(props: {
       data-message-id={props.message.id}
       data-side={props.message.sender}
       data-run={tailRun(props.isRunStart, props.isRunEnd)}
+      data-run-key={props.runKey}
+      data-run-first={props.isRunStart ? "" : undefined}
       data-gap={props.hasRunGapBefore ? "" : undefined}
       data-replying={props.replying ? "" : undefined}
       onContextMenu={props.onContextMenu}
     >
       <Show when={grouped() && props.isRunEnd}>
-        <IdentityAvatar
-          seed={props.message.botId!}
-          size={28}
-          class="pointer-events-none absolute bottom-(--row-gap) left-4"
-        />
+        <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} />
       </Show>
       <Bubble
         variant={props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
@@ -138,7 +132,7 @@ export function MessageRow(props: {
           <Show when={grouped() && props.isRunStart && !props.jumboClass}>
             <div
               class={cn("truncate text-sm font-medium", hasAttachment() ? "px-3 pt-2" : "pb-0.5")}
-              style={{ color: props.bot?.color ?? senderTint(props.message.botId!) }}
+              style={{ color: identityLook(props.message.botId!).color }}
               data-component="chat-sender"
             >
               {senderName()}
@@ -150,6 +144,7 @@ export function MessageRow(props: {
                 <Quote
                   parent={parent()}
                   label={quoteSender(parent(), props.parentBot)}
+                  tint={props.group && parent().botId !== undefined ? identityLook(parent().botId!).color : undefined}
                   summary={replySummary(parent())}
                   side={props.message.sender}
                   onOpenReplyTarget={props.onOpenReplyTarget}

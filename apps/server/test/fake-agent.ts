@@ -57,6 +57,10 @@ export class FakeUser extends DurableObject {
   async listAgents() {
     return (await this.state()).agents
   }
+  /** The room reads one chat row, not the whole list. */
+  async getChat(roomId: string) {
+    return (await this.state()).chats.find((c) => c.roomId === roomId) ?? null
+  }
 }
 
 type Env = { ROOM: DurableObjectNamespace<RoomDO>; AGENT: DurableObjectNamespace<FakeAgent>; USER: DurableObjectNamespace<FakeUser> }

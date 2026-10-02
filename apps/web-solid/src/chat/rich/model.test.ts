@@ -9,6 +9,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 function html(node: RichNode): string {
   if (node.kind === "text") return esc(node.text)
   if (node.kind === "code") return `<code-block lang="${node.lang ?? ""}">${esc(node.text)}</code-block>`
+  if (node.kind === "mention") return `<mention slug="${node.slug}">`
   const attrs = Object.entries(node.attrs).map(([k, v]) => ` ${k}="${v}"`).join("")
   return `<${node.tag}${attrs}>${node.children.map(html).join("")}</${node.tag}>`
 }
@@ -18,6 +19,7 @@ const p = (text: string): Block => ({ t: "paragraph", children: [t(text)] })
 
 const cases: [string, Block, string][] = [
   ["paragraph", p("hi"), "<p>hi</p>"],
+  ["a hard break is a br and a soft break stays text", { t: "paragraph", children: [t("a\nb"), t("\n"), t("c")] }, "<p>a\nb<br></br>c</p>"],
   ["heading level", { t: "heading", level: 3, children: [t("x")] }, "<h3>x</h3>"],
   [
     "nested inline",
@@ -35,7 +37,7 @@ const cases: [string, Block, string][] = [
     { t: "paragraph", children: [{ t: "link", href: "javascript:alert(1)", children: [t("go")] }] },
     "<p><span>go</span></p>",
   ],
-  ["mention", { t: "paragraph", children: [{ t: "mention", slug: "bob" as never }] }, '<p><span class="rich-mention">@bob</span></p>'],
+  ["mention", { t: "paragraph", children: [{ t: "mention", slug: "bob" as never }] }, '<p><mention slug="bob"></p>'],
   ["unordered list", { t: "list", items: [[p("a")], [p("b")]] }, "<ul><li><p>a</p></li><li><p>b</p></li></ul>"],
   ["ordered list from 1", { t: "list", start: 1, items: [[p("a")]] }, "<ol><li><p>a</p></li></ol>"],
   ["ordered list from 3", { t: "list", start: 3, items: [[p("a")]] }, '<ol start="3"><li><p>a</p></li></ol>'],
@@ -55,13 +57,14 @@ const cases: [string, Block, string][] = [
 ]
 
 describe("rich text tree to DOM", () => {
+
   test.each(cases)("%s", (_name, node, expected) => {
     expect(html(block(node))).toBe(expected)
   })
 
   test("the protocol fixture renders every node type", () => {
     const out = richNodes(richText).map(html).join("")
-    for (const tag of ["<h2>", "<strong>", "<em>", "<s>", "<ol>", "<ul>", "<blockquote>", "<table>", "<code-block", "rich-mention"]) {
+    for (const tag of ["<h2>", "<strong>", "<em>", "<s>", "<ol>", "<ul>", "<blockquote>", "<table>", "<code-block", "<mention"]) {
       expect(out).toContain(tag)
     }
     expect(out).not.toContain("<b>")

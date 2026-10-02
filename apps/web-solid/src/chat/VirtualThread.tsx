@@ -13,7 +13,7 @@ import {
 } from "solid-js"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import type { ChatMessage, RosterBot } from "../lib/types"
-import { buildTimelineItems, dayStartOf, type TimelineItem } from "./lib/grouping"
+import { buildTimelineItems, dayStartOf, type Notice, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dividerLabel } from "./lib/time-label"
@@ -22,6 +22,8 @@ import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
 import { SystemMessage } from "./SystemMessage"
+import { AgentThread } from "./AgentThread"
+import { MentionLookup } from "./ui/Mention"
 import { EmptyState } from "./ui/EmptyState"
 import { SwipeToReply } from "./ui/SwipeToReply"
 import { TypingIndicator } from "./typing/TypingIndicator"
@@ -155,8 +157,12 @@ export function VirtualThread(props: {
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
   waitingSlugs?: readonly string[]
-  /** A chat with more than one agent: the typing bubble shows the agent's avatar. */
+  /** A chat with more than one agent: runs show who wrote them, and agents' asides fold. */
   groupChat?: boolean
+  /** The room's member slugs. In a group, an agent's message to another member folds into a thread. */
+  memberSlugs?: readonly string[]
+  /** Who joined and left, as muted lines placed by `seq`. Only a group passes them. */
+  notices?: readonly Notice[]
   /** The viewer tapped an emoji on a message. Leave it out and reactions do nothing. */
   onReact?: (messageId: string, emoji: string) => void
   /**
@@ -186,8 +192,21 @@ export function VirtualThread(props: {
   let columnElement: HTMLDivElement | undefined
 
   const [handle, setHandle] = createSignal<VirtualizerHandle>()
+  /** The agent threads the reader opened, by key. Closed is the default. */
+  const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
+  const toggleThread = (key: string) =>
+    setExpanded((open) => {
+      const next = new Set(open)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
+  const memberSet = createMemo(() => (props.groupChat ? new Set(props.memberSlugs ?? []) : undefined))
   const items = createMemo<TimelineItem[]>(() =>
-    buildTimelineItems(props.messages, props.firstUnreadMessageId),
+    buildTimelineItems(props.messages, props.firstUnreadMessageId, {
+      notices: props.groupChat ? props.notices : undefined,
+      members: memberSet(),
+      expanded: expanded(),
+    }),
   )
 
   /*
@@ -319,6 +338,9 @@ export function VirtualThread(props: {
   })
 
   const jumpToMessage = (messageId: string) => {
+    // A message inside a folded thread opens the thread first, so there is a row to land on.
+    const fold = items().find((item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId))
+    if (fold) toggleThread(fold.key)
     const index = items().findIndex(
       (item) => item.kind === "message" && item.message.id === messageId,
     )
@@ -734,6 +756,7 @@ export function VirtualThread(props: {
             parentBot={props.botById(props.replyParent(message.replyToId)?.botId)}
             isRunStart={item.isRunStart}
             isRunEnd={item.isRunEnd}
+            runKey={item.runKey}
             hasRunGapBefore={item.hasRunGapBefore}
             group={props.groupChat}
             class={fresh.has(message.id) ? "motion-bubble-in" : undefined}
@@ -772,6 +795,20 @@ export function VirtualThread(props: {
         </SystemMessage>
       )
     }
+    if (item.kind === "notice") {
+      return <SystemMessage data-component="chat-notice">{item.text}</SystemMessage>
+    }
+    if (item.kind === "thread") {
+      return (
+        <AgentThread
+          slugs={item.slugs}
+          names={item.slugs.map((slug) => props.botById(slug)?.name ?? slug)}
+          count={item.messages.length}
+          expanded={item.expanded}
+          onToggle={() => toggleThread(item.key)}
+        />
+      )
+    }
     if (item.kind === "unread-divider") {
       return (
         <SystemMessage
@@ -808,6 +845,7 @@ export function VirtualThread(props: {
             columnElement = element
           }}
         >
+          <MentionLookup.Provider value={(slug) => props.botById(slug)}>
           <Show
             when={hasMessages()}
             fallback={<EmptyState />}
@@ -848,6 +886,7 @@ export function VirtualThread(props: {
               </div>
             </Show>
           </Show>
+          </MentionLookup.Provider>
         </div>
       </div>
 

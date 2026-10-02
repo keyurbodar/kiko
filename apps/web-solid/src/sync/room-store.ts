@@ -26,6 +26,8 @@ import type {
 	CatalogItem,
 	FileRef,
 	Member,
+	MemberOp,
+	MemberRefusal,
 	Message,
 	MessageId,
 	RoomEvent,
@@ -43,6 +45,7 @@ import { addToOutbox, outbox, removeFromOutbox } from "../warm/outbox"
 import {
 	expire,
 	overlayApprovals,
+	overlayMembers,
 	overlayMessages,
 	overlayReadSeq,
 	overlayTasks,
@@ -69,7 +72,14 @@ export type RoomData = {
 	files: FileRef[]
 	/** The newest "no provider" refusal (P4-02), until an agent next speaks. The chat shows a connect notice. */
 	noProvider?: { slug: AgentSlug; provider: string } | null
+	/** Who joined and left, oldest first, for the transcript's system lines. The newest `ROSTER_LIMIT`. */
+	roster: MemberNotice[]
 }
+
+/** One member joining or leaving, as the transcript shows it: "kiko joined". */
+export type MemberNotice = { seq: number; at: number; slug: AgentSlug; name: string; kind: "joined" | "left" }
+
+export const ROSTER_LIMIT = 100
 
 export const emptyRoom = (): RoomData => ({
 	seq: 0,
@@ -79,6 +89,7 @@ export const emptyRoom = (): RoomData => ({
 	tasks: [],
 	approvals: [],
 	files: [],
+	roster: [],
 })
 
 export function fromSnapshot(s: RoomSnapshot): RoomData {
@@ -90,7 +101,14 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 		tasks: [...s.tasks],
 		approvals: [...s.approvals],
 		files: [...s.files],
+		// A snapshot carries members, not their history. `reset` keeps the lines it already had.
+		roster: [],
 	}
+}
+
+function notice(data: RoomData, n: MemberNotice) {
+	data.roster.push(n)
+	if (data.roster.length > ROSTER_LIMIT) data.roster.splice(0, data.roster.length - ROSTER_LIMIT)
 }
 
 /** A `message` event without its frame fields. */
@@ -177,11 +195,17 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			data.readSeq = Math.max(data.readSeq, e.upTo)
 			return { meta: true }
 		case "member":
+			// A change to a current member (a rename, a new lead) is not news. An arrival is.
+			if (!data.members.some((x) => x.slug === e.member.slug))
+				notice(data, { seq: e.seq, at: e.at, slug: e.member.slug, name: e.member.name, kind: "joined" })
 			upsert(data.members, e.member, (x) => x.slug === e.member.slug)
 			return { meta: true }
-		case "member_removed":
+		case "member_removed": {
+			const gone = data.members.find((x) => x.slug === e.slug)
+			if (gone) notice(data, { seq: e.seq, at: e.at, slug: e.slug, name: gone.name, kind: "left" })
 			removeWhere(data.members, (x) => x.slug === e.slug)
 			return { meta: true }
+		}
 		case "task":
 			upsert(data.tasks, e.task, (x) => x.id === e.task.id)
 			return { meta: true }
@@ -258,6 +282,8 @@ export type RoomStore = {
 	messages(): ViewMessage[]
 	tasks(): Task[]
 	approvals(): Approval[]
+	/** The members with every pending add, rename, and remove applied. */
+	members(): Member[]
 	readSeq(): number
 	/** Resolves once the warm tier has painted and the socket has started. */
 	readonly ready: Promise<void>
@@ -275,6 +301,10 @@ export type RoomStore = {
 	resume(): void
 	approve(approvalId: string, action: "accept" | "decline"): void
 	task(op: TaskOp): void
+	/** Adds, renames, or removes an agent. A refusal drops the patch and calls every `onMemberRefused` listener. */
+	member(op: MemberOp): void
+	/** Calls `listener` for each refused member change. Returns the unsubscribe. */
+	onMemberRefused(listener: (op: MemberOp, reason: MemberRefusal) => void): () => void
 	/**
 	 * Asks the room for the links or the media sent in it, newest first. `before` is the `next` of the
 	 * previous page. Resolves to null when the socket is down or the room does not answer.
@@ -332,6 +362,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	let draining = false
 	let waiters: (() => void)[] = []
 	let expiry: ReturnType<typeof setTimeout> | undefined
+	const refusalListeners = new Set<(op: MemberOp, reason: MemberRefusal) => void>()
 
 	// Patches.
 
@@ -379,6 +410,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			tasks: s.tasks,
 			approvals: s.approvals,
 			files: s.files,
+			roster: s.roster,
 		}
 		warm.put("meta", metaKey(roomId), meta)
 	}
@@ -444,6 +476,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	function reset(snapshot: RoomSnapshot) {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
+		data.roster = raw(state.roster).filter((n) => n.seq <= snapshot.seq)
 		batch(() => {
 			setState({ ...data, drafts: {} })
 			dropPatches(settleRoom(state.patches, [], snapshot.seq))
@@ -487,8 +520,12 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			for (const done of waiting ?? []) done({ items: f.items, next: f.next })
 		},
 		draft: (f) => setState("drafts", `${f.runId}:${f.index}`, { slug: f.slug, runId: f.runId, index: f.index, text: f.text }),
-		// The room refused a member change. Its patch expires after PATCH_TTL_MS. The group chat UI (P6-08) may drop it sooner.
-		member_refused: () => {},
+		// The room refused a member change: the patch goes at once, so the list rolls back, and the UI says why.
+		member_refused: (f) => {
+			const refused = (p: RoomPatch) => p.frame.t === "member" && p.frame.op.op === f.op.op && p.frame.op.slug === f.op.slug
+			dropPatches(raw(state.patches).filter((p) => !refused(p)))
+			for (const listener of refusalListeners) listener(f.op, f.reason)
+		},
 	}
 
 	function onFrame(frame: RoomToClient) {
@@ -529,6 +566,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						s.tasks = [...(meta?.tasks ?? [])]
 						s.approvals = [...(meta?.approvals ?? [])]
 						s.files = [...(meta?.files ?? [])]
+						s.roster = [...(meta?.roster ?? [])]
 						s.seq = seq
 					}
 					s.loaded = true
@@ -562,6 +600,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		messages: () => overlayMessages(state.messages, state.patches),
 		tasks: () => overlayTasks(state.tasks, state.patches),
 		approvals: () => overlayApprovals(state.approvals, state.patches),
+		members: () => overlayMembers(state.members, state.patches),
 		readSeq: () => overlayReadSeq(state.readSeq, state.patches),
 		ready,
 		send(text, opts = {}) {
@@ -619,6 +658,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		approve: (approvalId, action) => void act({ t: "approve", approvalId, action }),
 		task: (op) => void act({ t: "task", op }),
+		member: (op) => void act({ t: "member", op }),
+		onMemberRefused(listener) {
+			refusalListeners.add(listener)
+			return () => refusalListeners.delete(listener)
+		},
 		catalog(kind, before, limit) {
 			return new Promise<CatalogPage | null>((resolve) => {
 				const key = askKey(kind, before)

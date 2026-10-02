@@ -9,6 +9,8 @@ import { IconButtonV2 } from "@kiko/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@kiko/ui/v2/keybind-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { identityLook } from "../../lib/identity"
+import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { CommentCardV2 } from "../comment-card-v2"
 import type {
   PromptInputV2Attachment,
@@ -241,7 +243,11 @@ function renderPromptInputV2Editor(editor: HTMLDivElement, prompt: PromptInputV2
       mention.contentEditable = "false"
       mention.dataset.mention =
         part.type === "file" && part.mime === "application/x-directory" ? "reference" : part.type
-      if (part.type === "agent") mention.dataset.name = part.name
+      if (part.type === "agent") {
+        mention.dataset.name = part.name
+        // The agent's own colour, the one its name and chips wear in the transcript.
+        mention.style.color = identityLook(part.name).color
+      }
       if (part.type === "file") {
         mention.dataset.path = part.path
         if (part.mime) mention.dataset.mime = part.mime
@@ -748,7 +754,9 @@ export function PromptInputV2SubmitButton(props: {
 }
 
 function PromptInputV2SuggestionIcon(props: { item: PromptInputV2Suggestion }) {
-  if (props.item.kind === "agent") return <Icon name="brain" size="small" class="shrink-0 text-weak" />
+  // An agent wears its own face, so the list reads like the transcript. The mention's name is the slug.
+  if (props.item.kind === "agent" && props.item.mention?.type === "agent")
+    return <IdentityAvatar seed={props.item.mention.name} size={18} />
   if (props.item.kind === "command") return null
   return (
     <FileIcon
