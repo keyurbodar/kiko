@@ -3,7 +3,7 @@
 // The object can hibernate between any two frames, so a socket's state lives in
 // its attachment and the room's state lives in SQLite. Nothing here is kept in memory.
 
-import type { ClientToRoom, MemberOp, MemberRefusal, RoomEvent, RoomToClient } from "@kiko/protocol"
+import type { ClientToRoom, MemberOp, MemberRefusal, RoomEvent, RoomToClient, TaskOp } from "@kiko/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
@@ -33,6 +33,8 @@ export interface SocketRoom {
 	catalog(kind: "links" | "media", before?: number, limit?: number): CatalogPage
 	/** Adds, removes, or renames an agent (section 7.7) and publishes the change. Returns why it was refused, or null. */
 	memberOp(op: MemberOp): MemberRefusal | null
+	/** A human's task board change (section 7.6). Publishes what it stored. */
+	taskOp(op: TaskOp): void
 }
 
 /** Close code for a frame that breaks the protocol. */
@@ -143,9 +145,11 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			if (refused) send(ws, { t: "member_refused", op: frame.op, reason: refused })
 			return null
 		}
-		case "approve":
 		case "task":
-			// Owned by later tasks: approvals (P7), the task board (P6).
+			room.taskOp(frame.op)
+			return null
+		case "approve":
+			// Owned by a later task: approvals (P7).
 			return null
 	}
 }

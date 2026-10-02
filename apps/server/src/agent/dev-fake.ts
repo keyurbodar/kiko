@@ -9,6 +9,7 @@ import { isRunTainted, markRunTainted } from "./extensions/trust"
 import { buildAgent } from "./factory"
 import type { AgentSetup } from "./host"
 import type { RoleInput } from "./prompt"
+import type { WorkspacePort } from "./extensions/workspace"
 
 // DEV AND TESTS ONLY. A scripted agent for `bun kiko verify mid-run` (P1-12): pi-ai's faux provider
 // answers from the transcript, and one slow tool makes "a tool is running" last long enough to
@@ -25,6 +26,7 @@ import type { RoleInput } from "./prompt"
 //   [mark] x    the model calls `fake_mark`, which returns `x` and marks the run tainted (P7-01)
 //   [call t]    the model calls trust tool `t`, from a user turn or from a tool result, which is
 //               how a fooled model obeys an injected instruction (P7-01)
+//   [ws t {json}] the model calls workspace tool `t` with the JSON arguments (P6-02)
 //
 // After trust tools ran, the answer is `tools: <name> ran|ran tainted|blocked, ...` (P7-01).
 //
@@ -72,6 +74,8 @@ export function fakeReply(transcript: readonly Message[]) {
   const users = since.filter((m) => m.role === "user").map(textOf)
   const results = since.filter((m) => m.role === "toolResult").map(textOf)
   const last = messages.at(-1)
+  const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
+  if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
@@ -183,11 +187,11 @@ function trustResults(since: readonly Message[]): string | null {
 }
 
 /** The fake agent's setup. The factory builds it, with the slow tool as a test extension. */
-export function fakeSetup(role: RoleInput = { role: "", lead: true }): AgentSetup {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort): AgentSetup {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
+  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
 }

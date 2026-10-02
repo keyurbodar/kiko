@@ -1,5 +1,6 @@
 import type { MessageId, Sender, Task } from "@kiko/protocol"
 import type { MemberRow } from "./members"
+import { briefTasks } from "./workspace"
 
 // Architecture section 7.4. The workspace brief the room attaches to every delivery. The agent
 // prepends it to its input as a `<context>` block, so the text is for a model to read. It holds the
@@ -17,7 +18,7 @@ export type BriefView = {
 	/** ASSUMPTION: the chat title until the workspace stores a goal of its own. */
 	goal: string
 	members: readonly MemberRow[]
-	/** The member's open tasks and the tasks that block them. Empty until the task board (P6-02). */
+	/** The member's open tasks and the tasks that block them (workspace.ts). */
 	tasks: readonly Task[]
 	/** Messages since the member's last delivery, oldest first. `buildBrief` keeps the newest 30. */
 	messages: readonly BriefMessage[]
@@ -81,5 +82,5 @@ export function readBriefView(
 		.filter((r) => !delivering.has(r.seq))
 		.reverse()
 	const messages = rows.map((r) => ({ id: r.id as MessageId, seq: r.seq, from: JSON.parse(r.sender) as Sender, text: r.text }))
-	return { goal, members, tasks: [], messages, reactions }
+	return { goal, members, tasks: briefTasks(sql, member.slug), messages, reactions }
 }
