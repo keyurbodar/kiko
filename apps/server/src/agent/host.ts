@@ -5,7 +5,7 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import type { Envelope } from "@kiko/protocol"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
-import { type Batch, Inbox, renderInput } from "./inbox"
+import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
 import { type Arrival, decide, FRESH_RUN, type RunState } from "./mid-run"
 import type { RunProgress } from "./outbox"
 import { openDurableObjectSqlite } from "./sqlite"
@@ -76,10 +76,12 @@ export class AgentHost {
   /**
    * Stores the envelopes and sets the inbox wakeup to now. It touches only this object's own storage,
    * so it cannot wait on another Durable Object or a model. Returns every id of the call: a receipt
-   * means "stored", and a repeated id was stored before.
+   * means "stored", and a repeated id was stored before. A delivery past the inbox caps stores
+   * nothing and comes back with `refused`, never as an exception.
    */
-  async receive(envelopes: readonly Envelope[], brief: string): Promise<{ admitted: string[] }> {
-    const { admitted, inserted } = this.inbox.admit(envelopes, brief)
+  async receive(envelopes: readonly Envelope[], brief: string): Promise<{ admitted: string[]; refused?: Refusal }> {
+    const { admitted, inserted, refused } = this.inbox.admit(envelopes, brief)
+    if (refused) return { admitted, refused }
     if (inserted > 0) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
     return { admitted }
   }
@@ -113,6 +115,8 @@ export class AgentHost {
       // Only the message: a provider error never carries the key, and nothing else is logged.
       console.error(`agent alarm failed (${this.failures}): ${error instanceof Error ? error.message : String(error)}`)
       await this.drop()
+      // The batches this drain took go back, so the retry submits them at once.
+      this.inbox.release()
       const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), this.heartbeatMs)
       await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + delay)
     }

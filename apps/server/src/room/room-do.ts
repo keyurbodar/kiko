@@ -2,6 +2,7 @@ import type { AgentSlug, AgentState, RoomEvent, RoomId, RoomToClient } from "@ki
 import { DurableObject } from "cloudflare:workers"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
+import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { BURST_WAKEUP, Burst } from "./burst"
@@ -31,14 +32,15 @@ const DELIVERY_RETRY_MS = 2_000
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug }
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
-	readonly log: RoomLog
-	private readonly deliveries: Deliveries
-	private readonly alarms: Alarms
-	private readonly burst: Burst
-	private readonly bubbles: Bubbles
+	// Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
+	log!: RoomLog
+	private deliveries!: Deliveries
+	private alarms!: Alarms
+	private burst!: Burst
+	private bubbles!: Bubbles
 	// Not stored, like typing. Hibernation forgets it, and the next change sends the state as it is then.
 	private readonly states = new Map<AgentSlug, AgentState>()
-	readonly files: RoomFiles
+	files!: RoomFiles
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -46,13 +48,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env)
-		migrate(ctx.storage)
-		this.log = new RoomLog(ctx.storage)
-		this.deliveries = new Deliveries(ctx.storage, this.log)
-		this.files = new RoomFiles(ctx.storage, this.log)
-		this.alarms = createAlarms(ctx)
-		this.burst = new Burst(ctx.storage, this.alarms)
-		this.bubbles = new Bubbles(ctx.storage, this.log)
+		// Architecture section 23: the schema migration runs before any other work on every start.
+		void ctx.blockConcurrencyWhile(async () => {
+			migrate(ctx.storage)
+			this.log = new RoomLog(ctx.storage)
+			this.deliveries = new Deliveries(ctx.storage, this.log)
+			this.files = new RoomFiles(ctx.storage, this.log)
+			this.alarms = createAlarms(ctx)
+			this.burst = new Burst(ctx.storage, this.alarms)
+			this.bubbles = new Bubbles(ctx.storage, this.log)
+		})
 	}
 
 	/** The user and room the Worker named this object for. Set by the first socket. */
@@ -65,6 +70,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** Architecture section 6.1. The burst wakeup fired: deliver every pending human message to the agent. */
 	async alarm(): Promise<void> {
 		const due = await this.alarms.dueWakeups(Date.now())
+		if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
 		if (due.includes(BURST_WAKEUP)) await this.flush()
 	}
 
@@ -84,7 +90,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const brief = [`room: ${chat.title}`, reactions.text].filter(Boolean).join("\n")
 			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, DEFAULT_AGENT)
 			// receive() only stores and returns, so this wait is short and cannot deadlock.
-			await agent.receive(envelopes, brief, { ...home, slug: DEFAULT_AGENT })
+			const { refused } = await agent.receive(envelopes, brief, { ...home, slug: DEFAULT_AGENT })
+			// ASSUMPTION (P1-13): a full inbox is backpressure, so the burst waits and tries again. An entry past
+			// the size cap can never fit, so it is dropped from the burst. The messages stay in the log either way.
+			if (refused === "full") return await this.burst.retry(DELIVERY_RETRY_MS)
+			if (refused) console.error(`burst delivery refused: ${refused}`)
 			this.burst.delivered(envelopes)
 			markReactionsBriefed(this.log, DEFAULT_AGENT, reactions.upTo)
 		} catch (error) {
@@ -108,7 +118,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 		const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
 		this.ctx.acceptWebSocket(server)
-		server.serializeAttachment({ ready: false } satisfies Attachment)
+		server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
+		await enforceHello(this.ctx, this.alarms)
 		return new Response(null, { status: 101, webSocket: client })
 	}
 
