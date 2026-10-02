@@ -11,6 +11,7 @@ import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { RichText } from "./RichText"
 import { Collapsible } from "../Collapsible"
+import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { Bubble, BubbleContent, type BubblePosition } from "./bubble"
 
 function bubblePosition(isRunStart: boolean, isRunEnd: boolean): BubblePosition {
@@ -32,6 +33,16 @@ function quoteSender(message: ChatMessage, parentBot: RosterBot | undefined): st
   return parentBot?.name ?? "bot"
 }
 
+/** A stable hue per sender, so a name keeps its colour for the life of the chat. */
+function senderTint(slug: string): string {
+  let hash = 0
+  for (let i = 0; i < slug.length; i++) hash = (hash * 31 + slug.charCodeAt(i)) >>> 0
+  return `oklch(0.78 0.12 ${hash % 360})`
+}
+
+/** Width of the avatar gutter in a group chat: a 28px avatar and an 8px gap. */
+const GROUP_GUTTER = "pl-[calc(1rem+36px)]"
+
 export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
@@ -42,6 +53,8 @@ export function MessageRow(props: {
   isRunStart: boolean
   isRunEnd: boolean
   hasRunGapBefore: boolean
+  /** The room has more than one agent: say who wrote each run. */
+  group?: boolean
   replying?: boolean
   highlighted?: boolean
   jumboClass?: "jumbo-single" | "jumbo-group"
@@ -52,6 +65,8 @@ export function MessageRow(props: {
   onOpenMedia?: (items: readonly MediaItem[], index: number) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
+  const grouped = () => !!props.group && !own() && props.message.botId !== undefined
+  const senderName = () => props.bot?.name ?? props.message.botId ?? ""
   const hasMedia = () => (props.message.media?.length ?? 0) > 0
   const hasDocuments = () => (props.message.documents?.length ?? 0) > 0
   const hasAttachment = () => hasMedia() || hasDocuments()
@@ -79,6 +94,7 @@ export function MessageRow(props: {
         "px-4 pb-(--row-gap) contain-layout touch-pan-y",
         "[--swipe-gutter-rate:0.2]",
         props.hasRunGapBefore ? "pt-(--run-gap)" : "pt-(--row-gap)",
+        grouped() && GROUP_GUTTER,
         "[&>[data-slot=bubble]]:translate-x-(--swipe-x)",
         props.class,
       )}
@@ -90,6 +106,13 @@ export function MessageRow(props: {
       data-replying={props.replying ? "" : undefined}
       onContextMenu={props.onContextMenu}
     >
+      <Show when={grouped() && props.isRunEnd}>
+        <IdentityAvatar
+          seed={props.message.botId!}
+          size={28}
+          class="pointer-events-none absolute bottom-(--row-gap) left-4"
+        />
+      </Show>
       <Bubble
         variant={props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
@@ -112,6 +135,15 @@ export function MessageRow(props: {
             hasAttachment() && "p-0",
           )}
         >
+          <Show when={grouped() && props.isRunStart && !props.jumboClass}>
+            <div
+              class={cn("truncate text-sm font-medium", hasAttachment() ? "px-3 pt-2" : "pb-0.5")}
+              style={{ color: props.bot?.color ?? senderTint(props.message.botId!) }}
+              data-component="chat-sender"
+            >
+              {senderName()}
+            </div>
+          </Show>
           <Show when={props.parent}>
             {(parent) => (
               <div class={hasAttachment() ? "px-2 pt-2" : undefined}>

@@ -734,6 +734,7 @@ export function VirtualThread(props: {
             isRunStart={item.isRunStart}
             isRunEnd={item.isRunEnd}
             hasRunGapBefore={item.hasRunGapBefore}
+            group={props.groupChat}
             class={fresh.has(message.id) ? "motion-bubble-in" : undefined}
             highlighted={landed() === message.id}
             replying={activeReply() === message.id}
