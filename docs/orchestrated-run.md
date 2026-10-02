@@ -81,3 +81,4 @@ The coordinator adds to this list as tasks land.
 - Link previews are `GET /api/preview?url=` returning `{ preview, cache }`. Images are served from `/api/preview-image/<hash>`.
 - Server tests are a little flaky when the machine is busy. Rerun once before assuming your change broke something.
 - `UserDO` RPC: `createChat(roomId, title)`, `renameChat`, `pinChat`, `muteChat`, `deleteChat`, `touchChat(roomId, { lastSeq, lastPreview, unread })`, `listChats()`. A chat must exist before `touchChat` updates it.
+- RoomDO: `this.log.addMessage({ from, text, rich?, run?, clientId? })` returns `{ id, seq, event | null }` and stores nothing for a repeated `run` key. Also `messageForRun`, `earlierAttempts`, `deleteMessages`, `react`, `editMessage`, `meta(...)`. `publish(events)` sends stored events and `broadcast(frame)` sends drafts and status without storing. RPC so far: `setTyping(slug, on)`.
