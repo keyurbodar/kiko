@@ -1,0 +1,546 @@
+// The open room. Architecture sections 9.2, 9.3, and 19.2.
+//
+// It holds the visible message window in a Solid store, keeps the warm tier in
+// step, and talks to the room over one reconnecting socket.
+//
+// Boot: read the newest messages, the room's state, `lastSeq`, and the outbox
+// from IndexedDB, then connect with `hello {lastSeq}`.
+//
+// Events are queued and applied in `seq` order in slices of at most `budgetMs`,
+// with a yield between slices, so a long replay never holds the main thread
+// for a frame.
+//
+// Every action applies a patch at once and returns. A send goes to the outbox
+// before the socket. Every pending frame goes out again after a reconnect. The
+// room drops a repeated `clientId`, so a resend never makes a second message.
+//
+// `messages()` and the other views are plain functions over the store. They
+// are reactive where they are read. Wrap one in `createMemo` to share it.
+
+import type {
+	Actor,
+	AgentSlug,
+	AgentState,
+	Approval,
+	FileRef,
+	Member,
+	Message,
+	MessageId,
+	RoomEvent,
+	RoomId,
+	RoomSnapshot,
+	RoomToClient,
+	Task,
+	TaskOp,
+} from "@kiko/protocol"
+import { batch } from "solid-js"
+import { $RAW, createStore, produce } from "solid-js/store"
+import type { Warm } from "../warm/db"
+import { clearRoom, deleteMessages, getLastSeq, messagesBefore, newestMessages, putMessages, setLastSeq } from "../warm/messages"
+import { addToOutbox, outbox, removeFromOutbox } from "../warm/outbox"
+import {
+	expire,
+	overlayApprovals,
+	overlayMessages,
+	overlayReadSeq,
+	overlayTasks,
+	PATCH_TTL_MS,
+	type RoomPatch,
+	type RoomPatchFrame,
+	settleRoom,
+	type ViewMessage,
+} from "./patches"
+import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
+
+// The room's durable state and the one reducer for it. The mock room uses the
+// same reducer, so the client and the fake server cannot drift apart.
+
+export type RoomData = {
+	/** The newest `seq` applied. */
+	seq: number
+	readSeq: number
+	members: Member[]
+	/** Oldest first. The window, not the whole history. */
+	messages: Message[]
+	tasks: Task[]
+	approvals: Approval[]
+	files: FileRef[]
+}
+
+export const emptyRoom = (): RoomData => ({
+	seq: 0,
+	readSeq: 0,
+	members: [],
+	messages: [],
+	tasks: [],
+	approvals: [],
+	files: [],
+})
+
+export function fromSnapshot(s: RoomSnapshot): RoomData {
+	return {
+		seq: s.seq,
+		readSeq: s.readSeq,
+		members: [...s.members],
+		messages: [...s.messages],
+		tasks: [...s.tasks],
+		approvals: [...s.approvals],
+		files: [...s.files],
+	}
+}
+
+/** A `message` event without its frame fields. */
+export function toMessage(e: Extract<RoomEvent, { t: "message" }>): Message {
+	const { t: _, clientId: __, ...m } = e
+	return m
+}
+
+/**
+ * The object under a store proxy, or the object itself. Unlike `unwrap`, it
+ * never walks a plain object, so it costs nothing per call.
+ */
+const raw = <T>(value: T): T => ((value as { [$RAW]?: T })[$RAW] ?? value)
+
+/** Searches the raw array. Reading through a store proxy would wrap every item on the way. */
+const findMessage = (messages: readonly Message[], id: MessageId) => {
+	const list = raw(messages)
+	for (let i = list.length - 1; i >= 0; i--) if (list[i].id === id) return i
+	return -1
+}
+
+const sameActor = (a: Actor, b: Actor) =>
+	a.kind === "human" ? b.kind === "human" : b.kind === "agent" && a.slug === b.slug
+
+const upsert = <T>(list: T[], item: T, same: (x: T) => boolean) => {
+	const i = list.findIndex(same)
+	if (i === -1) list.push(item)
+	else list[i] = item
+}
+
+const removeWhere = <T>(list: T[], match: (x: T) => boolean) => {
+	for (let i = list.length - 1; i >= 0; i--) if (match(list[i])) list.splice(i, 1)
+}
+
+/** What an event did to the message window, for the warm tier. */
+export type Change = { put?: Message; deleted?: Message[]; meta?: true }
+
+/**
+ * Applies one event to `data` in place. Works on a plain object and inside
+ * Solid's `produce`. An event at or below `data.seq` is skipped.
+ */
+export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
+	if (e.seq <= data.seq) return null
+	data.seq = e.seq
+	switch (e.t) {
+		case "message": {
+			const m = toMessage(e)
+			const i = findMessage(data.messages, m.id)
+			if (i === -1) data.messages.push(m)
+			else data.messages[i] = m
+			return { put: m }
+		}
+		case "edit": {
+			const i = findMessage(data.messages, e.messageId)
+			if (i === -1) return {}
+			const m = data.messages[i]
+			m.text = e.text
+			m.editedAt = e.at
+			if (e.rich) m.rich = e.rich
+			else delete m.rich
+			return { put: raw(m) }
+		}
+		case "delete": {
+			const deleted: Message[] = []
+			for (const id of e.messageIds) {
+				const i = findMessage(data.messages, id)
+				if (i !== -1) deleted.push(raw(data.messages[i]))
+				if (i !== -1) data.messages.splice(i, 1)
+			}
+			return { deleted }
+		}
+		case "react": {
+			const i = findMessage(data.messages, e.messageId)
+			if (i === -1) return {}
+			const m = data.messages[i]
+			const reactions = (m.reactions ?? []).filter((r) => !sameActor(r.by, e.by))
+			if (e.emoji !== null) reactions.push({ by: e.by, emoji: e.emoji })
+			if (reactions.length) m.reactions = reactions
+			else delete m.reactions
+			return { put: raw(m) }
+		}
+		case "read":
+			data.readSeq = Math.max(data.readSeq, e.upTo)
+			return { meta: true }
+		case "member":
+			upsert(data.members, e.member, (x) => x.slug === e.member.slug)
+			return { meta: true }
+		case "member_removed":
+			removeWhere(data.members, (x) => x.slug === e.slug)
+			return { meta: true }
+		case "task":
+			upsert(data.tasks, e.task, (x) => x.id === e.task.id)
+			return { meta: true }
+		case "task_removed":
+			removeWhere(data.tasks, (x) => x.id === e.id)
+			return { meta: true }
+		case "approval":
+			upsert(data.approvals, e.approval, (x) => x.id === e.approval.id)
+			return { meta: true }
+		case "file":
+			upsert(data.files, e.file, (x) => x.id === e.file.id)
+			return { meta: true }
+	}
+}
+
+// The store.
+
+export type Draft = { slug: AgentSlug; runId: string; index: number; text: string }
+
+export type RoomState = RoomData & {
+	roomId: RoomId
+	/** False until the warm tier has painted. */
+	loaded: boolean
+	connection: SocketStatus
+	patches: RoomPatch[]
+	/** Not stored. Cleared when the socket drops. */
+	typing: AgentSlug[]
+	status: Record<string, AgentState>
+	/** Growing blocks, keyed by `runId:index`. A message from the same run and index replaces one. */
+	drafts: Record<string, Draft>
+}
+
+export type RoomStoreOptions = {
+	roomId: RoomId
+	warm: Warm
+	/** The room socket's URL. */
+	url: string
+	connect?: Connect
+	backoff?: Backoff
+	/** Runs the next slice of work. Defaults to a macrotask. */
+	schedule?: (run: () => void) => void
+	/** Longest slice of event work. Defaults to 3 ms, which leaves room for the slice's warm writes in an 8 ms frame. */
+	budgetMs?: number
+	/** How many messages to paint from IndexedDB. Defaults to 50. */
+	bootWindow?: number
+	now?: () => number
+	newId?: () => string
+	ttlMs?: number
+}
+
+export type SendOptions = { replyTo?: MessageId; files?: readonly FileRef[] }
+
+export type RoomStore = {
+	readonly state: RoomState
+	/** The window with every pending patch applied. */
+	messages(): ViewMessage[]
+	tasks(): Task[]
+	approvals(): Approval[]
+	readSeq(): number
+	/** Resolves once the warm tier has painted and the socket has started. */
+	readonly ready: Promise<void>
+	/** Returns the send's `clientId`. */
+	send(text: string, options?: SendOptions): string
+	react(messageId: MessageId, emoji: string | null): void
+	edit(messageId: MessageId, text: string): void
+	remove(messageId: MessageId): void
+	markRead(seq: number): void
+	typing(): void
+	stop(): void
+	approve(approvalId: string, action: "accept" | "decline"): void
+	task(op: TaskOp): void
+	/** Prepends up to `limit` older messages from IndexedDB. Resolves to how many. */
+	loadOlder(limit?: number): Promise<number>
+	/** Resolves when every queued event is applied. */
+	settled(): Promise<void>
+	close(): void
+}
+
+type RoomMeta = Omit<RoomData, "messages" | "seq">
+const metaKey = (roomId: RoomId) => `room:${roomId}`
+
+export function defaultSchedule(run: () => void) {
+	const MC = (globalThis as { MessageChannel?: typeof MessageChannel }).MessageChannel
+	if (!MC) return void setTimeout(run, 0)
+	// A message port is a macrotask without the 4 ms clamp of a nested timeout.
+	const channel = new MC()
+	channel.port1.onmessage = () => {
+		channel.port1.close()
+		run()
+	}
+	channel.port2.postMessage(null)
+}
+
+export function createRoomStore(options: RoomStoreOptions): RoomStore {
+	const { roomId, warm } = options
+	const now = options.now ?? Date.now
+	const newId = options.newId ?? (() => crypto.randomUUID())
+	const schedule = options.schedule ?? defaultSchedule
+	const budget = options.budgetMs ?? 3
+	const ttl = options.ttlMs ?? PATCH_TTL_MS
+
+	const [state, setState] = createStore<RoomState>({
+		...emptyRoom(),
+		roomId,
+		loaded: false,
+		connection: "closed",
+		patches: [],
+		typing: [],
+		status: {},
+		drafts: {},
+	})
+
+	let socket: SyncSocket | null = null
+	let closed = false
+	let queue: RoomEvent[] = []
+	let draining = false
+	let waiters: (() => void)[] = []
+	let expiry: ReturnType<typeof setTimeout> | undefined
+
+	// Patches.
+
+	const setPatches = (fn: (p: RoomPatch[]) => RoomPatch[]) => setState("patches", (p) => fn(p))
+
+	function transmit(p: RoomPatch) {
+		if (!socket?.send(p.frame)) return
+		const sentAt = now()
+		setPatches((list) => list.map((x) => (x.clientId === p.clientId ? { ...x, sentAt } : x)))
+		armExpiry()
+	}
+
+	function armExpiry() {
+		if (expiry !== undefined) return
+		expiry = setTimeout(() => {
+			expiry = undefined
+			setPatches((list) => expire(list, now(), ttl))
+			if (state.patches.some((p) => p.sentAt !== undefined && p.frame.t !== "send")) armExpiry()
+		}, ttl)
+	}
+
+	function act(frame: RoomPatchFrame): string {
+		const p: RoomPatch = { clientId: newId(), frame, at: now() }
+		setPatches((list) => [...list, p])
+		transmit(p)
+		return p.clientId
+	}
+
+	function dropPatches(next: RoomPatch[]) {
+		const kept = new Set(next.map((p) => p.clientId))
+		for (const p of raw(state.patches)) {
+			if (!kept.has(p.clientId) && p.frame.t === "send") void removeFromOutbox(warm, p.clientId)
+		}
+		if (next.length !== state.patches.length) setState("patches", next)
+	}
+
+	// Warm writes.
+
+	function writeMeta() {
+		const s = raw(state)
+		const meta: RoomMeta = {
+			readSeq: s.readSeq,
+			members: s.members,
+			tasks: s.tasks,
+			approvals: s.approvals,
+			files: s.files,
+		}
+		warm.put("meta", metaKey(roomId), meta)
+	}
+
+	// Applying frames.
+
+	function drain() {
+		draining = false
+		if (closed) return
+		const start = performance.now()
+		const applied: RoomEvent[] = []
+		const puts = new Map<MessageId, Message>()
+		const deleted: number[] = []
+		let meta = false
+		batch(() => {
+			setState(
+				produce((s) => {
+					while (queue.length > 0) {
+						const e = queue.shift() as RoomEvent
+						const change = applyRoomEvent(s, e)
+						if (!change) continue
+						applied.push(e)
+						if (change.put) puts.set(change.put.id, change.put)
+						for (const m of change.deleted ?? []) {
+							puts.delete(m.id)
+							deleted.push(m.seq)
+						}
+						if (change.meta) meta = true
+						if (e.t === "message" && e.run) delete s.drafts[`${e.run.runId}:${e.run.index}`]
+						if (performance.now() - start >= budget) break
+					}
+				}),
+			)
+			dropPatches(settleRoom(state.patches, applied, state.seq))
+		})
+		if (applied.length > 0) {
+			putMessages(warm, roomId, [...puts.values()])
+			deleteMessages(warm, roomId, deleted)
+			if (meta) writeMeta()
+			setLastSeq(warm, roomId, state.seq)
+		}
+		if (queue.length > 0) return kick()
+		const done = waiters
+		waiters = []
+		for (const w of done) w()
+	}
+
+	function kick() {
+		if (draining || closed) return
+		draining = true
+		schedule(drain)
+	}
+
+	function enqueue(events: readonly RoomEvent[]) {
+		if (events.length === 0) return
+		const tail = queue[queue.length - 1]
+		queue.push(...events)
+		if (tail && events[0].seq < tail.seq) queue.sort((a, b) => a.seq - b.seq)
+		else if (!tail && events.some((e, i) => i > 0 && e.seq < events[i - 1].seq)) queue.sort((a, b) => a.seq - b.seq)
+		kick()
+	}
+
+	function reset(snapshot: RoomSnapshot) {
+		queue = queue.filter((e) => e.seq > snapshot.seq)
+		const data = fromSnapshot(snapshot)
+		batch(() => {
+			setState({ ...data, drafts: {} })
+			dropPatches(settleRoom(state.patches, [], snapshot.seq))
+		})
+		clearRoom(warm, roomId)
+		putMessages(warm, roomId, snapshot.messages)
+		writeMeta()
+		setLastSeq(warm, roomId, snapshot.seq)
+		kick()
+	}
+
+	const handlers: { [K in RoomToClient["t"]]: (f: Extract<RoomToClient, { t: K }>) => void } = {
+		events: (f) => enqueue(f.events),
+		ack: (f) => {
+			void removeFromOutbox(warm, f.clientId)
+			batch(() => {
+				setPatches((list) => list.map((p) => (p.clientId === f.clientId ? { ...p, ack: { id: f.id, seq: f.seq } } : p)))
+				dropPatches(settleRoom(state.patches, [], state.seq))
+			})
+		},
+		reset: (f) => reset(f.snapshot),
+		typing: (f) => setState("typing", [...f.who]),
+		status: (f) => setState("status", f.slug, f.state),
+		draft: (f) => setState("drafts", `${f.runId}:${f.index}`, { slug: f.slug, runId: f.runId, index: f.index, text: f.text }),
+	}
+
+	function onFrame(frame: RoomToClient) {
+		const handle = handlers[frame.t] as ((f: RoomToClient) => void) | undefined
+		handle?.(frame)
+	}
+
+	function onOpen() {
+		// Pending frames go out after `hello`, oldest first. Acknowledged sends are already stored.
+		for (const p of [...raw(state.patches)]) if (!p.ack) transmit(p)
+	}
+
+	function onStatus(connection: SocketStatus) {
+		setState("connection", connection)
+		if (connection !== "open") setState({ typing: [], status: {}, drafts: {} })
+	}
+
+	// Boot.
+
+	async function boot() {
+		const [messages, lastSeq, meta, pending] = await Promise.all([
+			newestMessages(warm, roomId, options.bootWindow),
+			getLastSeq(warm, roomId),
+			warm.get<RoomMeta>("meta", metaKey(roomId)),
+			outbox(warm, roomId),
+		])
+		if (closed) return
+		// Without the room's state the cursor is useless, so start from nothing and take a full replay.
+		const seq = meta ? lastSeq : 0
+		batch(() => {
+			setState(
+				produce((s) => {
+					if (seq > 0) {
+						// The socket opens after this, so nothing live has landed yet.
+						s.messages = messages
+						s.readSeq = meta?.readSeq ?? 0
+						s.members = [...(meta?.members ?? [])]
+						s.tasks = [...(meta?.tasks ?? [])]
+						s.approvals = [...(meta?.approvals ?? [])]
+						s.files = [...(meta?.files ?? [])]
+						s.seq = seq
+					}
+					s.loaded = true
+					const have = new Set(s.patches.map((p) => p.clientId))
+					const restored = pending
+						.filter((i) => !have.has(i.frame.clientId))
+						.map((i): RoomPatch => ({ clientId: i.frame.clientId, frame: i.frame, at: i.createdAt }))
+					s.patches = [...restored, ...s.patches]
+				}),
+			)
+		})
+		socket = createSyncSocket<RoomToClient>({
+			url: options.url,
+			connect: options.connect,
+			backoff: options.backoff,
+			hello: () => ({ t: "hello", lastSeq: state.seq }),
+			onOpen,
+			onFrame,
+			onStatus,
+		})
+	}
+
+	const ready = boot()
+
+	return {
+		state,
+		messages: () => overlayMessages(state.messages, state.patches),
+		tasks: () => overlayTasks(state.tasks, state.patches),
+		approvals: () => overlayApprovals(state.approvals, state.patches),
+		readSeq: () => overlayReadSeq(state.readSeq, state.patches),
+		ready,
+		send(text, opts = {}) {
+			const clientId = newId()
+			const frame: RoomPatchFrame = { t: "send", clientId, text }
+			if (opts.replyTo) frame.replyTo = opts.replyTo
+			if (opts.files?.length) frame.files = opts.files
+			const p: RoomPatch = { clientId, frame, at: now() }
+			// The outbox write is queued before the socket sees the frame. Its flush is not awaited.
+			void addToOutbox(warm, { roomId, frame, createdAt: p.at })
+			setPatches((list) => [...list, p])
+			transmit(p)
+			return clientId
+		},
+		react: (messageId, emoji) => void act({ t: "react", messageId, emoji }),
+		edit: (messageId, text) => void act({ t: "edit", messageId, text }),
+		remove: (messageId) => void act({ t: "delete", messageId }),
+		markRead(seq) {
+			if (seq <= overlayReadSeq(state.readSeq, state.patches)) return
+			act({ t: "read", seq })
+		},
+		typing: () => void socket?.send({ t: "typing" }),
+		stop: () => void socket?.send({ t: "stop" }),
+		approve: (approvalId, action) => void act({ t: "approve", approvalId, action }),
+		task: (op) => void act({ t: "task", op }),
+		async loadOlder(limit = 50) {
+			const oldest = state.messages[0]?.seq ?? state.seq + 1
+			const older = await messagesBefore(warm, roomId, oldest, limit)
+			if (older.length === 0 || closed) return 0
+			setState("messages", (m) => [...older.filter((o) => o.seq < (m[0]?.seq ?? Infinity)), ...m])
+			return older.length
+		},
+		settled() {
+			if (queue.length === 0 && !draining) return Promise.resolve()
+			return new Promise((resolve) => waiters.push(resolve))
+		},
+		close() {
+			closed = true
+			if (expiry !== undefined) clearTimeout(expiry)
+			socket?.close()
+			for (const w of waiters) w()
+			waiters = []
+		},
+	}
+}

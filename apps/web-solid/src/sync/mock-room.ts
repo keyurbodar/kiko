@@ -1,0 +1,351 @@
+// An in-memory room and user server that speak the protocol, for tests and the
+// dev harness. It starts from the shared fixtures in `@kiko/protocol/fixtures`.
+// Its `connect` stands in for `WebSocket`. Frames cross it as JSON strings, one
+// macrotask later, the way a network delivers them.
+//
+// It does what the real room promises: `hello` replays the events after
+// `lastSeq` or sends `reset` when the gap is too large, a repeated `clientId`
+// is acknowledged again and stored once, and every stored change gets the next
+// `seq`. Production code must not import this file.
+
+import type {
+	Chat,
+	ClientToRoom,
+	ClientToUser,
+	Message,
+	MessageId,
+	RoomEvent,
+	RoomSnapshot,
+	RoomToClient,
+	UserEvent,
+	UserToClient,
+} from "@kiko/protocol"
+import * as fixtures from "@kiko/protocol/fixtures"
+import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
+import type { Connect, SocketLike } from "./socket"
+import { applyUserEvent, type UserData } from "./user-store"
+
+/** Distributes `Omit` over a union, so each event keeps its own fields. */
+type WithoutStored<E> = E extends unknown ? Omit<E, "seq" | "at"> : never
+
+type Schedule = (run: () => void) => void
+
+const later: Schedule = (run) => void setTimeout(run, 0)
+
+/** The server side of a fake socket. */
+type Peer<Out> = { push(frame: Out): void; close(): void }
+
+type FakeServer<In, Out> = {
+	online: boolean
+	open(peer: Peer<Out>): void
+	receive(peer: Peer<Out>, frame: In): void
+	closed(peer: Peer<Out>): void
+}
+
+function fakeConnect<In, Out>(server: FakeServer<In, Out>, schedule: Schedule): Connect {
+	return () => {
+		let open = false
+		let gone = false
+		const socket: SocketLike = {
+			onopen: null,
+			onmessage: null,
+			onclose: null,
+			onerror: null,
+			send(data) {
+				if (!open) throw new Error("socket is not open")
+				const frame = JSON.parse(data) as In
+				schedule(() => open && server.receive(peer, frame))
+			},
+			close() {
+				shut()
+			},
+		}
+		const shut = () => {
+			if (gone) return
+			gone = true
+			const wasOpen = open
+			open = false
+			if (wasOpen) server.closed(peer)
+			schedule(() => socket.onclose?.({ code: 1006 }))
+		}
+		const peer: Peer<Out> = {
+			push(frame) {
+				const data = JSON.stringify(frame)
+				schedule(() => open && socket.onmessage?.({ data }))
+			},
+			close: shut,
+		}
+		schedule(() => {
+			if (gone) return
+			if (!server.online) {
+				socket.onerror?.({})
+				return shut()
+			}
+			open = true
+			server.open(peer)
+			socket.onopen?.({})
+		})
+		return socket
+	}
+}
+
+export type MockRoomOptions = {
+	/** The stored log to start from. Defaults to the fixture events. */
+	events?: readonly RoomEvent[]
+	/** A `hello` further behind than this gets `reset`. Defaults to 500, as in architecture section 9.2. */
+	resetAfter?: number
+	schedule?: Schedule
+	now?: () => number
+}
+
+export type MockRoom = {
+	connect: Connect
+	/** While false, every connect fails. */
+	online: boolean
+	/** Closes every open socket, as a lost network does. */
+	drop(): void
+	/** Every frame received, in order. */
+	readonly received: ClientToRoom[]
+	/** The stored log. */
+	readonly log: readonly RoomEvent[]
+	/** How many sockets are open. */
+	readonly peers: number
+	snapshot(): RoomSnapshot
+	/** Stores events, as an agent's work does, and sends them to every socket. */
+	store(...events: WithoutStored<RoomEvent>[]): RoomEvent[]
+	/** Sends a frame that is not stored, such as `typing` or `draft`. */
+	broadcast(frame: RoomToClient): void
+	/** When set, the next send is stored and then the socket drops before the `ack`. */
+	loseNextAck: boolean
+}
+
+export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
+	const schedule = options.schedule ?? later
+	const now = options.now ?? Date.now
+	const resetAfter = options.resetAfter ?? 500
+	const log: RoomEvent[] = []
+	const data: RoomData = { ...emptyRoom(), members: [...fixtures.members] }
+	const peers = new Set<Peer<RoomToClient>>()
+	const received: ClientToRoom[] = []
+	const byClientId = new Map<string, { id: MessageId; seq: number }>()
+
+	const append = (e: RoomEvent) => {
+		log.push(e)
+		applyRoomEvent(data, structuredClone(e))
+		if (e.t === "message" && e.clientId) byClientId.set(e.clientId, { id: e.id, seq: e.seq })
+	}
+	for (const e of options.events ?? fixtures.roomEvents) append(e)
+
+	const nextSeq = () => (log[log.length - 1]?.seq ?? 0) + 1
+	const stamp = (e: WithoutStored<RoomEvent>): RoomEvent => {
+		const seq = nextSeq()
+		return { ...e, seq, at: now() } as RoomEvent
+	}
+
+	function store(...events: WithoutStored<RoomEvent>[]): RoomEvent[] {
+		const stored = events.map((e) => {
+			const s = stamp(e)
+			append(s)
+			return s
+		})
+		for (const p of peers) p.push({ t: "events", events: stored })
+		return stored
+	}
+
+	const message = (m: Omit<Message, "seq" | "at">, clientId?: string): WithoutStored<RoomEvent> =>
+		({ t: "message", ...(clientId ? { clientId } : {}), ...m }) as WithoutStored<RoomEvent>
+
+	function snapshot(): RoomSnapshot {
+		return structuredClone({ ...data })
+	}
+
+	const has = (id: MessageId) => data.messages.some((m) => m.id === id)
+
+	const handlers: { [K in ClientToRoom["t"]]: (peer: Peer<RoomToClient>, f: Extract<ClientToRoom, { t: K }>) => void } = {
+		hello(peer, f) {
+			const last = log[log.length - 1]?.seq ?? 0
+			if (f.lastSeq > last || last - f.lastSeq > resetAfter) return peer.push({ t: "reset", snapshot: snapshot() })
+			peer.push({ t: "events", events: log.filter((e) => e.seq > f.lastSeq) })
+		},
+		send(peer, f) {
+			const seen = byClientId.get(f.clientId)
+			if (seen) return peer.push({ t: "ack", clientId: f.clientId, ...seen })
+			const seq = nextSeq()
+			const m: Omit<Message, "seq" | "at"> = { id: `m${seq}` as MessageId, from: { kind: "human" }, text: f.text }
+			if (f.replyTo) m.replyTo = f.replyTo
+			if (f.files?.length) m.files = f.files
+			if (mock.loseNextAck) {
+				mock.loseNextAck = false
+				append(stamp(message(m, f.clientId)))
+				return peer.close()
+			}
+			const [stored] = store(message(m, f.clientId))
+			peer.push({ t: "ack", clientId: f.clientId, id: m.id, seq: stored.seq })
+		},
+		react(_, f) {
+			if (has(f.messageId)) store({ t: "react", messageId: f.messageId, by: { kind: "human" }, emoji: f.emoji })
+		},
+		edit(_, f) {
+			if (has(f.messageId)) store({ t: "edit", messageId: f.messageId, text: f.text })
+		},
+		delete(_, f) {
+			if (has(f.messageId)) store({ t: "delete", messageIds: [f.messageId] })
+		},
+		read(_, f) {
+			if (f.seq > data.readSeq) store({ t: "read", upTo: f.seq })
+		},
+		typing() {},
+		stop() {},
+		approve(_, f) {
+			const a = data.approvals.find((x) => x.id === f.approvalId)
+			if (a?.state === "pending")
+				store({ t: "approval", approval: { ...a, state: f.action === "accept" ? "accepted" : "declined" } })
+		},
+		task(_, f) {
+			const op = f.op
+			if (op.op === "delete") return void store({ t: "task_removed", id: op.id })
+			const old = data.tasks.find((x) => x.id === op.id)
+			if (op.op === "create") {
+				if (old) return
+				store({
+					t: "task",
+					task: { id: op.id, title: op.title, status: "todo", dependsOn: op.dependsOn ?? [], ...(op.owner ? { owner: op.owner } : {}) },
+				})
+				return
+			}
+			if (!old) return
+			const { owner, ...rest } = old
+			const newOwner = op.owner === undefined ? owner : (op.owner ?? undefined)
+			store({
+				t: "task",
+				task: {
+					...rest,
+					...(op.title !== undefined ? { title: op.title } : {}),
+					...(op.status !== undefined ? { status: op.status } : {}),
+					...(op.note !== undefined ? { note: op.note } : {}),
+					...(newOwner ? { owner: newOwner } : {}),
+				},
+			})
+		},
+	}
+
+	const server: FakeServer<ClientToRoom, RoomToClient> = {
+		online: true,
+		open: (peer) => void peers.add(peer),
+		closed: (peer) => void peers.delete(peer),
+		receive(peer, frame) {
+			received.push(frame)
+			const handle = handlers[frame.t] as (p: Peer<RoomToClient>, f: ClientToRoom) => void
+			handle(peer, frame)
+		},
+	}
+
+	const mock: MockRoom = {
+		connect: fakeConnect(server, schedule),
+		get online() {
+			return server.online
+		},
+		set online(value) {
+			server.online = value
+		},
+		drop() {
+			for (const p of [...peers]) p.close()
+		},
+		received,
+		log,
+		get peers() {
+			return peers.size
+		},
+		snapshot,
+		store,
+		broadcast(frame) {
+			for (const p of peers) p.push(frame)
+		},
+		loseNextAck: false,
+	}
+	return mock
+}
+
+export type MockUserOptions = {
+	chats?: readonly Chat[]
+	resetAfter?: number
+	schedule?: Schedule
+	now?: () => number
+}
+
+export type MockUser = {
+	connect: Connect
+	online: boolean
+	drop(): void
+	readonly received: ClientToUser[]
+	readonly log: readonly UserEvent[]
+	store(...events: WithoutStored<UserEvent>[]): UserEvent[]
+}
+
+export function createMockUser(options: MockUserOptions = {}): MockUser {
+	const schedule = options.schedule ?? later
+	const now = options.now ?? Date.now
+	const resetAfter = options.resetAfter ?? 500
+	const log: UserEvent[] = []
+	const data: UserData = { seq: 0, chats: [] }
+	const peers = new Set<Peer<UserToClient>>()
+	const received: ClientToUser[] = []
+
+	function store(...events: WithoutStored<UserEvent>[]): UserEvent[] {
+		const stored = events.map((e) => {
+			const s = { ...e, seq: (log[log.length - 1]?.seq ?? 0) + 1, at: now() } as UserEvent
+			log.push(s)
+			applyUserEvent(data, structuredClone(s))
+			return s
+		})
+		for (const p of peers) p.push({ t: "events", events: stored })
+		return stored
+	}
+	for (const chat of options.chats ?? [fixtures.chat]) store({ t: "chat", chat })
+
+	const find = (roomId: string) => data.chats.find((c) => c.roomId === roomId)
+
+	const server: FakeServer<ClientToUser, UserToClient> = {
+		online: true,
+		open: (peer) => void peers.add(peer),
+		closed: (peer) => void peers.delete(peer),
+		receive(peer, frame) {
+			received.push(frame)
+			if (frame.t === "hello") {
+				const last = log[log.length - 1]?.seq ?? 0
+				if (frame.lastSeq > last || last - frame.lastSeq > resetAfter)
+					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats }) })
+				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
+			}
+			const op = frame.op
+			const chat = find(op.roomId)
+			if (op.op === "create") {
+				if (chat) return
+				store({
+					t: "chat",
+					chat: { roomId: op.roomId, title: op.title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now() },
+				})
+			} else if (!chat) return
+			else if (op.op === "delete") store({ t: "chat_removed", roomId: op.roomId })
+			else if (op.op === "rename") store({ t: "chat", chat: { ...chat, title: op.title } })
+			else if (op.op === "pin") store({ t: "chat", chat: { ...chat, pinned: op.pinned } })
+			else store({ t: "chat", chat: { ...chat, muted: op.muted } })
+		},
+	}
+
+	return {
+		connect: fakeConnect(server, schedule),
+		get online() {
+			return server.online
+		},
+		set online(value) {
+			server.online = value
+		},
+		drop() {
+			for (const p of [...peers]) p.close()
+		},
+		received,
+		log,
+		store,
+	}
+}
