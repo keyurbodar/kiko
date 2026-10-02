@@ -52,3 +52,11 @@ Keep it under 150 words. Include:
 - every file you touched outside "Files"
 - anything left open, still UNVERIFIED, or waiting on a human
 - any fact another task needs, such as an exact model id or a changed interface
+
+## Facts from merged tasks
+
+The coordinator adds to this list as tasks land.
+
+- `apps/server/wrangler.jsonc` serves assets from `../web-solid/dist`, which git ignores. If `wrangler dev` or `wrangler deploy --dry-run` complains about the assets directory, run `bun run build` in `apps/web-solid` first.
+- Run `bun test` inside a package directory. At the repo root it picks up reference code and fails.
+- The root `dev:server` script uses port 8787. Do not use it in this run. Start wrangler with your own ports.
