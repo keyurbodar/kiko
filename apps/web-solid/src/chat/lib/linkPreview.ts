@@ -142,6 +142,26 @@ function mediaSizeOf(image: PreviewImage, metadata: Metadata): "large" | "small"
   return "large"
 }
 
+/**
+ * Whether a preview image may load. Only kiko's own origin is allowed, so a
+ * page's og:image never makes the reader's browser contact a third party. A
+ * relative path counts as kiko's origin.
+ */
+export function isOwnOriginImage(src: string, origin = globalThis.location?.origin): boolean {
+  if (!origin) return false
+  try {
+    return new URL(src, origin).origin === origin
+  } catch {
+    return false
+  }
+}
+
+/** The preview's media, or undefined when its image is not on kiko's origin. */
+export function ownMedia(page: WebPagePreview | undefined): WebPagePreview["media"] {
+  const media = page?.media
+  return media && isOwnOriginImage(media.src) ? media : undefined
+}
+
 export function hasWebPageContent(page: WebPagePreview | undefined): boolean {
   if (!page) return false
   return Boolean(page.title?.trim() || page.description?.trim())
