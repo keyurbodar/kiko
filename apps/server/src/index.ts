@@ -1,3 +1,4 @@
+import { executorOAuth, executorOAuthPrefix } from "./experiments/executor-oauth"
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { authRoute } from "./auth/auth"
@@ -26,6 +27,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
+    if (url.pathname.startsWith(executorOAuthPrefix)) return executorOAuth(request)
     if (url.pathname === "/api/experiments/imports") return Response.json(await runImports())
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse

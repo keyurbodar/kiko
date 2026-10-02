@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util"
+import { executor } from "./commands/executor"
 import { health } from "./commands/health"
 import { login, whoami } from "./commands/login"
 import { verify } from "./commands/verify"
@@ -19,9 +20,9 @@ export interface Context {
   noModel: boolean
 }
 
-const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify }
+const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, executor }
 
-export const usage = "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | verify [--list] [--no-model] [suite...]> [--url <url>] [--json] [--idle <ms>]"
+export const usage = "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | executor <probe | discover> | verify [--list] [--no-model] [suite...]> [--url <url>] [--json] [--idle <ms>]"
 
 export async function main(argv: string[]): Promise<number> {
   try {
