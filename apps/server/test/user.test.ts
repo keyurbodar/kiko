@@ -120,6 +120,25 @@ test("hello resumes after lastSeq, and a socket from the future gets a snapshot"
   ahead.close()
 })
 
+test("a client with nothing gets the snapshot when it is shorter than the replay", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_A, "a")
+  const short = await socket(user, 0)
+  // One event, and a snapshot of one chat plus the theme: the replay is not longer.
+  expect(short.frames[0]!.t).toBe("events")
+  for (let i = 1; i <= 5; i++) await rpc(user, "touchChat", ROOM_A, { lastSeq: i, lastPreview: `p${i}`, unread: i })
+  const fresh0 = await socket(user, 0)
+  expect(fresh0.frames[0]!.t).toBe("reset")
+  expect(fresh0.frames[0]!.snapshot.seq).toBe(6)
+  expect(fresh0.frames[0]!.snapshot.chats).toMatchObject([{ roomId: ROOM_A, lastPreview: "p5", unread: 5 }])
+  // A client that has applied something still gets events.
+  const resumed = await socket(user, 1)
+  expect(resumed.frames[0]!.t).toBe("events")
+  short.close()
+  fresh0.close()
+  resumed.close()
+})
+
 test("a gap older than the replay window gets a snapshot", async () => {
   const user = fresh()
   await rpc(user, "createChat", ROOM_A, "a")

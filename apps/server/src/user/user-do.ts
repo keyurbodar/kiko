@@ -378,6 +378,11 @@ export class UserDO extends DurableObject<Env> {
     return event
   }
 
+  /** Rows a snapshot carries: every chat and agent, and the theme. */
+  private snapshotRows(): number {
+    return this.sql.exec<{ n: number }>("SELECT (SELECT count(*) FROM chats) + (SELECT count(*) FROM agents) + 1 AS n").one().n
+  }
+
   /** Sends a frame to every socket that has said hello. */
   private broadcast(frame: UserToClient): void {
     const text = JSON.stringify(frame)
@@ -386,12 +391,20 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  /** The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. */
+  /**
+   * The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. A client
+   * with nothing (`lastSeq` 0) also gets the snapshot when it is shorter: every run touches a chat
+   * and stores one more event, so the replay grows to 500 events while the snapshot is one row per
+   * chat and agent.
+   */
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
-    const oldest = this.sql.exec<{ seq: number | null }>("SELECT min(seq) AS seq FROM user_events").one().seq
+    const { oldest, stored } = this.sql
+      .exec<{ oldest: number | null; stored: number }>("SELECT min(seq) AS oldest, count(*) AS stored FROM user_events")
+      .one()
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
-    if (!replayable) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
+    const fresher = lastSeq === 0 && stored > this.snapshotRows()
+    if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()
