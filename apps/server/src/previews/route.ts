@@ -55,8 +55,11 @@ export const devFixtureFetcher: Fetcher = async (url, init) => {
   const target = new URL(url)
   if (target.hostname === "cloudflare-dns.com") {
     const name = target.searchParams.get("name") ?? ""
-    const fixture = target.searchParams.get("type") === "A" && /^fixture-\d+\.preview\.test$/.test(name)
-    return Response.json({ Status: 0, Answer: fixture ? [{ name, type: 1, data: "93.184.216.34" }] : [] })
+    // Only fixture names are answered here. Every other name asks the real resolver, so a dev
+    // server previews real sites the way production does.
+    if (!/^fixture-\d+\.preview\.test$/.test(name)) return fetch(url, init)
+    const a = target.searchParams.get("type") === "A"
+    return Response.json({ Status: 0, Answer: a ? [{ name, type: 1, data: "93.184.216.34" }] : [] })
   }
   const match = /^fixture-(\d+)\.preview\.test$/.exec(target.hostname)
   if (!match) return fetch(url, init)
