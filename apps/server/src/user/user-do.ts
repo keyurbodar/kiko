@@ -6,6 +6,7 @@ import { Schema } from "effect"
 import type { Env } from "../index"
 import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
+import type { ExecutorTool } from "../integrations/executor/tools"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { keyringFromEnv } from "../lib/crypto"
@@ -249,6 +250,17 @@ export class UserDO extends DurableObject<Env> {
    * A fresh Executor bearer credential for this user's own agents, or null. Server code
    * only: it is never sent on a socket or over HTTP.
    */
+  /** The tools Executor offers this user, for an agent's run (P7-04). Null when it is not connected. */
+  async executorTools(): Promise<ExecutorTool[] | null> {
+    if (!(await this.#executor.status()).connected) return null
+    return this.#executor.tools()
+  }
+
+  /** Calls one Executor tool for this user's agent. The credential never leaves this object. */
+  async executorCall(name: string, args: Record<string, unknown>) {
+    return this.#executor.call(name, args)
+  }
+
   async executorToken(): Promise<string | null> {
     return this.#executor.bearer()
   }

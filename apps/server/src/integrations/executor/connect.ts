@@ -1,5 +1,6 @@
 import type { ExecutorStatus } from "@kiko/protocol"
-import { McpClient, StreamableHttpTransport } from "@earendil-works/pi-mcp"
+import { McpClient, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
+import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
 import { userStub } from "../../lib/names"
@@ -136,6 +137,30 @@ export class ExecutorConnection {
 
   /** Calls `tools/list` with the stored credential and returns the tool names. */
   async listTools(): Promise<string[]> {
+    return (await this.tools()).map((t) => t.name)
+  }
+
+  /** Every tool Executor offers this user, as plain data for the agent (P7-04). */
+  async tools(): Promise<ExecutorTool[]> {
+    return this.withClient(async (client) =>
+      (await client.listTools()).map((t) => ({
+        name: t.name,
+        ...(t.description ? { description: t.description } : {}),
+        inputSchema: t.inputSchema,
+        ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
+      })),
+    )
+  }
+
+  /** Calls one tool and returns its result in the shape a model reads: text and images. */
+  async call(name: string, args: Record<string, unknown>): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
+    return this.withClient(async (client) => {
+      const result = await client.callTool(name, args)
+      return { content: toLlmContent(result) as ExecutorResultBlock[], ...(result.isError ? { isError: true } : {}) }
+    })
+  }
+
+  private async withClient<T>(run: (client: McpClient) => Promise<T>): Promise<T> {
     if (!(await this.bearer())) throw new ExecutorError("executor is not connected")
     const client = new McpClient({ name: "kiko", version: "0.0.0" })
     const transport = new StreamableHttpTransport({
@@ -146,7 +171,7 @@ export class ExecutorConnection {
     })
     try {
       await client.connect(transport)
-      return (await client.listTools()).map((t) => t.name)
+      return await run(client)
     } finally {
       await client.close().catch(() => {})
     }

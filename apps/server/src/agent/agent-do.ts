@@ -16,6 +16,10 @@ import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
+import type { ExecutorTool } from "../integrations/executor/tools"
+
+const EXECUTOR_TOOLS_KEY = "executor_tools"
+const EXECUTOR_TOOLS_TTL_MS = 5 * 60_000
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { createAlarms } from "../lib/alarm"
 import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
@@ -159,6 +163,25 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
+  /**
+   * The human's Executor tools (P7-04), listed when the harness opens and cached for five minutes,
+   * so a new integration reaches the next process without a deploy. Null when Executor is not
+   * connected; "unreachable" when it is but did not answer (the run starts without its tools).
+   */
+  private async executorTools(): Promise<ExecutorTool[] | null | "unreachable"> {
+    const home = this.home()
+    if (!home) return null
+    const cached = await this.ctx.storage.get<{ at: number; tools: ExecutorTool[] | null }>(EXECUTOR_TOOLS_KEY)
+    if (cached && Date.now() - cached.at < EXECUTOR_TOOLS_TTL_MS) return cached.tools
+    try {
+      const tools = await userStub(this.env.USER, home.userId).executorTools()
+      await this.ctx.storage.put(EXECUTOR_TOOLS_KEY, { at: Date.now(), tools })
+      return tools
+    } catch {
+      return cached?.tools ?? "unreachable"
+    }
+  }
+
   /** RPC from the room: a human message is in its burst window (section 7.8). Only stores. */
   async humanComing(): Promise<void> {
     this.host.humanComing()
@@ -186,15 +209,17 @@ export class AgentDO extends DurableObject<Env> {
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
     const files = roomFilesPort(this.env, () => this.home(), user.models)
     const memory = this.memoryPort()
+    const executor = await this.executorTools()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
       // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
-        return [clock, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
+        const down = executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
+        return [clock, down, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
       },
     }
   }
