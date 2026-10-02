@@ -21,6 +21,7 @@ export default function DateCalendar(props: {
   setPicking: (value: boolean | ((was: boolean) => boolean)) => void
   close: () => void
   onJumpToDay: (dayStart: number) => void
+  hasDay?: (dayStart: number) => boolean
 }): JSX.Element {
   const picked = () => props.picked
   const month = () => props.month
@@ -48,6 +49,7 @@ export default function DateCalendar(props: {
               onMonthChange={setMonth}
               initialFocusedDay={new Date(props.dayStart)}
               startOfWeek={0}
+              disabled={(date: Date) => (props.hasDay ? !props.hasDay(dayStartOf(date.getTime())) : false)}
             >
               {(calendar) => (
                 <>

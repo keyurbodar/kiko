@@ -12,6 +12,8 @@ export function DateChip(props: {
   now: number
   visible: boolean
   onJumpToDay: (dayStart: number) => void
+  /** True when the chat has a message that day. Days without one are dimmed and cannot be picked. */
+  hasDay?: (dayStart: number) => boolean
   class?: string
 }): JSX.Element {
   const [open, setOpen] = createSignal(false)
@@ -98,7 +100,7 @@ export function DateChip(props: {
         </div>
         <Show when={open()}>
           <Suspense fallback={<div class="h-[300px] w-full" />}>
-            <DateCalendar dayStart={props.dayStart} picked={picked()} setPicked={setPicked} month={month()} setMonth={setMonth} picking={picking()} setPicking={setPicking} close={close} onJumpToDay={props.onJumpToDay} />
+            <DateCalendar dayStart={props.dayStart} picked={picked()} setPicked={setPicked} month={month()} setMonth={setMonth} picking={picking()} setPicking={setPicking} close={close} onJumpToDay={props.onJumpToDay} hasDay={props.hasDay} />
           </Suspense>
         </Show>
       </DismissableLayerV2>

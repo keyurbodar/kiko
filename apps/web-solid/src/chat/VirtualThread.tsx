@@ -342,6 +342,7 @@ export function VirtualThread(props: {
   })
 
   /** The calendar asks for a day; the transcript answers with its first row. */
+  const days = createMemo(() => new Set(props.messages.map((m) => dayStartOf(m.sentAt))))
   const jumpToDay = (dayStart: number) => {
     const index = items().findIndex(
       (item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart,
@@ -853,6 +854,7 @@ export function VirtualThread(props: {
         now={now()}
         visible={dateChipVisible()}
         onJumpToDay={jumpToDay}
+        hasDay={(day) => days().has(day) || day === dayStartOf(now())}
       />
       <ScrollFades
         showTop={(scrollState()?.scrollOffset ?? 0) > 0}
