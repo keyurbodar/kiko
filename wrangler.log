@@ -1,0 +1,205 @@
+
+ ⛅️ wrangler 4.146.0 (update available 4.147.0)
+───────────────────────────────────────────────
+Using secrets defined in .dev.vars
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+Wrangler detected this dev session is running in an AI agent.
+The Local Explorer API is available at http://localhost:8820/cdn-cgi/local/explorer/api
+Useful routes:
+  GET http://localhost:8820/cdn-cgi/local/explorer/api/local/workers - local Workers and bindings
+  POST http://localhost:8820/cdn-cgi/local/explorer/api/local/scheduled?worker=<name> - invoke a Worker's scheduled handler; cron is required (see the OpenAPI schema for the full request)
+  GET http://localhost:8820/cdn-cgi/local/explorer/api/storage/kv/namespaces - KV namespaces
+  GET http://localhost:8820/cdn-cgi/local/explorer/api/d1/database - D1 databases
+  GET http://localhost:8820/cdn-cgi/local/explorer/api/r2/buckets - R2 buckets
+  GET http://localhost:8820/cdn-cgi/local/explorer/api/workers/durable_objects/namespaces - Durable Object namespaces
+  GET http://localhost:8820/cdn-cgi/local/explorer/api/workflows - Workflows
+  POST http://localhost:8820/cdn-cgi/local/explorer/api/local/observability/query - run a read-only SQL query (SELECT/WITH only) over captured request traces and console logs. Tables: spans, logs (read attributes via json(attributes)). Example:
+    curl -X POST http://localhost:8820/cdn-cgi/local/explorer/api/local/observability/query -H 'Content-Type: application/json' -d '{"sql":"SELECT service, name, outcome, duration_ms FROM spans WHERE parent_id IS NULL LIMIT 20"}'
+  POST http://localhost:8820/cdn-cgi/local/explorer/api/local/observability/clear - clear all captured traces and logs
+If the routes above don't cover what you need, fetch the full OpenAPI schema (large - use only as a last resort):
+  GET http://localhost:8820/cdn-cgi/local/explorer/api - OpenAPI schema
+⎔ Starting local server...
+[wrangler:info] ✨ Parsed 1 valid header rule.
+⎔ Connection status updated
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mBuild failed with 3 errors:[0m
+
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCannot read directory "../..": too many open files in system[0m
+  
+  
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/wrangler@4.146.0+40e56dc85a43a9bc/node_modules/wrangler/templates/modules-watch-stub.js"[0m
+  
+  
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/apps/server/.wrangler/tmp/bundle-XgVmkl/middleware-loader.entry.ts"[0m
+  
+  
+
+
+[wrangler:info] Ready on http://localhost:8820
+[wrangler:info] GET /api/health 200 OK (25740ms)
+[wrangler:info] GET /api/health 200 OK (1195ms)
+⎔ Connection status updated
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+⎔ Connection status updated
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mCould not read entrypoint "/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/apps/server/.wrangler/tmp/dev-QNMyz6/index.js": ENFILE: file table overflow, open '/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/apps/server/.wrangler/tmp/dev-QNMyz6/index.js'[0m
+
+
+⎔ Reloading local server...
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mFailed to write to log file Error: ENFILE: file table overflow, open '/Users/keyur/Library/Preferences/.wrangler/logs/wrangler-2026-10-02_13-16-06_279.log'[0m
+
+      at async open (node:internal/fs/promises:1345:25)
+      at async writeFile (node:internal/fs/promises:1965:14)
+      at async /Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/wrangler@4.146.0+40e56dc85a43a9bc/node_modules/wrangler/wrangler-dist/cli.js:65055:7
+      at async Mutex.runWith (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/miniflare@5.20261001.0-alpha+32cc370a26a4ad89/node_modules/miniflare/dist/src/index.js:70205:16)
+      at async appendToDebugLogFile (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/wrangler@4.146.0+40e56dc85a43a9bc/node_modules/wrangler/wrangler-dist/cli.js:65052:3) {
+    errno: -23,
+    code: 'ENFILE',
+    syscall: 'open',
+    path: '/Users/keyur/Library/Preferences/.wrangler/logs/wrangler-2026-10-02_13-16-06_279.log'
+  }
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mWould have written: [0m
+
+  --- 2026-10-02T13:17:16.032Z debug
+  [InspectorProxyWorker] SEND TO RUNTIME {"method":"Runtime.getIsolateId","id":100000005}
+  ---
+  
+
+
+[wrangler:warn] Unable to fetch the `Request.cf` object! Falling back to a default placeholder...
+TimeoutError: The operation was aborted due to timeout
+    at new DOMException (node:internal/per_context/domexception:76:18)
+    at Timeout._onTimeout (node:internal/abort_controller:210:9)
+    at listOnTimeout (node:internal/timers:685:17)
+    at process.processTimers (node:internal/timers:618:7)
+    at /Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/undici@7.29.1/node_modules/undici/index.js:157:7
+    at async setupCf (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/miniflare@5.20261001.0-alpha+32cc370a26a4ad89/node_modules/miniflare/dist/src/index.js:68210:17)
+    at async #assembleConfig (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/miniflare@5.20261001.0-alpha+32cc370a26a4ad89/node_modules/miniflare/dist/src/index.js:124352:21)
+    at async #assembleAndUpdateConfig (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/miniflare@5.20261001.0-alpha+32cc370a26a4ad89/node_modules/miniflare/dist/src/index.js:124745:21)
+    at async #setOptions (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/miniflare@5.20261001.0-alpha+32cc370a26a4ad89/node_modules/miniflare/dist/src/index.js:125083:7)
+    at async Mutex.runWith (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/miniflare@5.20261001.0-alpha+32cc370a26a4ad89/node_modules/miniflare/dist/src/index.js:70205:16)
+    at async #onBundleComplete (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/wrangler@4.146.0+40e56dc85a43a9bc/node_modules/wrangler/wrangler-dist/cli.js:364765:13)
+    at async Mutex.runWith (/Users/keyur/Documents/kiko/.claude/worktrees/agent-aa66b8c221d61ba95/node_modules/.bun/miniflare@5.20261001.0-alpha+32cc370a26a4ad89/node_modules/miniflare/dist/src/index.js:70205:16)
+[wrangler:info] ✨ Parsed 1 valid header rule.
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mBuild failed with 6 errors:[0m
+
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCannot read directory "../../node_modules/.bun/retry@0.13.1/node_modules/retry/lib": too many open files in system[0m
+  
+  
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCannot read directory "../../node_modules/.bun/retry@0.13.1/node_modules/retry/lib": too many open files in system[0m
+  
+  
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCannot read directory "../../node_modules/.bun/effect@4.0.0/node_modules/effect/dist/reactivity": too many open files in system[0m
+  
+  
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCannot read directory "../../node_modules/.bun/effect@4.0.0/node_modules/effect/dist/reactivity": too many open files in system[0m
+  
+  
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "../reactivity/Reactivity.js"[0m
+  
+      ../../node_modules/.bun/effect@4.0.0/node_modules/effect/dist/sql/SqlClient.js:8:27:
+  [37m      8 │ import { Reactivity } from [32m"../reactivity/Reactivity.js"[37m;
+          ╵                            [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+  
+  
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "./lib/retry"[0m
+  
+      ../../node_modules/.bun/retry@0.13.1/node_modules/retry/index.js:1:25:
+  [37m      1 │ module.exports = require([32m'./lib/retry'[37m);
+          ╵                          [32m~~~~~~~~~~~~~[0m
+  
+  
+
+
+⎔ Connection status updated
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+⎔ Local server updated and ready
+⎔ Reloading local server...
+[wrangler:info] ✨ Parsed 1 valid header rule.
+⎔ Connection status updated
+Your Worker has access to the following bindings:
+Binding                                                        Resource                  Mode
+env.USER (UserDO)                                              Durable Object            local
+env.ROOM (RoomDO)                                              Durable Object            local
+env.AGENT (AgentDO)                                            Durable Object            local
+env.PREVIEWS (00000000000000000000000000000000)                KV Namespace              local
+env.JOBS (kiko-jobs)                                           Queue                     local
+env.AUTH_DB (kiko-auth)                                        D1 Database               local
+env.FILES (kiko-files)                                         R2 Bucket                 local
+env.ASSETS                                                     Assets                    local
+env.OPENCODE_API_KEY ("(hidden)")                              Environment Variable      local
+env.CREDENTIALS_KEK ("(hidden)")                               Environment Variable      local
+env.BETTER_AUTH_SECRET ("(hidden)")                            Environment Variable      local
+
+⎔ Local server updated and ready
+[wrangler:info] POST /api/auth/dev/session 200 OK (824ms)
+[wrangler:info] GET /api/ws/user 101 Switching Protocols (129ms)
+[wrangler:info] GET /api/ws/room/01M3YC7KNMQQNPPNADVC1Z0V1Q 101 Switching Protocols (147ms)
+[wrangler:info] POST /api/dev/agent/fake 200 OK (73ms)

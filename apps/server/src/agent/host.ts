@@ -189,6 +189,12 @@ export class AgentHost {
         continue
       }
       const action = decide(run, arrivalOf(batch))
+      // Only a running root turn holds a batch. Background tasks alone (a subagent) do not.
+      if (action === "hold" && (await this.rootPlaced(harness, root))) {
+        // The batch waits in the inbox. `watchIdle` sets the inbox wakeup when the run answers.
+        this.inbox.hold(batch.requestId)
+        continue
+      }
       // The restart count belongs to the run chain. A submit to an idle conversation starts a new one.
       let restarts = run?.restarts ?? 0
       if (action === "restart") {
@@ -218,11 +224,19 @@ export class AgentHost {
     }
   }
 
+  /** True while a root input is placed, that is, while the root conversation is answering. */
+  private async rootPlaced(harness: Harness, root: Conversation): Promise<boolean> {
+    const live = await harness.inspect(context)
+    return live.submissions.some((s) => s.conversationId === root.id && s.status === "placed")
+  }
+
   /** Keeps the heartbeat while any task or submission is live, and removes it once the harness is idle. */
   private async pulse(harness: Harness): Promise<void> {
     const live = await harness.inspect(context)
     if (live.tasks.length === 0 && live.submissions.length === 0) {
       await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
+      // The run answered between the drain's check and now, so a batch it held is placed at once.
+      if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
       return
     }
     await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + this.heartbeatMs)
@@ -242,6 +256,8 @@ export class AgentHost {
       .then(async () => {
         this.watchingIdle = false
         const live = await harness.inspect(context)
+        // A held agent or system batch is placed now that the run answered (section 7.8).
+        if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
         if (live.tasks.length === 0 && live.submissions.length === 0) await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
         else this.watchIdle(harness)
       })
