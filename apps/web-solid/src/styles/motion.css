@@ -47,6 +47,11 @@
     to { opacity: 1; transform: scale(1) translateY(0); }
   }
 
+  @keyframes motion-calendar-month {
+    from { opacity: 0; transform: translateX(6px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
   @keyframes motion-toast-enter {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
@@ -73,6 +78,10 @@
   .motion-calendar-open {
     transform-origin: top center;
     animation: motion-calendar-open var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  .motion-calendar-month {
+    animation: motion-calendar-month var(--motion-fast) var(--motion-ease-out) both;
   }
 
   .motion-toast-enter {
