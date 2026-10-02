@@ -15,7 +15,7 @@ import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
-import { dayChipLabel, formatTimeOfDay } from "./lib/dayLabel"
+import { dividerLabel } from "./lib/time-label"
 import { animate } from "motion"
 import { useApp } from "../lib/store"
 import { jumboEmojiClass } from "./lib/reply"
@@ -644,13 +644,12 @@ export function VirtualThread(props: {
       return (
         <SystemMessage
           variant="divider"
-          label={`${dayChipLabel(item.dayStart, now())} ${formatTimeOfDay(item.firstSentAt)}`}
+          label={dividerLabel(item.firstSentAt, now())}
           data-component="chat-divider"
         >
           <span class="font-medium" data-component="chat-day-label">
-            {dayChipLabel(item.dayStart, now())}
+            {dividerLabel(item.firstSentAt, now())}
           </span>
-          <span data-component="chat-day-time">{formatTimeOfDay(item.firstSentAt)}</span>
         </SystemMessage>
       )
     }

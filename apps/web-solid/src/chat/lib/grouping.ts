@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../../lib/types";
+import { startsTimeBreak } from "./time-label";
 
 /** Telegram's run window. A gap strictly larger than this splits a run. */
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
@@ -90,10 +91,12 @@ export function buildTimelineItems(
     const message = messages[i];
     const dayStart = dayStartOf(message.sentAt);
 
-    if (i > 0 && dayStartOf(messages[i - 1].sentAt) !== dayStart) {
+    if (i > 0 && startsTimeBreak(messages[i - 1].sentAt, message.sentAt)) {
+      const newDay = dayStartOf(messages[i - 1].sentAt) !== dayStart;
       items.push({
         kind: "day-divider",
-        key: `day:${dayStart}`,
+        // A pause inside a day is keyed by the message it sits above.
+        key: newDay ? `day:${dayStart}` : `gap:${message.id}`,
         dayStart,
         firstSentAt: message.sentAt,
       });

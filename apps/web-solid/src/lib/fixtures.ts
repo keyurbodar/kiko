@@ -1112,6 +1112,19 @@ function readMore(): readonly ChatMessage[] {
   ];
 }
 
+/** Two messages ten minutes apart, then one two hours later: one pause divider. */
+function pauseGap(): readonly ChatMessage[] {
+  const row = (id: string, n: number, sender: "user" | "bot"): ChatMessage => ({
+    id,
+    threadId: "ada",
+    sender,
+    ...(sender === "bot" ? { botId: BOTS[0].id } : {}),
+    body: id,
+    sentAt: NOW - n * MINUTE,
+  });
+  return [row("pg-1", 150, "bot"), row("pg-2", 140, "user"), row("pg-3", 20, "bot")];
+}
+
 const BY_ID: Record<string, ChatMessage> = Object.fromEntries(
   MESSAGES.map((message) => [message.id, message]),
 );
@@ -1127,6 +1140,8 @@ function slice(...ids: readonly string[]): readonly ChatMessage[] {
 export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = {
   // A 3,000 character body between short rows: clamped, then expanded in place.
   "read-more": readMore(),
+  // A pause over an hour inside one day gets a divider; ten minutes does not.
+  "pause-gap": pauseGap(),
   // Three consecutive agent messages inside the window: one run, not three.
   grouped: slice("a-06", "a-07", "a-08"),
   // Same author either side of a gap longer than the 300s window: two runs.
