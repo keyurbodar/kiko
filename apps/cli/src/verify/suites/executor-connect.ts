@@ -24,6 +24,7 @@ function ok(result: ExecutorResult, what: string) {
 
 const suite: Suite = {
   name: "executor-connect",
+  human: true,
   async run(v) {
     const base = v.url.endsWith("/") ? v.url : `${v.url}/`
     const s = await v.as(USER)
