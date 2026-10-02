@@ -112,9 +112,14 @@ export function Composer(props: ComposerProps) {
   let linkRequest = 0
   let resolvedUrl: string | null = null
 
+  let linkAbort: AbortController | null = null
+
   const resolveDraftLink = async (url: string, request: number) => {
-    const preview = await resolveLinkPreview(url)
-    if (request !== linkRequest) return
+    linkAbort?.abort()
+    const controller = new AbortController()
+    linkAbort = controller
+    const preview = await resolveLinkPreview(url, controller.signal)
+    if (request !== linkRequest || controller.signal.aborted) return
     resolvedUrl = url
     setDraftLink({ url, preview })
   }
@@ -147,6 +152,7 @@ export function Composer(props: ComposerProps) {
     if (resolvedUrl === url) return
 
     linkRequest += 1
+    linkAbort?.abort()
     const request = linkRequest
     setDraftLink({ url, preview: null })
     const timer = setTimeout(() => void resolveDraftLink(url, request), LINK_PREVIEW_DEBOUNCE_MS)

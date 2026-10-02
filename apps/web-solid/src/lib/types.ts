@@ -79,6 +79,8 @@ export interface WebPagePreview {
   site?: string
   title?: string
   description?: string
+  /** A path on kiko's origin. */
+  favicon?: string
   media?: { src: string; width: number; height: number }
   mediaSize?: "large" | "small"
 }
