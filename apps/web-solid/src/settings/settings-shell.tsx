@@ -6,6 +6,7 @@ import { chatModel, setChatModel } from "./chat-model"
 import { ProviderList } from "./providers"
 import { Integrations } from "./integrations"
 import { DeleteAccount } from "../app/delete-account"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { session, signOut } from "../app/session"
 import type { JSX } from "solid-js"
 
@@ -25,9 +26,10 @@ function Account() {
   }
   return (
     <div class="flex flex-col gap-4" data-component="account">
-      <div class="flex items-center justify-between gap-3 rounded-[10px] bg-[var(--surface-raised)] px-3 py-3">
-        <span class="min-w-0">
-          <span class="block truncate text-sm text-[var(--tab-text-active)]">{(user()?.name ?? "you").toLowerCase()}</span>
+      <div class="flex items-center gap-3 rounded-2xl bg-[var(--surface-raised)] p-4">
+        <IdentityAvatar seed={user()?.id ?? "you"} size={48} />
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-[15px] font-semibold text-text">{(user()?.name ?? "you").toLowerCase()}</span>
           <span class="block truncate text-xs text-weak">{user()?.email ?? ""}</span>
         </span>
         <button
@@ -74,6 +76,7 @@ function DefaultModel() {
 }
 
 export function SettingsShell(props: { sectionId: string }) {
+  const meta = () => SETTINGS_SECTIONS.find((s) => s.id === props.sectionId)
   let nav: HTMLElement | undefined
   // On a phone the tabs scroll sideways, so the open one must be in view after a reload or a deep link.
   createEffect(() => {
@@ -101,7 +104,15 @@ export function SettingsShell(props: { sectionId: string }) {
           </A>
         ))}
       </nav>
-      <div class="flex min-h-0 min-w-0 max-w-[720px] flex-1 flex-col overflow-y-auto">{section(props.sectionId)}</div>
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
+        <div class="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-1 pt-6 pb-10 md:pt-10">
+          <header class="flex flex-col gap-0.5 px-1">
+            <h1 class="text-[15px] font-semibold text-text">{meta()?.label ?? "settings"}</h1>
+            <p class="text-sm text-weak">{meta()?.hint}</p>
+          </header>
+          {section(props.sectionId)}
+        </div>
+      </div>
     </div>
   )
 }
