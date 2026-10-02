@@ -37,7 +37,7 @@ const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1689,
   "tier 2 first paint of /chat": 220198,
   "tier 3 lazy modules": 31724,
-  "tier 4 route chunks": 7978, // settings (P4-05) 3.0 KB plus the memory screen (P5-04) 4.9 KB. CodeMirror is a dynamic import, outside this count.
+  "tier 4 route chunks": 11986, // settings now holds providers, models, integrations (P7-06), appearance (P2-18), and account deletion (P9-02). The theme editor and CodeMirror stay lazy.
 };
 
 interface Entry {
