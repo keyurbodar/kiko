@@ -188,7 +188,7 @@ export function Composer(props: ComposerProps) {
    * reader switches conversation.
    */
   const placeholder = () => {
-    const name = botById(props.threadId)?.name
+    const name = props.title || botById(props.threadId)?.name
     return name ? `message ${name.toLowerCase()}` : "message"
   }
 
@@ -292,7 +292,7 @@ export function Composer(props: ComposerProps) {
             role={
               message().sender === "user"
                 ? "you"
-                : (botById(message().botId)?.name ?? "agent").toLowerCase()
+                : (botById(message().botId)?.name ?? (props.bots.length === 1 ? props.bots[0]!.name : "agent")).toLowerCase()
             }
             onJump={() => props.onJumpToReply?.(message().id)}
             onDismiss={() => props.onClearReply?.()}

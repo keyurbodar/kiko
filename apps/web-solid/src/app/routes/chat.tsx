@@ -169,6 +169,7 @@ export default function ChatRoute() {
           </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
+            title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => book()?.save(key, { text })}
