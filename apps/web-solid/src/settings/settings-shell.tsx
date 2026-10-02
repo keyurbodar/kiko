@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router"
 import { Suspense, lazy } from "solid-js"
 import { ModelList } from "./model-picker"
 import { chatModel, setChatModel } from "./chat-model"
@@ -7,17 +6,10 @@ import { Integrations } from "./integrations"
 import type { JSX } from "solid-js"
 
 /*
- * The settings route shell: a small tab list and the section beside it. The
- * URL names the section, so a reload lands where the user was. The sections
- * mount lazily with the route, and each list uses content-visibility so a
- * long catalog costs nothing off screen.
+ * The settings route body: the section the URL names. The section list lives in the sidebar
+ * (`sidebar/settings/sidebar.tsx`). Sections mount lazily with the route, and each list uses
+ * content-visibility so a long catalog costs nothing off screen.
  */
-export const SECTIONS = [
-  { id: "providers", label: "providers" },
-  { id: "models", label: "default model" },
-  { id: "integrations", label: "integrations" },
-  { id: "appearance", label: "appearance" },
-] as const
 
 // The theme editor and its validator load with the section, not with the route.
 const Appearance = lazy(() => import("../theme/editor"))
@@ -25,6 +17,7 @@ const Appearance = lazy(() => import("../theme/editor"))
 const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   providers: ProviderList,
   integrations: Integrations,
+  skills: () => <p class="text-xs text-weak" data-component="skills-empty">no skills yet. skills you add will be listed here.</p>,
   appearance: () => (
     <Suspense>
       <Appearance />
@@ -52,17 +45,6 @@ function DefaultModel() {
 export function SettingsShell(props: { sectionId: string }) {
   return (
     <div class="flex min-h-0 flex-1 gap-4 overflow-hidden px-4 pb-4" data-component="settings">
-      <nav class="flex w-40 shrink-0 flex-col gap-1" aria-label="settings sections">
-        {SECTIONS.map((s) => (
-          <A
-            href={`/settings/${s.id}`}
-            class="rounded-[10px] px-3 py-2 text-sm text-muted hover:bg-[var(--tab-bg-hover)]"
-            activeClass="bg-[var(--tab-bg-active)] text-[var(--tab-text-active)]"
-          >
-            {s.label}
-          </A>
-        ))}
-      </nav>
       <div class="flex min-h-0 min-w-0 max-w-[720px] flex-1 flex-col overflow-y-auto">{section(props.sectionId)}</div>
     </div>
   )

@@ -37,6 +37,8 @@ export type FileTreeProps = {
 	files: readonly FileRef[]
 	/** A file was opened, by click or Enter. */
 	onOpen?: (path: string) => void
+	/** Bumps when something outside the tree asks for a new file. */
+	newFileRequests?: () => number
 	/** A new, empty file was named. */
 	onNewFile?: (path: string) => void
 	/** A folder was renamed or a file moved. `paths` are the files it changes. */
@@ -54,13 +56,6 @@ type Row = ItemInstance<string> | typeof DRAFT
 const Chevron = () => (
 	<svg class="ft-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
 		<path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-	</svg>
-)
-
-const NewFileIcon = () => (
-	<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-		<path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6L9 2Z" stroke="currentColor" />
-		<path d="M8 8v3M6.5 9.5h3" stroke="currentColor" stroke-linecap="round" />
 	</svg>
 )
 
@@ -171,6 +166,14 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		}
 	}
 
+	let seen = props.newFileRequests?.() ?? 0
+	createEffect(() => {
+		const n = props.newFileRequests?.() ?? 0
+		if (n === seen) return
+		seen = n
+		startNew("file")
+	})
+
 	const container = () => {
 		const p = tree.containerProps() as { ref: (el: HTMLElement | null) => void; onKeyDown?: (e: KeyboardEvent) => void }
 		return {
@@ -276,11 +279,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 	return (
 		<div class="file-tree" data-component="filetree" data-room={props.roomId}>
 			<div class="ft-header">
-				<span class="ft-title">files</span>
 				<span class="ft-actions">
-					<button type="button" class="ft-btn" aria-label="new file" title="new file" onClick={() => startNew("file")}>
-						<NewFileIcon />
-					</button>
 					<button type="button" class="ft-btn" aria-label="new folder" title="new folder" onClick={() => startNew("folder")}>
 						<NewFolderIcon />
 					</button>

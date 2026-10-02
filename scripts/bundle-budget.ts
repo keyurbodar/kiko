@@ -23,7 +23,7 @@ const APP_ENTRY = "src/main.tsx";
 /* Tier 3 modules load with lazy() or a dynamic import on idle or intent. */
 const TIER3 = ["src/palette/palette.tsx", "src/chat/info/panel.tsx", "src/chat/ui/DateCalendar.tsx", "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js"];
 /* Tier 4 route chunks load on route intent. */
-const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/board.tsx", "src/app/routes/settings.tsx"];
+const TIER4 = ["src/app/routes/files.tsx", "src/app/routes/settings.tsx"];
 
 /*
  * Recorded gzip bytes, measured at P2-03. Re-recorded on purpose:
