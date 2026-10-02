@@ -24,3 +24,5 @@ artifacts/
 !.dev.vars.example
 .claude/worktrees/
 .wrangler/
+wrangler.log
+vite.log

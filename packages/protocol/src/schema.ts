@@ -157,6 +157,7 @@ export const TaskOp = Schema.Union([
 export const Approval = Schema.Struct({
 	id: Id,
 	slug: AgentSlug,
+	tool: Schema.String,
 	summary: Schema.String,
 	state: Schema.Literals(["pending", "accepted", "declined", "expired"]),
 	expiresAt: Count,

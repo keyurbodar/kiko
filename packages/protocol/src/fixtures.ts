@@ -107,6 +107,7 @@ const blockedTask: Task = { id: "t2", title: "test them", status: "blocked", dep
 export const approval: Approval = {
 	id: "a1",
 	slug: bob,
+	tool: "send_email",
 	summary: "send an email to the team",
 	state: "pending",
 	expiresAt: at(9) + 240_000,

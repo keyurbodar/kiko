@@ -5,7 +5,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-work
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { MISSED_HEADER } from "../room/brief"
 import { declareEffect } from "./effects"
-import { isRunTainted, markRunTainted } from "./extensions/trust"
+import { type Approvals, isRunTainted, markRunTainted } from "./extensions/trust"
 import { type BuildAgentInput, buildAgent } from "./factory"
 import type { AgentSetup } from "./host"
 import type { RoleInput } from "./prompt"
@@ -31,6 +31,8 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [echo]      in a teammate's message: the model sends `[echo]` back to that teammate, forever (P6-03)
 //   [shout]     the model calls `broadcast` with `[shout]`, from a human or a teammate, forever (P6-03)
 //   [check s]   the model calls `check_agent` on `s` (P6-03)
+//
+// An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02).
 //
 // After trust tools ran, the answer is `tools: <name> ran|ran tainted|blocked, ...` (P7-01).
 //
@@ -174,6 +176,8 @@ function trustCalls(messages: readonly Message[]) {
     const turn = textOf(last)
     const fetch = /^\[(fetch|mark)\]\s*([\s\S]*)$/.exec(turn)
     if (fetch) return [fauxToolCall(`fake_${fetch[1]}`, { page: fetch[2]! })]
+    const accepted = /<system-event reason="approval_result"[^>]*>\s*the human accepted (\w+)/.exec(turn)
+    if (accepted && isTrustTool(accepted[1]!)) return [fauxToolCall(accepted[1]!, {})]
     return directives(turn)
   }
   if (last?.role !== "toolResult") return []
@@ -204,11 +208,11 @@ function teamCall(turn: string) {
   return check ? fauxToolCall("check_agent", { slug: check[1]! }) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"]): AgentSetup {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals): AgentSetup {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
+  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(approvals ? { approvals } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
 }

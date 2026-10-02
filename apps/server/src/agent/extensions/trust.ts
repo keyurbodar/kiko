@@ -31,8 +31,12 @@ export const TRUST = "trust"
 /** One `external` call a tainted run wants to make. P7-02 answers it with an approval id or null. */
 export type ExternalCall = { conversationId: ConversationId; callId: string; tool: string; arguments: Record<string, unknown> }
 
-/** Returns the id of the human's approval record for this call, or null when there is none. */
-export type Approvals = (call: ExternalCall, context: Context) => Promise<string | null>
+/**
+ * Returns the id of the human's accepted approval record for this call. `{ refused }` ends the call
+ * with that text instead: the room posted an approval card and the call waits for the human (P7-02).
+ * Null means no record exists.
+ */
+export type Approvals = (call: ExternalCall, context: Context) => Promise<string | { refused: string } | null>
 
 /** One `external` call the gate saw. A test asserts no row has `ran` with `tainted` and no `approval`. */
 export type ExternalDecision = { tool: string; callId: string; tainted: boolean; approval: string | null; ran: boolean }
@@ -176,11 +180,14 @@ export function trustExtension(options: TrustOptions): Extension {
           const { effect } = declared(call.name)
           // Unknown after a restart between the request and this call: fail closed.
           const tainted = state.taint.get(api.conversationId) ?? true
-          const approval =
+          const answer =
             effect === "external" && tainted
               ? await approvals({ conversationId: api.conversationId, callId: call.id, tool: call.name, arguments: call.arguments }, context)
               : null
-          const decision = gate(effect, tainted, approval)
+          const approval = typeof answer === "string" ? answer : null
+          const gated = gate(effect, tainted, approval)
+          // A pending card ends the call with the room's text. The decision comes back as an `approval_result` envelope.
+          const decision = !gated.allow && answer && typeof answer === "object" ? { allow: false as const, reason: answer.refused } : gated
           if (effect === "external") {
             state.externals.push({ tool: call.name, callId: call.id, tainted, approval, ran: decision.allow })
             if (state.externals.length > MAX_DECISIONS) state.externals.shift()

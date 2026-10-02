@@ -98,7 +98,9 @@ export type ApprovalState = "pending" | "accepted" | "declined" | "expired"
 export type Approval = {
 	id: string
 	slug: AgentSlug
-	/** What the agent wants to do, in one line. */
+	/** The tool the agent wants to call. */
+	tool: string
+	/** What the agent wants to do, in one line: a plain summary of the arguments. */
 	summary: string
 	state: ApprovalState
 	/** Epoch milliseconds. */

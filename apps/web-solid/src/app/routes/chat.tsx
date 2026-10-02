@@ -9,6 +9,8 @@ import type { ChatMessage } from "../../lib/types";
 
 // The "to:" bar loads when `/chat/new` is first opened, not with the transcript.
 const NewChat = lazy(() => import("../../chat/new-chat").then((m) => ({ default: m.NewChat })));
+// Approval cards load the first time an open room has one (P7-02).
+const ApprovalCards = lazy(() => import("../../chat/ApprovalCard"));
 
 /*
  * The composed app: the transcript over the open room in the sync store. The
@@ -192,6 +194,9 @@ export default function ChatRoute() {
             >
               <IconV2 name="chevron-down" />
             </button>
+          </Show>
+          <Show when={useApp.room()?.approvals().length ? useApp.room() : undefined}>
+            {(r) => <ApprovalCards approvals={r().approvals()} onDecide={(id, action) => r().approve(id, action)} />}
           </Show>
           <Show when={useApp.room()?.state.noProvider}>
             {(np) => (

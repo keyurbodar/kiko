@@ -35,6 +35,8 @@ export interface SocketRoom {
 	memberOp(op: MemberOp): MemberRefusal | null
 	/** A human's task board change (section 7.6). Publishes what it stored. */
 	taskOp(op: TaskOp): void
+	/** A human's decision on an approval card (P7-02). Publishes the change; a repeat does nothing. */
+	approve(id: string, action: "accept" | "decline"): void
 }
 
 /** Close code for a frame that breaks the protocol. */
@@ -149,7 +151,8 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			room.taskOp(frame.op)
 			return null
 		case "approve":
-			// Owned by a later task: approvals (P7).
+			// Only a human holds a room socket, so only the human decides a card (P7-02).
+			room.approve(frame.approvalId, frame.action)
 			return null
 	}
 }
