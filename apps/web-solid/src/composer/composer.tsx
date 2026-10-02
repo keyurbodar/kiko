@@ -177,7 +177,7 @@ export function Composer(props: ComposerProps) {
       id: `agent-${bot.id}`,
       kind: "agent",
       label: `@${bot.name}`,
-      description: bot.persona ?? "Agent",
+      description: bot.persona ?? "agent",
       mention: { type: "agent", name: bot.name, content: `@${bot.name}`, start: 0, end: 0 },
     }))
 

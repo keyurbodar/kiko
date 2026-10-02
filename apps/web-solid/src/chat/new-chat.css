@@ -315,3 +315,13 @@
   color: var(--bg);
   background: var(--accent);
 }
+
+/* iOS zooms the page when a field under 16px takes focus. */
+@media (pointer: coarse) {
+  .new-chat-search input,
+  .new-chat-group,
+  .new-chat-form input,
+  .new-chat-form select {
+    font-size: 16px;
+  }
+}
