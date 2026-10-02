@@ -522,6 +522,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return sent.ok ? { ok: true, slug } : sent
 	}
 
+	/** A human's `model` frame: the agents of this room use `ref` (provider/model) from their next run. */
+	setModel(ref: string, slug?: AgentSlug): void {
+		const home = this.home()
+		const at = ref.indexOf("/")
+		if (!home || at <= 0) return
+		const model = { provider: ref.slice(0, at), modelId: ref.slice(at + 1) }
+		const targets = this.members.list().filter((m) => !slug || m.slug === slug)
+		for (const m of targets) this.ctx.waitUntil(agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).setModel(model).then(() => undefined))
+	}
+
 	/** A human's `task` frame (section 7.6). A refused op stores nothing; the client's patch expires. */
 	taskOp(op: TaskOp): void {
 		this.publish(applyTaskOp(this.workspace, op, this.members.list().map((m) => m.slug)))

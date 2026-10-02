@@ -1,4 +1,5 @@
 import { chatFaces, chatSeed } from "./identity"
+import { onChatModelChange } from "../settings/chat-model"
 // The app's state, backed by the sync stores. Sidebar, transcript, and composer
 // all read and write it through `useApp`, so none of them knows about sockets,
 // IndexedDB, or wire types.
@@ -312,6 +313,12 @@ export function createApp(options: AppOptions = {}) {
       const clientId = r.send(message.body, opts)
       return `local:${clientId}`
     }
+
+    // A model picked for a chat goes to that chat's agents on the server, when it is the open one.
+    onChatModelChange((chatId, ref) => {
+      const r = room()
+      if (r && r.state.roomId === chatId) r.model(ref)
+    })
 
     const app = {
       /** Boots the data layer for a signed-in user. Safe to call again. */

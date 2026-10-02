@@ -22,7 +22,14 @@ export function chatModel(chatId: string | null): string | undefined {
   return (chatId ? all[chatId] : undefined) ?? all[DEFAULT]
 }
 
+// The store listens, so a chat's pick reaches its agents on the server (the `model` room frame).
+let listener: ((chatId: string, ref: string) => void) | null = null
+export const onChatModelChange = (fn: (chatId: string, ref: string) => void) => {
+  listener = fn
+}
+
 export function setChatModel(chatId: string | null, ref: string): void {
+  if (chatId) listener?.(chatId, ref)
   const next = { ...picked(), [chatId ?? DEFAULT]: ref }
   setPicked(next)
   try {

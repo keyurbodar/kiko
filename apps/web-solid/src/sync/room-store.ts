@@ -300,6 +300,8 @@ export type RoomStore = {
 	/** Reconnects with `hello {lastSeq}` and sends every pending frame again. */
 	resume(): void
 	approve(approvalId: string, action: "accept" | "decline"): void
+	/** The model this chat's agents use from their next run, as `provider/model`. Not stored here. */
+	model(ref: string): void
 	task(op: TaskOp): void
 	/** Adds, renames, or removes an agent. A refusal drops the patch and calls every `onMemberRefused` listener. */
 	member(op: MemberOp): void
@@ -633,6 +635,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			setPatches((list) => [...list, p])
 			transmit(p)
 			return clientId
+		},
+		model(ref) {
+			socket?.send({ t: "model", ref })
 		},
 		react: (messageId, emoji) => void act({ t: "react", messageId, emoji }),
 		edit: (messageId, text) => void act({ t: "edit", messageId, text }),

@@ -163,6 +163,8 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 	const has = (id: MessageId) => data.messages.some((m) => m.id === id)
 
 	const handlers: { [K in ClientToRoom["t"]]: (peer: Peer<RoomToClient>, f: Extract<ClientToRoom, { t: K }>) => void } = {
+		// The mock has no agents to run a model, so the choice is dropped.
+		model() {},
 		hello(peer, f) {
 			const last = log[log.length - 1]?.seq ?? 0
 			if (f.lastSeq > last || last - f.lastSeq > resetAfter) return peer.push({ t: "reset", snapshot: snapshot() })

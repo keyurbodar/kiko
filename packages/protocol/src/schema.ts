@@ -217,6 +217,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("read"), seq: Count }),
 	Schema.Struct({ t: Schema.Literal("typing") }),
 	Schema.Struct({ t: Schema.Literal("stop") }),
+	Schema.Struct({ t: Schema.Literal("model"), ref: Schema.String, slug: Schema.optional(AgentSlug) }),
 	Schema.Struct({ t: Schema.Literal("approve"), approvalId: Id, action: Schema.Literals(["accept", "decline"]) }),
 	Schema.Struct({ t: Schema.Literal("task"), op: TaskOp }),
 	Schema.Struct({ t: Schema.Literal("member"), op: MemberOp }),

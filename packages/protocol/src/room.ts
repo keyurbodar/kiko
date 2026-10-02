@@ -166,6 +166,8 @@ export type ClientToRoom =
 	| { t: "read"; seq: number }
 	| { t: "typing" }
 	| { t: "stop" }
+	/** The model the chat's agents use, as `provider/model`, for one agent or all of them. Applies from the next run. */
+	| { t: "model"; ref: string; slug?: AgentSlug }
 	| { t: "approve"; approvalId: string; action: "accept" | "decline" }
 	| { t: "task"; op: TaskOp }
 	| { t: "member"; op: MemberOp }
