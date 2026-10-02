@@ -1,4 +1,6 @@
-import { For, Show, createMemo, createResource, createSignal, onCleanup } from "solid-js"
+import { For, Show, createMemo, createResource, createSignal, onCleanup, type JSX } from "solid-js"
+import { ProviderIcon } from "@kiko/ui/provider-icon"
+import "@kiko/ui/provider-icon.css"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { loadCatalog, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { connectedProviders, refreshConnected } from "./connected"
@@ -48,12 +50,76 @@ export function ProviderList() {
     }
   }
 
+  const connected = () => shown().filter((p) => saved(p.id))
+  const others = () => shown().filter((p) => !saved(p.id))
+
+  const Group = (props: { title: string; hint: string; children: JSX.Element }) => (
+    <section class="flex flex-col gap-2">
+      <div class="px-1">
+        <h2 class="text-sm font-medium text-text">{props.title}</h2>
+        <p class="text-xs text-weak">{props.hint}</p>
+      </div>
+      <ul class="flex flex-col overflow-hidden rounded-2xl bg-[var(--surface-raised)] p-1">{props.children}</ul>
+    </section>
+  )
+
+  const Row = (props: { provider: CatalogProvider }) => {
+    const provider = props.provider
+    return (
+      <li
+        class="flex min-h-14 items-center gap-3 rounded-xl px-3 py-2 hover:bg-[var(--nav-hover-bg)]"
+        style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 60px" }}
+        data-provider={provider.id}
+        data-connected={saved(provider.id) ? "true" : undefined}
+      >
+        <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--input-bg)] text-text">
+          <ProviderIcon id={provider.id} width="18" height="18" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-[15px] text-text">{provider.name.toLowerCase()}</span>
+          <span class="block truncate text-xs text-weak">
+            <Show when={saved(provider.id)} fallback={`${provider.connect.map((m) => METHOD_LABEL[m]).join(", ") || "no sign-in method"} · ${provider.models.length} models`}>
+              {(info) => (info().kind === "api_key" ? `key ending ${info().last4}` : `connected ${info().last4}`) + ` · ${provider.models.length} models`}
+            </Show>
+          </span>
+        </span>
+        <Show
+          when={saved(provider.id)}
+          fallback={
+            <button
+              type="button"
+              class="h-9 shrink-0 rounded-xl bg-[oklch(from_var(--accent)_l_c_h_/_16%)] px-4 text-sm text-[var(--accent)] outline-none hover:bg-[oklch(from_var(--accent)_l_c_h_/_24%)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              data-action="connect"
+              onClick={() => setDialog(provider)}
+            >
+              connect
+            </button>
+          }
+        >
+          <button
+            type="button"
+            class="h-9 shrink-0 rounded-xl px-3 text-sm text-weak outline-none hover:bg-[var(--nav-hover-bg)] hover:text-[var(--danger)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+            data-action="disconnect"
+            disabled={removing() === provider.id}
+            onClick={() => void remove(provider.id)}
+          >
+            disconnect
+          </button>
+        </Show>
+      </li>
+    )
+  }
+
   return (
-    <div class="flex flex-col gap-1" data-component="provider-list">
-      <form class="sticky top-0 z-10 bg-bg pb-2" role="search" onSubmit={connectFirst}>
+    <div class="flex flex-col gap-5" data-component="provider-list">
+      <form class="sticky top-0 z-10 -mb-2 flex h-10 items-center gap-2 rounded-full bg-[var(--input-bg)] px-4 text-weak focus-within:ring-2 focus-within:ring-[var(--accent)]" role="search" onSubmit={connectFirst}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.75" />
+          <path d="M10.5 10.5L14 14" />
+        </svg>
         <input
           type="search"
-          class="h-10 w-full rounded-[10px] bg-[var(--input-bg)] px-3 text-sm text-[var(--tab-text-active)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-9"
+          class="h-full min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
           placeholder="search providers"
           aria-label="search providers"
           autocomplete="off"
@@ -68,55 +134,16 @@ export function ProviderList() {
       <Show when={catalog.loading}>
         <p class="p-3 text-sm text-weak">loading providers</p>
       </Show>
-      <ul class="flex flex-col">
-        <For each={shown()} fallback={<li class="p-3 text-sm text-weak">{catalog.loading ? "" : "no provider matches"}</li>}>
-          {(provider) => (
-            <li
-              class="flex min-h-12 items-center justify-between gap-3 rounded-[10px] px-3 py-2 hover:bg-[var(--tab-bg-hover)]"
-              style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 56px" }}
-              data-provider={provider.id}
-              data-connected={saved(provider.id) ? "true" : undefined}
-            >
-              <span class="min-w-0">
-                <span class="block truncate text-sm text-[var(--tab-text-active)]">{provider.name.toLowerCase()}</span>
-                <span class="block truncate text-xs text-weak">
-                  {provider.connect.map((m) => METHOD_LABEL[m]).join(", ") || "no sign-in method"} · {provider.models.length} models
-                </span>
-              </span>
-              <span class="flex shrink-0 items-center gap-2">
-                <Show when={saved(provider.id)}>
-                  {(info) => (
-                    <>
-                      <span class="hidden text-xs text-weak sm:inline" data-field="last4">
-                        {info().kind === "api_key" ? `key ending ${info().last4}` : `connected ${info().last4}`}
-                      </span>
-                      <button
-                        type="button"
-                        class="h-9 rounded-[10px] px-3 text-xs text-muted outline-none hover:bg-[var(--tab-bg-active)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50 md:h-7 md:px-2"
-                        data-action="disconnect"
-                        disabled={removing() === provider.id}
-                        onClick={() => void remove(provider.id)}
-                      >
-                        disconnect
-                      </button>
-                    </>
-                  )}
-                </Show>
-                <Show when={!saved(provider.id)}>
-                  <button
-                    type="button"
-                    class="h-9 rounded-[10px] bg-[var(--btn-bg)] px-4 text-xs text-[var(--tab-text-active)] outline-none hover:bg-[var(--btn-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-7 md:px-3"
-                    data-action="connect"
-                    onClick={() => setDialog(provider)}
-                  >
-                    connect
-                  </button>
-                </Show>
-              </span>
-            </li>
-          )}
+      <Show when={connected().length}>
+        <Group title="connected" hint="agents in your chats can use these">
+          <For each={connected()}>{(provider) => <Row provider={provider} />}</For>
+        </Group>
+      </Show>
+      <Group title={connected().length ? "more providers" : "available"} hint="connect one to start chatting. keys stay on the server.">
+        <For each={others()} fallback={<li class="p-4 text-center text-sm text-weak">{catalog.loading ? "" : "no provider matches"}</li>}>
+          {(provider) => <Row provider={provider} />}
         </For>
-      </ul>
+      </Group>
       <ConnectDialog provider={dialog()} onClose={() => setDialog(null)} />
     </div>
   )
