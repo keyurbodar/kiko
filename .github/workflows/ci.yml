@@ -21,3 +21,64 @@ jobs:
       - run: bun run test
       - run: bun run lint
       - run: bun scripts/plan.ts --check
+
+  # Real backend verification. It needs no repository secret and no model key, so it is
+  # safe for a pull request from a fork. It has only the read-only `contents` permission.
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - name: build the client assets
+        run: bun run build
+        working-directory: apps/web-solid
+      - name: write throwaway dev vars
+        # Random values made in this job. They protect nothing and never leave the runner.
+        working-directory: apps/server
+        run: |
+          {
+            echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+            echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
+          } > .dev.vars
+      - name: apply the local database migration
+        working-directory: apps/server
+        run: bunx wrangler d1 migrations apply kiko-auth --local
+      - name: start the worker
+        working-directory: apps/server
+        env:
+          NODE_ENV: development
+        run: nohup bunx wrangler dev --port 8787 --inspector-port 9229 > "$RUNNER_TEMP/wrangler.log" 2>&1 &
+      - name: wait for health
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8787/api/health && exit 0
+            sleep 2
+          done
+          echo "the worker did not become healthy"
+          tail -n 50 "$RUNNER_TEMP/wrangler.log"
+          exit 1
+      - name: run the model-free suites
+        # A failing suite prints its last frames. They go to a file for the artifact.
+        shell: bash
+        run: |
+          set -o pipefail
+          bun kiko verify --no-model --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
+      - name: upload the last frames and the worker log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-frames
+          path: |
+            ${{ runner.temp }}/verify.log
+            ${{ runner.temp }}/wrangler.log
+          if-no-files-found: ignore
+          retention-days: 7
