@@ -32,8 +32,9 @@ export type SafeFetchResult =
       url: string
       status: number
       headers: Headers
-      /** At most 1 MB. ASSUMPTION: a longer body is cut, not refused. */
+      /** At most `maxBytes`, 1 MB by default. ASSUMPTION: a longer body is cut, not refused. */
       body: Uint8Array
+      /** True when the body was cut at `maxBytes` or `stop` ended the read early. */
       truncated: boolean
     }
   | {
@@ -50,31 +51,56 @@ export type Fetcher = (url: string, init: RequestInit) => Promise<Response>
 
 const globalFetcher: Fetcher = (url, init) => fetch(url, init)
 
-export async function safeFetch(rawUrl: string, fetcher: Fetcher = globalFetcher): Promise<SafeFetchResult> {
+export type SafeFetchOptions = {
+  /** The most bytes kept. Defaults to 1 MB. */
+  maxBytes?: number
+  /**
+   * Called with each chunk as it arrives. Returning true keeps what was read and cancels the rest,
+   * so a preview reads a page's head and never downloads its body.
+   */
+  stop?: (chunk: Uint8Array) => boolean
+  /** Sent as `user-agent`. The only header a caller may choose. */
+  userAgent?: string
+  /** The one deadline for DNS, every hop, and the body. Defaults to 3 seconds. */
+  timeoutMs?: number
+}
+
+export async function safeFetch(
+  rawUrl: string,
+  fetcher: Fetcher = globalFetcher,
+  options: SafeFetchOptions = {},
+): Promise<SafeFetchResult> {
   // One deadline covers DNS, every hop, and the body.
-  const signal = AbortSignal.timeout(TIMEOUT_MS)
+  const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS)
   try {
-    return await follow(rawUrl, fetcher, signal)
+    return await follow(rawUrl, fetcher, signal, options)
   } catch {
     return refuse(signal.aborted ? "timeout" : "fetch-failed", rawUrl)
   }
 }
 
-async function follow(rawUrl: string, fetcher: Fetcher, signal: AbortSignal): Promise<SafeFetchResult> {
+async function follow(
+  rawUrl: string,
+  fetcher: Fetcher,
+  signal: AbortSignal,
+  options: SafeFetchOptions,
+): Promise<SafeFetchResult> {
   let next = rawUrl
   let base: URL | undefined
   for (let redirects = 0; ; redirects++) {
     const url = await check(next, base, fetcher, signal)
     if (!(url instanceof URL)) return url
 
-    // No cookie and no authorization header: the caller cannot pass headers,
+    // No cookie and no authorization header: the caller chooses only the user agent,
     // check() strips the user and password, and nothing carries state between hops.
+    const headers: Record<string, string> = { accept: "*/*" }
+    if (options.userAgent) headers["user-agent"] = options.userAgent
     const response = await untilAbort(
-      fetcher(url.href, { method: "GET", redirect: "manual", headers: { accept: "*/*" }, signal }),
+      fetcher(url.href, { method: "GET", redirect: "manual", headers, signal }),
       signal,
     )
     const location = REDIRECT_STATUSES.has(response.status) ? response.headers.get("location") : null
-    if (location === null) return read(response, url, signal)
+    if (location === null) return read(response, url, signal, options)
 
     discard(response.body?.cancel())
     if (redirects === MAX_REDIRECTS) return refuse("too-many-redirects", url.href)
@@ -112,23 +138,35 @@ async function check(
   return url
 }
 
-async function read(response: Response, url: URL, signal: AbortSignal): Promise<SafeFetchResult> {
+async function read(
+  response: Response,
+  url: URL,
+  signal: AbortSignal,
+  options: SafeFetchOptions,
+): Promise<SafeFetchResult> {
+  const max = options.maxBytes ?? MAX_BYTES
   const chunks: Uint8Array[] = []
   let size = 0
+  let stopped = false
   const reader = response.body?.getReader()
-  while (reader && size <= MAX_BYTES) {
+  while (reader && size <= max) {
     const { done, value } = await untilAbort(reader.read(), signal)
     if (done) break
     chunks.push(value)
     size += value.byteLength
+    if (options.stop?.(value)) {
+      stopped = true
+      break
+    }
   }
-  const truncated = size > MAX_BYTES
+  const truncated = stopped || size > max
   if (truncated) discard(reader?.cancel())
 
-  const body = new Uint8Array(Math.min(size, MAX_BYTES))
+  const body = new Uint8Array(Math.min(size, max))
   let offset = 0
   for (const chunk of chunks) {
-    body.set(chunk.subarray(0, MAX_BYTES - offset), offset)
+    if (offset >= max) break
+    body.set(chunk.subarray(0, max - offset), offset)
     offset += chunk.byteLength
   }
   return { ok: true, url: url.href, status: response.status, headers: response.headers, body, truncated }

@@ -20,12 +20,13 @@ import { createMediaViewer } from "../chat/media/mediaViewer"
 
 import { runSlash, slashSuggestions } from "./slash"
 import { draftLinkUrl } from "./link-draft"
-import { hasWebPageContent, resolveLinkPreview } from "../chat/lib/linkPreview"
+import { hasWebPageContent, peekLinkPreview, resolveLinkPreview } from "../chat/lib/linkPreview"
 
 /* The link card shows only once a draft has a link with a preview, so it loads then. */
 const ComposerLinkPreview = lazy(() => import("./link-preview").then((m) => ({ default: m.ComposerLinkPreview })))
 
-const LINK_PREVIEW_DEBOUNCE_MS = 400
+/** Typing waits this long for the link to settle. A paste, or a link already known, looks up at once. */
+const LINK_PREVIEW_DEBOUNCE_MS = 150
 
 type DraftLink = { url: string; preview: WebPagePreview | null }
 
@@ -150,8 +151,13 @@ export function Composer(props: ComposerProps) {
     setDismissedLink(null)
   }
 
+  let lastLength = 0
   createEffect(() => {
-    const url = draftLinkUrl(draftText())
+    const text = draftText()
+    // More than one character at once is a paste (or a drop), not typing.
+    const pasted = text.length - lastLength > 1
+    lastLength = text.length
+    const url = draftLinkUrl(text)
     const dismissed = dismissedLink()
 
     if (url === null) {
@@ -173,7 +179,14 @@ export function Composer(props: ComposerProps) {
     linkRequest += 1
     linkAbort?.abort()
     const request = linkRequest
+    const known = peekLinkPreview(url)
+    if (known !== undefined) {
+      resolvedUrl = url
+      setDraftLink({ url, preview: known })
+      return
+    }
     setDraftLink({ url, preview: null })
+    if (pasted) return void resolveDraftLink(url, request)
     const timer = setTimeout(() => void resolveDraftLink(url, request), LINK_PREVIEW_DEBOUNCE_MS)
     onCleanup(() => clearTimeout(timer))
   })

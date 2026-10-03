@@ -342,7 +342,6 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 
 | Job | Why a queue |
 | --- | --- |
-| re-host a link preview image to R2 | starts in the Worker, may be slow, safe to retry |
 | attachment post-processing (dimensions, thumbhash, text extraction) | CPU work that should not hold a room awake |
 | account deletion fan-out | must reach every Durable Object of a user and survive partial failure |
 
@@ -443,6 +442,18 @@ type RoomToClient =
 On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON.
 
 **Reasoning.** `pi-durable` says "a client that joins late or reconnects starts from the current view; nothing is replayed". That is not enough for a chat client on a bad network, so the room keeps its own log. The room log is what the human sees (bubbles, reactions, replies, files). The `pi-durable` transcript is what a model sees (tool calls, briefs, other agents' messages). One room maps to several transcripts, so the two logs have different shapes and neither can stand in for the other.
+
+### 9.2.1 The chat list row
+
+The room keeps the user's chat row current. After each change to its newest activity, its read position, or its members, it sends `UserDO.touchChat` one row summary: `last`, `unread`, `mentions`, and `group`. Changes made in one step share one touch. A touch with an older `lastSeq` is ignored.
+
+- `last` is the newest activity as data (`ChatLast` in `packages/protocol/src/activity.ts`): who, a kind (text, photo, video, album, file, voice, audio, link, react, joined, left, renamed, created, approval, notice), and a clipped text. It is the newest of: a live message, an agent's reaction to a human message that still stands, a pending approval, and a member joining or leaving. A deleted newest message falls back to the one before it. A rename of a group is stored by `UserDO` and stays the line until something newer happens.
+- The client words it in `sidebar/activity.ts`, as Telegram does: `you: text` for your own messages, `ada: text` in a group, `photo, caption`, `ada reacted ❤️ to "hello"`, `ada joined`. A row stored before `last` existed shows `lastPreview`.
+- The row sorts by its newest activity, so reading a chat never moves it.
+- The open room's row uses its own newest message until the server's touch arrives, so a send shows in the list at once.
+- Who is typing reaches the chat list through `UserDO.chatTyping`, a `typing { roomId, names }` frame on the user socket. It is sent when the set changes, never per keystroke, and never stored.
+
+Mentions. The Worker passes the human's handle (`humanHandle`, the first word of the account name) to the room on every socket, and the brief tells agents to write `@<handle>` when they need the human. An agent answers one message inline by starting a bubble with `[reply:<messageId>]`, which becomes `replyTo`. An agent message mentions the human when it names the handle or replies to a human message (`mentionsHuman`). `mentions` counts the unread ones. The open chat marks every message read at once, so it tracks the mentions the reader has not seen on screen in memory, and its `@` button jumps to the oldest.
 
 ### 9.3 Optimistic updates
 
@@ -867,10 +878,17 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 The design follows the spec's additions.
 
 - A Worker route fetches the page. The client never does.
-- `HTMLRewriter` reads `og:title`, `og:description`, `og:image`, `og:site_name`, the `twitter:*` fallbacks, `<title>`, and the favicon, and stops at `</head>` or 1 MB.
-- KV caches a result for 24 hours under the normalized URL. A miss is cached for 10 minutes.
-- The fetch allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds.
-- A queue job copies `og:image` to R2. The client loads the image from kiko's origin.
+- `HTMLRewriter` reads `og:title`, `og:description`, `og:image`, `og:site_name`, the `twitter:*` fallbacks, `<title>`, the favicon, and `theme-color`. Attribute values are entity-decoded. The fetch stops reading at `</head>` or `<body>`, or at 512 KB.
+- The fetch sends the user agent `TelegramBot (like TwitterBot)`, because sites serve OpenGraph tags to the bots they know. Reddit answers a plain request with no tags.
+- YouTube and X posts are read from their oEmbed endpoints. YouTube's tags sit 700 KB into a page that took 2 to 9 seconds here. X serves no tags.
+- One resolver (`previews/resolve.ts`) serves `/api/preview` and the room. It reads this isolate's in-flight requests, then the Workers Cache API, then KV, and only then the page. Writes go to `waitUntil`. A result is kept 24 hours, a page with no card 10 minutes, and a timeout or server error 60 seconds.
+- `/api/preview` rate-limits only uncached URLs, and answers with `cache-control: private, max-age=3600`.
+- The fetch allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds (8 for an image).
+- An image path is `/api/preview-image/<token>`, where the token is the image URL sealed with AES-GCM under a key derived from `BETTER_AUTH_SECRET`. The IV is an HMAC of the URL, so one URL always has one path. The token hides the URL from the client and needs no table. The route serves R2 on a hit. On a miss it fetches the image at once, answers with it, and stores it in R2 in the background. So an image works the moment its preview does. A timeout answers 503 and is not cached.
+- The room attaches the card to the message, as Telegram does. After it stores a message or an edit, it resolves the first `http(s)` link in the background, checks the link is still the message's first, and stores a `preview` event. The card lives in the room log, the snapshot, and the client's IndexedDB. Agents never see it. A message with files gets no card.
+- The client keeps a 100-entry LRU in memory over an IndexedDB store of 500 previews, loaded before the first room paints. The composer looks a pasted link up at once and debounces typing by 150 ms. The card's panel colour is the most common vivid hue of its picture, darkened until white text reads at 4.5:1, then the page's `theme-color`, then the bubble surface. The colour is stored with the preview.
+
+OPEN: section 16.4 says a tainted run's URLs are not previewed. The room cannot tell a tainted bubble from a clean one, because `post()` carries no taint. The client already previewed every agent link before this change, so the exposure is unchanged. Passing the run's taint through `post()` would close it.
 
 UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The route validates on its own and does not rely on the platform. The existing proxy in `apps/web-solid/vite.config.ts` checks hosts by name only and is deleted.
 

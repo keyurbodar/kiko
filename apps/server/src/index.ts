@@ -9,7 +9,7 @@ import { accountRoute } from "./auth/account-route"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { consume } from "./jobs/consumer"
-import { devFixtureFetcher, previewRoute } from "./previews/route"
+import { previewRoute } from "./previews/route"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
 import { executorCallbackRoute } from "./integrations/executor/connect"
@@ -45,7 +45,7 @@ export interface Env {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
     if (url.pathname.startsWith(executorOAuthPrefix)) return executorOAuth(request)
@@ -64,7 +64,7 @@ export default {
     if (tidied) return tidied
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
-    const previewed = await previewRoute(request, env)
+    const previewed = await previewRoute(request, env, ctx)
     if (previewed) return previewed
     const devAgent = await devAgentRoute(request, env)
     if (devAgent) return devAgent
@@ -87,6 +87,6 @@ export default {
     return env.ASSETS.fetch(request)
   },
   async queue(batch, env) {
-    await consume(batch, env, process.env.NODE_ENV === "development" ? devFixtureFetcher : undefined)
+    await consume(batch, env)
   },
 } satisfies ExportedHandler<Env>

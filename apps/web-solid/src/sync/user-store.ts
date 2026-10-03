@@ -64,6 +64,8 @@ export type UserState = UserData & {
 	theme?: string | null
 	/** True once the socket's first catch-up has arrived, so the server has had its say on the look. */
 	caughtUp: boolean
+	/** The display names typing in each chat, from the `typing` frame. Memory only. */
+	typing: Record<string, readonly string[]>
 }
 
 export type UserStoreOptions = {
@@ -124,6 +126,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		pendingAgents: [],
 		pendingHome: [],
 		caughtUp: false,
+		typing: {},
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
 	let socket: SyncSocket | null = null
@@ -184,9 +187,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 
 	function onFrame(frame: UserToClient) {
 		channel.deliver(frame)
+		if ((frame.t === "events" || frame.t === "reset") && !state.caughtUp) setState("caughtUp", true)
 		if (frame.t === "events") applyEvents(frame.events)
 		else if (frame.t === "reset") reset(frame.snapshot)
-		if ((frame.t === "events" || frame.t === "reset") && !state.caughtUp) setState("caughtUp", true)
+		else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
 			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))
@@ -209,7 +213,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				channel.opened()
 			},
 			onFrame,
-			onStatus: (c) => setState("connection", c),
+			// A socket that drops misses the frame that ends the typing, so it forgets who was.
+			onStatus: (c) => setState(c === "open" ? { connection: c } : { connection: c, typing: {} }),
 		})
 		const own = socket
 		detach = channel.attach((frame) => own.send(frame))

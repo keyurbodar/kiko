@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@kiko/protocol"
 import type { MemberRow } from "../src/room/members"
 import { buildBrief, BRIEF_MESSAGES, type BriefMessage, MISSED_HEADER } from "../src/room/brief"
-import { route } from "../src/room/deliver"
+import { replyTag, route } from "../src/room/deliver"
 import { resolveRecipients, tags } from "../src/room/recipients"
 
 // P6-01. Every row of the table in architecture section 7.2, the burst routing on top of it, and
@@ -123,4 +123,21 @@ describe("buildBrief", () => {
   test("nothing missed: no missed section", () => {
     expect(buildBrief(members[1]!, { goal: "g", members, tasks: [], messages: [], reactions: null })).not.toContain(MISSED_HEADER)
   })
+
+  test("names the human's handle, so an agent can @ them", () => {
+    const brief = buildBrief(members[1]!, { goal: "g", members, tasks: [], messages: [], reactions: null, human: "keyur" })
+    expect(brief.split("\n").slice(0, 3)).toEqual(["room goal: g", "you are @ada.", "the human is @keyur. write @keyur only when you need them, such as a question only they can answer."])
+    expect(buildBrief(members[1]!, { goal: "g", members, tasks: [], messages: [], reactions: null })).not.toContain("the human is")
+  })
+})
+
+describe("replyTag", () => {
+  const cases: [string, ReturnType<typeof replyTag>][] = [
+    ["[reply:m1] got it", { text: "got it", replyTo: "m1" }],
+    ["[reply:m1]\nsure", { text: "sure", replyTo: "m1" }],
+    ["got it", { text: "got it" }],
+    ["see [reply:m1] here", { text: "see [reply:m1] here" }],
+    ["[reply:m1]", { text: "", replyTo: "m1" }],
+  ]
+  for (const [block, want] of cases) test(JSON.stringify(block), () => expect(replyTag(block)).toEqual(want))
 })

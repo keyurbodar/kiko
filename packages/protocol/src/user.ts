@@ -4,6 +4,7 @@
 // This file covers the chat index. Reminders, provider sign-in, settings, and
 // memory join these unions in the tasks that build them.
 
+import type { ChatLast } from "./activity"
 import type { AgentSlug, RoomId } from "./ids"
 import type { MemoryOp, MemoryResult } from "./memory"
 import type { FileOp, FileRef } from "./room"
@@ -31,6 +32,12 @@ export type Chat = {
 	 * in the chat list until kiko turns it into a group. `ask` and `group` say how kiko opens it.
 	 */
 	draft?: "ask" | "group"
+	/** The newest activity, for the row's second line. Absent on rows stored before it existed. */
+	last?: ChatLast
+	/** Unread messages that mention the human or reply to them. Absent when none. */
+	mentions?: number
+	/** More than one agent: the row names who did what. */
+	group?: true
 }
 
 /**
@@ -167,6 +174,8 @@ export type UserToClient =
 	| { t: "login.error"; loginId: string; reason: LoginErrorReason; message: string }
 	/** Not stored. Sent only to the socket whose `home` frame changed nothing. */
 	| { t: "home_refused"; op: FileOp; reason: string }
+	/** Not stored. The display names of a chat's agents that are typing now, sent when the set changes. */
+	| { t: "typing"; roomId: RoomId; names: readonly string[] }
 
 /** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */
 export type LoginEvent =

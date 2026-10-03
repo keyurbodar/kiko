@@ -205,7 +205,7 @@ describe("the room store", () => {
 	test("a member change shows at once, and a refusal rolls it back and is reported", async () => {
 		const { make } = setup({ resetAfter: 0 }) // a snapshot, which carries the members
 		const { store } = await make()
-		await until(() => store.state.connection === "open" && store.state.seq === 17)
+		await until(() => store.state.connection === "open" && store.state.seq === 18)
 		const refused: string[] = []
 		store.onMemberRefused((op, reason) => refused.push(`${op.op} ${op.slug} ${reason}`))
 		const slugs = () => store.members().map((m) => `${m.slug}:${m.name}`)
@@ -251,23 +251,23 @@ describe("the room store", () => {
 	test("paints from the warm tier, then says hello with its lastSeq", async () => {
 		const { mock, make } = setup()
 		const warm = await freshWarm()
-		// The device has synced to seq 17 before.
+		// The device has synced to seq 18 before.
 		const snap = fixtures.roomSnapshot
 		putMessages(warm, roomId, snap.messages)
 		setLastSeq(warm, roomId, snap.seq)
 		warm.put("meta", `room:${roomId}`, { readSeq: snap.readSeq, members: snap.members, tasks: snap.tasks, approvals: snap.approvals, files: snap.files })
 		await warm.flush()
-		mock.store({ t: "message", id: "m18" as MessageId, from: { kind: "agent", slug: fixtures.ada }, text: "later" })
+		mock.store({ t: "message", id: "m19" as MessageId, from: { kind: "agent", slug: fixtures.ada }, text: "later" })
 
 		const { store } = await make(warm)
 		await store.ready
 		expect(store.state.messages.map((m) => m.text)).toEqual(snap.messages.map((m) => m.text))
 		expect(store.state.tasks).toEqual(snap.tasks as never)
-		await until(() => store.state.seq === 18)
-		expect(mock.received[0]).toEqual({ t: "hello", lastSeq: 17 })
+		await until(() => store.state.seq === 19)
+		expect(mock.received[0]).toEqual({ t: "hello", lastSeq: 18 })
 		expect(store.messages().at(-1)?.text).toBe("later")
 		await warm.flush()
-		expect(await getLastSeq(warm, roomId)).toBe(18)
+		expect(await getLastSeq(warm, roomId)).toBe(19)
 		store.close()
 	})
 
@@ -275,14 +275,14 @@ describe("the room store", () => {
 		const { mock, make } = setup()
 		const { store } = await make()
 		await store.ready
-		await until(() => store.state.connection === "open" && store.state.seq === 17)
+		await until(() => store.state.connection === "open" && store.state.seq === 18)
 		const before = mock.received.length
 		const m1 = fixtures.roomSnapshot.messages[0].id
 		const results = [
 			store.send("hello there"),
 			store.react(m1, "🎉"),
 			store.edit(m1, "edited"),
-			store.markRead(17),
+			store.markRead(18),
 			store.approve("a1", "accept"),
 			store.task({ op: "create", id: "t9", title: "ship" }),
 		]
@@ -293,7 +293,7 @@ describe("the room store", () => {
 		expect(view.at(-1)).toMatchObject({ text: "hello there", pending: true })
 		expect(view[0]).toMatchObject({ text: "edited" })
 		expect(view[0].reactions?.some((r) => r.by.kind === "human" && r.emoji === "🎉")).toBe(true)
-		expect(store.readSeq()).toBe(17)
+		expect(store.readSeq()).toBe(18)
 		expect(store.approvals()[0].state).toBe("accepted")
 		expect(store.tasks().map((t) => t.id)).toContain("t9")
 
@@ -447,7 +447,7 @@ describe("the room store", () => {
 		await until(() => store.state.seq === 300)
 		store.follow()
 		expect(store.state.messages.some((m) => m.id === "m5")).toBe(false)
-		mock.store({ t: "edit", messageId: "m5" as MessageId, text: "changed", at: 1 })
+		mock.store({ t: "edit", messageId: "m5" as MessageId, text: "changed" })
 		mock.store({ t: "delete", messageIds: ["m6" as MessageId], by: { kind: "human" } } as never)
 		await until(() => store.state.seq === 302)
 		await new Promise((r) => setTimeout(r, 30))
@@ -462,7 +462,7 @@ describe("the room store", () => {
 		const { schedule, durations } = timedSchedule()
 		const { mock, make } = setup({ schedule, resetAfter: 5000 }, { schedule })
 		const { store } = await make()
-		await until(() => store.state.seq === 17)
+		await until(() => store.state.seq === 18)
 
 		// 1,000 events in one frame on resume, then 1,000 more one frame each.
 		const many = (from: number) =>
@@ -478,7 +478,7 @@ describe("the room store", () => {
 		Bun.gc(true)
 		durations.length = 0
 		mock.online = true
-		await until(() => store.state.seq === 1017, 10_000)
+		await until(() => store.state.seq === 1018, 10_000)
 		await store.settled()
 		const replay = Math.max(...durations)
 
@@ -488,7 +488,7 @@ describe("the room store", () => {
 			const { seq: _, at: __, ...rest } = e
 			mock.store(rest as never)
 		}
-		await until(() => store.state.seq === 2017, 10_000)
+		await until(() => store.state.seq === 2018, 10_000)
 		await store.settled()
 		const live = Math.max(...durations)
 
@@ -504,7 +504,7 @@ describe("the room store", () => {
 	test("typing, status, and drafts are shown, and a final message replaces its draft", async () => {
 		const { mock, make } = setup()
 		const { store } = await make()
-		await until(() => store.state.seq === 17)
+		await until(() => store.state.seq === 18)
 		mock.broadcast({ t: "typing", who: [fixtures.ada] })
 		mock.broadcast({ t: "status", slug: fixtures.ada, state: "typing" })
 		mock.broadcast({ t: "draft", slug: fixtures.ada, runId: "r9", index: 0, text: "grow" })
@@ -542,7 +542,7 @@ describe("composer typing and run end", () => {
 	test("an idle status clears that agent's drafts and keeps another's", async () => {
 		const { mock, make } = setup()
 		const { store } = await make()
-		await until(() => store.state.seq === 17)
+		await until(() => store.state.seq === 18)
 		mock.broadcast({ t: "draft", slug: fixtures.ada, runId: "r1", index: 0, text: "aborted" })
 		mock.broadcast({ t: "draft", slug: fixtures.bob, runId: "r2", index: 0, text: "going" })
 		await until(() => Object.keys(store.state.drafts).length === 2)
