@@ -30,13 +30,13 @@ describe("replySummary", () => {
     expect(replySummary({ ...base, media })).toEqual({ text: "Album", thumb: "/1.jpg" });
   });
 
-  test("a link-only message quotes the page title with a link glyph", () => {
+  test("a link-only message quotes its link, as kat does, with a link glyph", () => {
     const message = {
       ...base,
       body: "https://example.com/x",
       webPage: { url: "https://example.com/x", site: "Example", title: "Hello page" },
     };
-    expect(replySummary(message)).toEqual({ text: "Hello page", glyph: "link" });
+    expect(replySummary(message)).toEqual({ text: "https://example.com/x", glyph: "link" });
   });
 });
 

@@ -7,6 +7,7 @@
 import type {
 	Actor,
 	FileRef,
+	LinkPreview,
 	Message,
 	MessageId,
 	Reaction,
@@ -43,6 +44,7 @@ type MessageRow = {
 	deleted_at: number | null
 	goto: string | null
 	quote: string | null
+	preview: string | null
 }
 
 export type NewMessage = {
@@ -262,6 +264,22 @@ export class RoomLog {
 		})
 	}
 
+	/**
+	 * Stores the card for a live message's first link. Safe to run twice: the same preview again
+	 * stores nothing and returns null. A preview for a link the text no longer starts with is the
+	 * caller's to refuse.
+	 */
+	setPreview(id: MessageId, preview: LinkPreview): RoomEvent | null {
+		return this.storage.transactionSync(() => {
+			const current = this.message(id)
+			const json = JSON.stringify(preview)
+			if (!current || (current.preview && JSON.stringify(current.preview) === json)) return null
+			const event = this.append(actorKey(current.from), { t: "preview", messageId: id, preview })
+			this.sql.exec("UPDATE messages SET preview = ? WHERE id = ?", json, id)
+			return event
+		})
+	}
+
 	/** Deletes the live messages among `ids` as one event. Returns null when none is live. */
 	deleteMessages(ids: readonly MessageId[], by: Actor): RoomEvent | null {
 		return this.storage.transactionSync(() => {
@@ -352,6 +370,7 @@ export class RoomLog {
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(r.quote ? { quote: r.quote } : {}),
+			...(r.preview ? { preview: JSON.parse(r.preview) as LinkPreview } : {}),
 			...(reactions.length ? { reactions } : {}),
 		}
 	}

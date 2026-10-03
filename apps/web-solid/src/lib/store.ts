@@ -31,6 +31,7 @@ import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
+import { attachPreviewShelf, fromServer, rememberPreview, warmCardColor } from "../chat/lib/linkPreview"
 import { newestMessages } from "../warm/messages"
 import type { BotPresence, ChatMessage, DocumentItem, MediaItem, OutgoingMessage, Reaction, RosterBot } from "./types"
 
@@ -82,7 +83,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 
 function signature(m: ViewMessage): string {
   const reactions = (m.reactions ?? []).map((r) => `${reactionKey(r)}=${r.emoji}`).join(",")
-  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions, m.goto ?? "", m.quote ?? ""].join("|")
+  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions, m.goto ?? "", m.quote ?? "", m.preview ? `${m.preview.url}:${m.preview.title ?? ""}:${m.preview.image ?? ""}` : ""].join("|")
 }
 
 /** The transcript's view of one protocol message. */
@@ -101,6 +102,12 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.editedAt !== undefined) out.edited = true
   if (m.goto) out.goto = m.goto
   if (m.quote) out.quote = m.quote
+  const page = m.preview ? fromServer(m.preview) : null
+  if (page) {
+    out.webPage = page
+    rememberPreview(page)
+    warmCardColor(page)
+  }
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   if (m.files?.length) {
@@ -450,6 +457,9 @@ export function createApp(options: AppOptions = {}) {
             openWarm({ ...options.warm, userId }),
             (options.transport ?? defaultTransport)(),
           ])
+          if (bootUser !== userId) return void warm.close()
+          // Cards and their colours are in memory before the first room paints.
+          await attachPreviewShelf(warm)
           if (bootUser !== userId) return void warm.close()
           session = { userId, warm, transport }
           batch(() => {
