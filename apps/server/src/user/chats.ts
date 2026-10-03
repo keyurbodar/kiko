@@ -1,4 +1,4 @@
-import type { Chat, ChatOp, RoomId } from "@kiko/protocol"
+import type { Chat, ChatLast, ChatOp, RoomId } from "@kiko/protocol"
 
 // The chat index. Every edit is a pure step over one row: it returns the change to
 // broadcast, or null when the row already says the same thing. A repeated or late
@@ -21,15 +21,23 @@ type Row = {
   private: number
   /** "temp" for a temporary chat. Older rows hold the draft kind, "ask" or "group", and are temporary too. */
   draft: string | null
+  last: string | null
+  mentions: number
+  grp: number
 }
 
-/** What a room reports once at the end of a run. */
+/** What a room reports when its newest activity, its read position, or its members change. */
 export type Touch = {
-  /** The room's sequence after the run. A touch at or below the stored one is ignored. */
+  /** The room's sequence now. A touch at or below the stored one is ignored. */
   lastSeq: number
   lastPreview: string
   /** Messages the human has not read, counted by the room. */
   unread: number
+  /** The newest activity. Absent from a room that predates it. */
+  last?: ChatLast
+  /** Unread agent messages that mention the human or reply to them. */
+  mentions?: number
+  group?: boolean
 }
 
 export type ChatChange = { t: "chat"; chat: Chat } | { t: "chat_removed"; roomId: RoomId }
@@ -50,6 +58,9 @@ function toChat(row: Row): Chat {
     updatedAt: row.updated_at,
     ...(row.private === 1 ? { private: true } : {}),
     ...(row.draft !== null ? { temp: true as const } : {}),
+    ...(row.last ? { last: JSON.parse(row.last) as ChatLast } : {}),
+    ...(row.mentions > 0 ? { mentions: row.mentions } : {}),
+    ...(row.grp === 1 ? { group: true as const } : {}),
   }
 }
 
@@ -76,11 +87,12 @@ export function listChats(sql: SqlStorage): Chat[] {
 
 function write(sql: SqlStorage, chat: Chat): ChatChange {
   sql.exec(
-    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private, draft)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private, draft, last, mentions, grp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(room_id) DO UPDATE SET title = excluded.title, pinned = excluded.pinned, muted = excluded.muted,
        last_seq = excluded.last_seq, last_preview = excluded.last_preview, unread = excluded.unread,
-       updated_at = excluded.updated_at, agents = excluded.agents, private = excluded.private, draft = excluded.draft`,
+       updated_at = excluded.updated_at, agents = excluded.agents, private = excluded.private, draft = excluded.draft,
+       last = excluded.last, mentions = excluded.mentions, grp = excluded.grp`,
     chat.roomId,
     chat.title,
     chat.pinned ? 1 : 0,
@@ -92,6 +104,9 @@ function write(sql: SqlStorage, chat: Chat): ChatChange {
     JSON.stringify(chat.agents ?? []),
     chat.private ? 1 : 0,
     chat.temp ? "temp" : null,
+    chat.last ? JSON.stringify(chat.last) : null,
+    chat.mentions ?? 0,
+    chat.group ? 1 : 0,
   )
   return { t: "chat", chat }
 }
@@ -122,7 +137,9 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
     }
     case "rename": {
       const title = clip(op.title, MAX_TITLE)
-      return current && current.title !== title ? { ...current, title } : null
+      if (!current || current.title === title) return null
+      // A renamed group says so in its row, as Telegram does. A DM's title is only a label.
+      return current.group ? { ...current, title, last: { from: "human", kind: "renamed", text: title, at: now }, updatedAt: now } : { ...current, title }
     }
     case "pin":
       return current && current.pinned !== op.pinned ? { ...current, pinned: op.pinned } : null
@@ -147,19 +164,34 @@ export function applyChatOp(sql: SqlStorage, op: ChatOp, now: number): ChatChang
   return write(sql, chat)
 }
 
+/** The row's activity after a touch. A rename is kept until something newer happens in the room. */
+function nextLast(current: ChatLast | undefined, touched: ChatLast | undefined): ChatLast | undefined {
+  if (current?.kind === "renamed" && (!touched || touched.at < current.at)) return current
+  return touched ?? current
+}
+
 /**
- * Records the end of a run. A touch for an unknown or deleted chat is ignored, so a
- * late touch cannot bring a deleted chat back. A touch with a `lastSeq` the row already
- * has is a repeat and is ignored too.
+ * Records a change in the room's newest activity, read position, or members. A touch for an
+ * unknown or deleted chat is ignored, so a late touch cannot bring a deleted chat back. A touch
+ * with a `lastSeq` the row already has is a repeat or late, and is ignored too.
+ *
+ * The row sorts by its newest activity, so reading a chat never moves it. A room that predates
+ * `last` moves it to now, as before.
  */
 export function touchChat(sql: SqlStorage, roomId: string, touch: Touch, now: number): ChatChange | null {
   const current = getChat(sql, roomId)
   if (!current || touch.lastSeq <= current.lastSeq) return null
+  const last = nextLast(current.last, touch.last)
+  const mentions = Math.max(0, Math.floor(touch.mentions ?? 0))
+  const { last: _l, mentions: _m, group: _g, ...rest } = current
   return write(sql, {
-    ...current,
+    ...rest,
     lastSeq: touch.lastSeq,
     lastPreview: clip(touch.lastPreview, MAX_PREVIEW),
     unread: Math.max(0, Math.floor(touch.unread)),
-    updatedAt: now,
+    updatedAt: touch.last ? Math.max(last?.at ?? 0, current.updatedAt) : now,
+    ...(last ? { last } : {}),
+    ...(mentions ? { mentions } : {}),
+    ...((touch.group ?? current.group) ? { group: true as const } : {}),
   })
 }

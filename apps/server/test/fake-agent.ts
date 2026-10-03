@@ -100,6 +100,8 @@ export class FakeUser extends DurableObject {
   }
   /** A run ended. The chat list's touch is not under test here. */
   async touchChat() {}
+  /** Who is typing, for the chat list. Not under test here. */
+  async chatTyping() {}
   /** The room reads one chat row, not the whole list. */
   async getChat(roomId: string) {
     return (await this.state()).chats.find((c) => c.roomId === roomId) ?? null

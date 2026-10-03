@@ -283,6 +283,10 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
         <span class="chat-text">
           <span class="chat-title-line">
             <RowTitle id={props.bot.id} title={props.bot.name} />
+            {/* tweb's mention badge: a round @ beside the unread mark while a mention of you is unread. */}
+            <Show when={props.bot.mentions}>
+              <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="you were mentioned">@</i>
+            </Show>
             <Show when={unread()}>
               <i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
             </Show>
@@ -297,12 +301,22 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
             <Show
               when={props.bot.presence === "typing"}
               fallback={
-                <Show when={draft()} fallback={props.bot.preview}>
+                <Show
+                  when={draft()}
+                  fallback={
+                    <>
+                      <Show when={props.bot.previewFrom}>
+                        <span class="chat-preview-from" data-component="sidebar-preview-from">{props.bot.previewFrom}:</span>{" "}
+                      </Show>
+                      {props.bot.preview}
+                    </>
+                  }
+                >
                   <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
                 </Show>
               }
             >
-              typing
+              {props.bot.typing ?? "typing"}
               <i class="typing-dot" aria-hidden="true" />
               <i class="typing-dot" aria-hidden="true" />
               <i class="typing-dot" aria-hidden="true" />

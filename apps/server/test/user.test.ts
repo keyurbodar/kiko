@@ -85,6 +85,45 @@ test("touchChat twice with the same lastSeq broadcasts once", async () => {
   ws.close()
 })
 
+test("a touch carries the row's activity, mentions, and group, and reading never moves the row", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_A, "plans")
+  const created = (await rpc(user, "getChat", ROOM_A)).updatedAt
+  const last = { from: "agent", name: "Ada", kind: "text", text: "hi @alice", at: created + 5_000 }
+  expect(await rpc(user, "touchChat", ROOM_A, { lastSeq: 3, lastPreview: "hi @alice", unread: 1, last, mentions: 1, group: true })).toBe(true)
+  expect(await rpc(user, "getChat", ROOM_A)).toMatchObject({ last, mentions: 1, group: true, unread: 1, updatedAt: created + 5_000 })
+  // The human read it: the counts clear, the line and the order stay.
+  expect(await rpc(user, "touchChat", ROOM_A, { lastSeq: 4, lastPreview: "hi @alice", unread: 0, last, mentions: 0, group: true })).toBe(true)
+  const read = await rpc(user, "getChat", ROOM_A)
+  expect(read).toMatchObject({ last, unread: 0, updatedAt: created + 5_000 })
+  expect(read.mentions).toBeUndefined()
+})
+
+test("renaming a group is its row's line until something newer happens", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_A, "plans")
+  const old = { from: "human", kind: "text", text: "yo", at: 1 }
+  await rpc(user, "touchChat", ROOM_A, { lastSeq: 2, lastPreview: "yo", unread: 0, last: old, mentions: 0, group: true })
+  await rpc(user, "renameChat", ROOM_A, "launch")
+  expect((await rpc(user, "getChat", ROOM_A)).last).toMatchObject({ from: "human", kind: "renamed", text: "launch" })
+  // A read touch still names the older message: the rename stays.
+  await rpc(user, "touchChat", ROOM_A, { lastSeq: 3, lastPreview: "yo", unread: 0, last: old, mentions: 0, group: true })
+  expect((await rpc(user, "getChat", ROOM_A)).last.kind).toBe("renamed")
+  const newer = { from: "agent", name: "Ada", kind: "text", text: "ok", at: Date.now() + 1_000 }
+  await rpc(user, "touchChat", ROOM_A, { lastSeq: 4, lastPreview: "ok", unread: 1, last: newer, mentions: 0, group: true })
+  expect((await rpc(user, "getChat", ROOM_A)).last).toEqual(newer)
+})
+
+test("chatTyping tells every socket who is typing, and stores nothing", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_A, "plans")
+  const ws = await socket(user, 1)
+  await rpc(user, "chatTyping", ROOM_A, ["Ada", "Bob"])
+  const frames = (await ws.settle()).slice(1)
+  expect(frames).toEqual([{ t: "typing", roomId: ROOM_A, names: ["Ada", "Bob"] }])
+  ws.close()
+})
+
 test("a chat edit on one socket reaches the other, once, in seq order", async () => {
   const user = fresh()
   const a = await socket(user)

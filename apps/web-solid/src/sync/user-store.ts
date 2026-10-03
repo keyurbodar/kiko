@@ -65,6 +65,8 @@ export type UserState = UserData & {
 	lastChat: RoomId | null
 	/** Second direct chats the server refused, each with the chat that agent already has. */
 	refused: Record<string, RoomId>
+	/** The display names typing in each chat, from the `typing` frame. Memory only. */
+	typing: Record<string, readonly string[]>
 }
 
 export type UserStoreOptions = {
@@ -132,6 +134,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		synced: false,
 		lastChat: null,
 		refused: {},
+		typing: {},
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
 	let opening: ReturnType<typeof setTimeout> | undefined
@@ -199,7 +202,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				setState("refused", frame.roomId, frame.existing)
 				setState("patches", (list) => list.filter((p) => p.op.roomId !== frame.roomId))
 			})
-		} else if (frame.t === "home_refused") {
+		} else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
+		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
 			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))
 			for (const listener of homeRefusals) listener(frame.op, frame.reason)
@@ -220,7 +224,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				for (const agent of [...unwrap(state.pendingAgents)]) socket?.send({ t: "agent", op: { op: "create", agent } })
 			},
 			onFrame,
-			onStatus: (c) => setState("connection", c),
+			// A socket that drops misses the frame that ends the typing, so it forgets who was.
+			onStatus: (c) => setState(c === "open" ? { connection: c } : { connection: c, typing: {} }),
 		})
 	}
 
