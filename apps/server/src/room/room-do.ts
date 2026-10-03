@@ -18,7 +18,7 @@ import { parseRichText } from "./rich-text"
 import { Team } from "./team"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, OPENING, type Proposal, type ProposalInput } from "./chief"
 import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
-import { attachPreview, previewTarget } from "./link-preview"
+import { attachPreview, humanWrote, previewTarget } from "./link-preview"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
@@ -625,8 +625,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** Sends stored events to every socket that has said hello. */
-	publish(events: readonly RoomEvent[]): void {
+	/** Sends stored events to every socket that has said hello. `previews: false` reads only links a human sent. */
+	publish(events: readonly RoomEvent[], { previews = true }: { previews?: boolean } = {}): void {
 		if (!events.length) return
 		this.broadcast({ t: "events", events })
 		if (events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
@@ -638,6 +638,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// The card for a message's first link follows the message, in its own event.
 		for (const e of events) {
 			const target = previewTarget(e)
+			if (target && !previews && !humanWrote(this.ctx.storage.sql, target.url)) continue
 			if (target) this.ctx.waitUntil(attachPreview(this.log, this.env, target, (w) => this.ctx.waitUntil(w), (out) => this.publish(out)))
 		}
 	}
@@ -1037,11 +1038,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/**
 	 * RPC for an agent in this room (section 6.3). Stores one closed block of a run's answer. A repeated
 	 * `(runId, attempt, index)` stores nothing. A higher attempt deletes the bubbles of earlier attempts.
-	 * Returns true when this call stored the bubble.
+	 * Returns true when this call stored the bubble. A bubble of a `tainted` run gets a link card only
+	 * for a link a human message holds: any other link may carry what outside content made the run
+	 * write, so the room never fetches it (section 16.4).
 	 */
-	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string): Promise<boolean> {
+	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string, tainted = false): Promise<boolean> {
 		const events = this.bubbles.post(slug, { runId, attempt, index }, block)
-		this.publish(events)
+		this.publish(events, { previews: !tainted })
 		return events.some((e) => e.t === "message")
 	}
 

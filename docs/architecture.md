@@ -888,7 +888,7 @@ The design follows the spec's additions.
 - The room attaches the card to the message, as Telegram does. After it stores a message or an edit, it resolves the first `http(s)` link in the background, checks the link is still the message's first, and stores a `preview` event. The card lives in the room log, the snapshot, and the client's IndexedDB. Agents never see it. A message with files gets no card.
 - The client keeps a 100-entry LRU in memory over an IndexedDB store of 500 previews, loaded before the first room paints. The composer looks a pasted link up at once and debounces typing by 150 ms. The card's panel colour is the most common vivid hue of its picture, darkened until white text reads at 4.5:1, then the page's `theme-color`, then the bubble surface. The colour is stored with the preview.
 
-OPEN: section 16.4 says a tainted run's URLs are not previewed. The room cannot tell a tainted bubble from a clean one, because `post()` carries no taint. The client already previewed every agent link before this change, so the exposure is unchanged. Passing the run's taint through `post()` would close it.
+- A tainted run's bubbles (section 16.4) get a card only for a link a human message already holds. The outbox marks a run tainted when it sees a tainted envelope or an `<untrusted>` tool result in the run, keeps the mark in its `outbox` row, and passes it with every `post()`.
 
 UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The route validates on its own and does not rely on the platform. The existing proxy in `apps/web-solid/vite.config.ts` checks hosts by name only and is deleted.
 

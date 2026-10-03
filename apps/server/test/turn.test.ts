@@ -38,7 +38,7 @@ afterAll(async () => {
 })
 
 type Call =
-  | { t: "post"; runId: string; attempt: number; index: number; block: string }
+  | { t: "post"; runId: string; attempt: number; index: number; block: string; tainted: boolean }
   | { t: "draft"; runId: string; index: number; chars: number }
   | { t: "status"; state: string }
   | { t: "end"; runId: string }
@@ -102,6 +102,21 @@ test("a run posts each paragraph once, in order, then ends once", async () => {
   expect(calls.filter((c) => c.t === "end")).toEqual([{ t: "end", runId }])
   expect(calls.at(-1)).toEqual({ t: "end", runId })
   expect(calls[0]).toEqual({ t: "status", state: "typing" })
+}, 30_000)
+
+test("a run started by a tainted envelope posts every bubble as tainted, and a human's run does not", async () => {
+  // Section 16.4: the room previews no link of a tainted run, so the outbox must say which runs are.
+  const a = await agent()
+  await a.receive([{ ...human("from a teammate"), id: `agent:t${n}`, from: { kind: "agent", slug: "scout" } as Envelope["from"], tainted: true }])
+  const tainted = posts(await until(a.calls, ended))
+  expect(tainted.length).toBe(blocksOf(BEFORE).length)
+  expect(tainted.every((p) => p.tainted === true)).toBe(true)
+
+  const b = await agent()
+  await b.receive([human("hello")])
+  const clean = posts(await until(b.calls, ended))
+  expect(clean.length).toBe(blocksOf(BEFORE).length)
+  expect(clean.every((p) => p.tainted === false)).toBe(true)
 }, 30_000)
 
 test("a crash after a bubble reposts the run under the next attempt", async () => {
