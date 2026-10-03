@@ -98,6 +98,10 @@ export class FakeUser extends DurableObject {
   async userState() {
     return this.state()
   }
+  /** The room records itself on its first socket. The ledger is not under test here. */
+  async recordRoom() {
+    return true
+  }
   /** A run ended. The chat list's touch is not under test here. */
   async touchChat() {}
   /** Who is typing, for the chat list. Not under test here. */
