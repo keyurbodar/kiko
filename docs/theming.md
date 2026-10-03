@@ -192,7 +192,7 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--l-hover-bg` | number | `0.2066` |
 | `--c-hover-bg` | number | `0` |
 | `--l-selected-bg` | number | `0.2583` |
-| `--c-selected-bg` | number | `0` |
+| `--c-selected-bg` | number | `0.014` |
 | `--l-nav-active-bg` | number | `0.3202` |
 | `--c-nav-active-bg` | number | `0.012` |
 | `--l-nav-hover-bg` | number | `0.2121` |
