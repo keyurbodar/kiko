@@ -83,6 +83,8 @@ export interface WebPagePreview {
   favicon?: string
   media?: { src: string; width: number; height: number }
   mediaSize?: "large" | "small"
+  /** The page's theme-color, a hint for the card's panel before its picture loads. */
+  themeColor?: string
 }
 
 /** A file a message carries that is not a picture: a PDF, an archive, a text file. */

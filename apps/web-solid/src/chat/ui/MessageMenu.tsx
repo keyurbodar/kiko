@@ -1,10 +1,11 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { Copy, CornerUpLeft, Pencil, Pin, Plus, Trash2 } from "lucide-solid"
+import { Copy, CornerUpLeft, ExternalLink, Link, Pencil, Pin, Plus, Share, Trash2 } from "lucide-solid"
 import { createSignal, For, lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
 import { Emoji } from "../../lib/emoji"
+import { draftLinkUrl } from "../../composer/link-draft"
 
 /* The picker wrapper loads when a menu opens, not with the transcript. */
 const pickerModule = () => import("./EmojiPicker")
@@ -66,10 +67,30 @@ const QUICK_REACTIONS: readonly { readonly emoji: string; readonly label: string
  */
 export function MessageMenu(props: MessageMenuProps) {
   const [pickerOpen, setPickerOpen] = createSignal(false)
-  const copy = async () => {
+  // The message's first link, the one its card shows.
+  const link = () => props.message.webPage?.url ?? draftLinkUrl(props.message.body)
+  const openLink = () => {
+    const url = link()
+    if (url) window.open(url, "_blank", "noopener,noreferrer")
+  }
+  const shareLink = async () => {
+    const url = link()
+    if (!url) return
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ url })
+        return
+      } catch (error) {
+        // The reader closed the share sheet.
+        if ((error as DOMException)?.name === "AbortError") return
+      }
+    }
+    await copy(url, "link copied")
+  }
+  const copy = async (text = props.message.body, done = "copied") => {
     try {
-      await navigator.clipboard.writeText(props.message.body)
-      showToastV2({ title: "copied", variant: "success" })
+      await navigator.clipboard.writeText(text)
+      showToastV2({ title: done, variant: "success" })
     } catch {
       showToastV2({
         title: "could not copy",
@@ -165,11 +186,30 @@ export function MessageMenu(props: MessageMenuProps) {
                 </button>
               </div>
               <MenuV2.Separator />
+              <Show when={link()}>
+                {(url) => (
+                  <>
+                    <MenuV2.Item onSelect={openLink}>
+                      <ExternalLink class="size-4 shrink-0" aria-hidden="true" />
+                      open link
+                    </MenuV2.Item>
+                    <MenuV2.Item onSelect={() => void copy(url(), "link copied")}>
+                      <Link class="size-4 shrink-0" aria-hidden="true" />
+                      copy link
+                    </MenuV2.Item>
+                    <MenuV2.Item onSelect={() => void shareLink()}>
+                      <Share class="size-4 shrink-0" aria-hidden="true" />
+                      share link
+                    </MenuV2.Item>
+                    <MenuV2.Separator />
+                  </>
+                )}
+              </Show>
               <MenuV2.Item onSelect={props.onReply}>
                 <CornerUpLeft class="size-4 shrink-0" aria-hidden="true" />
                 reply
               </MenuV2.Item>
-              <MenuV2.Item onSelect={copy}>
+              <MenuV2.Item onSelect={() => void copy()}>
                 <Copy class="size-4 shrink-0" aria-hidden="true" />
                 copy
               </MenuV2.Item>
