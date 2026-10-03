@@ -352,8 +352,8 @@
 
 .sidebar-shell .chat-filter {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   place-items: center;
   padding: 0;
@@ -366,6 +366,11 @@
 
 .sidebar-shell .chat-filter:hover {
   background: var(--hover-bg);
+}
+
+.sidebar-shell .chat-filter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .sidebar-shell .chat-filter[aria-pressed="true"] {
@@ -498,7 +503,7 @@
   border-radius: 0;
 }
 .sidebar-shell [data-component="chat-avatar-stack"] > * {
-  display: block;
+  display: flex;
 }
 
 .sidebar-shell .chat-title-line {
@@ -754,11 +759,10 @@
 .sidebar-shell .settings-user {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 8px;
-  padding: 12px;
-  border-radius: 14px;
-  background: var(--surface-raised);
+  padding: 8px 10px;
+  border-radius: 12px;
   color: var(--text-weak);
   text-decoration: none;
 }
@@ -767,18 +771,21 @@
   background: var(--nav-hover-bg);
 }
 
+.sidebar-shell .settings-user-active {
+  background: var(--selected-bg);
+}
+
 .sidebar-shell .settings-user-name {
   display: block;
   overflow: hidden;
   color: var(--text);
-  font-size: var(--font-md, 15px);
+  font-size: var(--font-sm);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sidebar-shell .settings-user-sub,
-.sidebar-shell .settings-row-hint {
+.sidebar-shell .settings-user-sub {
   display: block;
   overflow: hidden;
   color: var(--text-weak);
@@ -787,31 +794,31 @@
   white-space: nowrap;
 }
 
+/* One line per section: the page itself says what the section holds. */
 .sidebar-shell .settings-panel-row {
   display: flex;
-  min-height: 52px;
+  height: 36px;
   align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  color: var(--text-weak);
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--text-muted);
   text-decoration: none;
 }
 
-/* The brand shows in the icons, the way kat does it, not in a coloured slab behind the row. */
 .sidebar-shell .settings-row-icon {
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  width: 24px;
-  color: var(--accent);
+  width: 18px;
+  color: var(--text-weak);
 }
 
 .sidebar-shell .settings-row-label {
-  display: block;
+  min-width: 0;
+  flex: 1;
   color: var(--text);
   font-size: var(--font-sm);
-  font-weight: 500;
 }
 
 .sidebar-shell .settings-panel-row:hover {
@@ -822,32 +829,12 @@
   background: var(--selected-bg);
 }
 
+.sidebar-shell .settings-panel-row-active .settings-row-icon {
+  color: var(--accent);
+}
+
 .sidebar-shell .settings-empty {
   padding: 12px;
   color: var(--text-weak);
   font-size: var(--font-sm);
-}
-
-.sidebar-shell .settings-foot {
-  margin-top: auto;
-  padding-top: 12px;
-}
-
-.sidebar-shell .settings-signout {
-  display: flex;
-  width: 100%;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: none;
-  border-radius: 12px;
-  background: oklch(from var(--danger) l c h / 12%);
-  color: var(--danger);
-  font-size: var(--font-sm);
-  cursor: pointer;
-}
-
-.sidebar-shell .settings-signout:hover {
-  background: oklch(from var(--danger) l c h / 18%);
 }

@@ -1,14 +1,15 @@
 import { useLocation } from "@solidjs/router"
 import { Show } from "solid-js"
-import { GroupHeader } from "../chat/members/count"
+import { Bird } from "../mascot/bird"
 import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
 
 /*
- * The 50 px bar over the main panel. It names the section and nothing else:
- * kat's terminal, browser, notification and share controls are left out. The
- * chat route fills the same bar with its tab strip later.
+ * The 50 px bar over the main panel, laid out as kat's: the bird at the far
+ * left, the chat tabs, and one quiet control on the right, the chat's model.
+ * Other sections leave it empty: the sidebar already names them. The chat's name
+ * and member count live in its tab and its info panel, not here a second time.
  */
 export function TopBar() {
   const location = useLocation()
@@ -19,15 +20,12 @@ export function TopBar() {
   }
   return (
     <header
-      class="flex h-[50px] shrink-0 items-center gap-2 px-4 text-sm font-medium text-muted"
+      class="flex h-[50px] shrink-0 items-center gap-2 px-3 text-sm font-medium text-muted"
       data-component="top-bar"
     >
-      <Show
-        when={section() === "chat"}
-        fallback={<Show when={section()}>{(id) => <span data-component="top-bar-title">{id()}</span>}</Show>}
-      >
+      <Show when={section() === "chat"}>
+        <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={24} class="mx-1" />
         <TabStrip />
-        <GroupHeader chatId={chatId()} />
         <ModelPickerButton chatId={chatId()} />
       </Show>
     </header>

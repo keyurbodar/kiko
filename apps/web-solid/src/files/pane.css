@@ -33,23 +33,13 @@
   background: var(--bg);
 }
 
-/* No room for both: the open file takes the tab, and back returns to the tree. */
+/* No room for both: the open file takes the tab, and closing it returns to the tree. */
 @container (width < 560px) {
   .files-pane[data-open] .fp-tree {
     display: none;
   }
   .files-pane .fp-view {
     border-radius: 0;
-  }
-}
-
-.files-pane .fp-back {
-  display: none;
-}
-
-@container (width < 560px) {
-  .files-pane .fp-back {
-    display: grid;
   }
 }
 
@@ -70,47 +60,37 @@
 }
 
 .files-pane .fp-path {
+  display: flex;
   min-width: 0;
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  align-items: center;
   white-space: nowrap;
 }
 
+/* The folder part keeps its right end and cuts at the left, so the name never truncates. The
+ * outer box is right-to-left only to put the ellipsis on the left; the path inside stays ltr. */
 .files-pane .fp-dir {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  direction: rtl;
+  text-overflow: ellipsis;
   color: var(--text-muted);
 }
 
 .files-pane .fp-name {
+  flex: none;
   color: var(--text);
   font-weight: 600;
 }
 
-.files-pane .fp-modes {
-  display: flex;
+.files-pane .fp-dirty {
+  width: 6px;
+  height: 6px;
   flex: none;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: var(--hover-bg);
-}
-
-.files-pane .fp-mode {
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 6px;
-  color: var(--text-muted);
-  font-size: 12px;
-  transition: none;
-}
-
-.files-pane .fp-mode:hover {
-  color: var(--text);
-}
-
-.files-pane .fp-mode[aria-pressed="true"] {
-  background: var(--selected-bg);
-  color: var(--text);
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--text-muted);
 }
 
 .fp-icon {
@@ -124,13 +104,13 @@
   transition: none;
 }
 
-.fp-icon:hover {
+.fp-icon:hover,
+.fp-icon[aria-pressed="true"] {
   background: var(--hover-bg);
   color: var(--text);
 }
 
-.fp-icon:focus-visible,
-.files-pane .fp-mode:focus-visible {
+.fp-icon:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }

@@ -549,6 +549,8 @@ Two cautions for the owner to decide on.
 
 A build step reads the pi-ai catalog and writes a hashed JSON asset. The settings screen loads it lazily. No custom model list exists anywhere in kiko.
 
+Providers and models are one settings page, `/settings/models`. Connected providers come first, each with its models under it. The default model for new chats carries a dot, and one click on a model makes it the default. A search and a compact list of the other providers sit below, each one click from its connect dialog. The old `/settings/providers` URL redirects there. A chat's own model is switched from the chip at the right of the top bar, which opens the same picker; it hides while no provider is connected, because the chat's banner already says so.
+
 ### 11.6 Test provider
 
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
@@ -947,7 +949,7 @@ Menus, tooltips, hover cards, dialogs and the dismissable layer are Kobalte, and
 
 **DEVIATION.** The spec names CodeMirror 6 as the text editor. Kiko uses it for the file viewer in the right panel's files tab only. The composer keeps the existing `contenteditable` input, because the composer is in tier 2 and CodeMirror would be most of that tier's bytes.
 
-**DEVIATION.** Files are not a rail section. They live in the chat's right panel, on a files tab beside the info tab, after t3code's right panel: the tree, and the open file beside it in a wider panel. `/files/<room>/<path>` redirects to the chat with that file open. A markdown file renders with the room's own parser (`parseRichText`), imported into the lazy markdown viewer, so a file and a message holding the same markdown look the same and `marked` stays out of tiers 1 to 3.
+**DEVIATION.** Files are not a rail section. They live in the chat's right panel, on a files tab beside the info tab, after t3code's right panel: the tree, and the open file beside it in a wider panel. `/files/<room>/<path>` redirects to the chat with that file open. The open file has a slim header: its path, download, and close. A text file is always editable and saves itself 700 ms after the last keystroke, on blur, and when it closes, against the SHA-256 it started from; the header shows a dot while a save is pending. Markdown and CSV have one toggle between the rendered view and the editor. A markdown file renders with the room's own parser (`parseRichText`), imported into the lazy markdown viewer, so a file and a message holding the same markdown look the same and `marked` stays out of tiers 1 to 3.
 
 Effect v4 does not ship in tiers 1 to 3. See section 20.
 
@@ -961,7 +963,7 @@ Effect v4 does not ship in tiers 1 to 3. See section 20.
 
 ### 19.5 Motion
 
-Navigation, buttons, menus, tabs, the composer, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, swipe-to-reply feedback, attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
+Navigation, buttons, menus, tabs, the composer, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, swipe-to-reply feedback (the row follows the pointer 1:1 from the 4th pixel, arms at 36 px, and snaps back in 180 ms on the compositor), attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
 
 The typing indicator is a port of [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx) with no React and no `motion` in tier 2.
 
@@ -988,7 +990,9 @@ Icons, default avatars, emoji data, theme tokens, the model catalog, and built-i
 - The screenshots are dark only. ASSUMPTION: kiko ships dark first and keeps the replica's light tokens unused.
 - New tokens are added for the tab strip, date pill, calendar, palette, editor gutter, clamp fade, reply bar, approval card, and board.
 
-Kat's top bar shows "notifications off" and share icons. Kiko omits both, because the spec excludes notifications and share links.
+Kat's top bar shows "notifications off" and share icons. Kiko omits both, because the spec excludes notifications and share links. The bar holds the bird at the far left, the chat tabs, and the model chip. A tab is an icon and a title that fades at its max width; only the active tab has a fill, and its close button shows on hover or when active. The strip has no scrollbar, scrolls with the wheel, and fades only the edge with more tabs. The chat's name and member count are not repeated beside the tabs.
+
+The chat info panel gives each thing one way in: the header (avatar, name, start date), members with add, one memory row (and tasks in a group), what the chat shared as media and links tabs that show only when they have something, and delete. Pin, mute and private live in the chat's menu, the model in the top bar chip, and files in the panel's files tab. Shared files are not listed in the info tab, because every attachment is a workspace file and the files tab already shows them.
 
 ### 19.9 Components to reuse
 

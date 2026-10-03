@@ -1,18 +1,18 @@
 import { A } from "@solidjs/router"
 import { createSignal, For, Show } from "solid-js"
-import { session, signOut } from "../../app/session"
+import { session } from "../../app/session"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { SECTION_ICON, searchSections } from "../../settings/sections"
 
 /*
- * The settings sidebar, laid out like kat's: a search, the signed-in user, one row per section
- * with an icon and a hint line, and sign out at the bottom. The URL names the section, so the
- * active row is the link the router marks, and a reload lands where the user was.
+ * The settings sidebar, laid out like kat's: a search, the signed-in user's card (which opens
+ * the account page, where sign out lives), and one row per section with an icon and a hint
+ * line. The URL names the section, so the active row is the link the router marks.
  */
 
 function Icon(props: { path: string }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d={props.path} />
     </svg>
   )
@@ -47,8 +47,8 @@ export default function SettingsSidebar() {
         />
       </label>
       <Show when={!query()}>
-        <A href="/settings/account" class="settings-user" data-component="settings-user">
-          <IdentityAvatar seed={user()?.id ?? "you"} size={40} />
+        <A href="/settings/account" class="settings-user" activeClass="settings-user-active" data-component="settings-user" aria-label="account">
+          <IdentityAvatar seed={user()?.id ?? "you"} size={32} />
           <span class="min-w-0 flex-1">
             <span class="settings-user-name">{(user()?.name ?? "you").toLowerCase()}</span>
             <span class="settings-user-sub">{(user()?.email ?? "").toLowerCase()}</span>
@@ -64,21 +64,10 @@ export default function SettingsSidebar() {
             <span class="settings-row-icon">
               <Icon path={SECTION_ICON[s.id]} />
             </span>
-            <span class="min-w-0 flex-1">
-              <span class="settings-row-label">{s.label}</span>
-              <span class="settings-row-hint">{s.hint}</span>
-            </span>
+            <span class="settings-row-label">{s.label}</span>
           </A>
         )}
       </For>
-      <div class="settings-foot">
-        <button type="button" class="settings-signout" data-action="sign-out" onClick={() => void signOut()}>
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M6 2.5H3v11h3M10.5 5l3 3-3 3M13.5 8H6" />
-          </svg>
-          sign out
-        </button>
-      </div>
     </nav>
   )
 }

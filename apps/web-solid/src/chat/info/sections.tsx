@@ -1,12 +1,12 @@
 import type { Chat, Member } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
-import { createSignal, For, type JSX, Show } from "solid-js"
+import { createSignal, type JSX, Show } from "solid-js"
 import { nextAfterClose, openTabs } from "../../app/open-tabs"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import { MemberList } from "../members/members"
 import { useApp } from "../../lib/store"
 import { subtitle } from "./format"
-import { pushInfo, setInfoTab } from "./state"
+import { pushInfo } from "./state"
 
 /*
  * The cards on the panel's home view. Each is small and draws from the stores the app
@@ -14,7 +14,6 @@ import { pushInfo, setInfoTab } from "./state"
  */
 
 export const flat = "rounded-xl bg-bg-subtle"
-const rowButton = "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm text-text hover:bg-nav-hover"
 
 /** A card with a title and a chevron that opens its full list. */
 export function Card(props: { id: string; title: string; hint?: string; onOpen?: () => void; children: JSX.Element }) {
@@ -131,7 +130,7 @@ export function Members(props: { members: readonly Member[] }) {
 
 /** A colored circle with a line icon. The hue sets the color, so each kind of row reads at a glance. */
 export function Badge(props: { hue: number; path: string; size?: number }) {
-  const size = () => props.size ?? 30
+  const size = () => props.size ?? 28
   return (
     <span
       class="grid shrink-0 place-items-center rounded-full"
@@ -151,59 +150,17 @@ export function Badge(props: { hue: number; path: string; size?: number }) {
 }
 
 export const ICON = {
-  mute: "M2.5 6h2.5l3.5-3v10L5 10H2.5zM11 6l3 4M14 6l-3 4",
-  unmute: "M2.5 6h2.5l3.5-3v10L5 10H2.5zM11 5.5a3.5 3.5 0 0 1 0 5",
-  pin: "M10.5 1.5l4 4-2 1-2.5 2.5.5 3-1.5 1.5-7-7L3.5 5l3 .5L9 2.5zM5 11l-3.5 3.5",
-  lock: "M4 7.5h8v6.5H4zM5.5 7.5V5a2.5 2.5 0 0 1 5 0v2.5",
   memory: "M8 2.5c-2.5 0-4.5 1.8-4.5 4.2 0 1.4.7 2.5 1.7 3.3V12h5.6v-2c1-.8 1.7-1.9 1.7-3.3 0-2.4-2-4.2-4.5-4.2zM6 14h4",
-  model: "M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z",
-  links: "M7 9a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.7.7M9 7a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.7-.7",
-  media: "M2 3.5h12v9H2zM2 10.5l3.5-3 3 2.5 2-1.5 3.5 3M10.5 6.5h.01",
-  files: "M4 1.5h5l3 3v10H4zM9 1.5v3h3",
+  tasks: "M3 4l1.5 1.5L7 3M3 9.5L4.5 11 7 8.5M9 4.5h4.5M9 10h4.5",
   trash: "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 9h6l.5-9",
 } as const
-
-/** One round action under the header, Telegram style. */
-export function QuickAction(props: { id: string; label: string; path: string; active?: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      class="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl bg-bg-subtle px-1 py-2.5 text-xs text-weak hover:bg-nav-hover hover:text-text aria-pressed:text-accent"
-      data-action={props.id}
-      aria-pressed={props.active}
-      onClick={() => props.onClick()}
-    >
-      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d={props.path} />
-      </svg>
-      <span class="truncate">{props.label}</span>
-    </button>
-  )
-}
-
-/** Mute, pin, memory, files: the actions people reach for, one click each. */
-export function QuickActions(props: { chatId: string }) {
-  const chat = () => chatOf(props.chatId)
-  const muted = () => chat()?.muted ?? false
-  const pinned = () => chat()?.pinned ?? false
-  const secret = () => chat()?.private ?? false
-  return (
-    <div class="flex gap-2" data-component="info-actions">
-      <QuickAction id="mute" label={muted() ? "unmute" : "mute"} path={muted() ? ICON.mute : ICON.unmute} active={muted()} onClick={() => useApp.user()?.mute(props.chatId as never, !muted())} />
-      <QuickAction id="pin" label={pinned() ? "unpin" : "pin"} path={ICON.pin} active={pinned()} onClick={() => useApp.user()?.pin(props.chatId as never, !pinned())} />
-      <QuickAction id="private" label="private" path={ICON.lock} active={secret()} onClick={() => useApp.user()?.setPrivate(props.chatId as never, !secret())} />
-      <QuickAction id="memory" label="memory" path={ICON.memory} onClick={() => pushInfo({ kind: "memory" })} />
-      <QuickAction id="files" label="files" path={ICON.files} onClick={() => setInfoTab("files")} />
-    </div>
-  )
-}
 
 /** A row in a grouped list: badge, label, a value or count on the right, and a chevron. */
 export function ListRow(props: { id: string; label: string; hue: number; path: string; value?: string | number; onClick: () => void }) {
   return (
     <button
       type="button"
-      class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[15px] text-text hover:bg-nav-hover"
+      class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm text-text hover:bg-nav-hover"
       data-action={`open-${props.id}`}
       data-card={props.id}
       onClick={() => props.onClick()}
@@ -235,7 +192,7 @@ export function DeleteChat(props: { chatId: string }) {
     <div class={`${flat} p-1`} data-card="danger">
       <button
         type="button"
-        class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[15px] text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] hover:bg-nav-hover"
+        class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] hover:bg-nav-hover"
         data-action="delete-chat"
         onClick={remove}
         onBlur={() => setSure(false)}

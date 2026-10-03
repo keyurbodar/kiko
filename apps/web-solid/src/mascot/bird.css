@@ -1,6 +1,6 @@
 /* The mascot's moods. Only a bird with a state moves: a list of avatars stays still. */
 .bird { display: inline-block; flex-shrink: 0; line-height: 0; }
-.bird svg { width: 100%; height: 100%; overflow: visible; }
+.bird svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .bird .bird-body, .bird .bird-feet { transform-box: view-box; transform-origin: 48px 88px; }
 
 @media (prefers-reduced-motion: no-preference) {

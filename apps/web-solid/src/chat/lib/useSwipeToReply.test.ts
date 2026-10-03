@@ -43,10 +43,10 @@ function drag(gesture: SwipeGesture, travel: number, rise = 0) {
 }
 
 describe("swipe to reply", () => {
-  test("fires the reply at 48px of rightward travel", () => {
+  test("fires the reply at 36px of rightward travel", () => {
     const { gesture, replies } = harness()
     drag(gesture, SWIPE_REPLY_THRESHOLD_PX)
-    expect(gesture.offset).toBe(48)
+    expect(gesture.offset).toBe(36)
     expect(gesture.progress).toBe(1)
     gesture.release()
     expect(replies).toHaveLength(1)
@@ -54,11 +54,11 @@ describe("swipe to reply", () => {
   test("does not fire one pixel short of the threshold", () => {
     const { gesture, replies, settles } = harness()
     drag(gesture, SWIPE_REPLY_THRESHOLD_PX - 1)
-    expect(gesture.offset).toBe(47)
-    expect(gesture.progress).toBeCloseTo(47 / SWIPE_REPLY_THRESHOLD_PX, 5)
+    expect(gesture.offset).toBe(35)
+    expect(gesture.progress).toBeCloseTo(35 / SWIPE_REPLY_THRESHOLD_PX, 5)
     gesture.release()
     expect(replies).toHaveLength(0)
-    expect(settles).toEqual([47])
+    expect(settles).toEqual([35])
   })
 
   test("a leftward drag is inert: it never arms, paints, or settles", () => {
@@ -77,7 +77,7 @@ describe("swipe to reply", () => {
 
   test("a leftward drag cannot be walked back into a right swipe", () => {
     // The axis is claimed, not latched: once a drag has gone right it is
-    // finished. Letting it recover would mean the reader's first 6px decided
+    // finished. Letting it recover would mean the reader's first 4px decided
     // nothing, and a gesture that appears to start twice is harder to trust
     // than one that is simply refused.
     const { gesture, replies, settles } = harness()
@@ -152,7 +152,7 @@ describe("swipe to reply", () => {
     expect(order).toEqual(["reply", "settle"])
   })
 
-  test("travel caps at 64px and the progress stops at 1", () => {
+  test("travel caps at 52px and the progress stops at 1", () => {
     const { gesture } = harness()
     drag(gesture, 200)
     expect(gesture.offset).toBe(SWIPE_MAX_TRAVEL_PX)
@@ -160,18 +160,19 @@ describe("swipe to reply", () => {
     expect(gesture.scale).toBe(1)
   })
 
-  test("the arm point sits three quarters of the row's total travel", () => {
-    expect(SWIPE_REPLY_THRESHOLD_PX / SWIPE_MAX_TRAVEL_PX).toBeCloseTo(0.75, 2)
+  test("the arm point leaves some travel past it, and arms within a short flick", () => {
+    expect(SWIPE_REPLY_THRESHOLD_PX).toBeLessThan(SWIPE_MAX_TRAVEL_PX)
+    expect(SWIPE_REPLY_THRESHOLD_PX).toBeLessThanOrEqual(40)
   })
 
   test("a vertical-first gesture never fires and never claims the axis", () => {
     const { gesture, replies, settles } = harness()
     gesture.down(0, 0)
-    gesture.move(4, 21)
+    gesture.move(3, 17)
     expect(gesture.swiping).toBe(false)
     // The scroller took the gesture; every later move is ignored, including a
     // long leftward one.
-    gesture.move(90, 21)
+    gesture.move(90, 17)
     expect(gesture.swiping).toBe(false)
     expect(gesture.offset).toBe(0)
     gesture.release()
@@ -179,20 +180,20 @@ describe("swipe to reply", () => {
     expect(settles).toEqual([])
   })
 
-  test("exactly 20px of vertical drift still leaves the axis undecided", () => {
+  test("exactly 16px of vertical drift still leaves the axis undecided", () => {
     const { gesture } = harness()
     gesture.down(0, 0)
-    gesture.move(4, 20)
-    gesture.move(SWIPE_MAX_TRAVEL_PX, 20)
+    gesture.move(3, 16)
+    gesture.move(SWIPE_MAX_TRAVEL_PX, 16)
     expect(gesture.swiping).toBe(true)
     expect(gesture.offset).toBe(SWIPE_MAX_TRAVEL_PX)
   })
 
-  test("a 21px vertical drift hands the gesture to the scroller", () => {
+  test("a 17px vertical drift hands the gesture to the scroller", () => {
     const { gesture, replies } = harness()
     gesture.down(0, 0)
-    gesture.move(4, 21)
-    gesture.move(60, 21)
+    gesture.move(3, 17)
+    gesture.move(60, 17)
     expect(gesture.swiping).toBe(false)
     gesture.release()
     expect(replies).toHaveLength(0)
@@ -201,11 +202,11 @@ describe("swipe to reply", () => {
   test("a shallow flick clears the lock on angle, not on effort", () => {
     // The lock exists to stop a vertical scroll being stolen, and it is
     // measured as an absolute vertical allowance. This pins the consequence:
-    // a 30-degree flick is inside it, so it replies, while a scroll-sized
+    // an 18-degree flick is inside it, so it replies, while a scroll-sized
     // vertical run never gets that far.
     const flick = harness()
     flick.gesture.down(0, 0)
-    flick.gesture.move(50, 20)
+    flick.gesture.move(45, 15)
     expect(flick.gesture.swiping).toBe(true)
     flick.gesture.release()
     expect(flick.replies).toHaveLength(1)
@@ -214,7 +215,7 @@ describe("swipe to reply", () => {
   test("a tap leaves the row untouched", () => {
     const { gesture, replies, settles } = harness()
     gesture.down(100, 100)
-    gesture.move(102, 101)
+    gesture.move(103, 101)
     expect(gesture.swiping).toBe(false)
     expect(gesture.offset).toBe(0)
     expect(gesture.progress).toBe(0)
@@ -242,11 +243,11 @@ describe("swipe to reply", () => {
 
   test("a cancelled gesture settles back but never replies", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, 35)
+    drag(gesture, 30)
     expect(gesture.swiping).toBe(true)
     gesture.cancel()
     expect(replies).toHaveLength(0)
-    expect(settles).toEqual([35])
+    expect(settles).toEqual([30])
     expect(gesture.swiping).toBe(false)
     expect(gesture.offset).toBe(0)
   })
@@ -264,10 +265,10 @@ describe("swipe to reply", () => {
     }) as unknown as { gesture: SwipeGesture }
     const g = gesture!
     g.down(0, 0)
-    g.move(35, 0)
+    g.move(30, 0)
     g.release()
     g.move(0, 0)
-    expect(g.offset).toBe(35)
+    expect(g.offset).toBe(30)
     pending?.()
     expect(g.offset).toBe(0)
     expect(g.swiping).toBe(false)
@@ -275,14 +276,14 @@ describe("swipe to reply", () => {
 
   test("a second gesture starts from rest", () => {
     const { gesture, replies, settles } = harness()
-    drag(gesture, 35)
+    drag(gesture, 30)
     gesture.release()
-    expect(settles).toEqual([35])
+    expect(settles).toEqual([30])
     drag(gesture, 20)
     expect(gesture.swiping).toBe(true)
     expect(gesture.offset).toBe(20)
     gesture.release()
-    expect(settles).toEqual([35, 20])
+    expect(settles).toEqual([30, 20])
 
   })
 })

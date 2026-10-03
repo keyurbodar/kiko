@@ -1,0 +1,11 @@
+/* The tab strip scrolls sideways with no scrollbar, and fades only the edge that has more. */
+.tab-strip {
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  --fade-start: 0px;
+  --fade-end: 0px;
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+}
+.tab-strip::-webkit-scrollbar { display: none; }
+.tab-strip[data-fade-start] { --fade-start: 24px; }
+.tab-strip[data-fade-end] { --fade-end: 24px; }

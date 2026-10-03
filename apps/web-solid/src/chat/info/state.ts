@@ -11,10 +11,7 @@ export type InfoView =
   | { kind: "home" }
   | { kind: "memory" }
   | { kind: "record"; id: string }
-  | { kind: "links" }
-  | { kind: "media" }
   | { kind: "agent"; slug: string }
-  | { kind: "model" }
   | { kind: "tasks" }
 
 const HOME: InfoView = { kind: "home" }

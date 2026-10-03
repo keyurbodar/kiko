@@ -41,6 +41,7 @@ async function openClient(): Promise<ExecutorClient> {
 type View = { status: ExecutorStatus | null; tools: readonly string[] | null }
 
 export function Integrations(props: { client?: ExecutorClient; open?: (url: string) => void }) {
+	const [keyOpen, setKeyOpen] = createSignal(false)
 	const [view, setView] = createSignal<View>({ status: null, tools: null })
 	const [error, setError] = createSignal<string | null>(null)
 	const [busy, setBusy] = createSignal(false)
@@ -160,8 +161,22 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 									{status()?.pending ? "continue" : "connect"}
 								</button>
 							</div>
-							<form class="flex flex-col gap-2 bg-[oklch(from_var(--surface-raised)_calc(l-0.02)_c_h)] px-4 py-3" onSubmit={submitKey} data-method="api_key">
-								<label class="text-xs text-weak" for="integrations-key">or paste an executor api key</label>
+							{/* Sign-in is the way to connect. A key is the fallback, folded away until asked for. */}
+							<Show
+								when={keyOpen()}
+								fallback={
+									<button
+										type="button"
+										class="px-4 pb-3 text-left text-xs text-weak hover:text-text"
+										data-action="use-key"
+										onClick={() => setKeyOpen(true)}
+									>
+										use an api key instead
+									</button>
+								}
+							>
+							<form class="flex flex-col gap-2 px-4 pb-3" onSubmit={submitKey} data-method="api_key">
+								<label class="sr-only" for="integrations-key">executor api key</label>
 								<div class="flex gap-2">
 									<input
 										id="integrations-key"
@@ -172,6 +187,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 										autocapitalize="off"
 										spellcheck={false}
 										placeholder="exec_..."
+										autofocus
 										class="h-9 min-w-0 flex-1 rounded-xl bg-[var(--input-bg)] px-3 text-sm text-text outline-none placeholder:text-weak focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 										data-component="integrations-key"
 									/>
@@ -185,6 +201,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 									</button>
 								</div>
 							</form>
+							</Show>
 						</section>
 					}
 				>

@@ -31,18 +31,6 @@ export function viewerKind(file: FileLike): ViewerKind {
 	return kind
 }
 
-/** Kinds whose bytes are text the reader can edit and save. */
-export const isEditable = (kind: ViewerKind) => kind === "text" || kind === "markdown" || kind === "json" || kind === "csv"
-
-/** JSON indented by two spaces. Text that does not parse is shown as it is. */
-export function prettyJson(text: string): string {
-	try {
-		return JSON.stringify(JSON.parse(text), null, 2)
-	} catch {
-		return text
-	}
-}
-
 /**
  * Rows of a CSV or TSV. Quoted fields may hold the separator, doubled quotes and line breaks.
  * Stops after `limit` rows, so a large file draws its head at once.

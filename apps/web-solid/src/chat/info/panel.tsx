@@ -4,13 +4,12 @@ import { useCommands } from "../../commands/registry"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { openBirdPicker } from "../../mascot/picker-state"
 import { useApp } from "../../lib/store"
-import { chatModel, setChatModel } from "../../settings/chat-model"
-import { ModelList } from "../../settings/model-picker"
+import { chatModel } from "../../settings/chat-model"
 import { createCatalog } from "./catalog"
-import { LinksList, MediaCard, MediaList } from "./lists"
+import { SharedContent } from "./lists"
 import { MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
-import { Card, DeleteChat, flat, Header, ICON, ListRow, Members, QuickActions, roomMembers } from "./sections"
+import { Card, DeleteChat, flat, Header, ICON, ListRow, Members, roomMembers } from "./sections"
 import {
   closeFile,
   closeInfo,
@@ -58,10 +57,7 @@ const TITLES: Record<InfoView["kind"], string> = {
   home: "chat info",
   memory: "memory",
   record: "memory",
-  links: "links",
-  media: "media",
   agent: "agent",
-  model: "model",
   tasks: "tasks",
 }
 
@@ -124,6 +120,11 @@ function AgentCard(props: { slug: string; chatId: string }) {
   )
 }
 
+/*
+ * The panel's home: who and when, the members, memory, what the chat has shared, and delete.
+ * Each thing has one way in. The model is the chip in the top bar, files are the files tab,
+ * and pin, mute and private are the chat's menu in the list.
+ */
 function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; media: ReturnType<typeof createCatalog> }) {
   const members = roomMembers
   const memory = useMemoryStore()
@@ -132,21 +133,14 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
   return (
     <div class="flex flex-col gap-3" data-component="info-home">
       <Header chatId={props.chatId} members={members()} />
-      <QuickActions chatId={props.chatId} />
       <Members members={members()} />
-      <Show when={props.media.items().length}>
-        <MediaCard catalog={props.media} />
-      </Show>
-      <div class={`${flat} flex flex-col p-1`} data-component="info-shared">
-        <ListRow id="model" label="model" hue={265} path={ICON.model} value={chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "choose"} onClick={() => pushInfo({ kind: "model" })} />
+      <div class={`${flat} flex flex-col p-1`} data-component="info-rows">
         <ListRow id="memory" label="memory" hue={330} path={ICON.memory} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
-        <ListRow id="media" label="photos and videos" hue={150} path={ICON.media} value={count(props.media.items().length)} onClick={() => pushInfo({ kind: "media" })} />
-        <ListRow id="files" label="files" hue={210} path={ICON.files} value={count(useApp.activeFiles().length)} onClick={() => setInfoTab("files")} />
         <Show when={roomMembers().length > 1}>
-          <ListRow id="tasks" label="tasks" hue={185} path={ICON.files} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
+          <ListRow id="tasks" label="tasks" hue={185} path={ICON.tasks} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
         </Show>
-        <ListRow id="links" label="links" hue={45} path={ICON.links} value={count(props.links.items().filter((i) => i.kind === "link").length)} onClick={() => pushInfo({ kind: "links" })} />
       </div>
+      <SharedContent media={props.media} links={props.links} />
       <For each={extras()}>
         {(section) => (
           <Card id={section.id} title={section.title}>
@@ -364,22 +358,11 @@ export default function InfoPanel(props: { chatId: string }) {
               <Match when={view().kind === "memory" || view().kind === "record"}>
                 <MemoryViews view={view() as never} />
               </Match>
-              <Match when={view().kind === "links"}>
-                <LinksList catalog={links} />
-              </Match>
-              <Match when={view().kind === "media"}>
-                <MediaList catalog={media} />
-              </Match>
               <Match when={view().kind === "agent"}>
                 <AgentCard slug={(view() as { slug: string }).slug} chatId={props.chatId} />
               </Match>
               <Match when={view().kind === "tasks"}>
                 <TasksView />
-              </Match>
-              <Match when={view().kind === "model"}>
-                <div class="flex h-[min(560px,70dvh)] flex-col" data-component="info-model-list">
-                  <ModelList current={chatModel(props.chatId)} onPick={(ref) => (setChatModel(props.chatId, ref), popInfo())} />
-                </div>
               </Match>
             </Switch>
           </div>

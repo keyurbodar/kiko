@@ -1,42 +1,26 @@
+import { Heart } from "lucide-solid"
+import { Bird } from "../../mascot/bird"
 import { cn } from "../../lib/cn"
-import { ChatAvatar } from "../../lib/IdentityAvatar"
-import { useApp } from "../../lib/store"
-import { Show } from "solid-js"
 
 /**
- * The no-messages state. It sits in the scroller rather than beside it, so an
- * empty thread still lays out as a centred measure on the app background and
- * the fades above it have nothing to mask. The hint is chrome, so it is
- * lowercased like every other label here; nothing that carries a message body
- * is ever transformed. The card shows the chat's one avatar, seeded by room id.
+ * The no-messages state, as kat draws it: the mascot, dim and centred, with a
+ * small heart above it. No instructions; the composer's placeholder already
+ * says who to message, and the slash menu finds itself.
  */
-export function EmptyState(props: { hint?: string; class?: string }) {
+export function EmptyState(props: { class?: string }) {
   return (
     <div
       class={cn(
-        "chat-empty flex flex-col items-center gap-1.5 px-4 py-12 text-center text-weak",
+        "chat-empty pointer-events-none flex min-h-[calc(100dvh-16rem)] flex-1 select-none items-center justify-center",
         props.class,
       )}
       data-component="chat-empty"
+      aria-hidden="true"
     >
-      <Show when={useApp.activeThreadId()}>{(id) => <ChatAvatar faces={useApp.chatFaces(id())} size={64} />}</Show>
-      <Show when={useApp.activeThreadId()}>
-        {(id) => (
-          <span class="mt-1 text-base font-medium text-text" data-component="chat-empty-name">
-            {useApp.chatById(id())?.name}
-          </span>
-        )}
-      </Show>
-      <span class="chat-empty__text text-sm lowercase">
-        {props.hint ?? "no messages yet. say something to start the thread."}
+      <span class="relative opacity-30 grayscale">
+        <Heart size={18} stroke-width={1.75} class="absolute -top-3 -left-2 text-text" />
+        <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={72} />
       </span>
-      <Show when={!props.hint}>
-        <span class="text-xs lowercase opacity-80" data-component="chat-empty-tips">
-          {useApp.members().length > 1
-            ? "type @ to mention an agent, / for commands"
-            : "type / for commands, shift+enter for a new line"}
-        </span>
-      </Show>
     </div>
   )
 }

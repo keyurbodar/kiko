@@ -6,6 +6,7 @@ import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
 import type { MessageId, RoomId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
+import { connectedProviders, connectedReady } from "../../settings/connected";
 
 // A temporary chat's "to:" bar loads the first time one is open, not with the transcript.
 const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
@@ -271,7 +272,8 @@ export default function ChatRoute() {
           <Show when={useApp.room()?.approvals().length ? useApp.room() : undefined}>
             {(r) => <ApprovalCards approvals={r().approvals()} onDecide={(id, action) => r().approve(id, action)} />}
           </Show>
-          <Show when={useApp.room()?.state.noProvider}>
+          {/* The one place that says no model can run: the room's refusal, or no provider at all. */}
+          <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && connectedProviders().length === 0)}>
             {(np) => (
               <div
                 class="mx-auto mb-2 flex w-full max-w-[720px] items-center gap-3 rounded-2xl bg-[oklch(from_var(--accent)_l_c_h_/_12%)] px-4 py-2.5 text-sm text-text"
@@ -279,9 +281,11 @@ export default function ChatRoute() {
                 data-component="no-provider"
               >
                 <span class="min-w-0 flex-1">
-                  {np().slug} can't reply yet: no {np().provider} key is connected.
+                  {typeof np() === "object"
+                    ? `${(np() as { slug: string }).slug} can't reply yet: no ${(np() as { provider: string }).provider} key is connected.`
+                    : "connect a provider so your agents can reply."}
                 </span>
-                <A href="/settings/providers" class="shrink-0 rounded-xl bg-[var(--accent-fill)] px-3 py-1.5 text-[var(--on-accent)] no-underline">
+                <A href="/settings/models" class="shrink-0 rounded-xl bg-[var(--accent-fill)] px-3 py-1.5 text-[var(--on-accent)] no-underline">
                   connect
                 </A>
               </div>
