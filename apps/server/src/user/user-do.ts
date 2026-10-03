@@ -1,3 +1,4 @@
+import { duplicateDm, newRoomId } from "@kiko/protocol"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
@@ -10,16 +11,15 @@ import { type Limits, resolveLimits, takeTurn, type TurnAnswer, utcDay } from ".
 import type { ExecutorTool } from "../integrations/executor/tools"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
-import { deletesKikoChat, kikoChatOps, markKikoChat } from "./kiko-chat"
+import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
-import { newRoomId } from "./room-ids"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type FileBody, FileIndex, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { cleanPath } from "../files/upload"
 import { actorKey } from "../room/log"
-import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat, promoteDraft } from "./chats"
+import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
@@ -47,6 +47,9 @@ const REPLAY_LIMIT = 500
 type Attachment = { ready: boolean; helloBy?: number; origin?: string }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
+
+/** The `settings` key of the chat the user was last in. */
+const LAST_CHAT = "last_chat"
 
 /** The storage key that marks an account deletion in progress. */
 const DELETING = "deleting"
@@ -99,10 +102,14 @@ export class UserDO extends DurableObject<Env> {
   // RPC. The Worker and the user's rooms call these. The object is already the user's
   // own, so no method takes a user id.
 
-  /** Adds a chat. A repeat for the same room changes nothing and returns the stored row. */
+  /**
+   * Adds a chat. A repeat for the same room changes nothing and returns the stored row. A second
+   * direct chat with one agent is not made: the agent's one direct chat comes back instead.
+   */
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
-    this.apply({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
-    return getChat(this.sql, roomId)!
+    const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }
+    this.apply(op)
+    return getChat(this.sql, this.duplicateOf(op) ?? roomId)!
   }
 
   async renameChat(roomId: RoomId, title: string): Promise<Chat | null> {
@@ -233,16 +240,16 @@ export class UserDO extends DurableObject<Env> {
     return agent
   }
 
-  /** A new chat with these agents (ids), in the list at once. Returns its room id. */
+  /** A new chat with these agents (ids), in the list at once. Returns its room id, or the agent's one direct chat when it has one. */
   async openChat(title: string, agents: readonly string[]): Promise<RoomId> {
-    const roomId = newRoomId(Date.now())
-    this.apply({ op: "create", roomId, title, agents })
-    return roomId
+    const op: ChatOp = { op: "create", roomId: newRoomId(), title, agents }
+    this.apply(op)
+    return this.duplicateOf(op) ?? op.roomId
   }
 
-  /** A draft becomes a chat in the list, with its title. */
-  async promoteDraft(roomId: RoomId, title: string): Promise<boolean> {
-    return this.commit(promoteDraft(this.sql, roomId, title, Date.now())) !== null
+  /** A temporary chat becomes a group in the list, with its title and agents (ids). False when it was not temporary. */
+  async keepChat(roomId: RoomId, title: string, agents: readonly string[]): Promise<boolean> {
+    return this.apply({ op: "keep", roomId, title, agents }) !== null
   }
 
   /** A first soul for an agent the lead added, from the role it gave. Keeps a soul that exists. */
@@ -498,6 +505,11 @@ export class UserDO extends DurableObject<Env> {
       this.saveAgent(frame.op.agent)
       return
     }
+    if (frame.t === "open") {
+      // One row, no event and no broadcast: the client sends it at most every few seconds.
+      this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", LAST_CHAT, frame.roomId)
+      return
+    }
     if (frame.t === "home") {
       const refused = this.homeOp(frame.op)
       if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
@@ -507,6 +519,9 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "login.start") return void this.#logins.start(ws, frame.loginId, frame.provider).catch(() => {})
     if (frame.t === "login.answer") return this.#logins.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#logins.cancel(ws, frame.loginId)
+    // One direct chat per agent. The client looks first; a client that did not know is told which chat it is.
+    const existing = this.duplicateOf(frame.op)
+    if (existing) return send(ws, { t: "chat_refused", roomId: frame.op.roomId, existing })
     this.apply(frame.op)
   }
 
@@ -585,8 +600,8 @@ export class UserDO extends DurableObject<Env> {
   // Internals.
 
   private apply(op: ChatOp): UserEvent | null {
-    // The kiko chat stays: a delete of it changes nothing, like a delete of a chat that is gone.
-    if (deletesKikoChat(this.sql, op)) return null
+    // The kiko chat stays pinned: a delete or unpin of it changes nothing, like a delete of a chat that is gone.
+    if (movesKikoChat(this.sql, op) || this.duplicateOf(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     // The room tells its agents on every delivery, so it hears of the change now, not at the next burst.
     if (event && op.op === "private") {
@@ -594,6 +609,19 @@ export class UserDO extends DurableObject<Env> {
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))
     }
     return event
+  }
+
+  /** The agent's one direct chat when `op` would make a second one, else null. */
+  private duplicateOf(op: ChatOp): RoomId | null {
+    if (op.op !== "create" || op.temp || op.agents?.length !== 1) return null
+    return duplicateDm(listChats(this.sql).map((c) => markKikoChat(this.sql, c)), op)
+  }
+
+  /** The chat a new device opens: the last one the user was in, else the kiko chat. Never a temporary chat. */
+  private lastChat(): RoomId | undefined {
+    const stored = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", LAST_CHAT).toArray()[0]?.value
+    const chat = stored ? getChat(this.sql, stored) : null
+    return chat && !chat.temp ? chat.roomId : (kikoChatRoom(this.sql) ?? undefined)
   }
 
   /** RPC. Makes sure the kiko chat exists. Safe to call on every sign-in and page load. */
@@ -631,11 +659,6 @@ export class UserDO extends DurableObject<Env> {
     return event
   }
 
-  /** Rows a snapshot carries: every chat and agent, and the theme. */
-  private snapshotRows(): number {
-    return this.sql.exec<{ n: number }>("SELECT (SELECT count(*) FROM chats) + (SELECT count(*) FROM agents) + 1 AS n").one().n
-  }
-
   /** Sends a frame to every socket that has said hello. */
   private broadcast(frame: UserToClient): void {
     const text = JSON.stringify(frame)
@@ -646,18 +669,20 @@ export class UserDO extends DurableObject<Env> {
 
   /**
    * The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. A client
-   * with nothing (`lastSeq` 0) also gets the snapshot when it is shorter: every run touches a chat
-   * and stores one more event, so the replay grows to 500 events while the snapshot is one row per
-   * chat and agent.
+   * with nothing (`lastSeq` 0) always gets the snapshot: it is one row per chat and agent while the
+   * replay grows by one event per run, and only the snapshot says which chat to open (`lastChat`).
    */
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
-    const { oldest, stored } = this.sql
-      .exec<{ oldest: number | null; stored: number }>("SELECT min(seq) AS oldest, count(*) AS stored FROM user_events")
-      .one()
-    const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
-    const fresher = lastSeq === 0 && stored > this.snapshotRows()
-    if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() } } }
+    const { oldest } = this.sql.exec<{ oldest: number | null }>("SELECT min(seq) AS oldest FROM user_events").one()
+    const replayable = lastSeq > 0 && lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
+    if (!replayable) {
+      const lastChat = this.lastChat()
+      return {
+        t: "reset",
+        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
+      }
+    }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()

@@ -92,7 +92,8 @@ const suite: Suite = {
 
 		// Build an account with something in every place deletion must reach.
 		const user = await s.user()
-		await user.expect({ t: "events" })
+		// A device with nothing gets the snapshot first.
+		await user.expect({ t: "reset" })
 		for (const [i, roomId] of rooms.slice(0, 2).entries()) {
 			user.send({ t: "chat", op: { op: "create", roomId, title: `room ${i}` } })
 			await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))

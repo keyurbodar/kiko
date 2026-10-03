@@ -15,7 +15,7 @@ export function TopBar() {
   const section = () => sectionOf(location.pathname)
   const chatId = () => {
     const id = /^\/chat\/([^/]+)$/.exec(location.pathname)?.[1]
-    return id && id !== "new" ? decodeURIComponent(id) : null
+    return id ? decodeURIComponent(id) : null
   }
   return (
     <header

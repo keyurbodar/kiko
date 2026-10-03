@@ -19,6 +19,7 @@ type Row = {
   updated_at: number
   agents: string
   private: number
+  /** "temp" for a temporary chat. Older rows hold the draft kind, "ask" or "group", and are temporary too. */
   draft: string | null
   last: string | null
   mentions: number
@@ -56,7 +57,7 @@ function toChat(row: Row): Chat {
     unread: row.unread,
     updatedAt: row.updated_at,
     ...(row.private === 1 ? { private: true } : {}),
-    ...(row.draft === "ask" || row.draft === "group" ? { draft: row.draft } : {}),
+    ...(row.draft !== null ? { temp: true as const } : {}),
     ...(row.last ? { last: JSON.parse(row.last) as ChatLast } : {}),
     ...(row.mentions > 0 ? { mentions: row.mentions } : {}),
     ...(row.grp === 1 ? { group: true as const } : {}),
@@ -102,7 +103,7 @@ function write(sql: SqlStorage, chat: Chat): ChatChange {
     chat.updatedAt,
     JSON.stringify(chat.agents ?? []),
     chat.private ? 1 : 0,
-    chat.draft ?? null,
+    chat.temp ? "temp" : null,
     chat.last ? JSON.stringify(chat.last) : null,
     chat.mentions ?? 0,
     chat.group ? 1 : 0,
@@ -125,8 +126,15 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
         unread: 0,
         updatedAt: now,
         ...(op.agents?.length ? { agents: op.agents.slice(0, MAX_AGENTS).map((id) => id.slice(0, 64)) } : {}),
-        ...(op.draft ? { draft: op.draft } : {}),
+        ...(op.temp ? { temp: true as const } : {}),
       }
+    case "keep": {
+      // Only a temporary chat is kept. It joins the list as a group with its agents.
+      if (!current?.temp) return null
+      const { temp: _, ...chat } = current
+      const agents = op.agents.slice(0, MAX_AGENTS).map((id) => id.slice(0, 64))
+      return { ...chat, title: clip(op.title, MAX_TITLE) || current.title, updatedAt: now, ...(agents.length ? { agents } : {}) }
+    }
     case "rename": {
       const title = clip(op.title, MAX_TITLE)
       if (!current || current.title === title) return null
@@ -142,14 +150,6 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
     case "delete":
       return current ? undefined : null
   }
-}
-
-/** A draft becomes a chat (architecture section 7.11): it gets its title and joins the list. Null when it is not a draft. */
-export function promoteDraft(sql: SqlStorage, roomId: string, title: string, now: number): ChatChange | null {
-  const current = getChat(sql, roomId)
-  if (!current?.draft) return null
-  const { draft: _, ...chat } = current
-  return write(sql, { ...chat, title: clip(title, MAX_TITLE) || current.title, updatedAt: now })
 }
 
 /** Applies one chat edit from a client or an RPC. Returns null when it changes nothing. */

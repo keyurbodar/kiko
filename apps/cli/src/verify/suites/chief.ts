@@ -1,4 +1,4 @@
-import type { Chat, Message, RoomToClient, UserToClient } from "@kiko/protocol"
+import { type Chat, type Message, newRoomId, type RoomToClient, type UserToClient } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -6,22 +6,11 @@ import { until } from "./mid-run"
 
 // Architecture section 7.11, with the real model. The human never fills in a form:
 //
-//   1. ask       a draft opens with kiko asking what they want, at once
+//   1. temp      the new chat button's temporary chat with kiko
 //   2. propose   kiko proposes an agent and makes nothing until the human answers
 //   3. agent     after "yes", the agent exists with kiko's soul, its chat opens, and it says hi first
-//   4. group     a group draft: kiko proposes, the human says yes, the draft becomes the group with
-//                new agents and kiko's /chat.md, and joins the chat list
-
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-const ulid = () => {
-  let t = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[t % 32] + head
-    t = Math.floor(t / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
+//   4. group     another temporary chat: kiko proposes, the human says yes, the chat becomes the group
+//                with new agents and kiko's /chat.md, and joins the chat list
 
 function messages(room: RoomHandle): Message[] {
   const out = new Map<string, Message>()
@@ -73,14 +62,12 @@ const suite: Suite = {
       return seen
     }
 
-    // 1. Ask.
-    const draftId = ulid()
+    // 1. A temporary chat with kiko.
+    const draftId = newRoomId()
     let t0 = Date.now()
-    user.send({ t: "chat", op: { op: "create", roomId: draftId as never, title: "kiko", agents: ["kiko"], draft: "ask" } })
+    user.send({ t: "chat", op: { op: "create", roomId: draftId, title: "new chat", agents: ["kiko"], temp: true } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === draftId))
     const draft = await s.room(draftId)
-    await until("kiko's opening", () => kiko(draft).length > 0, 10_000)
-    console.log(`  opening (${Date.now() - t0} ms): ${JSON.stringify(kiko(draft)[0]!.text)}`)
 
     // 2. Propose, and nothing is made yet.
     let from = last(draft)
@@ -108,19 +95,18 @@ const suite: Suite = {
     console.log(`  hello (${Date.now() - t0} ms): ${JSON.stringify(messages(dm).find((m) => m.from.kind === "agent")!.text)}`)
 
     // 4. A group.
-    const groupId = ulid()
+    const groupId = newRoomId()
     t0 = Date.now()
-    user.send({ t: "chat", op: { op: "create", roomId: groupId as never, title: "new group", agents: ["kiko"], draft: "group" } })
+    user.send({ t: "chat", op: { op: "create", roomId: groupId, title: "new chat", agents: ["kiko"], temp: true } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === groupId))
     const group = await s.room(groupId)
-    await until("kiko's opening", () => kiko(group).length > 0, 10_000)
     from = last(group)
     group.send(`a group to plan a weekend in lisbon: @${agent.slug} for food, and a new one who plans the itinerary`)
     await until("kiko's group proposal", () => kiko(group, from).length > 0, 90_000)
     await quiet(group, 6_000, 90_000)
     console.log(`  group proposal: ${JSON.stringify(kiko(group, from).map((m) => m.text))}`)
     group.send("yes")
-    await until("the draft to become the group", () => chats().get(groupId)?.draft === undefined && chats().get(groupId) !== undefined && (chats().get(groupId)?.title ?? "new group") !== "new group", 120_000)
+    await until("the temporary chat to become the group", () => chats().get(groupId) !== undefined && chats().get(groupId)?.temp === undefined, 120_000)
     const members = new Set<string>()
     for (const entry of group.raw.log) {
       const f = entry.frame as RoomToClient

@@ -74,7 +74,7 @@ export function startTheme(userId: string, shared: UserChannel = userChannel): v
   stops = [
     createRoot((dispose) => {
       createEffect(() => {
-        if (useApp.user()?.state.caughtUp) setSynced(true)
+        if (useApp.user()?.state.synced) setSynced(true)
       })
       createEffect(
         on(

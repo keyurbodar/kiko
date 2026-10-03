@@ -19,12 +19,6 @@ export type ProposalInput =
 /** A stored proposal. `seq` is the log's sequence when kiko made it: a human message after it is the human's answer. */
 export type Proposal = ProposalInput & { id: string; seq: number }
 
-/** What kiko says first in a draft, at once and with no model call. */
-export const OPENING: Record<"ask" | "group", string> = {
-  ask: "hey. what do you want to get done? i can set you up with an agent for it, or pull a group together.",
-  group: "let's make a group. what's it for, and who should be in it? i can add your agents or make new ones.",
-}
-
 /** ASSUMPTION: the most agents one group proposal makes. */
 const MAX_NEW_AGENTS = 4
 /** ASSUMPTION: a group's members, counting kiko, stay within a room's limit of 8. */

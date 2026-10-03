@@ -49,7 +49,7 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	return true
 }
 
-import { newRoomId } from "@kiko/protocol"
+import { KIKO, newRoomId } from "@kiko/protocol"
 export { newRoomId }
 
 export type UserState = UserData & {
@@ -62,8 +62,12 @@ export type UserState = UserData & {
 	pendingHome: RoomPatch[]
 	/** The saved look as the server last said it, as JSON text. Undefined until it says. `theme/live.ts` applies it. */
 	theme?: string | null
-	/** True once the socket's first catch-up has arrived, so the server has had its say on the look. */
-	caughtUp: boolean
+	/** True once the server has answered `hello`: the list is the server's, not only this device's. */
+	synced: boolean
+	/** The chat the server says the user was last in, from the last snapshot. */
+	lastChat: RoomId | null
+	/** Second direct chats the server refused, each with the chat that agent already has. */
+	refused: Record<string, RoomId>
 	/** The display names typing in each chat, from the `typing` frame. Memory only. */
 	typing: Record<string, readonly string[]>
 }
@@ -91,8 +95,13 @@ export type UserStore = {
 	createAgent(agent: Agent): void
 	/** Returns the new room's id. `agents` are the ids of the agents it starts with. */
 	createChat(title: string, agents?: readonly string[]): RoomId
-	/** A draft with kiko (section 7.11): not in the list until kiko makes it a group. Returns its room id. */
-	createDraft(kind: "ask" | "group"): RoomId
+	/** A temporary chat with kiko (section 7.11): in the tab strip, not the list, until it becomes a group. */
+	createTemp(): RoomId
+	/** A temporary chat becomes a group in the list, with this title and these agents (ids). */
+	keep(roomId: RoomId, title: string, agents: readonly string[]): void
+	/** Tells the server the user is in this chat, at most once every `OPEN_DEBOUNCE_MS`. */
+	open(roomId: RoomId): void
+
 	rename(roomId: RoomId, title: string): void
 	pin(roomId: RoomId, pinned: boolean): void
 	mute(roomId: RoomId, muted: boolean): void
@@ -107,6 +116,9 @@ export type UserStore = {
 	onHomeRefused(listener: (op: FileOp, reason: string) => void): () => void
 	close(): void
 }
+
+/** How long the user stays in a chat before the server hears of it. A quick tab switch sends one frame. */
+export const OPEN_DEBOUNCE_MS = 2_000
 
 export function createUserStore(options: UserStoreOptions): UserStore {
 	const { warm } = options
@@ -125,10 +137,13 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		patches: [],
 		pendingAgents: [],
 		pendingHome: [],
-		caughtUp: false,
+		synced: false,
+		lastChat: null,
+		refused: {},
 		typing: {},
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
+	let opening: ReturnType<typeof setTimeout> | undefined
 	let socket: SyncSocket | null = null
 	let closed = false
 	let detach = () => {}
@@ -178,7 +193,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 
 	function reset(snapshot: UserSnapshot) {
 		const agents = [...(snapshot.agents ?? [])]
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home: { files: [...snapshot.home.files], folders: [...snapshot.home.folders] } })
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home: { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }, lastChat: snapshot.lastChat ?? null })
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
@@ -187,10 +202,17 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 
 	function onFrame(frame: UserToClient) {
 		channel.deliver(frame)
-		if ((frame.t === "events" || frame.t === "reset") && !state.caughtUp) setState("caughtUp", true)
-		if (frame.t === "events") applyEvents(frame.events)
-		else if (frame.t === "reset") reset(frame.snapshot)
-		else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
+		if (frame.t === "events" || frame.t === "reset") {
+			if (frame.t === "events") applyEvents(frame.events)
+			else reset(frame.snapshot)
+			if (!state.synced) setState("synced", true)
+		} else if (frame.t === "chat_refused") {
+			// Nothing was made. The create is dropped, and a reader in it is sent to the agent's one chat.
+			batch(() => {
+				setState("refused", frame.roomId, frame.existing)
+				setState("patches", (list) => list.filter((p) => p.op.roomId !== frame.roomId))
+			})
+		} else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
 			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))
@@ -232,14 +254,22 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			socket?.send({ t: "agent", op: { op: "create", agent } })
 		},
 		createChat(title, agents) {
-			const roomId = newRoomId(now())
+			const roomId = newRoomId()
 			act({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
 			return roomId
 		},
-		createDraft(kind) {
-			const roomId = newRoomId(now())
-			act({ op: "create", roomId, title: kind === "group" ? "new group" : "kiko", agents: ["kiko"], draft: kind })
+		createTemp() {
+			const roomId = newRoomId()
+			act({ op: "create", roomId, title: "new chat", agents: [KIKO], temp: true })
 			return roomId
+		},
+		keep: (roomId, title, agents) => act({ op: "keep", roomId, title, agents: [...agents] }),
+		open(roomId) {
+			if (opening !== undefined) clearTimeout(opening)
+			opening = setTimeout(() => {
+				opening = undefined
+				socket?.send({ t: "open", roomId })
+			}, OPEN_DEBOUNCE_MS)
 		},
 		rename: (roomId, title) => act({ op: "rename", roomId, title }),
 		pin: (roomId, pinned) => act({ op: "pin", roomId, pinned }),
@@ -260,6 +290,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			closed = true
 			if (expiry !== undefined) clearTimeout(expiry)
 			detach()
+			if (opening !== undefined) clearTimeout(opening)
 			socket?.close()
 		},
 	}

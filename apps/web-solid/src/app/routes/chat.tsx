@@ -1,14 +1,14 @@
 import { Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
-import { A, useLocation, useNavigate, useParams } from "@solidjs/router";
+import { A, useNavigate, useParams } from "@solidjs/router";
 import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
-import type { MessageId } from "@kiko/protocol";
+import type { MessageId, RoomId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 
-// The new chat screen loads when `/chat/new` is first opened, not with the transcript.
-const NewChat = lazy(() => import("../../chat/new-chat").then((m) => ({ default: m.NewChat })));
+// A temporary chat's "to:" bar loads the first time one is open, not with the transcript.
+const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 // Approval cards load the first time an open room has one (P7-02).
@@ -27,18 +27,27 @@ const ApprovalCards = lazy(() => import("../../chat/ApprovalCard"));
  */
 export default function ChatRoute() {
   /*
-   * The URL names the open chat. `/chat/:id` selects that thread in the store;
-   * `/chat` and `/chat/new` leave the selection alone. The store still holds
-   * the selection because the transcript reads it from there, but the URL is
-   * what changes it.
+   * The URL names the open chat. `/chat/:id` selects that thread in the store. The store still
+   * holds the selection because the transcript reads it from there, but the URL is what changes it.
+   * `/chat` alone never renders here: the route table sends it to the chat to resume.
    */
   const params = useParams<{ id?: string }>();
-  const location = useLocation();
-  /* `/chat/new` is the "to:" bar. It stands in for the thread until a chat is made. */
-  const isNew = () => location.pathname === "/chat/new";
+  const navigate = useNavigate();
   createEffect(() => {
     const id = params.id;
     if (id && id !== useApp.activeThreadId()) useApp.selectThread(id);
+  });
+  /*
+   * A chat that is not there once the list is the server's (deleted, or a link from another
+   * account) sends the reader to the chat to resume. A second direct chat the server refused goes
+   * to the one the agent already has.
+   */
+  createEffect(() => {
+    const id = params.id;
+    const user = useApp.user();
+    if (!id || !user?.state.synced || useApp.chat(id)) return;
+    const next = user.state.refused[id] ?? useApp.resumeChat();
+    if (next && next !== id) navigate(`/chat/${next}`, { replace: true });
   });
   /*
    * Opening a chat puts the cursor in the composer, the way kat and Telegram do, so the
@@ -47,7 +56,7 @@ export default function ChatRoute() {
    */
   createEffect(
     on(
-      () => (isNew() ? null : params.id),
+      () => params.id,
       (id) => {
         if (!id || window.matchMedia("(pointer: coarse)").matches) return;
         requestAnimationFrame(() => {
@@ -60,33 +69,15 @@ export default function ChatRoute() {
     ),
   );
   /*
-   * Drafts with kiko (architecture section 7.11). When kiko makes an agent, a line in the draft
-   * points at the agent's new chat, and the human is taken there. A draft left before the human
-   * wrote anything held nothing, so it is deleted as the human leaves.
+   * A temporary chat (architecture section 7.11). When kiko makes an agent in it, a line points at
+   * the agent's new chat, and the human is taken there. Closing its tab deletes it; leaving does not.
    */
-  const navigate = useNavigate();
-  const isDraft = (id: string | undefined) => !!id && !!useApp.user()?.state.chats.find((c) => c.roomId === id)?.draft;
+  const isTemp = () => !!params.id && !!useApp.chat(params.id)?.temp;
   createEffect(
     on(
-      () => (isDraft(params.id) ? useApp.activeMessages().at(-1) : undefined),
+      () => (isTemp() ? useApp.activeMessages().at(-1) : undefined),
       (last) => {
         if (last?.goto && last.goto !== params.id) navigate(`/chat/${last.goto}`);
-      },
-    ),
-  );
-  // Read while the draft is open: by the time the route changes, the store holds the next room.
-  const wrote = new Set<string>();
-  createEffect(() => {
-    const id = params.id;
-    if (id && isDraft(id) && useApp.activeMessages().some((m) => m.sender === "user")) wrote.add(id);
-  });
-  createEffect(
-    on(
-      () => params.id,
-      (_, previous) => {
-        if (previous && isDraft(previous) && !wrote.has(previous)) useApp.user()?.remove(previous as never);
-        // Only the draft being left needed remembering.
-        if (previous) wrote.delete(previous);
       },
     ),
   );
@@ -193,7 +184,7 @@ export default function ChatRoute() {
   };
 
   return (
-    <Show when={!isNew()} fallback={<NewChat />}>
+    <>
     {/* The shell owns the row and the rail. The transcript pane keeps
        `data-component="chat-shell"`, the stable handle the verify skill scopes
        by, and keeps `min-w-0` so the column narrows with the window. */}
@@ -203,6 +194,7 @@ export default function ChatRoute() {
         data-reply-target={replyTarget() ?? undefined}
         data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}
       >
+        <Show when={isTemp() && params.id}>{(id) => <ToBar roomId={id() as RoomId} />}</Show>
         {/* The wrapper has to be a flex column, not a plain block: the
             transcript's stage is `flex min-h-0 flex-1 flex-col` and both of
             those are inert unless its parent is a flex container. As a block
@@ -306,7 +298,8 @@ export default function ChatRoute() {
           />
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
-            title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
+            /* A temporary chat is still "new chat"; its composer names who will read the message. */
+            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "kiko" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => {
@@ -347,6 +340,6 @@ export default function ChatRoute() {
           />
         </div>
       </div>
-    </Show>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { SECTIONS, type SectionId } from "../app/sections"
+import { runCommand } from "../commands/registry"
 import { cn } from "../lib/cn"
 import { ChatPanel } from "./chat-panel"
 import { PlusIcon } from "./icons"
@@ -21,7 +22,7 @@ type PanelAction = { label: string; run: (navigate: (to: string) => void) => voi
 
 /** The header's one primary action. Settings has none. */
 const ACTIONS: Record<SectionId, PanelAction | null> = {
-  chat: { label: "new chat", run: (navigate) => navigate("/chat/new") },
+  chat: { label: "new chat", run: () => runCommand("chat.new") },
   settings: null,
 }
 
@@ -190,8 +191,8 @@ export function Sidebar(props: SidebarProps) {
 }
 
 /**
- * The `+` in the panel header: the section's one primary action. On chat it opens the "to:" bar,
- * the same as `Mod+N`. It does not own the sidebar toggle; the rail icon and `cmd+s` do.
+ * The `+` in the panel header: the section's one primary action. On chat it runs `chat.new`, the
+ * same command as `Mod+N`: a temporary chat with kiko in a new tab. It does not own the sidebar toggle; the rail icon and `cmd+s` do.
  */
 function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
