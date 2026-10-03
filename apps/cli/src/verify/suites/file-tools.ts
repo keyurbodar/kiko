@@ -163,6 +163,20 @@ const suite: Suite = {
         expectEqual((await res.text()).trim(), third, `the content of ${path}`)
       }
       console.log(`  turn three: edit, mv, cp, rm in ${Date.now() - t0} ms. files: ${paths.join(", ")}`)
+
+      // Turn four: the user's drive. A copy lands in /home, and the chat says so.
+      from = room.raw.log.length
+      t0 = Date.now()
+      room.send("keep a copy of /final.md in my drive as /home/plan.md so i have it in other chats. reply kept.")
+      await answer(room, from, ["kept"])
+      const noticed = room.raw.log.slice(from).some((entry) => {
+        const f = entry.frame as RoomToClient
+        return entry.dir === "in" && f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && /saved \/home\/plan\.md/.test(e.text))
+      })
+      if (!noticed) throw new VerifyError("no line in the chat says the agent saved /home/plan.md")
+      const home = await fetch(new URL("api/files/home/", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } }).catch(() => null)
+      void home
+      console.log(`  turn four: copied to /home/plan.md in ${Date.now() - t0} ms, and the chat said so`)
       user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })
     } finally {
       server.stop(true)

@@ -24,7 +24,7 @@ const suite: Suite = {
       websocket: {
         message(ws, raw) {
           const frame = JSON.parse(String(raw)) as { t: string }
-          if (frame.t === "hello") ws.send(JSON.stringify({ t: "reset", snapshot: { seq: 0, chats: [] } }))
+          if (frame.t === "hello") ws.send(JSON.stringify({ t: "reset", snapshot: { seq: 0, chats: [], home: { files: [], folders: [] } } }))
           if (frame.t === "bogus") ws.send(JSON.stringify({ t: "nonsense" }))
         },
       },
