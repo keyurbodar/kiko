@@ -24,6 +24,8 @@ export type BriefView = {
 	messages: readonly BriefMessage[]
 	/** Reactions on the member's own messages since its last brief, as `reactionBrief` in reactions.ts writes them. */
 	reactions: string | null
+	/** What each member is doing right now and the paths it holds (team.ts, section 7.12). */
+	team?: Record<string, { doing: string | null; holds: readonly string[] }>
 }
 
 /** The header of the missed-message section. The fake agent of the `team-routing` suite looks for it. */
@@ -41,7 +43,14 @@ const oneLine = (text: string) => {
 export function buildBrief(member: MemberRow, view: BriefView): string {
 	const lines = [`room goal: ${oneLine(view.goal) || "none yet"}`, `you are @${member.slug}${member.lead ? ", the lead" : ""}.`, "members:"]
 	for (const m of view.members) {
-		const parts = [m.lead ? "lead" : null, m.role ? oneLine(m.role) : null, m.status, m.currentTask ? `on ${m.currentTask}` : null]
+		const now = view.team?.[m.slug]
+		const parts = [
+			m.lead ? "lead" : null,
+			m.role ? oneLine(m.role) : null,
+			now?.doing ? `now ${now.doing}` : m.status,
+			m.currentTask ? `on ${m.currentTask}` : null,
+			now?.holds.length ? `holding ${now.holds.map((p) => `/${p}`).join(", ")}` : null,
+		]
 		lines.push(`- @${m.slug} (${m.name}): ${parts.filter(Boolean).join(", ")}`)
 	}
 	lines.push("your tasks:")

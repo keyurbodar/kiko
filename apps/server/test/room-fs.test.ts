@@ -93,7 +93,12 @@ test("a write never overwrites a teammate's change it did not read; an edit appl
   await ada.write("doc.md", "alpha\nbeta\n")
   expect(await bob.read("doc.md")).toBe("alpha\nbeta\n")
   await ada.run("edit", { path: "doc.md", edits: [{ oldText: "alpha", newText: "ALPHA" }] })
-  // bob rewrites the whole file from what he read: ada's change would be lost, so it is refused.
+  // While ada's run lasts, the file is hers: bob is told who holds it.
+  const held = await bob.write("doc.md", "alpha\nBETA\n")
+  expect(held.ok).toBe(false)
+  expect(held.text).toContain("@ada is working on /doc.md right now (editing /doc.md)")
+  await fetch(`${origin}/idle/${room}/ada`)
+  // Once she is done, bob rewriting the whole file from what he read would lose her change: refused.
   const stale = await bob.write("doc.md", "alpha\nBETA\n")
   expect(stale.ok).toBe(false)
   expect(stale.text).toContain("changed since you last read it")
@@ -101,7 +106,9 @@ test("a write never overwrites a teammate's change it did not read; an edit appl
   // An edit reads the file itself, so it lands on top of ada's change.
   expect((await bob.run("edit", { path: "doc.md", edits: [{ oldText: "beta", newText: "BETA" }] })).ok).toBe(true)
   expect(await ada.read("doc.md")).toBe("ALPHA\nBETA\n")
-  // A write to a file this agent never read is a plain overwrite, as on linux.
+  // Held by bob now; once his run ends, a write by an agent that never read it is a plain overwrite, as on linux.
+  expect((await agent(room, "cy").write("doc.md", "fresh")).text).toContain("@bob is working on /doc.md")
+  await fetch(`${origin}/idle/${room}/bob`)
   expect((await agent(room, "cy").write("doc.md", "fresh")).ok).toBe(true)
 })
 

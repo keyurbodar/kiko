@@ -14,6 +14,8 @@ export interface TypingIndicatorProps {
   seed?: string;
   sending?: boolean;
   max?: number;
+  /** What the one typist is doing, such as "editing /hello.html". Replaces "is typing". */
+  doing?: string;
   /** Group chat: draw the typing agent's small avatar at the bubble's left. */
   avatar?: boolean;
   announceAfter?: number;
@@ -55,7 +57,9 @@ function play(
 export function TypingIndicator(props: TypingIndicatorProps) {
   const reduced = createReducedMotion();
   const max = () => props.max ?? 2;
-  const label = createMemo(() => describe(props.typists, max()));
+  const label = createMemo(() =>
+    props.doing && props.typists.length === 1 && props.doing !== "writing a reply" ? `${props.typists[0]} is ${props.doing}` : describe(props.typists, max()),
+  );
   const active = () => props.typists.length > 0;
 
   let bubble!: HTMLDivElement;
@@ -122,6 +126,13 @@ export function TypingIndicator(props: TypingIndicatorProps) {
         <span class="typing-strut">&#8203;</span>
         <For each={[0, 1, 2]}>{() => <span class="typing-dot" />}</For>
       </div>
+      <Show when={props.doing && props.doing !== "writing a reply" ? props.doing : undefined}>
+        {(doing) => (
+          <span class="typing-doing" data-component="typing-doing" aria-hidden="true">
+            {doing()}
+          </span>
+        )}
+      </Show>
       <span class="typing-sr" role="status" aria-live="polite" aria-atomic="true">
         {announced()}
       </span>

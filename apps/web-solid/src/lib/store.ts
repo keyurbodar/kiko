@@ -587,6 +587,12 @@ export function createApp(options: AppOptions = {}) {
         return room()?.state.roster ?? []
       },
 
+      /** What the first typing agent is doing now, such as "editing /hello.html", or undefined. */
+      typingDoing(): string | undefined {
+        const slug = this.typingSlugs()[0]
+        return slug ? room()?.state.doing[slug] : undefined
+      },
+
       /** The slugs of the agents typing now, for the typing bubble's avatar. */
       typingSlugs(): string[] {
         const r = room()

@@ -15,6 +15,7 @@ import { cleanPath, fileKey } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
 import { parseRichText } from "./rich-text"
+import { Team } from "./team"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, OPENING, type Proposal, type ProposalInput } from "./chief"
 import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { RoomLog } from "./log"
@@ -51,14 +52,14 @@ const MAX_SENT_FILES = 50
  * back. `role` and `lead` are the member row at that delivery; the agent builds its prompt from them.
  */
 /** What `check_agent` shows of a member. */
-export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask">
+export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask"> & { doing: string | null; holds: string[] }
 
 /** What an agent learns about itself on every delivery. `private` is the chat's flag (section 7.10). */
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
 
 /** What a member reads when the lead already answered. It may add to the reply, react, or stay quiet. */
 const FOLLOW_UP_NOTE = (lead: AgentSlug) =>
-`@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat what @${lead} said.`
+`@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat or redo what @${lead} did or offered to do, and if @${lead} asked the human something, leave that question to the human.`
 
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string; tainted: boolean }
 
@@ -84,6 +85,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private mail!: Mail
 	members!: Members
 	files!: FileIndex<RoomEvent>
+	team!: Team
 	workspace!: RoomWorkspace
 	approvals!: RoomApprovals
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
@@ -102,6 +104,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.log = new RoomLog(ctx.storage)
 			this.deliveries = new Deliveries(ctx.storage, this.log)
 			this.files = roomFiles(ctx.storage, this.log)
+			this.team = new Team(ctx.storage.sql)
 			this.alarms = createAlarms(ctx)
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log)
@@ -177,7 +180,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const digest = await crypto.subtle.digest("SHA-256", body)
 		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
 		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
-		const { drop, file } = await this.putFile({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, ...(expect ? { expectSha256: expect } : {}) })
+		// The room writes this for the team, so it is nobody's act on the board (section 7.12).
+		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, ...(expect ? { expectSha256: expect } : {}) })
+		if (events.length) this.publish(events)
 		if (drop) await this.env.FILES.delete(drop)
 		return file !== null
 	}
@@ -443,7 +448,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) {
 		const envelopes = raw.map((e) => this.withContext(e))
 		const reactions = reactionBrief(this.log, this.ctx.storage.sql, member.slug)
-		const view = readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text)
+		const now = Date.now()
+		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
+		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text), team }
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 
@@ -461,6 +468,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const files = send.files?.length ? this.files.refs(send.files.map((p) => p.replace(/^\/+|\/+$/g, "")), MAX_SENT_FILES) : []
 		if (!Array.isArray(files)) return { ok: false, error: `not sent: ${files.message}` }
 		const out = this.mail.send(slug, send, members, files)
+		if (out.ok) this.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
 		this.publish(out.events)
 		if (!out.ok) return out
 		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
@@ -559,7 +567,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** RPC for an agent's `check_agent` (section 7.5). Reads the member row and calls no agent. */
 	async checkAgent(slug: AgentSlug): Promise<AgentCheck | null> {
 		const m = this.members.list().find((x) => x.slug === slug)
-		return m ? { slug: m.slug, name: m.name, role: m.role, lead: m.lead, status: m.status, currentTask: m.currentTask } : null
+		return m ? { slug: m.slug, name: m.name, role: m.role, lead: m.lead, status: m.status, currentTask: m.currentTask, doing: this.team.now(m.slug), holds: this.team.held(m.slug, Date.now()) } : null
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -654,7 +662,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
 	async putFile(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
+		// An agent writes only where no teammate is working (section 7.12). The human is never refused.
+		const by = input.author.kind === "agent" ? input.author.slug : null
+		if (by) {
+			const held = this.held(by, [input.path])
+			if (held) return { file: null, drop: input.r2Key, refused: held, fresh: false, entry: null }
+		}
 		const { events, ...result } = this.files.put(input)
+		if (by && result.file && !result.conflict && !result.refused) this.working(by, [input.path], `editing /${input.path}`)
 		if (events.length) this.publish(events)
 		const fresh = events.some((e) => e.t === "file")
 		return { ...result, fresh, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
@@ -684,13 +699,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** RPC for the agent file system: `mv`. */
 	async fsMove(slug: AgentSlug, from: string, to: string): Promise<FsChange<RoomEvent> | FsFail> {
-		return this.applyFs(this.files.move(from, to, { kind: "agent", slug }))
+		return this.guarded(slug, [from, to], `moving /${from}`, () => this.files.move(from, to, { kind: "agent", slug }))
 	}
 
 	/** RPC for the agent file system: `rm`. */
 	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange<RoomEvent> | FsFail> {
 		// A file on a message stays: the bubble would point at nothing. The human can still delete it.
-		return this.applyFs(this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
+		return this.guarded(slug, paths, `deleting /${paths[0]}`, () => this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
 	}
 
 	/** RPC for an agent that changed the user's drive (section 18.3): one line in the chat says what. */
@@ -701,7 +716,40 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** RPC for the agent file system: `mkdir -p`. */
 	async fsMkdir(slug: AgentSlug, path: string): Promise<FsChange<RoomEvent> | FsFail> {
-		return this.applyFs(this.files.mkdir(path, { kind: "agent", slug }))
+		return this.guarded(slug, [path], `setting up /${path}`, () => this.files.mkdir(path, { kind: "agent", slug }))
+	}
+
+	// The team board and leases (section 7.12). Every act an agent makes through the room says what it
+	// is doing and holds the paths it changed until its run ends; a teammate's act there is refused.
+
+	/** The refusal for `slug` touching `paths` a teammate holds, or null. */
+	private held(slug: AgentSlug, paths: readonly string[]): FsFail | null {
+		const h = this.team.holder(slug, paths, Date.now())
+		return h ? { ok: false, code: "invalid", message: Team.refusal(h) } : null
+	}
+
+	/** Records what `slug` is doing and the paths it now holds, and tells the human. */
+	private working(slug: AgentSlug, paths: readonly string[], doing: string): void {
+		const now = Date.now()
+		this.team.take(slug, paths, now)
+		if (this.team.now(slug) === doing) return
+		this.team.doing(slug, doing, now)
+		const member = this.members.list().find((m) => m.slug === slug)
+		if (member) this.broadcast({ t: "status", slug, state: member.status === "idle" ? "working" : member.status, doing })
+	}
+
+	private guarded<T extends FsChange<RoomEvent> | FsFail>(slug: AgentSlug, paths: readonly string[], doing: string, act: () => T): T | FsFail {
+		const held = this.held(slug, paths)
+		if (held) return held
+		const out = this.applyFs(act())
+		if (out.ok) this.working(slug, paths, doing)
+		return out
+	}
+
+	/** RPC for an agent's `team` tool: what everyone is doing now, and what they hold. */
+	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {
+		const now = Date.now()
+		return this.members.list().map((m) => ({ slug: m.slug, name: m.name, status: m.status, doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }))
 	}
 
 	/** Why an agent may not delete these files: some sit on a live message. */
@@ -990,8 +1038,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * the typing set with it. A slug that is not a member stores and sends nothing.
 	 */
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
+		// A run that ended lets go of everything it held (section 7.12), whatever the member row says.
+		if (state === "idle") this.team.clear(slug)
 		if (!this.members.setStatus(slug, state)) return
-		this.broadcast({ t: "status", slug, state })
+		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now())
+		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
 		await this.setTyping(slug, state === "typing")
 		// A marker that outlives the process, so a room that starts after a restart knows a run was live.
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)

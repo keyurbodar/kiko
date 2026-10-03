@@ -18,6 +18,8 @@ export type MessagingPort = {
   send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   check(slug: AgentSlug): Promise<AgentCheck | null>
   spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
+  /** What everyone in the room is doing now and the paths they hold (section 7.12). */
+  team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
 }
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
@@ -90,6 +92,22 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
       declareEffect(
         "read",
         defineTool({
+          name: "team",
+          description:
+            "who in this room is doing what right now, and the files each is holding. look before you start something a teammate may be on, so two of you never do the same work or touch the same file.",
+          parameters: Type.Object({}),
+          replay: "safe",
+          execute: async () => {
+            const rows = await room().team()
+            const line = (m: (typeof rows)[number]) =>
+              `@${m.slug}: ${m.doing ?? m.status}${m.holds.length ? `, holding ${m.holds.map((p) => `/${p}`).join(", ")}` : ""}`
+            return { content: text(rows.map(line).join("\n")) }
+          },
+        }),
+      ),
+      declareEffect(
+        "read",
+        defineTool({
           name: "check_agent",
           description: "read another agent's role, status, and current task from the room. it does not message or wake the agent.",
           parameters: Type.Object({ slug: slug("the agent's slug, without @") }),
@@ -99,7 +117,8 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
             if (!m) return { content: text(`no agent @${who} in this room`), isError: true }
             const lines = [
               `@${m.slug} (${m.name})${m.lead ? ", the lead" : ""}`,
-              `status: ${m.status}`,
+              `status: ${m.status}${m.doing ? `, now ${m.doing}` : ""}`,
+              ...(m.holds.length ? [`holding: ${m.holds.map((p) => `/${p}`).join(", ")}`] : []),
               `current task: ${m.currentTask ?? "none"}`,
               ...(m.role ? [`role: ${m.role}`] : []),
             ]

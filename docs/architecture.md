@@ -367,6 +367,20 @@ The human's own profile stays in memory (section 13), so nothing is stored twice
 
 **Reasoning.** OpenClaw and Hermes Agent both split identity, the human, and the workspace into separate files the agent maintains, and both find that short beats long. A soul per agent lets each one fit the human over time without the human writing a prompt. A file per chat gives a team one picture of the goal and the decisions, which an agent reads each turn instead of rereading the history. Caps keep every turn cheap.
 
+### 7.11 kiko makes agents and groups
+
+The human never fills in a form. A new chat starts as a draft with kiko ("ask kiko" or "create group"), hidden from the chat list, and kiko opens it with a question at once. kiko proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` runs only after a human message follows the proposal, so kiko asks and the human answers before anything exists. A new agent gets its own chat, a line in the draft takes the human there, and the agent says hi first. A group is the draft itself, promoted into the list with its members and kiko's `/chat.md`. An untouched draft is deleted when the human leaves it.
+
+### 7.12 The team board and leases
+
+**Decision.** Agents share one chat and one file space, so without a shared picture they race: two answer the same question, two rewrite the same file. The room is where every visible act passes, so it keeps the picture (`room/team.ts`).
+
+- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "writing a reply"), taken from its acts, never self-reported. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
+- **Leases.** The paths an agent changes during a run are its own until the run ends. A teammate's write, move, or delete there is refused with who holds it, so it waits or messages them. Reads stay open, the human is never refused, `/chat.md` is shared, and a lease from a run that never ended expires after 10 minutes.
+- **The rule.** Every agent looks before it acts: if a teammate is on it or just did it, it adds only what is missing or leaves it.
+
+**Reasoning.** Coordination belongs where the acts happen. A rule in the prompt alone fails under load; a lock an agent must remember to take fails the first time it forgets. The room sees every act, so the board is always true and a lease cannot be skipped. The hash check on writes (section 18.3) still catches the case a lease cannot: a stale read after the holder finished.
+
 ## 8. Subagents
 
 **Decision.** `spawn_subagent(task)` is a tool in a `Subagent` extension, written from the pattern in the `pi-durable` README ("Abort and Subagents"). It is about 40 lines.

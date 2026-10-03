@@ -85,3 +85,15 @@
     opacity: 0.8;
   }
 }
+
+/* What the agent is doing now (section 7.12), beside the dots: "editing /hello.html". */
+.typing-doing {
+  align-self: center;
+  margin-inline-start: 8px;
+  overflow: hidden;
+  max-width: 60%;
+  color: var(--text-muted);
+  font-size: var(--font-sm, 13px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

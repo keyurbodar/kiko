@@ -245,6 +245,8 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 export type Draft = { slug: AgentSlug; runId: string; index: number; text: string }
 
 export type RoomState = RoomData & {
+	/** What each agent is doing now, from status frames. Not stored. */
+	doing: Record<string, string | undefined>
 	roomId: RoomId
 	/** False until the warm tier has painted. */
 	loaded: boolean
@@ -370,6 +372,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		patches: [],
 		typing: [],
 		status: {},
+		doing: {},
 		drafts: {},
 	})
 
@@ -526,6 +529,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		status: (f) =>
 			batch(() => {
 				setState("status", f.slug, f.state)
+				// What the agent is doing now (section 7.12): shown in place of "typing".
+				setState("doing", f.slug, f.state === "idle" ? undefined : f.doing)
 				// A run that ended, or was restarted, leaves no draft behind.
 				if (f.state === "idle")
 					setState(

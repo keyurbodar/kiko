@@ -101,6 +101,11 @@ export default {
       const out = await fs.write(url.searchParams.get("path")!, new Uint8Array(await request.arrayBuffer()), url.searchParams.get("type")!)
       return Response.json({ ok: out.ok })
     }
+    if (kind === "idle") {
+      // The agent's run ended: the room lets go of what it held.
+      await roomStub(env.ROOM, "alice", roomId!).setStatus(slug as never, "idle")
+      return Response.json({ ok: true })
+    }
     if (kind === "notices") return Response.json(notices.splice(0))
     if (kind === "counts") {
       const c = counts.get(`${roomId}/${slug}`)!

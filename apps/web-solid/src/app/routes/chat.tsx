@@ -183,6 +183,7 @@ export default function ChatRoute() {
             onStateChange={setThreadState}
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
+            waitingDoing={useApp.typingDoing()}
             groupChat={members().size > 1}
             memberSlugs={[...members().keys()]}
             notices={notices()}

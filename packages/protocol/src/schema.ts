@@ -260,7 +260,7 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: RoomSnapshot }),
 	Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
-	Schema.Struct({ t: Schema.Literal("status"), slug: AgentSlug, state: AgentState }),
+	Schema.Struct({ t: Schema.Literal("status"), slug: AgentSlug, state: AgentState, doing: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,

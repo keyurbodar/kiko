@@ -204,7 +204,7 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     if (!home) return null
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
-    return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input) }
+    return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input), team: () => room().teamNow() }
   }
 
   /** kiko's making of agents and groups (section 7.11). Every other agent gets none. */

@@ -209,7 +209,7 @@ export type RoomToClient =
 	 */
 	| { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
 	/** Not stored. */
-	| { t: "status"; slug: AgentSlug; state: AgentState }
+	| { t: "status"; slug: AgentSlug; state: AgentState; doing?: string }
 	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
 	/** Not stored. Sent only to the socket whose `files` frame changed nothing. */
