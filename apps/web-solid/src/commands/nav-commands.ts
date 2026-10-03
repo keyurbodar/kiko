@@ -15,7 +15,7 @@ export function navCommands(deps: {
     { id: "settings.open", title: "settings: open", group: "settings", icon: "settings", shortcut: "Mod+,", global: true, run: () => deps.go("/settings") },
     { id: "settings.models", title: "settings: models and providers", group: "settings", icon: "model", run: () => deps.go("/settings/models") },
     { id: "settings.integrations", title: "settings: integrations", group: "settings", icon: "integrations", run: () => deps.go("/settings/integrations") },
-    { id: "settings.appearance", title: "settings: appearance and theme", group: "settings", icon: "appearance", run: () => deps.go("/settings/appearance") },
+    { id: "settings.appearance", title: "settings: appearance", group: "settings", icon: "appearance", run: () => deps.go("/settings/appearance") },
     { id: "settings.account", title: "settings: account", group: "settings", icon: "account", run: () => deps.go("/settings/account") },
     { id: "chat.model", title: "chat: choose model", group: "chat", icon: "model", shortcut: "Mod+Shift+M", global: true, run: deps.chooseModel },
     { id: "account.sign-out", title: "account: sign out", group: "account", icon: "signout", run: deps.signOut },

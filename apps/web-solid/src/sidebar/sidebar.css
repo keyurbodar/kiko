@@ -352,8 +352,8 @@
 
 .sidebar-shell .chat-filter {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   place-items: center;
   padding: 0;
@@ -366,6 +366,11 @@
 
 .sidebar-shell .chat-filter:hover {
   background: var(--hover-bg);
+}
+
+.sidebar-shell .chat-filter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .sidebar-shell .chat-filter[aria-pressed="true"] {

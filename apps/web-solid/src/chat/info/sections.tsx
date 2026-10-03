@@ -1,6 +1,6 @@
 import type { Chat, Member } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
-import { createSignal, For, type JSX, Show } from "solid-js"
+import { createSignal, type JSX, Show } from "solid-js"
 import { nextAfterClose, openTabs } from "../../app/open-tabs"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import { MemberList } from "../members/members"
