@@ -79,6 +79,15 @@ describe("parse", () => {
   })
 })
 
+test("an entity-encoded og:image resolves to the real URL", async () => {
+  const page = await parsePreview(
+    `<html><head><meta property="og:image" content="https:&#x2f;&#x2f;earendil.com&#x2f;static&#x2f;og.png"><title>a &amp; b</title></head></html>`,
+    "https://earendil.com/posts/x/",
+  )
+  expect(page.image).toBe("https://earendil.com/static/og.png")
+  expect(page.title).toBe("a & b")
+})
+
 describe("head-only reading", () => {
   test("stops at the end of the head and never pulls the body", async () => {
     let pulls = 0
@@ -145,6 +154,16 @@ describe("image route", () => {
     expect(new Uint8Array(await again.arrayBuffer())).toEqual(PNG)
     expect(web.hits).toEqual(["/pic.png"])
     expect(r2.puts()).toBe(1)
+  })
+
+  test("a server error is answered 503 and not cached, so the next look tries again", async () => {
+    const r2 = fakeR2()
+    const web = fakeWeb(() => new Response("busy", { status: 503 }))
+    const token = (await imagePath(SECRET, "https://img.test/busy.png")).split("/").pop()!
+    const res = await serveImage({ FILES: r2.bucket, BETTER_AUTH_SECRET: SECRET }, token, () => {}, web)
+    expect(res.status).toBe(503)
+    expect(res.headers.get("cache-control")).toBe("no-store")
+    expect(r2.puts()).toBe(0)
   })
 
   test("a page that is not a raster image is refused and not stored", async () => {

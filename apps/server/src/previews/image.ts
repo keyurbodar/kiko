@@ -12,6 +12,8 @@ export const IMAGE_PREFIX = "previews/"
 const IMAGE_ROUTE = "/api/preview-image/"
 // Most og:images are under 1 MB. A larger one is refused rather than stored cut.
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024
+// A reader is already looking at the card, so an image gets longer than a page.
+const IMAGE_TIMEOUT_MS = 8000
 // SVG is left out on purpose. It can carry script.
 const IMAGE_TYPES = new Set([
   "image/png",
@@ -100,10 +102,15 @@ export async function imageHash(url: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
 }
 
-/** Fetches a third-party image and checks it is a small raster image. */
-export async function fetchImage(url: string, fetcher?: Fetcher): Promise<{ type: string; body: Uint8Array } | null> {
-  const result = await safeFetch(url, fetcher, { maxBytes: MAX_IMAGE_BYTES })
-  if (!result.ok || result.status !== 200 || result.truncated) return null
+/**
+ * Fetches a third-party image and checks it is a small raster image. "failed" is a timeout or a
+ * server error, which may pass; null is an answer that will not change.
+ */
+export async function fetchImage(url: string, fetcher?: Fetcher): Promise<{ type: string; body: Uint8Array } | "failed" | null> {
+  const result = await safeFetch(url, fetcher, { maxBytes: MAX_IMAGE_BYTES, timeoutMs: IMAGE_TIMEOUT_MS })
+  if (!result.ok) return result.reason === "timeout" || result.reason === "fetch-failed" ? "failed" : null
+  if (result.status >= 500 || result.status === 429) return "failed"
+  if (result.status !== 200 || result.truncated) return null
   const type = result.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? ""
   return IMAGE_TYPES.has(type) ? { type, body: result.body } : null
 }
@@ -131,7 +138,8 @@ export async function serveImage(
     })
   }
   const image = await fetchImage(url, fetcher)
-  // A short-lived miss, so a page that fixes its image is seen again soon.
+  // A failure is not kept, so the next look tries again. A refusal is kept a little while.
+  if (image === "failed") return new Response(null, { status: 503, headers: { "cache-control": "no-store" } })
   if (!image) return new Response(null, { status: 404, headers: { "cache-control": "private, max-age=300" } })
   waitUntil(
     env.FILES.put(key, image.body, { httpMetadata: { contentType: image.type } }).catch((e: unknown) =>

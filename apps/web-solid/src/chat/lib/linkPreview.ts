@@ -123,7 +123,8 @@ export function clearLinkPreviewCache(): void {
 
 function store(record: PreviewRecord): void {
   memory.set(record.url, record)
-  if (shelf) savePreview(shelf, record)
+  // "No card" may be a slow site today, so only this tab remembers it. A reload asks again.
+  if (shelf && record.preview) savePreview(shelf, record)
 }
 
 /**

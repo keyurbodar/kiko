@@ -15,6 +15,22 @@ export interface ParsedPage {
 const MAX_TEXT = 300
 const HEAD_END = /<\/head\s*>/i
 
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", mdash: "—", ndash: "–", hellip: "…" }
+
+/**
+ * Decodes character references. HTMLRewriter hands attribute values and text over raw, and some
+ * sites write `https:&#x2f;&#x2f;` in their og:image.
+ */
+export function decodeEntities(text: string): string {
+  return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, name: string) => {
+    if (name[0] === "#") {
+      const code = name[1]?.toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10)
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole
+    }
+    return ENTITIES[name.toLowerCase()] ?? whole
+  })
+}
+
 function clean(value: string | null | undefined, max = MAX_TEXT): string | undefined {
   const text = value?.replace(/\s+/g, " ").trim()
   return text ? text.slice(0, max) : undefined
@@ -55,7 +71,7 @@ export async function parsePreview(html: string, pageUrl: string): Promise<Parse
         const content = el.getAttribute("content")
         // A theme-color for dark mode only says little about the brand. The first plain one wins.
         if (key === "theme-color" && el.getAttribute("media")?.includes("dark")) return
-        if (key && content && !meta.has(key)) meta.set(key, content)
+        if (key && content && !meta.has(key)) meta.set(key, decodeEntities(content))
       },
     })
     .on("title", {
@@ -66,8 +82,9 @@ export async function parsePreview(html: string, pageUrl: string): Promise<Parse
     .on("link", {
       element(el) {
         const rel = el.getAttribute("rel")?.toLowerCase().split(/\s+/) ?? []
-        const href = el.getAttribute("href")
-        if (!href) return
+        const raw = el.getAttribute("href")
+        if (!raw) return
+        const href = decodeEntities(raw)
         if (rel.includes("apple-touch-icon")) touch ??= href
         else if (rel.includes("icon")) favicon ??= href
       },
@@ -76,7 +93,7 @@ export async function parsePreview(html: string, pageUrl: string): Promise<Parse
   await rewriter.transform(new Response(head, { headers: { "content-type": "text/html" } })).text()
 
   return {
-    title: clean(pick(meta, ["og:title", "twitter:title"]) ?? title),
+    title: clean(pick(meta, ["og:title", "twitter:title"]) ?? decodeEntities(title)),
     description: clean(pick(meta, ["og:description", "twitter:description", "description"]), 500),
     siteName: clean(meta.get("og:site_name")),
     image: absolute(pick(meta, ["og:image", "og:image:url", "twitter:image", "twitter:image:src"]), pageUrl),

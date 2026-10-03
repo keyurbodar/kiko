@@ -61,6 +61,8 @@ export type SafeFetchOptions = {
   stop?: (chunk: Uint8Array) => boolean
   /** Sent as `user-agent`. The only header a caller may choose. */
   userAgent?: string
+  /** The one deadline for DNS, every hop, and the body. Defaults to 3 seconds. */
+  timeoutMs?: number
 }
 
 export async function safeFetch(
@@ -69,7 +71,7 @@ export async function safeFetch(
   options: SafeFetchOptions = {},
 ): Promise<SafeFetchResult> {
   // One deadline covers DNS, every hop, and the body.
-  const signal = AbortSignal.timeout(TIMEOUT_MS)
+  const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS)
   try {
     return await follow(rawUrl, fetcher, signal, options)
   } catch {

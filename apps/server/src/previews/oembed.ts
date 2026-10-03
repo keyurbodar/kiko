@@ -1,4 +1,4 @@
-import type { ParsedPage } from "./parse"
+import { decodeEntities, type ParsedPage } from "./parse"
 
 // Sites whose page is too slow or too empty to read, answered by their oEmbed endpoint instead.
 // YouTube's watch page is over a megabyte and its meta tags sit 700 KB in. X serves no meta tags
@@ -14,20 +14,13 @@ type Provider = {
 
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined)
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", mdash: "—", ndash: "–", hellip: "…" }
-
 /** The words of a small trusted-shape HTML fragment, such as a tweet's `<p>`. */
 export function fragmentText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, name: string) => {
-      if (name[0] === "#") {
-        const code = name[1]?.toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10)
-        return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole
-      }
-      return ENTITIES[name.toLowerCase()] ?? whole
-    })
+  return decodeEntities(
+    html
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]*>/g, ""),
+  )
     .replace(/\s+/g, " ")
     .trim()
 }
