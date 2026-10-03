@@ -14,17 +14,16 @@ A theme is one JSON object. Every key maps to one CSS variable from `packages/ui
 | --- | --- |
 | `version` | Required. Always `1`. |
 | `name` | Required. 1 to 48 characters. |
-| `extends` | One of `kat-dark`, `kat-light`, `ink`, `paper`. Default `kat-dark`. |
-| `appearance` | `dark` or `light`. Sets the browser color scheme. Inherited from `extends`. |
+| `extends` | One of `plum`, `ember`, `lilac`, `sakura`, `sage`, `teal`, `bluebird`, `graphite`, `mono`. Default `plum`. |
 | `colors`, `radius`, `spacing`, `type`, `size` | Groups, listed below. |
 | `tokens` | Any variable from the last table, by name. |
-| `variants.light` | The same groups and `tokens`, applied instead when the system prefers light. |
+| `variants.light` | The same groups and `tokens`, layered on top in the light appearance. The person picks system, light, or dark in settings. |
 
 There is no raw CSS field and no motion key. Navigation, menus, and the composer keep 0 ms animation whatever a theme says. A value cannot hold `;`, braces, comments, `url()`, or `var()`.
 
 A color is any CSS color the browser understands. A length is a number of pixels, or a string with `px`, `rem`, or `em`. A number outside its range is clamped. Anything else is an error that names the key, like `radius.bubble: expected a length, got "big"`. A theme with an error is never applied.
 
-DEVIATION from the plan: `kat.css` has five radius variables, so `radius` has `bubble`, `bubbleTight`, `small`, `row`, `field` instead of panel, menu, button, input, tile, and chip. No variable exists for rail padding, sidebar padding, or the composer height, so the format has no key for them. Reach other variables through `tokens`. `--row-gap` and `--run-gap` are new in `kat.css`, and the message row and bubble read them. `--danger`, `--success`, and `--gold` are read by components but never declared in `kat.css`, so they are transparent until a theme sets them. ASSUMPTION: `variants.light` applies when the system prefers light.
+DEVIATION from the plan: `kat.css` has five radius variables, so `radius` has `bubble`, `bubbleTight`, `small`, `row`, `field` instead of panel, menu, button, input, tile, and chip. No variable exists for rail padding, sidebar padding, or the composer height, so the format has no key for them. Reach other variables through `tokens`. `--row-gap` and `--run-gap` are new in `kat.css`, and the message row and bubble read them. `--danger`, `--success`, and `--gold` are read by components but never declared in `kat.css`, so they are transparent until a theme sets them.
 
 `radius.scale` and `spacing.scale` multiply every length in their group that has a scale (not `radius.field`). They apply to the default or to your value.
 
@@ -53,12 +52,12 @@ DEVIATION from the plan: `kat.css` has five radius variables, so `radius` has `b
 | `textFaint` | `--text-faint` | a CSS color | `oklch( var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--h-text) )` |  |
 | `accent` | `--accent` | a CSS color | `oklch( var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--hue) )` | marks, links, the reply bar |
 | `accentFill` | `--accent-fill` | a CSS color | `oklch( var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--hue) )` | filled buttons |
-| `accentHover` | `--accent-hover` | a CSS color | `oklch( var(--l-orange-hover) calc(var(--c-orange-hover) * var(--cm)) var(--hue) )` |  |
+| `accentHover` | `--accent-hover` | a CSS color | `oklch( var(--l-brand-hover) calc(var(--c-brand-hover) * var(--cm)) var(--hue) )` |  |
 | `onAccent` | `--on-accent` | a CSS color | `oklch( var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--hue) )` | text on a filled accent |
 | `assistantBubble` | `--assistant-bubble` | a CSS color | `oklch( var(--l-assistant-bubble) calc(var(--c-assistant-bubble) * var(--cm)) var(--hue) )` |  |
 | `assistantBubbleText` | `--assistant-bubble-text` | a CSS color | `var(--text)` |  |
-| `userBubble` | `--user-bubble` | a CSS color | `oklch( var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--h-orange-user) )` |  |
-| `userBubbleDeep` | `--user-bubble-deep` | a CSS color | `oklch( var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm)) var(--h-orange-user) )` | the far end of the user bubble gradient |
+| `userBubble` | `--user-bubble` | a CSS color | `oklch( var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--h-brand) )` |  |
+| `userBubbleDeep` | `--user-bubble-deep` | a CSS color | `oklch( var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm)) var(--h-brand) )` | the far end of the user bubble gradient |
 | `userBubbleText` | `--user-bubble-text` | a CSS color | `oklch( var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm)) var(--hue) )` |  |
 | `danger` | `--danger` | a CSS color | `oklch(var(--l-danger) calc(var(--c-danger) * var(--cm)) var(--h-danger))` | status |
 | `success` | `--success` | a CSS color | `oklch(var(--l-success) calc(var(--c-success) * var(--cm)) var(--h-success))` | status |
@@ -73,8 +72,8 @@ DEVIATION from the plan: `kat.css` has five radius variables, so `radius` has `b
 | `accentWashFaint` | `--accent-wash-faint` | a CSS color | `oklch(from var(--accent) l c h / 16%)` |  |
 | `textWash` | `--text-wash` | a CSS color | `oklch(from var(--text) l c h / 6%)` |  |
 | `dangerWash` | `--danger-wash` | a CSS color | `oklch(from var(--danger) l c h / 12%)` |  |
-| `hue` | `--hue` | 0 to 360 | `55` | the hue of every neutral and the accent |
-| `userHue` | `--h-orange-user` | 0 to 360 | `48.4` | the hue of the user bubble |
+| `hue` | `--hue` | 0 to 360 | `340` | the hue of every neutral and the accent |
+| `userHue` | `--h-brand` | 0 to 360 | `340` | the hue of the user bubble |
 | `chroma` | `--cm` | 0 to 4 | `1` | the one chroma multiplier. every derived color passes through it |
 
 ## radius
@@ -154,20 +153,20 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--l-grey-text-faint` | number | `0.6686` |
 | `--l-grey-text-muted` | number | `0.7678` |
 | `--l-grey-text` | number | `0.884` |
-| `--c-neutral` | number | `0.003` |
-| `--c-neutral-raised` | number | `0.005` |
-| `--c-neutral-assistant` | number | `0.005` |
-| `--l-orange-user` | number | `0.4156` |
-| `--h-orange-user` | number | `48.4` |
-| `--l-orange-fill` | number | `0.5514` |
-| `--l-orange-mark` | number | `0.7075` |
-| `--l-orange-hover` | number | `0.7475` |
-| `--l-orange-on` | number | `0.9571` |
-| `--c-orange-user` | number | `0.0585` |
-| `--c-orange-fill` | number | `0.09` |
-| `--c-orange-mark` | number | `0.08` |
-| `--c-orange-hover` | number | `0.08` |
-| `--c-orange-on` | number | `0.008` |
+| `--c-neutral` | number | `0` |
+| `--c-neutral-raised` | number | `0` |
+| `--c-neutral-assistant` | number | `0` |
+| `--l-brand-user` | number | `0.4156` |
+| `--h-brand` | number | `340` |
+| `--l-brand-fill` | number | `0.5514` |
+| `--l-brand-mark` | number | `0.7075` |
+| `--l-brand-hover` | number | `0.7475` |
+| `--l-brand-on` | number | `0.9571` |
+| `--c-brand-user` | number | `0.0455` |
+| `--c-brand-fill` | number | `0.07` |
+| `--c-brand-mark` | number | `0.075` |
+| `--c-brand-hover` | number | `0.075` |
+| `--c-brand-on` | number | `0.008` |
 | `--l-signal-danger` | number | `0.7894` |
 | `--c-signal-danger` | number | `0.12` |
 | `--h-signal-danger` | number | `25` |
@@ -177,18 +176,6 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--l-signal-gold` | number | `0.8453` |
 | `--c-signal-gold` | number | `0.15` |
 | `--h-signal-gold` | number | `88` |
-| `--light-l-bg-sidebar` | number | `0.9485` |
-| `--light-l-bg` | number | `0.97` |
-| `--light-l-bg-subtle` | number | `0.9356` |
-| `--light-l-surface-raised` | number | `1` |
-| `--light-l-assistant-bubble` | number | `0.927` |
-| `--light-l-user-bubble` | number | `0.499` |
-| `--light-c-user-bubble` | number | `0.08` |
-| `--light-l-text` | number | `0.3248` |
-| `--light-l-text-muted` | number | `0.5906` |
-| `--light-l-text-faint` | number | `0.7118` |
-| `--light-l-accent` | number | `0.499` |
-| `--light-l-nav-active-bg` | number | `0.8023` |
 | `--l-bg` | number | `var(--l-grey-canvas)` |
 | `--c-bg` | number | `var(--c-neutral)` |
 | `--l-bg-sidebar` | number | `var(--l-grey-sidebar)` |
@@ -202,13 +189,13 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--l-input-bg` | number | `var(--l-grey-input)` |
 | `--c-input-bg` | number | `var(--c-neutral-raised)` |
 | `--l-hover-bg` | number | `0.2066` |
-| `--c-hover-bg` | number | `0.008` |
+| `--c-hover-bg` | number | `0` |
 | `--l-selected-bg` | number | `0.2583` |
 | `--c-selected-bg` | number | `0.014` |
 | `--l-nav-active-bg` | number | `0.3202` |
 | `--c-nav-active-bg` | number | `0.03` |
 | `--l-nav-hover-bg` | number | `0.2121` |
-| `--c-nav-hover-bg` | number | `0.008` |
+| `--c-nav-hover-bg` | number | `0` |
 | `--l-tooltip-bg` | number | `0.3294` |
 | `--c-tooltip-bg` | number | `var(--c-neutral-raised)` |
 | `--l-scrollbar-thumb` | number | `var(--l-grey-thumb)` |
@@ -222,15 +209,15 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--l-tint-strong` | number | `0.4107` |
 | `--c-tint-strong` | number | `var(--c-neutral-raised)` |
 | `--l-text` | number | `var(--l-grey-text)` |
-| `--c-text` | number | `0.012` |
+| `--c-text` | number | `0.004` |
 | `--l-text-muted` | number | `var(--l-grey-text-muted)` |
-| `--c-text-muted` | number | `0.02` |
+| `--c-text-muted` | number | `0.006` |
 | `--l-text-faint` | number | `var(--l-grey-text-faint)` |
-| `--c-text-faint` | number | `0.015` |
-| `--l-accent` | number | `var(--l-orange-mark)` |
-| `--c-accent` | number | `var(--c-orange-mark)` |
-| `--l-accent-fill` | number | `var(--l-orange-fill)` |
-| `--c-accent-fill` | number | `var(--c-orange-fill)` |
+| `--c-text-faint` | number | `0.006` |
+| `--l-accent` | number | `var(--l-brand-mark)` |
+| `--c-accent` | number | `var(--c-brand-mark)` |
+| `--l-accent-fill` | number | `var(--l-brand-fill)` |
+| `--c-accent-fill` | number | `var(--c-brand-fill)` |
 | `--l-danger` | number | `var(--l-signal-danger)` |
 | `--c-danger` | number | `var(--c-signal-danger)` |
 | `--h-danger` | number | `var(--h-signal-danger)` |
@@ -242,16 +229,16 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--h-gold` | number | `var(--h-signal-gold)` |
 | `--l-assistant-bubble` | number | `var(--l-grey-assistant)` |
 | `--c-assistant-bubble` | number | `var(--c-neutral-assistant)` |
-| `--l-user-bubble` | number | `var(--l-orange-user)` |
-| `--c-user-bubble` | number | `var(--c-orange-user)` |
-| `--l-user-bubble-deep` | number | `var(--l-orange-user)` |
-| `--l-user-bubble-text` | number | `var(--l-orange-on)` |
-| `--c-user-bubble-text` | number | `var(--c-orange-on)` |
-| `--l-on-accent` | number | `var(--l-orange-on)` |
-| `--c-on-accent` | number | `var(--c-orange-on)` |
+| `--l-user-bubble` | number | `var(--l-brand-user)` |
+| `--c-user-bubble` | number | `var(--c-brand-user)` |
+| `--l-user-bubble-deep` | number | `var(--l-brand-user)` |
+| `--l-user-bubble-text` | number | `var(--l-brand-on)` |
+| `--c-user-bubble-text` | number | `var(--c-brand-on)` |
+| `--l-on-accent` | number | `var(--l-brand-on)` |
+| `--c-on-accent` | number | `var(--c-brand-on)` |
 | `--radius-row` | length | `20px` |
 | `--radius-field` | length | `999px` |
-| `--hue` | number | `55` |
+| `--hue` | number | `340` |
 | `--h-text` | number | `var(--hue)` |
 | `--cm` | number | `1` |
 | `--bg` | color | `oklch(var(--l-bg) calc(var(--c-bg) * var(--cm)) var(--hue))` |
@@ -269,7 +256,7 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--scrollbar-thumb-hover` | color | `oklch( var(--l-scrollbar-thumb-hover) calc(var(--c-scrollbar-thumb-hover) * var(--cm)) var(--hue) )` |
 | `--assistant-bubble` | color | `oklch( var(--l-assistant-bubble) calc(var(--c-assistant-bubble) * var(--cm)) var(--hue) )` |
 | `--assistant-bubble-text` | color | `var(--text)` |
-| `--user-bubble` | color | `oklch( var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--h-orange-user) )` |
+| `--user-bubble` | color | `oklch( var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--h-brand) )` |
 | `--user-bubble-text` | color | `oklch( var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm)) var(--hue) )` |
 | `--text` | color | `oklch(var(--l-text) calc(var(--c-text) * var(--cm)) var(--h-text))` |
 | `--text-muted` | color | `oklch( var(--l-text-muted) calc(var(--c-text-muted) * var(--cm)) var(--h-text) )` |
@@ -279,10 +266,10 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--gold` | color | `oklch(var(--l-gold) calc(var(--c-gold) * var(--cm)) var(--h-gold))` |
 | `--accent` | color | `oklch( var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--hue) )` |
 | `--accent-fill` | color | `oklch( var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--hue) )` |
-| `--user-bubble-deep` | color | `oklch( var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm)) var(--h-orange-user) )` |
+| `--user-bubble-deep` | color | `oklch( var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm)) var(--h-brand) )` |
 | `--user-bubble-gradient` | any | `linear-gradient( 135deg, var(--user-bubble), var(--user-bubble-deep) )` |
 | `--on-accent` | color | `oklch( var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--hue) )` |
-| `--accent-hover` | color | `oklch( var(--l-orange-hover) calc(var(--c-orange-hover) * var(--cm)) var(--hue) )` |
+| `--accent-hover` | color | `oklch( var(--l-brand-hover) calc(var(--c-brand-hover) * var(--cm)) var(--hue) )` |
 | `--out-quote-bg` | color | `oklch(0% 0 none / 0.2)` |
 | `--out-quote-bar` | color | `oklch(from var(--accent) 0.9 0.062 h)` |
 | `--out-quote-name` | color | `oklch(from var(--accent) 0.94 0.04 h)` |

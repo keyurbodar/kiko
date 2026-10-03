@@ -7,13 +7,13 @@
 // from `FIELDS` below by `apps/web-solid/scripts/gen-theme.ts`.
 
 import { KNOWN_TOKENS } from "./known-tokens"
+import { SWATCHES } from "./presets"
 
 export const THEME_VERSION = 1
 /** The same limit the server keeps. */
 export const MAX_THEME_CHARS = 32 * 1024
 
-export const PRESET_IDS = ["kat-dark", "kat-light", "ink", "paper"] as const
-export type Appearance = "dark" | "light"
+export const PRESET_IDS: readonly string[] = SWATCHES.map((s) => s.id)
 export type Group = "colors" | "radius" | "spacing" | "type" | "size"
 export const GROUPS: readonly Group[] = ["colors", "radius", "spacing", "type", "size"]
 
@@ -87,7 +87,7 @@ export const FIELDS: readonly Field[] = [
   color("textWash", "--text-wash"),
   color("dangerWash", "--danger-wash"),
   num("colors", "hue", "--hue", 0, 360, "the hue of every neutral and the accent"),
-  num("colors", "userHue", "--h-orange-user", 0, 360, "the hue of the user bubble"),
+  num("colors", "userHue", "--h-brand", 0, 360, "the hue of the user bubble"),
   num("colors", "chroma", "--cm", 0, 4, "the one chroma multiplier. every derived color passes through it"),
 
   // radius. `scale` multiplies every length here except `field`, which stays a pill.
@@ -268,7 +268,6 @@ export type Theme = Layer & {
   version: 1
   name: string
   extends?: string
-  appearance?: Appearance
   variants?: { light?: Layer }
 }
 
@@ -322,7 +321,7 @@ function parseLayer(raw: Record<string, unknown>, prefix: string, errors: string
 }
 
 const LAYER_KEYS = [...GROUPS, "tokens"] as const
-const TOP_KEYS = ["version", "name", "extends", "appearance", "variants", ...LAYER_KEYS] as const
+const TOP_KEYS = ["version", "name", "extends", "variants", ...LAYER_KEYS] as const
 
 /**
  * Validates a theme. Takes JSON text or a parsed value. Every problem is one string that
@@ -358,10 +357,6 @@ export function parseTheme(input: unknown, presetIds: readonly string[] = PRESET
     if (typeof raw.extends === "string" && presetIds.includes(raw.extends)) theme.extends = raw.extends
     else errors.push(`extends: expected one of ${presetIds.join(", ")}, got ${show(raw.extends)}`)
   }
-  if (raw.appearance !== undefined) {
-    if (raw.appearance === "dark" || raw.appearance === "light") theme.appearance = raw.appearance
-    else errors.push(`appearance: expected "dark" or "light", got ${show(raw.appearance)}`)
-  }
 
   const { variants, ...rest } = raw
   Object.assign(theme, parseLayer(Object.fromEntries(Object.entries(rest).filter(([k]) => (LAYER_KEYS as readonly string[]).includes(k))), "", errors, notes, LAYER_KEYS))
@@ -383,8 +378,8 @@ export function parseTheme(input: unknown, presetIds: readonly string[] = PRESET
 // --- resolving ----------------------------------------------------------------------
 
 export type Vars = Record<string, string>
-export type Resolved = { appearance: Appearance; vars: Vars }
-export type ResolvedTheme = { base: Resolved; light?: Resolved }
+/** The variables a theme sets, one set per appearance. Only what the theme changes appears. */
+export type ResolvedTheme = { dark: Vars; light: Vars }
 export type ResolveResult = { ok: true; resolved: ResolvedTheme } | { ok: false; error: string }
 
 function mergeInto(target: Layer, layer: Layer): void {
@@ -417,8 +412,7 @@ const MAX_DEPTH = 6
 
 /**
  * Turns a theme and its `extends` chain into the CSS variables to set. Only variables the
- * theme changes appear. A theme with a `variants.light` also resolves a second set for
- * people whose system prefers light.
+ * theme changes appear. `variants.light` layers on top for the light appearance.
  */
 export function resolveTheme(theme: Theme, getPreset: (id: string) => Theme | undefined): ResolveResult {
   const chain: Theme[] = []
@@ -432,22 +426,15 @@ export function resolveTheme(theme: Theme, getPreset: (id: string) => Theme | un
     cur = next
   }
   if (cur === theme && theme.extends === undefined) {
-    const base = getPreset("kat-dark")
+    const base = getPreset("plum")
     if (base) chain.unshift(base)
   }
   const merged: Layer = {}
-  let appearance: Appearance = "dark"
-  for (const t of chain) {
-    mergeInto(merged, t)
-    if (t.appearance) appearance = t.appearance
-  }
-  const lights = chain.map((t) => t.variants?.light).filter((l): l is Layer => l !== undefined)
-  const base: Resolved = { appearance, vars: compile(merged) }
-  if (!lights.length) return { ok: true, resolved: { base } }
-  const lightLayer: Layer = {}
-  mergeInto(lightLayer, merged)
-  for (const l of lights) mergeInto(lightLayer, l)
-  return { ok: true, resolved: { base, light: { appearance: "light", vars: compile(lightLayer) } } }
+  for (const t of chain) mergeInto(merged, t)
+  const light: Layer = {}
+  mergeInto(light, merged)
+  for (const t of chain) if (t.variants?.light) mergeInto(light, t.variants.light)
+  return { ok: true, resolved: { dark: compile(merged), light: compile(light) } }
 }
 
 /** The text a person edits: two-space JSON. */

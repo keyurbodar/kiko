@@ -6,9 +6,10 @@
    make the roles interpolable, a derived layer that recomposes each role, the
    Tailwind bridge, and a base reset.
 
-   The palette is DARK ONLY. There is no light variant, no
-   `prefers-color-scheme` block and no `data-theme` switch — `:root` carries the
-   single theme.
+   `:root` is the dark appearance. `:root[data-appearance="light"]` (section
+   4b) swaps the lightness scale for the light one. A preset changes only the
+   brand hue and chroma, so every preset works in both appearances. Greys carry
+   no chroma: the brand colour lives on the own bubble and the marks.
 
    Load order: this file FIRST, before any component stylesheet.
 
@@ -43,7 +44,7 @@
 /* -----------------------------------------------------------------------------
    2. Theme tiers
 
-       primitives  --l-grey-* / --c-neutral* / --l-orange-* / --c-orange-* / --l-signal-*
+       primitives  --l-grey-* / --c-neutral* / --l-brand-* / --c-brand-* / --l-signal-*
        semantic    --l-<role> / --c-<role> / --h-<role>, built only from primitives
        component   bubbles and their text, built only from semantic roles and primitives
 
@@ -69,22 +70,23 @@
   --l-grey-text-faint: 0.6686;
   --l-grey-text-muted: 0.7678;
   --l-grey-text: 0.884;
-  --c-neutral: 0.003;
-  --c-neutral-raised: 0.005;
-  --c-neutral-assistant: 0.005;
+  --c-neutral: 0;
+  --c-neutral-raised: 0;
+  --c-neutral-assistant: 0;
 
-  /* The kiko orange: kat's hue 55 at kat's low chroma. `--cm` moves it. */
-  --l-orange-user: 0.4156;
-  --h-orange-user: 48.4;
-  --l-orange-fill: 0.5514;
-  --l-orange-mark: 0.7075;
-  --l-orange-hover: 0.7475;
-  --l-orange-on: 0.9571;
-  --c-orange-user: 0.0585;
-  --c-orange-fill: 0.09;
-  --c-orange-mark: 0.08;
-  --c-orange-hover: 0.08;
-  --c-orange-on: 0.008;
+  /* The brand: plum by default. A preset sets `--hue` and `--h-brand` together
+     and scales chroma with `--cm`. Lightness is shared by every preset. */
+  --l-brand-user: 0.4156;
+  --h-brand: 340;
+  --l-brand-fill: 0.5514;
+  --l-brand-mark: 0.7075;
+  --l-brand-hover: 0.7475;
+  --l-brand-on: 0.9571;
+  --c-brand-user: 0.0455;
+  --c-brand-fill: 0.07;
+  --c-brand-mark: 0.075;
+  --c-brand-hover: 0.075;
+  --c-brand-on: 0.008;
 
   --l-signal-danger: 0.7894;
   --c-signal-danger: 0.12;
@@ -95,24 +97,6 @@
   --l-signal-gold: 0.8453;
   --c-signal-gold: 0.15;
   --h-signal-gold: 88;
-}
-
-/* Light tokens, defined and unused. Nothing selects them: there is no
-   `prefers-color-scheme` block and no `data-theme` switch. They exist so a
-   light theme can be wired later by overriding the primitives above. */
-:root {
-  --light-l-bg-sidebar: 0.9485;
-  --light-l-bg: 0.97;
-  --light-l-bg-subtle: 0.9356;
-  --light-l-surface-raised: 1;
-  --light-l-assistant-bubble: 0.927;
-  --light-l-user-bubble: 0.499;
-  --light-c-user-bubble: 0.08;
-  --light-l-text: 0.3248;
-  --light-l-text-muted: 0.5906;
-  --light-l-text-faint: 0.7118;
-  --light-l-accent: 0.499;
-  --light-l-nav-active-bg: 0.8023;
 }
 
 :root {
@@ -129,13 +113,13 @@
   --l-input-bg: var(--l-grey-input);
   --c-input-bg: var(--c-neutral-raised);
   --l-hover-bg: 0.2066;
-  --c-hover-bg: 0.008;
+  --c-hover-bg: 0;
   --l-selected-bg: 0.2583;
   --c-selected-bg: 0.014;
   --l-nav-active-bg: 0.3202;
   --c-nav-active-bg: 0.03;
   --l-nav-hover-bg: 0.2121;
-  --c-nav-hover-bg: 0.008;
+  --c-nav-hover-bg: 0;
   --l-tooltip-bg: 0.3294;
   --c-tooltip-bg: var(--c-neutral-raised);
   --l-scrollbar-thumb: var(--l-grey-thumb);
@@ -150,16 +134,16 @@
   --c-tint-strong: var(--c-neutral-raised);
 
   --l-text: var(--l-grey-text);
-  --c-text: 0.012;
+  --c-text: 0.004;
   --l-text-muted: var(--l-grey-text-muted);
-  --c-text-muted: 0.02;
+  --c-text-muted: 0.006;
   --l-text-faint: var(--l-grey-text-faint);
-  --c-text-faint: 0.015;
+  --c-text-faint: 0.006;
 
-  --l-accent: var(--l-orange-mark);
-  --c-accent: var(--c-orange-mark);
-    --l-accent-fill: var(--l-orange-fill);
-  --c-accent-fill: var(--c-orange-fill);
+  --l-accent: var(--l-brand-mark);
+  --c-accent: var(--c-brand-mark);
+    --l-accent-fill: var(--l-brand-fill);
+  --c-accent-fill: var(--c-brand-fill);
     --l-danger: var(--l-signal-danger);
   --c-danger: var(--c-signal-danger);
   --h-danger: var(--h-signal-danger);
@@ -174,13 +158,13 @@
 :root {
   --l-assistant-bubble: var(--l-grey-assistant);
   --c-assistant-bubble: var(--c-neutral-assistant);
-  --l-user-bubble: var(--l-orange-user);
-  --c-user-bubble: var(--c-orange-user);
-  --l-user-bubble-deep: var(--l-orange-user);
-  --l-user-bubble-text: var(--l-orange-on);
-  --c-user-bubble-text: var(--c-orange-on);
-  --l-on-accent: var(--l-orange-on);
-  --c-on-accent: var(--c-orange-on);
+  --l-user-bubble: var(--l-brand-user);
+  --c-user-bubble: var(--c-brand-user);
+  --l-user-bubble-deep: var(--l-brand-user);
+  --l-user-bubble-text: var(--l-brand-on);
+  --c-user-bubble-text: var(--c-brand-on);
+  --l-on-accent: var(--l-brand-on);
+  --c-on-accent: var(--c-brand-on);
   --radius-row: 20px;
   --radius-field: 999px;
 }
@@ -354,7 +338,7 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  --hue: 55;
+  --hue: 340;
   --h-text: var(--hue);
   --cm: 1;
 
@@ -402,7 +386,7 @@
   --assistant-bubble-text: var(--text);
   --user-bubble: oklch(
     var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm))
-      var(--h-orange-user)
+      var(--h-brand)
   );
   --user-bubble-text: oklch(
     var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm))
@@ -427,7 +411,7 @@
   );
   --user-bubble-deep: oklch(
     var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm))
-      var(--h-orange-user)
+      var(--h-brand)
   );
   --user-bubble-gradient: linear-gradient(
     135deg,
@@ -438,7 +422,7 @@
     var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--hue)
   );
   --accent-hover: oklch(
-    var(--l-orange-hover) calc(var(--c-orange-hover) * var(--cm))
+    var(--l-brand-hover) calc(var(--c-brand-hover) * var(--cm))
       var(--hue)
   );
   --out-quote-bg: oklch(0% 0 none / 0.2);
@@ -706,6 +690,58 @@
   );
   --spring150-duration: 0.249s;
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* -----------------------------------------------------------------------------
+   4c. The light appearance
+
+   Swaps the lightness scale and keeps every hue and chroma, so each preset has
+   a light twin for free. The own bubble stays mid-tone so white text reads.
+   -------------------------------------------------------------------------- */
+
+:root[data-appearance="light"] {
+  color-scheme: light;
+  --l-grey-hairline: 0.885;
+  --l-grey-thumb: 0.8;
+  --l-grey-thumb-hover: 0.7;
+  --l-bg: 0.985;
+  --l-bg-sidebar: 0.962;
+  --l-bg-subtle: 0.95;
+  --l-surface-raised: 1;
+  --l-menu-bg: 1;
+  --l-input-bg: 0.95;
+  --l-hover-bg: 0.935;
+  --l-selected-bg: 0.915;
+  --l-nav-active-bg: 0.89;
+  --l-nav-hover-bg: 0.935;
+  --l-tooltip-bg: 0.28;
+  --l-tint-subtle: 0.935;
+  --l-tint: 0.905;
+  --l-tint-strong: 0.86;
+  --l-text: 0.22;
+  --l-text-muted: 0.47;
+  --l-text-faint: 0.63;
+  --l-assistant-bubble: 0.94;
+  --l-brand-user: 0.52;
+  --l-brand-fill: 0.52;
+  --l-brand-mark: 0.5;
+  --l-brand-hover: 0.45;
+  --l-brand-on: 0.985;
+  --c-brand-user: calc(0.0455 * 1.35);
+  --c-brand-mark: calc(0.075 * 1.3);
+  --l-user-bubble: var(--l-brand-user);
+  --l-user-bubble-deep: var(--l-brand-user);
+  --l-accent: var(--l-brand-mark);
+  --l-accent-fill: var(--l-brand-fill);
+  --l-on-accent: var(--l-brand-on);
+  --l-user-bubble-text: var(--l-brand-on);
+  --l-danger: 0.55;
+  --l-success: 0.52;
+  --l-gold: 0.6;
+  --segment-shadow: 0 1px 4px oklch(0% 0 none / 0.12);
+  --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
+  --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.12), 0 10px 28px oklch(0% 0 none / 0.14);
+  --out-quote-bg: oklch(0% 0 none / 0.14);
 }
 
 /* -----------------------------------------------------------------------------

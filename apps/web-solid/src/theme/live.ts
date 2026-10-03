@@ -1,23 +1,26 @@
-// The saved theme for the signed-in user. It loads after the first paint, opens its own
+// The saved look for the signed-in user. It loads after the first paint, opens its own
 // user socket (the same pattern as the memory client), applies what the server holds, and
 // applies a change from another device at once. Saving applies locally first, then sends.
 // The inline script in `index.html` already painted from the cache, so nothing here is on
 // the first-paint path.
 
 import type { UserToClient } from "@kiko/protocol"
-import { createSignal } from "solid-js"
+import { createMemo, createRoot, createSignal } from "solid-js"
 import { urls } from "../lib/store"
 import { type Connect, createSyncSocket, type SyncSocket } from "../sync/socket"
-import { applyCommitted, compileTheme, readCache, writeCache } from "./apply"
+import { applyCommitted, readCache, writeCache } from "./apply"
+import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 
 const cached = readCache()
 // The inline script already painted these variables. This tells `apply.ts` what "saved" is,
 // so a cancelled preview goes back to it.
-if (cached) applyCommitted(cached.theme)
+applyCommitted(parseLook(cached?.text ?? null))
 const [saved, setSaved] = createSignal<string | null>(cached?.text ?? null)
 
-/** The saved theme text, or null when the user is on kat. */
-export const savedTheme = saved
+/** The saved look. The default until the person picks something. Reactive. */
+export const look = createRoot(() => createMemo(() => parseLook(saved())))
+/** True once this person has saved any look, here or on another device. */
+export const hasLook = () => saved() !== null
 
 let socket: SyncSocket | null = null
 let owner: string | null = null
@@ -26,20 +29,9 @@ let outbox: string | null | undefined
 
 function adopt(text: string | null): void {
   if (text === saved()) return
-  if (text === null) {
-    applyCommitted(null)
-    writeCache(null, null)
-    setSaved(null)
-    return
-  }
-  const c = compileTheme(text)
-  if (!c.ok) {
-    // A theme that fails validation is never applied, wherever it came from.
-    console.warn("theme from the server was refused:", c.errors[0])
-    return
-  }
-  applyCommitted(c.resolved)
-  writeCache(text, c.resolved)
+  const next = parseLook(text)
+  applyCommitted(next)
+  writeCache(text, next)
   setSaved(text)
 }
 
@@ -48,12 +40,16 @@ function flush(): void {
   if (socket.send({ t: "theme", theme: outbox })) outbox = undefined
 }
 
-/** Saves a validated theme, or null to go back to kat. Applies now and sends when it can. */
-export function saveTheme(text: string | null): void {
+/** Saves a look. Applies now and sends when it can. */
+export function saveLook(next: Look): void {
+  const text = formatLook(next)
   adopt(text)
   outbox = text
   flush()
 }
+
+/** Changes part of the saved look. */
+export const updateLook = (patch: Partial<Look>) => saveLook({ ...look(), ...patch })
 
 function onFrame(frame: UserToClient): void {
   if (frame.t === "reset") {
@@ -89,7 +85,7 @@ export function stopTheme(): void {
   owner = null
 }
 
-/** Signing out: the next person on this browser starts on kat, not on this user's theme. */
+/** Signing out: the next person on this browser starts on the default look, not on this user's. */
 export function forgetTheme(): void {
   stopTheme()
   outbox = undefined

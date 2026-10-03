@@ -3,12 +3,22 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { buildDoc, buildTokensFile, DOC_FILE, TOKENS_FILE } from "../../scripts/gen-theme"
 import { parseKat, ROOT } from "../../scripts/theme-tokens"
-import { applyCommitted, CACHE_KEY, compileTheme, endPreview, preview, writeCache } from "./apply"
+import { applyCommitted, CACHE_KEY, compileTheme, endPreview, preview, resolveLook, writeCache } from "./apply"
+import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 import { KNOWN_TOKENS } from "./known-tokens"
-import { PRESETS } from "./presets"
+import { PRESETS, presetFor } from "./presets"
 import { FIELDS, PRESET_IDS, parseTheme, resolveTheme, type Theme } from "./schema"
 
 const base = { version: 1, name: "t" }
+
+/** Parses and resolves a fixture theme, or throws. */
+function res(theme: unknown) {
+  const p = parseTheme(theme)
+  if (!p.ok) throw new Error(p.errors[0])
+  const r = resolveTheme(p.theme, presetFor)
+  if (!r.ok) throw new Error(r.error)
+  return r.resolved
+}
 
 function errorsOf(theme: unknown): string[] {
   const r = parseTheme(theme)
@@ -24,8 +34,8 @@ const BAD: [string, unknown, string][] = [
   ["no name", { version: 1 }, "name: expected 1 to 48 characters"],
   ["a long name", { version: 1, name: "x".repeat(49) }, "name: expected 1 to 48 characters"],
   ["raw css", { ...base, css: "body{}" }, "css: unknown key"],
-  ["an unknown preset", { ...base, extends: "neon" }, 'extends: expected one of kat-dark, kat-light, ink, paper, got "neon"'],
-  ["a bad appearance", { ...base, appearance: "blue" }, 'appearance: expected "dark" or "light", got "blue"'],
+  ["an unknown preset", { ...base, extends: "neon" }, 'extends: expected one of plum, ember, lilac, sakura, sage, teal, bluebird, graphite, mono, got "neon"'],
+  ["an appearance key", { ...base, appearance: "light" }, "appearance: unknown key"],
   ["a group that is not an object", { ...base, colors: "red" }, 'colors: expected an object, got "red"'],
   ["an unknown color key", { ...base, colors: { accnt: "red" } }, "colors.accnt: unknown key"],
   ["a color that is not one", { ...base, colors: { accent: "big" } }, 'colors.accent: expected a color, got "big"'],
@@ -68,8 +78,8 @@ describe("a bad theme names the wrong key", () => {
 
 describe("good themes", () => {
   test("a two line theme works and keeps everything else", () => {
-    const c = compileTheme(JSON.stringify({ version: 1, name: "blue", colors: { accent: "oklch(0.7 0.14 250)" } }))
-    expect(c.ok && c.resolved.base).toEqual({ appearance: "dark", vars: { "--accent": "oklch(0.7 0.14 250)" } })
+    const r = res({ version: 1, name: "blue", colors: { accent: "oklch(0.7 0.14 250)" } })
+    expect(r).toEqual({ dark: { "--accent": "oklch(0.7 0.14 250)" }, light: { "--accent": "oklch(0.7 0.14 250)" } })
   })
 
   test("numbers outside the range are clamped, with a note", () => {
@@ -81,13 +91,11 @@ describe("good themes", () => {
   })
 
   test("a number is pixels and a string keeps its unit", () => {
-    const c = compileTheme(JSON.stringify({ ...base, spacing: { runGap: 20, rowGap: "0.25rem" } }))
-    expect(c.ok && c.resolved.base.vars).toEqual({ "--run-gap": "20px", "--row-gap": "0.25rem" })
+    expect(res({ ...base, spacing: { runGap: 20, rowGap: "0.25rem" } }).dark).toEqual({ "--run-gap": "20px", "--row-gap": "0.25rem" })
   })
 
   test("scale multiplies the default and a set value, and leaves the pill alone", () => {
-    const c = compileTheme(JSON.stringify({ ...base, radius: { scale: 0.5, small: "20px" } }))
-    expect(c.ok && c.resolved.base.vars).toEqual({
+    expect(res({ ...base, radius: { scale: 0.5, small: "20px" } }).dark).toEqual({
       "--radius-bubble": "9px",
       "--radius-bubble-tight": "4px",
       "--radius-sm": "10px",
@@ -96,25 +104,25 @@ describe("good themes", () => {
   })
 
   test("tokens are applied after the groups", () => {
-    const c = compileTheme(JSON.stringify({ ...base, colors: { bg: "#000" }, tokens: { "--bg": "#111", "--l-bg": 0.5, "--tab-shadow": "0 1px 2px #000" } }))
-    expect(c.ok && c.resolved.base.vars).toEqual({ "--bg": "#111", "--l-bg": "0.5", "--tab-shadow": "0 1px 2px #000" })
+    expect(res({ ...base, colors: { bg: "#000" }, tokens: { "--bg": "#111", "--l-bg": 0.5, "--tab-shadow": "0 1px 2px #000" } }).dark).toEqual({ "--bg": "#111", "--l-bg": "0.5", "--tab-shadow": "0 1px 2px #000" })
   })
 
   test("extends inherits, and the child wins", () => {
-    const c = compileTheme(JSON.stringify({ ...base, extends: "paper", colors: { accent: "#c00" } }))
-    expect(c.ok).toBe(true)
-    if (!c.ok) return
-    expect(c.resolved.base.appearance).toBe("light")
-    expect(c.resolved.base.vars["--accent"]).toBe("#c00")
-    expect(c.resolved.base.vars["--bg"]).toBe("oklch(0.965 0.012 85)") // from paper
-    expect(c.resolved.base.vars["--text"]).toBe("oklch(0.3248 0.012 55)") // from kat light, through paper
-    expect(c.resolved.base.vars["--radius-bubble"]).toBe("22px")
+    const r = res({ ...base, extends: "bluebird", colors: { accent: "#c00" } })
+    expect(r.dark["--accent"]).toBe("#c00")
+    expect(r.dark["--hue"]).toBe("245") // from bluebird
+    expect(r.light["--hue"]).toBe("245")
   })
 
-  test("a light variant resolves a second set", () => {
-    const c = compileTheme(JSON.stringify({ ...base, colors: { bg: "#111" }, variants: { light: { colors: { bg: "#eee" }, tokens: { "--scrim": "#0004" } } } }))
-    expect(c.ok && c.resolved.light).toEqual({ appearance: "light", vars: { "--bg": "#eee", "--scrim": "#0004" } })
-    expect(c.ok && c.resolved.base.vars).toEqual({ "--bg": "#111" })
+  test("a light variant layers on top for the light appearance only", () => {
+    const r = res({ ...base, colors: { bg: "#111" }, variants: { light: { colors: { bg: "#eee" }, tokens: { "--scrim": "#0004" } } } })
+    expect(r.light).toEqual({ "--bg": "#eee", "--scrim": "#0004" })
+    expect(r.dark).toEqual({ "--bg": "#111" })
+  })
+
+  test("mono flips the own bubble between appearances", () => {
+    const r = res(PRESETS.mono)
+    expect([r.dark["--l-brand-user"], r.light["--l-brand-user"]]).toEqual(["0.9", "0.22"])
   })
 
   test("a chain that loops or runs too long is an error, not a hang", () => {
@@ -188,11 +196,39 @@ describe("the files that follow kat.css", () => {
   })
 })
 
+describe("the look record", () => {
+  test("nothing stored, or anything unreadable, is the default look", () => {
+    for (const text of [null, "", "{ nope", "[]", JSON.stringify({ version: 1, kind: "look", mode: "neon", preset: "nope" })]) {
+      expect(parseLook(text)).toEqual(DEFAULT_LOOK)
+    }
+  })
+
+  test("an older record that is a bare theme becomes a custom theme", () => {
+    const look = parseLook(JSON.stringify({ version: 1, name: "old", colors: { accent: "#c00" } }))
+    expect(look.mode).toBe("system")
+    expect("custom" in look.theme && look.theme.custom.name).toBe("old")
+  })
+
+  test("a look survives the round trip, and bad bird entries are dropped", () => {
+    const look: Look = { mode: "light", theme: { preset: "sage" }, birds: { scout: "cardinal.2.leaf" } }
+    expect(parseLook(formatLook(look))).toEqual(look)
+    const raw = JSON.parse(formatLook(look))
+    raw.birds = { scout: "cardinal.2.leaf", "Bad Slug": "x", other: "<script>" }
+    expect(parseLook(JSON.stringify(raw)).birds).toEqual({ scout: "cardinal.2.leaf" })
+  })
+
+  test("the server keeps it, because it is a version 1 object", () => {
+    expect(JSON.parse(formatLook(DEFAULT_LOOK)).version).toBe(1)
+  })
+})
+
 // A stand-in for the page, to prove what reaches the root element.
 function fakeRoot() {
   const style: Record<string, string> = {}
   const classes = new Set<string>(["dark"])
+  const dataset: Record<string, string> = {}
   const root = {
+    dataset,
     style: {
       setProperty: (k: string, v: string) => void (style[k] = v),
       removeProperty: (k: string) => void delete style[k],
@@ -201,7 +237,7 @@ function fakeRoot() {
     },
     classList: { toggle: (c: string, on: boolean) => void (on ? classes.add(c) : classes.delete(c)) },
   }
-  return { root, style, classes }
+  return { root, style, classes, dataset }
 }
 
 describe("applying", () => {
@@ -210,22 +246,18 @@ describe("applying", () => {
     delete g.document
   })
 
-  test("sets the variables, previews, reverts, and removes what a reset leaves behind", () => {
-    const { root, style, classes } = fakeRoot()
+  test("sets the variables and the appearance, previews, reverts, and clears what a reset leaves", () => {
+    const { root, style, classes, dataset } = fakeRoot()
     g.document = { documentElement: root }
-    const a = compileTheme(JSON.stringify({ ...base, extends: "kat-light", colors: { accent: "#c00" } }))
-    const b = compileTheme(JSON.stringify({ ...base, colors: { accent: "#00c" }, radius: { bubble: 2 } }))
-    if (!a.ok || !b.ok) throw new Error("fixture")
-    applyCommitted(a.resolved)
-    expect(style["--accent"]).toBe("#c00")
-    expect(classes.has("dark")).toBe(false)
-    preview(b.resolved)
-    expect([style["--accent"], style["--radius-bubble"], classes.has("dark")]).toEqual(["#00c", "2px", true])
+    const custom: Look = { mode: "dark", theme: { custom: { version: 1, name: "c", colors: { accent: "#c00" } } }, birds: {} }
+    applyCommitted(custom)
+    expect([style["--accent"], dataset.appearance, classes.has("dark")]).toEqual(["#c00", "dark", true])
+    preview({ mode: "light", theme: { preset: "mono" }, birds: {} })
+    expect([style["--accent"] ?? "", style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["", "0.22", "light", false])
     endPreview()
-    expect([style["--accent"], "--radius-bubble" in style, classes.has("dark")]).toEqual(["#c00", false, false])
-    applyCommitted(null)
+    expect([style["--accent"], "--l-brand-user" in style, dataset.appearance]).toEqual(["#c00", false, "dark"])
+    applyCommitted({ ...DEFAULT_LOOK, mode: "dark" })
     expect(Object.keys(style).filter((k) => k.startsWith("--") && k !== "--boot-bg")).toEqual([])
-    expect(classes.has("dark")).toBe(true)
   })
 })
 
@@ -234,34 +266,27 @@ describe("the pre-paint script", () => {
   const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!
 
   function boot(stored: string | null, prefersLight = false) {
-    const { root, style, classes } = fakeRoot()
+    const { root, style, classes, dataset } = fakeRoot()
     const storage = { getItem: (k: string) => (k === CACHE_KEY ? stored : null) }
     new Function("document", "localStorage", "matchMedia", script)({ documentElement: root }, storage, () => ({ matches: prefersLight }))
-    return { style, classes }
+    return { style, classes, dataset }
   }
+  const cacheOf = (look: Look) => JSON.stringify({ v: 2, text: "x", mode: look.mode, vars: resolveLook(look) })
 
-  test("paints the cached variables before anything else", () => {
-    const c = compileTheme(JSON.stringify({ ...base, extends: "kat-light", colors: { accent: "#c00" }, radius: { bubble: 3 } }))
-    if (!c.ok) throw new Error("fixture")
-    const cache = { v: 1, text: "x", theme: c.resolved }
-    const { style, classes } = boot(JSON.stringify(cache))
-    expect(style["--accent"]).toBe("#c00")
-    expect(style["--radius-bubble"]).toBe("3px")
-    expect(style["--boot-bg"]).toBe(c.resolved.base.vars["--bg"])
-    expect(classes.has("dark")).toBe(false)
+  test("paints the cached variables for the saved appearance", () => {
+    const { style, dataset, classes } = boot(cacheOf({ mode: "light", theme: { preset: "mono" }, birds: {} }))
+    expect([style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["0.22", "light", false])
   })
 
-  test("uses the light variant when the system prefers light", () => {
-    const c = compileTheme(JSON.stringify({ ...base, colors: { bg: "#111" }, variants: { light: { colors: { bg: "#eee" } } } }))
-    if (!c.ok) throw new Error("fixture")
-    const cache = JSON.stringify({ v: 1, text: "x", theme: c.resolved })
-    expect(boot(cache, true).style["--bg"]).toBe("#eee")
-    expect(boot(cache, false).style["--bg"]).toBe("#111")
+  test("system follows the system", () => {
+    const cache = cacheOf({ mode: "system", theme: { preset: "mono" }, birds: {} })
+    expect(boot(cache, true).dataset.appearance).toBe("light")
+    expect(boot(cache, false).style["--l-brand-user"]).toBe("0.9")
   })
 
-  test("falls back to the dark shell with no cache or a broken one", () => {
-    expect(boot(null).style["--boot-bg"]).toBe("#1c1b1f")
-    expect(boot("{ not json").style["--boot-bg"]).toBe("#1c1b1f")
+  test("falls back to the system appearance with no cache or a broken one", () => {
+    expect([boot(null).style["--boot-bg"], boot(null).dataset.appearance]).toEqual(["#141414", "dark"])
+    expect(boot("{ not json", true).dataset.appearance).toBe("light")
   })
 
   test("reads what writeCache writes", () => {
@@ -271,9 +296,8 @@ describe("the pre-paint script", () => {
       setItem: (k: string, v: string) => void (store[k] = v),
       removeItem: (k: string) => void delete store[k],
     }
-    const c = compileTheme(JSON.stringify({ ...base, colors: { accent: "#0a0" } }))
-    if (!c.ok) throw new Error("fixture")
-    writeCache("text", c.resolved)
+    const look: Look = { mode: "dark", theme: { custom: { version: 1, name: "g", colors: { accent: "#0a0" } } }, birds: {} }
+    writeCache("text", look)
     expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe("#0a0")
     delete (globalThis as { localStorage?: unknown }).localStorage
   })

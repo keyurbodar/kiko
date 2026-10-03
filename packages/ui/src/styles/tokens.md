@@ -9,7 +9,7 @@ Source: `kat.css`. Values come from the kat-replica dark tokens and the kat scre
 | `--hue` | 55 | Hue of every neutral and accent. |
 | `--cm` | 1 | The one chroma multiplier. Raise it for a brighter orange. Every chroma passes through it. |
 
-The user bubble has its own hue, `--h-orange-user` (48.4). The screenshot pixel `#66422f` is hue 48.4, not 55. DEVIATION from the replica token (`.4196 / .07 / 55`), which does not reproduce the pixel.
+The user bubble has its own hue, `--h-brand` (48.4). The screenshot pixel `#66422f` is hue 48.4, not 55. DEVIATION from the replica token (`.4196 / .07 / 55`), which does not reproduce the pixel.
 
 ## Measured colors
 

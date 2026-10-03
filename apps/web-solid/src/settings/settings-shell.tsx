@@ -16,8 +16,8 @@ import type { JSX } from "solid-js"
  * content-visibility so a long catalog costs nothing off screen.
  */
 
-// The theme editor and its validator load with the section, not with the route.
-const Appearance = lazy(() => import("../theme/editor"))
+// The appearance section and its validator load with the section, not with the route.
+const Appearance = lazy(() => import("../theme/appearance"))
 
 function Account() {
   const user = () => {
