@@ -1,6 +1,7 @@
 import type { Chat, RoomId } from "@kiko/protocol"
 import type { MemoryStore } from "./memory"
 import { nextOccurrence } from "./recurrence"
+import { MAX_SOUL, type Souls } from "./souls"
 
 // Architecture section 13.3. The daily memory tidy. Agents mostly read memory and save only clear,
 // lasting facts. This job does most of the writing: it reads the human's recent messages and
@@ -46,6 +47,8 @@ export type TidyReport = {
   merged: number
   corrected: number
   archived: number
+  /** Souls rewritten by the nightly soul tidy. */
+  souls: number
 }
 
 export type TidyDeps = {
@@ -57,6 +60,8 @@ export type TidyDeps = {
   readChat: (roomId: RoomId, since: number, limit: number) => Promise<ChatLine[]>
   /** One completion with the user's default model. Null when the user has no credential for it. */
   complete: (system: string, prompt: string) => Promise<string | null>
+  /** The agents' souls (architecture section 7.10), tidied in the same run. */
+  souls?: Souls
 }
 
 /** The next run: 03:00 in the user's timezone, after `after`. */
@@ -106,6 +111,14 @@ const TIDY_SYSTEM = `you tidy a person's long-term memory. each record body is d
 - leave a record out of "records" when it needs no change. never invent facts.
 answer with json only: {"records":[{"id":"...","body":"..."}],"merges":[{"from":"id","into":"id"}],"corrections":[{"id":"...","fact":"right fact, not the wrong one"}],"profile":"new profile body or null"}`
 
+const SOUL_SYSTEM = `you tidy agents' souls. a soul is a short markdown file: who an agent is, and what it has learned about working with one person.
+- keep each agent's identity and voice exactly as written.
+- in the lessons, keep only lasting lessons about how to work with this person: tone, format, habits, what they like and hate.
+- drop details of one chat or project (budgets, dates, places, task specifics), drop a lesson a later one contradicts, merge repeats into one line, keep the newest wording.
+- move any lasting fact about the person you dropped (their name, job, family, a standing preference) to "facts", so it is kept in their memory instead.
+- never invent. every soul stays under ${MAX_SOUL} characters.
+answer with json only: {"souls":[{"slug":"...","body":"..."}],"facts":[{"id":"profile","fact":"one short sentence"}]}. leave out a soul that needs no change.`
+
 export class Tidy {
   #running: Promise<TidyReport> | null = null
 
@@ -136,7 +149,9 @@ export class Tidy {
       )
       .one()
     const c = this.deps.sql.exec<{ u: number }>("SELECT coalesce(max(updated_at), 0) AS u FROM chats").one()
-    return `${m.n}:${m.v}:${m.u}:${c.u}`
+    const souls = this.deps.souls?.all() ?? []
+    const s = `${souls.length}:${Math.max(0, ...souls.map((x) => x.at))}`
+    return `${m.n}:${m.v}:${m.u}:${c.u}:${s}`
   }
 
   /** One run at a time in this object. A second call while one runs gets the same report. */
@@ -148,7 +163,7 @@ export class Tidy {
   }
 
   async #run(): Promise<TidyReport> {
-    const report: TidyReport = { ran: false, appended: 0, rewritten: 0, merged: 0, corrected: 0, archived: 0 }
+    const report: TidyReport = { ran: false, appended: 0, rewritten: 0, merged: 0, corrected: 0, archived: 0, souls: 0 }
     if (this.setting(OFF_KEY) === "off") return { ...report, skipped: "off" }
     const started = this.deps.now()
     report.archived = this.archiveStale(started)
@@ -163,6 +178,8 @@ export class Tidy {
     if (outcome) return { ...report, skipped: outcome }
     const tidied = await this.tidy(started, report)
     if (tidied) return { ...report, skipped: tidied }
+    const souls = await this.tidySouls(started, before?.lastRunAt ?? 0, report)
+    if (souls) return { ...report, skipped: souls }
     this.save(this.fingerprint(), started)
     return { ...report, ran: true }
   }
@@ -264,6 +281,36 @@ export class Tidy {
       if (norm(row.body).includes(norm(text))) continue
       this.deps.memory.append(id, text, { author: TIDY_AUTHOR })
       report.corrected++
+    }
+    return null
+  }
+
+  /**
+   * Souls changed since the last run: keep the voice, keep lasting lessons about the person, drop
+   * one chat's details, and move facts about the person into memory. A soul rewritten while the
+   * model thought is left for the next run.
+   */
+  private async tidySouls(now: number, since: number, report: TidyReport): Promise<TidyReport["skipped"] | null> {
+    const souls = this.deps.souls
+    const changed = (souls?.all() ?? []).filter((x) => x.at > since)
+    if (!souls || !changed.length) return null
+    const answer = await this.ask(SOUL_SYSTEM, `today is ${today(now)}.\n\n${changed.map((x) => `### ${x.slug}\n${x.body}`).join("\n\n")}`)
+    if (typeof answer === "string") return answer
+    for (const r of list(answer.souls)) {
+      const slug = str(r.slug)
+      const body = typeof r.body === "string" ? r.body.trim() : ""
+      const was = changed.find((x) => x.slug === slug)
+      if (!slug || !was || !body || norm(body) === norm(was.body)) continue
+      const out = await souls.set(slug, `${body}\n`, was.sha)
+      if (out.ok) report.souls++
+    }
+    const known = norm(this.deps.memory.list(true).map((r) => r.body).join("\n"))
+    for (const f of list(answer.facts)) {
+      const id = str(f.id)?.toLowerCase()
+      const fact = str(f.fact)
+      if (!id || !fact || !ID.test(id) || known.includes(norm(fact)) || this.deps.memory.peek(id)?.archived) continue
+      this.deps.memory.append(id, fact, { author: TIDY_AUTHOR })
+      report.appended++
     }
     return null
   }

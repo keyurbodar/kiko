@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
-import { A, useLocation, useParams } from "@solidjs/router";
+import { A, useLocation, useNavigate, useParams } from "@solidjs/router";
 import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
@@ -7,8 +7,10 @@ import { useApp } from "../../lib/store";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 
-// The "to:" bar loads when `/chat/new` is first opened, not with the transcript.
+// The new chat screen loads when `/chat/new` is first opened, not with the transcript.
 const NewChat = lazy(() => import("../../chat/new-chat").then((m) => ({ default: m.NewChat })));
+// Quoting a selection loads after first paint.
+const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 // Approval cards load the first time an open room has one (P7-02).
 const ApprovalCards = lazy(() => import("../../chat/ApprovalCard"));
 
@@ -57,7 +59,42 @@ export default function ChatRoute() {
       },
     ),
   );
+  /*
+   * Drafts with kiko (architecture section 7.11). When kiko makes an agent, a line in the draft
+   * points at the agent's new chat, and the human is taken there. A draft left before the human
+   * wrote anything held nothing, so it is deleted as the human leaves.
+   */
+  const navigate = useNavigate();
+  const isDraft = (id: string | undefined) => !!id && !!useApp.user()?.state.chats.find((c) => c.roomId === id)?.draft;
+  createEffect(
+    on(
+      () => (isDraft(params.id) ? useApp.activeMessages().at(-1) : undefined),
+      (last) => {
+        if (last?.goto && last.goto !== params.id) navigate(`/chat/${last.goto}`);
+      },
+    ),
+  );
+  // Read while the draft is open: by the time the route changes, the store holds the next room.
+  const wrote = new Set<string>();
+  createEffect(() => {
+    const id = params.id;
+    if (id && isDraft(id) && useApp.activeMessages().some((m) => m.sender === "user")) wrote.add(id);
+  });
+  createEffect(
+    on(
+      () => params.id,
+      (_, previous) => {
+        if (previous && isDraft(previous) && !wrote.has(previous)) useApp.user()?.remove(previous as never);
+      },
+    ),
+  );
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null);
+  /** The words of the reply target the human picked to answer, with the target they belong to. */
+  const [quote, setQuote] = createSignal<{ target: string; text: string } | null>(null);
+  const replyQuote = () => {
+    const q = quote();
+    return q && q.target === replyTarget() ? q.text : undefined;
+  };
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
   /*
    * Unsent text and the reply target are saved per chat, and both come back from
@@ -154,6 +191,7 @@ export default function ChatRoute() {
             onStateChange={setThreadState}
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
+            waitingDoing={useApp.typingDoing()}
             groupChat={members().size > 1}
             memberSlugs={[...members().keys()]}
             notices={notices()}
@@ -214,6 +252,13 @@ export default function ChatRoute() {
               </div>
             )}
           </Show>
+          <QuoteOnSelect
+            onQuote={(id, text) => {
+              setReplyTarget(id);
+              setQuote({ target: id, text });
+              document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus();
+            }}
+          />
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
             title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
@@ -236,7 +281,8 @@ export default function ChatRoute() {
               const sent =
                 target === null
                   ? useApp.appendMessage(message)
-                  : useApp.appendReply(message, target);
+                  : useApp.appendReply(message, target, replyQuote());
+              setQuote(null);
               /*
                * Sending is a statement about where you want to be looking. If
                * the reader had scrolled up and then sent, leaving them parked
@@ -250,7 +296,8 @@ export default function ChatRoute() {
               if (sent !== undefined) scrollToLatest?.();
             }}
             replyTo={replyTo()}
-            onClearReply={() => setReplyTarget(null)}
+            replyQuote={replyQuote()}
+            onClearReply={() => (setReplyTarget(null), setQuote(null))}
             onJumpToReply={(messageId) => jumpToMessage?.(messageId)}
           />
         </div>

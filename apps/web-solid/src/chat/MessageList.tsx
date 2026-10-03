@@ -24,6 +24,8 @@ export function MessageList(props: {
   waitingNames: readonly string[]
   /** The typing agents' slugs, same order as `waitingNames`, for the avatar. */
   waitingSlugs?: readonly string[]
+  /** What the one typing agent is doing now (section 7.12), shown in place of "typing". */
+  waitingDoing?: string
   groupChat?: boolean
   /** The room's member slugs, so an agent's message to another member folds into a thread. */
   memberSlugs?: readonly string[]

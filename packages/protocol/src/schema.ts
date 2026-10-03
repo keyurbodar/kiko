@@ -19,7 +19,7 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 // Envelope
 
-export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit"])
+export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files", "created"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -102,6 +102,8 @@ export const Message = Schema.Struct({
 	run: Schema.optionalKey(RunRef),
 	editedAt: Schema.optionalKey(Count),
 	reactions: Schema.optionalKey(Schema.Array(Reaction)),
+	goto: Schema.optionalKey(RoomId),
+	quote: Schema.optionalKey(Schema.String),
 })
 
 export const Member = Schema.Struct({
@@ -187,6 +189,8 @@ export const RoomEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("task_removed"), id: Id }),
 	Schema.Struct({ ...stored, t: Schema.Literal("approval"), approval: Approval }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
+	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
+	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("no_provider"), slug: AgentSlug, provider: Schema.String }),
 ])
 
@@ -198,9 +202,19 @@ export const RoomSnapshot = Schema.Struct({
 	tasks: Schema.Array(Task),
 	approvals: Schema.Array(Approval),
 	files: Schema.Array(FileRef),
+	folders: Schema.Array(Schema.String),
 })
 
 const Hello = Schema.Struct({ t: Schema.Literal("hello"), lastSeq: Count })
+
+/** A room path: 1 to 512 characters. The room checks the shape. */
+const FilePath = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(512))
+
+export const FileOp = Schema.Union([
+	Schema.Struct({ op: Schema.Literal("rm"), paths: Schema.Array(FilePath).check(Schema.isMinLength(1), Schema.isMaxLength(200)), recursive: Schema.optionalKey(Schema.Boolean) }),
+	Schema.Struct({ op: Schema.Literal("mv"), from: FilePath, to: FilePath }),
+	Schema.Struct({ op: Schema.Literal("mkdir"), path: FilePath }),
+])
 
 export const ClientToRoom = Schema.Union([
 	Hello,
@@ -209,6 +223,7 @@ export const ClientToRoom = Schema.Union([
 		clientId: Id,
 		text: Schema.String,
 		replyTo: Schema.optionalKey(MessageId),
+		quote: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1000))),
 		files: Schema.optionalKey(Schema.Array(FileRef)),
 	}),
 	Schema.Struct({ t: Schema.Literal("react"), messageId: MessageId, emoji: Schema.NullOr(Schema.String) }),
@@ -221,6 +236,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("approve"), approvalId: Id, action: Schema.Literals(["accept", "decline"]) }),
 	Schema.Struct({ t: Schema.Literal("task"), op: TaskOp }),
 	Schema.Struct({ t: Schema.Literal("member"), op: MemberOp }),
+	Schema.Struct({ t: Schema.Literal("files"), op: FileOp }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
 		query: Schema.String,
@@ -246,12 +262,13 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: RoomSnapshot }),
 	Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
-	Schema.Struct({ t: Schema.Literal("status"), slug: AgentSlug, state: AgentState }),
+	Schema.Struct({ t: Schema.Literal("status"), slug: AgentSlug, state: AgentState, doing: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,
 		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved", "chief"]),
 	}),
+	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
 		query: Schema.String,
@@ -280,7 +297,9 @@ export const Chat = Schema.Struct({
 	unread: Count,
 	updatedAt: Count,
 	agents: Schema.optionalKey(Schema.Array(Schema.String)),
-	home: Schema.optionalKey(Schema.Literal(true)),
+	kiko: Schema.optionalKey(Schema.Literal(true)),
+	private: Schema.optionalKey(Schema.Boolean),
+	draft: Schema.optionalKey(Schema.Literals(["ask", "group"])),
 })
 
 export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })
@@ -288,10 +307,11 @@ export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlu
 export const AgentOp = Schema.Struct({ op: Schema.Literal("create"), agent: Agent })
 
 export const ChatOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)) }),
+	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)), draft: Schema.optionalKey(Schema.Literals(["ask", "group"])) }),
 	Schema.Struct({ op: Schema.Literal("rename"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ op: Schema.Literal("pin"), roomId: RoomId, pinned: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("mute"), roomId: RoomId, muted: Schema.Boolean }),
+	Schema.Struct({ op: Schema.Literal("private"), roomId: RoomId, private: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("delete"), roomId: RoomId }),
 ])
 
@@ -300,6 +320,9 @@ export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
 	Schema.Struct({ ...stored, t: Schema.Literal("agent"), agent: Agent }),
 	Schema.Struct({ ...stored, t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
+	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
+	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
+	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
 ])
 
 export const UserSnapshot = Schema.Struct({
@@ -307,6 +330,7 @@ export const UserSnapshot = Schema.Struct({
 	chats: Schema.Array(Chat),
 	agents: Schema.optionalKey(Schema.Array(Agent)),
 	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
+	home: Schema.Struct({ files: Schema.Array(FileRef), folders: Schema.Array(Schema.String) }),
 })
 
 // Memory
@@ -383,6 +407,7 @@ export const ExecutorResult = Schema.Union([
 
 export const ClientToUser = Schema.Union([
 	Hello,
+	Schema.Struct({ t: Schema.Literal("home"), op: FileOp }),
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
 	Schema.Struct({ t: Schema.Literal("agent"), op: AgentOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
@@ -439,6 +464,7 @@ export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unk
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
+	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),

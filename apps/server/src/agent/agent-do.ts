@@ -10,7 +10,10 @@ import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import { findProvider, type TurnMemory } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
-import { roomFilesPort } from "./extensions/files"
+import { imageReader } from "./extensions/files"
+import type { ChiefPort } from "./extensions/chief"
+import { CHIEF } from "../room/chief"
+import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
 import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
@@ -35,6 +38,11 @@ const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
 
 /** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
+/** Memory ops that only read. In a private chat every other op is refused. */
+const READ_OPS = new Set(["list", "search", "view", "history"])
+const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
+const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
+
 export class AgentDO extends DurableObject<Env> {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
@@ -196,7 +204,45 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     if (!home) return null
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
-    return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input) }
+    return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input), team: () => room().teamNow() }
+  }
+
+  /** One line for the team board: what this agent's current tool call is about (section 7.12). */
+  private async report(doing: string): Promise<void> {
+    const home = this.home()
+    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportDoing(home.slug, doing)
+  }
+
+  /** kiko's making of agents and groups (section 7.11). Every other agent gets none. */
+  private chiefPort(): ChiefPort | undefined {
+    const home = this.home()
+    if (home?.slug !== CHIEF) return undefined
+    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    return {
+      agents: () => userStub(this.env.USER, home.userId).listAgents(),
+      propose: (input) => room().propose(home.slug, input),
+      create: (id) => room().createProposal(home.slug, id),
+    }
+  }
+
+  /** This agent's soul in UserDO (section 7.10). The slug comes from the room's delivery, never the model. */
+  private soulPort(): SoulPort {
+    const user = () => {
+      const home = this.home()
+      if (!home) throw new Error("this agent has no room yet")
+      return { stub: userStub(this.env.USER, home.userId), slug: home.slug }
+    }
+    return {
+      get: () => {
+        const { stub, slug } = user()
+        return stub.soul(slug)
+      },
+      set: async (body, expectSha) => {
+        if (this.home()?.private) return { ok: false, code: "invalid", message: PRIVATE_REFUSAL }
+        const { stub, slug } = user()
+        return stub.setSoul(slug, body, expectSha)
+      },
+    }
   }
 
   /**
@@ -212,19 +258,32 @@ export class AgentDO extends DurableObject<Env> {
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort())
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
-    const files = roomFilesPort(this.env, () => this.home(), user.models)
+    const soul = this.soulPort()
+    // The chat's files at /, the user's drive at /home, and this agent's soul at /me, on one byte cache.
+    const cache = new ObjectCache()
+    const where = () => this.home()
+    const notice = (text: string) => {
+      const h = this.home()
+      return h ? roomStub(this.env.ROOM, h.userId, h.roomId).homeNotice(h.slug, text) : Promise.resolve()
+    }
+    const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
+    const backend = withMount(roomBackend(this.env, where, cache), HOME_PATH, homeBackend(this.env, where, notice, cache, locked))
+    const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, withSoul(backend, soul))
+    const files = { fs, acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...buildAgent({ ...role, model: await this.model(), files, soul, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
+      env: fs,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
       // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
         const down = executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
-        return [clock, down, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
+        const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
+        return [clock, down, quiet, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
       },
     }
   }
@@ -255,7 +314,9 @@ export class AgentDO extends DurableObject<Env> {
         if (!this.#run) await this.loadAuth((await this.model()).provider)
         return this.#run?.memory ?? null
       },
-      op: (op) => userStub(this.env.USER, home.userId).memoryOp(op),
+      // A private chat leaves no trace: reads work, writes are refused (section 7.10).
+      op: async (op) =>
+        this.home()?.private && !READ_OPS.has(op.op) ? { ok: false, error: PRIVATE_REFUSAL } : userStub(this.env.USER, home.userId).memoryOp(op),
     }
   }
 

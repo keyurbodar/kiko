@@ -1,176 +1,21 @@
-// The room's file index. Architecture section 18.1. R2 holds the bytes and this
-// table holds what the room knows about them. Every change is one `file` event in
-// the log, stored in the same transaction as the row.
+// The room's file index (architecture section 18.1): `FileIndex` over the room's tables, with
+// every change stored as one event in the room log, in the same transaction as the rows.
 
-import type { Actor, FileRef, RoomEvent } from "@kiko/protocol"
+import type { RoomEvent } from "@kiko/protocol"
+import { FileIndex, ROOM_TABLES } from "../files/file-index"
 import { actorKey, type RoomLog } from "./log"
 
-type FileRow = {
-	id: string
-	path: string
-	r2_key: string
-	size: number
-	type: string
-	sha256: string
-	width: number | null
-	height: number | null
-	thumbhash: string | null
-	author: string
-}
+export {
+  baseName,
+  type FileMeta,
+  type FileMetaPatch,
+  type FsChange,
+  type FsEntry,
+  type FsFail,
+  type NewFile,
+  type PutResult,
+} from "../files/file-index"
 
-/** What the Worker stored in R2 and asks the room to index. */
-export type NewFile = {
-	id: string
-	path: string
-	r2Key: string
-	size: number
-	type: string
-	sha256: string
-	author: Actor
-	/** What the client measured at upload time. The attachment job computes only what is missing. */
-	width?: number
-	height?: number
-	thumbhash?: string
-	/**
-	 * A precondition for an edit. A SHA-256 means the path must hold exactly those bytes,
-	 * and "none" means the path must be empty. Anything else is a conflict and nothing is written.
-	 */
-	expectSha256?: string
-}
-
-/** What the attachment job needs to know about a file. */
-export type FileMeta = { r2Key: string; size: number; type: string; width?: number; height?: number; thumbhash?: string }
-
-export type FileMetaPatch = { width?: number; height?: number; thumbhash?: string }
-
-export type PutResult = {
-	/** Null only for a conflict on a path that holds no file. */
-	file: FileRef | null
-	/** An R2 key nothing points to any more. The caller deletes it. */
-	drop: string | null
-	event: RoomEvent | null
-	/** True when `expectSha256` did not match. `file` is then what the path holds now, and nothing was written. */
-	conflict?: boolean
-}
-
-// ASSUMPTION: a FileRef's `name` is the full path in the room's file space. The
-// protocol has no separate path field, and a path is unique within a room.
-function toRef(r: FileRow): FileRef {
-	return {
-		id: r.id,
-		name: r.path,
-		size: r.size,
-		type: r.type,
-		...(r.width !== null ? { width: r.width } : {}),
-		...(r.height !== null ? { height: r.height } : {}),
-		...(r.thumbhash !== null ? { thumbhash: r.thumbhash } : {}),
-	}
-}
-
-/** Every file in the room, by path. The snapshot uses it. */
-export function listFiles(storage: DurableObjectStorage): FileRef[] {
-	return storage.sql.exec<FileRow>("SELECT * FROM ws_files ORDER BY path").toArray().map(toRef)
-}
-
-export class RoomFiles {
-	constructor(
-		private readonly storage: DurableObjectStorage,
-		private readonly log: RoomLog,
-	) {}
-
-	private get sql() {
-		return this.storage.sql
-	}
-
-	private row(column: "id" | "path", value: string): FileRow | null {
-		return this.sql.exec<FileRow>(`SELECT * FROM ws_files WHERE ${column} = ?`, value).toArray()[0] ?? null
-	}
-
-	/**
-	 * Indexes an object the Worker stored. Safe to call twice with the same id.
-	 * The same bytes at the same path keep the first row, and the new object is
-	 * returned as `drop`. Other bytes at an existing path replace the row, and the
-	 * old object is returned as `drop`.
-	 */
-	put(input: NewFile): PutResult {
-		return this.storage.transactionSync(() => {
-			const same = this.row("id", input.id)
-			if (same) return { file: toRef(same), drop: null, event: null }
-			const current = this.row("path", input.path)
-			if (input.expectSha256 !== undefined && (current?.sha256 ?? "none") !== input.expectSha256) {
-				return { file: current ? toRef(current) : null, drop: input.r2Key, event: null, conflict: true }
-			}
-			if (current?.sha256 === input.sha256) return { file: toRef(current), drop: input.r2Key, event: null }
-			const author = actorKey(input.author)
-			const row: FileRow = {
-				id: input.id,
-				path: input.path,
-				r2_key: input.r2Key,
-				size: input.size,
-				type: input.type,
-				sha256: input.sha256,
-				width: input.width ?? null,
-				height: input.height ?? null,
-				thumbhash: input.thumbhash ?? null,
-				author,
-			}
-			const file = toRef(row)
-			const event = this.log.append(author, { t: "file", file })
-			if (current) this.sql.exec("DELETE FROM ws_files WHERE id = ?", current.id)
-			this.sql.exec(
-				"INSERT INTO ws_files (id, path, r2_key, size, type, sha256, width, height, thumbhash, author, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				row.id,
-				row.path,
-				row.r2_key,
-				row.size,
-				row.type,
-				row.sha256,
-				row.width,
-				row.height,
-				row.thumbhash,
-				author,
-				event.at,
-			)
-			return { file, drop: current?.r2_key ?? null, event }
-		})
-	}
-
-	/** What the attachment job reads. Null when the file is gone. */
-	meta(id: string): FileMeta | null {
-		const r = this.row("id", id)
-		if (!r) return null
-		return {
-			r2Key: r.r2_key,
-			size: r.size,
-			type: r.type,
-			...(r.width !== null ? { width: r.width } : {}),
-			...(r.height !== null ? { height: r.height } : {}),
-			...(r.thumbhash !== null ? { thumbhash: r.thumbhash } : {}),
-		}
-	}
-
-	/**
-	 * Fills empty metadata fields and nothing else, so a repeated call changes nothing and
-	 * stores no event. Returns the event to publish when something changed.
-	 */
-	fillMeta(id: string, patch: FileMetaPatch): RoomEvent | null {
-		return this.storage.transactionSync(() => {
-			const r = this.row("id", id)
-			if (!r) return null
-			const next = {
-				width: r.width ?? patch.width ?? null,
-				height: r.height ?? patch.height ?? null,
-				thumbhash: r.thumbhash ?? patch.thumbhash ?? null,
-			}
-			if (next.width === r.width && next.height === r.height && next.thumbhash === r.thumbhash) return null
-			this.sql.exec(
-				"UPDATE ws_files SET width = ?, height = ?, thumbhash = ? WHERE id = ?",
-				next.width,
-				next.height,
-				next.thumbhash,
-				id,
-			)
-			return this.log.append(r.author, { t: "file", file: toRef({ ...r, ...next }) })
-		})
-	}
+export function roomFiles(storage: DurableObjectStorage, log: RoomLog): FileIndex<RoomEvent> {
+  return new FileIndex<RoomEvent>(storage, ROOM_TABLES, (author, body) => log.append(author, body), actorKey)
 }

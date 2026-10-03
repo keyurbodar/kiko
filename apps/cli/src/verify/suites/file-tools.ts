@@ -1,12 +1,14 @@
 import type { RoomToClient } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
-import { expectEqual, VerifyError } from "../client"
+import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P8-05, architecture sections 7.5 and 18. A real model turn with the room's file tools and
-// `web_fetch`. Turn one: the agent writes `notes/plan.md`. The suite then changes that file and
-// adds another over HTTP, as the human would, so the second turn can only answer right if the
-// agent really read the file, listed the directory, and fetched the fixture page. The page sits
+// P8-05, architecture sections 7.5 and 18. Real model turns with the chat's file system (pi's
+// read, write, and edit; kiko's ls, mv, cp, and rm) and `web_fetch`. Turn one: the agent writes
+// `notes/plan.md`. The suite then changes that file and adds another over HTTP, as the human would,
+// so the second turn can only answer right if the agent really read the file, listed the folder,
+// and fetched the fixture page. Turn three asks for an edit, a move, a copy, and a delete in plain
+// words, and checks the files the room ends with. The page sits
 // on a local server; the dev Worker maps `fixture-<port>.preview.test` to it, and every fetch
 // still goes through safeFetch.
 
@@ -39,6 +41,25 @@ function agentText(room: RoomHandle, from: number): string {
     .join("\n")
 }
 
+/** The room's files now, by path, from every `file` and `file_removed` event the socket received. */
+function filesNow(room: RoomHandle): Map<string, FileRef> {
+  const byId = new Map<string, FileRef>()
+  for (const entry of room.raw.log) {
+    const frame = entry.frame as RoomToClient
+    if (entry.dir !== "in") continue
+    if (frame.t === "reset") for (const f of frame.snapshot.files) byId.set(f.id, f)
+    if (frame.t !== "events") continue
+    for (const e of frame.events) {
+      if (e.t === "file") {
+        for (const [id, f] of byId) if (f.name === e.file.name && id !== e.file.id) byId.delete(id)
+        byId.set(e.file.id, e.file)
+      }
+      if (e.t === "file_removed") for (const id of e.ids) byId.delete(id)
+    }
+  }
+  return new Map([...byId.values()].map((f) => [f.name, f]))
+}
+
 /** Waits until the agent's text since `from` holds every word. */
 async function answer(room: RoomHandle, from: number, words: string[]): Promise<string> {
   const end = Date.now() + TURN_MS
@@ -66,7 +87,8 @@ const suite: Suite = {
       },
     })
     try {
-      const s = await v.as("file-tools")
+      const s = await v.as(`file-tools-${Date.now().toString(36)}`)
+      await connectTestModel(s)
       const roomId = ulid()
       const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
       const user = await s.user()
@@ -86,7 +108,8 @@ const suite: Suite = {
       // Turn one: write.
       const first = word("plan-")
       let from = room.raw.log.length
-      room.send(`use the write_file tool to save notes/plan.md with exactly this content: ${first}\nthen reply with the word saved.`)
+      let t0 = Date.now()
+      room.send(`use the write tool to save /notes/plan.md with exactly this content: ${first}\nthen reply with the word saved.`)
       const written = (await room.expect(
         (f) => f.t === "events" && f.events.some((e) => e.t === "file" && e.file.name === "notes/plan.md"),
         TURN_MS,
@@ -97,7 +120,7 @@ const suite: Suite = {
       expectEqual((await download.text()).trim(), first, "the content the agent wrote")
       expectEqual(file.type, "text/markdown", "the type of notes/plan.md")
       await answer(room, from, ["saved"])
-      console.log(`  turn one: the agent wrote notes/plan.md (${file.size} bytes)`)
+      console.log(`  turn one: the agent wrote notes/plan.md (${file.size} bytes) in ${Date.now() - t0} ms`)
 
       // The human changes the plan and adds a file. Only a real read and a real list can see these.
       const second = word("revised-")
@@ -109,13 +132,51 @@ const suite: Suite = {
       from = room.raw.log.length
       const url = `http://fixture-${server.port}.preview.test/page`
       room.send(
-        `use read_file on notes/plan.md, list_files with prefix notes/, and web_fetch ${url}. ` +
+        `read /notes/plan.md, ls /notes, and web_fetch ${url}. ` +
           "reply with the content of notes/plan.md, every file path you listed, and the code word on the page. be brief.",
       )
       const said = await answer(room, from, [second, extra, pageWord])
       if (fetched < 1) throw new VerifyError("the fixture page was never fetched")
       if (said.includes("not this")) throw new VerifyError("the page's script reached the model as text")
       console.log(`  turn two: ${JSON.stringify(said)}`)
+
+      // Turn three: edit, move, copy, delete, in plain words.
+      const third = word("final-")
+      from = room.raw.log.length
+      t0 = Date.now()
+      room.send(
+        `in /notes/plan.md replace ${second} with ${third} (use edit, not write). then move the whole /notes folder to /archive, ` +
+          `copy /archive/plan.md to /final.md, and delete the ${extra.slice(6)} file. reply done when all four are done.`,
+      )
+      await answer(room, from, ["done"])
+      const end = Date.now() + 20_000
+      const want = ["archive/plan.md", "final.md"]
+      let now = filesNow(room)
+      while (Date.now() < end && !(want.every((p) => now.has(p)) && ![...now.keys()].some((p) => p.startsWith("notes/") || p.endsWith(extra.slice(6))))) {
+        await Bun.sleep(250)
+        now = filesNow(room)
+      }
+      const paths = [...now.keys()].sort()
+      expectEqual(JSON.stringify(paths), JSON.stringify(want), "the files after edit, mv, cp, and rm")
+      for (const path of want) {
+        const res = await fetch(new URL(now.get(path)!.id, base), { headers: { cookie: s.cookie } })
+        expectEqual((await res.text()).trim(), third, `the content of ${path}`)
+      }
+      console.log(`  turn three: edit, mv, cp, rm in ${Date.now() - t0} ms. files: ${paths.join(", ")}`)
+
+      // Turn four: the user's drive. A copy lands in /home, and the chat says so.
+      from = room.raw.log.length
+      t0 = Date.now()
+      room.send("keep a copy of /final.md in my drive as /home/plan.md so i have it in other chats. reply kept.")
+      await answer(room, from, ["kept"])
+      const noticed = room.raw.log.slice(from).some((entry) => {
+        const f = entry.frame as RoomToClient
+        return entry.dir === "in" && f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && /saved \/home\/plan\.md/.test(e.text))
+      })
+      if (!noticed) throw new VerifyError("no line in the chat says the agent saved /home/plan.md")
+      const home = await fetch(new URL("api/files/home/", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } }).catch(() => null)
+      void home
+      console.log(`  turn four: copied to /home/plan.md in ${Date.now() - t0} ms, and the chat said so`)
       user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })
     } finally {
       server.stop(true)

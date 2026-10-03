@@ -23,6 +23,7 @@ beforeAll(async () => {
       AGENT: { className: "FakeAgent", useSQLite: true },
       USER: { className: "FakeUser", useSQLite: true },
     },
+    r2Buckets: ["FILES"],
   })
   origin = (await mf.ready).origin
 }, 60_000)
@@ -347,5 +348,146 @@ test("agent mail that fails to deliver is retried until it arrives", async () =>
   // Two failures, then the alarm's retry gets it through.
   const got = await delivered(room, "ada", 1)
   expect(got[0]!.envelopes.map((e) => e.body)).toEqual(["@ada can you check the tests"])
+  ws.ws.close()
+})
+
+test("an agent hands files and folders to another by reference: shown on the message, listed in the envelope", async () => {
+  const { room, ws } = await team()
+  for (const path of ["drafts/a.md", "drafts/b.md", "plan.md"]) await call(`/index/${room}?path=${encodeURIComponent(path)}`)
+  const sent = (await call(`/mail/${room}/bob`, { id: "m-files-1", to: "ada", text: "here is the draft", tainted: false, files: ["/drafts", "plan.md"] })) as { ok: boolean }
+  expect(sent.ok).toBe(true)
+  const got = await delivered(room, "ada", 1)
+  expect(got[0]!.envelopes[0]!.body).toBe("here is the draft\n(attached: /drafts/a.md (text/markdown, 2 kb), /drafts/b.md (text/markdown, 2 kb), /plan.md (text/markdown, 2 kb). open each with read before you answer about it.)")
+  const shown = ws.events().find((e) => e.t === "message" && e.from.kind === "agent" && e.from.slug === "bob")
+  expect(shown?.t === "message" && shown.files?.map((f) => f.name)).toEqual(["drafts/a.md", "drafts/b.md", "plan.md"])
+  const missing = (await call(`/mail/${room}/bob`, { id: "m-files-2", to: "ada", text: "and this", tainted: false, files: ["nope.md"] })) as { ok: boolean; error: string }
+  expect(missing).toEqual({ ok: false, error: "not sent: no such file or folder: /nope.md" })
+  ws.ws.close()
+})
+
+test("a group starts with /chat.md listing who does what; it is written once", async () => {
+  const { room, ws } = await team()
+  await ws.say("hi team")
+  await delivered(room, "kiko", 1)
+  const file = ws.events().find((e) => e.t === "file" && e.file.name === "chat.md")
+  expect(file?.t === "file" && file.file.type).toBe("text/markdown")
+  const raw = await (await mf.getR2Bucket("FILES")).list()
+  const key = raw.objects.find((o) => o.key.includes(room))?.key
+  const text = await (await (await mf.getR2Bucket("FILES")).get(key!))!.text()
+  expect(text).toBe("# ship the plan\n\ngoal:\n\n## who does what\n- @kiko: leads\n- @bob: plans\n- @ada: reads code\n- @cy:\n\n## decisions\n")
+  await ws.say("again")
+  await delivered(room, "kiko", 2)
+  expect(ws.events().filter((e) => e.t === "file" && e.file.name === "chat.md")).toHaveLength(1)
+  ws.ws.close()
+})
+
+test("an agent cannot delete a file attached to a message; the human can", async () => {
+  const { room, ws } = await team()
+  const put = (await call(`/index/${room}?path=${encodeURIComponent("attachments/a1-photo.png")}`)) as { file: { id: string; name: string; size: number; type: string } }
+  await call(`/index/${room}?path=loose.md`)
+  ws.send({ t: "send", clientId: crypto.randomUUID(), text: "look", files: [put.file] })
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && (e.files?.length ?? 0) > 0))
+  const refused = (await call(`/rm/${room}/bob`, { paths: ["attachments/a1-photo.png", "loose.md"], by: "agent" })) as { refused: string | null }
+  expect(refused.refused).toContain("/attachments/a1-photo.png is attached to a message")
+  // Nothing went: the refusal is for the whole call.
+  expect((await call(`/rm/${room}/bob`, { paths: ["loose.md"], by: "agent" })) as { refused: null }).toEqual({ refused: null })
+  expect((await call(`/rm/${room}/bob`, { paths: ["attachments/a1-photo.png"], by: "human" })) as { refused: null }).toEqual({ refused: null })
+  ws.ws.close()
+})
+
+test("adding an agent to a chat with files says so in the chat", async () => {
+  const { room, ws } = await team()
+  await call(`/index/${room}?path=notes.md`)
+  await call(`/index/${room}?path=plan.md`)
+  ws.send({ t: "member", op: { op: "add", slug: "dee", name: "dee" } })
+  const line = (await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && e.from.reason === "files"))) as Extract<RoomToClient, { t: "events" }>
+  const msg = line.events.find((e) => e.t === "message")
+  // Two files here, and the group's /chat.md.
+  expect(msg?.t === "message" && msg.text).toBe("@dee can now see this chat's 3 files")
+  ws.ws.close()
+})
+
+test("a private chat's agents are told so on every delivery", async () => {
+  const room = fresh()
+  await call("/user", { chats: [{ ...chatFor(room, "secret plans", AGENTS.map((a) => a.id)), private: true }], agents: AGENTS })
+  const ws = await Socket.open(room)
+  await ws.say("between us")
+  const got = await delivered(room, "kiko", 1)
+  expect(got[0]!.home?.private).toBe(true)
+  ws.ws.close()
+})
+
+const soul = (name: string) => `# ${name}\n\ni plan meals around what's in the fridge.\n\n## what i've learned about working with them\n`
+
+test("a draft opens with kiko asking, and kiko makes an agent only after the human answers", async () => {
+  const room = fresh()
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), draft: "ask" }], agents: AGENTS })
+  const ws = await Socket.open(room)
+  const opening = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
+  const first = opening.t === "events" ? opening.events.find((e) => e.t === "message") : undefined
+  expect(first?.t === "message" && first.text).toBe("hey. what do you want to get done? i can set you up with an agent for it, or pull a group together.")
+  await ws.say("i want help with meal prep")
+  // Only kiko proposes; a bad handle and a taken one are refused.
+  expect(((await call(`/propose/${room}/bob`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "", soul: soul("chef") } })) as { ok: boolean }).ok).toBe(false)
+  expect(((await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "ada", handle: "ada", description: "", soul: soul("ada") } })) as { error: string }).error).toContain("taken")
+  const proposed = (await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "plans your meal prep", soul: soul("chef") } })) as { ok: true; id: string }
+  expect(proposed.ok).toBe(true)
+  // No human message since the proposal: not yet.
+  const early = (await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean; error: string }
+  expect(early.error).toContain("wait for their yes")
+  await ws.say("yes do it")
+  const made = (await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean; text: string }
+  expect(made.ok).toBe(true)
+  // The same create again returns what the first one made.
+  expect(((await call(`/create/${room}/kiko/${proposed.id}`)) as { text: string }).text).toBe(made.text)
+  const state = (await call("/userstate")) as { agents: { slug: string }[]; souls: Record<string, string>; chats: { roomId: string; title: string; agents?: string[] }[] }
+  expect(state.agents.map((a) => a.slug)).toContain("chef")
+  expect(state.souls.chef).toBe(soul("chef"))
+  const dm = state.chats.find((c) => c.title === "chef")!
+  expect(dm.agents).toEqual(["made-chef"])
+  // The draft gets a line that points at the new chat.
+  const line = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && e.from.reason === "created"))
+  const goto = line.t === "events" ? line.events.find((e) => e.t === "message") : undefined
+  expect(goto?.t === "message" && goto.goto).toBe(dm.roomId)
+  // And the new agent hears it was made, so it says hi first.
+  const intro = await delivered(dm.roomId as RoomId, "chef", 1)
+  expect(intro[0]!.envelopes[0]!.body).toContain("kiko just made you for the human: plans your meal prep")
+  ws.ws.close()
+})
+
+test("a group from a draft: the draft becomes the group, with its members and kiko's /chat.md", async () => {
+  const room = fresh()
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), draft: "group" }], agents: AGENTS })
+  const ws = await Socket.open(room)
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
+  await ws.say("a group for launching the app: ada and a new marketer")
+  const chatMd = "# launch\n\ngoal: ship the app\n\n## who does what\n- @kiko: leads\n- @ada: code\n- @mia: marketing\n\n## decisions\n"
+  const proposed = (await call(`/propose/${room}/kiko`, { kind: "group", title: "launch", members: ["@ada"], agents: [{ name: "mia", handle: "mia", description: "markets the launch", soul: soul("mia") }], chat: chatMd })) as { id: string }
+  await ws.say("yes")
+  expect(((await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean }).ok).toBe(true)
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "mia"))
+  expect(ws.members().map((m) => m.slug).sort()).toEqual(["ada", "kiko", "mia"])
+  const state = (await call("/userstate")) as { chats: { roomId: string; title: string; draft?: string }[] }
+  const chat = state.chats.find((c) => c.roomId === room)!
+  expect(chat).toMatchObject({ title: "launch" })
+  expect(chat.draft).toBeUndefined()
+  const files = await (await mf.getR2Bucket("FILES")).list()
+  const key = files.objects.filter((o) => o.key.includes(room)).at(-1)!.key
+  expect(await (await (await mf.getR2Bucket("FILES")).get(key))!.text()).toBe(chatMd)
+  ws.ws.close()
+})
+
+test("a quote tells the agent exactly which words the human answers", async () => {
+  const { room, ws } = await team()
+  await ws.say("first")
+  await delivered(room, "kiko", 1)
+  const posted = (await call(`/post/${room}/bob`)) as boolean
+  expect(posted).toBe(true)
+  const bubble = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
+  const target = bubble.t === "events" ? bubble.events.find((e) => e.t === "message")! : null
+  ws.send({ t: "send", clientId: crypto.randomUUID(), text: "why?", replyTo: target!.t === "message" ? target!.id : "", quote: "help" })
+  // A reply to bob's bubble reaches bob, though kiko leads.
+  const got = await delivered(room, "bob", 1)
+  expect(got[0]!.envelopes[0]!.body).toBe('(replying to @bob, about this part: "help")\nwhy?')
   ws.ws.close()
 })

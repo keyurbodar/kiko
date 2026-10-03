@@ -69,4 +69,6 @@ export function migrate(sql: SqlStorage): void {
   // A chats table made before agents existed has no column for them.
   const columns = sql.exec<{ name: string }>("PRAGMA table_info(chats)").toArray()
   if (!columns.some((c) => c.name === "agents")) sql.exec("ALTER TABLE chats ADD COLUMN agents TEXT NOT NULL DEFAULT '[]'")
+  if (!columns.some((c) => c.name === "private")) sql.exec("ALTER TABLE chats ADD COLUMN private INTEGER NOT NULL DEFAULT 0")
+  if (!columns.some((c) => c.name === "draft")) sql.exec("ALTER TABLE chats ADD COLUMN draft TEXT")
 }

@@ -5,13 +5,17 @@ import { type AgentChange, createRegistry, defineExtension, type Extension, type
 import { Subagent } from "./extensions/subagent"
 import { effectTable } from "./effects"
 import { type Approvals, trustExtension } from "./extensions/trust"
-import { type FilesPort, filesExtension } from "./extensions/files"
+import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
 import { type MemoryPort, memoryExtension } from "./extensions/memory"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
 import { skillsExtension } from "./extensions/skills"
+import { selfExtension } from "./extensions/self"
+import { type ChiefPort, chiefExtension } from "./extensions/chief"
+import { presenceExtension } from "./extensions/presence"
+import type { SoulPort } from "../files/room-fs"
 import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
@@ -23,7 +27,13 @@ import { baseSections, type RoleInput } from "./prompt"
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
   /** The room's files (P8-05). Without it the agent has no file tools, as in the fake agent. */
-  files?: FilesPort
+  files?: FilesOptions
+  /** The agent's soul (section 7.10). With `files`, fills the soul and chat sections. */
+  soul?: SoulPort
+  /** kiko only (section 7.11): making the human's agents and groups. */
+  chief?: ChiefPort
+  /** Tells the room what each tool call is about, for the team board (section 7.12). */
+  presence?: (doing: string) => Promise<unknown>
   /** The user's memory (P5-02). Without it the agent has no memory tools and no profile, as in the fake agent. */
   memory?: MemoryPort
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
@@ -58,12 +68,15 @@ export const BASE = "base"
 function extensionsFor(input: BuildAgentInput): Extension[] {
   return [
     defineExtension({ name: BASE, sections: baseSections(input) }),
+    ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul)] : []),
     ...(input.memory ? [memoryExtension(input.memory)] : []),
     ...(input.files ? [filesExtension(input.files)] : []),
-    skillsExtension(input.files),
+    skillsExtension(input.files?.fs),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(),
     ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),
+    ...(input.chief ? [chiefExtension(input.chief)] : []),
+    ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate)] : []),
     Subagent,

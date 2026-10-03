@@ -13,6 +13,8 @@ import type {
 	Chat,
 	ClientToRoom,
 	ClientToUser,
+	FileOp,
+	FileRef,
 	Message,
 	MessageId,
 	RoomEvent,
@@ -23,6 +25,7 @@ import type {
 } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
+import { overlayFiles, overlayFolders } from "./patches"
 import { type Connect, PING, PONG, type SocketLike } from "./socket"
 import { applyUserEvent, type UserData } from "./user-store"
 
@@ -230,6 +233,12 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			}
 			peer.push({ t: "catalog", kind: f.kind, ...(f.before !== undefined ? { before: f.before } : {}), items, next })
 		},
+		// The server's rules in files/file-index.ts, through the same overlay the client draws with.
+		files(peer, f) {
+			const out = fileOpEvents(data.files, data.folders, f.op)
+			if ("refused" in out) return peer.push({ t: "files_refused", op: f.op, reason: out.refused })
+			if (out.events.length) store(...(out.events as WithoutStored<RoomEvent>[]))
+		},
 		member(peer, f) {
 			const op = f.op
 			const current = data.members.find((m) => m.slug === op.slug)
@@ -325,12 +334,38 @@ export type MockUser = {
 	store(...events: WithoutStored<UserEvent>[]): UserEvent[]
 }
 
+type FileEventBody = { t: "file"; file: FileRef } | { t: "file_removed"; ids: string[] } | { t: "folders"; folders: string[] }
+
+/** The events one `rm`, `mv`, or `mkdir` makes in a file space, or why it changes nothing. Room and drive share it. */
+function fileOpEvents(files: readonly FileRef[], folders: readonly string[], op: FileOp): { events: FileEventBody[] } | { refused: string } {
+	const under = (name: string, path: string) => name === path || name.startsWith(`${path}/`)
+	const frame = { clientId: "", at: 0, frame: { t: "files" as const, op } }
+	const nextFolders = overlayFolders(folders, [frame])
+	const folderEvent: FileEventBody[] = nextFolders.join() !== folders.join() ? [{ t: "folders", folders: nextFolders }] : []
+	if (op.op === "mkdir") return files.some((x) => x.name === op.path) ? { refused: "that is a file" } : { events: folderEvent }
+	if (op.op === "rm") {
+		const exists = (p: string) => files.some((x) => under(x.name, p)) || folders.some((x) => under(x, p))
+		if (!op.paths.every(exists)) return { refused: "no such file or folder" }
+		const full = (p: string) => files.some((x) => x.name.startsWith(`${p}/`)) || folders.some((x) => x.startsWith(`${p}/`))
+		if (!op.recursive && op.paths.some(full)) return { refused: "that folder has things in it" }
+		const gone = files.filter((x) => op.paths.some((p) => under(x.name, p))).map((x) => x.id)
+		return { events: [...(gone.length ? [{ t: "file_removed" as const, ids: gone }] : []), ...folderEvent] }
+	}
+	const before = new Map(files.map((x) => [x.id, x.name]))
+	const after = overlayFiles(files, [frame], folders)
+	const kept = new Set(after.map((x) => x.id))
+	const replaced = files.filter((x) => !kept.has(x.id)).map((x) => x.id)
+	const moved = after.filter((x) => before.get(x.id) !== x.name).map((file): FileEventBody => ({ t: "file", file }))
+	if (!moved.length && !folderEvent.length) return { refused: "nothing moved" }
+	return { events: [...(replaced.length ? [{ t: "file_removed" as const, ids: replaced }] : []), ...moved, ...folderEvent] }
+}
+
 export function createMockUser(options: MockUserOptions = {}): MockUser {
 	const schedule = options.schedule ?? later
 	const now = options.now ?? Date.now
 	const resetAfter = options.resetAfter ?? 500
 	const log: UserEvent[] = []
-	const data: UserData = { seq: 0, chats: [], agents: [] }
+	const data: UserData = { seq: 0, chats: [], agents: [], home: { files: [], folders: [] } }
 	const peers = new Set<Peer<UserToClient>>()
 	const received: ClientToUser[] = []
 
@@ -357,11 +392,17 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			if (frame.t === "hello") {
 				const last = log[log.length - 1]?.seq ?? 0
 				if (frame.lastSeq > last || last - frame.lastSeq > resetAfter)
-					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents }) })
+					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents, home: data.home }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
 			if (frame.t === "agent") {
 				if (!data.agents.some((a) => a.id === frame.op.agent.id || a.slug === frame.op.agent.slug)) store({ t: "agent", agent: frame.op.agent })
+				return
+			}
+			if (frame.t === "home") {
+				const out = fileOpEvents(data.home.files, data.home.folders, frame.op)
+				if ("refused" in out) return peer.push({ t: "home_refused", op: frame.op, reason: out.refused })
+				if (out.events.length) store(...(out.events as WithoutStored<UserEvent>[]))
 				return
 			}
 			if (frame.t !== "chat") return // the mock has no memory, search, executor, sign-in, or theme store
@@ -377,6 +418,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			else if (op.op === "delete") store({ t: "chat_removed", roomId: op.roomId })
 			else if (op.op === "rename") store({ t: "chat", chat: { ...chat, title: op.title } })
 			else if (op.op === "pin") store({ t: "chat", chat: { ...chat, pinned: op.pinned } })
+			else if (op.op === "private") store({ t: "chat", chat: { ...chat, private: op.private } })
 			else store({ t: "chat", chat: { ...chat, muted: op.muted } })
 		},
 	}

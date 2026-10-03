@@ -16,7 +16,7 @@ import { onChatModelChange } from "../settings/chat-model"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
@@ -79,7 +79,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 
 function signature(m: ViewMessage): string {
   const reactions = (m.reactions ?? []).map((r) => `${reactionKey(r)}=${r.emoji}`).join(",")
-  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions].join("|")
+  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions, m.goto ?? "", m.quote ?? ""].join("|")
 }
 
 /** The transcript's view of one protocol message. */
@@ -96,6 +96,8 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.rich) out.rich = m.rich
   if (m.replyTo) out.replyToId = m.replyTo
   if (m.editedAt !== undefined) out.edited = true
+  if (m.goto) out.goto = m.goto
+  if (m.quote) out.quote = m.quote
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   if (m.files?.length) {
@@ -320,7 +322,8 @@ export function createApp(options: AppOptions = {}) {
     const botRows = shared<RosterBot[]>(() => {
       const r = room()
       const next = new Map<string, RosterBot>()
-      const rows = (userStore()?.chats() ?? []).map((c) => {
+      // A draft with kiko is not in the list until kiko makes it a group (section 7.11).
+      const rows = (userStore()?.chats() ?? []).filter((c) => !c.draft).map((c) => {
         let row: RosterBot
         if (!r || r.state.roomId !== c.roomId) row = chatRow(c)
         else {
@@ -350,7 +353,7 @@ export function createApp(options: AppOptions = {}) {
       return r.members().map((m) => memberRow(m, presenceOf(r.state.typing.includes(m.slug), r.state.status[m.slug])))
     }
 
-    function send(message: OutgoingMessage, replyTo?: string): string | undefined {
+    function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {
       const r = room()
       const local: LocalAttachment[] = [
         ...(message.media ?? []).map((m) => ({ src: m.src, name: m.alt || "photo", mime: "", width: m.width, height: m.height })),
@@ -358,7 +361,7 @@ export function createApp(options: AppOptions = {}) {
       ]
       if (!r || (message.body.trim().length === 0 && local.length === 0)) return undefined
       const stored = replyTo !== undefined && !replyTo.startsWith("local:")
-      const opts: SendOptions = stored ? { replyTo: replyTo as MessageId } : {}
+      const opts: SendOptions = stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}
       // Attachments show at once from their blob URLs and upload in the background (P8-06).
       if (local.length) Object.assign(opts, { local, uploads: uploadAll(r.state.roomId, local) })
       const clientId = r.send(message.body, opts)
@@ -446,7 +449,38 @@ export function createApp(options: AppOptions = {}) {
 
       /** The open room's file index. `name` is the full path. */
       activeFiles(): FileRef[] {
-        return room()?.state.files ?? []
+        return room()?.files() ?? []
+      },
+
+      /** The open room's folders, empty ones included. */
+      activeFolders(): string[] {
+        return room()?.folders() ?? []
+      },
+
+      /** The user's drive, /home (architecture section 18.3): the same in every chat. */
+      homeFiles(): FileRef[] {
+        return userStore()?.homeFiles() ?? []
+      },
+
+      homeFolders(): string[] {
+        return userStore()?.homeFolders() ?? []
+      },
+
+      homeOp(op: FileOp): void {
+        userStore()?.homeOp(op)
+      },
+
+      onHomeRefused(listener: (op: FileOp, reason: string) => void): () => void {
+        return userStore()?.onHomeRefused(listener) ?? (() => {})
+      },
+
+      /** `rm`, `mv`, or `mkdir` on the open room's files, shown at once. */
+      fileOp(op: FileOp): void {
+        room()?.fileOp(op)
+      },
+
+      onFilesRefused(listener: (op: FileOp, reason: string) => void): () => void {
+        return room()?.onFilesRefused(listener) ?? (() => {})
       },
 
       selectThread(threadId: string) {
@@ -554,6 +588,12 @@ export function createApp(options: AppOptions = {}) {
         return room()?.state.roster ?? []
       },
 
+      /** What the first typing agent is doing now, such as "editing /hello.html", or undefined. */
+      typingDoing(): string | undefined {
+        const slug = this.typingSlugs()[0]
+        return slug ? room()?.state.doing[slug] : undefined
+      },
+
       /** The slugs of the agents typing now, for the typing bubble's avatar. */
       typingSlugs(): string[] {
         const r = room()
@@ -599,9 +639,9 @@ export function createApp(options: AppOptions = {}) {
         return send(message)
       },
 
-      appendReply(message: OutgoingMessage, replyToId: string, _sentAt?: number): string | undefined {
+      appendReply(message: OutgoingMessage, replyToId: string, quote?: string): string | undefined {
         if (!replyToId || !findView(replyToId)) return undefined
-        return send(message, replyToId)
+        return send(message, replyToId, quote)
       },
 
       /** Marks the open room read up to its newest message. Another room has no socket to mark it on. */
@@ -622,6 +662,11 @@ export function createApp(options: AppOptions = {}) {
       },
 
       /** Starts a chat with `agents` (their ids) and returns its room id. It is in the list before the server hears of it. */
+      /** A draft with kiko: "ask" or "group". Returns its room id. */
+      createDraft(kind: "ask" | "group"): RoomId | undefined {
+        return userStore()?.createDraft(kind)
+      },
+
       createChat(title: string, agents?: readonly string[]): RoomId | undefined {
         return userStore()?.createChat(title, agents)
       },

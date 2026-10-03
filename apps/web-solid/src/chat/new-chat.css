@@ -1,4 +1,4 @@
-/* The "to:" bar and its popover. Colours are kat tokens. Nothing animates. */
+/* The new chat screen. Colours are kat tokens. Nothing animates. */
 
 .new-chat {
   position: relative;
@@ -7,50 +7,6 @@
   flex: 1;
   flex-direction: column;
   color: var(--text);
-}
-
-.new-chat-bar {
-  display: flex;
-  min-height: 50px;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px;
-  font-size: var(--font-base);
-}
-
-.new-chat-to,
-.new-chat-hint {
-  color: var(--text-muted);
-}
-
-.new-chat-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 4px 3px 6px;
-  font-size: var(--font-md);
-  background: var(--btn-bg);
-  border-radius: 999px;
-}
-
-.new-chat-chip-x {
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  padding: 0;
-  color: var(--text-muted);
-  font: inherit;
-  line-height: 1;
-  background: none;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.new-chat-chip-x:hover {
-  background: var(--btn-bg-hover);
 }
 
 .new-chat-group {
@@ -68,47 +24,6 @@
 
 .new-chat-group:focus {
   outline: 2px solid oklch(from var(--accent) l c h / 50%);
-}
-
-.new-chat-pop {
-  position: absolute;
-  top: 50px;
-  left: 56px;
-  z-index: 5;
-  display: flex;
-  width: min(640px, calc(100% - 72px));
-  max-height: min(480px, calc(100% - 66px));
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  overflow: hidden;
-  background: var(--menu-bg);
-  border-radius: calc(20px * var(--brm));
-  box-shadow: var(--popover-shadow);
-}
-
-.new-chat-search {
-  display: flex;
-  height: 40px;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  color: var(--text-muted);
-  border-radius: 999px;
-  outline: 2px solid oklch(from var(--accent) l c h / 35%);
-}
-
-.new-chat-search input {
-  min-width: 0;
-  flex: 1;
-  padding: 0;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--font-base);
-  background: none;
-  border: none;
-  outline: none;
 }
 
 .new-chat-list {
@@ -153,22 +68,6 @@
 .new-chat-check {
   color: var(--text-muted);
   font-size: var(--font-sm);
-}
-
-.new-chat-check {
-  color: var(--accent);
-}
-
-.new-chat-plus {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  place-items: center;
-  color: var(--text-muted);
-  font-size: 18px;
-  background: var(--btn-bg);
-  border-radius: 50%;
 }
 
 .new-chat-empty,
@@ -216,105 +115,13 @@
   opacity: 0.6;
 }
 
-@media (pointer: coarse) {
-  .new-chat-start-key {
+.new-chat-start-key {
     display: none;
   }
 
-  .new-chat-chip-x {
-    width: 28px;
-    height: 28px;
-  }
-
-  .new-chat-item {
+.new-chat-item {
     min-height: 48px;
   }
-}
-
-/* The inline new agent form. */
-
-.new-chat-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.new-chat-form-title {
-  margin: 0;
-  padding: 2px 4px;
-  font-size: var(--font-md);
-  font-weight: var(--font-weight-bold);
-}
-
-.new-chat-form input,
-.new-chat-form select {
-  height: 34px;
-  min-width: 0;
-  padding: 0 12px;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--font-md);
-  background: var(--input-bg);
-  border: none;
-  border-radius: 999px;
-  outline: none;
-}
-
-.new-chat-form input:focus,
-.new-chat-form select:focus {
-  outline: 2px solid oklch(from var(--accent) l c h / 50%);
-}
-
-.new-chat-handle {
-  display: flex;
-  height: 34px;
-  align-items: center;
-  gap: 4px;
-  padding-left: 12px;
-  color: var(--text-muted);
-  background: var(--input-bg);
-  border-radius: 999px;
-}
-
-.new-chat-handle input {
-  flex: 1;
-  padding-left: 0;
-  background: none;
-}
-
-.new-chat-problem {
-  margin: 0;
-  padding: 0 4px;
-  color: var(--accent);
-  font-size: var(--font-sm);
-}
-
-.new-chat-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.new-chat-form-actions button {
-  height: 30px;
-  padding: 0 14px;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--font-md);
-  background: var(--btn-bg);
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.new-chat-form-actions button:hover {
-  background: var(--btn-bg-hover);
-}
-
-.new-chat-form-actions .new-chat-primary {
-  color: var(--bg);
-  background: var(--accent);
-}
 
 /* iOS zooms the page when a field under 16px takes focus. */
 @media (pointer: coarse) {
@@ -336,4 +143,48 @@
   .new-chat-form-actions button {
     height: 40px;
   }
+}
+
+/* The two ways to start: ask kiko, or create a group. */
+.new-chat {
+  padding: 16px;
+  outline: none;
+}
+
+.new-chat-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+}
+
+.new-chat-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  text-align: left;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border-radius: 16px;
+}
+
+.new-chat-choice[data-active] {
+  background: var(--nav-hover);
+}
+
+.new-chat-group-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  place-items: center;
+  color: var(--text-muted);
+  background: var(--btn-bg);
+  border-radius: 999px;
+}
+
+.new-chat .new-chat-list,
+.new-chat .new-chat-foot {
+  max-width: 560px;
 }

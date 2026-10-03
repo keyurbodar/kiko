@@ -154,6 +154,7 @@ export const ICON = {
   mute: "M2.5 6h2.5l3.5-3v10L5 10H2.5zM11 6l3 4M14 6l-3 4",
   unmute: "M2.5 6h2.5l3.5-3v10L5 10H2.5zM11 5.5a3.5 3.5 0 0 1 0 5",
   pin: "M10.5 1.5l4 4-2 1-2.5 2.5.5 3-1.5 1.5-7-7L3.5 5l3 .5L9 2.5zM5 11l-3.5 3.5",
+  lock: "M4 7.5h8v6.5H4zM5.5 7.5V5a2.5 2.5 0 0 1 5 0v2.5",
   memory: "M8 2.5c-2.5 0-4.5 1.8-4.5 4.2 0 1.4.7 2.5 1.7 3.3V12h5.6v-2c1-.8 1.7-1.9 1.7-3.3 0-2.4-2-4.2-4.5-4.2zM6 14h4",
   model: "M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z",
   links: "M7 9a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.7.7M9 7a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.7-.7",
@@ -185,10 +186,12 @@ export function QuickActions(props: { chatId: string }) {
   const chat = () => chatOf(props.chatId)
   const muted = () => chat()?.muted ?? false
   const pinned = () => chat()?.pinned ?? false
+  const secret = () => chat()?.private ?? false
   return (
     <div class="flex gap-2" data-component="info-actions">
       <QuickAction id="mute" label={muted() ? "unmute" : "mute"} path={muted() ? ICON.mute : ICON.unmute} active={muted()} onClick={() => useApp.user()?.mute(props.chatId as never, !muted())} />
       <QuickAction id="pin" label={pinned() ? "unpin" : "pin"} path={ICON.pin} active={pinned()} onClick={() => useApp.user()?.pin(props.chatId as never, !pinned())} />
+      <QuickAction id="private" label="private" path={ICON.lock} active={secret()} onClick={() => useApp.user()?.setPrivate(props.chatId as never, !secret())} />
       <QuickAction id="memory" label="memory" path={ICON.memory} onClick={() => pushInfo({ kind: "memory" })} />
       <QuickAction id="files" label="files" path={ICON.files} onClick={() => setInfoTab("files")} />
     </div>

@@ -1,6 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai"
 import { type AgentChange, type Conversation, Harness, type HarnessSettings, type RegistryReader } from "@earendil-works/pi-durable"
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import type { Envelope } from "@kiko/protocol"
 import { type Alarms, createAlarms } from "../lib/alarm"
@@ -35,6 +36,8 @@ export type AgentSetup = {
   /** Applied when the root conversation is created. */
   agent: AgentChange
   settings?: HarnessSettings
+  /** The file system `pi-durable`'s file tools run on: the room's files. */
+  env?: ExecutionEnv
   /**
    * Called once before a batch starts a new run (architecture section 11.3), never for a batch that
    * joins a live run. It loads the run's credentials. False means the run may not start: the batch is
@@ -194,7 +197,7 @@ export class AgentHost {
 
   private async openHarness(setup: AgentSetup): Promise<Opened> {
     const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
-    const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings }, context)
+    const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(setup.env ? { env: () => setup.env } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
     return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext }
   }

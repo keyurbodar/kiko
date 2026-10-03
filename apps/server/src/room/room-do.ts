@@ -1,17 +1,23 @@
-import { isAgentSlug } from "@kiko/protocol"
-import type { AgentSlug, AgentState, Chat, Envelope, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
+import { isAgentSlug, tagline } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
-import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
+import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
-import { type AgentSend, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
-import { type FileMeta, type FileMetaPatch, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
+import { type AgentSend, attachedLine, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
+import { cleanPath, fileKey } from "../files/upload"
+import type { FileIndex } from "../files/file-index"
+import { CHAT_PATH } from "../files/room-fs"
+import { parseRichText } from "./rich-text"
+import { Team } from "./team"
+import { CHIEF, checkProposal, introduction, type NewAgentSpec, OPENING, type Proposal, type ProposalInput } from "./chief"
+import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
@@ -38,19 +44,22 @@ const WAKES_WAKEUP = "ws_wakes"
 /** Agent mail that waits for delivery: held behind a human burst, or retried after a failure. */
 const MAIL_WAKEUP = "mail"
 const MAIL_KEY = "held_mail"
+/** ASSUMPTION: the most files one agent message carries. */
+const MAX_SENT_FILES = 50
 
 /**
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
  * back. `role` and `lead` are the member row at that delivery; the agent builds its prompt from them.
  */
 /** What `check_agent` shows of a member. */
-export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask">
+export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask"> & { doing: string | null; holds: string[] }
 
-export type AgentHome ={ userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean }
+/** What an agent learns about itself on every delivery. `private` is the chat's flag (section 7.10). */
+export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
 
 /** What a member reads when the lead already answered. It may add to the reply, react, or stay quiet. */
 const FOLLOW_UP_NOTE = (lead: AgentSlug) =>
-`@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat what @${lead} said.`
+`@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat or redo what @${lead} did or offered to do, and if @${lead} asked the human something, leave that question to the human.`
 
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string; tainted: boolean }
 
@@ -76,7 +85,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private bubbles!: Bubbles
 	private mail!: Mail
 	members!: Members
-	files!: RoomFiles
+	files!: FileIndex<RoomEvent>
+	team!: Team
 	workspace!: RoomWorkspace
 	approvals!: RoomApprovals
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
@@ -94,7 +104,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			migrate(ctx.storage)
 			this.log = new RoomLog(ctx.storage)
 			this.deliveries = new Deliveries(ctx.storage, this.log)
-			this.files = new RoomFiles(ctx.storage, this.log)
+			this.files = roomFiles(ctx.storage, this.log)
+			this.team = new Team(ctx.storage.sql)
 			this.alarms = createAlarms(ctx)
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log)
@@ -115,7 +126,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** The user's chat row for this room, or null when the room is not in the chat list. */
 	private async chat(home: { userId: string; roomId: RoomId }): Promise<Chat | null> {
 		// One row, not the whole chat list, so the hop costs the same for a user with a thousand chats.
-		return userStub(this.env.USER, home.userId).getChat(home.roomId)
+		const chat = await userStub(this.env.USER, home.userId).getChat(home.roomId)
+		if (chat) this.setPrivate(chat.private ?? false)
+		return chat
+	}
+
+	/** RPC from UserDO when the human toggles the chat's private flag, and on every read of the chat. */
+	setPrivate(value: boolean): void {
+		if ((this.log.meta("private") === "1") !== value) this.log.setMeta("private", value ? "1" : "0")
+	}
+
+	/** The home an agent is told on a delivery: who it is here, and whether the chat is private. */
+	private agentHome(home: { userId: string; roomId: RoomId }, slug: AgentSlug, member: { role?: string; lead: boolean }): AgentHome {
+		return { ...home, slug, role: member.role, lead: member.lead, private: this.log.meta("private") === "1" }
 	}
 
 	/**
@@ -124,7 +147,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * ASSUMPTION: an agent id the user's list no longer has is skipped.
 	 */
 	private async seedMembers(home: { userId: string; roomId: RoomId }, chat: Chat): Promise<void> {
-		if (this.members.seeded()) return
+		if (this.members.seeded()) return this.trySeedChatFile(home, chat.title)
 		let agents: NewMember[] = []
 		if (chat.agents?.length) {
 			const mine = await userStub(this.env.USER, home.userId).listAgents()
@@ -132,13 +155,187 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				// The built-in agent is not a stored record: the new-chat picker sends its slug as its id.
 				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: "kiko" }]
 				const a = mine.find((x) => x.id === id)
-				return a ? [{ slug: a.slug, name: a.name, role: a.prompt, model: a.model }] : []
+				// Who the agent is lives in its soul (section 7.10); the member row keeps a tagline for teammates.
+				const role = tagline(a?.prompt ?? "")
+				return a ? [{ slug: a.slug, name: a.name, ...(role ? { role } : {}), model: a.model }] : []
 			})
 		}
 		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
 		// kiko is the chief of a group: first, so it leads. A chat with one agent stays one-to-one.
 		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: "kiko" }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
+		// A draft opens with kiko asking what the human wants (section 7.11): at once, no model call.
+		if (chat.draft && this.log.meta("opened") === null) {
+			this.log.setMeta("opened", "1")
+			const { event } = this.log.addMessage({ from: { kind: "agent", slug: DEFAULT_AGENT }, text: OPENING[chat.draft], rich: parseRichText(OPENING[chat.draft]) })
+			if (event) this.publish([event])
+		}
+		await this.trySeedChatFile(home, chat.title)
+	}
+
+	/** Stores /chat.md as `author` wrote it. `expect` "none" keeps a file that is already there. */
+	async writeChatFile(author: AgentSlug, text: string, expect?: "none"): Promise<boolean> {
+		const home = this.home()
+		if (!home) return false
+		const body = new TextEncoder().encode(text)
+		const id = crypto.randomUUID()
+		const r2Key = fileKey(home.userId, home.roomId, id)
+		const digest = await crypto.subtle.digest("SHA-256", body)
+		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
+		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
+		// The room writes this for the team, so it is nobody's act on the board (section 7.12).
+		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, ...(expect ? { expectSha256: expect } : {}) })
+		if (events.length) this.publish(events)
+		if (drop) await this.env.FILES.delete(drop)
+		return file !== null
+	}
+
+	// kiko makes agents and groups (section 7.11). A proposal is stored with the log's sequence, and
+	// create runs only once the human has written after it: kiko asks, the human answers, then it
+	// happens. A repeated create returns what the first one made.
+
+	/** RPC for kiko's propose tools. Returns the proposal's id, or why it is refused. */
+	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+		const home = this.home()
+		if (!home) return { ok: false, error: "this chat is not set up yet" }
+		if (slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
+		const checked = checkProposal(input, await userStub(this.env.USER, home.userId).listAgents())
+		if ("error" in checked) return { ok: false, error: checked.error }
+		const id = crypto.randomUUID().slice(0, 8)
+		const proposal: Proposal = { ...checked, id, seq: this.log.lastSeq() }
+		this.log.setMeta(`proposal:${id}`, JSON.stringify(proposal))
+		return { ok: true, id }
+	}
+
+	/** RPC for kiko's create tool. Makes what was proposed, once the human has answered. */
+	async createProposal(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+		const home = this.home()
+		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
+		const done = this.log.meta(`created:${id}`)
+		if (done) return { ok: true, text: done }
+		const raw = this.log.meta(`proposal:${id}`)
+		if (!raw) return { ok: false, error: `no proposal ${id}. propose first` }
+		const proposal = JSON.parse(raw) as Proposal
+		const answered = this.ctx.storage.sql
+			.exec("SELECT 1 FROM messages WHERE seq > ? AND deleted_at IS NULL AND json_extract(sender, '$.kind') = 'human' LIMIT 1", proposal.seq)
+			.toArray().length
+		if (!answered) return { ok: false, error: "not yet: show the human what you'll make and wait for their yes. never create on your own." }
+		const user = userStub(this.env.USER, home.userId)
+		const model = this.members.list().find((m) => m.slug === CHIEF)?.model ?? ""
+		const make = async (spec: NewAgentSpec) => {
+			const agent = await user.makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model })
+			if (!agent) throw new Error(`@${spec.handle} could not be made (the handle may be taken)`)
+			return agent
+		}
+		let text: string
+		try {
+			if (proposal.kind === "agent") {
+				const agent = await make(proposal.agent)
+				const roomId = await user.openChat(agent.name, [agent.id])
+				const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko made @${agent.slug}. say hi in your new chat.`, goto: roomId })
+				if (event) this.publish([event])
+				this.ctx.waitUntil(
+					roomStub(this.env.ROOM, home.userId, roomId)
+						.introduce(home.userId, agent.slug, introduction(proposal.agent))
+						.catch((e: unknown) => console.error(`introduce failed: ${e instanceof Error ? e.message : String(e)}`)),
+				)
+				text = `made @${agent.slug}. the human is taken to its chat now; say one short line, nothing more.`
+			} else {
+				const mine = await user.listAgents()
+				const made = []
+				for (const spec of proposal.agents) made.push(await make(spec))
+				const members = [...proposal.members.map((m) => mine.find((a) => a.slug === m)!), ...made]
+				const chat = await this.chat(home)
+				if (chat?.draft) {
+					for (const a of members) {
+						const role = tagline(a.prompt)
+						this.memberOp({ op: "add", slug: a.slug, name: a.name, ...(role ? { role } : {}), ...(a.model ? { model: a.model } : {}) })
+					}
+					await this.writeChatFile(CHIEF, proposal.chat)
+					this.log.setMeta("chat_file", "1")
+					await user.promoteDraft(home.roomId, proposal.title)
+					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
+					if (event) this.publish([event])
+					text = `the group is ready, here in this chat, with ${members.map((a) => `@${a.slug}`).join(", ")}. /chat.md holds the plan. kick it off in a line or two.`
+				} else {
+					const roomId = await user.openChat(proposal.title, [CHIEF, ...members.map((a) => a.id)])
+					this.ctx.waitUntil(
+						roomStub(this.env.ROOM, home.userId, roomId)
+							.startGroup(home.userId, proposal.chat)
+							.catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`)),
+					)
+					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title}. open it to begin.`, goto: roomId })
+					if (event) this.publish([event])
+					text = `the group ${proposal.title} is made, in its own chat. say one short line.`
+				}
+			}
+		} catch (error) {
+			return { ok: false, error: error instanceof Error ? error.message : String(error) }
+		}
+		this.log.setMeta(`created:${id}`, text)
+		return { ok: true, text }
+	}
+
+	/**
+	 * RPC for the room kiko opened for a new agent: the agent hears it was made and says hi first.
+	 * The room learns its identity from the room that made it, which built both names from the
+	 * session's user. The envelope id is fixed, so a repeat wakes nobody twice.
+	 */
+	async introduce(userId: string, slug: AgentSlug, text: string): Promise<void> {
+		const home = this.adopt(userId)
+		if (!home) return
+		const chat = await this.chat(home)
+		if (!chat) return
+		await this.seedMembers(home, chat)
+		const member = this.members.list().find((m) => m.slug === slug)
+		if (!member) return
+		const envelope: Envelope = { id: "intro", roomId: home.roomId, from: { kind: "system", reason: "created" }, body: text, hop: 0, rootId: "intro", tainted: false, seq: this.log.lastSeq() }
+		const d = this.delivery(member, this.members.list(), chat.title, [envelope])
+		await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
+	}
+
+	/** RPC for a group kiko made outside a draft: members, and kiko's /chat.md. */
+	async startGroup(userId: string, chatFile: string): Promise<void> {
+		const home = this.adopt(userId)
+		if (!home) return
+		const chat = await this.chat(home)
+		if (!chat) return
+		await this.seedMembers(home, chat)
+		await this.writeChatFile(CHIEF, chatFile)
+		this.log.setMeta("chat_file", "1")
+	}
+
+	/** Records this room's identity when another room of the same user made it. */
+	private adopt(userId: string): { userId: string; roomId: RoomId } | null {
+		if (this.log.meta("user_id") === null) {
+			const name = this.ctx.id.name ?? ""
+			const roomId = name.slice(name.lastIndexOf(":") + 1)
+			if (name !== `room:${userId}:${roomId}`) return null
+			this.log.setMeta("user_id", userId)
+			this.log.setMeta("room_id", roomId)
+		}
+		return this.home()
+	}
+
+	/** Never holds up a delivery: a failed seed is logged, and the next flush tries again. */
+	private async trySeedChatFile(home: { userId: string; roomId: RoomId }, title: string): Promise<void> {
+		await this.seedChatFile(home, title).catch((e: unknown) => console.error(`chat.md seed failed: ${e instanceof Error ? e.message : String(e)}`))
+	}
+
+	/**
+	 * A group starts with /chat.md (section 7.10): the goal, who does what, and decisions. The lead
+	 * fills it in and the team keeps it current. Written once, when the room first has two agents;
+	 * a failed write is tried again at the next flush, and a file the human deleted stays deleted.
+	 */
+	private async seedChatFile(home: { userId: string; roomId: RoomId }, title: string): Promise<void> {
+		if (this.log.meta("chat_file") !== null) return
+		const members = this.members.list()
+		if (members.length < 2) return
+		if (this.files.stat(CHAT_PATH)) return this.log.setMeta("chat_file", "1")
+		const team = members.map((m) => `- @${m.slug}: ${[m.lead ? "leads" : "", m.role ?? ""].filter(Boolean).join(". ")}`.trimEnd()).join("\n")
+		const lead = members.find((m) => m.lead) ?? members[0]!
+		await this.writeChatFile(lead.slug, `# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`, "none")
+		this.log.setMeta("chat_file", "1")
 	}
 
 	/** Architecture sections 6.1 and 7.2. The burst wakeup fired: deliver the pending human messages to their recipients. */
@@ -194,7 +391,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const results = await Promise.allSettled(
 				deliveries.map(async ({ member, envelopes: mine, brief, reactionsUpTo }) => {
 					const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
-					const { refused } = await agent.receive(mine, brief, { ...home, slug: member.slug, role: member.role, lead: member.lead })
+					const { refused } = await agent.receive(mine, brief, this.agentHome(home, member.slug, member))
 					// ASSUMPTION (P1-13): a full inbox is backpressure, so the burst waits and tries again. An entry past
 					// the size cap can never fit, so it is dropped. The messages stay in the log either way.
 					if (refused === "full") return "full"
@@ -254,7 +451,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) {
 		const envelopes = raw.map((e) => this.withContext(e))
 		const reactions = reactionBrief(this.log, this.ctx.storage.sql, member.slug)
-		const view = readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text)
+		const now = Date.now()
+		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
+		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text), team }
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 
@@ -268,7 +467,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		const members = this.members.list()
 		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
-		const out = this.mail.send(slug, send, members)
+		// Files are handed over by reference: every agent in the room reads the same file space.
+		const files = send.files?.length ? this.files.refs(send.files.map((p) => p.replace(/^\/+|\/+$/g, "")), MAX_SENT_FILES) : []
+		if (!Array.isArray(files)) return { ok: false, error: `not sent: ${files.message}` }
+		const out = this.mail.send(slug, send, members, files)
+		if (out.ok) this.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
 		this.publish(out.events)
 		if (!out.ok) return out
 		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
@@ -321,7 +524,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/**
 	 * What the agent needs to read a human message the way the human sees it: the bubble it replies
-	 * to, and the files it carries (each one opens with read_file). Added after routing, so a quoted
+	 * to, and the files it carries (each one opens with read). Added after routing, so a quoted
 	 * "@ada" never addresses ada. The envelope id is unchanged, so a repeat is still ignored.
 	 */
 	private withContext(e: Envelope): Envelope {
@@ -332,13 +535,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const quoted = message.replyTo ? this.log.message(message.replyTo) : null
 		if (quoted) {
 			const by = quoted.from.kind === "agent" ? `@${quoted.from.slug}` : quoted.from.kind === "human" ? "the human" : "the room"
-			lines.push(`(replying to ${by}: "${quoted.text.replace(/\s+/g, " ").slice(0, 400)}")`)
+			// A quote names the exact words the human answers; without one, the start of the whole message.
+			lines.push(
+				message.quote
+					? `(replying to ${by}, about this part: "${message.quote.replace(/\s+/g, " ").slice(0, 600)}")`
+					: `(replying to ${by}: "${quoted.text.replace(/\s+/g, " ").slice(0, 400)}")`,
+			)
 		}
 		if (e.body.trim()) lines.push(e.body)
-		if (message.files?.length) {
-			const list = message.files.map((f) => `${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`).join(", ")
-			lines.push(`(attached: ${list}. open each with read_file before you answer about it.)`)
-		}
+		if (message.files?.length) lines.push(attachedLine(message.files))
 		return lines.length ? { ...e, body: lines.join("\n") } : e
 	}
 
@@ -353,7 +558,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (!member || this.mail.stopped(out.send.rootId)) continue
 			const d = this.delivery(member, members, goal, [this.mail.envelope(home.roomId, slug, out.send, to)])
 			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, to)
-			const { refused } = await agent.receive(d.envelopes, d.brief, { ...home, slug: to, role: member.role, lead: member.lead })
+			const { refused } = await agent.receive(d.envelopes, d.brief, this.agentHome(home, to, member))
 			// A full inbox is backpressure: the drain tries again. A message past the size cap never fits, so it
 			// is dropped; it stays in the log, and the next brief shows it.
 			if (refused === "full") throw new Error(`${to}'s inbox is full`)
@@ -370,7 +575,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** RPC for an agent's `check_agent` (section 7.5). Reads the member row and calls no agent. */
 	async checkAgent(slug: AgentSlug): Promise<AgentCheck | null> {
 		const m = this.members.list().find((x) => x.slug === slug)
-		return m ? { slug: m.slug, name: m.name, role: m.role, lead: m.lead, status: m.status, currentTask: m.currentTask } : null
+		return m ? { slug: m.slug, name: m.name, role: m.role, lead: m.lead, status: m.status, currentTask: m.currentTask, doing: this.team.now(m.slug), holds: this.team.held(m.slug, Date.now()) } : null
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -457,22 +662,25 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			}
 			const goal = (await this.chat(home))?.title ?? ""
 			const d = this.delivery(member, this.members.list(), goal, [envelope])
-			const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).receive(d.envelopes, d.brief, {
-				...home,
-				slug: member.slug,
-				role: member.role,
-				lead: member.lead,
-			})
+			const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).receive(d.envelopes, d.brief, this.agentHome(home, member.slug, member))
 			if (!refused) this.members.markDelivered(member.slug, event.seq)
 		}
 		return event !== null
 	}
 
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
-	async putFile(input: NewFile): Promise<Omit<PutResult, "event"> & { fresh: boolean }> {
-		const { event, ...result } = this.files.put(input)
-		if (event) this.publish([event])
-		return { ...result, fresh: event !== null }
+	async putFile(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
+		// An agent writes only where no teammate is working (section 7.12). The human is never refused.
+		const by = input.author.kind === "agent" ? input.author.slug : null
+		if (by) {
+			const held = this.held(by, [input.path])
+			if (held) return { file: null, drop: input.r2Key, refused: held, fresh: false, entry: null }
+		}
+		const { events, ...result } = this.files.put(input)
+		if (by && result.file && !result.conflict && !result.refused) this.working(by, [input.path], `editing /${input.path}`)
+		if (events.length) this.publish(events)
+		const fresh = events.some((e) => e.t === "file")
+		return { ...result, fresh, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
 	}
 
 	/** RPC for the attachment job. */
@@ -487,15 +695,108 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
-	/** RPC for the agent file tools (P8-05). Where the file at `path` lives, or null. */
-	async fileAt(path: string): Promise<{ r2Key: string; size: number; type: string } | null> {
-		const row = this.ctx.storage.sql.exec<{ r2_key: string; size: number; type: string }>("SELECT r2_key, size, type FROM ws_files WHERE path = ?", path).toArray()[0]
-		return row ? { r2Key: row.r2_key, size: row.size, type: row.type } : null
+	/** RPC for the agent file system. A file, a folder, or null. */
+	async fsStat(path: string): Promise<FsEntry | null> {
+		return this.files.stat(path)
 	}
 
-	/** RPC for the agent file tools (P8-05). Every file whose path starts with `prefix`, by path. */
-	async filesUnder(prefix: string): Promise<FileRef[]> {
-		return listFiles(this.ctx.storage).filter((f) => f.name.startsWith(prefix))
+	/** RPC for the agent file system. What a folder holds; everything below it with `recursive`. */
+	async fsList(dir: string, recursive = false): Promise<FsEntry[] | FsFail> {
+		return this.files.list(dir, recursive)
+	}
+
+	/** RPC for the agent file system: `mv`. */
+	async fsMove(slug: AgentSlug, from: string, to: string): Promise<FsChange<RoomEvent> | FsFail> {
+		return this.guarded(slug, [from, to], `moving /${from}`, () => this.files.move(from, to, { kind: "agent", slug }))
+	}
+
+	/** RPC for the agent file system: `rm`. */
+	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange<RoomEvent> | FsFail> {
+		// A file on a message stays: the bubble would point at nothing. The human can still delete it.
+		return this.guarded(slug, paths, `deleting /${paths[0]}`, () => this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
+	}
+
+	/** RPC for an agent that changed the user's drive (section 18.3): one line in the chat says what. */
+	async homeNotice(slug: AgentSlug, text: string): Promise<void> {
+		const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${slug} ${text}`.slice(0, 300) })
+		if (event) this.publish([event])
+	}
+
+	/** RPC for the agent file system: `mkdir -p`. */
+	async fsMkdir(slug: AgentSlug, path: string): Promise<FsChange<RoomEvent> | FsFail> {
+		return this.guarded(slug, [path], `setting up /${path}`, () => this.files.mkdir(path, { kind: "agent", slug }))
+	}
+
+	// The team board and leases (section 7.12). Every act an agent makes through the room says what it
+	// is doing and holds the paths it changed until its run ends; a teammate's act there is refused.
+
+	/** The refusal for `slug` touching `paths` a teammate holds, or null. */
+	private held(slug: AgentSlug, paths: readonly string[]): FsFail | null {
+		const h = this.team.holder(slug, paths, Date.now())
+		return h ? { ok: false, code: "invalid", message: Team.refusal(h) } : null
+	}
+
+	/** Records what `slug` is doing and the paths it now holds, and tells the human. */
+	private working(slug: AgentSlug, paths: readonly string[], doing: string): void {
+		const now = Date.now()
+		this.team.take(slug, paths, now)
+		if (this.team.now(slug) === doing) return
+		this.team.doing(slug, doing, now)
+		const member = this.members.list().find((m) => m.slug === slug)
+		if (member) this.broadcast({ t: "status", slug, state: member.status === "idle" ? "working" : member.status, doing })
+	}
+
+	private guarded<T extends FsChange<RoomEvent> | FsFail>(slug: AgentSlug, paths: readonly string[], doing: string, act: () => T): T | FsFail {
+		const held = this.held(slug, paths)
+		if (held) return held
+		const out = this.applyFs(act())
+		if (out.ok) this.working(slug, paths, doing)
+		return out
+	}
+
+	/** RPC from an agent's presence hook: what its current tool call is about. Holds nothing. */
+	async reportDoing(slug: AgentSlug, doing: string): Promise<void> {
+		if (this.members.list().some((m) => m.slug === slug)) this.working(slug, [], doing.slice(0, 120))
+	}
+
+	/** RPC for an agent's `team` tool: what everyone is doing now, and what they hold. */
+	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {
+		const now = Date.now()
+		return this.members.list().map((m) => ({ slug: m.slug, name: m.name, status: m.status, doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }))
+	}
+
+	/** Why an agent may not delete these files: some sit on a live message. */
+	private attachedRefusal(ids: readonly string[]): string | null {
+		if (!ids.length) return null
+		const hit = this.ctx.storage.sql
+			.exec<{ id: string }>(
+				`SELECT DISTINCT json_extract(f.value, '$.id') AS id FROM messages m, json_each(m.files) f
+				 WHERE m.deleted_at IS NULL AND m.files IS NOT NULL AND json_extract(f.value, '$.id') IN (${ids.map(() => "?").join(",")})`,
+				...ids,
+			)
+			.toArray()
+		if (!hit.length) return null
+		const names = this.files.all().filter((f) => hit.some((h) => h.id === f.id)).map((f) => `/${f.name}`)
+		return `${names.join(", ")} ${names.length === 1 ? "is" : "are"} attached to a message in the chat, so it stays. move it instead, or ask the human to delete it.`
+	}
+
+	/** A human's `files` frame. Returns the refusal for the socket, or null. */
+	fileOp(op: FileOp): string | null {
+		const human = { kind: "human" } as const
+		const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
+		if (paths.some((p) => cleanPath(p) === null)) return "that is not a path in this chat's files"
+		const out = this.applyFs(
+			op.op === "rm" ? this.files.remove(op.paths, op.recursive ?? false, human) : op.op === "mv" ? this.files.move(op.from, op.to, human) : this.files.mkdir(op.path, human),
+		)
+		return out.ok ? null : out.message
+	}
+
+	/** Publishes a change and deletes the R2 objects nothing points to any more. */
+	private applyFs<T extends FsChange<RoomEvent> | FsFail>(out: T): T {
+		if (!out.ok) return out
+		if (out.events.length) this.publish(out.events)
+		if (out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+		return out
 	}
 
 	/**
@@ -530,6 +831,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const result = this.members.apply(op)
 		if (!result.ok) return result.reason
 		this.publish(result.events)
+		// A newcomer sees every file the chat already has. The human is told, once, at the moment it happens.
+		if (op.op === "add") {
+			const count = this.files.stat("")
+			const n = count?.kind === "directory" ? count.files : 0
+			if (n) {
+				const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${op.slug} can now see this chat's ${n} file${n === 1 ? "" : "s"}` })
+				if (event) this.publish([event])
+			}
+		}
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
 		return null
@@ -546,6 +856,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!me?.lead) return { ok: false, error: "only the lead can add an agent to this room." }
 		const slug = input.slug.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32)
 		if (!isAgentSlug(slug)) return { ok: false, error: `"${input.slug}" is not a usable handle. use lowercase letters, digits, and dashes.` }
+		const home = this.home()
+		// A spawned agent is a real agent of the user's, with a soul made from the role the lead gave it.
+		if (home) await userStub(this.env.USER, home.userId).seedSoul(slug, input.name?.trim() || slug, input.role)
 		if (!members.some((m) => m.slug === slug)) {
 			const refused = this.memberOp({ op: "add", slug, name: input.name?.trim() || slug, role: input.role, ...(me.model ? { model: me.model } : {}) })
 			if (refused) return { ok: false, error: SPAWN_REFUSAL[refused] }
@@ -602,7 +915,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const seq = this.log.lastSeq()
 				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat.title, new Set(), null))
 				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
-				const { refused } = await agent.receive([wakeEnvelope(home.roomId, wake)], brief, { ...home, slug: member.slug, role: member.role, lead: member.lead })
+				const { refused } = await agent.receive([wakeEnvelope(home.roomId, wake)], brief, this.agentHome(home, member.slug, member))
 				if (refused === "full") throw new Error("inbox full")
 				if (refused) console.error(`task_unblocked delivery to ${member.slug} refused: ${refused}`)
 				this.members.markDelivered(member.slug, seq)
@@ -664,7 +977,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				}
 				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat?.title ?? "", new Set(), null))
 				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, slug)
-				const { refused } = await agent.receive([envelope], brief, { ...home, slug, role: member.role, lead: member.lead })
+				const { refused } = await agent.receive([envelope], brief, this.agentHome(home, slug, member))
 				if (refused === "full") throw new Error("inbox full")
 				if (refused) console.error(`approval_result delivery to ${slug} refused: ${refused}`)
 				this.approvals.markDelivered(id)
@@ -738,8 +1051,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * the typing set with it. A slug that is not a member stores and sends nothing.
 	 */
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
+		// A run that ended lets go of everything it held (section 7.12), whatever the member row says.
+		if (state === "idle") this.team.clear(slug)
 		if (!this.members.setStatus(slug, state)) return
-		this.broadcast({ t: "status", slug, state })
+		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now())
+		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
 		await this.setTyping(slug, state === "typing")
 		// A marker that outlives the process, so a room that starts after a restart knows a run was live.
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
@@ -775,12 +1091,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (!member) return
 				const d = this.delivery(member, members, goal, envelopes)
 				const brief = `${d.brief}\n\n${FOLLOW_UP_NOTE(lead)}`
-				const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, brief, {
-					...home,
-					slug,
-					role: member.role,
-					lead: member.lead,
-				})
+				const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, brief, this.agentHome(home, slug, member))
 				if (refused) return
 				this.members.markDelivered(slug, seq)
 				markReactionsBriefed(this.log, slug, d.reactionsUpTo)

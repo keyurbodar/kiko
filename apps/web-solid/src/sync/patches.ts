@@ -20,6 +20,7 @@ import type {
 	Member,
 	ChatOp,
 	ClientToRoom,
+	FileRef,
 	Message,
 	MessageId,
 	RoomEvent,
@@ -85,6 +86,14 @@ const roomConfirms: Confirms = {
 	approve: (f, e) => e.t === "approval" && e.approval.id === f.approvalId && e.approval.state !== "pending",
 	member: (f, e) =>
 		f.op.op === "remove" ? e.t === "member_removed" && e.slug === f.op.slug : e.t === "member" && e.member.slug === f.op.slug,
+	// ASSUMPTION: the events carry ids, not the paths the frame named, so any removal confirms an rm
+	// and a file landing under the target confirms an mv. A refusal drops the patch at once.
+	files: (f, e) => {
+		const op = f.op
+		if (op.op === "mkdir") return e.t === "folders" && e.folders.includes(op.path)
+		if (op.op === "rm") return e.t === "file_removed" || (e.t === "folders" && !op.paths.some((p) => e.folders.includes(p)))
+		return (e.t === "file" && (e.file.name === op.to || e.file.name.startsWith(`${op.to}/`))) || (e.t === "folders" && e.folders.some((p) => p === op.to || p.startsWith(`${op.to}/`)))
+	},
 }
 
 export function roomConfirmedBy(patch: RoomPatch, event: RoomEvent): boolean {
@@ -106,6 +115,7 @@ const userConfirms: UserConfirms = {
 	rename: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.title === op.title,
 	pin: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.pinned === op.pinned,
 	mute: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.muted === op.muted,
+	private: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && (e.chat.private ?? false) === op.private,
 	delete: (op, e) => e.t === "chat_removed" && e.roomId === op.roomId,
 }
 
@@ -254,6 +264,57 @@ export function overlayMembers(members: readonly Member[], patches: readonly Roo
 	return out
 }
 
+const under = (name: string, path: string) => name === path || name.startsWith(`${path}/`)
+
+/**
+ * The room's files with pending `rm` and `mv` applied, by the server's rules (room/files.ts): a
+ * folder is a path prefix, `mv` into an existing folder keeps the name, a file onto a file replaces it.
+ */
+export function overlayFiles(files: readonly FileRef[], patches: readonly RoomPatch[], folders: readonly string[] = []): FileRef[] {
+	let out = files as FileRef[]
+	for (const p of patches) {
+		const f = p.frame
+		if (f.t !== "files") continue
+		const op = f.op
+		if (op.op === "mkdir") continue
+		if (op.op === "rm") {
+			out = out.filter((x) => !op.paths.some((path) => under(x.name, path)))
+			continue
+		}
+		const isFolder = folders.includes(op.to) || out.some((x) => x.name.startsWith(`${op.to}/`))
+		const target = isFolder ? `${op.to}/${op.from.slice(op.from.lastIndexOf("/") + 1)}` : op.to
+		if (target === op.from || target.startsWith(`${op.from}/`)) continue
+		const moving = out.filter((x) => under(x.name, op.from))
+		if (!moving.length) continue
+		out = out
+			.filter((x) => x.name !== target)
+			.map((x) => (under(x.name, op.from) ? { ...x, name: target + x.name.slice(op.from.length) } : x))
+	}
+	return out
+}
+
+/** The room's folders with pending `mkdir`, `rm`, and `mv` applied, by the room's rules. */
+export function overlayFolders(folders: readonly string[], patches: readonly RoomPatch[]): string[] {
+	let out = folders as string[]
+	for (const p of patches) {
+		const f = p.frame
+		if (f.t !== "files") continue
+		const op = f.op
+		if (op.op === "mkdir") {
+			const add = op.path.split("/").map((_, i, parts) => parts.slice(0, i + 1).join("/"))
+			out = [...new Set([...out, ...add])].sort()
+		} else if (op.op === "rm") {
+			out = out.filter((x) => !op.paths.some((path) => under(x, path)))
+		} else if (out.some((x) => under(x, op.from))) {
+			const into = out.includes(op.to)
+			const target = into ? `${op.to}/${op.from.slice(op.from.lastIndexOf("/") + 1)}` : op.to
+			if (target === op.from || target.startsWith(`${op.from}/`)) continue
+			out = [...new Set(out.map((x) => (under(x, op.from) ? target + x.slice(op.from.length) : x)))].sort()
+		}
+	}
+	return out
+}
+
 export function overlayReadSeq(readSeq: number, patches: readonly RoomPatch[]): number {
 	let out = readSeq
 	for (const p of patches) if (p.frame.t === "read") out = Math.max(out, p.frame.seq)
@@ -280,6 +341,7 @@ export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch
 				unread: 0,
 				updatedAt: p.at,
 				...(op.agents?.length ? { agents: op.agents } : {}),
+				...(op.draft ? { draft: op.draft } : {}),
 			})
 		} else if (op.op === "delete") {
 			out = out.filter((c) => c.roomId !== op.roomId)
@@ -288,6 +350,7 @@ export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch
 				if (c.roomId !== op.roomId) return c
 				if (op.op === "rename") return { ...c, title: op.title }
 				if (op.op === "pin") return { ...c, pinned: op.pinned }
+				if (op.op === "private") return { ...c, private: op.private }
 				return { ...c, muted: op.muted }
 			})
 		}

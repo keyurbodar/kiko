@@ -3,7 +3,7 @@
 // The object can hibernate between any two frames, so a socket's state lives in
 // its attachment and the room's state lives in SQLite. Nothing here is kept in memory.
 
-import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, RoomEvent, RoomToClient, TaskOp } from "@kiko/protocol"
+import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, RoomEvent, RoomToClient, TaskOp, FileOp } from "@kiko/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
@@ -33,6 +33,8 @@ export interface SocketRoom {
 	catalog(kind: "links" | "media", before?: number, limit?: number): CatalogPage
 	/** Adds, removes, or renames an agent (section 7.7) and publishes the change. Returns why it was refused, or null. */
 	memberOp(op: MemberOp): MemberRefusal | null
+	/** A human's `rm` or `mv` on the room's files. The refusal for the socket, or null. */
+	fileOp(op: FileOp): string | null
 	/** A human's task board change (section 7.6). Publishes what it stored. */
 	taskOp(op: TaskOp): void
 	/** A human's decision on an approval card (P7-02). Publishes the change; a repeat does nothing. */
@@ -113,6 +115,8 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 				text: frame.text,
 				clientId: frame.clientId,
 				...(replyTo ? { replyTo } : {}),
+				// A quote belongs to a reply: the words the human picked from the message they answer.
+				...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
 				...(frame.files ? { files: frame.files } : {}),
 			})
 			send(ws, { t: "ack", clientId: frame.clientId, id: stored.id, seq: stored.seq })
@@ -150,6 +154,11 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 		case "member": {
 			const refused = room.memberOp(frame.op)
 			if (refused) send(ws, { t: "member_refused", op: frame.op, reason: refused })
+			return null
+		}
+		case "files": {
+			const refused = room.fileOp(frame.op)
+			if (refused) send(ws, { t: "files_refused", op: frame.op, reason: refused })
 			return null
 		}
 		case "task":

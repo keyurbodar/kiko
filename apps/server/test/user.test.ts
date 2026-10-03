@@ -234,6 +234,6 @@ test("every account has one pinned kiko chat that cannot be deleted", async () =
   // A socket sees it flagged, so the client never offers to delete it.
   const ws = await socket(user, 1_000_000)
   const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
-  expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ home: true })
+  expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ kiko: true })
   ws.close()
 })

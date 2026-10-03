@@ -26,7 +26,8 @@ type Page = Extract<RoomToClient, { t: "search" }>
 const suite: Suite = {
 	name: "room-search",
 	async run(v) {
-		const s = await v.as("room-search")
+		// A fresh user per run: the title search spans every chat the user has.
+		const s = await v.as(`room-search-${Date.now().toString(36)}`)
 		const roomId = ulid()
 		const room = await s.room(roomId)
 		await room.expect({ t: "events" })

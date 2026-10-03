@@ -3,7 +3,7 @@
 
 import type { AgentSlug, MessageId, RoomId } from "./ids"
 
-export type SystemReason = "task_unblocked" | "reminder" | "approval_result" | "run_budget" | "limit"
+export type SystemReason = "task_unblocked" | "reminder" | "approval_result" | "run_budget" | "limit" | "files" | "created"
 
 export type Human = { kind: "human" }
 export type AgentRef = { kind: "agent"; slug: AgentSlug }

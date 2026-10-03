@@ -20,6 +20,7 @@
 import type { LocalAttachment } from "./patches"
 import type {
 	Actor,
+	FileOp,
 	AgentSlug,
 	AgentState,
 	Approval,
@@ -45,6 +46,8 @@ import { addToOutbox, outbox, removeFromOutbox } from "../warm/outbox"
 import {
 	expire,
 	overlayApprovals,
+	overlayFiles,
+	overlayFolders,
 	overlayMembers,
 	overlayMessages,
 	overlayReadSeq,
@@ -70,6 +73,8 @@ export type RoomData = {
 	tasks: Task[]
 	approvals: Approval[]
 	files: FileRef[]
+	/** Every folder, empty ones included. */
+	folders: string[]
 	/** The newest "no provider" refusal (P4-02), until an agent next speaks. The chat shows a connect notice. */
 	noProvider?: { slug: AgentSlug; provider: string } | null
 	/** Who joined and left, oldest first, for the transcript's system lines. The newest `ROSTER_LIMIT`. */
@@ -89,6 +94,7 @@ export const emptyRoom = (): RoomData => ({
 	tasks: [],
 	approvals: [],
 	files: [],
+	folders: [],
 	roster: [],
 })
 
@@ -101,6 +107,7 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 		tasks: [...s.tasks],
 		approvals: [...s.approvals],
 		files: [...s.files],
+		folders: [...s.folders],
 		// A snapshot carries members, not their history. `reset` keeps the lines it already had.
 		roster: [],
 	}
@@ -216,9 +223,15 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			upsert(data.approvals, e.approval, (x) => x.id === e.approval.id)
 			return { meta: true }
 		case "file":
-			// New bytes at a path replace the old row on the server, so the path is the identity too.
+			// New bytes at a path replace the old row on the server, so the path is the identity too. A move keeps the id.
 			removeWhere(data.files, (x) => x.name === e.file.name && x.id !== e.file.id)
 			upsert(data.files, e.file, (x) => x.id === e.file.id)
+			return { meta: true }
+		case "file_removed":
+			removeWhere(data.files, (x) => e.ids.includes(x.id))
+			return { meta: true }
+		case "folders":
+			data.folders = [...e.folders]
 			return { meta: true }
 		case "no_provider":
 			// The full connect card is P4-06. Until then the chat shows a one-line notice from this.
@@ -232,6 +245,8 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 export type Draft = { slug: AgentSlug; runId: string; index: number; text: string }
 
 export type RoomState = RoomData & {
+	/** What each agent is doing now, from status frames. Not stored. */
+	doing: Record<string, string | undefined>
 	roomId: RoomId
 	/** False until the warm tier has painted. */
 	loaded: boolean
@@ -270,6 +285,8 @@ export const TYPING_EVERY_MS = 2000
 
 export type SendOptions = {
 	replyTo?: MessageId
+	/** The words of `replyTo` this message answers. */
+	quote?: string
 	files?: readonly FileRef[]
 	/** Attachments still uploading: the message shows them now and leaves when `uploads` resolves (P8-06). */
 	local?: readonly LocalAttachment[]
@@ -284,6 +301,10 @@ export type RoomStore = {
 	approvals(): Approval[]
 	/** The members with every pending add, rename, and remove applied. */
 	members(): Member[]
+	/** The room's files with pending `rm` and `mv` applied. */
+	files(): FileRef[]
+	/** The room's folders with pending `mkdir`, `rm`, and `mv` applied. */
+	folders(): string[]
 	readSeq(): number
 	/** Resolves once the warm tier has painted and the socket has started. */
 	readonly ready: Promise<void>
@@ -307,6 +328,9 @@ export type RoomStore = {
 	member(op: MemberOp): void
 	/** Calls `listener` for each refused member change. Returns the unsubscribe. */
 	onMemberRefused(listener: (op: MemberOp, reason: MemberRefusal) => void): () => void
+	/** `rm` or `mv` on the room's files, applied at once. A refusal drops the patch and calls every `onFilesRefused` listener. */
+	fileOp(op: FileOp): void
+	onFilesRefused(listener: (op: FileOp, reason: string) => void): () => void
 	/**
 	 * Asks the room for the links or the media sent in it, newest first. `before` is the `next` of the
 	 * previous page. Resolves to null when the socket is down or the room does not answer.
@@ -350,6 +374,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		patches: [],
 		typing: [],
 		status: {},
+		doing: {},
 		drafts: {},
 	})
 
@@ -365,6 +390,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	let waiters: (() => void)[] = []
 	let expiry: ReturnType<typeof setTimeout> | undefined
 	const refusalListeners = new Set<(op: MemberOp, reason: MemberRefusal) => void>()
+	const fileRefusalListeners = new Set<(op: FileOp, reason: string) => void>()
 
 	// Patches.
 
@@ -412,6 +438,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			tasks: s.tasks,
 			approvals: s.approvals,
 			files: s.files,
+			folders: s.folders,
 			roster: s.roster,
 		}
 		warm.put("meta", metaKey(roomId), meta)
@@ -504,6 +531,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		status: (f) =>
 			batch(() => {
 				setState("status", f.slug, f.state)
+				// What the agent is doing now (section 7.12): shown in place of "typing".
+				setState("doing", f.slug, f.state === "idle" ? undefined : f.doing)
 				// A run that ended, or was restarted, leaves no draft behind.
 				if (f.state === "idle")
 					setState(
@@ -527,6 +556,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const refused = (p: RoomPatch) => p.frame.t === "member" && p.frame.op.op === f.op.op && p.frame.op.slug === f.op.slug
 			dropPatches(raw(state.patches).filter((p) => !refused(p)))
 			for (const listener of refusalListeners) listener(f.op, f.reason)
+		},
+		files_refused: (f) => {
+			const same = (p: RoomPatch) => p.frame.t === "files" && JSON.stringify(p.frame.op) === JSON.stringify(f.op)
+			dropPatches(raw(state.patches).filter((p) => !same(p)))
+			for (const listener of fileRefusalListeners) listener(f.op, f.reason)
 		},
 	}
 
@@ -568,6 +602,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						s.tasks = [...(meta?.tasks ?? [])]
 						s.approvals = [...(meta?.approvals ?? [])]
 						s.files = [...(meta?.files ?? [])]
+						s.folders = [...(meta?.folders ?? [])]
 						s.roster = [...(meta?.roster ?? [])]
 						s.seq = seq
 					}
@@ -603,6 +638,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		tasks: () => overlayTasks(state.tasks, state.patches),
 		approvals: () => overlayApprovals(state.approvals, state.patches),
 		members: () => overlayMembers(state.members, state.patches),
+		files: () => overlayFiles(state.files, state.patches, state.folders),
+		folders: () => overlayFolders(state.folders, state.patches),
 		readSeq: () => overlayReadSeq(state.readSeq, state.patches),
 		ready,
 		send(text, opts = {}) {
@@ -611,6 +648,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const clientId = newId()
 			const frame: RoomPatchFrame = { t: "send", clientId, text }
 			if (opts.replyTo) frame.replyTo = opts.replyTo
+			if (opts.replyTo && opts.quote) frame.quote = opts.quote
 			if (opts.files?.length) frame.files = opts.files
 			const p: RoomPatch = { clientId, frame, at: now() }
 			if (opts.uploads) {
@@ -669,6 +707,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		onMemberRefused(listener) {
 			refusalListeners.add(listener)
 			return () => refusalListeners.delete(listener)
+		},
+		fileOp: (op) => void act({ t: "files", op }),
+		onFilesRefused(listener) {
+			fileRefusalListeners.add(listener)
+			return () => fileRefusalListeners.delete(listener)
 		},
 		catalog(kind, before, limit) {
 			return new Promise<CatalogPage | null>((resolve) => {

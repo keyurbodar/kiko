@@ -291,11 +291,11 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 | Tool | Who | Effect |
 | --- | --- | --- |
-| `send_message(to, text)` | every agent | posts a visible room message addressed to one agent and delivers it |
-| `broadcast(text)` | every agent | the same, addressed to every agent |
+| `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
+| `broadcast(text, files?)` | every agent | the same, addressed to every agent |
 | `check_agent(slug)` | every agent | reads status and current task from the room. It does not call the other agent |
 | `claim_task(id)`, `update_task(id, status, note)`, `post_update(text)` | every agent | task board and activity log |
-| `read_file(path)`, `write_file(path, content)`, `list_files(prefix)` | every agent | room files in R2 |
+| `read`, `write`, `edit` (`pi-durable`'s own), `ls`, `mv`, `cp`, `rm` | every agent | the chat's files, a Linux-like tree rooted at `/` (section 18.1) |
 | `write_note(title, body)` | every agent | shared notes and decisions |
 | `create_task(title, owner, depends_on)` | lead | task board |
 | `spawn_agent(slug, role, task)` | lead | adds a member, creates its first task, delivers the task |
@@ -347,6 +347,39 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 | account deletion fan-out | must reach every Durable Object of a user and survive partial failure |
 
 **Reasoning.** A turn is latency-sensitive and a queue adds batching delay. A Durable Object alarm already retries with backoff and survives eviction, and `pi-durable` already checkpoints. The Free plan allows 10,000 queue operations a day, and one message costs about three operations, so queues are kept for jobs that need them.
+
+### 7.10 Souls and the chat file
+
+**Decision.** Three files shape an agent, each with one job, all short and all kept current by the agents themselves.
+
+| File | Holds | Lives in | Written by | Cap |
+| --- | --- | --- | --- | --- |
+| the core prompt (`prompt.ts`) | voice and judgment every agent shares: how to talk, how to decide, the chat's rules | code | kiko | about 600 tokens |
+| `/me/soul.md` | who this agent is and how it works with this human | `UserDO` (`souls.ts`), so it is the same agent in every chat | the agent, quietly, and the human in the agent's info view | 3,000 characters |
+| `/chat.md` | what this chat is for: the goal, who does what, decisions | the room's files, a normal file | the team, and the human in the files panel | 3,000 bytes |
+
+The human's own profile stays in memory (section 13), so nothing is stored twice.
+
+- The system prompt renders the core, then the soul, the role, the chat file, skills, and the profile. Stable text comes first, so the provider's prompt cache holds; a soul or chat file changes rarely, and an edit applies on the next request.
+- The soul is mounted at `/me/soul.md` in the agent's file system (`withSoul` in `room-fs.ts`), so pi's own `read` and `edit` work on it. It cannot be moved or deleted, and a write over the cap tells the agent to tighten it, the way Hermes Agent bounds its memory files.
+- kiko, the chief, starts with the strongest soul. A new agent's soul starts from the description it was made with; an agent the lead spawns starts from its role. The member row keeps a one-line tagline, so teammates see who does what without a copy of each soul.
+- A group gets `/chat.md` when the room first has two agents. A failed write is retried at the next flush and never holds up a delivery; a file the human deleted stays deleted.
+
+**Reasoning.** OpenClaw and Hermes Agent both split identity, the human, and the workspace into separate files the agent maintains, and both find that short beats long. A soul per agent lets each one fit the human over time without the human writing a prompt. A file per chat gives a team one picture of the goal and the decisions, which an agent reads each turn instead of rereading the history. Caps keep every turn cheap.
+
+### 7.11 kiko makes agents and groups
+
+The human never fills in a form. A new chat starts as a draft with kiko ("ask kiko" or "create group"), hidden from the chat list, and kiko opens it with a question at once. kiko proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` runs only after a human message follows the proposal, so kiko asks and the human answers before anything exists. A new agent gets its own chat, a line in the draft takes the human there, and the agent says hi first. A group is the draft itself, promoted into the list with its members and kiko's `/chat.md`. An untouched draft is deleted when the human leaves it.
+
+### 7.12 The team board and leases
+
+**Decision.** Agents share one chat and one file space, so without a shared picture they race: two answer the same question, two rewrite the same file. The room is where every visible act passes, so it keeps the picture (`room/team.ts`).
+
+- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using gmail (connected apps)", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Executor and other integrations, web pages, subagents, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
+- **Leases.** The paths an agent changes during a run are its own until the run ends. A teammate's write, move, or delete there is refused with who holds it, so it waits or messages them. Reads stay open, the human is never refused, `/chat.md` is shared, and a lease from a run that never ended expires after 10 minutes.
+- **The rule.** Every agent looks before it acts: if a teammate is on it or just did it, it adds only what is missing or leaves it.
+
+**Reasoning.** Coordination belongs where the acts happen. A rule in the prompt alone fails under load; a lock an agent must remember to take fails the first time it forgets. The room sees every act, so the board is always true and a lease cannot be skipped. The hash check on writes (section 18.3) still catches the case a lease cannot: a stale read after the holder finished.
 
 ## 8. Subagents
 
@@ -678,8 +711,8 @@ Every tool declares one effect.
 
 | Effect | Examples | In a tainted run |
 | --- | --- | --- |
-| `read` | `memory_search`, `read_file`, `check_agent` | allowed |
-| `write` | `memory_write`, `create_reminder`, `write_file`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
+| `read` | `memory_search`, `read`, `ls`, `check_agent` | allowed |
+| `write` | `memory_write`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `broadcast`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
 | `external` | Executor `execute` and `invoke` | needs human approval, whatever the Executor policy says |
 
@@ -798,9 +831,36 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - `RoomDO` holds the index: path, R2 key, size, type, SHA-256, dimensions, thumbhash, author.
 - Upload goes from the client through the Worker to R2 as a stream. Large files use R2 multipart upload.
 - Download is a Worker route that checks the session, supports `Range`, and sets an immutable cache header keyed by content hash. Video seeks with `Range`, so no service worker is needed for streaming.
-- `read_file` returns text, truncated, or an image for a model that accepts images (`Model.input` in pi-ai). The result is untrusted content.
+- The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, and `edit` run unchanged. There is no shell. Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
+- `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
+- R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again. A write carries the hash of the bytes the agent last read at that path, and the room refuses it if the file changed since, so a whole-file `write` never drops a teammate's edit. `edit` reads the file itself, so it lands on top.
 
 `pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Kiko does not use them. Its file tools are ordinary tools over R2.
+
+### 18.3 File spaces
+
+**Decision.** Every file lives in one of three spaces, and an agent sees all three as one Linux-like tree.
+
+```
+/                 this chat's files      RoomDO index (ws_files, ws_dirs), R2 u/<user>/r/<room>/<id>
+├── chat.md       what this chat is for (section 7.10)
+├── attachments/  what the human sent
+├── home/   ───►  the user's drive       UserDO index (home_files, home_dirs), R2 u/<user>/r/home/<id>
+└── me/     ───►  this agent's soul      UserDO souls table
+```
+
+| Space | Who sees it | Who writes it |
+| --- | --- | --- |
+| `/` | everyone in this chat, and only this chat | everyone in it; an agent cannot delete a file attached to a live message |
+| `/home` | the human and every agent, in every chat | the human; an agent when asked, and the chat shows a line for each change |
+| `/me` | that agent, in every chat | that agent and the human |
+
+- One `FileIndex` (`files/file-index.ts`) holds the rules for `/` and `/home`: a row per file and per folder, real folders (`mkdir -p`, an emptied folder stays, `rm` of an empty folder works like `rmdir`), path-only moves, and writes refused when the bytes changed since the writer read them.
+- A move between `/home` and `/` is refused with a pointer to `cp`, as `mv` across file systems is a copy. Files move between chats only through `/home`.
+- A newcomer to a chat sees every file it already holds, and the chat says so when it happens.
+- The client shows the drive as `home/` at the top of every chat's tree, served from `/api/files/home`.
+
+**Private chats.** A chat marked private keeps no trace beyond itself: its agents' writes to memory, souls, and `/home` are refused in the tools (reads work), each input says the chat is private, and the nightly tidy never reads it. The room learns the flag on every read of the chat and at once when the human changes it.
 
 ### 18.2 Link previews
 

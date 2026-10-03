@@ -18,6 +18,8 @@ type Row = {
   unread: number
   updated_at: number
   agents: string
+  private: number
+  draft: string | null
 }
 
 /** What a room reports once at the end of a run. */
@@ -45,6 +47,8 @@ function toChat(row: Row): Chat {
     lastPreview: row.last_preview,
     unread: row.unread,
     updatedAt: row.updated_at,
+    ...(row.private === 1 ? { private: true } : {}),
+    ...(row.draft === "ask" || row.draft === "group" ? { draft: row.draft } : {}),
   }
 }
 
@@ -57,7 +61,7 @@ export function getChat(sql: SqlStorage, roomId: string): Chat | null {
 export function searchChats(sql: SqlStorage, query: string): Chat[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8)
   if (!words.length) return []
-  const where = words.map(() => "instr(lower(title), ?) > 0").join(" AND ")
+  const where = ["draft IS NULL", ...words.map(() => "instr(lower(title), ?) > 0")].join(" AND ")
   return sql
     .exec<Row>(`SELECT * FROM chats WHERE ${where} ORDER BY pinned DESC, updated_at DESC, room_id LIMIT 50`, ...words)
     .toArray()
@@ -71,11 +75,11 @@ export function listChats(sql: SqlStorage): Chat[] {
 
 function write(sql: SqlStorage, chat: Chat): ChatChange {
   sql.exec(
-    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private, draft)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(room_id) DO UPDATE SET title = excluded.title, pinned = excluded.pinned, muted = excluded.muted,
        last_seq = excluded.last_seq, last_preview = excluded.last_preview, unread = excluded.unread,
-       updated_at = excluded.updated_at, agents = excluded.agents`,
+       updated_at = excluded.updated_at, agents = excluded.agents, private = excluded.private, draft = excluded.draft`,
     chat.roomId,
     chat.title,
     chat.pinned ? 1 : 0,
@@ -85,6 +89,8 @@ function write(sql: SqlStorage, chat: Chat): ChatChange {
     chat.unread,
     chat.updatedAt,
     JSON.stringify(chat.agents ?? []),
+    chat.private ? 1 : 0,
+    chat.draft ?? null,
   )
   return { t: "chat", chat }
 }
@@ -104,6 +110,7 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
         unread: 0,
         updatedAt: now,
         ...(op.agents?.length ? { agents: op.agents.slice(0, MAX_AGENTS).map((id) => id.slice(0, 64)) } : {}),
+        ...(op.draft ? { draft: op.draft } : {}),
       }
     case "rename": {
       const title = clip(op.title, MAX_TITLE)
@@ -113,9 +120,19 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
       return current && current.pinned !== op.pinned ? { ...current, pinned: op.pinned } : null
     case "mute":
       return current && current.muted !== op.muted ? { ...current, muted: op.muted } : null
+    case "private":
+      return current && (current.private ?? false) !== op.private ? { ...current, ...(op.private ? { private: true } : { private: undefined }) } : null
     case "delete":
       return current ? undefined : null
   }
+}
+
+/** A draft becomes a chat (architecture section 7.11): it gets its title and joins the list. Null when it is not a draft. */
+export function promoteDraft(sql: SqlStorage, roomId: string, title: string, now: number): ChatChange | null {
+  const current = getChat(sql, roomId)
+  if (!current?.draft) return null
+  const { draft: _, ...chat } = current
+  return write(sql, { ...chat, title: clip(title, MAX_TITLE) || current.title, updatedAt: now })
 }
 
 /** Applies one chat edit from a client or an RPC. Returns null when it changes nothing. */

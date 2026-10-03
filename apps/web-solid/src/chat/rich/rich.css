@@ -31,15 +31,16 @@
   /* Off-screen blocks skip layout and paint, so 50 blocks scroll cheaply. */
   content-visibility: auto;
   contain-intrinsic-size: auto 8em;
-  --sh-class: #2d5e9d;
-  --sh-identifier: inherit;
-  --sh-sign: #8996a3;
-  --sh-property: #0550ae;
-  --sh-entity: #249a97;
-  --sh-jsxliterals: #6266d1;
-  --sh-string: #00a99a;
-  --sh-keyword: #f47067;
-  --sh-comment: #a19595;
+  /* kat is dark only. A dark palette in the spirit of tweb's dark theme. */
+  --sh-class: #79c0ff;
+  --sh-identifier: #e6edf3;
+  --sh-sign: #8b949e;
+  --sh-property: #7ee787;
+  --sh-entity: #d2a8ff;
+  --sh-jsxliterals: #a5d6ff;
+  --sh-string: #a5d6ff;
+  --sh-keyword: #ff7b72;
+  --sh-comment: #8b949e;
   --sh-space: inherit;
   --sh-break: inherit;
 }
@@ -56,3 +57,7 @@
   white-space: pre;
   tab-size: 2;
 }
+
+/* Inside a chat bubble: the block uses the bubble's width, and a lone block has no extra gap. */
+.bubble-rich .rich-code { margin-block: 0.25em; background: rgb(0 0 0 / 0.28); }
+.bubble-rich .rich-code-pre { font-size: 0.8em; }

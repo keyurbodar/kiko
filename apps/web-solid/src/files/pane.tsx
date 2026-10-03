@@ -1,5 +1,7 @@
+import type { FileOp } from "@kiko/protocol"
 import { FileIcon } from "@kiko/ui/file-icon"
-import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { closeFile, openFile, openFilePath } from "../chat/info/state"
 import { urls, useApp } from "../lib/store"
 import { createFile, withMade } from "./api"
@@ -23,6 +25,17 @@ const [newFolder, setNewFolder] = createSignal(0)
 const [editNext, setEditNext] = createSignal<string | null>(null)
 
 const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
+
+/*
+ * The tree shows the user's drive as a top folder, home/, beside the chat's own files. A path
+ * under it belongs to the drive: its bytes are served from /api/files/home, and its changes go to
+ * the user socket. Moving between the two is refused, as for agents: it is a copy.
+ */
+const HOME = "home"
+const inHome = (p: string) => p === HOME || p.startsWith(`${HOME}/`)
+const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
+/** Where a tree path lives: its space (a room id or `home`) and its path there. */
+const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
 
 /** The modes the header offers for each kind, with their labels. An empty list shows no switch. */
 const MODES: Record<ViewerKind, readonly [ViewMode, string][]> = {
@@ -70,7 +83,21 @@ function IconButton(props: { label: string; action: string; pressed?: boolean; o
 }
 
 export default function FilesPane(props: { chatId: string }) {
-	const files = createMemo(() => withMade(props.chatId, useApp.activeFiles()))
+	// Bound to the open room, so it follows a chat switch.
+	createEffect(() => onCleanup(useApp.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
+	createEffect(() => onCleanup(useApp.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
+	/** One file op, sent to the space its paths live in. */
+	const op = (o: FileOp) => {
+		const paths = o.op === "rm" ? o.paths : o.op === "mv" ? [o.from, o.to] : [o.path]
+		const home = paths.map(inHome)
+		if (home.some((h) => h !== home[0])) return showToastV2({ title: "moving between home and this chat is a copy. download it, then add it here", variant: "error" })
+		if (paths.includes(HOME)) return showToastV2({ title: "home stays where it is", variant: "error" })
+		if (!home[0]) return useApp.fileOp(o)
+		useApp.homeOp(o.op === "rm" ? { ...o, paths: o.paths.map(strip) } : o.op === "mv" ? { ...o, from: strip(o.from), to: strip(o.to) } : { ...o, path: strip(o.path) })
+	}
+	const home = createMemo(() => withMade(HOME, useApp.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
+	const files = createMemo(() => [...withMade(props.chatId, useApp.activeFiles()), ...home()])
+	const folders = createMemo(() => [...useApp.activeFolders(), HOME, ...useApp.homeFolders().map((f) => `${HOME}/${f}`)])
 	const path = () => openFilePath(props.chatId)
 	const file = createMemo(() => files().find((f) => f.name === path()))
 	const kind = createMemo<ViewerKind>(() => {
@@ -91,7 +118,8 @@ export default function FilesPane(props: { chatId: string }) {
 	})
 
 	const make = (p: string) => {
-		void createFile(props.chatId, p).then((made) => {
+		const at = where(props.chatId, p)
+		void createFile(at.space, at.path).then((made) => {
 			if (!made) return
 			setEditNext(p)
 			openFile(props.chatId, p)
@@ -104,11 +132,24 @@ export default function FilesPane(props: { chatId: string }) {
 				<FileTree
 					roomId={props.chatId}
 					files={files()}
+					folders={folders()}
+					onNewFolder={(path) => op({ op: "mkdir", path })}
 					active={path()}
 					newFileRequests={newFile}
 					newFolderRequests={newFolder}
 					onOpen={(p) => openFile(props.chatId, p)}
 					onNewFile={make}
+					onRename={(from, to) => {
+						op({ op: "mv", from, to })
+						// The open file follows its move.
+						const open = path()
+						if (open && (open === from || open.startsWith(`${from}/`))) openFile(props.chatId, to + open.slice(from.length))
+					}}
+					onDelete={(p, paths) => {
+						const open = path()
+						op({ op: "rm", paths: [p], recursive: paths.length !== 1 || paths[0] !== p })
+						if (open && (open === p || open.startsWith(`${p}/`))) closeFile(props.chatId)
+					}}
 				/>
 			</div>
 			<Show when={path()} keyed>
@@ -140,7 +181,7 @@ export default function FilesPane(props: { chatId: string }) {
 							</Show>
 							<Show when={file()}>
 								{(f) => (
-									<a class="fp-icon" href={urls.file(props.chatId, f().id)} download={baseName(p)} aria-label="download" title="download" data-action="download-file">
+									<a class="fp-icon" href={urls.file(where(props.chatId, p).space, f().id)} download={baseName(p)} aria-label="download" title="download" data-action="download-file">
 										<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 											<path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 13.5h11" />
 										</svg>
@@ -153,7 +194,13 @@ export default function FilesPane(props: { chatId: string }) {
 								</svg>
 							</button>
 						</header>
-						<FileViewer roomId={props.chatId} path={p} file={file()} kind={kind()} mode={isEditable(kind()) ? mode() : "view"} />
+						<FileViewer
+							roomId={where(props.chatId, p).space}
+							path={where(props.chatId, p).path}
+							file={file() && { ...file()!, name: where(props.chatId, p).path }}
+							kind={kind()}
+							mode={isEditable(kind()) ? mode() : "view"}
+						/>
 					</section>
 				)}
 			</Show>

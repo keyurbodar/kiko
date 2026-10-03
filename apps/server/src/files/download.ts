@@ -1,7 +1,7 @@
-import { isRoomId } from "@kiko/protocol"
+
 import type { Env } from "../index"
 import type { SessionLookup } from "../router"
-import { error, fileKey, filesPath, isFileId } from "./upload"
+import { error, fileKey, filesPath, isFileId, isSpace } from "./upload"
 
 // Architecture section 18.1. GET /api/files/<roomId>/<fileId>. The key is built from
 // the session's user id, so another user's request finds nothing and gets 404.
@@ -48,7 +48,7 @@ export async function downloadRoute(
 	const user = await lookup(request, env)
 	if (!user) return error(401, "unauthorized")
 	const [fileId = "", ...extra] = route.rest
-	if (!isRoomId(route.roomId) || !isFileId(fileId) || extra.length) return error(404, "not found")
+	if (!isSpace(route.roomId) || !isFileId(fileId) || extra.length) return error(404, "not found")
 	const key = fileKey(user.id, route.roomId, fileId)
 
 	const head = await env.FILES.head(key)

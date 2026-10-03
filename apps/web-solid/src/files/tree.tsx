@@ -27,14 +27,17 @@ import {
  * as a `file` event, the room store updates `files`, and the tree rebuilds.
  *
  * Nothing here writes a file. New, rename, and delete call back, so the route
- * decides what they mean. A new folder exists only here until a file is put in
- * it, because the index holds files and not folders.
+ * decides what they mean. Folders are the room's own, empty ones included.
  */
 
 export type FileTreeProps = {
 	roomId: string
 	/** The room's file index. `name` is the full path. */
 	files: readonly FileRef[]
+	/** The room's folders, empty ones included. */
+	folders?: readonly string[]
+	/** A new folder was named. */
+	onNewFolder?: (path: string) => void
 	/** The open file, drawn as the selected row. When given, it is the only selected row. */
 	active?: string | null
 	/** A file was opened, by click or Enter. */
@@ -79,9 +82,8 @@ const storage = () => {
 }
 
 export function FileTree(props: FileTreeProps): JSX.Element {
-	const [localFolders, setLocalFolders] = createSignal<string[]>([])
 	const paths = createMemo(() => props.files.map((f) => f.name))
-	const index = createMemo(() => buildIndex(paths(), localFolders()))
+	const index = createMemo(() => buildIndex(paths(), props.folders ?? []))
 	const [draft, setDraft] = createSignal<Draft | null>(null)
 	const [menuTarget, setMenuTarget] = createSignal<string | null>(null)
 	const [tick, setTick] = createSignal(0)
@@ -143,7 +145,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 
 	const remove = (path: string) => {
 		const under = pathsUnder(paths(), path)
-		setLocalFolders((f) => f.filter((x) => x !== path && !x.startsWith(`${path}/`)))
 		props.onDelete?.(path, under)
 	}
 
@@ -151,18 +152,20 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		const d = draft()
 		setDraft(null)
 		const name = value.trim().replace(/\/+$/, "")
-		if (!d || !name || name.includes("/")) return
+		if (!d || !name) return
 		if (d.kind === "rename") {
-			const to = join(dirname(d.path), name)
+			// A name with a slash moves: "/x/y" from the root, "x/y" from the current folder, as mv does.
+			const to = name.startsWith("/") ? name.replace(/^\/+/, "") : join(dirname(d.path), name)
+			if (!to || to.split("/").some((part) => part === "" || part === "." || part === "..")) return
 			if (to === d.path) return
 			const under = pathsUnder(paths(), d.path)
-			setLocalFolders((f) => f.map((x) => (x === d.path || x.startsWith(`${d.path}/`) ? to + x.slice(d.path.length) : x)))
 			props.onRename?.(d.path, to, under)
 			return
 		}
+		if (name.includes("/")) return
 		const path = join(d.parent, name)
 		if (d.kind === "folder") {
-			setLocalFolders((f) => [...f, path])
+			props.onNewFolder?.(path)
 			tree.core.rebuildTree()
 			if (d.parent !== ROOT) tree.core.getItemInstance(d.parent).expand()
 		} else {

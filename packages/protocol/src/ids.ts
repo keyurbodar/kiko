@@ -34,3 +34,9 @@ export function newRoomId(now = Date.now(), random: (n: number) => Uint8Array = 
 	for (let i = 0; i < 16; i++) rest += CROCKFORD[bytes[i]! % 32]
 	return (time + rest) as RoomId
 }
+
+/** An agent's one-line tagline from its description: the first sentence, at most 100 characters. Teammates see it. */
+export function tagline(description: string): string {
+	const first = description.trim().split(/\n/)[0]!.split(/(?<=[.!?])\s/)[0]!.trim()
+	return first.length > 100 ? `${first.slice(0, 99).trimEnd()}…` : first
+}

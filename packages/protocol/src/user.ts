@@ -6,6 +6,7 @@
 
 import type { AgentSlug, RoomId } from "./ids"
 import type { MemoryOp, MemoryResult } from "./memory"
+import type { FileOp, FileRef } from "./room"
 
 /** One row of the chat list. */
 export type Chat = {
@@ -22,7 +23,14 @@ export type Chat = {
 	/** The ids of the agents the chat was created with. Absent for a chat made without any. */
 	agents?: readonly string[]
 	/** The user's kiko chat. It is always there and cannot be deleted. */
-	home?: true
+	kiko?: true
+	/** A private chat (architecture section 7.10): agents in it save no memory, change no soul, and write nothing to /home. */
+	private?: boolean
+	/**
+	 * A draft (architecture section 7.11): a chat with kiko that makes an agent or a group. It is not
+	 * in the chat list until kiko turns it into a group. `ask` and `group` say how kiko opens it.
+	 */
+	draft?: "ask" | "group"
 }
 
 /**
@@ -43,10 +51,11 @@ export type AgentOp = { op: "create"; agent: Agent }
 // ASSUMPTION: chat edits travel on the user socket as one `chat` frame, the
 // way task edits travel on the room socket.
 export type ChatOp =
-	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[] }
+	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[]; draft?: "ask" | "group" }
 	| { op: "rename"; roomId: RoomId; title: string }
 	| { op: "pin"; roomId: RoomId; pinned: boolean }
 	| { op: "mute"; roomId: RoomId; muted: boolean }
+	| { op: "private"; roomId: RoomId; private: boolean }
 	| { op: "delete"; roomId: RoomId }
 
 type Stored = {
@@ -65,6 +74,10 @@ export type UserEvent =
 	| (Stored & { t: "agent"; agent: Agent })
 	/** The user's theme changed. `theme` is the theme JSON text, or null after a reset. */
 	| (Stored & { t: "theme"; theme: string | null })
+	// The user's drive, /home (architecture section 18.3): the same events as a room's files.
+	| (Stored & { t: "file"; file: FileRef })
+	| (Stored & { t: "file_removed"; ids: readonly string[] })
+	| (Stored & { t: "folders"; folders: readonly string[] })
 
 export type UserSnapshot = {
 	/** The sequence this snapshot is current to. */
@@ -73,6 +86,8 @@ export type UserSnapshot = {
 	agents?: readonly Agent[]
 	/** The stored theme JSON text, or null when the user has none. */
 	theme?: string | null
+	/** The user's drive, /home. */
+	home: { files: readonly FileRef[]; folders: readonly string[] }
 }
 
 /**
@@ -128,6 +143,8 @@ export type ClientToUser =
 	| { t: "login.answer"; loginId: string; promptId: string; value: string }
 	/** The user gave up. Closing the socket does the same. */
 	| { t: "login.cancel"; loginId: string }
+	/** `rm`, `mv`, or `mkdir` on the user's drive. */
+	| { t: "home"; op: FileOp }
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[] }
@@ -148,6 +165,8 @@ export type UserToClient =
 	/** The credential is stored. `provider` is the row the credentials list shows, never a token. */
 	| { t: "login.done"; loginId: string; provider: { provider: string; kind: "api_key" | "oauth"; last4: string } }
 	| { t: "login.error"; loginId: string; reason: LoginErrorReason; message: string }
+	/** Not stored. Sent only to the socket whose `home` frame changed nothing. */
+	| { t: "home_refused"; op: FileOp; reason: string }
 
 /** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */
 export type LoginEvent =

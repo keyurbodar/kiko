@@ -3,7 +3,7 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 import { declareEffect } from "../effects"
 import { type Fetcher, safeFetch } from "../../lib/safe-fetch"
 import { devFixtureFetcher } from "../../previews/route"
-import type { ToolEffect } from "./files"
+import type { Effect as ToolEffect } from "../effects"
 
 // Architecture section 18.2. `web_fetch` uses the same safe fetcher as link previews: http and
 // https only, no private or metadata hosts, every redirect rechecked, 3 seconds, 1 MB. The page

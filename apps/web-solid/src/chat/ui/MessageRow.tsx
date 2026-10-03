@@ -1,15 +1,18 @@
-import { createResource, createSignal, Show, type JSX } from "solid-js"
+import { createResource, createSignal, lazy, Show, Suspense, type JSX } from "solid-js"
+import { A } from "@solidjs/router"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
 import { formatTimeOfDay } from "../lib/dayLabel"
 import { draftLinkUrl } from "../../composer/link-draft"
 import { resolveLinkPreview } from "../lib/linkPreview"
-import { replySummary } from "../lib/reply"
+import { quoteSummary, replySummary } from "../lib/reply"
 import { MessageDocuments } from "./Documents"
 import { MessageMedia } from "./Media"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { RichText } from "./RichText"
+/* The parsed tree's renderer loads after first paint; until it lands a bubble shows its plain text. */
+const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
 import { identityLook } from "../../lib/identity"
 import { RunAvatar } from "./RunAvatar"
@@ -145,7 +148,7 @@ export function MessageRow(props: {
                   parent={parent()}
                   label={quoteSender(parent(), props.parentBot)}
                   tint={props.group && parent().botId !== undefined ? identityLook(parent().botId!).color : undefined}
-                  summary={replySummary(parent())}
+                  summary={props.message.quote ? quoteSummary(props.message.quote) : replySummary(parent())}
                   side={props.message.sender}
                   onOpenReplyTarget={props.onOpenReplyTarget}
                   class={hasAttachment() ? "mb-0" : undefined}
@@ -172,12 +175,37 @@ export function MessageRow(props: {
               style={captionStyle()}
             >
               <Collapsible messageId={props.message.id} side={own() ? "user" : "assistant"}>
-                <RichText
-                  text={props.message.body.length > 0 ? props.message.body : undefined}
-                  webPage={props.message.media === undefined ? webPage() : undefined}
-                />
+                {/* An agent's markdown arrives parsed (section 6.4): code, lists, quotes, and inline
+                    formatting draw from the tree. The human's own text stays plain. */}
+                <Show
+                  when={!own() && props.message.rich?.length ? props.message.rich : undefined}
+                  fallback={
+                    <RichText
+                      text={props.message.body.length > 0 ? props.message.body : undefined}
+                      webPage={props.message.media === undefined ? webPage() : undefined}
+                    />
+                  }
+                >
+                  {(tree) => (
+                    <>
+                      <Suspense fallback={<RichText text={props.message.body} />}>
+                        <RichTree tree={tree()} class="bubble-rich" />
+                      </Suspense>
+                      <Show when={props.message.media === undefined ? webPage() : undefined}>{(page) => <RichText webPage={page()} />}</Show>
+                    </>
+                  )}
+                </Show>
               </Collapsible>
             </div>
+          </Show>
+          <Show when={props.message.goto}>
+            {(to) => (
+              <div class="px-3 pb-2">
+                <A href={`/chat/${to()}`} class="inline-flex h-8 items-center rounded-full bg-btn px-3 text-sm text-text" data-action="open-made-chat">
+                  open chat
+                </A>
+              </div>
+            )}
           </Show>
           <Show when={floatingTime()}>
             <time

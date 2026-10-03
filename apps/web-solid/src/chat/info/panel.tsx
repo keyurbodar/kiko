@@ -9,6 +9,7 @@ import { ModelList } from "../../settings/model-picker"
 import { createCatalog } from "./catalog"
 import { LinksList, MediaCard, MediaList } from "./lists"
 import { MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
+import { SoulCard } from "./soul"
 import { Card, DeleteChat, flat, Header, ICON, ListRow, Members, QuickActions, roomMembers } from "./sections"
 import {
   closeFile,
@@ -100,6 +101,7 @@ function AgentCard(props: { slug: string; chatId: string }) {
           </div>
         </dl>
       </Card>
+      <SoulCard slug={props.slug} />
       <Show when={member()}>
         {(m) => (
           <div class="flex gap-2">
@@ -153,7 +155,7 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
         )}
       </For>
       {/* The kiko chat is always there, so it has no delete. */}
-      <Show when={!useApp.user()?.chats().find((c) => c.roomId === props.chatId)?.home}>
+      <Show when={!useApp.user()?.chats().find((c) => c.roomId === props.chatId)?.kiko}>
         <DeleteChat chatId={props.chatId} />
       </Show>
     </div>
