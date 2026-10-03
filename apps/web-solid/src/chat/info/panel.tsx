@@ -8,6 +8,7 @@ import { ModelList } from "../../settings/model-picker"
 import { createCatalog } from "./catalog"
 import { LinksList, MediaCard, MediaList } from "./lists"
 import { MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
+import { SoulCard } from "./soul"
 import { Card, DeleteChat, flat, Header, ICON, ListRow, Members, QuickActions, roomMembers } from "./sections"
 import {
   closeFile,
@@ -90,6 +91,7 @@ function AgentCard(props: { slug: string; chatId: string }) {
           </div>
         </dl>
       </Card>
+      <SoulCard slug={props.slug} />
       <Show when={member()}>
         {(m) => (
           <div class="flex gap-2">

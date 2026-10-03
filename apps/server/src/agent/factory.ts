@@ -12,6 +12,8 @@ import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
 import { skillsExtension } from "./extensions/skills"
+import { selfExtension } from "./extensions/self"
+import type { SoulPort } from "../files/room-fs"
 import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
@@ -24,6 +26,8 @@ export type BuildAgentInput = RoleInput & {
   model: ModelRef
   /** The room's files (P8-05). Without it the agent has no file tools, as in the fake agent. */
   files?: FilesOptions
+  /** The agent's soul (section 8.4). With `files`, fills the soul and chat sections. */
+  soul?: SoulPort
   /** The user's memory (P5-02). Without it the agent has no memory tools and no profile, as in the fake agent. */
   memory?: MemoryPort
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
@@ -58,6 +62,7 @@ export const BASE = "base"
 function extensionsFor(input: BuildAgentInput): Extension[] {
   return [
     defineExtension({ name: BASE, sections: baseSections(input) }),
+    ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul)] : []),
     ...(input.memory ? [memoryExtension(input.memory)] : []),
     ...(input.files ? [filesExtension(input.files)] : []),
     skillsExtension(input.files?.fs),

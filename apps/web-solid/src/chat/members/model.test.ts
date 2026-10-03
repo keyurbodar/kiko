@@ -10,12 +10,12 @@ describe("member list model", () => {
     expect(addable([agent("kiko"), agent("piko"), agent("ada")], [member("piko")]).map((a) => String(a.slug))).toEqual(["kiko", "ada"])
   })
 
-  test("an add carries the agent's prompt as its role and its model, and leaves out what is empty", () => {
-    expect(addOp(agent("ada", { name: "Ada", prompt: "reviews code", model: "opencode-go/x" }))).toEqual({
+  test("an add carries the agent's tagline as its role and its model, and leaves out what is empty", () => {
+    expect(addOp(agent("ada", { name: "Ada", prompt: "reviews code. strict about tests.\nsecond line", model: "opencode-go/x" }))).toEqual({
       op: "add",
       slug: "ada" as AgentSlug,
       name: "Ada",
-      role: "reviews code",
+      role: "reviews code.",
       model: "opencode-go/x",
     })
     expect(addOp(agent("kiko"))).toEqual({ op: "add", slug: "kiko" as AgentSlug, name: "kiko" })

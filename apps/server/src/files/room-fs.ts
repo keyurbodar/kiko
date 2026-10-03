@@ -32,6 +32,10 @@ import { cleanPath, fileKey } from "./upload"
 
 /** ASSUMPTION: the largest file an agent writes. */
 export const MAX_WRITE_BYTES = 1024 * 1024
+/** The chat's own file (section 8.4): what the chat is for. Read into every agent's prompt, so it stays short. */
+export const CHAT_PATH = "chat.md"
+/** ASSUMPTION: the longest /chat.md, in bytes. */
+export const MAX_CHAT = 3_000
 /** ASSUMPTION: bytes of R2 objects kept in memory per agent process. The object has 128 MB in all. */
 const CACHE_BYTES = 4 * 1024 * 1024
 
@@ -181,6 +185,9 @@ export class RoomFs implements ExecutionEnv {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
     if (rel.value === "") return err(new FileError("is_directory", "/ is a folder", path))
+    if (rel.value === CHAT_PATH && bytes.length > MAX_CHAT) {
+      return err(new FileError("invalid", `/chat.md would be ${bytes.length} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path))
+    }
     if (bytes.length > MAX_WRITE_BYTES) return err(new FileError("invalid", `${path} would be ${bytes.length} bytes, over the ${MAX_WRITE_BYTES} byte limit`, path))
     const out = await this.backend.write(rel.value, bytes, type, this.seen.get(rel.value))
     // A new file changes its folders too.
@@ -384,5 +391,64 @@ export function roomBackend(env: Env, home: () => AgentHome | null): FilesBacken
     },
     move: (from, to) => where().room.fsMove(where().home.slug as AgentSlug, from, to),
     remove: (paths, recursive) => where().room.fsRemove(where().home.slug as AgentSlug, paths, recursive),
+  }
+}
+
+/** The agent's own soul, as the mount at /me/soul.md reads and writes it (section 8.4). */
+export interface SoulPort {
+  get(): Promise<{ body: string; sha: string; at: number }>
+  set(body: string, expectSha?: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>
+}
+
+const ME = "me"
+export const SOUL_PATH = "me/soul.md"
+
+/**
+ * The room's files with the agent's own folder mounted at /me. /me/soul.md is the agent's soul,
+ * kept in UserDO and the same in every chat. pi's read, edit, and write work on it as on any file;
+ * nothing else lives in /me, and it cannot be moved or deleted.
+ */
+export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
+  const enc = new TextEncoder()
+  const entry = async (): Promise<FsEntry & { kind: "file" }> => {
+    const s = await soul.get()
+    return { kind: "file", path: SOUL_PATH, id: "soul", size: enc.encode(s.body).length, type: "text/markdown", sha256: s.sha, r2Key: `soul:${s.sha}`, at: s.at }
+  }
+  const mine = (path: string) => path === ME || path.startsWith(`${ME}/`)
+  const refuse = (message: string): FsFail => ({ ok: false, code: "invalid", message })
+  return {
+    async stat(path) {
+      if (path === SOUL_PATH) return entry()
+      if (path === ME) {
+        const e = await entry()
+        return { kind: "directory", path: ME, files: 1, size: e.size }
+      }
+      return mine(path) ? null : base.stat(path)
+    },
+    async list(dir, recursive) {
+      if (dir === ME || dir === SOUL_PATH) return [await entry()]
+      if (mine(dir)) return { ok: false, code: "not_found", message: `no such folder: /${dir}` }
+      const out = await base.list(dir, recursive)
+      if (dir !== "" || !Array.isArray(out)) return out
+      const e = await entry()
+      return recursive ? [e, ...out] : [{ kind: "directory", path: ME, files: 1, size: e.size }, ...out]
+    },
+    async bytes(r2Key, maxBytes) {
+      if (!r2Key.startsWith("soul:")) return base.bytes(r2Key, maxBytes)
+      const bytes = enc.encode((await soul.get()).body)
+      return maxBytes === undefined ? bytes : bytes.subarray(0, maxBytes)
+    },
+    async write(path, bytes, type, expectSha256) {
+      if (path !== SOUL_PATH) return mine(path) ? refuse("only /me/soul.md lives in /me") : base.write(path, bytes, type, expectSha256)
+      const out = await soul.set(new TextDecoder().decode(bytes), expectSha256)
+      if (!out.ok) return out.code === "conflict" ? { ok: false, code: "conflict", message: out.message } : refuse(out.message)
+      return { ok: true, entry: await entry() }
+    },
+    async move(from, to) {
+      return mine(from) || mine(to) ? refuse("/me/soul.md stays where it is. edit it instead") : base.move(from, to)
+    },
+    async remove(paths, recursive) {
+      return paths.some(mine) ? refuse("/me/soul.md cannot be deleted. edit it instead") : base.remove(paths, recursive)
+    },
   }
 }

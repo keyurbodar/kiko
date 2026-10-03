@@ -11,7 +11,7 @@ import type { AgentHome } from "../room/room-do"
 import { findProvider, type TurnMemory } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
-import { RoomFs, roomBackend } from "../files/room-fs"
+import { RoomFs, roomBackend, type SoulPort, withSoul } from "../files/room-fs"
 import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
@@ -200,6 +200,25 @@ export class AgentDO extends DurableObject<Env> {
     return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input) }
   }
 
+  /** This agent's soul in UserDO (section 8.4). The slug comes from the room's delivery, never the model. */
+  private soulPort(): SoulPort {
+    const user = () => {
+      const home = this.home()
+      if (!home) throw new Error("this agent has no room yet")
+      return { stub: userStub(this.env.USER, home.userId), slug: home.slug }
+    }
+    return {
+      get: () => {
+        const { stub, slug } = user()
+        return stub.soul(slug)
+      },
+      set: (body, expectSha) => {
+        const { stub, slug } = user()
+        return stub.setSoul(slug, body, expectSha)
+      },
+    }
+  }
+
   /**
    * The factory builds every agent. Every model request uses the user's own credential, which
    * `beginRun` loads once per run (architecture section 11.3). The role and lead flag are the member
@@ -213,12 +232,13 @@ export class AgentDO extends DurableObject<Env> {
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort())
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
-    const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, roomBackend(this.env, () => this.home()))
+    const soul = this.soulPort()
+    const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, withSoul(roomBackend(this.env, () => this.home()), soul))
     const files = { fs, acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...buildAgent({ ...role, model: await this.model(), files, soul, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
       env: fs,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),

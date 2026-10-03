@@ -23,6 +23,7 @@ beforeAll(async () => {
       AGENT: { className: "FakeAgent", useSQLite: true },
       USER: { className: "FakeUser", useSQLite: true },
     },
+    r2Buckets: ["FILES"],
   })
   origin = (await mf.ready).origin
 }, 60_000)
@@ -344,5 +345,21 @@ test("an agent hands files and folders to another by reference: shown on the mes
   expect(shown?.t === "message" && shown.files?.map((f) => f.name)).toEqual(["drafts/a.md", "drafts/b.md", "plan.md"])
   const missing = (await call(`/mail/${room}/bob`, { id: "m-files-2", to: "ada", text: "and this", tainted: false, files: ["nope.md"] })) as { ok: boolean; error: string }
   expect(missing).toEqual({ ok: false, error: "not sent: no such file or folder: /nope.md" })
+  ws.ws.close()
+})
+
+test("a group starts with /chat.md listing who does what; it is written once", async () => {
+  const { room, ws } = await team()
+  await ws.say("hi team")
+  await delivered(room, "bob", 1)
+  const file = ws.events().find((e) => e.t === "file" && e.file.name === "chat.md")
+  expect(file?.t === "file" && file.file.type).toBe("text/markdown")
+  const raw = await (await mf.getR2Bucket("FILES")).list()
+  const key = raw.objects.find((o) => o.key.includes(room))?.key
+  const text = await (await (await mf.getR2Bucket("FILES")).get(key!))!.text()
+  expect(text).toBe("# ship the plan\n\ngoal:\n\n## who does what\n- @bob: leads. plans\n- @ada: reads code\n- @cy:\n\n## decisions\n")
+  await ws.say("again")
+  await delivered(room, "bob", 2)
+  expect(ws.events().filter((e) => e.t === "file" && e.file.name === "chat.md")).toHaveLength(1)
   ws.ws.close()
 })

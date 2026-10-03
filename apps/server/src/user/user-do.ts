@@ -13,6 +13,7 @@ import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
+import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
 import { ProviderLogins } from "./provider-login"
@@ -51,6 +52,7 @@ export class UserDO extends DurableObject<Env> {
   // Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
   private alarms!: Alarms
   private memory!: MemoryStore
+  private souls!: Souls
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -63,6 +65,7 @@ export class UserDO extends DurableObject<Env> {
       migrate(this.sql)
       this.alarms = createAlarms(ctx)
       this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
+      this.souls = new Souls(this.sql)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
       this.tidy = new Tidy({
         sql: this.sql,
@@ -143,6 +146,21 @@ export class UserDO extends DurableObject<Env> {
 
   async listAgents(): Promise<Agent[]> {
     return listAgents(this.sql)
+  }
+
+  /** An agent's soul (section 8.4), made on first read. The agent reads it on every request. */
+  async soul(slug: string): Promise<Soul> {
+    return this.souls.get(slug)
+  }
+
+  /** Replaces an agent's soul, by the agent itself or by the human. */
+  async setSoul(slug: string, body: string, expectSha?: string): Promise<SoulWrite> {
+    return this.souls.set(slug, body, expectSha)
+  }
+
+  /** A first soul for an agent the lead added, from the role it gave. Keeps a soul that exists. */
+  async seedSoul(slug: string, name: string, role: string): Promise<Soul> {
+    return this.souls.seed(slug, firstSoul(name, role))
   }
 
   /** The theme JSON text, or null. */

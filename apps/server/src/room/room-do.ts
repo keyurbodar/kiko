@@ -1,4 +1,4 @@
-import { isAgentSlug } from "@kiko/protocol"
+import { isAgentSlug, tagline } from "@kiko/protocol"
 import type { AgentSlug, AgentState, Chat, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -11,7 +11,8 @@ import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprov
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { type AgentSend, attachedLine, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
-import { cleanPath } from "../files/upload"
+import { cleanPath, fileKey } from "../files/upload"
+import { CHAT_PATH } from "../files/room-fs"
 import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
@@ -126,7 +127,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * ASSUMPTION: an agent id the user's list no longer has is skipped.
 	 */
 	private async seedMembers(home: { userId: string; roomId: RoomId }, chat: Chat): Promise<void> {
-		if (this.members.seeded()) return
+		if (this.members.seeded()) return this.trySeedChatFile(home, chat.title)
 		let agents: NewMember[] = []
 		if (chat.agents?.length) {
 			const mine = await userStub(this.env.USER, home.userId).listAgents()
@@ -134,11 +135,42 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				// The built-in agent is not a stored record: the new-chat picker sends its slug as its id.
 				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: "kiko" }]
 				const a = mine.find((x) => x.id === id)
-				return a ? [{ slug: a.slug, name: a.name, role: a.prompt, model: a.model }] : []
+				// Who the agent is lives in its soul (section 8.4); the member row keeps a tagline for teammates.
+				const role = tagline(a?.prompt ?? "")
+				return a ? [{ slug: a.slug, name: a.name, ...(role ? { role } : {}), model: a.model }] : []
 			})
 		}
 		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
 		this.publish(this.members.seed(agents))
+		await this.trySeedChatFile(home, chat.title)
+	}
+
+	/** Never holds up a delivery: a failed seed is logged, and the next flush tries again. */
+	private async trySeedChatFile(home: { userId: string; roomId: RoomId }, title: string): Promise<void> {
+		await this.seedChatFile(home, title).catch((e: unknown) => console.error(`chat.md seed failed: ${e instanceof Error ? e.message : String(e)}`))
+	}
+
+	/**
+	 * A group starts with /chat.md (section 8.4): the goal, who does what, and decisions. The lead
+	 * fills it in and the team keeps it current. Written once, when the room first has two agents;
+	 * a failed write is tried again at the next flush, and a file the human deleted stays deleted.
+	 */
+	private async seedChatFile(home: { userId: string; roomId: RoomId }, title: string): Promise<void> {
+		if (this.log.meta("chat_file") !== null) return
+		const members = this.members.list()
+		if (members.length < 2) return
+		if (this.files.stat(CHAT_PATH)) return this.log.setMeta("chat_file", "1")
+		const team = members.map((m) => `- @${m.slug}: ${[m.lead ? "leads" : "", m.role ?? ""].filter(Boolean).join(". ")}`.trimEnd()).join("\n")
+		const body = new TextEncoder().encode(`# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`)
+		const id = crypto.randomUUID()
+		const r2Key = fileKey(home.userId, home.roomId, id)
+		const digest = await crypto.subtle.digest("SHA-256", body)
+		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
+		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
+		const lead = members.find((m) => m.lead) ?? members[0]!
+		const { drop } = await this.putFile({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: lead.slug }, expectSha256: "none" })
+		if (drop) await this.env.FILES.delete(drop)
+		this.log.setMeta("chat_file", "1")
 	}
 
 	/** Architecture sections 6.1 and 7.2. The burst wakeup fired: deliver the pending human messages to their recipients. */
@@ -572,6 +604,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!me?.lead) return { ok: false, error: "only the lead can add an agent to this room." }
 		const slug = input.slug.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32)
 		if (!isAgentSlug(slug)) return { ok: false, error: `"${input.slug}" is not a usable handle. use lowercase letters, digits, and dashes.` }
+		const home = this.home()
+		// A spawned agent is a real agent of the user's, with a soul made from the role the lead gave it.
+		if (home) await userStub(this.env.USER, home.userId).seedSoul(slug, input.name?.trim() || slug, input.role)
 		if (!members.some((m) => m.slug === slug)) {
 			const refused = this.memberOp({ op: "add", slug, name: input.name?.trim() || slug, role: input.role, ...(me.model ? { model: me.model } : {}) })
 			if (refused) return { ok: false, error: SPAWN_REFUSAL[refused] }

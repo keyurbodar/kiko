@@ -1,4 +1,4 @@
-import type { Agent, AgentSlug, Member, MemberOp, MemberRefusal } from "@kiko/protocol"
+import { type Agent, type AgentSlug, type Member, type MemberOp, type MemberRefusal, tagline } from "@kiko/protocol"
 
 /*
  * The pure part of a group's member list: who can be added, what an add sends, and what a
@@ -11,10 +11,11 @@ export function addable(agents: readonly Agent[], members: readonly Member[]): A
   return agents.filter((a) => !here.has(a.slug))
 }
 
-/** The frame that adds `agent`. Its prompt is its role in the room, its model the one it was made with. */
+/** The frame that adds `agent`: its tagline for teammates and the model it was made with. Who it is lives in its soul. */
 export function addOp(agent: Agent): MemberOp {
   const op: MemberOp = { op: "add", slug: agent.slug as AgentSlug, name: agent.name }
-  if (agent.prompt) op.role = agent.prompt
+  const role = tagline(agent.prompt)
+  if (role) op.role = role
   if (agent.model) op.model = agent.model
   return op
 }

@@ -22,3 +22,9 @@ export const ROOM_ID_PATTERN = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/
 export const isAgentSlug = (value: string): value is AgentSlug => AGENT_SLUG_PATTERN.test(value)
 
 export const isRoomId = (value: string): value is RoomId => ROOM_ID_PATTERN.test(value)
+
+/** An agent's one-line tagline from its description: the first sentence, at most 100 characters. Teammates see it. */
+export function tagline(description: string): string {
+	const first = description.trim().split(/\n/)[0]!.split(/(?<=[.!?])\s/)[0]!.trim()
+	return first.length > 100 ? `${first.slice(0, 99).trimEnd()}…` : first
+}

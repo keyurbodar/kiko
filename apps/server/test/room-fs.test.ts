@@ -49,9 +49,9 @@ test("write makes folders, read gives text back, ls shows folders and files", as
   await a.write("readme.md", "hi")
   expect(await a.read("notes/plan.md")).toBe("# plan\nstep one\n")
   expect(await a.read("/notes/../notes/plan.md")).toBe("# plan\nstep one\n")
-  expect(await a.ls()).toBe("/notes/\t2 files, 17 b\n/readme.md\t2 b\ttext/markdown")
+  expect(await a.ls()).toMatch(/^\/me\/\t1 files, \d+ b\n\/notes\/\t2 files, 17 b\n\/readme.md\t2 b\ttext\/markdown$/)
   expect(await a.ls("notes")).toBe("/notes/deep/\t1 files, 1 b\n/notes/plan.md\t16 b\ttext/markdown")
-  expect(await a.ls("/", true)).toBe("/notes/deep/idea.txt\t1 b\ttext/plain\n/notes/plan.md\t16 b\ttext/markdown\n/readme.md\t2 b\ttext/markdown")
+  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe("/notes/deep/idea.txt\t1 b\ttext/plain\n/notes/plan.md\t16 b\ttext/markdown\n/readme.md\t2 b\ttext/markdown")
 })
 
 test("read takes an offset and a limit, as pi's read does", async () => {
@@ -107,7 +107,7 @@ test("mv renames, moves into a folder, moves a whole folder, and replaces a file
   expect((await a.run("mv", { from: "renamed.md", to: "docs" })).text).toBe("moved renamed.md to docs/renamed.md")
   expect(await a.read("docs/renamed.md")).toBe("a")
   expect((await a.run("mv", { from: "docs", to: "archive/2026" })).ok).toBe(true)
-  expect(await a.ls("/", true)).toBe("/archive/2026/b.md\t1 b\ttext/markdown\n/archive/2026/renamed.md\t1 b\ttext/markdown\n/archive/2026/sub/c.md\t1 b\ttext/markdown")
+  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe("/archive/2026/b.md\t1 b\ttext/markdown\n/archive/2026/renamed.md\t1 b\ttext/markdown\n/archive/2026/sub/c.md\t1 b\ttext/markdown")
   // A file onto a file replaces it, and the replaced bytes leave R2.
   const before = (await keys(room)).length
   await a.write("x.md", "new")
@@ -133,7 +133,7 @@ test("rm deletes files and, with recursive, folders; a refusal deletes nothing; 
   expect(await a.read("keep.md")).toBe("k")
   expect((await a.run("rm", { paths: ["tmp"], recursive: true })).text).toBe("deleted 2 files")
   expect((await a.run("rm", { paths: ["keep.md"] })).text).toBe("deleted 1 file")
-  expect(await a.ls()).toBe("no files yet")
+  expect(await a.ls()).toMatch(/^\/me\/\t1 files/)
   await Bun.sleep(100)
   expect(await keys(room)).toEqual([])
 })
@@ -157,7 +157,7 @@ test("paths stay inside the chat, and a file and a folder never share a name", a
   await a.write("dir/f.md", "f")
   expect((await a.write("dir", "x")).text).toContain("is a folder")
   expect((await a.run("read", { path: "dir" })).text).toContain("is a folder")
-  expect(await a.ls()).toBe("/dir/\t1 files, 1 b\n/doc.md\t1 b\ttext/markdown")
+  expect((await a.ls()).split("\n").slice(1).join("\n")).toBe("/dir/\t1 files, 1 b\n/doc.md\t1 b\ttext/markdown")
 })
 
 test("the human's rm and mv go through the same rules", async () => {
@@ -166,10 +166,10 @@ test("the human's rm and mv go through the same rules", async () => {
   await a.write("notes/a.md", "a")
   expect(await human(room, { op: "rm", paths: ["notes"] })).toContain("is a folder")
   expect(await human(room, { op: "mv", from: "notes", to: "kept" })).toBeNull()
-  expect(await a.ls()).toBe("/kept/\t1 files, 1 b")
+  expect((await a.ls()).split("\n").slice(1).join("\n")).toBe("/kept/\t1 files, 1 b")
   expect(await human(room, { op: "rm", paths: ["kept"], recursive: true })).toBeNull()
   expect(await human(room, { op: "rm", paths: ["../x"] })).not.toBeNull()
-  expect(await a.ls()).toBe("no files yet")
+  expect((await a.ls()).split("\n")).toHaveLength(1)
 })
 
 const raw = (room: string, path: string, type: string, bytes: Uint8Array) =>
@@ -205,4 +205,28 @@ test("speed: a read is one room call and one R2 read; an edit after it reads not
   expect((await a.run("edit", { path: "big.md", edits: [{ oldText: "title\n", newText: "head\n" }] })).ok).toBe(true)
   // The bytes came from the cache: the object at a key never changes.
   expect(await counts()).toEqual({ stat: 1, get: 0, put: 1 })
+})
+
+test("/me/soul.md is the agent's soul: read and edited with pi's tools, never moved or deleted, capped", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const first = await ada.read("/me/soul.md")
+  expect(first).toBe("# ada\n\na sharp, helpful teammate.\n\n## what i've learned about working with them\n")
+  const edited = await ada.run("edit", { path: "/me/soul.md", edits: [{ oldText: "working with them\n", newText: "working with them\n- no bullet points, they hate them\n" }] })
+  expect(edited.ok).toBe(true)
+  expect(await ada.read("me/soul.md")).toContain("- no bullet points, they hate them")
+  expect((await ada.run("rm", { paths: ["/me/soul.md"] })).text).toContain("cannot be deleted")
+  expect((await ada.run("mv", { from: "/me/soul.md", to: "/soul.md" })).text).toContain("stays where it is")
+  expect((await ada.write("/me/other.md", "x")).text).toContain("only /me/soul.md")
+  expect((await ada.write("/me/soul.md", "x".repeat(3_001))).text).toContain("tighten it")
+  // kiko's first soul is the chief's.
+  expect(await agent(room, "kiko").read("/me/soul.md")).toContain("i'm kiko, their chief")
+})
+
+test("/chat.md stays short: a write past the cap is refused", async () => {
+  const a = agent(fresh())
+  expect((await a.write("chat.md", "# trip\ngoal: lisbon")).ok).toBe(true)
+  const long = await a.write("/chat.md", "x".repeat(3_001))
+  expect(long.ok).toBe(false)
+  expect(long.text).toContain("tighten it")
 })

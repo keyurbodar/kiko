@@ -5,7 +5,8 @@ import type { Agent, AgentSlug } from "@kiko/protocol"
 // already holds is refused, because the handle is how the user addresses it.
 
 const MAX_NAME = 60
-const MAX_PROMPT = 500
+// The description seeds the agent's soul (souls.ts), which holds 3,000 characters.
+const MAX_PROMPT = 2_500
 const MAX_MODEL = 200
 const MAX_AGENTS = 200
 

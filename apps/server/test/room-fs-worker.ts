@@ -4,7 +4,9 @@ import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { FileOp } from "@kiko/protocol"
 import "../src/agent/effects"
 import { filesExtension } from "../src/agent/extensions/files"
-import { type FilesBackend, RoomFs, roomBackend } from "../src/files/room-fs"
+import { type FilesBackend, RoomFs, roomBackend, withSoul } from "../src/files/room-fs"
+import { migrate } from "../src/user/schema"
+import { Souls } from "../src/user/souls"
 import type { Env } from "../src/index"
 import { roomStub } from "../src/lib/names"
 
@@ -16,9 +18,22 @@ import { roomStub } from "../src/lib/names"
 
 export { RoomDO } from "../src/room/room-do"
 
+/** The real soul store (user/souls.ts) over this object's SQLite. */
 export class UserDO extends DurableObject {
+  private readonly souls: Souls
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env as never)
+    migrate(ctx.storage.sql)
+    this.souls = new Souls(ctx.storage.sql)
+  }
   async recordRoom() {
     return true
+  }
+  soul(slug: string) {
+    return this.souls.get(slug)
+  }
+  setSoul(slug: string, body: string, expectSha?: string) {
+    return this.souls.set(slug, body, expectSha)
   }
 }
 
@@ -76,7 +91,11 @@ export default {
         files._gets = 0
         files.get = ((...a: Parameters<R2Bucket["get"]>) => (files._gets!++, get(...a))) as R2Bucket["get"]
       }
-      fs = new RoomFs(`test:${key}`, counted(key, roomBackend(env, () => home), env))
+      // A stub per call: a stub made in one request cannot be used from another, as in AgentDO.
+      const users = (env as unknown as { USER: DurableObjectNamespace<UserDO> }).USER
+      const user = () => users.get(users.idFromName(`user:${roomId}`))
+      const soul = { get: () => user().soul(slug!), set: (body: string, expect?: string) => user().setSoul(slug!, body, expect) }
+      fs = new RoomFs(`test:${key}`, withSoul(counted(key, roomBackend(env, () => home), env), soul))
       systems.set(key, fs)
     }
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }
