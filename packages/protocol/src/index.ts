@@ -1,5 +1,5 @@
 // Every type that crosses the network. This entry has no runtime dependency.
-// Its only runtime code is the id patterns in `ids.ts`.
+// Its only runtime code is the id patterns and the room id generator in `ids.ts`.
 //
 // `@kiko/protocol/schema` has the Effect schemas, for the server and the CLI.
 // `@kiko/protocol/fixtures` has sample frames, for tests and the mock room.

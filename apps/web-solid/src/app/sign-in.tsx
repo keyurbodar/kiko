@@ -1,4 +1,5 @@
 import { For, Show, createResource, createSignal } from "solid-js"
+import { Bird } from "../mascot/bird"
 import { loadProviders, signInAsDev, signInWithProvider } from "./session"
 
 /*
@@ -34,10 +35,7 @@ export default function SignIn() {
   return (
     <div class="flex h-dvh items-center justify-center bg-bg px-4" data-component="sign-in">
       <div class="flex w-full max-w-72 flex-col items-center gap-3">
-        <svg viewBox="0 0 64 64" width="48" height="48" aria-hidden="true">
-          <rect width="64" height="64" rx="16" fill="#e8743b" />
-          <path d="M22 16v32M22 33l18-17M27 30l15 18" stroke="#1c1b1f" stroke-width="6" stroke-linecap="round" fill="none" />
-        </svg>
+        <Bird slug="kiko" size={72} state="wave" />
         <h1 class="mb-4 mt-1 text-xl font-medium text-text">sign in to kiko</h1>
         <For each={social()}>
           {(id, i) => (

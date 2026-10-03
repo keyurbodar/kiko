@@ -220,3 +220,20 @@ test("an agent is stored once, broadcast to every socket, and the chat keeps the
   b.close()
   late.close()
 })
+
+test("every account has one pinned kiko chat that cannot be deleted", async () => {
+  const user = fresh()
+  await rpc(user, "ensureHome")
+  await rpc(user, "ensureHome")
+  const chats = await rpc(user, "listChats")
+  const home = chats.filter((c: { title: string }) => c.title === "kiko")
+  expect(home).toHaveLength(1)
+  expect(home[0]).toMatchObject({ pinned: true, agents: ["kiko"] })
+  expect(await rpc(user, "deleteChat", home[0].roomId)).toBe(false)
+  expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId)).toContain(home[0].roomId)
+  // A socket sees it flagged, so the client never offers to delete it.
+  const ws = await socket(user, 1_000_000)
+  const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
+  expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ home: true })
+  ws.close()
+})

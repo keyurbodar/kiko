@@ -10,6 +10,7 @@ import { type Limits, resolveLimits, takeTurn, type TurnAnswer, utcDay } from ".
 import type { ExecutorTool } from "../integrations/executor/tools"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
+import { deletesHome, homeOps, markHome } from "./home"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
@@ -475,7 +476,14 @@ export class UserDO extends DurableObject<Env> {
   // Internals.
 
   private apply(op: ChatOp): UserEvent | null {
+    // The kiko chat stays: a delete of it changes nothing, like a delete of a chat that is gone.
+    if (deletesHome(this.sql, op)) return null
     return this.commit(applyChatOp(this.sql, op, Date.now()))
+  }
+
+  /** RPC. Makes sure the kiko chat exists. Safe to call on every sign-in and page load. */
+  async ensureHome(): Promise<void> {
+    for (const op of homeOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
   }
 
   private saveAgent(agent: Agent): Agent | null {
@@ -497,6 +505,8 @@ export class UserDO extends DurableObject<Env> {
   /** Stores `change` as the next event and sends it to every socket that said hello. */
   private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | null): UserEvent | null {
     if (!change) return null
+    // The kiko chat carries its flag on every event, so a client never offers to delete it.
+    if (change.t === "chat") change = { ...change, chat: markHome(this.sql, change.chat) }
     const at = Date.now()
     const seq = this.currentSeq() + 1
     const event = { ...change, seq, at } as UserEvent
@@ -532,7 +542,7 @@ export class UserDO extends DurableObject<Env> {
       .one()
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
     const fresher = lastSeq === 0 && stored > this.snapshotRows()
-    if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
+    if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql).map((c) => markHome(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()

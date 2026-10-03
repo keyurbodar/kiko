@@ -87,7 +87,7 @@ export async function getSessionUser(request: Request, env: AuthEnv): Promise<Se
   return { id, name, email, image: image ?? null }
 }
 
-/** Answers `/api/auth/*` and `/api/me`. Returns null for every other path. */
+/** Answers `/api/auth/*` and `/api/providers`. Returns null for every other path. `/api/me` is in `index.ts`. */
 export async function authRoute(request: Request, env: AuthEnv): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   if (pathname.startsWith(`${AUTH_PATH}/`)) return createAuth(env, request).handler(request)
@@ -96,8 +96,5 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
     const on = socialProviders(env)
     return Response.json({ google: "google" in on, github: "github" in on, dev: process.env.NODE_ENV === "development" })
   }
-  if (pathname !== "/api/me") return null
-  const user = await getSessionUser(request, env)
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-  return Response.json({ user })
+  return null
 }

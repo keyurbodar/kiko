@@ -66,8 +66,10 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Separator />
       <MenuV2.Item onSelect={() => markUnread(props.id)}>mark as unread</MenuV2.Item>
       <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>close</MenuV2.Item>
-      <MenuV2.Separator />
-      <MenuV2.Item onSelect={() => deleteChat(props.id, active(), navigate)}>delete</MenuV2.Item>
+      <Show when={!chat()?.home}>
+        <MenuV2.Separator />
+        <MenuV2.Item onSelect={() => deleteChat(props.id, active(), navigate)}>delete</MenuV2.Item>
+      </Show>
     </>
   )
 }

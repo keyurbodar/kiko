@@ -122,7 +122,7 @@ export function TypingIndicator(props: TypingIndicatorProps) {
       <div ref={bubble} class="typing-bubble" aria-hidden="true">
         <span class="typing-strut">&#8203;</span>
         <For each={[0, 1]}>{() => <span class="typing-dot" />}</For>
-        <Bird slug={props.seed ?? props.typists[0] ?? "kiko"} state="typing" size={20} class="typing-bird" />
+        <Bird slug={props.seed ?? props.typists[0] ?? "kiko"} state={props.sending ? "sending" : "typing"} size={20} class="typing-bird" />
       </div>
       <span class="typing-sr" role="status" aria-live="polite" aria-atomic="true">
         {announced()}

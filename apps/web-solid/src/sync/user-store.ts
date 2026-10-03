@@ -35,17 +35,8 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	return true
 }
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-
-/** A ULID, so a new chat has its room id before the server hears of it. */
-export function newRoomId(now = Date.now(), random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))): RoomId {
-	let time = ""
-	for (let t = now, i = 0; i < 10; i++, t = Math.floor(t / 32)) time = CROCKFORD[t % 32] + time
-	const bytes = random(16)
-	let rest = ""
-	for (let i = 0; i < 16; i++) rest += CROCKFORD[bytes[i] % 32]
-	return (time + rest) as RoomId
-}
+import { newRoomId } from "@kiko/protocol"
+export { newRoomId }
 
 export type UserState = UserData & {
 	loaded: boolean

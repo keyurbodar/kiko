@@ -21,6 +21,8 @@ export type Chat = {
 	updatedAt: number
 	/** The ids of the agents the chat was created with. Absent for a chat made without any. */
 	agents?: readonly string[]
+	/** The user's kiko chat. It is always there and cannot be deleted. */
+	home?: true
 }
 
 /**

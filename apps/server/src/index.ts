@@ -4,6 +4,7 @@ import type { AgentDO } from "./agent/agent-do"
 import { devAgentRoute } from "./agent/dev-route"
 import { devStatsRoute } from "./lib/dev-stats"
 import { authRoute, getSessionUser } from "./auth/auth"
+import { userStub } from "./lib/names"
 import { accountRoute } from "./auth/account-route"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
@@ -68,6 +69,13 @@ export default {
     if (devStats) return devStats
     const account = await accountRoute(request, env)
     if (account) return account
+    if (url.pathname === "/api/me") {
+      const user = await getSessionUser(request, env)
+      if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+      // Every account has its kiko chat. The client asks once per page load, and the call is idempotent.
+      await userStub(env.USER, user.id).ensureHome()
+      return Response.json({ user })
+    }
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
     if (url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)

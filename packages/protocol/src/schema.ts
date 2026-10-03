@@ -280,6 +280,7 @@ export const Chat = Schema.Struct({
 	unread: Count,
 	updatedAt: Count,
 	agents: Schema.optionalKey(Schema.Array(Schema.String)),
+	home: Schema.optionalKey(Schema.Literal(true)),
 })
 
 export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })

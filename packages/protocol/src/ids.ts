@@ -22,3 +22,15 @@ export const ROOM_ID_PATTERN = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/
 export const isAgentSlug = (value: string): value is AgentSlug => AGENT_SLUG_PATTERN.test(value)
 
 export const isRoomId = (value: string): value is RoomId => ROOM_ID_PATTERN.test(value)
+
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+/** A ULID, so a new chat has its room id before the server hears of it. */
+export function newRoomId(now = Date.now(), random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))): RoomId {
+	let time = ""
+	for (let t = now, i = 0; i < 10; i++, t = Math.floor(t / 32)) time = CROCKFORD[t % 32] + time
+	const bytes = random(16)
+	let rest = ""
+	for (let i = 0; i < 16; i++) rest += CROCKFORD[bytes[i]! % 32]
+	return (time + rest) as RoomId
+}
