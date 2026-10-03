@@ -287,6 +287,17 @@ export const RoomToClient = Schema.Union([
 
 // User
 
+export const ChatLast = Schema.Struct({
+	from: Schema.Literals(["human", "agent", "system"]),
+	name: Schema.optionalKey(Schema.String),
+	kind: Schema.Literals(["text", "photo", "video", "album", "file", "voice", "audio", "link", "react", "joined", "left", "renamed", "created", "approval", "notice"]),
+	text: Schema.optionalKey(Schema.String),
+	file: Schema.optionalKey(Schema.String),
+	count: Schema.optionalKey(Count),
+	emoji: Schema.optionalKey(Schema.String),
+	at: Count,
+})
+
 export const Chat = Schema.Struct({
 	roomId: RoomId,
 	title: Schema.String,
@@ -300,6 +311,9 @@ export const Chat = Schema.Struct({
 	kiko: Schema.optionalKey(Schema.Literal(true)),
 	private: Schema.optionalKey(Schema.Boolean),
 	draft: Schema.optionalKey(Schema.Literals(["ask", "group"])),
+	last: Schema.optionalKey(ChatLast),
+	mentions: Schema.optionalKey(Count),
+	group: Schema.optionalKey(Schema.Literal(true)),
 })
 
 export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })
@@ -465,6 +479,7 @@ export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unk
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
 	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
@@ -504,6 +519,7 @@ export type InSync = Assert<
 	| Same<typeof RoomToClient.Type, P.RoomToClient>
 	| Same<typeof ChatOp.Type, P.ChatOp>
 	| Same<typeof Agent.Type, P.Agent>
+	| Same<typeof ChatLast.Type, P.ChatLast>
 	| Same<typeof UserEvent.Type, P.UserEvent>
 	| Same<typeof UserSnapshot.Type, P.UserSnapshot>
 	| Same<typeof MemoryOp.Type, P.MemoryOp>

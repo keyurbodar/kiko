@@ -59,6 +59,8 @@ export type UserState = UserData & {
 	pendingAgents: Agent[]
 	/** Drive changes the server has not confirmed yet, laid over `home`. */
 	pendingHome: RoomPatch[]
+	/** The display names typing in each chat, from the `typing` frame. Memory only. */
+	typing: Record<string, readonly string[]>
 }
 
 export type UserStoreOptions = {
@@ -115,6 +117,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		patches: [],
 		pendingAgents: [],
 		pendingHome: [],
+		typing: {},
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
 	let socket: SyncSocket | null = null
@@ -173,6 +176,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	function onFrame(frame: UserToClient) {
 		if (frame.t === "events") applyEvents(frame.events)
 		else if (frame.t === "reset") reset(frame.snapshot)
+		else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
 			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))
@@ -194,7 +198,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				for (const agent of [...unwrap(state.pendingAgents)]) socket?.send({ t: "agent", op: { op: "create", agent } })
 			},
 			onFrame,
-			onStatus: (c) => setState("connection", c),
+			// A socket that drops misses the frame that ends the typing, so it forgets who was.
+			onStatus: (c) => setState(c === "open" ? { connection: c } : { connection: c, typing: {} }),
 		})
 	}
 
