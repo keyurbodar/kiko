@@ -2,7 +2,8 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { Envelope, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
 import { blocksOf } from "../src/agent/outbox"
-import { debounce, isFragment } from "../src/room/burst"
+import { debounce, deliverable, isFragment, MAX_DELIVERY_ENVELOPES } from "../src/room/burst"
+import { MAX_ENTRY_BYTES, MAX_OPEN } from "../src/agent/inbox"
 import { AFTER, BEFORE } from "./turn-fixtures"
 
 // P1-11. The room's bubble store and the agent's outbox inside workerd, through Miniflare. The
@@ -88,6 +89,21 @@ test("the debounce follows the table in section 6.1", () => {
   // Pending for 8 seconds: now, and never later.
   expect(debounce("message", 17_000, 10_000)).toBe(18_000)
   expect(debounce("typing", 19_000, 10_000)).toBe(18_000)
+})
+
+test("a burst past the inbox caps goes out in deliveries the inbox admits, oldest first", () => {
+  // A burst the inbox refuses as full would wait forever, and one too large would be dropped.
+  const many = Array.from({ length: 1_500 }, (_, i) => human(`message ${i}`))
+  const first = deliverable(many)
+  expect(first).toEqual(many.slice(0, MAX_DELIVERY_ENVELOPES))
+  expect(first.length).toBeLessThan(MAX_OPEN)
+  const long = Array.from({ length: 20 }, (_, i) => human(`${i} ${"x".repeat(15_000)}`))
+  const chunk = deliverable(long)
+  expect(chunk.length).toBeGreaterThan(0)
+  expect(chunk).toEqual(long.slice(0, chunk.length))
+  expect(new TextEncoder().encode(JSON.stringify(chunk)).length).toBeLessThan(MAX_ENTRY_BYTES / 2)
+  // One message always goes, whatever its size.
+  expect(deliverable([human("y".repeat(200_000))])).toHaveLength(1)
 })
 
 test("a run posts each paragraph once, in order, then ends once", async () => {

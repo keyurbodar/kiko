@@ -81,9 +81,10 @@ export function cost(c: Record<string, number>): Record<string, number> {
     "rpc calls": sum((k) => k.startsWith("rpc.")),
     "sql statements": sum((k) => k.endsWith(".statements")),
     "rows written": sum((k) => k.endsWith(".rowsWritten")),
+    "rows read": sum((k) => k.endsWith(".rowsRead")),
     "kv and alarm calls": sum((k) => k.includes(".kv.")),
   }
-  for (const [k, v] of Object.entries(c)) if (k.startsWith("rpc.") || k.includes(".kv.") || k.endsWith("rowsWritten")) out[`  ${k}`] = v
+  for (const [k, v] of Object.entries(c)) if (k.startsWith("rpc.") || k.includes(".kv.") || k.endsWith("rowsWritten") || k.endsWith("rowsRead")) out[`  ${k}`] = v
   return out
 }
 

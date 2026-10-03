@@ -8,7 +8,7 @@ import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
-import { BURST_WAKEUP, Burst } from "./burst"
+import { BURST_WAKEUP, Burst, deliverable } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
 import { cleanPath, fileKey } from "../files/upload"
@@ -359,7 +359,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private async flush(): Promise<void> {
 		const home = this.home()
 		if (!home) return
-		const envelopes = this.burst.envelopes(home.roomId)
+		const pending = this.burst.envelopes(home.roomId)
+		const envelopes = deliverable(pending)
 		if (!envelopes.length) return
 		try {
 			const chat = await this.chat(home)
@@ -417,6 +418,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (followers.length) this.log.setMeta(`follow:${lead.slug}`, JSON.stringify({ followers, envelopes }))
 			}
 			this.burst.delivered(envelopes)
+			// The rest of a burst too big for one delivery goes next, at once.
+			if (envelopes.length < pending.length) return await this.burst.retry(0)
 			await this.drainMail()
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -593,6 +596,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
 		if (this.#closed || this.#wiped) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
+			// The first socket records the room in the user's ledger, so account deletion finds a room that
+			// never became a chat. Once, not on every upgrade: later sockets save the Worker a hop to UserDO.
+			// A test worker without a user object has no ledger to write.
+			const recorded = this.env.USER ? await userStub(this.env.USER, userId).recordRoom(roomId as RoomId) : true
+			if (!recorded) return new Response("account deleted", { status: 410 })
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
 		}
@@ -1102,8 +1110,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
 		await this.setTyping(slug, state === "typing")
 		// A marker that outlives the process, so a room that starts after a restart knows a run was live.
+		// Written once per run, not on every typing and working change.
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
-		else this.log.setMeta(`live:${slug}`, "1")
+		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, "1")
 	}
 
 	/**

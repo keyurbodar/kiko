@@ -411,6 +411,8 @@ The client holds one WebSocket to `UserDO` and one to the `RoomDO` of the visibl
 
 The Worker authenticates the upgrade request with the session cookie, builds the Durable Object name from the session's user id, and forwards the upgrade. A client cannot name a Durable Object.
 
+The upgrade is one hop. The session check reads only the signed cookie cache; Better Auth's schema check is off, because the D1 migrations own the schema and each request builds a new instance that would otherwise read the schema from D1. The deleted-account tombstone is read from D1 once per user per isolate every 30 seconds. A room records itself in the user's ledger on its first socket, not on every upgrade, so the Worker forwards straight to the room. Once deletion begins, `UserDO` refuses the user socket and any room that was never recorded, and the deletion job closes the rest.
+
 A socket can die without a close event, after a laptop sleeps or the network changes, and the chat would sit stale. The client sends a bare `ping` after 25 seconds of silence, and at once when the tab returns or the network comes back. Both objects answer `pong` with `setWebSocketAutoResponse`, which never wakes them. Any frame counts as life. A socket silent for 8 seconds after a ping is dropped and reconnected at once.
 
 ### 9.2 Durable events and resume
@@ -439,7 +441,7 @@ type RoomToClient =
 	| { t: "status"; slug: string; state: AgentState }            // not stored
 ```
 
-On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON.
+On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON. The room keeps the newest 1,000 events (twice the replay window) and trims the rest in steps of 100. The `messages` table keeps the history, so a trimmed event only repeated what a snapshot carries. An index on `(kind, seq)` finds the newest event of one kind without reading the log.
 
 **Reasoning.** `pi-durable` says "a client that joins late or reconnects starts from the current view; nothing is replayed". That is not enough for a chat client on a bad network, so the room keeps its own log. The room log is what the human sees (bubbles, reactions, replies, files). The `pi-durable` transcript is what a model sees (tool calls, briefs, other agents' messages). One room maps to several transcripts, so the two logs have different shapes and neither can stand in for the other.
 

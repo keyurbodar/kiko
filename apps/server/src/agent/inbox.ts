@@ -91,6 +91,9 @@ export class Inbox {
       const open = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM inbox WHERE submitted = 0").one().n
       if (open + fresh.size > MAX_OPEN) return { admitted: [], inserted: 0, refused: "full" }
       let arrival = this.sql.exec<{ n: number | null }>("SELECT max(arrival) AS n FROM inbox").one().n ?? 0
+      // The rows of one delivery always land in one batch, which reads each distinct brief once, so
+      // only the first row keeps it. A burst of a hundred messages stores its brief once, not a hundred times.
+      let first = true
       for (const envelope of fresh.values()) {
         this.sql.exec(
           "INSERT INTO inbox (id, arrival, priority, envelope, brief) VALUES (?, ?, ?, ?, ?)",
@@ -98,8 +101,9 @@ export class Inbox {
           ++arrival,
           PRIORITY[envelope.from.kind],
           JSON.stringify(envelope),
-          brief,
+          first ? brief : "",
         )
+        first = false
       }
       return { admitted: envelopes.map((e) => e.id), inserted: fresh.size }
     })
@@ -113,7 +117,8 @@ export class Inbox {
    */
   async claim(): Promise<Batch[]> {
     const waiting = this.sql
-      .exec<Row>("SELECT id, envelope, brief, request_id FROM inbox WHERE request_id IS NULL ORDER BY priority, arrival")
+      // `submitted = 0` is always true of a waiting row; it lets the query use `inbox_open` instead of reading every row ever kept.
+      .exec<Row>("SELECT id, envelope, brief, request_id FROM inbox WHERE submitted = 0 AND request_id IS NULL ORDER BY priority, arrival")
       .toArray()
     if (waiting.length > 0) {
       const requestId = await requestIdFor(waiting.map((row) => row.id))

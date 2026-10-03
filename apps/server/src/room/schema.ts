@@ -130,6 +130,11 @@ const MIGRATIONS: readonly string[] = [
 	-- The card for the message's first link, as JSON (architecture section 18.2).
 	ALTER TABLE messages ADD COLUMN preview TEXT;
 	`,
+	`
+	-- The newest event of one kind (the chat row's newest reaction or approval card, the reactions
+	-- since an agent's last brief) without reading the whole log.
+	CREATE INDEX events_kind_seq ON events (kind, seq);
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

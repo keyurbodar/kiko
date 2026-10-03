@@ -652,9 +652,9 @@ export class UserDO extends DurableObject<Env> {
    */
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
-    const { oldest, stored } = this.sql
-      .exec<{ oldest: number | null; stored: number }>("SELECT min(seq) AS oldest, count(*) AS stored FROM user_events")
-      .one()
+    // Seqs are consecutive and only the oldest are trimmed, so the count follows from the ends (two index reads, no scan).
+    const oldest = this.sql.exec<{ seq: number | null }>("SELECT min(seq) AS seq FROM user_events").one().seq
+    const stored = oldest === null ? 0 : seq - oldest + 1
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
     const fresher = lastSeq === 0 && stored > this.snapshotRows()
     if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() } } }
