@@ -454,7 +454,7 @@ export function createApp(options: AppOptions = {}) {
         return room()?.folders() ?? []
       },
 
-      /** The user's drive, /home (architecture section 18.4): the same in every chat. */
+      /** The user's drive, /home (architecture section 18.3): the same in every chat. */
       homeFiles(): FileRef[] {
         return userStore()?.homeFiles() ?? []
       },

@@ -16,7 +16,7 @@ import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 
-/** The user's drive, /home (architecture section 18.4). */
+/** The user's drive, /home (architecture section 18.3). */
 export type Home = { files: FileRef[]; folders: string[] }
 export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home }
 

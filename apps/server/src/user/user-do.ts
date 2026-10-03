@@ -165,7 +165,7 @@ export class UserDO extends DurableObject<Env> {
     return this.souls.set(slug, body, expectSha)
   }
 
-  // The user's drive, /home (architecture section 18.4). The same index and rules as a chat's
+  // The user's drive, /home (architecture section 18.3). The same index and rules as a chat's
   // files; its R2 keys sit under the user's prefix like every other object.
 
   /** RPC for an upload to the drive, and for an agent's write. */

@@ -8,7 +8,7 @@ import type { NewFile } from "../room/files"
 // Architecture section 18.1. Bytes go from the client through the Worker to R2 as a
 // stream. The Worker computes SHA-256, then asks the room to index the object. The
 // R2 key is built from the session's user id, so no request can reach another user's bytes.
-// `<roomId>` may be `home`, the user's drive (section 18.4): its index is in UserDO.
+// `<roomId>` may be `home`, the user's drive (section 18.3): its index is in UserDO.
 //
 //   PUT    /api/files/<roomId>?path=<path>                     one request, up to MAX_SINGLE_PUT_BYTES
 //          x-kiko-if-sha256: <sha256 | none> makes it an edit: 409 { error, file } when the path holds other bytes

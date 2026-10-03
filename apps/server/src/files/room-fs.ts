@@ -439,7 +439,7 @@ export function roomBackend(env: Env, home: () => AgentHome | null, cache = new 
 }
 
 /**
- * The backend over the user's drive (section 18.4), in UserDO. Every change an agent makes there
+ * The backend over the user's drive (section 18.3), in UserDO. Every change an agent makes there
  * is told to the chat through `notice`, so the human sees what landed in their drive.
  */
 export function homeBackend(

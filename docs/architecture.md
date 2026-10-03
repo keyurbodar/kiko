@@ -823,6 +823,31 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 
 `pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Kiko does not use them. Its file tools are ordinary tools over R2.
 
+### 18.3 File spaces
+
+**Decision.** Every file lives in one of three spaces, and an agent sees all three as one Linux-like tree.
+
+```
+/                 this chat's files      RoomDO index (ws_files, ws_dirs), R2 u/<user>/r/<room>/<id>
+├── chat.md       what this chat is for (section 7.10)
+├── attachments/  what the human sent
+├── home/   ───►  the user's drive       UserDO index (home_files, home_dirs), R2 u/<user>/r/home/<id>
+└── me/     ───►  this agent's soul      UserDO souls table
+```
+
+| Space | Who sees it | Who writes it |
+| --- | --- | --- |
+| `/` | everyone in this chat, and only this chat | everyone in it; an agent cannot delete a file attached to a live message |
+| `/home` | the human and every agent, in every chat | the human; an agent when asked, and the chat shows a line for each change |
+| `/me` | that agent, in every chat | that agent and the human |
+
+- One `FileIndex` (`files/file-index.ts`) holds the rules for `/` and `/home`: a row per file and per folder, real folders (`mkdir -p`, an emptied folder stays, `rm` of an empty folder works like `rmdir`), path-only moves, and writes refused when the bytes changed since the writer read them.
+- A move between `/home` and `/` is refused with a pointer to `cp`, as `mv` across file systems is a copy. Files move between chats only through `/home`.
+- A newcomer to a chat sees every file it already holds, and the chat says so when it happens.
+- The client shows the drive as `home/` at the top of every chat's tree, served from `/api/files/home`.
+
+**Private chats.** A chat marked private keeps no trace beyond itself: its agents' writes to memory, souls, and `/home` are refused in the tools (reads work), each input says the chat is private, and the nightly tidy never reads it. The room learns the flag on every read of the chat and at once when the human changes it.
+
 ### 18.2 Link previews
 
 The design follows the spec's additions.

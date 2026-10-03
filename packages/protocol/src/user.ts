@@ -67,7 +67,7 @@ export type UserEvent =
 	| (Stored & { t: "agent"; agent: Agent })
 	/** The user's theme changed. `theme` is the theme JSON text, or null after a reset. */
 	| (Stored & { t: "theme"; theme: string | null })
-	// The user's drive, /home (architecture section 18.4): the same events as a room's files.
+	// The user's drive, /home (architecture section 18.3): the same events as a room's files.
 	| (Stored & { t: "file"; file: FileRef })
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	| (Stored & { t: "folders"; folders: readonly string[] })
