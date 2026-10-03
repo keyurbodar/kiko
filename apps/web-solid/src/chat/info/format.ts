@@ -1,18 +1,7 @@
-import type { Member } from "@kiko/protocol"
+import { type Member, roomIdTime } from "@kiko/protocol"
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-
-/** The moment a chat was made, read from the time part of its ULID room id. Null when the id is not one. */
-export function startedAt(roomId: string): number | null {
-  if (roomId.length < 10) return null
-  let time = 0
-  for (const char of roomId.slice(0, 10).toUpperCase()) {
-    const digit = CROCKFORD.indexOf(char)
-    if (digit < 0) return null
-    time = time * 32 + digit
-  }
-  return time
-}
+/** The moment a chat was made, read from the time part of its room id (a UUIDv7, or an older ULID). Null when the id is neither. */
+export const startedAt = (roomId: string): number | null => roomIdTime(roomId)
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 

@@ -13,6 +13,7 @@ describe("header text", () => {
   test("a room id carries its start time", () => {
     const at = Date.UTC(2026, 9, 2, 12)
     expect(startedAt(newRoomId(at))).toBe(at)
+    expect(startedAt("01JZ8Q4T6M0000000000000001")).toBe(Date.parse("2025-07-03T18:00:25.556Z"))
     expect(startedAt("short")).toBeNull()
     expect(startedAt("!!!!!!!!!!0000000000000000")).toBeNull()
   })

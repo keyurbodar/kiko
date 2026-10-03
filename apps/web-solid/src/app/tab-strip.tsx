@@ -4,7 +4,8 @@ import { infoOpen, loadInfoPanel, toggleInfo } from "../chat/info/state"
 import { intentRef } from "../lib/intent"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import { nextAfterClose, openTabs, stepTab } from "./open-tabs"
+import { closeChat } from "../sidebar/actions"
+import { openTabs, stepTab } from "./open-tabs"
 import "./tab-strip.css"
 
 /*
@@ -23,8 +24,7 @@ export function TabStrip() {
   const navigate = useNavigate()
   const activeId = createMemo(() => {
     const match = CHAT_PATH.exec(location.pathname)
-    const id = match ? decodeURIComponent(match[1]!) : null
-    return id === "new" ? null : id
+    return match ? decodeURIComponent(match[1]!) : null
   })
   const strip: { el?: HTMLDivElement } = {}
 
@@ -47,11 +47,8 @@ export function TabStrip() {
   const unread = (id: string) => (useApp.chatById(id)?.unread ?? 0) > 0
   const go = (id: string | null) => navigate(id ? `/chat/${id}` : "/chat")
 
-  const close = (id: string) => {
-    const next = nextAfterClose(openTabs.ids(), id, activeId())
-    openTabs.close(id)
-    if (id === activeId()) go(next)
-  }
+  // One close for every way of closing a tab: it also deletes a temporary chat.
+  const close = (id: string) => closeChat(id, activeId(), navigate)
 
   const focusTab = (id: string | null) => {
     if (id === null) return
