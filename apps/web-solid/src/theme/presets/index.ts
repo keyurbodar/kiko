@@ -10,13 +10,13 @@ type Swatch = { id: string; label: string; hue: number; chroma: number }
 /** The swatch row, in display order. The first is the default. */
 export const SWATCHES: readonly Swatch[] = [
   { id: "plum", label: "plum", hue: 340, chroma: 1 },
-  { id: "ember", label: "ember", hue: 45, chroma: 1.25 },
-  { id: "lilac", label: "lilac", hue: 295, chroma: 1.3 },
-  { id: "sakura", label: "sakura", hue: 5, chroma: 1.3 },
-  { id: "sage", label: "sage", hue: 150, chroma: 1.05 },
-  { id: "teal", label: "teal", hue: 200, chroma: 1.15 },
-  { id: "bluebird", label: "bluebird", hue: 245, chroma: 1.35 },
-  { id: "graphite", label: "graphite", hue: 255, chroma: 0.3 },
+  { id: "ember", label: "ember", hue: 35, chroma: 1 },
+  { id: "lilac", label: "lilac", hue: 295, chroma: 1 },
+  { id: "sakura", label: "sakura", hue: 5, chroma: 1 },
+  { id: "sage", label: "sage", hue: 150, chroma: 0.85 },
+  { id: "teal", label: "teal", hue: 200, chroma: 0.9 },
+  { id: "bluebird", label: "bluebird", hue: 245, chroma: 1 },
+  { id: "graphite", label: "graphite", hue: 255, chroma: 0.35 },
   { id: "mono", label: "mono", hue: 0, chroma: 0 },
 ]
 
@@ -45,9 +45,9 @@ export const PRESETS: Record<string, Theme> = Object.fromEntries(
 
 export const presetFor = (id: string): Theme | undefined => PRESETS[id]
 
-/** The colour a swatch shows: the brand at a mid tone, so every swatch reads on dark and light. */
+/** The colour a swatch shows: the kiko bird's own body in that theme, so a swatch reads as the mascot. */
 export function swatchColor(id: string): string {
   const s = SWATCHES.find((x) => x.id === id)
   if (!s) return "transparent"
-  return `oklch(0.56 ${(0.085 * s.chroma).toFixed(3)} ${s.hue})`
+  return `oklch(0.78 ${(0.095 * s.chroma).toFixed(3)} ${s.hue})`
 }

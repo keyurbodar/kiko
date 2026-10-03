@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { IdentityAvatar } from "../../lib/IdentityAvatar";
+import { Bird } from "../../mascot/bird";
 import { describe } from "./create-typing-presence";
 import { SURFACE_SPRING } from "./spring";
 import "./typing.css";
@@ -114,13 +115,14 @@ export function TypingIndicator(props: TypingIndicatorProps) {
   return (
     <div class={`typing ${props.class ?? ""}`} data-component="typing-indicator">
       <Show when={props.avatar && props.typists[0]}>
-        {(name) => <IdentityAvatar seed={props.seed ?? name()} size={28} class="typing-avatar" />}
+        {(name) => <IdentityAvatar seed={props.seed ?? name()} size={28} class="typing-avatar" state="typing" />}
       </Show>
       {/* One-line bubble: the strut is a text-base line, so the height is a
-          message bubble's. The width is three dots plus the bubble padding. */}
+          message bubble's. Two dots, then the typist's own bird pecking at a laptop. */}
       <div ref={bubble} class="typing-bubble" aria-hidden="true">
         <span class="typing-strut">&#8203;</span>
-        <For each={[0, 1, 2]}>{() => <span class="typing-dot" />}</For>
+        <For each={[0, 1]}>{() => <span class="typing-dot" />}</For>
+        <Bird slug={props.seed ?? props.typists[0] ?? "kiko"} state="typing" size={20} class="typing-bird" />
       </div>
       <span class="typing-sr" role="status" aria-live="polite" aria-atomic="true">
         {announced()}

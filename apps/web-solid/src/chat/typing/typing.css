@@ -85,3 +85,9 @@
     opacity: 0.8;
   }
 }
+
+/* The typist's bird sits where the third dot was, a little lifted so its feet rest on the line. */
+.typing-bird {
+  margin-left: 2px;
+  margin-top: -3px;
+}

@@ -9,18 +9,24 @@ import { createMemo, createRoot, createSignal } from "solid-js"
 import { urls } from "../lib/store"
 import { type Connect, createSyncSocket, type SyncSocket } from "../sync/socket"
 import { applyCommitted, readCache, writeCache } from "./apply"
-import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
+import { setBirdPicks } from "../mascot/choices"
+import { formatLook, parseLook, type Look } from "./look"
 
 const cached = readCache()
 // The inline script already painted these variables. This tells `apply.ts` what "saved" is,
 // so a cancelled preview goes back to it.
-applyCommitted(parseLook(cached?.text ?? null))
+const first = parseLook(cached?.text ?? null)
+applyCommitted(first)
+setBirdPicks(first.birds)
 const [saved, setSaved] = createSignal<string | null>(cached?.text ?? null)
 
 /** The saved look. The default until the person picks something. Reactive. */
 export const look = createRoot(() => createMemo(() => parseLook(saved())))
 /** True once this person has saved any look, here or on another device. */
 export const hasLook = () => saved() !== null
+const [synced, setSynced] = createSignal(cached !== null)
+/** True once the server has said what look this person has, or the cache already knew. */
+export const lookSynced = synced
 
 let socket: SyncSocket | null = null
 let owner: string | null = null
@@ -31,6 +37,7 @@ function adopt(text: string | null): void {
   if (text === saved()) return
   const next = parseLook(text)
   applyCommitted(next)
+  setBirdPicks(next.birds)
   writeCache(text, next)
   setSaved(text)
 }
@@ -53,6 +60,7 @@ export const updateLook = (patch: Partial<Look>) => saveLook({ ...look(), ...pat
 
 function onFrame(frame: UserToClient): void {
   if (frame.t === "reset") {
+    setSynced(true)
     // Pending local changes win until they have been sent.
     if (frame.snapshot.theme !== undefined && outbox === undefined) adopt(frame.snapshot.theme)
   } else if (frame.t === "events") {
@@ -68,7 +76,7 @@ export function startTheme(userId: string, connect?: Connect): void {
   stopTheme()
   owner = userId
   // The dev mock has no theme record, so the cache is the only copy there.
-  if (mocked() && !connect) return
+  if (mocked() && !connect) return void setSynced(true)
   socket = createSyncSocket<UserToClient>({
     url: urls.user(),
     connect,

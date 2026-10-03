@@ -5,6 +5,9 @@ import { toggleFiles, toggleInfo } from "../chat/info/state"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { katCommands } from "./kat-commands"
+import { themeCommands } from "./theme-commands"
+import { openBirdPicker } from "../mascot/picker-state"
+import { useApp } from "../lib/store"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
@@ -49,6 +52,19 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         if (!location.pathname.startsWith("/chat")) navigate("/chat")
         openModelPicker()
       },
+    }),
+  )
+  const live = () => import("../theme/live")
+  useCommands(
+    themeCommands({
+      setPreset: (preset) => void live().then((m) => m.updateLook({ theme: { preset } })),
+      setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
+      activeAgent: () => {
+        const id = activeId()
+        const faces = id ? useApp.chatFaces(id) : []
+        return faces.length === 1 ? faces[0]! : null
+      },
+      changeBird: openBirdPicker,
     }),
   )
 }

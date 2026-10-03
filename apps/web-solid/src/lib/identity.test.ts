@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { ramp, traits } from "blobatar"
+import { seedBird, SPECIES } from "../mascot/birds"
 import { chatFaces, chatSeed, identityLook } from "./identity"
 
 describe("identity look", () => {
@@ -9,20 +9,20 @@ describe("identity look", () => {
     expect(identityLook("ada")).toEqual(identityLook("ada"))
   })
 
-  test("the colour is the blob's own head colour, lifted to read on the dark palette", () => {
-    for (const seed of ["kiko", "piko", "ada", "01J0ROOM"]) {
-      const t = traits(seed, true)
-      const head = ramp(t.num("hue", 0, 360), true, t("tone")).head!
-      const [, l, c, h] = /oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/.exec(identityLook(seed).color)!.map(Number)
-      expect(h).toBeCloseTo(head.h, 0)
-      expect(c).toBeCloseTo(head.c, 2)
-      expect(l).toBeGreaterThanOrEqual(0.72)
-    }
+  test("the kiko agent is the kiko bird and wears the theme accent", () => {
+    expect(seedBird("kiko").species).toBe("kiko")
+    expect(identityLook("kiko").color).toBe("var(--accent)")
   })
 
-  test("different seeds spread over the hue circle", () => {
-    const hues = new Set(Array.from({ length: 60 }, (_, i) => Math.round(Number(/ ([\d.]+)\)$/.exec(identityLook(`room-${i}`).color)![1]) / 60)))
-    expect(hues.size).toBeGreaterThanOrEqual(4)
+  test("other seeds spread over the flock and never draw the kiko bird", () => {
+    const species = new Set(Array.from({ length: 80 }, (_, i) => seedBird(`agent-${i}`).species))
+    expect(species.has("kiko")).toBe(false)
+    expect(species.size).toBeGreaterThanOrEqual(10)
+    expect([...species].every((s) => s in SPECIES)).toBe(true)
+  })
+
+  test("an agent colour reads on both appearances", () => {
+    expect(identityLook("scout").color).toStartWith("light-dark(")
   })
 })
 
@@ -38,9 +38,8 @@ describe("render sites", () => {
   const root = join(import.meta.dir, "..")
   const files = sources(root).map((path) => ({ path, text: readFileSync(path, "utf8") }))
 
-  test("only IdentityAvatar imports the blobatar", () => {
-    const users = files.filter((f) => f.text.includes("@blobatar/solid")).map((f) => f.path.slice(root.length + 1))
-    expect(users).toEqual(["lib/IdentityAvatar.tsx"])
+  test("nothing imports the blobatar any more", () => {
+    expect(files.filter((f) => /from "(@blobatar\/solid|blobatar)"/.test(f.text)).map((f) => f.path)).toEqual([])
   })
 
   test("every chat render site draws a group's stacked faces", () => {

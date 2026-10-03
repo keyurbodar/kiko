@@ -1,5 +1,6 @@
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { openBirdPicker } from "../mascot/picker-state"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js"
 import { VList } from "virtua/solid"
@@ -59,6 +60,9 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">rename</MenuV2.Item>
       <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "unpin" : "pin"}</MenuV2.Item>
       <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "unmute" : "mute"}</MenuV2.Item>
+      <Show when={useApp.chatFaces(props.id).length === 1}>
+        <MenuV2.Item onSelect={() => openBirdPicker(useApp.chatFaces(props.id)[0]!)}>change bird</MenuV2.Item>
+      </Show>
       <MenuV2.Separator />
       <MenuV2.Item onSelect={() => markUnread(props.id)}>mark as unread</MenuV2.Item>
       <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>close</MenuV2.Item>

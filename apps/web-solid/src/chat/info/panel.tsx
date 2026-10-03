@@ -2,6 +2,7 @@ import { createEffect, createMemo, For, lazy, Match, on, onCleanup, Show, Suspen
 import { openTasks, TasksView } from "./tasks"
 import { useCommands } from "../../commands/registry"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { openBirdPicker } from "../../mascot/picker-state"
 import { useApp } from "../../lib/store"
 import { chatModel, setChatModel } from "../../settings/chat-model"
 import { ModelList } from "../../settings/model-picker"
@@ -69,7 +70,16 @@ function AgentCard(props: { slug: string; chatId: string }) {
   return (
     <div class="flex flex-col gap-3" data-component="info-agent" data-slug={props.slug}>
       <div class="flex flex-col items-center gap-2 pt-2">
-        <IdentityAvatar seed={props.slug} size={72} />
+        <button
+          type="button"
+          class="rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          aria-label="change bird"
+          title="change bird"
+          data-action="change-bird"
+          onClick={() => openBirdPicker(props.slug)}
+        >
+          <IdentityAvatar seed={props.slug} size={72} state={status() === "working" ? "working" : status() === "typing" ? "typing" : undefined} />
+        </button>
         <h2 class="text-lg font-medium text-text">{member()?.name ?? props.slug}</h2>
       </div>
       <Card id="agent-facts" title="details">

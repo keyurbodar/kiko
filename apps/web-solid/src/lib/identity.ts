@@ -1,4 +1,5 @@
-import { ramp, traits } from "blobatar"
+import { inkColor } from "../mascot/birds"
+import { birdFor } from "../mascot/choices"
 
 /*
  * One source of truth for how an identity looks. The seed is the agent's slug
@@ -6,39 +7,22 @@ import { ramp, traits } from "blobatar"
  * display name, an index, a random value, or a chat title: those change, and
  * then the same bot looks different in each place that draws it.
  *
- * The blobatar shape and colours come from the blobatar package, seeded with the
- * same string. An agent's colour is its blob's own head colour, lifted so it
- * reads as text on the dark palette, so its name, its mention chips and its
- * reply quotes match its face.
- *
- * DEVIATION: the plan picked the colour from a fixed set of kat tokens. A token
- * next to a blob of an unrelated hue reads as two identities, and the reference
- * (`docs/reference/group-chat/01.png`) tints a mention in its avatar's colour.
- * kat's palette is dark only, so one lightness floor serves every theme.
+ * The face is a bird from the flock (`src/mascot`), seeded by the same string
+ * unless the person picked one. An agent's colour is its bird's body colour,
+ * kept readable on both appearances, so its name, its mention chips and its
+ * reply quotes match its face. The kiko agent's colour is the theme accent.
  */
 
-/** The lowest OKLCH lightness an identity colour gets, so it reads on a dark bubble. */
-const MIN_LIGHTNESS = 0.72
-
 export type IdentityLook = {
-  /** The string handed to the blobatar. Equal to the seed. */
+  /** The seed the bird is chosen from. */
   seed: string
-  /** A CSS colour: the blob's head colour, lifted for text on the dark palette. */
+  /** A CSS colour: the bird's body colour, readable as text on the current appearance. */
   color: string
 }
 
-const looks = new Map<string, IdentityLook>()
-
+/** Reactive: a bird the person picks changes the colour everywhere it is read. */
 export function identityLook(seed: string): IdentityLook {
-  let look = looks.get(seed)
-  if (look) return look
-  // The same traits and ramp the blobatar resolves, so the colour is the head's own.
-  const t = traits(seed, true)
-  const head = ramp(t.num("hue", 0, 360), true, t("tone")).head!
-  const l = Math.max(head.l, MIN_LIGHTNESS)
-  look = { seed, color: `oklch(${l.toFixed(3)} ${head.c.toFixed(3)} ${head.h.toFixed(1)})` }
-  looks.set(seed, look)
-  return look
+  return { seed, color: inkColor(birdFor(seed)) }
 }
 
 /** An identity's colour mixed into transparency, for a chip or a quote background. */

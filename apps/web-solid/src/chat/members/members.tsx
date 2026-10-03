@@ -27,6 +27,11 @@ function useRefusalToasts() {
 
 /** What the agent is doing now: `typing`, `working`, or `idle`. */
 const statusOf = (slug: string) => useApp.memberById(slug)?.presence ?? "idle"
+/** The bird acts out what the agent is doing, and sits still when it is idle. */
+const moodOf = (slug: string) => {
+  const s = statusOf(slug)
+  return s === "working" || s === "typing" ? s : undefined
+}
 
 /** The model's name without its provider, or nothing. */
 const modelName = (ref: string | undefined) => ref?.split("/").slice(1).join("/") || undefined
@@ -70,13 +75,13 @@ function AgentRow(props: { member: Member; canRemove: boolean; onOpen: (slug: st
         when={!renaming()}
         fallback={
           <div class={row}>
-            <IdentityAvatar seed={props.member.slug} size={32} />
+            <IdentityAvatar seed={props.member.slug} size={32} state={moodOf(props.member.slug)} />
             <RenameInput member={props.member} onDone={() => setRenaming(false)} />
           </div>
         }
       >
         <button type="button" class={`${row} min-w-0 flex-1`} onClick={() => props.onOpen(props.member.slug)}>
-          <IdentityAvatar seed={props.member.slug} size={32} />
+          <IdentityAvatar seed={props.member.slug} size={32} state={moodOf(props.member.slug)} />
           <span class="flex min-w-0 flex-1 flex-col">
             <span class="truncate">{props.member.name}</span>
             <span class="truncate text-xs text-weak" data-component="member-facts">

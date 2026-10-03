@@ -4,6 +4,7 @@
 //
 // Every function here is a no-op without a DOM, so tests can import it.
 
+import { setFavicon } from "../mascot/logo"
 import { DEFAULT_LOOK, type Look, type Mode } from "./look"
 import { DEFAULT_PRESET, presetFor } from "./presets"
 import { parseTheme, resolveTheme, type ResolvedTheme, type Theme } from "./schema"
@@ -55,7 +56,10 @@ function paint(look: Look): void {
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
   // The boot screen and the overscroll area read this, so it follows the panel colour.
-  const bg = typeof getComputedStyle === "function" ? getComputedStyle(root).getPropertyValue("--bg").trim() : ""
+  const computed = typeof getComputedStyle === "function" ? getComputedStyle(root) : null
+  const bg = computed?.getPropertyValue("--bg").trim() ?? ""
+  // The tab icon is the kiko bird, so it wears the theme colour too.
+  if (computed) setFavicon(Number(computed.getPropertyValue("--h-brand")) || 340, Number(computed.getPropertyValue("--cm") || 1))
   if (bg) {
     root.style.backgroundColor = bg
     root.style.setProperty("--boot-bg", bg)
