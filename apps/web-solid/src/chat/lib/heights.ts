@@ -2,7 +2,7 @@ import type { ChatMessage, WebPagePreview } from "../../lib/types";
 import { albumLayout, singleMediaBox } from "./album";
 import type { TimelineItem } from "./grouping";
 import { graphemes, jumboEmojiClass } from "./reply";
-import { CARD_IMAGE_ASPECT, CARD_WIDTH, hasWebPageContent } from "./linkPreview";
+import { CARD_IMAGE_ASPECT, CARD_WIDTH, hasWebPageContent, isLinkOnly } from "./linkPreview";
 
 const FONT_BASE = 14;
 const LINE_BOX = FONT_BASE * 1.45;
@@ -89,8 +89,10 @@ export function estimateRowHeight(item: TimelineItem): number {
   const captionBlock = message.body.length > 0 || hasWebPageContent(message.webPage);
   const jumbo = attachments > 0 ? undefined : jumboEmojiClass(message.body);
   const text = bubbleTextLines(message.body);
-  const bubble =
-    attachments > 0
+  const cardOnly = attachments === 0 && message.replyToId === undefined && isLinkOnly(message.body, message.webPage);
+  const bubble = cardOnly
+    ? 0
+    : attachments > 0
       ? attachments + (captionBlock ? CAPTION_PAD_Y + (caption ? LINE_BOX * text : 0) : 0)
       : jumbo === "jumbo-single"
         ? JUMBO_SINGLE_PX

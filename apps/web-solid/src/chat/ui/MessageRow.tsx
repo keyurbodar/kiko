@@ -4,7 +4,7 @@ import { cn } from "../../lib/cn"
 import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
 import { formatTimeOfDay } from "../lib/dayLabel"
 import { draftLinkUrl } from "../../composer/link-draft"
-import { resolveLinkPreview } from "../lib/linkPreview"
+import { isLinkOnly, peekLinkPreview, resolveLinkPreview } from "../lib/linkPreview"
 import { quoteSummary, replySummary } from "../lib/reply"
 import { MessageDocuments } from "./Documents"
 import { MessageMedia } from "./Media"
@@ -75,13 +75,24 @@ export function MessageRow(props: {
     !hasDocuments() &&
     props.message.body.length === 0 &&
     props.message.webPage === undefined
-  // A message carries its text only, so the card comes from the server's preview of its first
-  // link. The lookup is cached per URL, so scrolling a transcript never refetches.
+  // The server attaches the card for the first link to the message. Until it does (a send in
+  // flight, an older message) the card comes from the shared preview cache: synchronously when
+  // the composer or an earlier row already looked the link up, so a sent link never blinks.
+  const linkUrl = () => (props.message.webPage === undefined && !hasMedia() ? draftLinkUrl(props.message.body) : null)
   const [linked] = createResource(
-    () => (props.message.webPage === undefined && !hasMedia() ? draftLinkUrl(props.message.body) : null),
+    () => {
+      const url = linkUrl()
+      return url && peekLinkPreview(url) === undefined ? url : null
+    },
     (url) => resolveLinkPreview(url),
   )
-  const webPage = () => props.message.webPage ?? linked.latest ?? undefined
+  const webPage = () => {
+    if (props.message.webPage) return props.message.webPage
+    const url = linkUrl()
+    return (url ? peekLinkPreview(url) : undefined) ?? linked.latest ?? undefined
+  }
+  // A message that is only a link shows the card alone, with no bubble, as kat does.
+  const cardOnly = () => !props.parent && !hasAttachment() && isLinkOnly(props.message.body, webPage())
   const [fittedWidth, setFittedWidth] = createSignal<number | undefined>(undefined)
   const captionStyle = () => {
     const width = fittedWidth()
@@ -111,6 +122,7 @@ export function MessageRow(props: {
       <Show when={grouped()}>
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
+      <Show when={!cardOnly()}>
       <Bubble
         variant={props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
@@ -218,9 +230,27 @@ export function MessageRow(props: {
           onToggle={props.onReact}
         />
       </Bubble>
+      </Show>
       {/* The link card is its own block under the bubble, on the sender's side, as in kat. */}
       <Show when={props.message.media === undefined ? webPage() : undefined}>
-        {(page) => <WebPageCard page={page()} class={own() ? "self-end" : undefined} />}
+        {(page) => (
+          <WebPageCard page={page()} class={cn(own() && "self-end", cardOnly() && "mt-0")}>
+            <Show when={cardOnly()}>
+              <time
+                class="pointer-events-none absolute end-2 top-2 z-[1] rounded-full bg-black/35 px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-white"
+                data-component="chat-media-time"
+                datetime={new Date(props.message.sentAt).toISOString()}
+              >
+                {props.message.status === "sending" ? "sending" : formatTimeOfDay(props.message.sentAt)}
+              </time>
+            </Show>
+          </WebPageCard>
+        )}
+      </Show>
+      <Show when={cardOnly() && props.message.reactions?.length}>
+        <div class={cn("relative", own() && "self-end")}>
+          <ReactionStack reactions={props.message.reactions} side={props.message.sender} onToggle={props.onReact} />
+        </div>
       </Show>
     </div>
   )

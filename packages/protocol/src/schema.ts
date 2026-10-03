@@ -91,6 +91,16 @@ export const RunRef = Schema.Struct({ runId: Id, attempt: Count, index: Count })
 
 const stored = { seq: Count, at: Count }
 
+export const LinkPreview = Schema.Struct({
+	url: Schema.String,
+	title: Schema.optionalKey(Schema.String),
+	description: Schema.optionalKey(Schema.String),
+	siteName: Schema.optionalKey(Schema.String),
+	image: Schema.optionalKey(Schema.String),
+	favicon: Schema.optionalKey(Schema.String),
+	themeColor: Schema.optionalKey(Schema.String),
+})
+
 export const Message = Schema.Struct({
 	id: MessageId,
 	...stored,
@@ -104,6 +114,7 @@ export const Message = Schema.Struct({
 	reactions: Schema.optionalKey(Schema.Array(Reaction)),
 	goto: Schema.optionalKey(RoomId),
 	quote: Schema.optionalKey(Schema.String),
+	preview: Schema.optionalKey(LinkPreview),
 })
 
 export const Member = Schema.Struct({
@@ -174,6 +185,7 @@ export const RoomEvent = Schema.Union([
 		text: Schema.String,
 		rich: Schema.optionalKey(RichText),
 	}),
+	Schema.Struct({ ...stored, t: Schema.Literal("preview"), messageId: MessageId, preview: LinkPreview }),
 	Schema.Struct({ ...stored, t: Schema.Literal("delete"), messageIds: Schema.Array(MessageId) }),
 	Schema.Struct({
 		...stored,

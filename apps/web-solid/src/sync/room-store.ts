@@ -179,6 +179,12 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			else delete m.rich
 			return { put: raw(m) }
 		}
+		case "preview": {
+			const i = findMessage(data.messages, e.messageId)
+			if (i === -1) return {}
+			data.messages[i].preview = e.preview
+			return { put: raw(data.messages[i]) }
+		}
 		case "delete": {
 			const deleted: Message[] = []
 			for (const id of e.messageIds) {

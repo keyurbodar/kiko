@@ -1,6 +1,4 @@
 import type { Env } from "../index"
-import type { Fetcher } from "../lib/safe-fetch"
-import { handleImageJob, isImageJob, type PreviewImageJob } from "../previews/image-job"
 import { type AttachmentJob, handleAttachmentJob, isAttachmentJob } from "./attachment"
 import { type DeleteAccountJob, deletionTargets, isDeleteAccountJob, runDeleteJob } from "./delete-account"
 
@@ -8,16 +6,15 @@ import { type DeleteAccountJob, deletionTargets, isDeleteAccountJob, runDeleteJo
 // handler is safe to run twice, because a queue delivers at least once. A handler that
 // throws is retried with a growing delay. A body that is no known job is dropped.
 
-export type Job = AttachmentJob | PreviewImageJob | DeleteAccountJob
+export type Job = AttachmentJob | DeleteAccountJob
 
 const MAX_DELAY_SECONDS = 60
 
 /** Seconds to wait after delivery number `attempts` fails: 1, 2, 4, up to a minute. */
 export const retryDelay = (attempts: number) => Math.min(2 ** Math.max(0, attempts - 1), MAX_DELAY_SECONDS)
 
-async function run(body: unknown, env: Env, attempt: number, fetcher?: Fetcher): Promise<void> {
+async function run(body: unknown, env: Env, attempt: number): Promise<void> {
 	if (isAttachmentJob(body)) await handleAttachmentJob(body, env, attempt)
-	else if (isImageJob(body)) await handleImageJob(body, env.FILES, fetcher)
 	else if (isDeleteAccountJob(body)) await runDeleteJob(body, deletionTargets(env, body.userId))
 }
 
@@ -41,11 +38,11 @@ async function requeueDead(batch: MessageBatch<unknown>, env: Env): Promise<void
 	}
 }
 
-export async function consume(batch: MessageBatch<unknown>, env: Env, fetcher?: Fetcher): Promise<void> {
+export async function consume(batch: MessageBatch<unknown>, env: Env): Promise<void> {
 	if (batch.queue === DEAD_LETTER_QUEUE) return requeueDead(batch, env)
 	for (const message of batch.messages) {
 		try {
-			await run(message.body, env, message.attempts, fetcher)
+			await run(message.body, env, message.attempts)
 			message.ack()
 		} catch {
 			message.retry({ delaySeconds: retryDelay(message.attempts) })

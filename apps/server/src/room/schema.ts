@@ -126,6 +126,10 @@ const MIGRATIONS: readonly string[] = [
 	-- The words of the replied-to message the human picked to answer (a quote).
 	ALTER TABLE messages ADD COLUMN quote TEXT;
 	`,
+	`
+	-- The card for the message's first link, as JSON (architecture section 18.2).
+	ALTER TABLE messages ADD COLUMN preview TEXT;
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

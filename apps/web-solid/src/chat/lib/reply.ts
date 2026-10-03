@@ -59,7 +59,8 @@ export function replySummary(message: ChatMessage): ReplySummary {
   const linkOnly = webPage !== undefined && (body === "" || URL_ONLY.test(body));
 
   let text = "";
-  if (linkOnly) text = webPage.title || webPage.site || webPage.url;
+  // A link-only message is quoted by its link, as kat does.
+  if (linkOnly) text = replyQuoteText(body || webPage.url);
   else if (body !== "") text = replyQuoteText(body);
   else if (media.length > 0) text = mediaLabel(media);
   else if (documents.length > 0) text = documentLabel(documents);

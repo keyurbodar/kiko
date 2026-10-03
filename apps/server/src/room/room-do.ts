@@ -18,6 +18,7 @@ import { parseRichText } from "./rich-text"
 import { Team } from "./team"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, OPENING, type Proposal, type ProposalInput } from "./chief"
 import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
+import { attachPreview, previewTarget } from "./link-preview"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
@@ -634,6 +635,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// Section 7.8: a busy agent learns at once that a human message is coming, so it keeps holding
 		// agent mail until the burst closes and the human's message arrives first.
 		if (events.some((e) => e.t === "message" && e.from.kind === "human")) this.ctx.waitUntil(this.warnBusyAgents())
+		// The card for a message's first link follows the message, in its own event.
+		for (const e of events) {
+			const target = previewTarget(e)
+			if (target) this.ctx.waitUntil(attachPreview(this.log, this.env, target, (w) => this.ctx.waitUntil(w), (out) => this.publish(out)))
+		}
 	}
 
 	#touching = false
