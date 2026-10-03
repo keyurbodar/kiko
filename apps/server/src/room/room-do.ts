@@ -14,9 +14,8 @@ import { type AgentSend, attachedLine, Bubbles, Deliveries, Mail, type ReminderD
 import { cleanPath, fileKey } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
-import { parseRichText } from "./rich-text"
 import { Team } from "./team"
-import { CHIEF, checkProposal, introduction, type NewAgentSpec, OPENING, type Proposal, type ProposalInput } from "./chief"
+import { CHIEF, checkProposal, introduction, type NewAgentSpec, type Proposal, type ProposalInput } from "./chief"
 import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
@@ -164,12 +163,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// kiko is the chief of a group: first, so it leads. A chat with one agent stays one-to-one.
 		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: "kiko" }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
-		// A draft opens with kiko asking what the human wants (section 7.11): at once, no model call.
-		if (chat.draft && this.log.meta("opened") === null) {
-			this.log.setMeta("opened", "1")
-			const { event } = this.log.addMessage({ from: { kind: "agent", slug: DEFAULT_AGENT }, text: OPENING[chat.draft], rich: parseRichText(OPENING[chat.draft]) })
-			if (event) this.publish([event])
-		}
 		await this.trySeedChatFile(home, chat.title)
 	}
 
@@ -246,14 +239,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				for (const spec of proposal.agents) made.push(await make(spec))
 				const members = [...proposal.members.map((m) => mine.find((a) => a.slug === m)!), ...made]
 				const chat = await this.chat(home)
-				if (chat?.draft) {
+				if (chat?.temp) {
 					for (const a of members) {
 						const role = tagline(a.prompt)
 						this.memberOp({ op: "add", slug: a.slug, name: a.name, ...(role ? { role } : {}), ...(a.model ? { model: a.model } : {}) })
 					}
 					await this.writeChatFile(CHIEF, proposal.chat)
 					this.log.setMeta("chat_file", "1")
-					await user.promoteDraft(home.roomId, proposal.title)
+					await user.keepChat(home.roomId, proposal.title, [CHIEF, ...members.map((a) => a.id)])
 					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
 					if (event) this.publish([event])
 					text = `the group is ready, here in this chat, with ${members.map((a) => `@${a.slug}`).join(", ")}. /chat.md holds the plan. kick it off in a line or two.`
@@ -294,7 +287,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
 	}
 
-	/** RPC for a group kiko made outside a draft: members, and kiko's /chat.md. */
+	/** RPC for a group kiko made outside a temporary chat: members, and kiko's /chat.md. */
 	async startGroup(userId: string, chatFile: string): Promise<void> {
 		const home = this.adopt(userId)
 		if (!home) return

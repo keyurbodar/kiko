@@ -419,13 +419,11 @@ test("a private chat's agents are told so on every delivery", async () => {
 
 const soul = (name: string) => `# ${name}\n\ni plan meals around what's in the fridge.\n\n## what i've learned about working with them\n`
 
-test("a draft opens with kiko asking, and kiko makes an agent only after the human answers", async () => {
+test("in a temporary chat kiko makes an agent only after the human answers", async () => {
   const room = fresh()
-  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), draft: "ask" }], agents: AGENTS })
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), temp: true }], agents: AGENTS })
   const ws = await Socket.open(room)
-  const opening = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
-  const first = opening.t === "events" ? opening.events.find((e) => e.t === "message") : undefined
-  expect(first?.t === "message" && first.text).toBe("hey. what do you want to get done? i can set you up with an agent for it, or pull a group together.")
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "kiko"))
   await ws.say("i want help with meal prep")
   // Only kiko proposes; a bad handle and a taken one are refused.
   expect(((await call(`/propose/${room}/bob`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "", soul: soul("chef") } })) as { ok: boolean }).ok).toBe(false)
@@ -445,7 +443,7 @@ test("a draft opens with kiko asking, and kiko makes an agent only after the hum
   expect(state.souls.chef).toBe(soul("chef"))
   const dm = state.chats.find((c) => c.title === "chef")!
   expect(dm.agents).toEqual(["made-chef"])
-  // The draft gets a line that points at the new chat.
+  // The temporary chat gets a line that points at the new chat.
   const line = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && e.from.reason === "created"))
   const goto = line.t === "events" ? line.events.find((e) => e.t === "message") : undefined
   expect(goto?.t === "message" && goto.goto).toBe(dm.roomId)
@@ -455,11 +453,11 @@ test("a draft opens with kiko asking, and kiko makes an agent only after the hum
   ws.ws.close()
 })
 
-test("a group from a draft: the draft becomes the group, with its members and kiko's /chat.md", async () => {
+test("a group from a temporary chat: the chat becomes the group, with its members and kiko's /chat.md", async () => {
   const room = fresh()
-  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), draft: "group" }], agents: AGENTS })
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), temp: true }], agents: AGENTS })
   const ws = await Socket.open(room)
-  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "kiko"))
   await ws.say("a group for launching the app: ada and a new marketer")
   const chatMd = "# launch\n\ngoal: ship the app\n\n## who does what\n- @kiko: leads\n- @ada: code\n- @mia: marketing\n\n## decisions\n"
   const proposed = (await call(`/propose/${room}/kiko`, { kind: "group", title: "launch", members: ["@ada"], agents: [{ name: "mia", handle: "mia", description: "markets the launch", soul: soul("mia") }], chat: chatMd })) as { id: string }
@@ -467,10 +465,10 @@ test("a group from a draft: the draft becomes the group, with its members and ki
   expect(((await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean }).ok).toBe(true)
   await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "mia"))
   expect(ws.members().map((m) => m.slug).sort()).toEqual(["ada", "kiko", "mia"])
-  const state = (await call("/userstate")) as { chats: { roomId: string; title: string; draft?: string }[] }
+  const state = (await call("/userstate")) as { chats: { roomId: string; title: string; temp?: true; agents?: string[] }[] }
   const chat = state.chats.find((c) => c.roomId === room)!
-  expect(chat).toMatchObject({ title: "launch" })
-  expect(chat.draft).toBeUndefined()
+  expect(chat).toMatchObject({ title: "launch", agents: ["kiko", "id-ada", "made-mia"] })
+  expect(chat.temp).toBeUndefined()
   const files = await (await mf.getR2Bucket("FILES")).list()
   const key = files.objects.filter((o) => o.key.includes(room)).at(-1)!.key
   expect(await (await (await mf.getR2Bucket("FILES")).get(key))!.text()).toBe(chatMd)

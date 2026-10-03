@@ -27,10 +27,10 @@ export type Chat = {
 	/** A private chat (architecture section 7.10): agents in it save no memory, change no soul, and write nothing to /home. */
 	private?: boolean
 	/**
-	 * A draft (architecture section 7.11): a chat with kiko that makes an agent or a group. It is not
-	 * in the chat list until kiko turns it into a group. `ask` and `group` say how kiko opens it.
+	 * A temporary chat (architecture section 7.11): what the new chat button opens. It lives in the
+	 * tab strip, never in the chat list, and is deleted when its tab closes, unless it became a group.
 	 */
-	draft?: "ask" | "group"
+	temp?: true
 }
 
 /**
@@ -51,7 +51,9 @@ export type AgentOp = { op: "create"; agent: Agent }
 // ASSUMPTION: chat edits travel on the user socket as one `chat` frame, the
 // way task edits travel on the room socket.
 export type ChatOp =
-	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[]; draft?: "ask" | "group" }
+	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[]; temp?: true }
+	/** A temporary chat became a group: it joins the list with this title and these agents. */
+	| { op: "keep"; roomId: RoomId; title: string; agents: readonly string[] }
 	| { op: "rename"; roomId: RoomId; title: string }
 	| { op: "pin"; roomId: RoomId; pinned: boolean }
 	| { op: "mute"; roomId: RoomId; muted: boolean }
@@ -88,6 +90,8 @@ export type UserSnapshot = {
 	theme?: string | null
 	/** The user's drive, /home. */
 	home: { files: readonly FileRef[]; folders: readonly string[] }
+	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
+	lastChat?: RoomId
 }
 
 /**
@@ -125,6 +129,8 @@ export type ExecutorResult =
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
+	/** The user is in this chat now. Stored, not broadcast, so the next device opens it (`lastChat`). */
+	| { t: "open"; roomId: RoomId }
 	| { t: "agent"; op: AgentOp }
 	| { t: "memory"; reqId: string; op: MemoryOp }
 	/** Saves the user's one theme (JSON text, 32 KB at most), or clears it with null. */
@@ -165,6 +171,11 @@ export type UserToClient =
 	/** The credential is stored. `provider` is the row the credentials list shows, never a token. */
 	| { t: "login.done"; loginId: string; provider: { provider: string; kind: "api_key" | "oauth"; last4: string } }
 	| { t: "login.error"; loginId: string; reason: LoginErrorReason; message: string }
+	/**
+	 * Not stored. Sent only to the socket whose chat `create` was a second direct chat with one
+	 * agent. Nothing was made; `existing` is the agent's one direct chat.
+	 */
+	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
 	/** Not stored. Sent only to the socket whose `home` frame changed nothing. */
 	| { t: "home_refused"; op: FileOp; reason: string }
 

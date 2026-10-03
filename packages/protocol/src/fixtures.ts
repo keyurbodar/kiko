@@ -12,6 +12,8 @@ import type { Chat, ClientToUser, UserToClient } from "./user"
 export const userId = "user_fixture" as UserId
 export const roomId = "01JZ8Q4T6M0000000000000001" as RoomId
 export const otherRoomId = "01JZ8Q4T6M0000000000000002" as RoomId
+/** A room id in today's form, a UUIDv7. The two above are ULIDs, the form older rooms keep. */
+export const tempRoomId = "01a0fa46-9777-7fdf-871e-3c63e992c708" as RoomId
 export const ada = "ada" as AgentSlug
 export const bob = "bob" as AgentSlug
 
@@ -211,6 +213,7 @@ export const chat: Chat = {
 	lastPreview: "the plan",
 	unread: 0,
 	updatedAt: at(17),
+	agents: ["ada", "bob"],
 }
 
 export const clientToUser: readonly ClientToUser[] = [
@@ -220,6 +223,9 @@ export const clientToUser: readonly ClientToUser[] = [
 	{ t: "chat", op: { op: "pin", roomId, pinned: true } },
 	{ t: "chat", op: { op: "mute", roomId, muted: true } },
 	{ t: "chat", op: { op: "delete", roomId: otherRoomId } },
+	{ t: "chat", op: { op: "create", roomId: tempRoomId, title: "new chat", agents: ["kiko"], temp: true } },
+	{ t: "chat", op: { op: "keep", roomId: tempRoomId, title: "kiko, ada", agents: ["kiko", "ada"] } },
+	{ t: "open", roomId: tempRoomId },
 	{ t: "search", query: "protocol" },
 	{ t: "login.start", loginId: "l1", provider: "github-copilot" },
 	{ t: "login.answer", loginId: "l1", promptId: "p1", value: "" },
@@ -234,7 +240,8 @@ export const userToClient: readonly UserToClient[] = [
 			{ seq: 2, at: at(2), t: "chat_removed", roomId: otherRoomId },
 		],
 	},
-	{ t: "reset", snapshot: { seq: 2, chats: [chat], home: { files: [file], folders: ["notes"] } } },
+	{ t: "reset", snapshot: { seq: 2, chats: [chat], home: { files: [file], folders: ["notes"] }, lastChat: roomId } },
+	{ t: "chat_refused", roomId: tempRoomId, existing: roomId },
 	{ t: "home_refused", op: { op: "rm", paths: ["notes"] }, reason: "notes is a folder with things in it" },
 	{ t: "search", query: "protocol", chats: [chat] },
 	{ t: "login.prompt", loginId: "l1", promptId: "p1", prompt: { type: "text", message: "enterprise domain", placeholder: "company.ghe.com" } },

@@ -90,9 +90,9 @@ export class FakeUser extends DurableObject {
     await this.set({ ...state, chats: [...state.chats, { roomId, title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: 0, agents } as Chat] })
     return roomId
   }
-  async promoteDraft(roomId: string, title: string) {
+  async keepChat(roomId: string, title: string, agents: readonly string[]) {
     const state = await this.state()
-    await this.set({ ...state, chats: state.chats.map((c) => (c.roomId === roomId ? { ...c, title, draft: undefined } : c)) })
+    await this.set({ ...state, chats: state.chats.map((c) => (c.roomId === roomId ? { ...c, title, agents, temp: undefined } : c)) })
     return true
   }
   async userState() {

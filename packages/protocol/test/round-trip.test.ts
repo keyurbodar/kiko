@@ -51,9 +51,9 @@ describe("fixture round trip", () => {
 				"file",
 			]),
 		)
-		expect(tags(F.clientToUser)).toEqual(new Set(["hello", "chat", "search", "login.start", "login.answer", "login.cancel"]))
+		expect(tags(F.clientToUser)).toEqual(new Set(["hello", "chat", "open", "search", "login.start", "login.answer", "login.cancel"]))
 		expect(tags(F.userToClient)).toEqual(
-			new Set(["events", "reset", "home_refused", "search", "login.notify", "login.prompt", "login.done", "login.error"]),
+			new Set(["events", "reset", "home_refused", "chat_refused", "search", "login.notify", "login.prompt", "login.done", "login.error"]),
 		)
 	})
 })
@@ -65,7 +65,8 @@ describe("the schemas reject bad frames", () => {
 	test("an unknown tag", () => rejects(S.ClientToRoom as never, { t: "shout", text: "hi" }))
 	test("a slug with capitals", () => rejects(S.AgentSlug as never, "Ada"))
 	test("a slug longer than 32", () => rejects(S.AgentSlug as never, "a".repeat(33)))
-	test("a room id that is not a ULID", () => rejects(S.RoomId as never, "room-1"))
+	test("a room id that is neither a UUIDv7 nor a ULID", () => rejects(S.RoomId as never, "room-1"))
+	test("an uppercase UUIDv7, which would name a second object for the same room", () => rejects(S.RoomId as never, "01A0FA46-9777-7FDF-871E-3C63E992C708"))
 	test("a negative seq", () => rejects(S.ClientToRoom as never, { t: "hello", lastSeq: -1 }))
 	test("a nested bad slug in rich text", () =>
 		rejects(S.RichText as never, [{ t: "paragraph", children: [{ t: "bold", children: [{ t: "mention", slug: "NO" }] }] }]))

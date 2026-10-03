@@ -6,6 +6,7 @@ import { Miniflare } from "miniflare"
 import { agentName, NameError, roomName, userName } from "../src/lib/names"
 
 const ROOM = "01JZ8Q4T6M0000000000000001"
+const UUID_ROOM = "01a0fa46-9777-7fdf-871e-3c63e992c708"
 
 describe("names", () => {
   test("every name starts with the user id", () => {
@@ -14,12 +15,18 @@ describe("names", () => {
     expect(agentName("alice", ROOM, "ada")).toBe(`agent:alice:${ROOM}:ada`)
   })
 
+  test("a new room's UUIDv7 names its objects too", () => {
+    expect(roomName("alice", UUID_ROOM)).toBe(`room:alice:${UUID_ROOM}`)
+    expect(agentName("alice", UUID_ROOM, "ada")).toBe(`agent:alice:${UUID_ROOM}:ada`)
+  })
+
   test("two users never share a room name", () => {
     expect(roomName("alice", ROOM)).not.toBe(roomName("bob", ROOM))
   })
 
   test.each([
-    ["a room id that is not a ulid", () => roomName("alice", "general")],
+    ["a room id that is not a room id", () => roomName("alice", "general")],
+    ["an uppercase UUIDv7", () => roomName("alice", UUID_ROOM.toUpperCase())],
     ["a lowercase room id", () => roomName("alice", ROOM.toLowerCase())],
     ["a room id with a separator", () => roomName("alice", `${ROOM}:x`)],
     ["a slug with capitals", () => agentName("alice", ROOM, "Ada")],

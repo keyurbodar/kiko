@@ -120,18 +120,16 @@ test("hello resumes after lastSeq, and a socket from the future gets a snapshot"
   ahead.close()
 })
 
-test("a client with nothing gets the snapshot when it is shorter than the replay", async () => {
+test("a client with nothing always gets the snapshot, and one that applied something gets events", async () => {
   const user = fresh()
   await rpc(user, "createChat", ROOM_A, "a")
   const short = await socket(user, 0)
-  // One event, and a snapshot of one chat plus the theme: the replay is not longer.
-  expect(short.frames[0]!.t).toBe("events")
+  expect(short.frames[0]!.t).toBe("reset")
   for (let i = 1; i <= 5; i++) await rpc(user, "touchChat", ROOM_A, { lastSeq: i, lastPreview: `p${i}`, unread: i })
   const fresh0 = await socket(user, 0)
   expect(fresh0.frames[0]!.t).toBe("reset")
   expect(fresh0.frames[0]!.snapshot.seq).toBe(6)
   expect(fresh0.frames[0]!.snapshot.chats).toMatchObject([{ roomId: ROOM_A, lastPreview: "p5", unread: 5 }])
-  // A client that has applied something still gets events.
   const resumed = await socket(user, 1)
   expect(resumed.frames[0]!.t).toBe("events")
   short.close()
@@ -221,7 +219,7 @@ test("an agent is stored once, broadcast to every socket, and the chat keeps the
   late.close()
 })
 
-test("every account has one pinned kiko chat that cannot be deleted", async () => {
+test("every account has one pinned kiko chat that cannot be deleted or unpinned", async () => {
   const user = fresh()
   await rpc(user, "ensureHome")
   await rpc(user, "ensureHome")
@@ -230,10 +228,77 @@ test("every account has one pinned kiko chat that cannot be deleted", async () =
   expect(home).toHaveLength(1)
   expect(home[0]).toMatchObject({ pinned: true, agents: ["kiko"] })
   expect(await rpc(user, "deleteChat", home[0].roomId)).toBe(false)
+  expect(await rpc(user, "pinChat", home[0].roomId, false)).toMatchObject({ pinned: true })
   expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId)).toContain(home[0].roomId)
   // A socket sees it flagged, so the client never offers to delete it.
   const ws = await socket(user, 1_000_000)
   const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
   expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ kiko: true })
+  ws.close()
+})
+
+const ROOM_C = "01a0fa46-9777-7fdf-871e-3c63e992c708"
+const ROOM_D = "01a0fa46-9778-7fdf-871e-3c63e992c709"
+
+test("one direct chat per agent: a second create is refused and names the first", async () => {
+  const user = fresh()
+  const ws = await socket(user)
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_C, title: "ada", agents: ["ada"] } })
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_D, title: "ada", agents: ["ada"] } })
+  // A temporary chat with ada and a group with ada are not direct chats, so both are made.
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_A, title: "new chat", agents: ["ada"], temp: true } })
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_B, title: "team", agents: ["kiko", "ada"] } })
+  const frames = await ws.until(5)
+  expect(frames.find((f) => f.t === "chat_refused")).toEqual({ t: "chat_refused", roomId: ROOM_D, existing: ROOM_C })
+  expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId).sort()).toEqual([ROOM_A, ROOM_B, ROOM_C].sort())
+  // The RPC gives back the one direct chat instead of making another.
+  expect(await rpc(user, "createChat", ROOM_D, "ada again", ["ada"])).toMatchObject({ roomId: ROOM_C })
+  expect(await rpc(user, "listChats")).toHaveLength(3)
+  ws.close()
+})
+
+test("a temporary chat stays out of search, is kept as a group, and a kept chat is not kept twice", async () => {
+  const user = fresh()
+  const ws = await socket(user)
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_C, title: "new chat", agents: ["kiko"], temp: true } })
+  await ws.until(2)
+  expect(await rpc(user, "getChat", ROOM_C)).toMatchObject({ temp: true })
+  expect(await rpc(user, "searchChats", "new")).toEqual([])
+  ws.send({ t: "chat", op: { op: "keep", roomId: ROOM_C, title: "kiko, ada", agents: ["kiko", "ada"] } })
+  ws.send({ t: "chat", op: { op: "keep", roomId: ROOM_C, title: "again", agents: ["kiko"] } })
+  await ws.until(3)
+  const kept = await rpc(user, "getChat", ROOM_C)
+  expect(kept).toMatchObject({ title: "kiko, ada", agents: ["kiko", "ada"] })
+  expect(kept.temp).toBeUndefined()
+  expect(events(await ws.settle()).filter((e) => e.chat?.roomId === ROOM_C)).toHaveLength(2)
+  ws.close()
+})
+
+test("the last chat opened comes back in the snapshot, and the kiko chat stands in when it is gone", async () => {
+  const user = fresh()
+  await rpc(user, "ensureHome")
+  const kiko = (await rpc(user, "listChats"))[0].roomId
+  await rpc(user, "createChat", ROOM_C, "ada", ["ada"])
+  const snap = async () => {
+    const ws = await socket(user, 0)
+    ws.close()
+    return ws.frames[0]!.snapshot.lastChat
+  }
+  expect(await snap()).toBe(kiko)
+  const ws = await socket(user, 0)
+  ws.send({ t: "open", roomId: ROOM_C })
+  await ws.settle(100)
+  // No event: opening a chat is not a change anyone else needs to see.
+  expect(ws.frames).toHaveLength(1)
+  expect(await snap()).toBe(ROOM_C)
+  // A temporary chat is never resumed.
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_D, title: "new chat", agents: ["kiko"], temp: true } })
+  ws.send({ t: "open", roomId: ROOM_D })
+  await ws.until(2)
+  expect(await snap()).toBe(kiko)
+  ws.send({ t: "open", roomId: ROOM_C })
+  await ws.settle(100)
+  expect(await rpc(user, "deleteChat", ROOM_C)).toBe(true)
+  expect(await snap()).toBe(kiko)
   ws.close()
 })

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { nextAfterClose, openTabs } from "../app/open-tabs"
+import { closeChat } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleFiles, toggleInfo } from "../chat/info/state"
 import { openModelPicker } from "../settings/model-picker"
@@ -23,12 +23,16 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   const location = useLocation()
   const activeId = () => {
     const id = CHAT_PATH.exec(location.pathname)?.[1]
-    return id && id !== "new" ? decodeURIComponent(id) : null
+    return id ? decodeURIComponent(id) : null
   }
   useCommands(
     katCommands({
       toggleSidebar: deps.toggleSidebar,
-      newChat: () => navigate("/chat/new"),
+      // The one way to start a chat: a temporary chat with kiko, in a new tab (architecture section 7.11).
+      newChat: () => {
+        const id = useApp.createTemp()
+        if (id) navigate(`/chat/${id}`)
+      },
       openPalette: () => openPalette("commands"),
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
@@ -36,10 +40,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       toggleFiles,
       closeChat: () => {
         const id = activeId()
-        if (!id) return
-        const next = nextAfterClose(openTabs.ids(), id, id)
-        openTabs.close(id)
-        navigate(next ? `/chat/${next}` : "/chat")
+        if (id) closeChat(id, id, navigate)
       },
     }),
   )

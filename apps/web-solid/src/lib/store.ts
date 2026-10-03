@@ -30,6 +30,8 @@ import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import { newestMessages } from "../warm/messages"
 import type { BotPresence, ChatMessage, DocumentItem, MediaItem, OutgoingMessage, Reaction, RosterBot } from "./types"
+import { resumeChat, rosterChats } from "./chats"
+import { dmFor } from "@kiko/protocol"
 
 // The URLs. The one place a socket or file URL is built.
 
@@ -322,8 +324,8 @@ export function createApp(options: AppOptions = {}) {
     const botRows = shared<RosterBot[]>(() => {
       const r = room()
       const next = new Map<string, RosterBot>()
-      // A draft with kiko is not in the list until kiko makes it a group (section 7.11).
-      const rows = (userStore()?.chats() ?? []).filter((c) => !c.draft).map((c) => {
+      // Every chat, temporary and hidden ones too: the tab strip names them. `roster` is what the sidebar lists.
+      const rows = (userStore()?.chats() ?? []).map((c) => {
         let row: RosterBot
         if (!r || r.state.roomId !== c.roomId) row = chatRow(c)
         else {
@@ -342,6 +344,36 @@ export function createApp(options: AppOptions = {}) {
       return rows
     })
     const botIndex = shared(() => new Map(botRows().map((row) => [row.id, row])))
+    const roster = shared<RosterBot[]>(() => {
+      const index = botIndex()
+      return rosterChats(userStore()?.chats() ?? []).flatMap((c) => index.get(c.roomId) ?? [])
+    })
+
+    /*
+     * The chat the user was last in (architecture section 7.11). This device keeps its own copy in
+     * localStorage, read at once on boot; the server keeps one for a new device.
+     */
+    const lastKey = () => (session ? `kiko.last-chat:${session.userId}` : null)
+    const [localLast, setLocalLast] = createSignal<string | null>(null)
+    function readLast(): string | null {
+      const key = lastKey()
+      try {
+        return key ? localStorage.getItem(key) : null
+      } catch {
+        return null
+      }
+    }
+    function remember(id: RoomId) {
+      if (chat(id)?.temp) return
+      setLocalLast(id)
+      const key = lastKey()
+      try {
+        if (key) localStorage.setItem(key, id)
+      } catch {
+        // Blocked storage keeps the server's copy only.
+      }
+      userStore()?.open(id)
+    }
 
     function findView(id: string): ViewMessage | undefined {
       return roomMessages().find((m) => m.id === id)
@@ -388,6 +420,7 @@ export function createApp(options: AppOptions = {}) {
           if (bootUser !== userId) return void warm.close()
           session = { userId, warm, transport }
           batch(() => {
+            setLocalLast(readLast())
             setDrafts(createDraftBook(warm))
             setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff }))
             openRoom(activeId())
@@ -429,9 +462,9 @@ export function createApp(options: AppOptions = {}) {
       room,
       user: userStore,
 
-      /** The chat list as sidebar rows. Pinned first, then the most recent. */
+      /** The chat list as sidebar rows: the kiko chat, then pinned, then the most recent. No temporary or hidden chats. */
       bots(): RosterBot[] {
-        return botRows()
+        return roster()
       },
 
       chatById(id: string): RosterBot | undefined {
@@ -488,7 +521,23 @@ export function createApp(options: AppOptions = {}) {
         if (activeId() === id) return
         setActiveId(id)
         openRoom(id)
+        remember(id)
       },
+
+      /** The chat to open when the URL names none: the last one the user was in, else the kiko chat. Null until known. */
+      resumeChat(): RoomId | null {
+        const user = userStore()
+        if (!user) return null
+        return resumeChat(user.chats(), user.state.loaded && (user.state.synced || user.state.chats.length > 0), [localLast(), user.state.lastChat])
+      },
+
+      /** The user's kiko chat, or undefined before the list has it. */
+      kikoChatId(): RoomId | undefined {
+        return userStore()?.chats().find((c) => c.kiko)?.roomId
+      },
+
+      /** The chat with this room id as the protocol has it, temporary ones included. */
+      chat,
 
       /** The open room's messages, oldest first, with every pending action applied. */
       activeMessages(): ChatMessage[] {
@@ -661,20 +710,31 @@ export function createApp(options: AppOptions = {}) {
         userStore()?.createAgent(agent)
       },
 
-      /** Starts a chat with `agents` (their ids) and returns its room id. It is in the list before the server hears of it. */
-      /** A draft with kiko: "ask" or "group". Returns its room id. */
-      createDraft(kind: "ask" | "group"): RoomId | undefined {
-        return userStore()?.createDraft(kind)
+      /**
+       * The agent's one direct chat (architecture section 7.11), made only when it has none. Every
+       * way of picking an agent comes here. A new one is in the list before the server hears of it.
+       */
+      openDm(agent: Agent): RoomId | undefined {
+        const user = userStore()
+        if (!user) return undefined
+        return dmFor(user.chats(), agent.id)?.roomId ?? user.createChat(agent.name, [agent.id])
       },
 
-      createChat(title: string, agents?: readonly string[]): RoomId | undefined {
-        return userStore()?.createChat(title, agents)
+      /** A temporary chat with kiko: what the new chat button opens. Returns its room id. */
+      createTemp(): RoomId | undefined {
+        return userStore()?.createTemp()
       },
 
+      /** A temporary chat becomes a group in the list. */
+      keepChat(roomId: RoomId, title: string, agents: readonly string[]) {
+        userStore()?.keep(roomId, title, agents)
+      },
+
+      /** The kiko chat stays pinned. */
       togglePinned(threadId: string) {
         const user = userStore()
         const c = chat(threadId)
-        if (user && c) user.pin(c.roomId, !c.pinned)
+        if (user && c && !c.kiko) user.pin(c.roomId, !c.pinned)
       },
     }
     return app

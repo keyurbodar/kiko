@@ -1,6 +1,6 @@
 import type { RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
-import { openTabs } from "../app/open-tabs"
+import { nextAfterClose, openTabs } from "../app/open-tabs"
 import { useApp } from "../lib/store"
 
 /*
@@ -50,6 +50,7 @@ export function commitRename(id: string, title: string): void {
   useApp.user()?.rename(id as RoomId, next)
 }
 
+/** The kiko chat stays pinned; the store ignores it. */
 export function togglePin(id: string): void {
   useApp.togglePinned(id)
 }
@@ -59,15 +60,16 @@ export function toggleMute(id: string): void {
   if (chat) useApp.user()?.mute(chat.roomId, !chat.muted)
 }
 
-/** Closes the chat's tab. The chat stays in the list. */
+/**
+ * Closes the chat's tab, and lands on its neighbour when it was the open one. The chat stays in
+ * the list, except a temporary chat, which closing deletes (architecture section 7.11).
+ */
 export function closeChat(id: string, active: string | null, go: (path: string) => void): void {
-  const ids = openTabs.ids()
-  const at = ids.indexOf(id)
+  const next = nextAfterClose(openTabs.ids(), id, active)
   openTabs.close(id)
-  if (active !== id) return
-  const rest = openTabs.ids()
-  const next = rest[at] ?? rest[at - 1]
-  go(next ? `/chat/${next}` : "/chat")
+  const chat = useApp.chat(id)
+  if (chat?.temp) useApp.user()?.remove(chat.roomId)
+  if (active === id) go(next ? `/chat/${next}` : "/chat")
 }
 
 export function deleteChat(id: string, active: string | null, go: (path: string) => void): void {
