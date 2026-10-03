@@ -48,7 +48,7 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   models: ModelsPage,
   account: Account,
   integrations: Integrations,
-  skills: () => <p class="text-xs text-weak" data-component="skills-empty">no skills yet. skills you add will be listed here.</p>,
+  skills: () => <p class="text-xs text-weak" data-component="skills-empty">no skills yet</p>,
   appearance: () => (
     <Suspense>
       <Appearance />
