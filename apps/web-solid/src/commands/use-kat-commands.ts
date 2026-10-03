@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { closeChat } from "../sidebar/actions"
+import { closeChat, deleteChat, startRename, togglePin } from "../sidebar/actions"
+import { openTabs } from "../app/open-tabs"
 import { signOut } from "../app/session"
 import { toggleFiles, toggleInfo } from "../chat/info/state"
 import { openModelPicker } from "../settings/model-picker"
@@ -41,6 +42,27 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       closeChat: () => {
         const id = activeId()
         if (id) closeChat(id, id, navigate)
+      },
+      reopenClosed: () => {
+        const id = openTabs.takeClosed((id) => !!useApp.chat(id))
+        if (id) navigate(`/chat/${id}`)
+      },
+      attach: () => document.querySelector<HTMLButtonElement>(".composer-attach")?.click(),
+      rename: () => {
+        const id = activeId()
+        if (id) startRename(id)
+      },
+      canMove: () => {
+        const id = activeId()
+        return id !== null && !useApp.chat(id)?.kiko
+      },
+      togglePin: () => {
+        const id = activeId()
+        if (id && !useApp.chat(id)?.kiko) togglePin(id)
+      },
+      deleteChat: () => {
+        const id = activeId()
+        if (id && !useApp.chat(id)?.kiko) deleteChat(id, id, navigate)
       },
     }),
   )

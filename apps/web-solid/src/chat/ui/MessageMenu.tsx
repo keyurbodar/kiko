@@ -73,19 +73,15 @@ export function MessageMenu(props: MessageMenuProps) {
     const url = link()
     if (url) window.open(url, "_blank", "noopener,noreferrer")
   }
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function"
   const shareLink = async () => {
     const url = link()
     if (!url) return
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ url })
-        return
-      } catch (error) {
-        // The reader closed the share sheet.
-        if ((error as DOMException)?.name === "AbortError") return
-      }
+    try {
+      await navigator.share({ url })
+    } catch {
+      // The reader closed the share sheet.
     }
-    await copy(url, "link copied")
   }
   const copy = async (text = props.message.body, done = "copied") => {
     try {
@@ -197,10 +193,13 @@ export function MessageMenu(props: MessageMenuProps) {
                       <Link class="size-4 shrink-0" aria-hidden="true" />
                       copy link
                     </MenuV2.Item>
-                    <MenuV2.Item onSelect={() => void shareLink()}>
-                      <Share class="size-4 shrink-0" aria-hidden="true" />
-                      share link
-                    </MenuV2.Item>
+                    {/* Only where the system share sheet exists; elsewhere it would be copy link twice. */}
+                    <Show when={canShare}>
+                      <MenuV2.Item onSelect={() => void shareLink()}>
+                        <Share class="size-4 shrink-0" aria-hidden="true" />
+                        share link
+                      </MenuV2.Item>
+                    </Show>
                     <MenuV2.Separator />
                   </>
                 )}

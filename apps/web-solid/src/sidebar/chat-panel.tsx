@@ -55,6 +55,7 @@ function ChatMenuItems(props: { id: string }) {
   const navigate = useNavigate()
   const chat = createMemo(() => useApp.user()?.chats().find((c) => c.roomId === props.id))
   const active = () => useApp.activeThreadId()
+  const [sure, setSure] = createSignal(false)
   return (
     <>
       <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">rename</MenuV2.Item>
@@ -71,7 +72,14 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>close</MenuV2.Item>
       <Show when={!chat()?.kiko}>
         <MenuV2.Separator />
-        <MenuV2.Item onSelect={() => deleteChat(props.id, active(), navigate)}>delete</MenuV2.Item>
+        {/* Deleting cannot be undone, so the first select arms it and the second deletes, as in the info panel. */}
+        <MenuV2.Item
+          class="text-danger hover:bg-[oklch(from_var(--danger)_l_c_h_/_12%)] focus-visible:bg-[oklch(from_var(--danger)_l_c_h_/_12%)]"
+          closeOnSelect={sure()}
+          onSelect={() => (sure() ? deleteChat(props.id, active(), navigate) : setSure(true))}
+        >
+          {sure() ? "sure? delete" : "delete"}
+        </MenuV2.Item>
       </Show>
     </>
   )
@@ -401,14 +409,6 @@ export function ChatPanel() {
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
   const active = () => useApp.activeThreadId()
-  /** The open chat, when it is one the human may pin or delete: not the kiko chat. */
-  const movable = () => active() !== null && !useApp.chat(active()!)?.kiko
-  const chatCommands: Command[] = [
-    { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: () => active() !== null, run: () => active() && startRename(active()!) },
-    { id: "chat.pin", title: "chat: pin", group: "chat", icon: "pin", shortcut: "Mod+D", when: movable, run: () => movable() && togglePin(active()!) },
-    { id: "chat.delete", title: "chat: delete", group: "chat", icon: "trash", when: movable, run: () => movable() && deleteChat(active()!, active(), navigate) },
-  ]
-  useCommands(chatCommands)
 
   return (
     <div class="chat-panel" data-component="sidebar-chats">

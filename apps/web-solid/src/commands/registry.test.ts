@@ -37,7 +37,7 @@ describe("registry", () => {
 })
 
 describe("kat commands", () => {
-  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette() {}, openChats() {} })
+  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, })
 
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.map((c) => [c.title, c.shortcut]))
@@ -53,8 +53,6 @@ describe("kat commands", () => {
       "chat: close": "Mod+W",
       "chat: delete": undefined,
       "chats: go to chat...": "Mod+P",
-      "chats: search messages in current chat": "Mod+F",
-      "chats: search all chats": "Mod+Shift+F",
       "palette: open": "Mod+K",
     })
     for (const c of list) expect(c.title).toBe(c.title.toLowerCase())

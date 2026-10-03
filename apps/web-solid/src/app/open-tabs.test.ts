@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { closeTab, nextAfterClose, openTab, parseTabs, stepTab } from "./open-tabs"
+import { closeTab, nextAfterClose, openTab, openTabs, parseTabs, stepTab } from "./open-tabs"
 
 describe("open tabs", () => {
   test("opening appends once and keeps order", () => {
@@ -32,5 +32,16 @@ describe("open tabs", () => {
     expect(parseTabs("{")).toEqual([])
     expect(parseTabs('{"a":1}')).toEqual([])
     expect(parseTabs('["a",3,"a","b"]')).toEqual(["a", "b"])
+  })
+})
+
+describe("reopen closed", () => {
+  test("returns the newest closed tab that still exists, once", () => {
+    openTabs.open("a")
+    openTabs.open("b")
+    openTabs.close("a")
+    openTabs.close("b")
+    expect(openTabs.takeClosed((id) => id !== "b")).toBe("a")
+    expect(openTabs.takeClosed(() => true)).toBe(null)
   })
 })

@@ -13,6 +13,12 @@ const deps = (over: { newChat?: () => void } = {}) => ({
   toggleFiles() {},
   openPalette() {},
   openChats() {},
+  reopenClosed() {},
+  attach() {},
+  rename() {},
+  togglePin() {},
+  deleteChat() {},
+  canMove: () => false,
 })
 
 describe("palette rows", () => {
@@ -20,7 +26,7 @@ describe("palette rows", () => {
 
   test("keep registry order, drop disabled commands and the palette itself", () => {
     const titles = paletteRows(list).map((c) => c.title)
-    expect(titles).toEqual(["view: toggle sidebar", "chat: new", "chats: go to chat..."])
+    expect(titles).toEqual(["view: toggle sidebar", "chat: new", "chat: reopen closed", "chats: go to chat..."])
   })
 
   test("palette.open and chats.go are enabled", () => {
