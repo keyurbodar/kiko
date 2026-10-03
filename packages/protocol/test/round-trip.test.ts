@@ -53,7 +53,7 @@ describe("fixture round trip", () => {
 		)
 		expect(tags(F.clientToUser)).toEqual(new Set(["hello", "chat", "search", "login.start", "login.answer", "login.cancel"]))
 		expect(tags(F.userToClient)).toEqual(
-			new Set(["events", "reset", "search", "login.notify", "login.prompt", "login.done", "login.error"]),
+			new Set(["events", "reset", "home_refused", "search", "login.notify", "login.prompt", "login.done", "login.error"]),
 		)
 	})
 })

@@ -19,7 +19,7 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 // Envelope
 
-export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit"])
+export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -313,6 +313,9 @@ export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
 	Schema.Struct({ ...stored, t: Schema.Literal("agent"), agent: Agent }),
 	Schema.Struct({ ...stored, t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
+	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
+	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
+	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
 ])
 
 export const UserSnapshot = Schema.Struct({
@@ -320,6 +323,7 @@ export const UserSnapshot = Schema.Struct({
 	chats: Schema.Array(Chat),
 	agents: Schema.optionalKey(Schema.Array(Agent)),
 	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
+	home: Schema.Struct({ files: Schema.Array(FileRef), folders: Schema.Array(Schema.String) }),
 })
 
 // Memory
@@ -396,6 +400,7 @@ export const ExecutorResult = Schema.Union([
 
 export const ClientToUser = Schema.Union([
 	Hello,
+	Schema.Struct({ t: Schema.Literal("home"), op: FileOp }),
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
 	Schema.Struct({ t: Schema.Literal("agent"), op: AgentOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
@@ -452,6 +457,7 @@ export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unk
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
+	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),

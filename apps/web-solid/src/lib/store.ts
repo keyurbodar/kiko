@@ -454,6 +454,23 @@ export function createApp(options: AppOptions = {}) {
         return room()?.folders() ?? []
       },
 
+      /** The user's drive, /home (architecture section 18.4): the same in every chat. */
+      homeFiles(): FileRef[] {
+        return userStore()?.homeFiles() ?? []
+      },
+
+      homeFolders(): string[] {
+        return userStore()?.homeFolders() ?? []
+      },
+
+      homeOp(op: FileOp): void {
+        userStore()?.homeOp(op)
+      },
+
+      onHomeRefused(listener: (op: FileOp, reason: string) => void): () => void {
+        return userStore()?.onHomeRefused(listener) ?? (() => {})
+      },
+
       /** `rm`, `mv`, or `mkdir` on the open room's files, shown at once. */
       fileOp(op: FileOp): void {
         room()?.fileOp(op)

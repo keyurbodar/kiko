@@ -542,6 +542,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.applyFs(this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
 	}
 
+	/** RPC for an agent that changed the user's drive (section 18.4): one line in the chat says what. */
+	async homeNotice(slug: AgentSlug, text: string): Promise<void> {
+		const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${slug} ${text}`.slice(0, 300) })
+		if (event) this.publish([event])
+	}
+
 	/** RPC for the agent file system: `mkdir -p`. */
 	async fsMkdir(slug: AgentSlug, path: string): Promise<FsChange<RoomEvent> | FsFail> {
 		return this.applyFs(this.files.mkdir(path, { kind: "agent", slug }))

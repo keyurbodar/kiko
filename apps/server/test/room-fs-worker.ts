@@ -4,7 +4,10 @@ import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { FileOp } from "@kiko/protocol"
 import "../src/agent/effects"
 import { filesExtension } from "../src/agent/extensions/files"
-import { type FilesBackend, RoomFs, roomBackend, withSoul } from "../src/files/room-fs"
+import { type FilesBackend, HOME_PATH, homeBackend, RoomFs, roomBackend, withMount, withSoul } from "../src/files/room-fs"
+import { FileIndex, HOME_TABLES, type NewFile } from "../src/files/file-index"
+import { actorKey } from "../src/room/log"
+import type { Actor } from "@kiko/protocol"
 import { migrate } from "../src/user/schema"
 import { Souls } from "../src/user/souls"
 import type { Env } from "../src/index"
@@ -18,13 +21,34 @@ import { roomStub } from "../src/lib/names"
 
 export { RoomDO } from "../src/room/room-do"
 
-/** The real soul store (user/souls.ts) over this object's SQLite. */
+/** The real soul store (user/souls.ts) and drive index (files/file-index.ts) over this object's SQLite. */
 export class UserDO extends DurableObject {
   private readonly souls: Souls
+  private readonly home: FileIndex<unknown>
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never)
     migrate(ctx.storage.sql)
     this.souls = new Souls(ctx.storage.sql)
+    this.home = new FileIndex<unknown>(ctx.storage, HOME_TABLES, (_, body) => body, actorKey)
+  }
+  homePut(input: NewFile) {
+    const { events, ...result } = this.home.put(input)
+    return { ...result, fresh: events.length > 0, entry: result.file && !result.conflict ? this.home.stat(input.path) : null }
+  }
+  homeStat(path: string) {
+    return this.home.stat(path)
+  }
+  homeList(dir: string, recursive = false) {
+    return this.home.list(dir, recursive)
+  }
+  homeMove(by: Actor, from: string, to: string) {
+    return this.home.move(from, to, by)
+  }
+  homeRemove(by: Actor, paths: string[], recursive: boolean) {
+    return this.home.remove(paths, recursive, by)
+  }
+  homeMkdir(by: Actor, path: string) {
+    return this.home.mkdir(path, by)
   }
   async recordRoom() {
     return true
@@ -36,6 +60,9 @@ export class UserDO extends DurableObject {
     return this.souls.set(slug, body, expectSha)
   }
 }
+
+/** What agents told the chat about the drive. */
+const notices: string[] = []
 
 /** One file system per agent, kept across requests as an agent process keeps it. */
 const systems = new Map<string, RoomFs>()
@@ -74,6 +101,7 @@ export default {
       const out = await fs.write(url.searchParams.get("path")!, new Uint8Array(await request.arrayBuffer()), url.searchParams.get("type")!)
       return Response.json({ ok: out.ok })
     }
+    if (kind === "notices") return Response.json(notices.splice(0))
     if (kind === "counts") {
       const c = counts.get(`${roomId}/${slug}`)!
       const out = { ...c }
@@ -93,9 +121,11 @@ export default {
       }
       // A stub per call: a stub made in one request cannot be used from another, as in AgentDO.
       const users = (env as unknown as { USER: DurableObjectNamespace<UserDO> }).USER
-      const user = () => users.get(users.idFromName(`user:${roomId}`))
+      // One user, alice, in every room: the drive and the souls are hers.
+      const user = () => users.get(users.idFromName("user:alice"))
       const soul = { get: () => user().soul(slug!), set: (body: string, expect?: string) => user().setSoul(slug!, body, expect) }
-      fs = new RoomFs(`test:${key}`, withSoul(counted(key, roomBackend(env, () => home), env), soul))
+      const drive = homeBackend(env, () => home, async (text) => void notices.push(`@${slug} ${text}`))
+      fs = new RoomFs(`test:${key}`, withSoul(withMount(counted(key, roomBackend(env, () => home), env), HOME_PATH, drive), soul))
       systems.set(key, fs)
     }
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }

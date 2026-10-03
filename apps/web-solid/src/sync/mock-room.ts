@@ -13,6 +13,8 @@ import type {
 	Chat,
 	ClientToRoom,
 	ClientToUser,
+	FileOp,
+	FileRef,
 	Message,
 	MessageId,
 	RoomEvent,
@@ -231,38 +233,11 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			}
 			peer.push({ t: "catalog", kind: f.kind, ...(f.before !== undefined ? { before: f.before } : {}), items, next })
 		},
-		// The server's rules in room/files.ts, through the same overlay the client draws with.
+		// The server's rules in files/file-index.ts, through the same overlay the client draws with.
 		files(peer, f) {
-			const op = f.op
-			const under = (name: string, path: string) => name === path || name.startsWith(`${path}/`)
-			const folders = () => overlayFolders(data.folders, [{ clientId: "", at: 0, frame: f }])
-			if (op.op === "mkdir") {
-				if (data.files.some((x) => x.name === op.path)) return peer.push({ t: "files_refused", op, reason: "that is a file" })
-				const next = folders()
-				if (next.length !== data.folders.length) store({ t: "folders", folders: next })
-				return
-			}
-			if (op.op === "rm") {
-				const exists = (p: string) => data.files.some((x) => under(x.name, p)) || data.folders.some((x) => under(x, p))
-				if (!op.paths.every(exists)) return peer.push({ t: "files_refused", op, reason: "no such file or folder" })
-				const full = (p: string) => data.files.some((x) => x.name.startsWith(`${p}/`)) || data.folders.some((x) => x.startsWith(`${p}/`))
-				if (!op.recursive && op.paths.some(full)) return peer.push({ t: "files_refused", op, reason: "that folder has things in it" })
-				const gone = data.files.filter((x) => op.paths.some((p) => under(x.name, p)))
-				if (gone.length) store({ t: "file_removed", ids: gone.map((x) => x.id) })
-				const next = folders()
-				if (next.length !== data.folders.length) store({ t: "folders", folders: next })
-				return
-			}
-			const before = new Map(data.files.map((x) => [x.id, x.name]))
-			const after = overlayFiles(data.files, [{ clientId: "", at: 0, frame: f }], data.folders)
-			const nextFolders = folders()
-			const moved = after.some((x) => before.get(x.id) !== x.name) || nextFolders.join() !== data.folders.join()
-			if (!moved) return peer.push({ t: "files_refused", op, reason: "nothing moved" })
-			const kept = new Set(after.map((x) => x.id))
-			const replaced = data.files.filter((x) => !kept.has(x.id)).map((x) => x.id)
-			if (replaced.length) store({ t: "file_removed", ids: replaced })
-			for (const file of after) if (before.get(file.id) !== file.name) store({ t: "file", file })
-			if (nextFolders.join() !== data.folders.join()) store({ t: "folders", folders: nextFolders })
+			const out = fileOpEvents(data.files, data.folders, f.op)
+			if ("refused" in out) return peer.push({ t: "files_refused", op: f.op, reason: out.refused })
+			if (out.events.length) store(...(out.events as WithoutStored<RoomEvent>[]))
 		},
 		member(peer, f) {
 			const op = f.op
@@ -358,12 +333,38 @@ export type MockUser = {
 	store(...events: WithoutStored<UserEvent>[]): UserEvent[]
 }
 
+type FileEventBody = { t: "file"; file: FileRef } | { t: "file_removed"; ids: string[] } | { t: "folders"; folders: string[] }
+
+/** The events one `rm`, `mv`, or `mkdir` makes in a file space, or why it changes nothing. Room and drive share it. */
+function fileOpEvents(files: readonly FileRef[], folders: readonly string[], op: FileOp): { events: FileEventBody[] } | { refused: string } {
+	const under = (name: string, path: string) => name === path || name.startsWith(`${path}/`)
+	const frame = { clientId: "", at: 0, frame: { t: "files" as const, op } }
+	const nextFolders = overlayFolders(folders, [frame])
+	const folderEvent: FileEventBody[] = nextFolders.join() !== folders.join() ? [{ t: "folders", folders: nextFolders }] : []
+	if (op.op === "mkdir") return files.some((x) => x.name === op.path) ? { refused: "that is a file" } : { events: folderEvent }
+	if (op.op === "rm") {
+		const exists = (p: string) => files.some((x) => under(x.name, p)) || folders.some((x) => under(x, p))
+		if (!op.paths.every(exists)) return { refused: "no such file or folder" }
+		const full = (p: string) => files.some((x) => x.name.startsWith(`${p}/`)) || folders.some((x) => x.startsWith(`${p}/`))
+		if (!op.recursive && op.paths.some(full)) return { refused: "that folder has things in it" }
+		const gone = files.filter((x) => op.paths.some((p) => under(x.name, p))).map((x) => x.id)
+		return { events: [...(gone.length ? [{ t: "file_removed" as const, ids: gone }] : []), ...folderEvent] }
+	}
+	const before = new Map(files.map((x) => [x.id, x.name]))
+	const after = overlayFiles(files, [frame], folders)
+	const kept = new Set(after.map((x) => x.id))
+	const replaced = files.filter((x) => !kept.has(x.id)).map((x) => x.id)
+	const moved = after.filter((x) => before.get(x.id) !== x.name).map((file): FileEventBody => ({ t: "file", file }))
+	if (!moved.length && !folderEvent.length) return { refused: "nothing moved" }
+	return { events: [...(replaced.length ? [{ t: "file_removed" as const, ids: replaced }] : []), ...moved, ...folderEvent] }
+}
+
 export function createMockUser(options: MockUserOptions = {}): MockUser {
 	const schedule = options.schedule ?? later
 	const now = options.now ?? Date.now
 	const resetAfter = options.resetAfter ?? 500
 	const log: UserEvent[] = []
-	const data: UserData = { seq: 0, chats: [], agents: [] }
+	const data: UserData = { seq: 0, chats: [], agents: [], home: { files: [], folders: [] } }
 	const peers = new Set<Peer<UserToClient>>()
 	const received: ClientToUser[] = []
 
@@ -390,11 +391,17 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			if (frame.t === "hello") {
 				const last = log[log.length - 1]?.seq ?? 0
 				if (frame.lastSeq > last || last - frame.lastSeq > resetAfter)
-					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents }) })
+					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents, home: data.home }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
 			if (frame.t === "agent") {
 				if (!data.agents.some((a) => a.id === frame.op.agent.id || a.slug === frame.op.agent.slug)) store({ t: "agent", agent: frame.op.agent })
+				return
+			}
+			if (frame.t === "home") {
+				const out = fileOpEvents(data.home.files, data.home.folders, frame.op)
+				if ("refused" in out) return peer.push({ t: "home_refused", op: frame.op, reason: out.refused })
+				if (out.events.length) store(...(out.events as WithoutStored<UserEvent>[]))
 				return
 			}
 			if (frame.t !== "chat") return // the mock has no memory, search, executor, sign-in, or theme store

@@ -39,6 +39,12 @@ function agent(room: string, slug = "ada") {
     ls: async (path = "/", recursive = false) => (await run("ls", { path, recursive })).text,
   }
 }
+/** A root listing without the mounts, /me and /home. */
+const chatOnly = (listing: string) =>
+  listing
+    .split("\n")
+    .filter((l) => !l.startsWith("/me/") && !l.startsWith("/home/"))
+    .join("\n")
 const keys = async (room: string) => (await (await fetch(`${origin}/keys/${room}`)).json()) as string[]
 const human = async (room: string, op: unknown) => ((await (await fetch(`${origin}/op/${room}`, { method: "POST", body: JSON.stringify(op) })).json()) as { refused: string | null }).refused
 
@@ -49,9 +55,9 @@ test("write makes folders, read gives text back, ls shows folders and files", as
   await a.write("readme.md", "hi")
   expect(await a.read("notes/plan.md")).toBe("# plan\nstep one\n")
   expect(await a.read("/notes/../notes/plan.md")).toBe("# plan\nstep one\n")
-  expect(await a.ls()).toMatch(/^\/me\/\t1 files, \d+ b\n\/notes\/\t2 files, 17 b\n\/readme.md\t2 b\ttext\/markdown$/)
+  expect(chatOnly(await a.ls())).toBe("/notes/\t2 files, 17 b\n/readme.md\t2 b\ttext/markdown")
   expect(await a.ls("notes")).toBe("/notes/deep/\t1 files, 1 b\n/notes/plan.md\t16 b\ttext/markdown")
-  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe(
+  expect(chatOnly(await a.ls("/", true))).toBe(
     "/notes/\t2 files, 17 b\n/notes/deep/\t1 files, 1 b\n/notes/deep/idea.txt\t1 b\ttext/plain\n/notes/plan.md\t16 b\ttext/markdown\n/readme.md\t2 b\ttext/markdown",
   )
 })
@@ -109,7 +115,7 @@ test("mv renames, moves into a folder, moves a whole folder, and replaces a file
   expect((await a.run("mv", { from: "renamed.md", to: "docs" })).text).toBe("moved renamed.md to docs/renamed.md")
   expect(await a.read("docs/renamed.md")).toBe("a")
   expect((await a.run("mv", { from: "docs", to: "archive/2026" })).ok).toBe(true)
-  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe("/archive/\t3 files, 3 b\n/archive/2026/\t3 files, 3 b\n/archive/2026/sub/\t1 files, 1 b\n/archive/2026/b.md\t1 b\ttext/markdown\n/archive/2026/renamed.md\t1 b\ttext/markdown\n/archive/2026/sub/c.md\t1 b\ttext/markdown")
+  expect(chatOnly(await a.ls("/", true))).toBe("/archive/\t3 files, 3 b\n/archive/2026/\t3 files, 3 b\n/archive/2026/sub/\t1 files, 1 b\n/archive/2026/b.md\t1 b\ttext/markdown\n/archive/2026/renamed.md\t1 b\ttext/markdown\n/archive/2026/sub/c.md\t1 b\ttext/markdown")
   // A file onto a file replaces it, and the replaced bytes leave R2.
   const before = (await keys(room)).length
   await a.write("x.md", "new")
@@ -135,7 +141,7 @@ test("rm deletes files and, with recursive, folders; a refusal deletes nothing; 
   expect(await a.read("keep.md")).toBe("k")
   expect((await a.run("rm", { paths: ["tmp"], recursive: true })).text).toBe("deleted 2 files and 2 folders")
   expect((await a.run("rm", { paths: ["keep.md"] })).text).toBe("deleted 1 file")
-  expect(await a.ls()).toMatch(/^\/me\/\t1 files/)
+  expect(chatOnly(await a.ls())).toBe("")
   await Bun.sleep(100)
   expect(await keys(room)).toEqual([])
 })
@@ -159,7 +165,7 @@ test("paths stay inside the chat, and a file and a folder never share a name", a
   await a.write("dir/f.md", "f")
   expect((await a.write("dir", "x")).text).toContain("is a folder")
   expect((await a.run("read", { path: "dir" })).text).toContain("is a folder")
-  expect((await a.ls()).split("\n").slice(1).join("\n")).toBe("/dir/\t1 files, 1 b\n/doc.md\t1 b\ttext/markdown")
+  expect(chatOnly(await a.ls())).toBe("/dir/\t1 files, 1 b\n/doc.md\t1 b\ttext/markdown")
 })
 
 test("the human's rm and mv go through the same rules", async () => {
@@ -168,10 +174,10 @@ test("the human's rm and mv go through the same rules", async () => {
   await a.write("notes/a.md", "a")
   expect(await human(room, { op: "rm", paths: ["notes"] })).toContain("is a folder")
   expect(await human(room, { op: "mv", from: "notes", to: "kept" })).toBeNull()
-  expect((await a.ls()).split("\n").slice(1).join("\n")).toBe("/kept/\t1 files, 1 b")
+  expect(chatOnly(await a.ls())).toBe("/kept/\t1 files, 1 b")
   expect(await human(room, { op: "rm", paths: ["kept"], recursive: true })).toBeNull()
   expect(await human(room, { op: "rm", paths: ["../x"] })).not.toBeNull()
-  expect((await a.ls()).split("\n")).toHaveLength(1)
+  expect(chatOnly(await a.ls())).toBe("")
 })
 
 const raw = (room: string, path: string, type: string, bytes: Uint8Array) =>
@@ -253,4 +259,25 @@ test("folders are real: mkdir -p, they survive their last file, an empty one goe
   // The human makes an empty folder too, and agents see it.
   expect(await human(room, { op: "mkdir", path: "drafts/q3" })).toBeNull()
   expect(await a.ls("/drafts")).toBe("/drafts/q3/\t0 files, 0 b")
+})
+
+test("/home is the user's drive: one agent saves there in one chat, another reads it in a different chat", async () => {
+  const ada = agent(fresh(), "ada")
+  const kiko = agent(fresh(), "kiko")
+  await fetch(`${origin}/notices/x/x`)
+  expect((await ada.write("/home/cv.md", "# cv\nten years of cooking")).ok).toBe(true)
+  expect(await kiko.read("/home/cv.md")).toBe("# cv\nten years of cooking")
+  expect(await kiko.ls("/home")).toBe("/home/cv.md\t25 b\ttext/markdown")
+  expect((await kiko.ls("/")).split("\n")).toContain("/home/\t1 files, 25 b")
+  // Folders and edits work there too.
+  expect((await kiko.run("mkdir", { path: "/home/letters" })).ok).toBe(true)
+  expect((await kiko.run("edit", { path: "/home/cv.md", edits: [{ oldText: "ten", newText: "twelve" }] })).ok).toBe(true)
+  // Moving across is a copy, not a move; cp works both ways.
+  expect((await kiko.run("mv", { from: "/home/cv.md", to: "/cv.md" })).text).toContain("cp it")
+  expect((await kiko.run("cp", { from: "/home/cv.md", to: "/cv.md" })).ok).toBe(true)
+  expect(await kiko.read("/cv.md")).toBe("# cv\ntwelve years of cooking")
+  expect((await kiko.run("rm", { paths: ["/home"] })).text).toContain("cannot be deleted")
+  // Every change an agent makes to the drive is said in its chat.
+  const notices = (await (await fetch(`${origin}/notices/x/x`)).json()) as string[]
+  expect(notices).toEqual(["@ada saved /home/cv.md", "@kiko saved /home/cv.md"])
 })

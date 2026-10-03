@@ -11,7 +11,7 @@ import type { AgentHome } from "../room/room-do"
 import { findProvider, type TurnMemory } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
-import { RoomFs, roomBackend, type SoulPort, withSoul } from "../files/room-fs"
+import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
 import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
@@ -233,7 +233,15 @@ export class AgentDO extends DurableObject<Env> {
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
     const soul = this.soulPort()
-    const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, withSoul(roomBackend(this.env, () => this.home()), soul))
+    // The chat's files at /, the user's drive at /home, and this agent's soul at /me, on one byte cache.
+    const cache = new ObjectCache()
+    const where = () => this.home()
+    const notice = (text: string) => {
+      const h = this.home()
+      return h ? roomStub(this.env.ROOM, h.userId, h.roomId).homeNotice(h.slug, text) : Promise.resolve()
+    }
+    const backend = withMount(roomBackend(this.env, where, cache), HOME_PATH, homeBackend(this.env, where, notice, cache))
+    const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, withSoul(backend, soul))
     const files = { fs, acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const executor = await this.executorTools()

@@ -1,4 +1,4 @@
-import type { Agent, Chat, ChatOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -14,6 +14,9 @@ import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
+import { type FileBody, FileIndex, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
+import { cleanPath } from "../files/upload"
+import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
 import { ProviderLogins } from "./provider-login"
@@ -53,6 +56,7 @@ export class UserDO extends DurableObject<Env> {
   private alarms!: Alarms
   private memory!: MemoryStore
   private souls!: Souls
+  private home!: FileIndex<UserEvent>
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -66,6 +70,7 @@ export class UserDO extends DurableObject<Env> {
       this.alarms = createAlarms(ctx)
       this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
       this.souls = new Souls(this.sql)
+      this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
       this.tidy = new Tidy({
         sql: this.sql,
@@ -156,6 +161,50 @@ export class UserDO extends DurableObject<Env> {
   /** Replaces an agent's soul, by the agent itself or by the human. */
   async setSoul(slug: string, body: string, expectSha?: string): Promise<SoulWrite> {
     return this.souls.set(slug, body, expectSha)
+  }
+
+  // The user's drive, /home (architecture section 18.4). The same index and rules as a chat's
+  // files; its R2 keys sit under the user's prefix like every other object.
+
+  /** RPC for an upload to the drive, and for an agent's write. */
+  async homePut(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
+    const { events, ...result } = this.home.put(input)
+    return { ...result, fresh: events.some((e) => e.t === "file"), entry: result.file && !result.conflict ? this.home.stat(input.path) : null }
+  }
+
+  async homeStat(path: string): Promise<FsEntry | null> {
+    return this.home.stat(path)
+  }
+
+  async homeList(dir: string, recursive = false): Promise<FsEntry[] | FsFail> {
+    return this.home.list(dir, recursive)
+  }
+
+  async homeMove(by: Actor, from: string, to: string): Promise<FsChange | FsFail> {
+    return this.dropAfter(this.home.move(from, to, by))
+  }
+
+  async homeRemove(by: Actor, paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail> {
+    return this.dropAfter(this.home.remove(paths, recursive, by))
+  }
+
+  async homeMkdir(by: Actor, path: string): Promise<FsChange | FsFail> {
+    return this.home.mkdir(path, by)
+  }
+
+  /** A human's `home` frame. The refusal for the socket, or null. */
+  private homeOp(op: FileOp): string | null {
+    const human = { kind: "human" } as const
+    const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
+    if (paths.some((p) => cleanPath(p) === null)) return "that is not a path in your drive"
+    const out = op.op === "rm" ? this.dropAfter(this.home.remove(op.paths, op.recursive ?? false, human)) : op.op === "mv" ? this.dropAfter(this.home.move(op.from, op.to, human)) : this.home.mkdir(op.path, human)
+    return out.ok ? null : out.message
+  }
+
+  /** Deletes the R2 objects nothing points to any more. */
+  private dropAfter<T extends FsChange | FsFail>(out: T): T {
+    if (out.ok && out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+    return out
   }
 
   /** A first soul for an agent the lead added, from the role it gave. Keeps a soul that exists. */
@@ -411,6 +460,11 @@ export class UserDO extends DurableObject<Env> {
       this.saveAgent(frame.op.agent)
       return
     }
+    if (frame.t === "home") {
+      const refused = this.homeOp(frame.op)
+      if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
+      return
+    }
     // A login runs until it ends, so the handler does not wait for it.
     if (frame.t === "login.start") return void this.#logins.start(ws, frame.loginId, frame.provider).catch(() => {})
     if (frame.t === "login.answer") return this.#logins.answer(ws, frame.loginId, frame.promptId, frame.value)
@@ -513,7 +567,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** Stores `change` as the next event and sends it to every socket that said hello. */
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
     if (!change) return null
     const at = Date.now()
     const seq = this.currentSeq() + 1
@@ -550,7 +604,7 @@ export class UserDO extends DurableObject<Env> {
       .one()
     const replayable = lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
     const fresher = lastSeq === 0 && stored > this.snapshotRows()
-    if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql) } }
+    if (!replayable || fresher) return { t: "reset", snapshot: { seq, chats: listChats(this.sql), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() } } }
     const events = this.sql
       .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
       .toArray()

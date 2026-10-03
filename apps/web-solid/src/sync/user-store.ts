@@ -8,21 +8,34 @@
 // ASSUMPTION: chat edits are not written to the outbox, which holds sends
 // only. A chat edit made offline is lost on reload.
 
-import type { Agent, Chat, ChatOp, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, Chat, ChatOp, FileOp, FileRef, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { allAgents, allChats, getUserSeq, putAgents, putChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
-import { expire, overlayChats, PATCH_TTL_MS, settleUser, type UserPatch } from "./patches"
+import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 
-export type UserData = { seq: number; chats: Chat[]; agents: Agent[] }
+/** The user's drive, /home (architecture section 18.4). */
+export type Home = { files: FileRef[]; folders: string[] }
+export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home }
 
 /** Applies one event in place. An event at or below `data.seq` is skipped. Returns false then. */
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	if (e.seq <= data.seq) return false
 	data.seq = e.seq
 	if (e.t === "theme") return true // the theme client reads these. The chat list has nothing to change.
+	// The drive's events, by the same rules as a room's files: a path holds one file, a move keeps the id.
+	if (e.t === "file" || e.t === "file_removed" || e.t === "folders") {
+		if (e.t === "file") {
+			data.home.files = data.home.files.filter((x) => x.name !== e.file.name || x.id === e.file.id)
+			const i = data.home.files.findIndex((x) => x.id === e.file.id)
+			if (i === -1) data.home.files.push(e.file)
+			else data.home.files[i] = e.file
+		} else if (e.t === "file_removed") data.home.files = data.home.files.filter((x) => !e.ids.includes(x.id))
+		else data.home.folders = [...e.folders]
+		return true
+	}
 	if (e.t === "agent") {
 		if (!data.agents.some((a) => a.id === e.agent.id)) data.agents.push(e.agent)
 		return true
@@ -53,6 +66,8 @@ export type UserState = UserData & {
 	patches: UserPatch[]
 	/** Agents made here that the server has not confirmed yet. Sent again after a reconnect. */
 	pendingAgents: Agent[]
+	/** Drive changes the server has not confirmed yet, laid over `home`. */
+	pendingHome: RoomPatch[]
 }
 
 export type UserStoreOptions = {
@@ -80,6 +95,12 @@ export type UserStore = {
 	pin(roomId: RoomId, pinned: boolean): void
 	mute(roomId: RoomId, muted: boolean): void
 	remove(roomId: RoomId): void
+	/** The drive's files and folders, with pending changes applied. */
+	homeFiles(): FileRef[]
+	homeFolders(): string[]
+	/** `rm`, `mv`, or `mkdir` on the drive, shown at once. A refusal rolls it back and calls `onHomeRefused`. */
+	homeOp(op: FileOp): void
+	onHomeRefused(listener: (op: FileOp, reason: string) => void): () => void
 	close(): void
 }
 
@@ -93,11 +114,14 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		seq: 0,
 		chats: [],
 		agents: [],
+		home: { files: [], folders: [] },
 		loaded: false,
 		connection: "closed",
 		patches: [],
 		pendingAgents: [],
+		pendingHome: [],
 	})
+	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
 	let socket: SyncSocket | null = null
 	let closed = false
 	let expiry: ReturnType<typeof setTimeout> | undefined
@@ -132,6 +156,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			if (confirmed.length) setState("pendingAgents", (list) => list.filter((a) => !confirmed.includes(a.id)))
 			const next = settleUser(state.patches, applied)
 			if (next.length !== state.patches.length) setState("patches", next)
+			const home = state.pendingHome.filter((p) => !applied.some((e) => roomConfirmedBy(p, e as never)))
+			if (home.length !== state.pendingHome.length) setState("pendingHome", home)
 		})
 		for (const e of applied) {
 			if (e.t === "chat") putChats(warm, [e.chat])
@@ -143,7 +169,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 
 	function reset(snapshot: UserSnapshot) {
 		const agents = [...(snapshot.agents ?? [])]
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents })
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home: { files: [...snapshot.home.files], folders: [...snapshot.home.folders] } })
 		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
 		putAgents(warm, agents)
@@ -152,6 +178,11 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	function onFrame(frame: UserToClient) {
 		if (frame.t === "events") applyEvents(frame.events)
 		else if (frame.t === "reset") reset(frame.snapshot)
+		else if (frame.t === "home_refused") {
+			const same = JSON.stringify(frame.op)
+			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))
+			for (const listener of homeRefusals) listener(frame.op, frame.reason)
+		}
 	}
 
 	async function boot() {
@@ -192,6 +223,16 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		pin: (roomId, pinned) => act({ op: "pin", roomId, pinned }),
 		mute: (roomId, muted) => act({ op: "mute", roomId, muted }),
 		remove: (roomId) => act({ op: "delete", roomId }),
+		homeFiles: () => overlayFiles(state.home.files, state.pendingHome, state.home.folders),
+		homeFolders: () => overlayFolders(state.home.folders, state.pendingHome),
+		homeOp(op) {
+			setState("pendingHome", (list) => [...list, { clientId: newId(), at: now(), frame: { t: "files", op } }])
+			socket?.send({ t: "home", op })
+		},
+		onHomeRefused(listener) {
+			homeRefusals.add(listener)
+			return () => homeRefusals.delete(listener)
+		},
 		close() {
 			closed = true
 			if (expiry !== undefined) clearTimeout(expiry)

@@ -13,10 +13,11 @@ import {
 } from "@earendil-works/pi-durable/env"
 import type { AgentSlug } from "@kiko/protocol"
 import type { Env } from "../index"
-import { roomStub } from "../lib/names"
+import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
 import { cleanPath, fileKey } from "./upload"
+import type { NewFile } from "./file-index"
 
 // The room's files as `pi-durable`'s `ExecutionEnv` (architecture section 18.1). Every agent in a
 // room sees one file space, rooted at `/`. `pi-durable`'s own `read`, `write`, and `edit` run on it
@@ -338,7 +339,7 @@ export class RoomFs implements ExecutionEnv {
 }
 
 /** An LRU of immutable R2 objects by key. */
-class ObjectCache {
+export class ObjectCache {
   private readonly items = new Map<string, Uint8Array>()
   private bytes = 0
 
@@ -363,17 +364,23 @@ class ObjectCache {
   }
 }
 
-/** The backend over the agent's own room and R2. `home` is read on every call: the room sets it. */
-export function roomBackend(env: Env, home: () => AgentHome | null): FilesBackend {
-  const cache = new ObjectCache()
-  const where = () => {
-    const h = home()
-    if (!h) throw new Error("this agent has no room yet")
-    return { home: h, room: roomStub(env.ROOM, h.userId, h.roomId) }
-  }
+/** What one file space answers: a room's index in RoomDO, or the drive's in UserDO. */
+type SpaceIndex = {
+  /** The R2 key space: the room id, or `home`. */
+  space: string
+  stat(path: string): Promise<FsEntry | null>
+  list(dir: string, recursive: boolean): Promise<FsEntry[] | FsFail>
+  put(input: NewFile): Promise<{ drop: string | null; refused?: FsFail; conflict?: boolean; entry: FsEntry | null }>
+  move(from: string, to: string): Promise<FsChange | FsFail>
+  remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
+  mkdir(path: string): Promise<FsChange | FsFail>
+}
+
+/** A backend over one space's index and R2, with the shared byte cache. */
+function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, cache: ObjectCache): FilesBackend {
   return {
-    stat: (path) => where().room.fsStat(path),
-    list: (dir, recursive) => where().room.fsList(dir, recursive),
+    stat: (path) => index().stat(path),
+    list: (dir, recursive) => index().list(dir, recursive),
     async bytes(r2Key, maxBytes) {
       const hit = cache.get(r2Key)
       if (hit) return maxBytes === undefined ? hit : hit.subarray(0, maxBytes)
@@ -384,12 +391,13 @@ export function roomBackend(env: Env, home: () => AgentHome | null): FilesBacken
       return bytes
     },
     async write(path, bytes, type, expectSha256) {
-      const { home: h, room } = where()
+      const h = home()
+      const at = index()
       const id = crypto.randomUUID()
-      const r2Key = fileKey(h.userId, h.roomId, id)
+      const r2Key = fileKey(h.userId, at.space, id)
       const sha256 = hex(await crypto.subtle.digest("SHA-256", bytes))
       await env.FILES.put(r2Key, bytes, { httpMetadata: { contentType: type } })
-      const out = await room.putFile({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, ...(expectSha256 ? { expectSha256 } : {}) })
+      const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, ...(expectSha256 ? { expectSha256 } : {}) })
       if (out.drop) await env.FILES.delete(out.drop)
       if (out.refused) return out.refused
       if (out.conflict) return { ok: false, code: "conflict", message: `${path} changed since you last read it (a teammate or the human edited it). read it again, then make your change.` }
@@ -398,9 +406,122 @@ export function roomBackend(env: Env, home: () => AgentHome | null): FilesBacken
       cache.set(entry.r2Key, bytes)
       return { ok: true, entry }
     },
-    move: (from, to) => where().room.fsMove(where().home.slug as AgentSlug, from, to),
-    mkdir: (path) => where().room.fsMkdir(where().home.slug as AgentSlug, path),
-    remove: (paths, recursive) => where().room.fsRemove(where().home.slug as AgentSlug, paths, recursive),
+    move: (from, to) => index().move(from, to),
+    mkdir: (path) => index().mkdir(path),
+    remove: (paths, recursive) => index().remove(paths, recursive),
+  }
+}
+
+/** Throws until the room has told this agent where it lives. */
+const homeOf = (home: () => AgentHome | null) => () => {
+  const h = home()
+  if (!h) throw new Error("this agent has no room yet")
+  return h
+}
+
+/** The backend over the agent's own room and R2. `home` is read on every call: the room sets it. */
+export function roomBackend(env: Env, home: () => AgentHome | null, cache = new ObjectCache()): FilesBackend {
+  const h = homeOf(home)
+  return spaceBackend(env, h, () => {
+    const { userId, roomId, slug } = h()
+    const room = roomStub(env.ROOM, userId, roomId)
+    const me = slug as AgentSlug
+    return {
+      space: roomId,
+      stat: (p) => room.fsStat(p),
+      list: (d, r) => room.fsList(d, r),
+      put: (input) => room.putFile(input),
+      move: (a, b) => room.fsMove(me, a, b),
+      remove: (p, r) => room.fsRemove(me, p, r),
+      mkdir: (p) => room.fsMkdir(me, p),
+    }
+  }, cache)
+}
+
+/**
+ * The backend over the user's drive (section 18.4), in UserDO. Every change an agent makes there
+ * is told to the chat through `notice`, so the human sees what landed in their drive.
+ */
+export function homeBackend(env: Env, home: () => AgentHome | null, notice: (text: string) => Promise<unknown>, cache = new ObjectCache()): FilesBackend {
+  const h = homeOf(home)
+  const told = async <T extends { ok: boolean }>(out: T, text: string) => {
+    if (out.ok) await notice(text).catch(() => undefined)
+    return out
+  }
+  const base = spaceBackend(env, h, () => {
+    const { userId, slug } = h()
+    const user = userStub(env.USER, userId)
+    const me = { kind: "agent", slug: slug as AgentSlug } as const
+    return {
+      space: HOME_SPACE,
+      stat: (p) => user.homeStat(p),
+      list: (d, r) => user.homeList(d, r),
+      put: (input) => user.homePut(input),
+      move: (a, b) => user.homeMove(me, a, b),
+      remove: (p, r) => user.homeRemove(me, p, r),
+      mkdir: (p) => user.homeMkdir(me, p),
+    }
+  }, cache)
+  return {
+    ...base,
+    write: async (path, bytes, type, expect) => told(await base.write(path, bytes, type, expect), `saved /home/${path}`),
+    move: async (from, to) => told(await base.move(from, to), `moved /home/${from} to /home/${to}`),
+    remove: async (paths, recursive) => told(await base.remove(paths, recursive), `deleted ${paths.map((p) => `/home/${p}`).join(", ")}`),
+  }
+}
+
+const HOME_SPACE = "home"
+export const HOME_PATH = "home"
+
+/**
+ * Mounts `mounted` at /<at>: its paths gain the prefix, and the root lists it as a folder. A move
+ * between the mount and the rest is refused, as `mv` across file systems would copy: use `cp`.
+ */
+export function withMount(base: FilesBackend, at: string, mounted: FilesBackend): FilesBackend {
+  const inside = (p: string) => p === at || p.startsWith(`${at}/`)
+  const strip = (p: string) => (p === at ? "" : p.slice(at.length + 1))
+  const add = (e: FsEntry): FsEntry => ({ ...e, path: e.path ? `${at}/${e.path}` : at })
+  const across: FsFail = { ok: false, code: "invalid", message: `moving between /${at} and the chat's files is not a move. cp it, then rm the original if you mean to` }
+  return {
+    async stat(path) {
+      if (!inside(path)) return base.stat(path)
+      const e = await mounted.stat(strip(path))
+      return e ? add(e) : null
+    },
+    async list(dir, recursive) {
+      if (inside(dir)) {
+        const out = await mounted.list(strip(dir), recursive)
+        return Array.isArray(out) ? out.map(add) : out
+      }
+      const out = await base.list(dir, recursive)
+      if (dir !== "" || !Array.isArray(out)) return out
+      const root = await mounted.stat("")
+      const self: FsEntry = { kind: "directory", path: at, files: root?.kind === "directory" ? root.files : 0, size: root?.size ?? 0 }
+      if (!recursive) return [self, ...out]
+      const all = await mounted.list("", true)
+      return [self, ...(Array.isArray(all) ? all.map(add) : []), ...out]
+    },
+    bytes: (key, max) => (key.includes(`/r/${HOME_SPACE}/`) ? mounted.bytes(key, max) : base.bytes(key, max)),
+    async write(path, bytes, type, expect) {
+      if (!inside(path)) return base.write(path, bytes, type, expect)
+      if (path === at) return { ok: false, code: "is_directory", message: `/${at} is a folder` }
+      const out = await mounted.write(strip(path), bytes, type, expect)
+      return out.ok ? { ok: true, entry: add(out.entry) as FsEntry & { kind: "file" } } : out
+    },
+    async move(from, to) {
+      if (inside(from) !== inside(to)) return across
+      if (from === at) return { ok: false, code: "invalid", message: `/${at} stays where it is` }
+      return inside(from) ? mounted.move(strip(from), strip(to)) : base.move(from, to)
+    },
+    async remove(paths, recursive) {
+      if (paths.some((p) => p === at)) return { ok: false, code: "invalid", message: `/${at} cannot be deleted. delete what is in it instead` }
+      const mine = paths.filter(inside)
+      if (mine.length && mine.length !== paths.length) return { ok: false, code: "invalid", message: `delete /${at} paths and the chat's paths in separate calls` }
+      return mine.length ? mounted.remove(mine.map(strip), recursive) : base.remove(paths, recursive)
+    },
+    async mkdir(path) {
+      return inside(path) ? (path === at ? { ok: true, events: [], drop: [], changed: 0 } : mounted.mkdir(strip(path))) : base.mkdir(path)
+    },
   }
 }
 

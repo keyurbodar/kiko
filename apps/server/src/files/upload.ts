@@ -1,13 +1,14 @@
 import { type Actor, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { enqueueAttachment } from "../jobs/attachment"
-import { addressRoom } from "../lib/names"
+import { addressRoom, userStub } from "../lib/names"
 import type { SessionLookup } from "../router"
 import type { NewFile } from "../room/files"
 
 // Architecture section 18.1. Bytes go from the client through the Worker to R2 as a
 // stream. The Worker computes SHA-256, then asks the room to index the object. The
 // R2 key is built from the session's user id, so no request can reach another user's bytes.
+// `<roomId>` may be `home`, the user's drive (section 18.4): its index is in UserDO.
 //
 //   PUT    /api/files/<roomId>?path=<path>                     one request, up to MAX_SINGLE_PUT_BYTES
 //          x-kiko-if-sha256: <sha256 | none> makes it an edit: 409 { error, file } when the path holds other bytes
@@ -38,6 +39,11 @@ const FILES_PATH = /^\/api\/files\/([^/]+)(?:\/(.*))?$/
 const HUMAN: Actor = { kind: "human" }
 
 export const userPrefix = (userId: string) => `u/${userId}/`
+
+/** The id of the user's drive in a files route. No room id has this shape. */
+export const HOME = "home"
+/** A file space a route may name: a room, or the user's drive. */
+export const isSpace = (id: string) => id === HOME || isRoomId(id)
 
 /** The R2 key. The user id comes from the session only. */
 export function fileKey(userId: string, roomId: string, fileId: string): string {
@@ -112,20 +118,20 @@ async function sha256Of(stream: ReadableStream): Promise<string> {
 	return hex(await digest.digest)
 }
 
-/** Indexes a stored object in the room and deletes whatever the room no longer points to. */
+/** Indexes a stored object in its space and deletes whatever the space no longer points to. */
 async function index(env: Env, userId: string, roomId: string, input: NewFile, failures?: number): Promise<Response> {
-	const room = await addressRoom(env, userId, roomId)
-	if (!room) {
+	const room = roomId === HOME ? null : await addressRoom(env, userId, roomId)
+	if (roomId !== HOME && !room) {
 		await env.FILES.delete(input.r2Key)
 		return error(410, "account deleted")
 	}
-	const { file, drop, fresh, conflict, refused } = await room.putFile(input)
+	const { file, drop, fresh, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
 	if (drop) await env.FILES.delete(drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	// A stale edit writes nothing. The answer names what the path holds now, so the editor can offer it.
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })
 	// Architecture section 7.9: the room is not held awake for image metadata. A queue job fills what the client did not send.
-	if (fresh && file) await enqueueAttachment(env, userId, roomId, file, failures)
+	if (fresh && file && room) await enqueueAttachment(env, userId, roomId, file, failures)
 	return Response.json({ file })
 }
 
@@ -278,7 +284,7 @@ export async function uploadRoute(
 	const user = await lookup(request, env)
 	if (!user) return error(401, "unauthorized")
 	const { roomId, rest } = route
-	if (!isRoomId(roomId)) return error(404, "not found")
+	if (!isSpace(roomId)) return error(404, "not found")
 	const uploadId = url.searchParams.get("uploadId") ?? ""
 	const [head, fileId = "", n] = rest
 
