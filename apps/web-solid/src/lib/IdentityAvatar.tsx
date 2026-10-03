@@ -11,7 +11,7 @@ export function IdentityAvatar(props: { seed: string; size?: number; class?: str
   const look = () => identityLook(props.seed)
   return (
     <span
-      class={`inline-block shrink-0 align-middle leading-none ${props.class ?? ""}`}
+      class={`inline-flex shrink-0 align-middle ${props.class ?? ""}`}
       style={{
         width: props.size ? `${props.size}px` : undefined,
         height: props.size ? `${props.size}px` : undefined,

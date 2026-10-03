@@ -1,9 +1,9 @@
-import { A, useNavigate } from "@solidjs/router"
+import { A } from "@solidjs/router"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { chatModel, setChatModel } from "./chat-model"
 import { formatContext, formatPrice, loadCatalog, modelRef, searchModels } from "./catalog"
-import { connectedProviders, connectedReady } from "./connected"
+import { connectedProviders } from "./connected"
 
 // At most this many rows render for one search. A catalog holds hundreds of
 // models, and a search narrows it faster than scrolling does.
@@ -46,7 +46,7 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
         when={connectedIds().size > 0}
         fallback={
           <div class="p-4 text-sm text-weak" data-component="model-empty">
-            no provider is connected. <A href="/settings/providers" class="underline">connect one</A> to pick a model.
+            no provider is connected. <A href="/settings/models" class="underline">connect one</A> to pick a model.
           </div>
         }
       >
@@ -92,26 +92,31 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
 const [pickerOpen, setPickerOpen] = createSignal(false)
 export const openModelPicker = () => setPickerOpen(true)
 
-/** The chat top bar control: shows the chat's model and opens the picker. Picking applies at once. */
+/**
+ * The chat's model, as a quiet chip at the right of the top bar. It opens the picker, and a pick
+ * applies at once. With no provider connected it hides: the composer's banner is the one place
+ * that says so.
+ */
 export function ModelPickerButton(props: { chatId: string | null }) {
-  const open = pickerOpen
-  const setOpen = setPickerOpen
-  const navigate = useNavigate()
   const current = () => chatModel(props.chatId)
-  // First run: with no provider connected a model cannot run, so the button is the way to connect one.
-  const needsProvider = () => connectedReady() && connectedProviders().length === 0
+  const ready = () => connectedProviders().length > 0
   return (
-    <ModalV2 open={open()} onOpenChange={setOpen}>
-      <button
-        type="button"
-        class="ml-auto h-9 max-w-[220px] shrink-0 truncate rounded-[10px] px-3 text-xs text-muted outline-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] data-[setup]:bg-[var(--accent-wash)] data-[setup]:text-[var(--accent)] md:h-7 md:px-2"
-        data-component="model-picker-button"
-        data-setup={needsProvider() ? "" : undefined}
-        aria-label={needsProvider() ? "connect a provider" : "choose model"}
-        onClick={() => (needsProvider() ? navigate("/settings/providers") : setOpen(true))}
-      >
-        {needsProvider() ? <><span class="md:hidden">connect</span><span class="hidden md:inline">connect a provider</span></> : (current()?.split("/").slice(1).join("/") ?? "choose model")}
-      </button>
+    <ModalV2 open={pickerOpen()} onOpenChange={setPickerOpen}>
+      <Show when={ready()}>
+        <button
+          type="button"
+          class="flex h-7 max-w-[200px] shrink-0 items-center gap-1 rounded-[9px] px-2 text-xs text-muted outline-none hover:bg-[var(--tab-bg-hover)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          data-component="model-picker-button"
+          aria-label="choose model"
+          title="choose model"
+          onClick={() => setPickerOpen(true)}
+        >
+          <span class="truncate">{current()?.split("/").slice(1).join("/") ?? "choose model"}</span>
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70" aria-hidden="true">
+            <path d="M3 4.5L6 7.5l3-3" />
+          </svg>
+        </button>
+      </Show>
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content class="h-[min(560px,80dvh)] w-[min(520px,94vw)] flex-col gap-2 rounded-[16px] bg-bg p-3 shadow-xl">
@@ -121,7 +126,7 @@ export function ModelPickerButton(props: { chatId: string | null }) {
             current={current()}
             onPick={(ref) => {
               setChatModel(props.chatId, ref)
-              setOpen(false)
+              setPickerOpen(false)
             }}
           />
         </ModalV2.Content>

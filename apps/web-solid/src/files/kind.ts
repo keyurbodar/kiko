@@ -31,7 +31,6 @@ export function viewerKind(file: FileLike): ViewerKind {
 	return kind
 }
 
-
 /**
  * Rows of a CSV or TSV. Quoted fields may hold the separator, doubled quotes and line breaks.
  * Stops after `limit` rows, so a large file draws its head at once.

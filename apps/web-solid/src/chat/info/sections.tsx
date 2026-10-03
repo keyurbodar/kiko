@@ -130,7 +130,7 @@ export function Members(props: { members: readonly Member[] }) {
 
 /** A colored circle with a line icon. The hue sets the color, so each kind of row reads at a glance. */
 export function Badge(props: { hue: number; path: string; size?: number }) {
-  const size = () => props.size ?? 30
+  const size = () => props.size ?? 28
   return (
     <span
       class="grid shrink-0 place-items-center rounded-full"
@@ -160,7 +160,7 @@ export function ListRow(props: { id: string; label: string; hue: number; path: s
   return (
     <button
       type="button"
-      class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[15px] text-text hover:bg-nav-hover"
+      class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm text-text hover:bg-nav-hover"
       data-action={`open-${props.id}`}
       data-card={props.id}
       onClick={() => props.onClick()}
@@ -192,7 +192,7 @@ export function DeleteChat(props: { chatId: string }) {
     <div class={`${flat} p-1`} data-card="danger">
       <button
         type="button"
-        class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[15px] text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] hover:bg-nav-hover"
+        class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] hover:bg-nav-hover"
         data-action="delete-chat"
         onClick={remove}
         onBlur={() => setSure(false)}

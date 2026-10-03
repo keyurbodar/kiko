@@ -155,8 +155,8 @@ export function TabStrip() {
                 <span class="flex size-4 shrink-0 items-center justify-center" data-component="tab-icon">
                   <ChatAvatar faces={useApp.chatFaces(id)} size={16} />
                 </span>
-                {/* The title fades out at its max width instead of ending in an ellipsis. */}
-                <span class="min-w-0 flex-1 overflow-hidden leading-[var(--tab-h)] whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)] group-data-[unread]:text-[var(--tab-text-active)]">
+                {/* The title fades out at its max width instead of ending in an ellipsis. The fade sits on 16 px of padding, so a title that fits is never dimmed. */}
+                <span class="min-w-0 flex-1 overflow-hidden pr-4 leading-[var(--tab-h)] whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)] group-data-[unread]:text-[var(--tab-text-active)]">
                   {label(id)}
                 </span>
               </span>
