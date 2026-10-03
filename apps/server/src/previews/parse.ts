@@ -8,6 +8,8 @@ export interface ParsedPage {
   image?: string
   /** Absolute third-party icon URL. It never reaches the client. */
   favicon?: string
+  /** `<meta name="theme-color">`, when it is a CSS colour the client can paint. */
+  themeColor?: string
 }
 
 const MAX_TEXT = 300
@@ -51,6 +53,8 @@ export async function parsePreview(html: string, pageUrl: string): Promise<Parse
       element(el) {
         const key = (el.getAttribute("property") ?? el.getAttribute("name"))?.toLowerCase()
         const content = el.getAttribute("content")
+        // A theme-color for dark mode only says little about the brand. The first plain one wins.
+        if (key === "theme-color" && el.getAttribute("media")?.includes("dark")) return
         if (key && content && !meta.has(key)) meta.set(key, content)
       },
     })
@@ -77,7 +81,16 @@ export async function parsePreview(html: string, pageUrl: string): Promise<Parse
     siteName: clean(meta.get("og:site_name")),
     image: absolute(pick(meta, ["og:image", "og:image:url", "twitter:image", "twitter:image:src"]), pageUrl),
     favicon: absolute(favicon ?? touch, pageUrl),
+    themeColor: color(meta.get("theme-color")),
   }
+}
+
+// A hex, rgb(), or hsl() colour. Anything else, such as a CSS variable, could carry text into a style.
+const COLOR = /^(#[0-9a-f]{3,8}|(rgba?|hsla?)\(\s*[\d.%,\s/+-]+\))$/i
+
+function color(value: string | undefined): string | undefined {
+  const text = value?.trim()
+  return text && text.length <= 40 && COLOR.test(text) ? text.toLowerCase() : undefined
 }
 
 /** A page with no title, description, or image has nothing to show. */
