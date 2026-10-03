@@ -2,7 +2,7 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "../effects"
 import { type Fetcher, safeFetch } from "../../lib/safe-fetch"
-import { devFixtureFetcher } from "../../previews/route"
+import { devFixtureFetcher } from "../../previews/resolve"
 import type { Effect as ToolEffect } from "../effects"
 
 // Architecture section 18.2. `web_fetch` uses the same safe fetcher as link previews: http and

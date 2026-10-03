@@ -40,6 +40,7 @@ describe("fixture round trip", () => {
 			new Set([
 				"message",
 				"edit",
+				"preview",
 				"delete",
 				"react",
 				"read",

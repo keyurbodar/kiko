@@ -10,9 +10,9 @@
 // down, drops every store and starts empty. The server refills it. So a single
 // version on the database stands for the version on each value.
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
-export const STORES = ["chats", "messages", "outbox", "drafts", "media", "meta"] as const
+export const STORES = ["chats", "messages", "outbox", "drafts", "media", "meta", "previews"] as const
 export type StoreName = (typeof STORES)[number]
 
 export type WarmKey = string | number | readonly (string | number)[]

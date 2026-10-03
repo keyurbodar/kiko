@@ -30,6 +30,24 @@ export type Reaction = { by: Actor; emoji: string }
 /** The key that makes an agent bubble idempotent. Architecture section 6.3. */
 export type RunRef = { runId: string; attempt: number; index: number }
 
+/**
+ * The card for the first link in a message, read by the Worker from the page's head. Image paths
+ * are on kiko's origin, so the reader's browser never contacts the third party. Agents never see it.
+ */
+export type LinkPreview = {
+	/** The link as the message wrote it, normalized. */
+	url: string
+	title?: string
+	description?: string
+	siteName?: string
+	/** A path on kiko's origin. */
+	image?: string
+	/** A path on kiko's origin. */
+	favicon?: string
+	/** The page's `theme-color`, a hint for the card's colour when the image has none. */
+	themeColor?: string
+}
+
 /** A message as the human sees it, with every later edit and reaction applied. */
 export type Message = {
 	id: MessageId
@@ -51,6 +69,8 @@ export type Message = {
 	goto?: RoomId
 	/** The words of `replyTo` the sender picked to answer, as Telegram's quote does. */
 	quote?: string
+	/** The card for the message's first link. It arrives a moment after the message, in a `preview` event. */
+	preview?: LinkPreview
 }
 
 export type Member = {
@@ -133,6 +153,8 @@ export type RoomEvent =
 	/** A new message. `clientId` echoes the `send` that made it, so the sender drops its pending patch. */
 	| ({ t: "message"; clientId?: string } & Message)
 	| (Stored & { t: "edit"; messageId: MessageId; text: string; rich?: RichText })
+	/** The server read the message's first link. Replaces any earlier preview of the message. */
+	| (Stored & { t: "preview"; messageId: MessageId; preview: LinkPreview })
 	/** More than one id when a new attempt replaces an earlier attempt's bubbles. */
 	| (Stored & { t: "delete"; messageIds: readonly MessageId[] })
 	/** `emoji` is null when the actor removes its reaction. */

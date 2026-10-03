@@ -71,4 +71,8 @@ export function migrate(sql: SqlStorage): void {
   if (!columns.some((c) => c.name === "agents")) sql.exec("ALTER TABLE chats ADD COLUMN agents TEXT NOT NULL DEFAULT '[]'")
   if (!columns.some((c) => c.name === "private")) sql.exec("ALTER TABLE chats ADD COLUMN private INTEGER NOT NULL DEFAULT 0")
   if (!columns.some((c) => c.name === "draft")) sql.exec("ALTER TABLE chats ADD COLUMN draft TEXT")
+  // The row's activity line as `ChatLast` JSON, the unread mentions of the human, and whether it is a group.
+  if (!columns.some((c) => c.name === "last")) sql.exec("ALTER TABLE chats ADD COLUMN last TEXT")
+  if (!columns.some((c) => c.name === "mentions")) sql.exec("ALTER TABLE chats ADD COLUMN mentions INTEGER NOT NULL DEFAULT 0")
+  if (!columns.some((c) => c.name === "grp")) sql.exec("ALTER TABLE chats ADD COLUMN grp INTEGER NOT NULL DEFAULT 0")
 }

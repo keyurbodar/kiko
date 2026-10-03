@@ -681,6 +681,27 @@
 	color: var(--accent);
 }
 
+/* Who said the newest line: you, or an agent in a group. A shade stronger than the line itself. */
+.sidebar-shell .chat-preview-from {
+  color: var(--text);
+}
+
+/* tweb's mention badge: a filled accent disc holding an @, the size of a small unread count. */
+.sidebar-shell .chat-mention-badge {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
 /* ===== Panel slots and the settings list ------------------------------- */
 
 .sidebar-shell .panel-slot {

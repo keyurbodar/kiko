@@ -163,6 +163,34 @@ export default function ChatRoute() {
     return state.scrollOffset + state.viewportSize < state.scrollSize - 1;
   };
 
+  /*
+   * Telegram's @ button. The store keeps the mentions of you this visit has not shown yet; one on
+   * screen counts as seen, and the button jumps to the oldest of the rest.
+   */
+  let transcript: HTMLDivElement | undefined;
+  const mentions = () => useApp.unseenMentions();
+  createEffect(() => {
+    threadState();
+    messages();
+    const ids = mentions();
+    if (!ids.length || !transcript) return;
+    requestAnimationFrame(() => {
+      if (!transcript) return;
+      const box = transcript.getBoundingClientRect();
+      const onScreen = ids.filter((id) => {
+        const row = transcript!.querySelector(`[data-message-id="${CSS.escape(id)}"]`)?.getBoundingClientRect();
+        return !!row && row.bottom > box.top && row.top < box.bottom;
+      });
+      useApp.seeMentions(onScreen);
+    });
+  });
+  const jumpToMention = () => {
+    const id = mentions()[0];
+    if (!id) return;
+    jumpToMessage?.(id);
+    useApp.seeMentions([id]);
+  };
+
   return (
     <Show when={!isNew()} fallback={<NewChat />}>
     {/* The shell owns the row and the rail. The transcript pane keeps
@@ -180,7 +208,7 @@ export default function ChatRoute() {
             the stage fell back to content height, the scroller inside never
             scrolled, and the transcript grew straight past the pane and
             rendered *behind* the composer. */}
-        <div class="flex min-h-0 flex-1 flex-col">
+        <div class="flex min-h-0 flex-1 flex-col" ref={transcript}>
           <MessageList
             messages={messages()}
             botById={(id) => (id === undefined ? undefined : members().get(id))}
@@ -232,6 +260,19 @@ export default function ChatRoute() {
               onClick={() => scrollToLatest?.()}
             >
               <IconV2 name="chevron-down" />
+            </button>
+          </Show>
+          <Show when={mentions().length}>
+            <button
+              type="button"
+              class="composer-jump-mention"
+              data-component="composer-jump-mention"
+              data-stacked={scrolled() ? "" : undefined}
+              aria-label="next mention"
+              onClick={jumpToMention}
+            >
+              <span aria-hidden="true">@</span>
+              <span class="composer-jump-count" data-component="composer-jump-count">{mentions().length}</span>
             </button>
           </Show>
           <Show when={useApp.room()?.approvals().length ? useApp.room() : undefined}>

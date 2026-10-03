@@ -126,13 +126,24 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /**
-   * A room calls this once at the end of a run. Returns true when it changed the row
-   * and broadcast. A repeat with the same `lastSeq` returns false and sends nothing.
+   * A room calls this when its newest activity, read position, or members change, and at the end
+   * of a run. Returns true when it changed the row and broadcast. A repeat with the same `lastSeq`
+   * returns false and sends nothing.
    */
   async touchChat(roomId: RoomId, touch: Touch): Promise<boolean> {
     const changed = this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
     if (changed) await this.armTidy()
     return changed
+  }
+
+  /**
+   * A room calls this when the set of its agents that are typing changes, so the chat list can say
+   * who is typing in a chat that is not open. Sent, never stored: a client that connects later sees
+   * the next change.
+   */
+  async chatTyping(roomId: RoomId, names: readonly string[]): Promise<void> {
+    if (!getChat(this.sql, roomId)) return
+    this.broadcast({ t: "typing", roomId, names })
   }
 
   async searchChats(query: string): Promise<Chat[]> {
