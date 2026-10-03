@@ -55,7 +55,12 @@ export function createAuth(env: AuthEnv, request: Request) {
     ],
     socialProviders: socialProviders(env),
     session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
-    advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
+    advanced: {
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
+      // The D1 migrations own the schema. Left on, each new instance (one per request) reads the
+      // whole schema from D1 before it answers: about eight queries on every request and socket.
+      database: { validateSchema: false },
+    },
     plugins: process.env.NODE_ENV === "development" ? [devSession()] : [],
   })
 }
@@ -63,6 +68,23 @@ export function createAuth(env: AuthEnv, request: Request) {
 /** True when the account with this id was deleted. */
 export async function isDeletedUser(db: D1Database, userId: string): Promise<boolean> {
   return (await db.prepare(`SELECT 1 AS hit FROM "deleted_user" WHERE "id" = ?`).bind(userId).first("hit")) !== null
+}
+
+/**
+ * How long this isolate trusts that an account was not deleted. ASSUMPTION: the number. A D1 read
+ * on every request and socket upgrade costs a round trip to the database. A deleted account stays
+ * out regardless: `UserDO` refuses its sockets and rooms once deletion begins.
+ */
+export const LIVE_USER_TTL_MS = 30_000
+const liveUsers = new Map<string, number>()
+
+/** `isDeletedUser`, with a "not deleted" answer kept for `LIVE_USER_TTL_MS` in this isolate. */
+async function deleted(db: D1Database, userId: string, now = Date.now()): Promise<boolean> {
+  if ((liveUsers.get(userId) ?? 0) > now) return false
+  if (await isDeletedUser(db, userId)) return true
+  if (liveUsers.size > 10_000) liveUsers.clear()
+  liveUsers.set(userId, now + LIVE_USER_TTL_MS)
+  return false
 }
 
 /**
@@ -74,15 +96,17 @@ export async function revokeUser(db: D1Database, userId: string): Promise<void> 
     db.prepare(`INSERT OR IGNORE INTO "deleted_user" ("id", "deletedAt") VALUES (?, ?)`).bind(userId, Date.now()),
     db.prepare(`DELETE FROM "session" WHERE "userId" = ?`).bind(userId),
   ])
+  liveUsers.delete(userId)
 }
 
 /**
  * The signed-in user of a request, or null. The only source of a user id in the Worker.
- * The cookie cache can still vouch for a deleted user's session, so the tombstone wins.
+ * The cookie cache vouches for the session without D1, so it can still vouch for a deleted
+ * user's session: the tombstone wins.
  */
 export async function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
   const session = await createAuth(env, request).api.getSession({ headers: request.headers })
-  if (!session || (await isDeletedUser(env.AUTH_DB, session.user.id))) return null
+  if (!session || (await deleted(env.AUTH_DB, session.user.id))) return null
   const { id, name, email, image } = session.user
   return { id, name, email, image: image ?? null }
 }
