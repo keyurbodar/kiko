@@ -4,7 +4,7 @@ import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "soli
 import { session } from "../../app/session"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
-import { agentList } from "../new-chat-model"
+import { agentList } from "../../lib/chats"
 import { addable, addOp, refusalText, renameOp, roleLabel } from "./model"
 
 /*
@@ -143,7 +143,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
         }
       >
         <div class="flex flex-col" data-component="member-add">
-          <Show when={candidates().length > 0} fallback={<p class="px-2 py-2 text-sm text-weak">every agent is here. make a new one from the new chat screen.</p>}>
+          <Show when={candidates().length > 0} fallback={<p class="px-2 py-2 text-sm text-weak">every agent is here. ask kiko to make a new one.</p>}>
             <For each={candidates()}>
               {(agent) => (
                 <button

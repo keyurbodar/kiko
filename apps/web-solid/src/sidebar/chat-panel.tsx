@@ -58,7 +58,10 @@ function ChatMenuItems(props: { id: string }) {
   return (
     <>
       <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">rename</MenuV2.Item>
-      <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "unpin" : "pin"}</MenuV2.Item>
+      {/* The kiko chat is the chief's tile: always pinned, never deleted. */}
+      <Show when={!chat()?.kiko}>
+        <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "unpin" : "pin"}</MenuV2.Item>
+      </Show>
       <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "unmute" : "mute"}</MenuV2.Item>
       <Show when={useApp.chatFaces(props.id).length === 1}>
         <MenuV2.Item onSelect={() => openBirdPicker(useApp.chatFaces(props.id)[0]!)}>change bird</MenuV2.Item>
@@ -376,8 +379,8 @@ function SearchRow(props: {
 }
 
 /**
- * The chats panel: search, the pinned block, then every conversation in a
- * virtual list. Only the rows in the viewport plus the buffer exist in the DOM.
+ * The chats panel: search, the pinned tiles (the kiko chat always first), then every conversation
+ * in a virtual list. Temporary chats and hidden rooms are left out by `useApp.bots()`. Only the rows in the viewport plus the buffer exist in the DOM.
  *
  * `now` is read once per render rather than from a timer. The stamps are coarse
  * and the list re-renders on every roster change.
@@ -398,10 +401,12 @@ export function ChatPanel() {
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
   const active = () => useApp.activeThreadId()
+  /** The open chat, when it is one the human may pin or delete: not the kiko chat. */
+  const movable = () => active() !== null && !useApp.chat(active()!)?.kiko
   const chatCommands: Command[] = [
     { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: () => active() !== null, run: () => active() && startRename(active()!) },
-    { id: "chat.pin", title: "chat: pin", group: "chat", icon: "pin", shortcut: "Mod+D", when: () => active() !== null, run: () => active() && togglePin(active()!) },
-    { id: "chat.delete", title: "chat: delete", group: "chat", icon: "trash", when: () => active() !== null, run: () => active() && deleteChat(active()!, active(), navigate) },
+    { id: "chat.pin", title: "chat: pin", group: "chat", icon: "pin", shortcut: "Mod+D", when: movable, run: () => movable() && togglePin(active()!) },
+    { id: "chat.delete", title: "chat: delete", group: "chat", icon: "trash", when: movable, run: () => movable() && deleteChat(active()!, active(), navigate) },
   ]
   useCommands(chatCommands)
 

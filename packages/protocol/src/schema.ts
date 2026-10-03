@@ -322,7 +322,7 @@ export const Chat = Schema.Struct({
 	agents: Schema.optionalKey(Schema.Array(Schema.String)),
 	kiko: Schema.optionalKey(Schema.Literal(true)),
 	private: Schema.optionalKey(Schema.Boolean),
-	draft: Schema.optionalKey(Schema.Literals(["ask", "group"])),
+	temp: Schema.optionalKey(Schema.Literal(true)),
 	last: Schema.optionalKey(ChatLast),
 	mentions: Schema.optionalKey(Count),
 	group: Schema.optionalKey(Schema.Literal(true)),
@@ -333,7 +333,8 @@ export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlu
 export const AgentOp = Schema.Struct({ op: Schema.Literal("create"), agent: Agent })
 
 export const ChatOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)), draft: Schema.optionalKey(Schema.Literals(["ask", "group"])) }),
+	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)), temp: Schema.optionalKey(Schema.Literal(true)) }),
+	Schema.Struct({ op: Schema.Literal("keep"), roomId: RoomId, title: Schema.String, agents: Schema.Array(Schema.String) }),
 	Schema.Struct({ op: Schema.Literal("rename"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ op: Schema.Literal("pin"), roomId: RoomId, pinned: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("mute"), roomId: RoomId, muted: Schema.Boolean }),
@@ -357,6 +358,7 @@ export const UserSnapshot = Schema.Struct({
 	agents: Schema.optionalKey(Schema.Array(Agent)),
 	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
 	home: Schema.Struct({ files: Schema.Array(FileRef), folders: Schema.Array(Schema.String) }),
+	lastChat: Schema.optionalKey(RoomId),
 })
 
 // Memory
@@ -435,6 +437,7 @@ export const ClientToUser = Schema.Union([
 	Hello,
 	Schema.Struct({ t: Schema.Literal("home"), op: FileOp }),
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
+	Schema.Struct({ t: Schema.Literal("open"), roomId: RoomId }),
 	Schema.Struct({ t: Schema.Literal("agent"), op: AgentOp }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
 	Schema.Struct({ t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
@@ -491,6 +494,7 @@ export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unk
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent) }),
 	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),

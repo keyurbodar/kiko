@@ -112,6 +112,7 @@ type UserConfirms = { [K in ChatOp["op"]]: (op: Extract<ChatOp, { op: K }>, even
 
 const userConfirms: UserConfirms = {
 	create: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId,
+	keep: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && !e.chat.temp,
 	rename: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.title === op.title,
 	pin: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.pinned === op.pinned,
 	mute: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.muted === op.muted,
@@ -341,13 +342,18 @@ export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch
 				unread: 0,
 				updatedAt: p.at,
 				...(op.agents?.length ? { agents: op.agents } : {}),
-				...(op.draft ? { draft: op.draft } : {}),
+				...(op.temp ? { temp: true as const } : {}),
 			})
 		} else if (op.op === "delete") {
 			out = out.filter((c) => c.roomId !== op.roomId)
 		} else {
 			out = out.map((c) => {
 				if (c.roomId !== op.roomId) return c
+				if (op.op === "keep") {
+					if (!c.temp) return c
+					const { temp: _, ...kept } = c
+					return { ...kept, title: op.title, agents: op.agents }
+				}
 				if (op.op === "rename") return { ...c, title: op.title }
 				if (op.op === "pin") return { ...c, pinned: op.pinned }
 				if (op.op === "private") return { ...c, private: op.private }
