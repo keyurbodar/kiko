@@ -1,4 +1,4 @@
-import type { Actor, Agent, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -13,11 +13,12 @@ import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
+import { newRoomId } from "./room-ids"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type FileBody, FileIndex, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { cleanPath } from "../files/upload"
 import { actorKey } from "../room/log"
-import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
+import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat, promoteDraft } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
@@ -207,6 +208,29 @@ export class UserDO extends DurableObject<Env> {
   private dropAfter<T extends FsChange | FsFail>(out: T): T {
     if (out.ok && out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
     return out
+  }
+
+  // kiko makes agents and groups (architecture section 7.11). The room checks the human said yes;
+  // these only store, in the same shapes a client's frames would.
+
+  /** A new agent with the soul kiko wrote. Null when the handle is taken or the input is refused. */
+  async makeAgent(input: { name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
+    const agent = this.saveAgent({ id: crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
+    if (!agent) return null
+    await this.souls.seed(agent.slug, input.soul)
+    return agent
+  }
+
+  /** A new chat with these agents (ids), in the list at once. Returns its room id. */
+  async openChat(title: string, agents: readonly string[]): Promise<RoomId> {
+    const roomId = newRoomId(Date.now())
+    this.apply({ op: "create", roomId, title, agents })
+    return roomId
+  }
+
+  /** A draft becomes a chat in the list, with its title. */
+  async promoteDraft(roomId: RoomId, title: string): Promise<boolean> {
+    return this.commit(promoteDraft(this.sql, roomId, title, Date.now())) !== null
   }
 
   /** A first soul for an agent the lead added, from the role it gave. Keeps a soul that exists. */

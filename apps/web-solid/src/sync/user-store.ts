@@ -91,6 +91,8 @@ export type UserStore = {
 	createAgent(agent: Agent): void
 	/** Returns the new room's id. `agents` are the ids of the agents it starts with. */
 	createChat(title: string, agents?: readonly string[]): RoomId
+	/** A draft with kiko (section 7.11): not in the list until kiko makes it a group. Returns its room id. */
+	createDraft(kind: "ask" | "group"): RoomId
 	rename(roomId: RoomId, title: string): void
 	pin(roomId: RoomId, pinned: boolean): void
 	mute(roomId: RoomId, muted: boolean): void
@@ -219,6 +221,11 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		createChat(title, agents) {
 			const roomId = newRoomId(now())
 			act({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
+			return roomId
+		},
+		createDraft(kind) {
+			const roomId = newRoomId(now())
+			act({ op: "create", roomId, title: kind === "group" ? "new group" : "kiko", agents: ["kiko"], draft: kind })
 			return roomId
 		},
 		rename: (roomId, title) => act({ op: "rename", roomId, title }),

@@ -14,8 +14,7 @@ import type {
 	RoomEvent,
 	RoomSnapshot,
 	RunRef,
-	Sender,
-} from "@kiko/protocol"
+	Sender, RoomId } from "@kiko/protocol"
 import { listApprovals } from "./approvals"
 import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
@@ -42,6 +41,7 @@ type MessageRow = {
 	run_index: number | null
 	edited_at: number | null
 	deleted_at: number | null
+	goto: string | null
 }
 
 export type NewMessage = {
@@ -53,6 +53,8 @@ export type NewMessage = {
 	run?: RunRef
 	/** Set on human sends. A repeated clientId stores nothing. */
 	clientId?: string
+	/** A chat the message points to. */
+	goto?: RoomId
 }
 
 /** The stored form of an actor or sender: "human", "agent:<slug>", or "system:<reason>". */
@@ -203,6 +205,7 @@ export class RoomLog {
 				...(input.replyTo ? { replyTo: input.replyTo } : {}),
 				...(input.files?.length ? { files: input.files } : {}),
 				...(input.run ? { run: input.run } : {}),
+				...(input.goto ? { goto: input.goto } : {}),
 			}
 			const event = this.append(actorKey(input.from), {
 				t: "message",
@@ -210,8 +213,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -223,6 +226,7 @@ export class RoomLog {
 				input.run?.runId ?? null,
 				input.run?.attempt ?? null,
 				input.run?.index ?? null,
+				input.goto ?? null,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
@@ -341,6 +345,7 @@ export class RoomLog {
 				? { run: { runId: r.run_id, attempt: r.run_attempt ?? 0, index: r.run_index ?? 0 } }
 				: {}),
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
+			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(reactions.length ? { reactions } : {}),
 		}
 	}

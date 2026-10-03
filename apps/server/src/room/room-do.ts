@@ -5,7 +5,7 @@ import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
-import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
+import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst } from "./burst"
@@ -14,6 +14,8 @@ import { type AgentSend, attachedLine, Bubbles, Deliveries, Mail, type ReminderD
 import { cleanPath, fileKey } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
+import { parseRichText } from "./rich-text"
+import { CHIEF, checkProposal, introduction, type NewAgentSpec, OPENING, type Proposal, type ProposalInput } from "./chief"
 import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
@@ -156,7 +158,155 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
 		this.publish(this.members.seed(agents))
+		// A draft opens with kiko asking what the human wants (section 7.11): at once, no model call.
+		if (chat.draft && this.log.meta("opened") === null) {
+			this.log.setMeta("opened", "1")
+			const { event } = this.log.addMessage({ from: { kind: "agent", slug: DEFAULT_AGENT }, text: OPENING[chat.draft], rich: parseRichText(OPENING[chat.draft]) })
+			if (event) this.publish([event])
+		}
 		await this.trySeedChatFile(home, chat.title)
+	}
+
+	/** Stores /chat.md as `author` wrote it. `expect` "none" keeps a file that is already there. */
+	async writeChatFile(author: AgentSlug, text: string, expect?: "none"): Promise<boolean> {
+		const home = this.home()
+		if (!home) return false
+		const body = new TextEncoder().encode(text)
+		const id = crypto.randomUUID()
+		const r2Key = fileKey(home.userId, home.roomId, id)
+		const digest = await crypto.subtle.digest("SHA-256", body)
+		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
+		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
+		const { drop, file } = await this.putFile({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, ...(expect ? { expectSha256: expect } : {}) })
+		if (drop) await this.env.FILES.delete(drop)
+		return file !== null
+	}
+
+	// kiko makes agents and groups (section 7.11). A proposal is stored with the log's sequence, and
+	// create runs only once the human has written after it: kiko asks, the human answers, then it
+	// happens. A repeated create returns what the first one made.
+
+	/** RPC for kiko's propose tools. Returns the proposal's id, or why it is refused. */
+	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+		const home = this.home()
+		if (!home) return { ok: false, error: "this chat is not set up yet" }
+		if (slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
+		const checked = checkProposal(input, await userStub(this.env.USER, home.userId).listAgents())
+		if ("error" in checked) return { ok: false, error: checked.error }
+		const id = crypto.randomUUID().slice(0, 8)
+		const proposal: Proposal = { ...checked, id, seq: this.log.lastSeq() }
+		this.log.setMeta(`proposal:${id}`, JSON.stringify(proposal))
+		return { ok: true, id }
+	}
+
+	/** RPC for kiko's create tool. Makes what was proposed, once the human has answered. */
+	async createProposal(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+		const home = this.home()
+		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
+		const done = this.log.meta(`created:${id}`)
+		if (done) return { ok: true, text: done }
+		const raw = this.log.meta(`proposal:${id}`)
+		if (!raw) return { ok: false, error: `no proposal ${id}. propose first` }
+		const proposal = JSON.parse(raw) as Proposal
+		const answered = this.ctx.storage.sql
+			.exec("SELECT 1 FROM messages WHERE seq > ? AND deleted_at IS NULL AND json_extract(sender, '$.kind') = 'human' LIMIT 1", proposal.seq)
+			.toArray().length
+		if (!answered) return { ok: false, error: "not yet: show the human what you'll make and wait for their yes. never create on your own." }
+		const user = userStub(this.env.USER, home.userId)
+		const model = this.members.list().find((m) => m.slug === CHIEF)?.model ?? ""
+		const make = async (spec: NewAgentSpec) => {
+			const agent = await user.makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model })
+			if (!agent) throw new Error(`@${spec.handle} could not be made (the handle may be taken)`)
+			return agent
+		}
+		let text: string
+		try {
+			if (proposal.kind === "agent") {
+				const agent = await make(proposal.agent)
+				const roomId = await user.openChat(agent.name, [agent.id])
+				const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko made @${agent.slug}. say hi in your new chat.`, goto: roomId })
+				if (event) this.publish([event])
+				this.ctx.waitUntil(
+					roomStub(this.env.ROOM, home.userId, roomId)
+						.introduce(home.userId, agent.slug, introduction(proposal.agent))
+						.catch((e: unknown) => console.error(`introduce failed: ${e instanceof Error ? e.message : String(e)}`)),
+				)
+				text = `made @${agent.slug}. the human is taken to its chat now; say one short line, nothing more.`
+			} else {
+				const mine = await user.listAgents()
+				const made = []
+				for (const spec of proposal.agents) made.push(await make(spec))
+				const members = [...proposal.members.map((m) => mine.find((a) => a.slug === m)!), ...made]
+				const chat = await this.chat(home)
+				if (chat?.draft) {
+					for (const a of members) {
+						const role = tagline(a.prompt)
+						this.memberOp({ op: "add", slug: a.slug, name: a.name, ...(role ? { role } : {}), ...(a.model ? { model: a.model } : {}) })
+					}
+					await this.writeChatFile(CHIEF, proposal.chat)
+					this.log.setMeta("chat_file", "1")
+					await user.promoteDraft(home.roomId, proposal.title)
+					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
+					if (event) this.publish([event])
+					text = `the group is ready, here in this chat, with ${members.map((a) => `@${a.slug}`).join(", ")}. /chat.md holds the plan. kick it off in a line or two.`
+				} else {
+					const roomId = await user.openChat(proposal.title, [CHIEF, ...members.map((a) => a.id)])
+					this.ctx.waitUntil(
+						roomStub(this.env.ROOM, home.userId, roomId)
+							.startGroup(home.userId, proposal.chat)
+							.catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`)),
+					)
+					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title}. open it to begin.`, goto: roomId })
+					if (event) this.publish([event])
+					text = `the group ${proposal.title} is made, in its own chat. say one short line.`
+				}
+			}
+		} catch (error) {
+			return { ok: false, error: error instanceof Error ? error.message : String(error) }
+		}
+		this.log.setMeta(`created:${id}`, text)
+		return { ok: true, text }
+	}
+
+	/**
+	 * RPC for the room kiko opened for a new agent: the agent hears it was made and says hi first.
+	 * The room learns its identity from the room that made it, which built both names from the
+	 * session's user. The envelope id is fixed, so a repeat wakes nobody twice.
+	 */
+	async introduce(userId: string, slug: AgentSlug, text: string): Promise<void> {
+		const home = this.adopt(userId)
+		if (!home) return
+		const chat = await this.chat(home)
+		if (!chat) return
+		await this.seedMembers(home, chat)
+		const member = this.members.list().find((m) => m.slug === slug)
+		if (!member) return
+		const envelope: Envelope = { id: "intro", roomId: home.roomId, from: { kind: "system", reason: "created" }, body: text, hop: 0, rootId: "intro", tainted: false, seq: this.log.lastSeq() }
+		const d = this.delivery(member, this.members.list(), chat.title, [envelope])
+		await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
+	}
+
+	/** RPC for a group kiko made outside a draft: members, and kiko's /chat.md. */
+	async startGroup(userId: string, chatFile: string): Promise<void> {
+		const home = this.adopt(userId)
+		if (!home) return
+		const chat = await this.chat(home)
+		if (!chat) return
+		await this.seedMembers(home, chat)
+		await this.writeChatFile(CHIEF, chatFile)
+		this.log.setMeta("chat_file", "1")
+	}
+
+	/** Records this room's identity when another room of the same user made it. */
+	private adopt(userId: string): { userId: string; roomId: RoomId } | null {
+		if (this.log.meta("user_id") === null) {
+			const name = this.ctx.id.name ?? ""
+			const roomId = name.slice(name.lastIndexOf(":") + 1)
+			if (name !== `room:${userId}:${roomId}`) return null
+			this.log.setMeta("user_id", userId)
+			this.log.setMeta("room_id", roomId)
+		}
+		return this.home()
 	}
 
 	/** Never holds up a delivery: a failed seed is logged, and the next flush tries again. */
@@ -175,15 +325,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (members.length < 2) return
 		if (this.files.stat(CHAT_PATH)) return this.log.setMeta("chat_file", "1")
 		const team = members.map((m) => `- @${m.slug}: ${[m.lead ? "leads" : "", m.role ?? ""].filter(Boolean).join(". ")}`.trimEnd()).join("\n")
-		const body = new TextEncoder().encode(`# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`)
-		const id = crypto.randomUUID()
-		const r2Key = fileKey(home.userId, home.roomId, id)
-		const digest = await crypto.subtle.digest("SHA-256", body)
-		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
-		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
 		const lead = members.find((m) => m.lead) ?? members[0]!
-		const { drop } = await this.putFile({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: lead.slug }, expectSha256: "none" })
-		if (drop) await this.env.FILES.delete(drop)
+		await this.writeChatFile(lead.slug, `# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`, "none")
 		this.log.setMeta("chat_file", "1")
 	}
 

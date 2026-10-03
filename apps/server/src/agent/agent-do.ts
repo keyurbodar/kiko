@@ -11,6 +11,8 @@ import type { AgentHome } from "../room/room-do"
 import { findProvider, type TurnMemory } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
+import type { ChiefPort } from "./extensions/chief"
+import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
 import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
@@ -205,6 +207,18 @@ export class AgentDO extends DurableObject<Env> {
     return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input) }
   }
 
+  /** kiko's making of agents and groups (section 7.11). Every other agent gets none. */
+  private chiefPort(): ChiefPort | undefined {
+    const home = this.home()
+    if (home?.slug !== CHIEF) return undefined
+    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    return {
+      agents: () => userStub(this.env.USER, home.userId).listAgents(),
+      propose: (input) => room().propose(home.slug, input),
+      create: (id) => room().createProposal(home.slug, id),
+    }
+  }
+
   /** This agent's soul in UserDO (section 7.10). The slug comes from the room's delivery, never the model. */
   private soulPort(): SoulPort {
     const user = () => {
@@ -253,7 +267,7 @@ export class AgentDO extends DurableObject<Env> {
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, soul, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...buildAgent({ ...role, model: await this.model(), files, soul, chief: this.chiefPort(), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
       env: fs,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),

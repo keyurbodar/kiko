@@ -1,4 +1,5 @@
 import { createResource, createSignal, Show, type JSX } from "solid-js"
+import { A } from "@solidjs/router"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
 import { formatTimeOfDay } from "../lib/dayLabel"
@@ -178,6 +179,15 @@ export function MessageRow(props: {
                 />
               </Collapsible>
             </div>
+          </Show>
+          <Show when={props.message.goto}>
+            {(to) => (
+              <div class="px-3 pb-2">
+                <A href={`/chat/${to()}`} class="inline-flex h-8 items-center rounded-full bg-btn px-3 text-sm text-text" data-action="open-made-chat">
+                  open chat
+                </A>
+              </div>
+            )}
           </Show>
           <Show when={floatingTime()}>
             <time

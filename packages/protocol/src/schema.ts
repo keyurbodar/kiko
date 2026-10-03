@@ -19,7 +19,7 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 // Envelope
 
-export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files"])
+export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files", "created"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -102,6 +102,7 @@ export const Message = Schema.Struct({
 	run: Schema.optionalKey(RunRef),
 	editedAt: Schema.optionalKey(Count),
 	reactions: Schema.optionalKey(Schema.Array(Reaction)),
+	goto: Schema.optionalKey(RoomId),
 })
 
 export const Member = Schema.Struct({
@@ -295,6 +296,7 @@ export const Chat = Schema.Struct({
 	updatedAt: Count,
 	agents: Schema.optionalKey(Schema.Array(Schema.String)),
 	private: Schema.optionalKey(Schema.Boolean),
+	draft: Schema.optionalKey(Schema.Literals(["ask", "group"])),
 })
 
 export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })
@@ -302,7 +304,7 @@ export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlu
 export const AgentOp = Schema.Struct({ op: Schema.Literal("create"), agent: Agent })
 
 export const ChatOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)) }),
+	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)), draft: Schema.optionalKey(Schema.Literals(["ask", "group"])) }),
 	Schema.Struct({ op: Schema.Literal("rename"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ op: Schema.Literal("pin"), roomId: RoomId, pinned: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("mute"), roomId: RoomId, muted: Schema.Boolean }),

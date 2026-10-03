@@ -118,6 +118,10 @@ const MIGRATIONS: readonly string[] = [
 		at INTEGER NOT NULL
 	);
 	`,
+	`
+	-- A message can point at another chat, such as the one kiko just made (architecture section 7.11).
+	ALTER TABLE messages ADD COLUMN goto TEXT;
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

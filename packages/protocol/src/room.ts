@@ -3,7 +3,7 @@
 // Every frame is one JSON object with a `t` tag.
 
 import type { Actor, Sender } from "./envelope"
-import type { AgentSlug, MessageId } from "./ids"
+import type { AgentSlug, MessageId, RoomId } from "./ids"
 import type { RichText } from "./rich-text"
 
 // ASSUMPTION: the three states. `typing` is the model writing text, `working`
@@ -47,6 +47,8 @@ export type Message = {
 	run?: RunRef
 	editedAt?: number
 	reactions?: readonly Reaction[]
+	/** A chat this message points to, such as the one kiko just made. The client opens it. */
+	goto?: RoomId
 }
 
 export type Member = {

@@ -49,7 +49,7 @@ export class FakeAgent extends DurableObject {
   }
 }
 
-type UserState = { chats: Chat[]; agents: Agent[] }
+type UserState = { chats: Chat[]; agents: Agent[]; souls?: Record<string, string> }
 
 export class FakeUser extends DurableObject {
   async set(state: UserState) {
@@ -75,6 +75,28 @@ export class FakeUser extends DurableObject {
   }
   async turns() {
     return (await this.ctx.storage.get<number>("turns")) ?? 0
+  }
+  /** kiko makes an agent (section 7.11). */
+  async makeAgent(input: { name: string; slug: string; description: string; soul: string; model: string }) {
+    const state = await this.state()
+    if (state.agents.some((a) => a.slug === input.slug)) return null
+    const agent: Agent = { id: `made-${input.slug}`, name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model }
+    await this.set({ ...state, agents: [...state.agents, agent], souls: { ...(state.souls ?? {}), [input.slug]: input.soul } })
+    return agent
+  }
+  async openChat(title: string, agents: readonly string[]) {
+    const state = await this.state()
+    const roomId = `01JZ8Q4T6P${String(state.chats.length).padStart(16, "0")}`
+    await this.set({ ...state, chats: [...state.chats, { roomId, title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: 0, agents } as Chat] })
+    return roomId
+  }
+  async promoteDraft(roomId: string, title: string) {
+    const state = await this.state()
+    await this.set({ ...state, chats: state.chats.map((c) => (c.roomId === roomId ? { ...c, title, draft: undefined } : c)) })
+    return true
+  }
+  async userState() {
+    return this.state()
   }
   /** A run ended. The chat list's touch is not under test here. */
   async touchChat() {}
@@ -107,6 +129,7 @@ export default {
     }
     const user = env.USER.get(env.USER.idFromName(`user:${ALICE}`))
     if (kind === "turns") return Response.json({ turns: await user.turns() })
+    if (kind === "userstate") return Response.json(await user.userState())
     const room = roomStub(env.ROOM, ALICE, roomId!)
     if (kind === "fail") {
       await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).failNext(Number(state))
@@ -122,6 +145,14 @@ export default {
       if (by === "human") return Response.json({ refused: await room.fileOp({ op: "rm", paths }) })
       const out = await room.fsRemove(slug as AgentSlug, paths, false)
       return Response.json({ refused: out.ok ? null : out.message })
+    }
+    if (kind === "propose") return Response.json(await room.propose(slug as AgentSlug, (await request.json()) as never))
+    if (kind === "create") {
+      try {
+        return Response.json(await room.createProposal(slug as AgentSlug, state!))
+      } catch (e) {
+        return Response.json({ ok: false, error: `threw: ${e instanceof Error ? e.message : String(e)}` })
+      }
     }
     if (kind === "mail") return Response.json(await room.agentMessage(slug as AgentSlug, (await request.json()) as never))
     if (kind === "calls") return Response.json(await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).calls())

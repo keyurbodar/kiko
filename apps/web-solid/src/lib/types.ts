@@ -132,6 +132,8 @@ export interface ChatMessage {
   documents?: DocumentItem[]
   /** Shows the edited marker. The body is never rewritten, only flagged. */
   edited?: boolean
+  /** A chat this message points to, such as the one kiko just made. */
+  goto?: string
   /** Marks the message as pinned in its thread. */
   pinned?: boolean
   /** The card rendered from the metadata of a page the body points at. */

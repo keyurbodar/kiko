@@ -399,3 +399,63 @@ test("a private chat's agents are told so on every delivery", async () => {
   expect(got[0]!.home?.private).toBe(true)
   ws.ws.close()
 })
+
+const soul = (name: string) => `# ${name}\n\ni plan meals around what's in the fridge.\n\n## what i've learned about working with them\n`
+
+test("a draft opens with kiko asking, and kiko makes an agent only after the human answers", async () => {
+  const room = fresh()
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), draft: "ask" }], agents: AGENTS })
+  const ws = await Socket.open(room)
+  const opening = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
+  const first = opening.t === "events" ? opening.events.find((e) => e.t === "message") : undefined
+  expect(first?.t === "message" && first.text).toBe("hey. what do you want to get done? i can set you up with an agent for it, or pull a group together.")
+  await ws.say("i want help with meal prep")
+  // Only kiko proposes; a bad handle and a taken one are refused.
+  expect(((await call(`/propose/${room}/bob`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "", soul: soul("chef") } })) as { ok: boolean }).ok).toBe(false)
+  expect(((await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "ada", handle: "ada", description: "", soul: soul("ada") } })) as { error: string }).error).toContain("taken")
+  const proposed = (await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "plans your meal prep", soul: soul("chef") } })) as { ok: true; id: string }
+  expect(proposed.ok).toBe(true)
+  // No human message since the proposal: not yet.
+  const early = (await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean; error: string }
+  expect(early.error).toContain("wait for their yes")
+  await ws.say("yes do it")
+  const made = (await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean; text: string }
+  expect(made.ok).toBe(true)
+  // The same create again returns what the first one made.
+  expect(((await call(`/create/${room}/kiko/${proposed.id}`)) as { text: string }).text).toBe(made.text)
+  const state = (await call("/userstate")) as { agents: { slug: string }[]; souls: Record<string, string>; chats: { roomId: string; title: string; agents?: string[] }[] }
+  expect(state.agents.map((a) => a.slug)).toContain("chef")
+  expect(state.souls.chef).toBe(soul("chef"))
+  const dm = state.chats.find((c) => c.title === "chef")!
+  expect(dm.agents).toEqual(["made-chef"])
+  // The draft gets a line that points at the new chat.
+  const line = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && e.from.reason === "created"))
+  const goto = line.t === "events" ? line.events.find((e) => e.t === "message") : undefined
+  expect(goto?.t === "message" && goto.goto).toBe(dm.roomId)
+  // And the new agent hears it was made, so it says hi first.
+  const intro = await delivered(dm.roomId as RoomId, "chef", 1)
+  expect(intro[0]!.envelopes[0]!.body).toContain("kiko just made you for the human: plans your meal prep")
+  ws.ws.close()
+})
+
+test("a group from a draft: the draft becomes the group, with its members and kiko's /chat.md", async () => {
+  const room = fresh()
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), draft: "group" }], agents: AGENTS })
+  const ws = await Socket.open(room)
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
+  await ws.say("a group for launching the app: ada and a new marketer")
+  const chatMd = "# launch\n\ngoal: ship the app\n\n## who does what\n- @kiko: leads\n- @ada: code\n- @mia: marketing\n\n## decisions\n"
+  const proposed = (await call(`/propose/${room}/kiko`, { kind: "group", title: "launch", members: ["@ada"], agents: [{ name: "mia", handle: "mia", description: "markets the launch", soul: soul("mia") }], chat: chatMd })) as { id: string }
+  await ws.say("yes")
+  expect(((await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean }).ok).toBe(true)
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "mia"))
+  expect(ws.members().map((m) => m.slug).sort()).toEqual(["ada", "kiko", "mia"])
+  const state = (await call("/userstate")) as { chats: { roomId: string; title: string; draft?: string }[] }
+  const chat = state.chats.find((c) => c.roomId === room)!
+  expect(chat).toMatchObject({ title: "launch" })
+  expect(chat.draft).toBeUndefined()
+  const files = await (await mf.getR2Bucket("FILES")).list()
+  const key = files.objects.filter((o) => o.key.includes(room)).at(-1)!.key
+  expect(await (await (await mf.getR2Bucket("FILES")).get(key))!.text()).toBe(chatMd)
+  ws.ws.close()
+})

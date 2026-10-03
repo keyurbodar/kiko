@@ -79,7 +79,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 
 function signature(m: ViewMessage): string {
   const reactions = (m.reactions ?? []).map((r) => `${reactionKey(r)}=${r.emoji}`).join(",")
-  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions].join("|")
+  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions, m.goto ?? ""].join("|")
 }
 
 /** The transcript's view of one protocol message. */
@@ -96,6 +96,7 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.rich) out.rich = m.rich
   if (m.replyTo) out.replyToId = m.replyTo
   if (m.editedAt !== undefined) out.edited = true
+  if (m.goto) out.goto = m.goto
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   if (m.files?.length) {
@@ -320,7 +321,8 @@ export function createApp(options: AppOptions = {}) {
     const botRows = shared<RosterBot[]>(() => {
       const r = room()
       const next = new Map<string, RosterBot>()
-      const rows = (userStore()?.chats() ?? []).map((c) => {
+      // A draft with kiko is not in the list until kiko makes it a group (section 7.11).
+      const rows = (userStore()?.chats() ?? []).filter((c) => !c.draft).map((c) => {
         let row: RosterBot
         if (!r || r.state.roomId !== c.roomId) row = chatRow(c)
         else {
@@ -653,6 +655,11 @@ export function createApp(options: AppOptions = {}) {
       },
 
       /** Starts a chat with `agents` (their ids) and returns its room id. It is in the list before the server hears of it. */
+      /** A draft with kiko: "ask" or "group". Returns its room id. */
+      createDraft(kind: "ask" | "group"): RoomId | undefined {
+        return userStore()?.createDraft(kind)
+      },
+
       createChat(title: string, agents?: readonly string[]): RoomId | undefined {
         return userStore()?.createChat(title, agents)
       },

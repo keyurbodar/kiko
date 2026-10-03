@@ -24,6 +24,11 @@ export type Chat = {
 	agents?: readonly string[]
 	/** A private chat (architecture section 7.10): agents in it save no memory, change no soul, and write nothing to /home. */
 	private?: boolean
+	/**
+	 * A draft (architecture section 7.11): a chat with kiko that makes an agent or a group. It is not
+	 * in the chat list until kiko turns it into a group. `ask` and `group` say how kiko opens it.
+	 */
+	draft?: "ask" | "group"
 }
 
 /**
@@ -44,7 +49,7 @@ export type AgentOp = { op: "create"; agent: Agent }
 // ASSUMPTION: chat edits travel on the user socket as one `chat` frame, the
 // way task edits travel on the room socket.
 export type ChatOp =
-	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[] }
+	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[]; draft?: "ask" | "group" }
 	| { op: "rename"; roomId: RoomId; title: string }
 	| { op: "pin"; roomId: RoomId; pinned: boolean }
 	| { op: "mute"; roomId: RoomId; muted: boolean }
