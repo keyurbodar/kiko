@@ -1,10 +1,9 @@
 import type { WebPagePreview } from "../../lib/types"
 
-export const MAX_PREVIEW_WIDTH = 420
-export const MAX_PREVIEW_HEIGHT = 380
-
-// The server does not report image sizes. Assume the common 1200x630 card.
-const FALLBACK_ASPECT = 1200 / 630
+/** The link card's width, from the kat screenshots. */
+export const CARD_WIDTH = 340
+// The server does not report image sizes, so every card crops its picture to the common 1200x630.
+export const CARD_IMAGE_ASPECT = 1200 / 630
 
 /** What `GET /api/preview` returns for a page it could read. */
 interface ServerPreview {
@@ -58,8 +57,8 @@ function fromServer(raw: ServerPreview): WebPagePreview | null {
   if (raw.image) {
     preview.media = {
       src: raw.image,
-      width: MAX_PREVIEW_WIDTH,
-      height: Math.round(MAX_PREVIEW_WIDTH / FALLBACK_ASPECT),
+      width: CARD_WIDTH,
+      height: Math.round(CARD_WIDTH / CARD_IMAGE_ASPECT),
     }
     preview.mediaSize = "large"
   }

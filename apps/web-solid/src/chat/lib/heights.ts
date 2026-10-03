@@ -2,7 +2,7 @@ import type { ChatMessage, WebPagePreview } from "../../lib/types";
 import { albumLayout, singleMediaBox } from "./album";
 import type { TimelineItem } from "./grouping";
 import { graphemes, jumboEmojiClass } from "./reply";
-import { hasWebPageContent, MAX_PREVIEW_HEIGHT, MAX_PREVIEW_WIDTH } from "./linkPreview";
+import { CARD_IMAGE_ASPECT, CARD_WIDTH, hasWebPageContent } from "./linkPreview";
 
 const FONT_BASE = 14;
 const LINE_BOX = FONT_BASE * 1.45;
@@ -31,12 +31,13 @@ const DOCUMENT_ICON_PX = 48;
 const DOCUMENT_ROW_PAD_Y = 8;
 const DOCUMENT_ROW_PX = DOCUMENT_ICON_PX + DOCUMENT_ROW_PAD_Y * 2;
 
-const CARD_PAD_Y = 8;
-const CARD_TEXT_LINE = 20;
-const CARD_TITLE_MAX_LINES = 2;
-const CARD_DESCRIPTION_MAX_LINES = 3;
-const CARD_CHARS_PER_LINE = 50;
-const CARD_FALLBACK_ASPECT = 1.5;
+// The link card under the bubble: a 4px gap, 10 + 12 px padding, then 18px site, 20px title, and 19px text lines.
+const CARD_CHROME_Y = 4 + 10 + 12;
+const CARD_SITE_LINE = 18;
+const CARD_TITLE_LINE = 20;
+const CARD_TEXT_LINE = 19;
+const CARD_MAX_LINES = 2;
+const CARD_CHARS_PER_LINE = 40;
 
 function mediaBlockHeight(message: ChatMessage): number {
   const media = message.media;
@@ -52,30 +53,22 @@ function mediaBlockHeight(message: ChatMessage): number {
   return albumLayout(media.map((item) => ({ w: item.width, h: item.height }))).height;
 }
 
-function clampedLines(text: string | undefined, maxLines: number): number {
+function clampedLines(text: string | undefined): number {
   const length = text?.trim().length ?? 0;
   if (length === 0) return 0;
-  return Math.min(maxLines, Math.ceil(length / CARD_CHARS_PER_LINE));
+  return Math.min(CARD_MAX_LINES, Math.ceil(length / CARD_CHARS_PER_LINE));
 }
 
 function cardHeight(page: WebPagePreview | undefined): number {
   if (page === undefined || !hasWebPageContent(page)) return 0;
-  const siteLines = page.site?.trim() ? 1 : 0;
-  const textLines =
-    siteLines +
-    clampedLines(page.title, CARD_TITLE_MAX_LINES) +
-    clampedLines(page.description, CARD_DESCRIPTION_MAX_LINES);
-  const image =
-    page.media !== undefined && page.mediaSize !== "small"
-      ? Math.min(
-          MAX_PREVIEW_WIDTH *
-            (page.media.width > 0 && page.media.height > 0
-              ? page.media.height / page.media.width
-              : 1 / CARD_FALLBACK_ASPECT),
-          MAX_PREVIEW_HEIGHT,
-        )
-      : 0;
-  return CARD_PAD_Y + textLines * CARD_TEXT_LINE + image;
+  const image = page.media !== undefined && page.mediaSize !== "small" ? CARD_WIDTH / CARD_IMAGE_ASPECT : 0;
+  return (
+    CARD_CHROME_Y +
+    image +
+    CARD_SITE_LINE +
+    clampedLines(page.title) * CARD_TITLE_LINE +
+    clampedLines(page.description) * CARD_TEXT_LINE
+  );
 }
 
 function bubbleTextLines(body: string): number {

@@ -11,6 +11,7 @@ import { MessageMedia } from "./Media"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { RichText } from "./RichText"
+import { WebPageCard } from "./WebPageCard"
 /* The parsed tree's renderer loads after first paint; until it lands a bubble shows its plain text. */
 const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
@@ -169,7 +170,7 @@ export function MessageRow(props: {
           <Show when={hasDocuments() ? props.message.documents : undefined}>
             {(documents) => <MessageDocuments items={documents()} side={props.message.sender} />}
           </Show>
-          <Show when={props.message.body.length > 0 || webPage() !== undefined}>
+          <Show when={props.message.body.length > 0}>
             <div
               class={hasAttachment() ? "px-3 pt-[5px] pb-[7px]" : undefined}
               style={captionStyle()}
@@ -180,19 +181,13 @@ export function MessageRow(props: {
                 <Show
                   when={!own() && props.message.rich?.length ? props.message.rich : undefined}
                   fallback={
-                    <RichText
-                      text={props.message.body.length > 0 ? props.message.body : undefined}
-                      webPage={props.message.media === undefined ? webPage() : undefined}
-                    />
+<RichText text={props.message.body} />
                   }
                 >
                   {(tree) => (
-                    <>
-                      <Suspense fallback={<RichText text={props.message.body} />}>
-                        <RichTree tree={tree()} class="bubble-rich" />
-                      </Suspense>
-                      <Show when={props.message.media === undefined ? webPage() : undefined}>{(page) => <RichText webPage={page()} />}</Show>
-                    </>
+                    <Suspense fallback={<RichText text={props.message.body} />}>
+                      <RichTree tree={tree()} class="bubble-rich" />
+                    </Suspense>
                   )}
                 </Show>
               </Collapsible>
@@ -223,6 +218,10 @@ export function MessageRow(props: {
           onToggle={props.onReact}
         />
       </Bubble>
+      {/* The link card is its own block under the bubble, on the sender's side, as in kat. */}
+      <Show when={props.message.media === undefined ? webPage() : undefined}>
+        {(page) => <WebPageCard page={page()} class={own() ? "self-end" : undefined} />}
+      </Show>
     </div>
   )
 }
