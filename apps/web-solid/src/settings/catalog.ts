@@ -26,9 +26,20 @@ export interface Catalog {
 }
 
 let cached: Promise<Catalog> | undefined
+let forget: ReturnType<typeof setTimeout> | undefined
+/**
+ * How long the parsed catalog (about 2 MB) outlives its last request. A screen that reads it holds
+ * its own copy while open; after that the file is in the HTTP cache, so the next open costs a parse.
+ */
+export const CATALOG_KEEP_MS = 60_000
 
 /** Loads the catalog once. A failed load is not cached, so the next open retries. */
 export function loadCatalog(): Promise<Catalog> {
+  if (forget !== undefined) clearTimeout(forget)
+  forget = setTimeout(() => {
+    cached = undefined
+    forget = undefined
+  }, CATALOG_KEEP_MS)
   cached ??= (async () => {
     const { default: url } = await import("virtual:kiko-model-catalog")
     const response = await fetch(url)

@@ -38,28 +38,23 @@ function pathOf(el: Element, root: Element): string {
 }
 
 /**
- * The text of each readable stylesheet, kept with its rule count. The CSS barely changes in a
- * session (a lazy chunk adds a sheet), so a save serializes only a sheet it has not seen.
+ * The stylesheets in force. A linked sheet (every sheet of a production build) is kept as its URL,
+ * which the shell loads from the HTTP cache, so a save never serializes the CSS. Only an inline
+ * `<style>` (the dev server's) is kept as text.
  */
-const sheetText = new WeakMap<CSSStyleSheet, { rules: number; text: string }>()
-
 function sheets(): { links: string[]; styles: string[] } {
   const links: string[] = []
   const styles: string[] = []
   for (const sheet of document.styleSheets) {
     const owner = sheet.ownerNode as Element | null
     if (owner?.hasAttribute("data-snap")) continue
-    try {
-      const rules = sheet.cssRules
-      let known = sheetText.get(sheet)
-      if (!known || known.rules !== rules.length) {
-        known = { rules: rules.length, text: Array.from(rules, (r) => r.cssText).join("\n") }
-        sheetText.set(sheet, known)
-      }
-      styles.push(known.text)
-    } catch {
-      if (sheet.href) links.push(sheet.href)
+    if (sheet.href) {
+      links.push(sheet.href)
+      continue
     }
+    try {
+      styles.push(Array.from(sheet.cssRules, (r) => r.cssText).join("\n"))
+    } catch {}
   }
   return { links, styles }
 }
@@ -80,12 +75,23 @@ function capture(): Snap | null {
   }
 }
 
+/** A 32-bit FNV-1a hash, so an unchanged screen is not written again. */
+export function hashText(text: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  return h >>> 0
+}
+let savedHash: number | undefined
+
 /** Saves the current screen. Cheap enough for every hide; never throws. */
 export function saveSnapshot(): void {
   try {
     const snap = capture()
     if (!snap) return
     const json = JSON.stringify(snap)
+    const hash = hashText(json)
+    if (hash === savedHash) return
+    savedHash = hash
     if (json.length > MAX_BYTES) return localStorage.removeItem(SNAP_KEY)
     localStorage.setItem(SNAP_KEY, json)
   } catch {
@@ -103,7 +109,8 @@ export function clearSnapshot(): void {
 /** Removes the layer the shell painted. Safe to call twice. */
 export function dismissSnapshot(): void {
   document.getElementById("snap")?.remove()
-  for (const s of document.querySelectorAll("style[data-snap]")) s.remove()
+  // The shell's copies of the stylesheets. The app's own links are in force by now.
+  for (const s of document.querySelectorAll("style[data-snap], link[data-snap]")) s.remove()
 }
 
 /** How long after a route change the screen is taken, so the new page has painted. */

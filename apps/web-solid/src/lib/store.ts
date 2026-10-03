@@ -239,6 +239,16 @@ export function memberRow(member: Member, presence: BotPresence = "idle"): Roste
   return row
 }
 
+/** How many chats' hover previews stay in memory. */
+export const MAX_PRELOADED = 20
+
+/** The last `max` keys of `record`, in insertion order. */
+export function keepNewest<T>(record: Record<string, T>, max: number): Record<string, T> {
+  const keys = Object.keys(record)
+  if (keys.length <= max) return record
+  return Object.fromEntries(keys.slice(-max).map((k) => [k, record[k]]))
+}
+
 // The store.
 
 export type AppOptions = {
@@ -265,7 +275,10 @@ export function createApp(options: AppOptions = {}) {
      */
     const roomMessages = shared(() => room()?.messages() ?? [])
 
-    /** Newest messages of chats the pointer rested on, read from IndexedDB. Only for rooms that are not open. */
+    /**
+     * Newest messages of chats the pointer rested on, read from IndexedDB. Only for rooms that are
+     * not open, and only the `MAX_PRELOADED` most recent, so hovering down a long list holds little.
+     */
     const [preloaded, setPreloaded] = createSignal<Record<string, ViewMessage[]>>({})
 
     let session: { userId: string; warm: Warm; transport: Transport } | null = null
@@ -575,7 +588,7 @@ export function createApp(options: AppOptions = {}) {
         if (!current || threadId === activeId() || threadId in preloaded()) return
         const rows = await newestMessages(current.warm, threadId as RoomId, 3)
         if (session !== current) return
-        setPreloaded((all) => ({ ...all, [threadId]: rows }))
+        setPreloaded((all) => keepNewest({ ...all, [threadId]: rows }, MAX_PRELOADED))
       },
       /** Unsent text, reply targets, and scroll positions for every chat. Null before sign-in. */
       drafts,

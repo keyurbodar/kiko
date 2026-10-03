@@ -66,6 +66,7 @@
             var l = document.createElement("link");
             l.rel = "stylesheet";
             l.href = u;
+            l.setAttribute("data-snap", "");
             l.onload = function () { if (--w === 0) show(); };
             l.onerror = function () { n.remove(); };
             h.appendChild(l);

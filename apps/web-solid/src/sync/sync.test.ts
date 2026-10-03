@@ -12,6 +12,7 @@ import { overlayChats, overlayMessages, type RoomPatch, settleRoom } from "./pat
 import { applyRoomEvent, createRoomStore, emptyRoom, MAX_MESSAGES_IN_MEMORY, type RoomStoreOptions, WINDOW_SLACK } from "./room-store"
 import { backoffDelay, createSyncSocket, parseFrame } from "./socket"
 import { createUserStore, newRoomId } from "./user-store"
+import { createUserChannel } from "./user-channel"
 
 const roomId = fixtures.roomId
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -554,6 +555,28 @@ describe("composer typing and run end", () => {
 })
 
 describe("the user store", () => {
+	test("one socket carries the look, memory, and Executor frames through the channel", async () => {
+		const mock = createMockUser()
+		const warm = await freshWarm()
+		const channel = createUserChannel()
+		const opened: number[] = []
+		const memory: string[] = []
+		channel.onOpen(() => opened.push(1))
+		const stop = channel.on("memory_result", (f) => memory.push(f.reqId))
+		expect(channel.send({ t: "theme", theme: null })).toBe(false)
+		const store = createUserStore({ warm, url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 }, channel })
+		await until(() => store.state.caughtUp)
+		expect(opened).toHaveLength(1)
+		// A frame another feature sends goes out on the store's own socket: the mock has one peer.
+		expect(channel.send({ t: "memory", reqId: "q1", op: { op: "list" } } as never)).toBe(true)
+		await until(() => mock.received.some((f) => f.t === "memory"))
+		expect(mock.received.filter((f) => f.t === "hello")).toHaveLength(1)
+		stop()
+		store.close()
+		expect(channel.send({ t: "theme", theme: null })).toBe(false)
+		expect(memory).toEqual([])
+	})
+
 	test("chat edits apply at once, go out after a reconnect, and are confirmed", async () => {
 		const mock = createMockUser()
 		mock.online = false

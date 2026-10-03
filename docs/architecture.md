@@ -406,6 +406,7 @@ The client holds one WebSocket to `UserDO` and one to the `RoomDO` of the visibl
 
 - The user socket carries the chat list, unread counts, reminders, provider sign-in prompts, and settings changes.
 - The room socket carries messages, reactions, typing, drafts, agent status, the task board, and the file index.
+- The user socket is one socket for the whole app. The user store owns it, and the saved look, memory, and Executor send and listen through `sync/user-channel.ts` (`send`, `on(t, fn)`, `onOpen`). The user store keeps the server's look and whether its first catch-up arrived, so the look, which loads after first paint, misses nothing.
 
 **Reasoning.** A direct socket to the room avoids a relay hop on the hot path. A relay through `UserDO` would cost one billed request per forwarded event. A hibernated socket costs nothing, so an always-on user socket is free while idle. Intent-based preloading may open the socket of the chat under the pointer and close it if the user does not navigate.
 
@@ -842,6 +843,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - `RoomDO` holds the index: path, R2 key, size, type, SHA-256, dimensions, thumbhash, author.
 - Upload goes from the client through the Worker to R2 as a stream. Large files use R2 multipart upload.
 - Download is a Worker route that checks the session, supports `Range`, and sets an immutable cache header keyed by content hash. Video seeks with `Range`, so no service worker is needed for streaming.
+- A picture the human attaches gets a small still at upload. The client already holds the bytes, so it scales them to 840 px on the long edge (WebP, JPEG where WebP cannot be written) and computes the thumbhash. The still is stored beside the file at `<key>/thumb` with `PUT /api/files/<room>/<id>/thumb` and served by `GET` on the same path. `FileRef.thumb` says it exists. The transcript, reply quotes, and the info grid draw the still over the thumbhash; only the media viewer loads the original. A decoded 12 MP photo is about 48 MB, its still about 1 MB. A file without a still (older files, agent files) draws the original, and a video without one draws its thumbhash, never `<img src=video>`. A delete removes the still with the file.
 - The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, and `edit` run unchanged. There is no shell. Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
 - `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
 - R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again. A write carries the hash of the bytes the agent last read at that path, and the room refuses it if the file changed since, so a whole-file `write` never drops a teammate's edit. `edit` reads the file itself, so it lands on top.
@@ -917,6 +919,15 @@ Boot order:
 1. The HTML shell paints.
 2. The chat list and the last open chat's newest 50 messages load from IndexedDB and paint.
 3. Both sockets connect with `lastSeq`, and the events that arrive patch the stores.
+
+Memory limits. RAM holds the open chat's window, the chat list, and presence. Every cache has a cap.
+
+- The open room keeps at most 200 messages (`MAX_MESSAGES_IN_MEMORY`) while the reader follows the end. It may grow 50 over before it is cut back. Scrolling near the top pages 50 older ones in from IndexedDB, and the window is not cut while the reader is up there. Back at the end it is cut to 200 again. An edit, reaction, or delete of a message outside the window is applied to its row on disk.
+- On close a room's rows older than 2,000 sequence numbers are deleted from IndexedDB, with one range delete and no read.
+- Hover previews keep 20 chats. The memory twin of IndexedDB, used only when the browser refuses it, keeps 2,000 rows per store. Opening IndexedDB may take 10 seconds before the twin takes over.
+- The transcript's rows are one shared memo in two parts: stored rows, rebuilt only when a row's cheap signature changes (it never copies the text), and draft rows. A growing draft never walks the stored window.
+- Attachment object URLs are revoked when the attachment is removed, when its upload lands, and when the composer or the room closes.
+- The screen snapshot (`lib/snapshot.ts`) keeps a linked stylesheet as its URL, not its text, and skips a save when the screen did not change.
 
 Each stored value carries a schema version. A version mismatch drops the warm tier and reloads from the server.
 

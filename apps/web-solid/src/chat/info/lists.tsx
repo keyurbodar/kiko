@@ -3,6 +3,7 @@ import { createSignal, For, Show } from "solid-js"
 import { stillOf, urls, useApp } from "../../lib/store"
 import type { MediaItem } from "../../lib/types"
 import { createMediaViewer } from "../media/mediaViewer"
+import { peekLinkPreview, resolveLinkPreview } from "../lib/linkPreview"
 import type { createCatalog } from "./catalog"
 import { Card } from "./sections"
 import { pushInfo } from "./state"
@@ -13,21 +14,16 @@ type Media = Extract<CatalogItem, { kind: "media" }>
 
 const rowClass = "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm text-text hover:bg-nav-hover"
 
-// Link titles. The preview route answers from its own cache, so asking again is cheap. A page
-// that cannot be previewed keeps its site name and path.
-const titles = new Map<string, () => string | undefined>()
-
+// Link titles, from the shared preview resolver and its bounded cache. A page that cannot be
+// previewed keeps its site name and path. The signal lives as long as the row that shows it.
 function titleOf(url: string): () => string | undefined {
-  let read = titles.get(url)
-  if (read) return read
-  const [title, setTitle] = createSignal<string | undefined>()
-  read = title
-  titles.set(url, read)
-  void fetch(`/api/preview?url=${encodeURIComponent(url)}`)
-    .then((res) => (res.ok ? (res.json() as Promise<{ preview?: { title?: string } | null }>) : null))
-    .then((body) => setTitle(body?.preview?.title?.trim().toLowerCase() || undefined))
-    .catch(() => {})
-  return read
+  const known = peekLinkPreview(url)
+  const [title, setTitle] = createSignal<string | undefined>(known?.title?.trim().toLowerCase() || undefined)
+  if (known === undefined)
+    void resolveLinkPreview(url)
+      .then((page) => setTitle(page?.title?.trim().toLowerCase() || undefined))
+      .catch(() => {})
+  return title
 }
 
 function LinkRow(props: { link: Link }) {

@@ -10,8 +10,15 @@ export const RUN_AVATAR_PX = 32
  */
 const FAR = 100_000
 
-/** Bumped whenever a run row mounts or unmounts, so every track re-measures. */
-const [rowsChanged, bumpRows] = createSignal(0)
+/**
+ * The mounted tracks of each run, by run key. A row that comes or goes re-measures only its own
+ * run's tracks: a shared counter made every avatar in the transcript query the DOM on every mount.
+ */
+const runs = new Map<string, Set<() => void>>()
+
+function rowsChanged(runKey: string) {
+  for (const schedule of runs.get(runKey) ?? []) schedule()
+}
 
 /**
  * The avatar of an agent's run of bubbles in a group.
@@ -55,12 +62,27 @@ export function RunAvatar(props: { seed: string; runKey: string; isRunEnd: boole
     }
     const scroller = track.closest<HTMLElement>("[data-virtual-scroll]")
     scroller?.addEventListener("scroll", schedule, { passive: true })
-    createEffect(on([rowsChanged, () => props.isRunEnd], schedule))
-    bumpRows((n) => n + 1)
+    createEffect(on(() => props.isRunEnd, schedule))
+    // A row whose run changes (its run grew a new first row) moves to the new run's set.
+    createEffect(
+      on(
+        () => props.runKey,
+        (key) => {
+          let mine = runs.get(key)
+          if (!mine) runs.set(key, (mine = new Set()))
+          mine.add(schedule)
+          rowsChanged(key)
+          onCleanup(() => {
+            mine.delete(schedule)
+            if (mine.size === 0) runs.delete(key)
+            else rowsChanged(key)
+          })
+        },
+      ),
+    )
     onCleanup(() => {
       cancelAnimationFrame(frame)
       scroller?.removeEventListener("scroll", schedule)
-      bumpRows((n) => n + 1)
     })
   })
 
