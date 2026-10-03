@@ -16,7 +16,10 @@ import { onChatModelChange } from "../settings/chat-model"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
+import type { Agent, AgentSlug, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
+import { humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
+import { session as signedIn } from "../app/session"
+import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
@@ -146,16 +149,49 @@ export function presenceOf(typing: boolean, state: AgentState | undefined): BotP
   return state === "working" ? "working" : "idle"
 }
 
-export function chatRow(chat: Chat, presence: BotPresence = "idle"): RosterBot {
-  return {
+/** What the open room knows before the server's row does: its newest message, who is typing, its size. */
+export type LiveRow = { last?: ChatLast; typing?: readonly string[]; group?: boolean }
+
+/**
+ * A chat as a sidebar row. The second line is the newest activity in words (`sidebar/activity.ts`);
+ * a row stored before the server sent `last` shows its plain `lastPreview`.
+ */
+export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRow = {}): RosterBot {
+  const group = live.group ?? !!chat.group
+  const last = live.last ?? chat.last
+  const line = last ? describeLast(last, group) : { text: chat.lastPreview }
+  const typing = live.typing ?? []
+  const row: RosterBot = {
     id: chat.roomId,
     name: chat.title,
-    preview: chat.lastPreview,
-    updatedAt: chat.updatedAt,
-    presence,
+    preview: line.text,
+    updatedAt: Math.max(chat.updatedAt, live.last?.at ?? 0),
+    presence: typing.length ? "typing" : presence,
     unread: chat.unread,
     pinned: chat.pinned,
   }
+  if (line.from) row.previewFrom = line.from
+  if (row.presence === "typing") row.typing = typingLine(typing, group)
+  if (chat.mentions) row.mentions = chat.mentions
+  return row
+}
+
+/** The activity a view message is, for the open room's row before the server's touch. */
+export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLast {
+  const files = m.files ?? m.local?.map((f) => ({ name: f.name, type: f.mime || (f.width && f.height ? "image/" : "") }))
+  return messageLast({ from: m.from.kind, ...(m.from.kind === "agent" ? { name: name(m.from.slug) } : {}), text: m.text, ...(files ? { files } : {}), at: m.at })
+}
+
+/**
+ * The open room's messages that mention the human, oldest first: an agent's `@handle` or reply to
+ * a human message (`mentionsHuman`). A handle an agent of the room also holds counts as none.
+ */
+export function mentionIds(messages: readonly ViewMessage[], handle: string | null, slugs: readonly string[]): { id: MessageId; seq: number }[] {
+  const own = handle && !slugs.includes(handle) ? handle : null
+  const human = new Set(messages.filter((m) => m.from.kind === "human").map((m) => m.id))
+  return messages
+    .filter((m) => !m.pending && m.from.kind === "agent" && mentionsHuman(m.text, own, !!m.replyTo && human.has(m.replyTo)))
+    .map((m) => ({ id: m.id, seq: m.seq }))
 }
 
 /**
@@ -299,6 +335,7 @@ export function createApp(options: AppOptions = {}) {
       if (current?.state.roomId === roomId) return
       current?.close()
       views = new Map()
+      setUnseen([])
       if (!session || !roomId) return void setRoom(null)
       setRoom(
         createRoomStore({
@@ -330,15 +367,27 @@ export function createApp(options: AppOptions = {}) {
       const r = room()
       const next = new Map<string, RosterBot>()
       // A draft with kiko is not in the list until kiko makes it a group (section 7.11).
+      const typingIn = userStore()?.state.typing ?? {}
       const rows = (userStore()?.chats() ?? []).filter((c) => !c.draft).map((c) => {
         let row: RosterBot
-        if (!r || r.state.roomId !== c.roomId) row = chatRow(c)
+        if (!r || r.state.roomId !== c.roomId) row = chatRow(c, "idle", { typing: typingIn[c.roomId] })
         else {
-          const typing = r.state.typing.length > 0
           const working = Object.values(r.state.status).includes("working")
-          row = chatRow(c, presenceOf(typing, working ? "working" : undefined))
+          const members = r.members()
+          const name = (slug: string) => members.find((m) => m.slug === slug)?.name ?? slug
+          // The open room's own messages are the newest truth: a send shows in its row before the server's touch.
+          const newest = roomMessages().at(-1)
+          const fresh = newest && (newest.pending || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
+          row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
+            ...(fresh ? { last: fresh } : {}),
+            typing: r.state.typing.map(name),
+            ...(members.length ? { group: members.length > 1 } : {}),
+          })
           // The open room is read as soon as the reader marks it, before the server's count catches up.
-          if (r.readSeq() >= newestSeq(roomMessages())) row.unread = 0
+          if (r.readSeq() >= newestSeq(roomMessages())) {
+            row.unread = 0
+            delete row.mentions
+          }
         }
         const old = lastRows.get(row.id)
         if (old && sameRow(old, row)) row = old
@@ -349,6 +398,22 @@ export function createApp(options: AppOptions = {}) {
       return rows
     })
     const botIndex = shared(() => new Map(botRows().map((row) => [row.id, row])))
+
+    /*
+     * Mentions of the human in the open room (Telegram's @ button). Reading the room marks every
+     * message read at once, so a mention the reader has not seen yet is tracked here: `markRead`
+     * adds each mention it reads past, and the transcript removes one when it is on screen or
+     * jumped to. Memory only, per visit.
+     */
+    const handle = () => {
+      const s = signedIn()
+      return s.status === "signed-in" ? humanHandle(s.user.name) : null
+    }
+    const roomMentions = shared(() => {
+      const r = room()
+      return r ? mentionIds(roomMessages(), handle(), r.members().map((m) => m.slug)) : []
+    })
+    const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
 
     function findView(id: string): ViewMessage | undefined {
       return roomMessages().find((m) => m.id === id)
@@ -659,7 +724,21 @@ export function createApp(options: AppOptions = {}) {
         const r = room()
         if (!r || r.state.roomId !== threadId) return
         if (!anchors.has(r)) anchors.set(r, firstUnread(roomMessages(), r.state.readSeq))
+        const read = r.readSeq()
+        const fresh = roomMentions().filter((m) => m.seq > read && !unseen().includes(m.id))
+        if (fresh.length) setUnseen((list) => [...list, ...fresh.map((m) => m.id)])
         r.markRead(newestSeq(roomMessages()))
+      },
+
+      /** The open room's mentions of the human the reader has not seen yet, oldest first. */
+      unseenMentions(): readonly MessageId[] {
+        const live = new Set(roomMentions().map((m) => m.id))
+        return unseen().filter((id) => live.has(id))
+      },
+
+      /** The reader saw these mentions: on screen, or jumped to. */
+      seeMentions(ids: readonly string[]) {
+        if (ids.length) setUnseen((list) => list.filter((id) => !ids.includes(id)))
       },
 
       /** The user's own agents, in the order they were made. */

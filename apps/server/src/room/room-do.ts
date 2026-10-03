@@ -5,12 +5,12 @@ import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
 import { type Alarms, createAlarms } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
-import { agentStub, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
+import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
-import { type AgentSend, attachedLine, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
+import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
 import { cleanPath, fileKey } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
@@ -61,6 +61,9 @@ export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?
 /** What a member reads when the lead already answered. It may add to the reply, react, or stay quiet. */
 const FOLLOW_UP_NOTE = (lead: AgentSlug) =>
 `@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat or redo what @${lead} did or offered to do, and if @${lead} asked the human something, leave that question to the human.`
+
+/** Stored events that can change the chat list row: its activity line, its unread counts, or its members. */
+const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed", "approval"])
 
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string; tainted: boolean }
 
@@ -454,7 +457,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const reactions = reactionBrief(this.log, this.ctx.storage.sql, member.slug)
 		const now = Date.now()
 		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
-		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text), team }
+		const human = this.log.meta(HUMAN_HANDLE) ?? undefined
+		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text), team, ...(human ? { human } : {}) }
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 
@@ -592,6 +596,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
 		}
+		// The human's handle follows the account's name, so agents can @ them (section 7.2).
+		const handle = request.headers.get(HANDLE_HEADER)
+		if (handle && handle !== this.log.meta(HUMAN_HANDLE)) this.log.setMeta(HUMAN_HANDLE, handle)
 		const home = this.home()
 		if (home && !this.members.seeded()) {
 			// The chat may not be in the list yet. The first burst seeds the members then.
@@ -622,6 +629,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	publish(events: readonly RoomEvent[]): void {
 		if (!events.length) return
 		this.broadcast({ t: "events", events })
+		if (events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
 		// Every stored human message passes here once, so this is where a burst grows.
 		for (const e of events) if (e.t === "message" && e.from.kind === "human") this.ctx.waitUntil(this.burst.add(e))
 		// Section 7.8: a busy agent learns at once that a human message is coming, so it keeps holding
@@ -632,6 +640,26 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const target = previewTarget(e)
 			if (target) this.ctx.waitUntil(attachPreview(this.log, this.env, target, (w) => this.ctx.waitUntil(w), (out) => this.publish(out)))
 		}
+	}
+
+	#touching = false
+
+	/**
+	 * Sends the chat list row to the user once the current step is done, so a burst of events in one
+	 * step costs one touch. A failed touch is logged; the next change sends the row again.
+	 */
+	private touchSoon(): void {
+		if (this.#touching) return
+		this.#touching = true
+		this.ctx.waitUntil(
+			Promise.resolve()
+				.then(async () => {
+					this.#touching = false
+					const home = this.home()
+					if (home && !this.#wiped) await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
+				})
+				.catch((error) => console.error(`touchChat failed: ${error instanceof Error ? error.message : String(error)}`)),
+		)
 	}
 
 	/** Sends a frame that is not stored (typing, draft, status) to every ready socket. */
@@ -834,18 +862,25 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * A removed member's run is stopped. Its object keeps its storage until account deletion.
 	 */
 	memberOp(op: MemberOp): MemberRefusal | null {
+		const name = op.op === "remove" ? this.members.get(op.slug)?.name : undefined
 		const result = this.members.apply(op)
 		if (!result.ok) return result.reason
-		this.publish(result.events)
 		// A newcomer sees every file the chat already has. The human is told, once, at the moment it happens.
+		const notice: RoomEvent[] = []
 		if (op.op === "add") {
 			const count = this.files.stat("")
 			const n = count?.kind === "directory" ? count.files : 0
 			if (n) {
 				const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${op.slug} can now see this chat's ${n} file${n === 1 ? "" : "s"}` })
-				if (event) this.publish([event])
+				if (event) notice.push(event)
 			}
 		}
+		// The chat list says who joined or left. The files notice is part of the join, so the join stays the row's line.
+		if (op.op !== "rename" && result.events.length) {
+			const activity: MemberActivity = { seq: this.log.lastSeq(), at: result.events[0]!.at, kind: op.op === "add" ? "joined" : "left", name: op.op === "add" ? op.name : (name ?? op.slug) }
+			this.log.setMeta(MEMBER_ACTIVITY, JSON.stringify(activity))
+		}
+		this.publish([...result.events, ...notice])
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
 		return null
@@ -1049,7 +1084,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** RPC for an agent. A growing block past the draft threshold. Sent, never stored. */
 	async draft(slug: AgentSlug, runId: string, index: number, text: string): Promise<void> {
-		this.broadcast({ t: "draft", slug, runId, index, text })
+		this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
 	}
 
 	/**
@@ -1076,7 +1111,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.setStatus(slug, "idle")
 		const home = this.home()
 		if (!home || this.bubbles.ended(runId)) return
-		await userStub(this.env.USER, home.userId).touchChat(home.roomId, this.bubbles.touch())
+		await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 		this.bubbles.markEnded(runId)
 		await this.followUp(slug)
 	}
@@ -1112,6 +1147,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (typing) this.typing.add(slug)
 		else this.typing.delete(slug)
 		this.broadcast({ t: "typing", who: [...this.typing] })
+		// The chat list shows who is typing in a chat that is not open. Once per change, never per keystroke.
+		const home = this.home()
+		if (home) {
+			const names = [...this.typing].map((s) => this.members.get(s)?.name ?? s)
+			this.ctx.waitUntil(
+				Promise.resolve()
+					.then(() => userStub(this.env.USER, home.userId).chatTyping(home.roomId, names))
+					.catch(() => undefined),
+			)
+		}
 	}
 
 	// Account deletion (P9-02). The job in jobs/delete-account.ts calls these.

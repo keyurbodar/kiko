@@ -416,6 +416,45 @@
   border-radius: 50%;
 }
 
+/* Telegram's @ button: the same circle, stacked above scroll-down when that
+ * shows, with the count of unseen mentions on its shoulder. */
+.composer-dock .composer-jump-mention {
+  position: absolute;
+  right: 16px;
+  bottom: calc(100% + 8px);
+  z-index: 6;
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: var(--font-weight-medium);
+  background: color-mix(in oklch, var(--tint) 60%, var(--bg));
+  border: none;
+  border-radius: 50%;
+}
+
+.composer-dock .composer-jump-mention[data-stacked] {
+  bottom: calc(100% + 8px + 34px + 8px);
+}
+
+.composer-dock .composer-jump-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
 /* ===== Narrow --------------------------------------------------------- */
 
 @media (width <= 480px) {
