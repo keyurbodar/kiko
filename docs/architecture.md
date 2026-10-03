@@ -94,7 +94,7 @@ agent:<userId>:<roomId>:<slug>
 ```
 
 - `userId` comes from the Better Auth session, never from the request body.
-- `roomId` is a ULID that the client generates, so a new chat exists locally before the server hears of it.
+- `roomId` is a lowercase UUIDv7 that the client generates with the `uuid` package, so a new chat exists locally before the server hears of it. Rooms made before UUIDv7 keep their ULID, and `isRoomId` accepts both. Only lowercase is accepted, so one room never gets two object names.
 - `slug` is the agent's name in the room, lowercase, matching `^[a-z0-9-]{1,32}$`. The team id in the spec's `"<teamId>:ada"` example is the `roomId`.
 
 **Reasoning.** The Worker builds the `user:` and `room:` names from the authenticated session. A `RoomDO` builds `agent:` names from its own name plus a slug from its own member table. An `AgentDO` can reach its own room and its own user object, and nothing else, because those are the only two names it can construct from its own name. No code path accepts a full Durable Object name from a client or from model output, so an agent cannot address another user's objects.
@@ -369,7 +369,15 @@ The human's own profile stays in memory (section 13), so nothing is stored twice
 
 ### 7.11 kiko makes agents and groups
 
-The human never fills in a form. A new chat starts as a draft with kiko ("ask kiko" or "create group"), hidden from the chat list, and kiko opens it with a question at once. kiko proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` runs only after a human message follows the proposal, so kiko asks and the human answers before anything exists. A new agent gets its own chat, a line in the draft takes the human there, and the agent says hi first. A group is the draft itself, promoted into the list with its members and kiko's `/chat.md`. An untouched draft is deleted when the human leaves it.
+The human never fills in a form. The new chat button (and `Mod+N`) opens a temporary chat with kiko (`temp` on the chat). It lives in the tab strip, never in the chat list, and is deleted when its tab closes. Nothing about it is fixed: the human can just talk, or ask for an agent or a group. Its header is kat's "to:" bar: a chip per agent and a (+) that searches the user's agents. Adding a second agent keeps the chat as a group (the `keep` op), and it joins the list. In an empty chat the human can take kiko off; picking one agent then opens that agent's direct chat instead.
+
+kiko proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` runs only after a human message follows the proposal, so kiko asks and the human answers before anything exists. A new agent gets its own chat, a line in the temporary chat takes the human there, and the agent says hi first. A group made in a temporary chat is that chat, kept with its members and kiko's `/chat.md`.
+
+One chat per agent. A direct chat is a chat that is not temporary and has exactly one agent. `dmFor` in `@kiko/protocol` picks an agent's one direct chat (the kiko chat for kiko, else the most recently active), and both sides use it. Every way of picking an agent calls `useApp.openDm`, which opens that chat and makes one only when there is none. UserDO refuses a create that would be a second direct chat and answers the socket with `chat_refused { roomId, existing }`; the client drops its optimistic row and moves a reader in it to `existing`. Old data with duplicates is not merged: the list shows only the chat `dmFor` picks, and the others stay reachable by link.
+
+The kiko chat is the chief's chat: the first pinned tile, never a list row. UserDO refuses to unpin or delete it. Every other room with kiko alone (old drafts, a second kiko chat, a room made with no agents) is hidden from the list.
+
+Resume. The client sends `open { roomId }` two seconds after the user settles in a chat. UserDO stores it in `settings` without an event or a broadcast. A snapshot carries `lastChat`: that chat when it exists and is not temporary, else the kiko chat. A client with nothing (`lastSeq` 0) always gets a snapshot. `/` and `/chat` open this device's last chat (localStorage) at once, else the snapshot's, else the kiko chat.
 
 ### 7.12 The team board and leases
 

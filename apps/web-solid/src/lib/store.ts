@@ -423,6 +423,11 @@ export function createApp(options: AppOptions = {}) {
       }
       userStore()?.open(id)
     }
+    // A chat opened before sign-in finished booting is remembered once the user store is there.
+    createComputed(() => {
+      const id = activeId()
+      if (id && userStore()) untrack(() => remember(id))
+    })
 
     /*
      * Mentions of the human in the open room (Telegram's @ button). Reading the room marks every
@@ -586,7 +591,6 @@ export function createApp(options: AppOptions = {}) {
         if (activeId() === id) return
         setActiveId(id)
         openRoom(id)
-        remember(id)
       },
 
       /** The chat to open when the URL names none: the last one the user was in, else the kiko chat. Null until known. */
