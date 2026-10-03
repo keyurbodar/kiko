@@ -109,8 +109,8 @@ export function clearSnapshot(): void {
 /** Removes the layer the shell painted. Safe to call twice. */
 export function dismissSnapshot(): void {
   document.getElementById("snap")?.remove()
-  // The shell's copies of the stylesheets. The app's own links are in force by now.
-  for (const s of document.querySelectorAll("style[data-snap], link[data-snap]")) s.remove()
+  // The shell's linked stylesheets stay: the app's lazy chunks find them by URL and do not load them again.
+  for (const s of document.querySelectorAll("style[data-snap]")) s.remove()
 }
 
 /** How long after a route change the screen is taken, so the new page has painted. */
