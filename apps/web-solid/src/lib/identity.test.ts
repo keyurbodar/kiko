@@ -76,6 +76,9 @@ describe("chatFaces", () => {
     ["a chat made without a pick is the default agent", { roomId: "r2" }, undefined, ["kiko"]],
     ["a group stacks its members, the built-in agent by its slug", { roomId: "r3", agents: ["kiko", "a1", "a2"] }, undefined, ["kiko", "ada", "bo"]],
     ["a group shows at most three", { roomId: "r4", agents: ["kiko", "a1", "a2", "zz"] }, undefined, ["kiko", "ada", "bo"]],
+    ["a chat with one picked agent stays one-to-one", { roomId: "r7", agents: ["a2"] }, undefined, ["bo"]],
+    ["a closed group shows kiko as its chief, the faces it has once open", { roomId: "r8", agents: ["a1", "a2"] }, undefined, ["kiko", "ada", "bo"]],
+    ["opening that group changes nothing", { roomId: "r8", agents: ["a1", "a2"] }, ["kiko", "ada", "bo"], ["kiko", "ada", "bo"]],
     ["the open room's live members win", { roomId: "r5", agents: ["a1", "a2"] }, ["bo", "cy"], ["bo", "cy"]],
     ["a group that lost all but one wears that one's face", { roomId: "r6", agents: ["a1", "a2"] }, ["bo"], ["bo"]],
   ] as const)("%s", (_name, chat, members, want) =>

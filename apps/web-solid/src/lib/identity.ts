@@ -60,7 +60,10 @@ export const MAX_FACES = 3
  * the chat was made with, because agents join and leave after that.
  */
 export function chatFaces(chat: ChatAgents, agents: AgentIds, members?: readonly string[]): string[] {
-  const slugs = members?.length ? [...members] : (chat.agents ?? []).map((id) => slugOf(id, agents))
+  let slugs = members?.length ? [...members] : (chat.agents ?? []).map((id) => slugOf(id, agents))
+  // The room seeds kiko as the chief of every group, so a closed group shows it too and does not
+  // change its faces when it opens.
+  if (!members?.length && slugs.length > 1 && !slugs.includes(DEFAULT_AGENT_SLUG)) slugs = [DEFAULT_AGENT_SLUG, ...slugs]
   if (slugs.length > 1) return slugs.slice(0, MAX_FACES)
   return [slugs[0] ?? DEFAULT_AGENT_SLUG]
 }

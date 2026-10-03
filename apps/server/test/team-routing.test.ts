@@ -134,6 +134,16 @@ test("a chat created with agents seeds kiko as the lead, then them", async () =>
   ws.ws.close()
 })
 
+test("a chat with one agent stays one-to-one: that agent alone, as its lead", async () => {
+  const room = fresh()
+  await call("/user", { chats: [chatFor(room, "solo agent", [AGENTS[0]!.id])], agents: AGENTS })
+  const ws = await Socket.open(room)
+  await ws.until(() => ws.members().length === 1)
+  await Bun.sleep(200)
+  expect(ws.members().map((m) => [m.slug, m.lead])).toEqual([["bob", true]])
+  ws.ws.close()
+})
+
 test("a chat created without agents gets kiko as its lead", async () => {
   const room = fresh()
   await call("/user", { chats: [chatFor(room, "solo")], agents: [] })

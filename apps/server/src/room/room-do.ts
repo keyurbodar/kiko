@@ -119,8 +119,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * Gives a new room its first members: `DEFAULT_AGENT` as lead, then the agents the chat was
-	 * created with. Runs once; a room that has had members is left alone.
+	 * Gives a new room its first members. A chat made without agents gets `DEFAULT_AGENT`. A chat
+	 * with one agent gets that agent alone. A group gets `DEFAULT_AGENT` as lead, then its agents. Runs once; a room that has had members is left alone.
 	 * ASSUMPTION: an agent id the user's list no longer has is skipped.
 	 */
 	private async seedMembers(home: { userId: string; roomId: RoomId }, chat: Chat): Promise<void> {
@@ -135,8 +135,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				return a ? [{ slug: a.slug, name: a.name, role: a.prompt, model: a.model }] : []
 			})
 		}
-		// kiko is the chief: first, so it leads, in every room, with the picked agents after it.
-		agents = [{ slug: DEFAULT_AGENT, name: "kiko" }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
+		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
+		// kiko is the chief of a group: first, so it leads. A chat with one agent stays one-to-one.
+		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: "kiko" }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
 	}
 
