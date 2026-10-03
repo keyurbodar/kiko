@@ -1,6 +1,9 @@
 import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
+/** The built-in agent. It leads every room and cannot be removed. */
+const CHIEF = "kiko"
+
 // Architecture sections 7.2, 7.4, and 7.7. The agents of one room. A room has exactly one
 // lead while it has any member. A removed member keeps its row with `removed_at` set, so
 // account deletion still reaches its Durable Object and adding the slug again brings it back.
@@ -174,11 +177,13 @@ export class Members {
 
 	/**
 	 * Removes a member. Removing the lead makes the member who joined first the new lead.
+	 * The kiko agent is the chief of every room and is never removed.
 	 * ASSUMPTION: the last member cannot be removed, because a room keeps exactly one lead.
 	 */
 	private removeInside(slug: AgentSlug): MemberResult {
 		const current = this.get(slug)
 		if (!current) return { ok: false, reason: "unknown" }
+		if (slug === CHIEF) return { ok: false, reason: "chief" }
 		const rest = this.list().filter((m) => m.slug !== slug)
 		if (!rest.length) return { ok: false, reason: "last" }
 		const events: RoomEvent[] = [this.log.append("human", { t: "member_removed", slug })]

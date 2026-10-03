@@ -14,8 +14,9 @@ import { birdPickerSlug, closeBirdPicker } from "./picker-state"
 
 const MOODS: BirdState[] = ["wave", "thinking", "typing", "working", "sending", "idle"]
 
+// The pick is a filled cell with an accent edge; focus is a plain ring, and only from the keyboard.
 const chip =
-  "grid place-items-center rounded-xl outline-none hover:bg-[var(--btn-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:bg-[var(--btn-bg-hover)] aria-checked:ring-2 aria-checked:ring-[var(--accent)]"
+  "grid place-items-center rounded-xl outline-none hover:bg-[var(--btn-bg)] [:root[data-input=keys]_&]:focus-visible:ring-2 [:root[data-input=keys]_&]:focus-visible:ring-[var(--text-faint)] aria-checked:bg-[var(--accent-wash)] aria-checked:shadow-[inset_0_0_0_1.5px_var(--accent)]"
 
 function Picker(props: { slug: string }) {
   const [draft, setDraft] = createSignal<BirdSpec>(birdFor(props.slug))

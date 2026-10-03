@@ -34,7 +34,7 @@ const BAD: [string, unknown, string][] = [
   ["no name", { version: 1 }, "name: expected 1 to 48 characters"],
   ["a long name", { version: 1, name: "x".repeat(49) }, "name: expected 1 to 48 characters"],
   ["raw css", { ...base, css: "body{}" }, "css: unknown key"],
-  ["an unknown preset", { ...base, extends: "neon" }, 'extends: expected one of plum, ember, lilac, sakura, sage, teal, bluebird, graphite, mono, got "neon"'],
+  ["an unknown preset", { ...base, extends: "neon" }, 'extends: expected one of plum, bluebird, ocean, periwinkle, lilac, orchid, sakura, coral, sage, mint, teal, slate, graphite, mono, got "neon"'],
   ["an appearance key", { ...base, appearance: "light" }, "appearance: unknown key"],
   ["a group that is not an object", { ...base, colors: "red" }, 'colors: expected an object, got "red"'],
   ["an unknown color key", { ...base, colors: { accnt: "red" } }, "colors.accnt: unknown key"],

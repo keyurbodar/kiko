@@ -10,13 +10,18 @@ type Swatch = { id: string; label: string; hue: number; chroma: number }
 /** The swatch row, in display order. The first is the default. */
 export const SWATCHES: readonly Swatch[] = [
   { id: "plum", label: "plum", hue: 340, chroma: 1 },
-  { id: "ember", label: "ember", hue: 35, chroma: 1 },
-  { id: "lilac", label: "lilac", hue: 295, chroma: 1 },
-  { id: "sakura", label: "sakura", hue: 5, chroma: 1 },
-  { id: "sage", label: "sage", hue: 150, chroma: 0.85 },
-  { id: "teal", label: "teal", hue: 200, chroma: 0.9 },
   { id: "bluebird", label: "bluebird", hue: 245, chroma: 1 },
-  { id: "graphite", label: "graphite", hue: 255, chroma: 0.35 },
+  { id: "ocean", label: "ocean", hue: 228, chroma: 0.94 },
+  { id: "periwinkle", label: "periwinkle", hue: 268, chroma: 1 },
+  { id: "lilac", label: "lilac", hue: 295, chroma: 0.94 },
+  { id: "orchid", label: "orchid", hue: 320, chroma: 1 },
+  { id: "sakura", label: "sakura", hue: 5, chroma: 0.94 },
+  { id: "coral", label: "coral", hue: 28, chroma: 1 },
+  { id: "sage", label: "sage", hue: 145, chroma: 0.78 },
+  { id: "mint", label: "mint", hue: 172, chroma: 0.89 },
+  { id: "teal", label: "teal", hue: 200, chroma: 0.83 },
+  { id: "slate", label: "slate", hue: 255, chroma: 0.39 },
+  { id: "graphite", label: "graphite", hue: 255, chroma: 0.15 },
   { id: "mono", label: "mono", hue: 0, chroma: 0 },
 ]
 

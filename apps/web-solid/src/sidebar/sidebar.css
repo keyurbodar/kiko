@@ -70,9 +70,11 @@
   background: var(--nav-active-bg);
 }
 
-.sidebar-shell .rail-tab:focus-visible {
+/* A ring only for keyboard navigation. A modifier alone (Cmd for a shortcut) does not count,
+   so a clicked row never lights up when a shortcut is pressed. */
+:root[data-input="keys"] .sidebar-shell .rail-tab:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .sidebar-shell .rail-spacer {
@@ -220,7 +222,7 @@
   background: var(--hover-bg);
 }
 
-.sidebar-shell .pin-tile:focus-visible {
+:root[data-input="keys"] .sidebar-shell .pin-tile:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
@@ -331,8 +333,9 @@
   border-radius: 999px;
 }
 
+/* Drawn inside the field: the sidebar clips anything outside it, which cut the ring's top off. */
 .sidebar-shell .chat-search-field:focus-within {
-  outline: 2px solid oklch(from var(--accent) l c h / 50%);
+  box-shadow: inset 0 0 0 1.5px oklch(from var(--accent) l c h / 60%);
 }
 
 .sidebar-shell .chat-search-input {
@@ -430,7 +433,7 @@
   background: var(--hover-bg);
 }
 
-.sidebar-shell .chat-row:focus-visible {
+:root[data-input="keys"] .sidebar-shell .chat-row:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
@@ -464,12 +467,12 @@
   paint-order: stroke fill;
 }
 
+/* A bird is its own shape: no disc behind it and nothing clipping its crest. */
 .sidebar-shell .chat-avatar,
 .sidebar-shell .pin-tile-avatar {
   display: block;
   flex: none;
-  overflow: hidden;
-  border-radius: 50%;
+  overflow: visible;
 }
 
 .sidebar-shell .chat-avatar {

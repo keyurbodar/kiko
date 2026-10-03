@@ -77,6 +77,22 @@ export function Shell(props: ParentProps) {
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
   const drawer = drawerOpen;
   const setDrawer = setDrawerOpen;
+  // Keyboard intent for focus rings: a real navigation key turns rings on, a pointer turns them
+  // off. Modifiers alone do not count, so pressing Cmd for a shortcut never rings the clicked row.
+  onMount(() => {
+    const root = document.documentElement;
+    const keys = (e: KeyboardEvent) => {
+      if (e.key === "Meta" || e.key === "Control" || e.key === "Alt" || e.key === "Shift" || e.metaKey || e.ctrlKey) return;
+      root.dataset.input = "keys";
+    };
+    const pointer = () => delete root.dataset.input;
+    window.addEventListener("keydown", keys, true);
+    window.addEventListener("pointerdown", pointer, true);
+    onCleanup(() => {
+      window.removeEventListener("keydown", keys, true);
+      window.removeEventListener("pointerdown", pointer, true);
+    });
+  });
   onMount(() => {
     const on = () => {
       setNarrow(narrowQuery!.matches);

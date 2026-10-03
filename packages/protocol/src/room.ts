@@ -70,7 +70,7 @@ export type MemberOp =
 	| { op: "rename"; slug: AgentSlug; name: string }
 
 /** Why the room refused a `member` frame. */
-export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved"
+export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved" | "chief"
 
 /** Architecture section 7.6. */
 export type TaskStatus = "todo" | "doing" | "blocked" | "review" | "done" | "cancelled"

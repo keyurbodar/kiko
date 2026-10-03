@@ -39,6 +39,8 @@ export function refusalText(op: MemberOp, reason: MemberRefusal): string {
       return "a chat keeps at least one agent"
     case "reserved":
       return `@${op.slug} is a reserved handle`
+    case "chief":
+      return "kiko leads every chat and stays in it"
   }
 }
 

@@ -60,6 +60,7 @@ const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
 	unknown: "no such agent.",
 	last: "the room needs at least one agent.",
 	reserved: "that handle is reserved. pick another.",
+	chief: "kiko leads this room and cannot be removed.",
 }
 
 /** An agent message stored while a human burst was pending, delivered right after the burst. */
@@ -118,8 +119,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * Gives a new room its first members: the agents the chat was created with, the first as lead, or
-	 * `DEFAULT_AGENT` for a chat made without any. Runs once; a room that has had members is left alone.
+	 * Gives a new room its first members: `DEFAULT_AGENT` as lead, then the agents the chat was
+	 * created with. Runs once; a room that has had members is left alone.
 	 * ASSUMPTION: an agent id the user's list no longer has is skipped.
 	 */
 	private async seedMembers(home: { userId: string; roomId: RoomId }, chat: Chat): Promise<void> {
@@ -134,7 +135,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				return a ? [{ slug: a.slug, name: a.name, role: a.prompt, model: a.model }] : []
 			})
 		}
-		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
+		// kiko is the chief: first, so it leads, in every room, with the picked agents after it.
+		agents = [{ slug: DEFAULT_AGENT, name: "kiko" }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
 	}
 

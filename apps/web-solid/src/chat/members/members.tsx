@@ -130,7 +130,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
           </div>
         </li>
         <For each={props.members}>
-          {(m) => <AgentRow member={m} canRemove={props.members.length > 1} onOpen={props.onOpen} />}
+          {(m) => <AgentRow member={m} canRemove={props.members.length > 1 && m.slug !== "kiko"} onOpen={props.onOpen} />}
         </For>
       </ul>
       <Show

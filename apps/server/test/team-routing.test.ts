@@ -101,7 +101,7 @@ class Socket {
   }
 }
 
-/** A room whose chat was created with bob, ada, and cy. bob is first, so bob leads. */
+/** A room whose chat was created with bob, ada, and cy. kiko is seeded first and leads. */
 async function team(): Promise<{ room: RoomId; ws: Socket }> {
   const room = fresh()
   await call("/user", { chats: [chatFor(room, "ship the plan", AGENTS.map((a) => a.id))], agents: AGENTS })
@@ -120,13 +120,14 @@ async function delivered(room: RoomId, who: string, count: number): Promise<Rece
 }
 
 const counts = async (room: RoomId) =>
-  Object.fromEntries(await Promise.all(["bob", "ada", "cy"].map(async (s) => [s, (await received(room, s)).received.length])))
+  Object.fromEntries(await Promise.all(["kiko", "bob", "ada", "cy"].map(async (s) => [s, (await received(room, s)).received.length])))
 
-test("a chat created with agents seeds them as members, the first as lead", async () => {
+test("a chat created with agents seeds kiko as the lead, then them", async () => {
   const { ws } = await team()
-  await ws.until(() => ws.members().length === 3)
+  await ws.until(() => ws.members().length === 4)
   expect(ws.members().map((m) => [m.slug, m.lead, m.role ?? null])).toEqual([
-    ["bob", true, "plans"],
+    ["kiko", true, null],
+    ["bob", false, "plans"],
     ["ada", false, "reads code"],
     ["cy", false, null],
   ])
@@ -157,35 +158,36 @@ test("a group with the built-in agent seeds kiko too: the client names it by its
 test("an untagged burst reaches the others after the lead's run ends, with a note to add or skip", async () => {
   const { room, ws } = await team()
   await ws.say("anyone around?")
-  await delivered(room, "bob", 1)
+  await delivered(room, "kiko", 1)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ bob: 1, ada: 0, cy: 0 })
-  await call(`/end/${room}/bob/bob:r1`)
+  expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 0, cy: 0 })
+  await call(`/end/${room}/kiko/kiko:r1`)
   const [toAda] = await delivered(room, "ada", 1)
+  await delivered(room, "bob", 1)
   await delivered(room, "cy", 1)
   expect(toAda!.envelopes.map((e) => e.body)).toEqual(["anyone around?"])
   expect(toAda!.brief).toContain("already answered this")
   // A second end of the same run delivers nothing more.
-  await call(`/end/${room}/bob/bob:r1`)
+  await call(`/end/${room}/kiko/kiko:r1`)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ bob: 1, ada: 1, cy: 1 })
+  expect(await counts(room)).toEqual({ kiko: 1, bob: 1, ada: 1, cy: 1 })
   ws.ws.close()
 })
 
 test("untagged reaches only the lead, @ada only ada, @all everyone, and ada's next brief carries what she missed", async () => {
   const { room, ws } = await team()
   await ws.say("hello team")
-  await delivered(room, "bob", 1)
+  await delivered(room, "kiko", 1)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ bob: 1, ada: 0, cy: 0 })
-  const first = (await received(room, "bob")).received[0]!
+  expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 0, cy: 0 })
+  const first = (await received(room, "kiko")).received[0]!
   expect(first.envelopes.map((e) => e.body)).toEqual(["hello team"])
-  expect(first.home).toMatchObject({ slug: "bob", lead: true, role: "plans" })
+  expect(first.home).toMatchObject({ slug: "kiko", lead: true })
 
   await ws.say("@ada your turn")
   const [toAda] = await delivered(room, "ada", 1)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ bob: 1, ada: 1, cy: 0 })
+  expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 1, cy: 0 })
   expect(toAda!.envelopes.map((e) => e.body)).toEqual(["@ada your turn"])
   expect(toAda!.home).toMatchObject({ slug: "ada", lead: false })
   // She missed "hello team". Her own envelope is not repeated in the brief.
@@ -193,13 +195,15 @@ test("untagged reaches only the lead, @ada only ada, @all everyone, and ada's ne
   expect(missed).toContain("human: hello team")
   expect(missed).not.toContain("your turn")
   expect(toAda!.brief).toContain("room goal: ship the plan")
-  expect(toAda!.brief).toContain("- @bob (bob): lead, plans, idle")
+  expect(toAda!.brief).toContain("- @kiko (kiko): lead")
+  expect(toAda!.brief).toContain("- @bob (bob): plans, idle")
 
   await ws.say("@all ping")
   await delivered(room, "cy", 1)
-  await delivered(room, "bob", 2)
+  await delivered(room, "kiko", 2)
+  await delivered(room, "bob", 1)
   await delivered(room, "ada", 2)
-  expect(await counts(room)).toEqual({ bob: 2, ada: 2, cy: 1 })
+  expect(await counts(room)).toEqual({ kiko: 2, bob: 1, ada: 2, cy: 1 })
   const adaAgain = (await received(room, "ada")).received[1]!
   // Nothing new happened since ada's last delivery, so her brief has no missed section.
   expect(adaAgain.brief).not.toContain(MISSED_HEADER)
@@ -235,33 +239,36 @@ test("a reply to an agent's bubble reaches that agent", async () => {
   await ws.say("yes please", bubble?.t === "message" ? bubble.id : undefined)
   await delivered(room, "cy", 1)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ bob: 0, ada: 0, cy: 1 })
+  expect(await counts(room)).toEqual({ kiko: 0, bob: 0, ada: 0, cy: 1 })
   ws.ws.close()
 })
 
-test("add, rename, and remove members, with the limit of 8", async () => {
+test("add, rename, and remove members, with the limit of 8, and kiko always stays", async () => {
   const { room, ws } = await team()
-  await ws.until(() => ws.members().length === 3)
-  for (const s of ["d1", "d2", "d3", "d4", "d5"]) ws.send({ t: "member", op: { op: "add", slug: s, name: s } })
+  await ws.until(() => ws.members().length === 4)
+  for (const s of ["d1", "d2", "d3", "d4"]) ws.send({ t: "member", op: { op: "add", slug: s, name: s } })
   await ws.until(() => ws.members().length === 8)
-  ws.send({ t: "member", op: { op: "add", slug: "d6", name: "d6" } })
+  ws.send({ t: "member", op: { op: "add", slug: "d5", name: "d5" } })
   const refused = await ws.until((f) => f.t === "member_refused")
-  expect(refused).toEqual({ t: "member_refused", op: { op: "add", slug: slug("d6"), name: "d6" }, reason: "limit" })
+  expect(refused).toEqual({ t: "member_refused", op: { op: "add", slug: slug("d5"), name: "d5" }, reason: "limit" })
   ws.send({ t: "member", op: { op: "add", slug: "all", name: "all" } })
   await ws.until((f) => f.t === "member_refused" && f.reason === "reserved")
 
   ws.send({ t: "member", op: { op: "rename", slug: "ada", name: "ada lovelace" } })
   await ws.until(() => ws.members().find((m) => m.slug === "ada")?.name === "ada lovelace")
 
-  // Removing the lead makes the member who joined next the lead.
+  // kiko is the chief: it cannot be removed, and it stays the lead.
+  ws.send({ t: "member", op: { op: "remove", slug: "kiko" } })
+  await ws.until((f) => f.t === "member_refused" && f.reason === "chief")
+  expect(ws.members().filter((m) => m.lead).map((m) => m.slug)).toEqual([slug("kiko")])
+
   ws.send({ t: "member", op: { op: "remove", slug: "bob" } })
-  await ws.until(() => ws.members().find((m) => m.slug === "ada")?.lead === true)
-  expect(ws.members().filter((m) => m.lead).map((m) => m.slug)).toEqual([slug("ada")])
+  await ws.until(() => !ws.members().some((m) => m.slug === "bob"))
   expect((await received(room, "bob")).stops).toBe(1)
 
-  // An untagged message now reaches the new lead, and a tag for a removed member counts as no tag.
+  // A tag for a removed member counts as no tag, so it reaches the lead.
   await ws.say("@bob are you there")
-  await delivered(room, "ada", 1)
+  await delivered(room, "kiko", 1)
   await Bun.sleep(300)
   expect((await received(room, "bob")).received.length).toBe(0)
 
@@ -276,14 +283,14 @@ test("add, rename, and remove members, with the limit of 8", async () => {
     late.onopen = () => late.send(JSON.stringify({ t: "hello", lastSeq: 1_000_000 }))
     late.onmessage = (e) => resolve(JSON.parse(String(e.data)))
   })
-  expect(snapshot.t === "reset" && snapshot.snapshot.members.map((m) => m.slug)).toEqual(["ada", "cy", "d1", "d2", "d3", "d4", "d5"].map(slug))
+  expect(snapshot.t === "reset" && snapshot.snapshot.members.map((m) => m.slug)).toEqual(["kiko", "ada", "cy", "d1", "d2", "d3", "d4"].map(slug))
   late.close()
   ws.ws.close()
 })
 
 test("the room stores only the latest status, and only for members", async () => {
   const { room, ws } = await team()
-  await ws.until(() => ws.members().length === 3)
+  await ws.until(() => ws.members().length === 4)
   await call(`/status/${room}/ada/working`)
   await call(`/status/${room}/ada/working`)
   await call(`/status/${room}/zed/working`)
@@ -298,25 +305,25 @@ test("the room stores only the latest status, and only for members", async () =>
 
 test("stop reaches every member", async () => {
   const { room, ws } = await team()
-  await ws.until(() => ws.members().length === 3)
+  await ws.until(() => ws.members().length === 4)
   ws.send({ t: "stop" })
   const end = Date.now() + 3000
   while (Date.now() < end) {
-    const stops = await Promise.all(["bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))
+    const stops = await Promise.all(["kiko", "bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))
     if (stops.every((x) => x === 1)) break
     await Bun.sleep(50)
   }
-  expect(await Promise.all(["bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))).toEqual([1, 1, 1])
+  expect(await Promise.all(["kiko", "bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))).toEqual([1, 1, 1, 1])
   ws.ws.close()
 })
 
 test("a burst whose delivery fails once is retried, and counts as one turn", async () => {
   const { room, ws } = await team()
   const before = ((await call("/turns")) as { turns: number }).turns
-  await call(`/fail/${room}/bob/1`)
+  await call(`/fail/${room}/kiko/1`)
   await ws.say("plan the launch")
-  // The first delivery throws; the room's retry delivers it.
-  const got = await delivered(room, "bob", 1)
+  // The first delivery throws; the room's retry delivers it to the lead.
+  const got = await delivered(room, "kiko", 1)
   expect(got[0]!.envelopes.map((e) => e.body)).toEqual(["plan the launch"])
   expect(((await call("/turns")) as { turns: number }).turns).toBe(before + 1)
   ws.ws.close()

@@ -3,7 +3,7 @@ import { Bird } from "../mascot/bird"
 import { identityLook } from "./identity"
 
 /*
- * The only component that draws a bot or a chat: its bird on a soft disc. Still by default:
+ * The only component that draws a bot or a chat: its bird, on nothing. Still by default:
  * a list of moving avatars is motion where nobody is waiting for anything. A `state` makes
  * the bird act out what the agent is doing. `size` is in pixels. Omit it to size by class.
  */
@@ -11,7 +11,7 @@ export function IdentityAvatar(props: { seed: string; size?: number; class?: str
   const look = () => identityLook(props.seed)
   return (
     <span
-      class={`inline-block shrink-0 overflow-hidden rounded-full bg-[var(--tint-subtle)] ${props.class ?? ""}`}
+      class={`inline-block shrink-0 ${props.class ?? ""}`}
       style={{
         width: props.size ? `${props.size}px` : undefined,
         height: props.size ? `${props.size}px` : undefined,
@@ -21,7 +21,7 @@ export function IdentityAvatar(props: { seed: string; size?: number; class?: str
       data-seed={props.seed}
       aria-hidden="true"
     >
-      <Bird slug={look().seed} state={props.state} class="size-full p-[8%]" />
+      <Bird slug={look().seed} state={props.state} class="size-full" />
     </span>
   )
 }

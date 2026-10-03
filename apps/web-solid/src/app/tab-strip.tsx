@@ -121,7 +121,7 @@ export function TabStrip() {
                 }}
               >
                 <ChatAvatar faces={useApp.chatFaces(id)} size={16} />
-                <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-12px),transparent)] group-data-[unread]:[-webkit-text-stroke:0.3px]">
+                <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap pr-3 [mask-image:linear-gradient(to_right,#000_calc(100%-12px),transparent)] group-data-[unread]:[-webkit-text-stroke:0.3px]">
                   {label(id)}
                 </span>
               </span>

@@ -14,7 +14,7 @@ A theme is one JSON object. Every key maps to one CSS variable from `packages/ui
 | --- | --- |
 | `version` | Required. Always `1`. |
 | `name` | Required. 1 to 48 characters. |
-| `extends` | One of `plum`, `ember`, `lilac`, `sakura`, `sage`, `teal`, `bluebird`, `graphite`, `mono`. Default `plum`. |
+| `extends` | One of `plum`, `bluebird`, `ocean`, `periwinkle`, `lilac`, `orchid`, `sakura`, `coral`, `sage`, `mint`, `teal`, `slate`, `graphite`, `mono`. Default `plum`. |
 | `colors`, `radius`, `spacing`, `type`, `size` | Groups, listed below. |
 | `tokens` | Any variable from the last table, by name. |
 | `variants.light` | The same groups and `tokens`, layered on top in the light appearance. The person picks system, light, or dark in settings. |

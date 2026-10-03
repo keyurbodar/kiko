@@ -250,7 +250,7 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,
-		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved"]),
+		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved", "chief"]),
 	}),
 	Schema.Struct({
 		t: Schema.Literal("search"),
