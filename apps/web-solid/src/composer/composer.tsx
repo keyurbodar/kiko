@@ -12,6 +12,7 @@ import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import { createPromptInputV2Store } from "./prompt-input/store"
+import { releaseBlobUrl } from "./prompt-input/attachments"
 import type { PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
@@ -88,6 +89,10 @@ export function Composer(props: ComposerProps) {
   }
   document.addEventListener("keydown", dropReply)
   onCleanup(() => document.removeEventListener("keydown", dropReply))
+  // Attachments still in the box when the composer goes were never sent: free their object URLs.
+  onCleanup(() => {
+    for (const part of persisted.prompt) if (part.type === "image") releaseBlobUrl(part.blob.url)
+  })
   const [decoding, setDecoding] = createSignal(false)
 
   const draftText = () =>

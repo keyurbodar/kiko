@@ -212,6 +212,8 @@ export default function ChatRoute() {
             onReplyTarget={setReplyTarget}
             scrollRef={() => {}}
             onStateChange={setThreadState}
+            onNearTop={useApp.loadOlder}
+            onAtLatest={useApp.followLatest}
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
             waitingDoing={useApp.typingDoing()}

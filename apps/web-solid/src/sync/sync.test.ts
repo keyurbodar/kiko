@@ -9,9 +9,10 @@ import { getLastSeq, newestMessages, putMessages, setLastSeq } from "../warm/mes
 import { outbox } from "../warm/outbox"
 import { createMockRoom, createMockUser, type MockRoomOptions } from "./mock-room"
 import { overlayChats, overlayMessages, type RoomPatch, settleRoom } from "./patches"
-import { applyRoomEvent, createRoomStore, emptyRoom, type RoomStoreOptions } from "./room-store"
+import { applyRoomEvent, createRoomStore, emptyRoom, MAX_MESSAGES_IN_MEMORY, type RoomStoreOptions, WINDOW_SLACK } from "./room-store"
 import { backoffDelay, createSyncSocket, parseFrame } from "./socket"
 import { createUserStore, newRoomId, OPEN_DEBOUNCE_MS } from "./user-store"
+import { createUserChannel } from "./user-channel"
 
 const roomId = fixtures.roomId
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -377,14 +378,84 @@ describe("the room store", () => {
 		const { store } = await make(warm)
 		await until(() => store.state.seq === 600)
 		expect(mock.received[0]).toEqual({ t: "hello", lastSeq: 1 })
-		expect(store.state.messages).toHaveLength(600)
-		expect(store.state.messages[0].text).toBe("n1")
+		// Memory holds the newest window. The disk holds the rest.
+		expect(store.state.messages).toHaveLength(MAX_MESSAGES_IN_MEMORY)
+		expect(store.state.messages[0].text).toBe("n401")
 		expect(store.state.members.map((m) => m.slug)).toEqual([fixtures.ada, fixtures.bob])
 		await warm.flush()
 		expect(await getLastSeq(warm, roomId)).toBe(600)
 		const stored = await newestMessages(warm, roomId, 1000)
 		expect(stored).toHaveLength(600)
 		expect(stored.some((m) => m.text === "stale")).toBe(false)
+		store.close()
+	})
+
+	test("the window stays capped while following, pages older from disk, and caps again on follow", async () => {
+		const events: RoomEvent[] = Array.from({ length: 150 }, (_, i) => ({ t: "message", seq: i + 1, at: i, id: `m${i + 1}` as MessageId, from: { kind: "human" }, text: `n${i + 1}` }))
+		const { mock, make } = setup({ events })
+		const warm = await freshWarm()
+		const { store } = await make(warm)
+		await until(() => store.state.seq === 150)
+		// 200 live messages: the window grows past the cap only by the slack, then is cut back.
+		for (let i = 151; i <= 350; i++) mock.store({ t: "message", id: `m${i}` as MessageId, from: { kind: "human" }, text: `n${i}` })
+		await until(() => store.state.seq === 350)
+		await store.settled()
+		expect(store.state.messages.length).toBeLessThanOrEqual(MAX_MESSAGES_IN_MEMORY + WINDOW_SLACK)
+		expect(store.state.messages.at(-1)?.text).toBe("n350")
+		const before = store.state.messages.length
+		// Scrolling up brings older ones back from IndexedDB, and live messages no longer cut them.
+		expect(await store.loadOlder(50)).toBe(50)
+		expect(store.state.messages.length).toBe(before + 50)
+		mock.store({ t: "message", id: "m351" as MessageId, from: { kind: "human" }, text: "n351" })
+		await until(() => store.state.seq === 351)
+		expect(store.state.messages.length).toBe(before + 51)
+		// Back at the end: the window is the newest MAX again.
+		store.follow()
+		expect(store.state.messages).toHaveLength(MAX_MESSAGES_IN_MEMORY)
+		expect(store.state.messages.at(-1)?.text).toBe("n351")
+		store.close()
+	})
+
+	test("a send's object URLs are revoked once its uploads land, and a held send's when the room closes", async () => {
+		const revoked: string[] = []
+		const original = URL.revokeObjectURL
+		URL.revokeObjectURL = (url: string) => void revoked.push(url)
+		try {
+			const { make } = setup()
+			const { store } = await make()
+			await store.ready
+			let land!: (files: never[]) => void
+			const uploads = new Promise<never[]>((r) => (land = r))
+			store.send("pic", { local: [{ src: "blob:one", name: "a.png", mime: "image/png" }], uploads })
+			store.send("held", { local: [{ src: "blob:two", name: "b.png", mime: "image/png" }], uploads: new Promise(() => {}) })
+			expect(revoked).toEqual([])
+			land([])
+			await uploads
+			await Promise.resolve()
+			expect(revoked).toEqual(["blob:one"])
+			store.close()
+			expect(revoked).toEqual(["blob:one", "blob:two"])
+		} finally {
+			URL.revokeObjectURL = original
+		}
+	})
+
+	test("an edit or delete of a message outside the window reaches the disk", async () => {
+		const events: RoomEvent[] = Array.from({ length: 300 }, (_, i) => ({ t: "message", seq: i + 1, at: i, id: `m${i + 1}` as MessageId, from: { kind: "human" }, text: `n${i + 1}` }))
+		const { mock, make } = setup({ events })
+		const warm = await freshWarm()
+		const { store } = await make(warm)
+		await until(() => store.state.seq === 300)
+		store.follow()
+		expect(store.state.messages.some((m) => m.id === "m5")).toBe(false)
+		mock.store({ t: "edit", messageId: "m5" as MessageId, text: "changed" })
+		mock.store({ t: "delete", messageIds: ["m6" as MessageId], by: { kind: "human" } } as never)
+		await until(() => store.state.seq === 302)
+		await new Promise((r) => setTimeout(r, 30))
+		await warm.flush()
+		const disk = await newestMessages(warm, roomId, 1000)
+		expect(disk.find((m) => m.id === "m5")?.text).toBe("changed")
+		expect(disk.some((m) => m.id === "m6")).toBe(false)
 		store.close()
 	})
 
@@ -423,7 +494,7 @@ describe("the room store", () => {
 		const live = Math.max(...durations)
 
 		console.log(`longest task: ${replay.toFixed(2)} ms on replay, ${live.toFixed(2)} ms live`)
-		expect(store.state.messages.length).toBe(2 + 1500)
+		expect(store.state.messages.length).toBeLessThanOrEqual(MAX_MESSAGES_IN_MEMORY + WINDOW_SLACK)
 		expect(store.state.messages.at(-1)?.text).toBe("bubble 1998")
 		expect(store.state.messages.at(-1)?.reactions).toHaveLength(1)
 		expect(replay).toBeLessThan(8)
@@ -484,6 +555,28 @@ describe("composer typing and run end", () => {
 })
 
 describe("the user store", () => {
+	test("one socket carries the look, memory, and Executor frames through the channel", async () => {
+		const mock = createMockUser()
+		const warm = await freshWarm()
+		const channel = createUserChannel()
+		const opened: number[] = []
+		const memory: string[] = []
+		channel.onOpen(() => opened.push(1))
+		const stop = channel.on("memory_result", (f) => memory.push(f.reqId))
+		expect(channel.send({ t: "theme", theme: null })).toBe(false)
+		const store = createUserStore({ warm, url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 }, channel })
+		await until(() => store.state.synced)
+		expect(opened).toHaveLength(1)
+		// A frame another feature sends goes out on the store's own socket: the mock has one peer.
+		expect(channel.send({ t: "memory", reqId: "q1", op: { op: "list" } } as never)).toBe(true)
+		await until(() => mock.received.some((f) => f.t === "memory"))
+		expect(mock.received.filter((f) => f.t === "hello")).toHaveLength(1)
+		stop()
+		store.close()
+		expect(channel.send({ t: "theme", theme: null })).toBe(false)
+		expect(memory).toEqual([])
+	})
+
 	test("chat edits apply at once, go out after a reconnect, and are confirmed", async () => {
 		const mock = createMockUser()
 		mock.online = false

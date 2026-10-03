@@ -83,6 +83,7 @@ export const FileRef = Schema.Struct({
 	width: Schema.optionalKey(Count),
 	height: Schema.optionalKey(Count),
 	thumbhash: Schema.optionalKey(Schema.String),
+	thumb: Schema.optionalKey(Schema.Boolean),
 })
 
 export const Reaction = Schema.Struct({ by: Actor, emoji: Schema.String })

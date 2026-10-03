@@ -28,10 +28,14 @@ export function isExpanded(messageId: string): boolean {
   return expandedIds().has(messageId)
 }
 
+/** The reader opens a few long messages, not hundreds. Past this the earliest opened folds again. */
+const MAX_EXPANDED = 100
+
 function setExpanded(messageId: string, value: boolean): void {
   const next = new Set(expandedIds())
+  next.delete(messageId)
   if (value) next.add(messageId)
-  else next.delete(messageId)
+  if (next.size > MAX_EXPANDED) next.delete(next.values().next().value as string)
   setExpandedIds(next)
 }
 

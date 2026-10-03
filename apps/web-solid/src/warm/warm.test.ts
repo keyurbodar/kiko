@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import type { Chat, Message, MessageId, RoomId } from "@kiko/protocol"
 import { IDBFactory } from "fake-indexeddb"
 import { allChats, getUserSeq, putChats, removeChat, replaceChats, setUserSeq } from "./chats"
-import { compareKeys, deleteWarm, openWarm, warmName } from "./db"
+import { compareKeys, deleteWarm, MEMORY_ROWS_PER_STORE, openWarm, warmName } from "./db"
 import { getDraft, saveDraft } from "./drafts"
 import {
 	clearRoom,
@@ -197,6 +197,16 @@ describe("idb", () => {
 		expect(warm.mode).toBe("memory")
 		saveDraft(warm, { roomId: A, text: "draft", updatedAt: 1 })
 		expect((await getDraft(warm, A))?.text).toBe("draft")
+		warm.close()
+	})
+
+	test("the memory twin keeps at most its cap per store, dropping the oldest writes", async () => {
+		const warm = await openWarm({ userId: "u1", idb: null })
+		putMessages(warm, A, range(1, MEMORY_ROWS_PER_STORE + 100))
+		const kept = await newestMessages(warm, A, MEMORY_ROWS_PER_STORE * 2)
+		expect(kept).toHaveLength(MEMORY_ROWS_PER_STORE)
+		expect(kept[0].seq).toBe(101)
+		expect(kept.at(-1)?.seq).toBe(MEMORY_ROWS_PER_STORE + 100)
 		warm.close()
 	})
 

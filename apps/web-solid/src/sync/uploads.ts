@@ -7,7 +7,11 @@ import type { FileRef } from "@kiko/protocol"
  * while the transcript shows it at once from the local blob URLs.
  *
  * ASSUMPTION: a single PUT per file (the server's limit is 32 MB). Larger files and multipart
- * uploads come later. Nothing is compressed in the client.
+ * uploads come later. The original is never compressed.
+ *
+ * A picture larger than a transcript cell also gets a small still (840 px on its long edge, WebP)
+ * and a thumbhash, made here while the bytes are in hand. The transcript draws the still, so a
+ * 12 MP photo costs about 1 MB of decoded pixels instead of 48 MB. Only the viewer loads the original.
  */
 
 export type LocalFile = { src: string; name: string; mime: string; width?: number; height?: number }
@@ -26,8 +30,9 @@ export function attachmentName(path: string): string {
   return m ? m[1]! : (path.split("/").pop() ?? path)
 }
 
-async function putOnce(roomId: string, file: LocalFile, body: Blob, path: string): Promise<FileRef> {
+async function putOnce(roomId: string, file: LocalFile, body: Blob, path: string, thumbhash?: string): Promise<FileRef> {
   const headers: Record<string, string> = { "content-type": file.mime || body.type || "application/octet-stream" }
+  if (thumbhash) headers["x-kiko-thumbhash"] = thumbhash
   if (file.width && file.height) {
     headers["x-kiko-width"] = String(file.width)
     headers["x-kiko-height"] = String(file.height)
@@ -41,10 +46,17 @@ async function putOnce(roomId: string, file: LocalFile, body: Blob, path: string
 export async function uploadAttachment(roomId: string, file: LocalFile): Promise<FileRef> {
   const body = await (await fetch(file.src)).blob()
   const path = attachmentPath(file.name)
+  const picture = (file.mime || body.type).startsWith("image/") && !!file.width && !!file.height
+  // A still that cannot be made costs only the saving: the transcript falls back to the original.
+  // The still maker loads with the first picture sent, so it stays out of the first paint.
+  const still = picture ? await import("./still").then((m) => m.makeStill(body, file.width!, file.height!)).catch(() => null) : null
   let last: unknown
   for (let attempt = 0; attempt < RETRIES; attempt++) {
     try {
-      return await putOnce(roomId, file, body, path)
+      const ref = await putOnce(roomId, file, body, path, still?.thumbhash)
+      if (!still?.blob) return ref
+      const stored = await fetch(`/api/files/${roomId}/${encodeURIComponent(ref.id)}/thumb`, { method: "PUT", headers: { "content-type": still.blob.type }, body: still.blob }).then((r) => r.ok, () => false)
+      return stored ? { ...ref, thumb: true } : ref
     } catch (e) {
       last = e
       await new Promise((r) => setTimeout(r, 500 * 2 ** attempt))

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, MessageId, Reaction as WireReaction, RoomEvent } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { createMockRoom, createMockUser } from "../sync/mock-room"
-import { createApp, firstUnread, nextReaction, reactionChips, toChatMessage } from "./store"
+import { createApp, firstUnread, keepNewest, nextReaction, reactionChips, signature, toChatMessage } from "./store"
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -93,7 +93,51 @@ describe("projections", () => {
   })
 })
 
+describe("row signatures and caps", () => {
+  const base = { id: "m1" as MessageId, seq: 4, at: 1, from: ada, text: "x".repeat(20_000) }
+
+  test("a signature never copies the text, and changes with what the row draws", () => {
+    const sig = signature(base)
+    expect(sig.length).toBeLessThan(80)
+    expect(signature({ ...base })).toBe(sig)
+    expect(signature({ ...base, editedAt: 9 })).not.toBe(sig)
+    expect(signature({ ...base, reactions: [{ by: human, emoji: "👍" }] })).not.toBe(sig)
+    expect(signature({ ...base, pending: true })).not.toBe(sig)
+    expect(signature({ ...base, failed: true })).not.toBe(sig)
+    expect(signature({ ...base, seq: 5 })).not.toBe(sig)
+  })
+
+  test("hover previews keep only the newest chats", () => {
+    const all: Record<string, number> = {}
+    for (let i = 0; i < 30; i++) Object.assign(all, keepNewest({ ...all, [`r${i}`]: i }, 20))
+    const kept = keepNewest(all, 20)
+    expect(Object.keys(kept)).toHaveLength(20)
+    expect(Object.keys(kept)[0]).toBe("r10")
+  })
+})
+
 describe("useApp over the mock room", () => {
+  test("a room update rebuilds only the rows it touched", async () => {
+    const { app, room } = await boot()
+    const before = app.activeMessages()
+    room.store({ t: "message", id: "new1" as MessageId, from: ada, text: "a new bubble" })
+    await until(() => app.activeMessages().length === before.length + 1)
+    const after = app.activeMessages()
+    for (let i = 0; i < before.length; i++) expect(after[i]).toBe(before[i])
+    const target = before.findLast((m) => m.seq !== undefined)!
+    room.store({ t: "react", messageId: target.id as MessageId, by: { kind: "agent", slug: fixtures.bob }, emoji: "🔥" })
+    await until(() => app.activeMessages().find((m) => m.id === target.id) !== target)
+    for (const m of app.activeMessages()) if (m.id !== target.id) expect(after.includes(m)).toBe(true)
+    // A growing draft adds its own row and leaves every stored row alone.
+    const stored = app.activeMessages()
+    room.broadcast({ t: "draft", slug: fixtures.ada, runId: "r1", index: 0, text: "grow" })
+    await until(() => app.activeMessages().length === stored.length + 1)
+    const drafted = app.activeMessages()
+    for (let i = 0; i < stored.length; i++) expect(drafted[i]).toBe(stored[i])
+    expect(drafted.at(-1)?.body).toBe("grow")
+    app.stop()
+  })
+
   test("boots from the sockets and draws the fixture room", async () => {
     const { app } = await boot()
     expect(texts(app)).toEqual(["can you two plan the wire protocol package?", "the plan"])

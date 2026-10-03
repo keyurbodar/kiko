@@ -40,6 +40,10 @@ export function MessageList(props: {
    * what the harness relies on.
    */
   replyTarget?: string | null
+  /** The reader reached the oldest rows held: page in older ones. */
+  onNearTop?: () => void
+  /** The reader is at the newest message: the store may drop the oldest rows again. */
+  onAtLatest?: () => void
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll">
   /** Receives a stable jump function for the transcript's scroller. */

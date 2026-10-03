@@ -1,8 +1,9 @@
 import type { CatalogItem } from "@kiko/protocol"
 import { createEffect, createSignal, For, Match, Show, Switch } from "solid-js"
-import { urls, useApp } from "../../lib/store"
+import { stillOf, urls, useApp } from "../../lib/store"
 import type { MediaItem } from "../../lib/types"
 import { createMediaViewer } from "../media/mediaViewer"
+import { peekLinkPreview, resolveLinkPreview } from "../lib/linkPreview"
 import type { createCatalog } from "./catalog"
 
 type Catalog = ReturnType<typeof createCatalog>
@@ -11,21 +12,16 @@ type Media = Extract<CatalogItem, { kind: "media" }>
 
 const rowClass = "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm text-text hover:bg-nav-hover"
 
-// Link titles. The preview route answers from its own cache, so asking again is cheap. A page
-// that cannot be previewed keeps its site name and path.
-const titles = new Map<string, () => string | undefined>()
-
+// Link titles, from the shared preview resolver and its bounded cache. A page that cannot be
+// previewed keeps its site name and path. The signal lives as long as the row that shows it.
 function titleOf(url: string): () => string | undefined {
-  let read = titles.get(url)
-  if (read) return read
-  const [title, setTitle] = createSignal<string | undefined>()
-  read = title
-  titles.set(url, read)
-  void fetch(`/api/preview?url=${encodeURIComponent(url)}`)
-    .then((res) => (res.ok ? (res.json() as Promise<{ preview?: { title?: string } | null }>) : null))
-    .then((body) => setTitle(body?.preview?.title?.trim().toLowerCase() || undefined))
-    .catch(() => {})
-  return read
+  const known = peekLinkPreview(url)
+  const [title, setTitle] = createSignal<string | undefined>(known?.title?.trim().toLowerCase() || undefined)
+  if (known === undefined)
+    void resolveLinkPreview(url)
+      .then((page) => setTitle(page?.title?.trim().toLowerCase() || undefined))
+      .catch(() => {})
+  return title
 }
 
 function LinkRow(props: { link: Link }) {
@@ -116,13 +112,18 @@ function Grid(props: { catalog: Catalog; max?: number }) {
               <svg class="absolute inset-0 m-auto text-faint" width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M2 3.5h12v9H2zM2 10.5l3.5-3 3 2.5 2-1.5 3.5 3" />
               </svg>
-              <img
-                class="relative size-full object-cover"
-                src={urls.file(roomId(), m.file.id)}
-                alt=""
-                loading="lazy"
-                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-              />
+              <Show when={stillOf(roomId(), m.file)}>
+                {(src) => (
+                  <img
+                    class="relative size-full object-cover"
+                    src={src()}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                  />
+                )}
+              </Show>
               <Show when={m.file.type.startsWith("video/")}>
                 <span class="absolute right-1 bottom-1 rounded bg-black/60 px-1 text-[10px] text-white">video</span>
               </Show>

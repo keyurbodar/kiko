@@ -1,5 +1,5 @@
 import type { CatalogItem } from "@kiko/protocol"
-import { createEffect, createSignal, on, onCleanup } from "solid-js"
+import { createEffect, createSignal, on, onCleanup, untrack } from "solid-js"
 import { useApp } from "../../lib/store"
 import type { CatalogPage } from "../../sync/room-store"
 
@@ -32,6 +32,9 @@ export function createCatalog(kind: "links" | "media", pageSize = 30) {
   let busy = false
   let gone = false
   onCleanup(() => (gone = true))
+
+  /** A burst of bubbles asks once. */
+  const REFRESH_AFTER_MS = 600
 
   async function refresh() {
     const room = useApp.room()
@@ -73,9 +76,10 @@ export function createCatalog(kind: "links" | "media", pageSize = 30) {
   createEffect(() => {
     const room = useApp.room()
     if (!room || room.state.connection !== "open") return
-    // Read the seq so every stored event asks again.
+    // Read the seq so a stored event asks again: once the room settles, not once per event.
     void room.state.seq
-    void refresh()
+    const timer = setTimeout(() => void refresh(), untrack(loaded) ? REFRESH_AFTER_MS : 0)
+    onCleanup(() => clearTimeout(timer))
   })
 
   return { items, hasMore: () => next() !== null, more, loaded }

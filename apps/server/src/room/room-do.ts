@@ -11,7 +11,7 @@ import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprov
 import { BURST_WAKEUP, Burst, deliverable } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
-import { cleanPath, fileKey } from "../files/upload"
+import { cleanPath, fileKey, withThumbs } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
@@ -831,7 +831,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private applyFs<T extends FsChange<RoomEvent> | FsFail>(out: T): T {
 		if (!out.ok) return out
 		if (out.events.length) this.publish(out.events)
-		if (out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+		if (out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(withThumbs(out.drop)).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
 		return out
 	}
 

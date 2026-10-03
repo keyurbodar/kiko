@@ -28,7 +28,10 @@ export type WarmOptions = {
 	idb?: IDBFactory | null
 	/** Least time between two flushes. Defaults to 500 ms. */
 	flushEveryMs?: number
-	/** How long an open may take before the tier gives up on it. Defaults to 3 s. */
+	/**
+	 * How long an open may take before the tier gives up on it. Defaults to 10 s: a busy disk can
+	 * take seconds, and giving up costs the session its persistence.
+	 */
 	openTimeoutMs?: number
 }
 
@@ -137,6 +140,12 @@ export function compareKeys(a: WarmKey, b: WarmKey): number {
 	return a < b ? -1 : a > b ? 1 : 0
 }
 
+/**
+ * The most rows each store keeps in the memory twin. It stands in for a disk the browser refused,
+ * so it holds a working set, not a history: past this the oldest-written rows go.
+ */
+export const MEMORY_ROWS_PER_STORE = 2000
+
 function memoryBackend(): Backend {
 	const stores = new Map<StoreName, Map<string, { key: WarmKey; value: unknown }>>(STORES.map((s) => [s, new Map()]))
 	const table = (store: StoreName) => stores.get(store) as Map<string, { key: WarmKey; value: unknown }>
@@ -156,7 +165,13 @@ function memoryBackend(): Backend {
 			for (const o of ops) {
 				const t = table(o.store)
 				// Clone, so memory behaves like IndexedDB when the caller later mutates the value.
-				if (o.op === "put") t.set(JSON.stringify(o.key), { key: o.key, value: structuredClone(o.value) })
+				if (o.op === "put") {
+					const k = JSON.stringify(o.key)
+					// Delete first, so a rewrite counts as the newest write.
+					t.delete(k)
+					t.set(k, { key: o.key, value: structuredClone(o.value) })
+					if (t.size > MEMORY_ROWS_PER_STORE) t.delete(t.keys().next().value as string)
+				}
 				else if (o.op === "delete") t.delete(JSON.stringify(o.key))
 				else if (o.op === "deleteRange") {
 					for (const [k, e] of t) if (inRange(e.key, o.range)) t.delete(k)
@@ -232,7 +247,7 @@ export async function openWarm(options: WarmOptions): Promise<Warm> {
 		backend = memoryBackend()
 	}
 	if (idb && typeof IDBKeyRange !== "undefined") {
-		const db = await openIdb(idb, warmName(options.userId), version, options.openTimeoutMs ?? 3000)
+		const db = await openIdb(idb, warmName(options.userId), version, options.openTimeoutMs ?? 10_000)
 		if (db) backend = idbBackend(db, toMemory)
 	}
 

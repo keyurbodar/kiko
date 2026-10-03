@@ -3,40 +3,35 @@
 // A request made while the socket is down waits and goes out on connect. A request that
 // gets no answer in `timeoutMs` fails, so a screen never waits for ever.
 
-import type { MemoryOp, MemoryResult, UserToClient } from "@kiko/protocol"
-import { type Connect, createSyncSocket } from "../../../sync/socket"
+import type { MemoryOp, MemoryResult } from "@kiko/protocol"
+import { type UserChannel, userChannel } from "../../../sync/user-channel"
 
 export type MemoryClient = {
 	request(op: MemoryOp): Promise<MemoryResult>
 	close(): void
 }
 
-export type MemoryClientOptions = { url: string; connect?: Connect; timeoutMs?: number }
+/** The user socket's channel: the app's one by default. */
+export type MemoryClientOptions = { channel?: UserChannel; timeoutMs?: number }
 
 type Pending = { op: MemoryOp; resolve: (r: MemoryResult) => void; timer: ReturnType<typeof setTimeout> }
 
-export function createMemoryClient(options: MemoryClientOptions): MemoryClient {
+export function createMemoryClient(options: MemoryClientOptions = {}): MemoryClient {
 	const timeoutMs = options.timeoutMs ?? 15_000
+	const channel = options.channel ?? userChannel
 	const pending = new Map<string, Pending>()
 	let n = 0
 
-	const socket = createSyncSocket<UserToClient>({
-		url: options.url,
-		connect: options.connect,
-		// The memory screen reads no user events. A `lastSeq` past the end gets one small
-		// snapshot back, which is ignored, instead of a replay.
-		hello: () => ({ t: "hello", lastSeq: Number.MAX_SAFE_INTEGER }),
-		onOpen: () => {
-			for (const [reqId, p] of pending) socket.send({ t: "memory", reqId, op: p.op })
-		},
-		onFrame(frame) {
-			if (frame.t !== "memory_result") return
-			const p = pending.get(frame.reqId)
-			if (!p) return
-			pending.delete(frame.reqId)
-			clearTimeout(p.timer)
-			p.resolve(frame.result)
-		},
+
+	const stopOpen = channel.onOpen(() => {
+		for (const [reqId, p] of pending) channel.send({ t: "memory", reqId, op: p.op })
+	})
+	const stopFrames = channel.on("memory_result", (frame) => {
+		const p = pending.get(frame.reqId)
+		if (!p) return
+		pending.delete(frame.reqId)
+		clearTimeout(p.timer)
+		p.resolve(frame.result)
 	})
 
 	return {
@@ -49,11 +44,12 @@ export function createMemoryClient(options: MemoryClientOptions): MemoryClient {
 				}, timeoutMs)
 				const p: Pending = { op, resolve, timer }
 				pending.set(reqId, p)
-				socket.send({ t: "memory", reqId, op })
+				channel.send({ t: "memory", reqId, op })
 			})
 		},
 		close() {
-			socket.close()
+			stopOpen()
+			stopFrames()
 			for (const p of pending.values()) {
 				clearTimeout(p.timer)
 				p.resolve({ ok: false, error: "closed" })

@@ -1,7 +1,6 @@
 import type { ExecutorResult, ExecutorStatus } from "@kiko/protocol"
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { urls } from "../lib/store"
 import { createExecutorClient, createMockExecutor, type ExecutorClient } from "./integrations-client"
 
 /*
@@ -35,7 +34,7 @@ function readMode(): Mode {
 async function openClient(): Promise<ExecutorClient> {
 	// The dev mock, same rule as the chat data layer. A production build drops this branch.
 	if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") return createMockExecutor()
-	return createExecutorClient({ url: urls.user() })
+	return createExecutorClient()
 }
 
 type View = { status: ExecutorStatus | null; tools: readonly string[] | null }

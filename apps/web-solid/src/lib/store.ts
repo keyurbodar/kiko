@@ -50,6 +50,17 @@ export const urls = {
   room: (roomId: RoomId) => `${wsOrigin()}/api/ws/room/${roomId}`,
   // ASSUMPTION: the download route. P8-03 builds it and may change this line.
   file: (roomId: string, fileId: string) => `/api/files/${roomId}/${encodeURIComponent(fileId)}`,
+  /** A file's small still, when `FileRef.thumb` says it has one. */
+  thumb: (roomId: string, fileId: string) => `/api/files/${roomId}/${encodeURIComponent(fileId)}/thumb`,
+}
+
+/**
+ * What a small surface (a transcript cell, a grid tile) draws for a file: its still, or the
+ * original picture when it has none. Undefined for a clip without a still: draw its thumbhash.
+ */
+export function stillOf(roomId: string, f: FileRef): string | undefined {
+  if (f.thumb) return urls.thumb(roomId, f.id)
+  return f.type.startsWith("video/") ? undefined : urls.file(roomId, f.id)
 }
 
 /** How the stores reach the server. The browser's `WebSocket` unless a test or the dev mock says otherwise. */
@@ -83,9 +94,17 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
   return own?.emoji === emoji ? null : emoji
 }
 
-function signature(m: ViewMessage): string {
-  const reactions = (m.reactions ?? []).map((r) => `${reactionKey(r)}=${r.emoji}`).join(",")
-  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions, m.goto ?? "", m.quote ?? "", m.preview ? `${m.preview.url}:${m.preview.title ?? ""}:${m.preview.image ?? ""}` : ""].join("|")
+/**
+ * What decides whether a message's row must be built again. It never copies the text: a stored
+ * message's text changes only by an edit, which sets `editedAt`, and a pending send's never does.
+ * Every room update (a new bubble, a reaction, a typing change) walks the window with this, so it
+ * has to stay cheap.
+ */
+export function signature(m: ViewMessage): string {
+  let reactions = ""
+  for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
+  const preview = m.preview ? `${m.preview.url}:${m.preview.title ?? ""}:${m.preview.image ?? ""}` : ""
+  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${preview}`
 }
 
 /** The transcript's view of one protocol message. */
@@ -115,9 +134,12 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.files?.length) {
     // Pictures and video with known dimensions are media; everything else is a document row.
     const visual = (f: FileRef) => (f.type.startsWith("image/") || f.type.startsWith("video/")) && !!f.width && !!f.height
-    const media = m.files.filter(visual).map(
-      (f): MediaItem => ({ kind: f.type.startsWith("video/") ? "video" : "photo", src: urls.file(roomId, f.id), width: f.width!, height: f.height!, alt: attachmentName(f.name) }),
-    )
+    const media = m.files.filter(visual).map((f): MediaItem => {
+      const item: MediaItem = { kind: f.type.startsWith("video/") ? "video" : "photo", src: urls.file(roomId, f.id), width: f.width!, height: f.height!, alt: attachmentName(f.name) }
+      if (f.thumb) item.thumb = urls.thumb(roomId, f.id)
+      if (f.thumbhash) item.thumbhash = f.thumbhash
+      return item
+    })
     const docs = m.files.filter((f) => !visual(f)).map((f): DocumentItem => ({ name: attachmentName(f.name), size: f.size, mime: f.type, src: urls.file(roomId, f.id) }))
     if (media.length) out.media = media
     if (docs.length) out.documents = docs
@@ -219,6 +241,16 @@ export function memberRow(member: Member, presence: BotPresence = "idle"): Roste
   return row
 }
 
+/** How many chats' hover previews stay in memory. */
+export const MAX_PRELOADED = 20
+
+/** The last `max` keys of `record`, in insertion order. */
+export function keepNewest<T>(record: Record<string, T>, max: number): Record<string, T> {
+  const keys = Object.keys(record)
+  if (keys.length <= max) return record
+  return Object.fromEntries(keys.slice(-max).map((k) => [k, record[k]]))
+}
+
 // The store.
 
 export type AppOptions = {
@@ -245,10 +277,15 @@ export function createApp(options: AppOptions = {}) {
      */
     const roomMessages = shared(() => room()?.messages() ?? [])
 
-    /** Newest messages of chats the pointer rested on, read from IndexedDB. Only for rooms that are not open. */
+    /**
+     * Newest messages of chats the pointer rested on, read from IndexedDB. Only for rooms that are
+     * not open, and only the `MAX_PRELOADED` most recent, so hovering down a long list holds little.
+     */
     const [preloaded, setPreloaded] = createSignal<Record<string, ViewMessage[]>>({})
 
     let session: { userId: string; warm: Warm; transport: Transport } | null = null
+    let olderBusy = false
+    let olderDone: RoomStore | null = null
     let booting: Promise<void> | null = null
     let bootUser: string | null = null
 
@@ -330,6 +367,62 @@ export function createApp(options: AppOptions = {}) {
         for (const slug of quiet) lingerTimers.set(slug, setTimeout(() => drop(slug), RESTART_GRACE_MS))
         if (!r) for (const timer of lingerTimers.values()) clearTimeout(timer)
       })
+    })
+
+    /*
+     * The transcript's rows in two parts, so a growing draft never walks the stored window and a
+     * stored change never rebuilds the drafts. Each part keeps an unchanged row's object.
+     */
+    const storedRows = shared(() => {
+      const r = room()
+      if (!r) return { rows: [] as ChatMessage[], finals: new Set<string>() }
+      paced()
+      const roomId = r.state.roomId
+      const prev = views
+      const next = new Map<string, { sig: string; view: ChatMessage }>()
+      const finals = new Set<string>()
+      const rows: ChatMessage[] = []
+      for (const m of roomMessages()) {
+        if (pacer.isHeld(m.id)) continue
+        const sig = signature(m)
+        const key = m.clientId ?? m.id
+        const cached = prev.get(key)
+        const entry = cached && cached.sig === sig ? cached : { sig, view: toChatMessage(m, roomId) }
+        next.set(key, entry)
+        rows.push(entry.view)
+        // A growing block shows until its final message is on screen.
+        if (m.run) finals.add(`${m.run.runId}:${m.run.index}`)
+      }
+      views = next
+      return { rows, finals }
+    })
+    let draftRowsCache = new Map<string, ChatMessage>()
+    const draftRows = shared((): ChatMessage[] => {
+      const r = room()
+      if (!r) return []
+      const roomId = r.state.roomId
+      const { finals } = storedRows()
+      const next = new Map<string, ChatMessage>()
+      const out: ChatMessage[] = []
+      for (const [key, d] of Object.entries(r.state.drafts)) {
+        if (finals.has(key) || d.text === "") continue
+        const since = draftSince.get(key) ?? Date.now()
+        draftSince.set(key, since)
+        // An unchanged draft keeps its object, so its row is not built again.
+        const id = `draft:${key}`
+        const cached = draftRowsCache.get(id)
+        const view = cached && cached.body === d.text ? cached : { id, threadId: roomId, sender: "bot" as const, botId: d.slug, body: d.text, sentAt: since }
+        next.set(id, view)
+        out.push(view)
+      }
+      for (const key of draftSince.keys()) if (!(key in r.state.drafts)) draftSince.delete(key)
+      draftRowsCache = next
+      return out
+    })
+    const activeRows = shared(() => {
+      const drafts = draftRows()
+      const { rows } = storedRows()
+      return drafts.length ? [...rows, ...drafts] : rows
     })
 
     function openRoom(roomId: RoomId | null) {
@@ -533,7 +626,7 @@ export function createApp(options: AppOptions = {}) {
         if (!current || threadId === activeId() || threadId in preloaded()) return
         const rows = await newestMessages(current.warm, threadId as RoomId, 3)
         if (session !== current) return
-        setPreloaded((all) => ({ ...all, [threadId]: rows }))
+        setPreloaded((all) => keepNewest({ ...all, [threadId]: rows }, MAX_PRELOADED))
       },
       /** Unsent text, reply targets, and scroll positions for every chat. Null before sign-in. */
       drafts,
@@ -618,39 +711,31 @@ export function createApp(options: AppOptions = {}) {
       /** The chat with this room id as the protocol has it, temporary ones included. */
       chat,
 
-      /** The open room's messages, oldest first, with every pending action applied. */
+      /** The open room's messages, oldest first, with every pending action applied. Shared by every reader. */
       activeMessages(): ChatMessage[] {
+        return activeRows()
+      },
+
+      /**
+       * Pages older messages of the open room in from IndexedDB, once at a time. Stops asking once
+       * the disk has nothing older, until the room changes.
+       */
+      loadOlder(): void {
         const r = room()
-        if (!r) return []
-        const roomId = r.state.roomId
-        const prev = views
-        const next = new Map<string, { sig: string; view: ChatMessage }>()
-        paced()
-        const list = roomMessages()
-        const out = list.filter((m) => !pacer.isHeld(m.id)).map((m) => {
-          const sig = signature(m)
-          const key = m.clientId ?? m.id
-          const cached = prev.get(key)
-          const entry = cached && cached.sig === sig ? cached : { sig, view: toChatMessage(m, roomId) }
-          next.set(key, entry)
-          return entry.view
-        })
-        // A growing block shows until its final message is on screen. A held final keeps its dots.
-        const shown = new Set(out.map((m) => m.id))
-        const finals = new Set(list.filter((m) => m.run && shown.has(m.id)).map((m) => `${m.run!.runId}:${m.run!.index}`))
-        for (const [key, d] of Object.entries(r.state.drafts)) {
-          if (finals.has(key) || d.text === "") continue
-          const since = draftSince.get(key) ?? Date.now()
-          draftSince.set(key, since)
-          // An unchanged draft keeps its object, so its row is not built again.
-          const id = `draft:${key}`
-          const cached = prev.get(id)
-          const view = cached && cached.sig === d.text ? cached.view : { id, threadId: roomId, sender: "bot" as const, botId: d.slug, body: d.text, sentAt: since }
-          next.set(id, { sig: d.text, view })
-          out.push(view)
-        }
-        views = next
-        return out
+        if (!r || olderBusy || olderDone === r) return
+        olderBusy = true
+        void r.loadOlder().then(
+          (n) => {
+            olderBusy = false
+            if (n === 0) olderDone = r
+          },
+          () => (olderBusy = false),
+        )
+      },
+
+      /** The reader is at the newest message: the open room goes back to holding only its newest window. */
+      followLatest(): void {
+        room()?.follow()
       },
 
       messageById(messageId: string): ChatMessage | undefined {

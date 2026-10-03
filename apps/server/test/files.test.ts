@@ -131,3 +131,27 @@ test("none creates a file only when the path is empty", async () => {
 	expect((await edit(room, "new.txt", "", "none")).status).toBe(200)
 	expect((await edit(room, "new.txt", "again", "none")).status).toBe(409)
 })
+
+test("a still is stored beside its file, served to the owner only, and goes with the file", async () => {
+	const room = fresh()
+	const first = await put(room, "a.txt", "one")
+	const id = first.body.file.id
+	const still = (user: string, body: BodyInit, type = "image/webp") =>
+		fetch(`${origin}/api/files/${room}/${id}/thumb`, { method: "PUT", headers: { ...as(user), "content-type": type }, body })
+	expect((await still("alice", "pixels", "text/plain")).status).toBe(415)
+	expect((await still("alice", new Uint8Array(1024 * 1024 + 1))).status).toBe(413)
+	// Another user names a file their room does not hold.
+	expect((await still("bob", "pixels")).status).toBe(404)
+	expect((await still("alice", "pixels")).status).toBe(204)
+	const got = await fetch(`${origin}/api/files/${room}/${id}/thumb`, { headers: as("alice") })
+	expect(got.status).toBe(200)
+	expect(got.headers.get("content-type")).toBe("image/webp")
+	expect(await got.text()).toBe("pixels")
+	const other = await fetch(`${origin}/api/files/${room}/${id}/thumb`, { headers: as("bob") })
+	expect(other.status).toBe(404)
+	await other.body?.cancel()
+	expect(await keys(room)).toEqual([`u/alice/r/${room}/${id}`, `u/alice/r/${room}/${id}/thumb`])
+	// New bytes at the path drop the old object and its still.
+	const second = await put(room, "a.txt", "two!")
+	expect(await keys(room)).toEqual([`u/alice/r/${room}/${second.body.file.id}`])
+})

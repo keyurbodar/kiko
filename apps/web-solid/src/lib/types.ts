@@ -62,7 +62,15 @@ export interface Reaction {
  */
 export interface MediaItem {
   kind: "photo" | "video"
+  /** The original. Only the media viewer loads it. */
   src: string
+  /**
+   * A small still that fits 840 px, which the transcript draws instead of the original: a
+   * decoded 12 MP photo costs about 48 MB, its still about 1 MB.
+   */
+  thumb?: string
+  /** A 30-byte sketch of the picture, drawn until the still has loaded. */
+  thumbhash?: string
   /** Intrinsic size in pixels, not layout size. */
   width: number
   height: number
