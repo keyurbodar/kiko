@@ -39,10 +39,6 @@
   color: var(--text-muted);
 }
 
-.file-editor .fe-status {
-  margin-left: auto;
-}
-
 .file-editor .fe-warn {
   color: var(--text);
   font-weight: 600;
@@ -62,11 +58,6 @@
 .file-editor .fe-btn:disabled {
   color: var(--text-muted);
   cursor: default;
-}
-
-.file-editor .fe-save:not(:disabled) {
-  background: var(--accent);
-  color: var(--bg, #fff);
 }
 
 .file-view .fv-center {

@@ -130,6 +130,16 @@ const MIGRATIONS: readonly string[] = [
 	-- The card for the message's first link, as JSON (architecture section 18.2).
 	ALTER TABLE messages ADD COLUMN preview TEXT;
 	`,
+	`
+	-- The newest event of one kind (the chat row's newest reaction or approval card, the reactions
+	-- since an agent's last brief) without reading the whole log.
+	CREATE INDEX events_kind_seq ON events (kind, seq);
+	-- The chat row's unread count and mention scan read agent messages after the read mark. These
+	-- partial indexes hold only those rows, so a long chat of human messages costs them nothing.
+	-- Each WHERE matches its query's term exactly (deliver.ts chatTouch), or SQLite skips the index.
+	CREATE INDEX messages_not_human ON messages (seq) WHERE json_extract(sender, '$.kind') != 'human';
+	CREATE INDEX messages_agent ON messages (seq) WHERE json_extract(sender, '$.kind') = 'agent';
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

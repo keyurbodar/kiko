@@ -16,7 +16,7 @@ import { ulid } from "./mid-run"
 // The suite fails when a step never happens, and when an agent waits for its heartbeat after a
 // restart. Every other number is for reading, not for asserting.
 
-/** The room's burst pause after a message (room/burst.ts AFTER_MESSAGE_MS). Subtracted from the burst step. */
+/** The room's burst pause after a message (room/burst.ts AFTER_MESSAGE_MS). Subtracted from the burst step. The timed messages end with a full stop, so they are not fragments, which wait AFTER_FRAGMENT_MS. */
 const BURST_MS = 1_000
 const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
 const RESTART = process.env.KIKO_LATENCY_RESTART
@@ -81,9 +81,10 @@ export function cost(c: Record<string, number>): Record<string, number> {
     "rpc calls": sum((k) => k.startsWith("rpc.")),
     "sql statements": sum((k) => k.endsWith(".statements")),
     "rows written": sum((k) => k.endsWith(".rowsWritten")),
+    "rows read": sum((k) => k.endsWith(".rowsRead")),
     "kv and alarm calls": sum((k) => k.includes(".kv.")),
   }
-  for (const [k, v] of Object.entries(c)) if (k.startsWith("rpc.") || k.includes(".kv.") || k.endsWith("rowsWritten")) out[`  ${k}`] = v
+  for (const [k, v] of Object.entries(c)) if (k.startsWith("rpc.") || k.includes(".kv.") || k.endsWith("rowsWritten") || k.endsWith("rowsRead")) out[`  ${k}`] = v
   return out
 }
 
@@ -140,11 +141,11 @@ async function fakeRuns(v: Verifier): Promise<void> {
     const { roomId, room } = await openRoom(s, user, `latency ${i}`, samples)
     await fake(v, s, roomId)
     await resetStats(v, s)
-    await timedTurn(room, `cold ${i}`, samples, "cold agent")
+    await timedTurn(room, `cold ${i}.`, samples, "cold agent")
     await Bun.sleep(300)
     for (const [k, n] of Object.entries(cost(await readStats(v, s)))) costs.add(k, n)
     await resetStats(v, s)
-    await timedTurn(room, `warm ${i}`, samples, "warm agent")
+    await timedTurn(room, `warm ${i}.`, samples, "warm agent")
     await Bun.sleep(300)
     for (const [k, n] of Object.entries(cost(await readStats(v, s)))) warmCosts.add(k, n)
 

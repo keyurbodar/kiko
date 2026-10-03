@@ -135,11 +135,12 @@ const isFinalAnswer = (m: Message) =>
  */
 export function runTainted(messages: readonly Message[]): boolean {
   const start = messages.findLastIndex(isFinalAnswer) + 1
-  for (const m of messages.slice(start)) {
-    if (m.role === "user" && TAINTED_ENVELOPE.test(textOf(m))) return true
-    if (m.role === "toolResult" && UNTRUSTED_BLOCK.test(textOf(m))) return true
-  }
-  return false
+  return messages.slice(start).some(taints)
+}
+
+/** True for a message that taints the run it is in: a tainted envelope, or an `<untrusted>` tool result. */
+export function taints(m: Message): boolean {
+  return (m.role === "user" && TAINTED_ENVELOPE.test(textOf(m))) || (m.role === "toolResult" && UNTRUSTED_BLOCK.test(textOf(m)))
 }
 
 const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")

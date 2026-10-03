@@ -1,26 +1,24 @@
 import { createPointerListeners } from "@solid-primitives/pointer"
-import { animate } from "../../lib/motion"
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js"
 
 /* ---------------------------------------------------------------------------
-   The four numbers the gesture is made of. They were all tuned against a
-   two-handed feel on a trackpad; they are now tuned against one requirement —
-   a reader should not have to think about whether a swipe is going to work.
+   The four numbers the gesture is made of. They are tuned so a reply takes a
+   flick, not a pull: the row moves on the 4th pixel and arms at 36.
    --------------------------------------------------------------------------- */
 
 /** Furthest the row contents travel to the right, in px. */
-export const SWIPE_MAX_TRAVEL_PX = 64
+export const SWIPE_MAX_TRAVEL_PX = 52
 
 /** Travel at which a release arms the reply. */
-export const SWIPE_REPLY_THRESHOLD_PX = 48
+export const SWIPE_REPLY_THRESHOLD_PX = 36
 
 /** Vertical movement that hands the gesture to the scroller before the axis locks. */
-export const SWIPE_AXIS_LOCK_PX = 20
+export const SWIPE_AXIS_LOCK_PX = 16
 
 /** Horizontal movement that wins the axis before anything is drawn. */
-export const SWIPE_INTENT_PX = 6
+export const SWIPE_INTENT_PX = 4
 
-const INDICATOR_SCALE_MIN = 0.55
+const INDICATOR_SCALE_MIN = 0.4
 
 type Axis = "pending" | "horizontal" | "cancelled"
 
@@ -180,8 +178,9 @@ export interface UseSwipeToReply {
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
-const clamp = (value: number) => Math.max(0, Math.min(SWIPE_MAX_TRAVEL_PX, value))
-
+/** The snap-back. Short and ease-out, so the row lands before the eye follows it. */
+export const SWIPE_SETTLE_MS = 180
+export const SWIPE_SETTLE_EASING = "cubic-bezier(.2,.8,.2,1)"
 /* ---------------------------------------------------------------------------
    Trackpad swipe.
    
@@ -196,7 +195,7 @@ const clamp = (value: number) => Math.max(0, Math.min(SWIPE_MAX_TRAVEL_PX, value
    rather than signalled, since the browser exposes no "fingers lifted".
    --------------------------------------------------------------------------- */
 /** Wheel delta is scaled down so a trackpad throw matches the touch throw. */
-const WHEEL_SCALE = 0.25
+const WHEEL_SCALE = 0.3
 /** Wheel silence that means the gesture is over. Also the no-momentum commit delay. */
 const WHEEL_IDLE_MS = 75
 /**
@@ -236,50 +235,103 @@ function innerScrollsToward(from: EventTarget | null, stop: HTMLElement, deltaX:
  * Wires the swipe gesture to a row. Two input paths share one state machine: a
  * pointer drag (mouse, touch, pen) and a trackpad two-finger swipe, which the
  * browser delivers as `wheel` events with a dominant `deltaX`. Only a RIGHTWARD
- * swipe is a reply, on any message; the row's `--swipe-x`, `--swipe-progress`
- * and `--swipe-scale` come out, written straight to the custom properties
- * rather than through a style binding, so the contents translate on the
- * compositor.
+ * swipe is a reply, on any message.
+ *
+ * The paint is as cheap as a frame allows. The move handler only feeds the state
+ * machine and asks for a frame; the frame writes one `transform` on the bubble
+ * and one on the indicator, both found once when the axis is claimed. Nothing
+ * reads layout, nothing re-renders, and no inherited custom property makes the
+ * bubble's subtree recalculate style on every move. `will-change` is set only
+ * while the row is moving, so a still transcript holds no extra layers.
  */
 export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToReply {
   const [row, setRow] = createSignal<HTMLElement | undefined>()
+  let bubble: HTMLElement | null = null
+  let indicator: HTMLElement | null = null
+  let frame = 0
+  let snap: Animation[] = []
+
+  const find = () => {
+    const element = row()
+    if (!element) return
+    bubble = element.querySelector<HTMLElement>("[data-component=chat-row] > [data-slot=bubble]")
+    indicator = element.querySelector<HTMLElement>("[data-component=chat-swipe-indicator]")
+  }
+
+  const write = (travel: number) => {
+    const ratio = Math.min(1, travel / SWIPE_REPLY_THRESHOLD_PX)
+    const scale = INDICATOR_SCALE_MIN + (1 - INDICATOR_SCALE_MIN) * ratio
+    if (bubble) bubble.style.transform = `translate3d(${travel}px,0,0)`
+    if (indicator) {
+      indicator.style.opacity = ratio.toFixed(3)
+      indicator.style.transform = `translateY(-50%) scale(${scale.toFixed(3)})`
+    }
+  }
 
   const clear = () => {
-    const element = row()
-    if (!element) return
-    element.style.removeProperty("--swipe-x")
-    element.style.removeProperty("--swipe-progress")
-    element.style.removeProperty("--swipe-scale")
+    cancelAnimationFrame(frame)
+    frame = 0
+    for (const element of [bubble, indicator]) {
+      if (!element) continue
+      element.style.removeProperty("transform")
+      element.style.removeProperty("opacity")
+      element.style.removeProperty("will-change")
+    }
   }
 
-  const paint = (offset: number) => {
-    const element = row()
-    if (!element) return
-    const ratio = Math.min(1, Math.abs(offset) / SWIPE_REPLY_THRESHOLD_PX)
-    element.style.setProperty("--swipe-x", `${clamp(offset)}px`)
-    element.style.setProperty("--swipe-progress", ratio.toFixed(4))
-    element.style.setProperty("--swipe-scale", (INDICATOR_SCALE_MIN + (1 - INDICATOR_SCALE_MIN) * ratio).toFixed(4))
+  /** Coalesces every move in a frame into one write, of the latest travel. */
+  const paint = () => {
+    if (frame !== 0) return
+    frame = requestAnimationFrame(() => {
+      frame = 0
+      write(gesture.offset)
+    })
   }
 
+  const start = () => {
+    for (const animation of snap) animation.cancel()
+    snap = []
+    find()
+    if (bubble) bubble.style.willChange = "transform"
+  }
+
+  /*
+   * The snap-back runs on the compositor through the Web Animations API, from
+   * wherever the finger left the row to rest, in SWIPE_SETTLE_MS. The inline
+   * styles are cleared first, so the animation's end state is the row's own.
+   */
   const settle: SwipeSettle = (from, done) => {
-    if (!row() || from === 0 || prefersReducedMotion()) {
+    cancelAnimationFrame(frame)
+    frame = 0
+    if (!bubble || from === 0 || prefersReducedMotion() || typeof bubble.animate !== "function") {
       clear()
       done()
       return
     }
-    const controls = animate(from, 0, {
-      type: "spring",
-      stiffness: 520,
-      damping: 40,
-      mass: 0.7,
-      restDelta: 0.4,
-      onUpdate: (value: number) => paint(value),
-      onComplete: () => {
-        controls.stop()
-        clear()
-        done()
-      },
-    })
+    const ratio = Math.min(1, from / SWIPE_REPLY_THRESHOLD_PX)
+    const scale = INDICATOR_SCALE_MIN + (1 - INDICATOR_SCALE_MIN) * ratio
+    const timing = { duration: SWIPE_SETTLE_MS, easing: SWIPE_SETTLE_EASING }
+    clear()
+    // Hold will-change through the snap so the layer is not torn down mid-flight.
+    bubble.style.willChange = "transform"
+    const moving = bubble.animate([{ transform: `translate3d(${from}px,0,0)` }, { transform: "translate3d(0,0,0)" }], timing)
+    snap = [moving]
+    if (indicator) {
+      snap.push(
+        indicator.animate(
+          [
+            { opacity: ratio, transform: `translateY(-50%) scale(${scale})` },
+            { opacity: 0, transform: `translateY(-50%) scale(${INDICATOR_SCALE_MIN})` },
+          ],
+          timing,
+        ),
+      )
+    }
+    moving.onfinish = () => {
+      snap = []
+      bubble?.style.removeProperty("will-change")
+      done()
+    }
   }
 
   const gesture = createSwipeGesture({ settle, onReply: options.onReply })
@@ -328,10 +380,12 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
     },
     onMove: (event) => {
       if (event.pointerId !== activePointer) return
+      const was = gesture.swiping
       gesture.move(event.clientX, event.clientY)
       if (!gesture.swiping) return
+      if (!was) start()
       capture(event)
-      paint(gesture.offset)
+      paint()
     },
     onUp: (event) => {
       if (event.pointerId !== activePointer) return
@@ -446,8 +500,10 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
       }
 
       travel = Math.max(0, Math.min(SWIPE_MAX_TRAVEL_PX, travel + Math.abs(raw) * WHEEL_SCALE))
+      const was = gesture.swiping
       gesture.move(travel, 0)
-      paint(gesture.offset)
+      if (gesture.swiping && !was) start()
+      paint()
 
 
       // Magnitude trend, to spot the coast. A real coast decays smoothly with
@@ -480,7 +536,10 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
     })
   })
 
-  onCleanup(clear)
+  onCleanup(() => {
+    for (const animation of snap) animation.cancel()
+    clear()
+  })
 
   const handlers: SwipeRowHandlers = {
     ref: (element) => setRow(() => element),

@@ -1,21 +1,11 @@
-import { createEffect, createSignal, For, lazy, onMount, Show, Suspense, type JSX } from "solid-js"
+import { createEffect, createSignal, lazy, onMount, Show, Suspense, type JSX } from "solid-js"
 import { Icon } from "@kiko/ui/icon"
-import { ProviderIcon } from "@kiko/ui/provider-icon"
 import { useI18n } from "@kiko/ui/context/i18n"
-import { ButtonV2 } from "@kiko/ui/v2/button-v2"
 import { Icon as IconV2 } from "@kiko/ui/v2/icon"
-import { IconButtonV2 } from "@kiko/ui/v2/icon-button-v2"
-import { KeybindV2 } from "@kiko/ui/v2/keybind-v2"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { identityLook } from "../../lib/identity"
-import type {
-  PromptInputV2Attachment,
-  PromptInputV2Option,
-  PromptInputV2PersistedState,
-  PromptInputV2Prompt,
-} from "./types"
-import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
+import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
+import type { PromptInputV2Interaction } from "./interaction"
 
 export type {
   PromptInputV2Attachment,
@@ -355,142 +345,6 @@ function promptInputV2Cursor(editor: HTMLDivElement) {
   range.selectNodeContents(editor)
   range.setEnd(selection.anchorNode!, selection.anchorOffset)
   return range.toString().length
-}
-
-export function PromptInputV2AddMenu(props: {
-  disabled?: boolean
-  title: string
-  keybind?: string[]
-  attachLabel: string
-  attachShortcut?: string
-  commandsLabel: string
-  contextLabel: string
-  shellLabel: string
-  onAttach: () => void
-  onCommands: () => void
-  onContext: () => void
-  onShell: () => void
-}) {
-  return (
-    <TooltipV2
-      placement="top"
-      value={
-        <>
-          {props.title}
-          <KeybindV2 keys={props.keybind ?? []} variant="neutral" />
-        </>
-      }
-    >
-      <MenuV2 gutter={6} modal={false} placement="top-start">
-        <MenuV2.Trigger
-          as={IconButtonV2}
-          data-action="prompt-attach"
-          type="button"
-          icon={<IconV2 name="plus" class="size-5" />}
-          variant="ghost-muted"
-          size="large"
-          class="!size-8 !rounded-lg"
-          disabled={props.disabled}
-          aria-label={props.title}
-        />
-        <MenuV2.Portal>
-          <MenuV2.Content style={{ "min-width": "180px" }}>
-            <MenuV2.Item onSelect={props.onAttach} shortcut={props.attachShortcut}>
-              {props.attachLabel}
-            </MenuV2.Item>
-            <MenuV2.Separator />
-            <MenuV2.Item onSelect={props.onCommands} shortcut="/">
-              {props.commandsLabel}
-            </MenuV2.Item>
-            <MenuV2.Item onSelect={props.onContext} shortcut="@">
-              {props.contextLabel}
-            </MenuV2.Item>
-            <MenuV2.Item onSelect={props.onShell} shortcut="!">
-              {props.shellLabel}
-            </MenuV2.Item>
-          </MenuV2.Content>
-        </MenuV2.Portal>
-      </MenuV2>
-    </TooltipV2>
-  )
-}
-
-function PromptInputV2ConfiguredSelect(props: {
-  title: string
-  keybind?: string[]
-  control: PromptInputV2SelectControl
-  model?: boolean
-}) {
-  const current = () => props.control.current()
-  const providerID = () => props.control.options().find((option) => option.id === current())?.providerID
-  return (
-    <PromptInputV2Select
-      title={props.title}
-      keybind={props.control.keybind?.() ?? props.keybind}
-      options={props.control.options()}
-      current={current()}
-      currentIcon={
-        <Show when={props.model && providerID()}>
-          <ProviderIcon id={providerID()!} class="size-4 shrink-0 opacity-60" />
-        </Show>
-      }
-      onSelect={props.control.onSelect}
-    />
-  )
-}
-
-export function PromptInputV2Select(props: {
-  title: string
-  keybind?: string[]
-  options: PromptInputV2Option[]
-  current: string
-  currentIcon?: JSX.Element
-  class?: string
-  onOpenChange?: (open: boolean) => void
-  onSelect: (id: string) => void
-}) {
-  return (
-    <TooltipV2
-      placement="top"
-      value={
-        <>
-          {props.title}
-          <KeybindV2 keys={props.keybind ?? []} variant="neutral" />
-        </>
-      }
-    >
-      <MenuV2 gutter={6} modal={false} placement="top-start" onOpenChange={props.onOpenChange}>
-        <MenuV2.Trigger
-          as={ButtonV2}
-          variant="ghost-muted"
-          size="normal"
-          class={`max-w-[220px] justify-start ![font-weight:440] ${props.class ?? ""}`}
-          aria-label={props.title}
-        >
-          {props.currentIcon}
-          <span class="truncate capitalize leading-5">
-            {props.options.find((option) => option.id === props.current)?.label ?? props.current}
-          </span>
-          <span class="-ms-0.5 -me-1 flex shrink-0">
-            <IconV2 name="chevron-down" />
-          </span>
-        </MenuV2.Trigger>
-        <MenuV2.Portal>
-          <MenuV2.Content>
-            <MenuV2.RadioGroup value={props.current} onChange={props.onSelect}>
-              <For each={props.options}>
-                {(option) => (
-                  <MenuV2.RadioItem value={option.id} class="capitalize" closeOnSelect>
-                    {option.label}
-                  </MenuV2.RadioItem>
-                )}
-              </For>
-            </MenuV2.RadioGroup>
-          </MenuV2.Content>
-        </MenuV2.Portal>
-      </MenuV2>
-    </TooltipV2>
-  )
 }
 
 export function PromptInputV2SubmitButton(props: {

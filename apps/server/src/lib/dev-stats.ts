@@ -10,15 +10,19 @@ declare const process: { env: { NODE_ENV?: string } }
 
 const dev = () => process.env.NODE_ENV === "development"
 const counters = new Map<string, number>()
-/** Cursors of statements not yet read back. `rowsWritten` is final once a cursor is consumed or done. */
-const open: { kind: string; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] = []
+/** Cursors of statements not yet read back. `rowsRead` and `rowsWritten` are final once a cursor is consumed or done. */
+const open: { kind: string; write: boolean; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] = []
 
 function bump(key: string, n = 1): void {
   counters.set(key, (counters.get(key) ?? 0) + n)
 }
 
 function settle(): void {
-  for (const { kind, cursor } of open.splice(0)) bump(`${kind}.rowsWritten`, cursor.rowsWritten)
+  for (const { kind, write, cursor } of open.splice(0)) {
+    // Rows SQLite visited, so a scan where an index would do shows up even when it writes nothing.
+    bump(`${kind}.rowsRead`, cursor.rowsRead)
+    if (write) bump(`${kind}.rowsWritten`, cursor.rowsWritten)
+  }
 }
 
 const KV = ["get", "put", "delete", "list", "setAlarm", "getAlarm", "deleteAlarm", "transaction"] as const
@@ -35,7 +39,8 @@ export function instrument(ctx: DurableObjectState, kind: string): void {
       value: (query: string, ...bindings: SqlStorageValue[]) => {
         const cursor = exec(query, ...bindings)
         bump(`${kind}.statements`)
-        if (!/^\s*(SELECT|PRAGMA)/i.test(query)) open.push({ kind, cursor })
+        open.push({ kind, write: !/^\s*(SELECT|PRAGMA)/i.test(query), cursor })
+        if (open.length > 10_000) settle()
         return cursor
       },
     })

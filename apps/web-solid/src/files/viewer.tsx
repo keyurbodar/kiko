@@ -3,7 +3,8 @@ import { createMemo, createSignal, lazy, Match, Show, Suspense, Switch } from "s
 import { createMediaViewer } from "../chat/media/mediaViewer"
 import { formatBytes } from "../chat/info/format"
 import { urls } from "../lib/store"
-import { prettyJson, type ViewerKind } from "./kind"
+import type { EditorState } from "./editor"
+import type { ViewerKind } from "./kind"
 import "./editor.css"
 
 /*
@@ -11,10 +12,10 @@ import "./editor.css"
  * own chunk: CodeMirror loads when a text file opens, the markdown parser when a markdown file
  * does, and so on. Pictures draw at once and open the lightbox on click.
  *
- * `mode` comes from the header: "view" is the kind's own view, "source" is the read-only text,
- * and "edit" is the text with save.
+ * Text is always the editor, which saves itself. Markdown and CSV have a rendered view too, and
+ * `mode` (one toggle in the header) switches between that view and the editor.
  */
-export type ViewMode = "view" | "source" | "edit"
+export type ViewMode = "view" | "edit"
 
 const TextEditor = lazy(() => import("./editor").then((m) => ({ default: m.TextEditor })))
 const MarkdownView = lazy(() => import("./viewers/markdown"))
@@ -25,13 +26,13 @@ const VideoView = lazy(() => import("./viewers/media").then((m) => ({ default: m
 
 const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
-export function FileViewer(props: { roomId: string; path: string; file: FileRef | undefined; kind: ViewerKind; mode: ViewMode }) {
+export function FileViewer(props: { roomId: string; path: string; file: FileRef | undefined; kind: ViewerKind; mode: ViewMode; onEditorState?: (state: EditorState) => void }) {
 	// The editor keeps the version it opened. Later versions reach it as `file`.
 	const opened = createMemo<FileRef | undefined>((prev) => (props.file ? (prev ?? props.file) : undefined), undefined)
 	const media = createMediaViewer()
 	const [broken, setBroken] = createSignal<string | null>(null)
 	const src = (f: FileRef) => urls.file(props.roomId, f.id)
-	const textMode = () => props.mode !== "view" || props.kind === "text" || props.kind === "json"
+	const textMode = () => props.mode === "edit" || props.kind === "text" || props.kind === "json"
 
 	return (
 		<div class="file-view" data-component="file-viewer" data-kind={props.kind} data-mode={props.mode}>
@@ -50,8 +51,7 @@ export function FileViewer(props: { roomId: string; path: string; file: FileRef 
 											path={props.path}
 											file={props.file}
 											initial={initial}
-											editing={props.mode === "edit"}
-											pretty={props.kind === "json" ? prettyJson : undefined}
+											onState={props.onEditorState}
 										/>
 									)}
 								</Show>

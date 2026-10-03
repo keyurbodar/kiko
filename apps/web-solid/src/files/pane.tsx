@@ -1,11 +1,12 @@
 import type { FileOp } from "@kiko/protocol"
 import { FileIcon } from "@kiko/ui/file-icon"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js"
 import { closeFile, openFile, openFilePath } from "../chat/info/state"
 import { urls, useApp } from "../lib/store"
 import { createFile, withMade } from "./api"
-import { isEditable, viewerKind, type ViewerKind } from "./kind"
+import type { EditorState } from "./editor"
+import { viewerKind, type ViewerKind } from "./kind"
 import { FileTree } from "./tree"
 import { FileViewer, type ViewMode } from "./viewer"
 import "./pane.css"
@@ -37,18 +38,8 @@ const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
 /** Where a tree path lives: its space (a room id or `home`) and its path there. */
 const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
 
-/** The modes the header offers for each kind, with their labels. An empty list shows no switch. */
-const MODES: Record<ViewerKind, readonly [ViewMode, string][]> = {
-	markdown: [["view", "preview"], ["source", "source"], ["edit", "edit"]],
-	csv: [["view", "table"], ["source", "source"], ["edit", "edit"]],
-	json: [["view", "view"], ["edit", "edit"]],
-	text: [["view", "view"], ["edit", "edit"]],
-	image: [],
-	pdf: [],
-	audio: [],
-	video: [],
-	other: [],
-}
+/** Kinds with a rendered view as well as the editor. The header toggles between the two. */
+const RENDERED: Partial<Record<ViewerKind, string>> = { markdown: "preview", csv: "table" }
 
 /** New file and new folder, drawn in the panel header while the files tab is open. */
 export function FilesActions() {
@@ -105,17 +96,17 @@ export default function FilesPane(props: { chatId: string }) {
 		return f ? viewerKind(f) : "other"
 	})
 	const [mode, setMode] = createSignal<ViewMode>("view")
-	// Each file opens in view mode, except a file just made here.
+	const [editor, setEditor] = createSignal<EditorState>("clean")
+	// Each file opens rendered, except a file just made here, which has nothing to render yet.
 	createEffect(
 		on(path, (p) => {
 			setMode(p && p === editNext() ? "edit" : "view")
+			setEditor("clean")
 			if (p === editNext()) setEditNext(null)
 		}),
 	)
-	// A mode the kind does not offer falls back to view.
-	createEffect(() => {
-		if (mode() !== "view" && !MODES[kind()].some(([m]) => m === mode())) setMode("view")
-	})
+	const rendered = () => RENDERED[kind()]
+	const unsaved = () => editor() === "dirty" || editor() === "saving" || editor() === "error"
 
 	const make = (p: string) => {
 		const at = where(props.chatId, p)
@@ -156,28 +147,34 @@ export default function FilesPane(props: { chatId: string }) {
 				{(p) => (
 					<section class="fp-view" aria-label={baseName(p)}>
 						<header class="fp-view-head" data-component="file-header">
-							<button type="button" class="fp-icon fp-back" aria-label="back to files" title="back to files" data-action="back-to-files" onClick={() => closeFile(props.chatId)}>
-								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-									<path d="M10 3L5 8l5 5" />
-								</svg>
-							</button>
 							<FileIcon node={{ path: p, type: "file" }} />
+							{/* A long folder part is cut at its left end, so the name always shows. */}
 							<span class="fp-path" title={p} data-component="file-path">
 								<Show when={p.includes("/")}>
-									<span class="fp-dir">{p.slice(0, p.lastIndexOf("/") + 1)}</span>
+									<span class="fp-dir">
+										<span dir="ltr">{p.slice(0, p.lastIndexOf("/") + 1)}</span>
+									</span>
 								</Show>
 								<span class="fp-name">{baseName(p)}</span>
+								<Show when={unsaved()}>
+									<span class="fp-dirty" data-component="file-unsaved" title="saving" aria-label="unsaved changes" />
+								</Show>
 							</span>
-							<Show when={file() && MODES[kind()].length}>
-								<div class="fp-modes" role="group" aria-label="view">
-									<For each={MODES[kind()]}>
-										{([m, label]) => (
-											<button type="button" class="fp-mode" data-mode={m} aria-pressed={mode() === m} onClick={() => setMode(m)}>
-												{label}
-											</button>
+							<Show when={file() && rendered()}>
+								{(label) => (
+									<IconButton
+										label={mode() === "edit" ? label() : "edit"}
+										action="toggle-edit"
+										pressed={mode() === "edit"}
+										onClick={() => setMode(mode() === "edit" ? "view" : "edit")}
+									>
+										{mode() === "edit" ? (
+											<path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+										) : (
+											<path d="M11 2.5l2.5 2.5L6 12.5H3.5V10zM9.5 4l2.5 2.5" />
 										)}
-									</For>
-								</div>
+									</IconButton>
+								)}
 							</Show>
 							<Show when={file()}>
 								{(f) => (
@@ -199,7 +196,8 @@ export default function FilesPane(props: { chatId: string }) {
 							path={where(props.chatId, p).path}
 							file={file() && { ...file()!, name: where(props.chatId, p).path }}
 							kind={kind()}
-							mode={isEditable(kind()) ? mode() : "view"}
+							mode={rendered() ? mode() : "edit"}
+							onEditorState={setEditor}
 						/>
 					</section>
 				)}

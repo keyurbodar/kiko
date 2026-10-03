@@ -1,12 +1,10 @@
 import type { CatalogItem } from "@kiko/protocol"
-import { createSignal, For, Show } from "solid-js"
+import { createEffect, createSignal, For, Match, Show, Switch } from "solid-js"
 import { stillOf, urls, useApp } from "../../lib/store"
 import type { MediaItem } from "../../lib/types"
 import { createMediaViewer } from "../media/mediaViewer"
 import { peekLinkPreview, resolveLinkPreview } from "../lib/linkPreview"
 import type { createCatalog } from "./catalog"
-import { Card } from "./sections"
-import { pushInfo } from "./state"
 
 type Catalog = ReturnType<typeof createCatalog>
 type Link = Extract<CatalogItem, { kind: "link" }>
@@ -138,18 +136,6 @@ function Grid(props: { catalog: Catalog; max?: number }) {
   )
 }
 
-export function MediaCard(props: { catalog: Catalog }) {
-  const count = () => props.catalog.items().length
-  return (
-    <Card id="media" title="media" hint={count() ? String(count()) : undefined} onOpen={() => pushInfo({ kind: "media" })}>
-      <Grid catalog={props.catalog} max={8} />
-      <Show when={!count()}>
-        <Empty loaded={props.catalog.loaded()} text="no photos or videos yet" />
-      </Show>
-    </Card>
-  )
-}
-
 export function MediaList(props: { catalog: Catalog }) {
   return (
     <div data-component="info-media-list">
@@ -157,5 +143,57 @@ export function MediaList(props: { catalog: Catalog }) {
       <Empty loaded={props.catalog.loaded() && !props.catalog.items().length} text="no photos or videos yet" />
       <MoreButton catalog={props.catalog} />
     </div>
+  )
+}
+
+type SharedKind = "media" | "links"
+
+/*
+ * What the chat has shared, as horizontal tabs. A tab shows only when its kind has something,
+ * so a chat with nothing shared shows no section at all. Files are not here: they are the
+ * panel's own files tab, the one place they open.
+ */
+export function SharedContent(props: { media: Catalog; links: Catalog }) {
+  const kinds = (): SharedKind[] => {
+    const list: SharedKind[] = []
+    if (props.media.items().some((i) => i.kind === "media")) list.push("media")
+    if (props.links.items().some((i) => i.kind === "link")) list.push("links")
+    return list
+  }
+  const [picked, setPicked] = createSignal<SharedKind>("media")
+  const shown = () => (kinds().includes(picked()) ? picked() : kinds()[0])
+  createEffect(() => {
+    const k = shown()
+    if (k && k !== picked()) setPicked(k)
+  })
+  return (
+    <Show when={kinds().length}>
+      <section class="flex flex-col gap-1" data-component="info-shared">
+        <div class="flex items-center gap-1 px-1" role="tablist" aria-label="shared">
+          <For each={kinds()}>
+            {(kind) => (
+              <button
+                type="button"
+                role="tab"
+                class="h-7 rounded-lg px-2.5 text-[13px] font-medium text-muted hover:text-text aria-selected:bg-[var(--selected-bg)] aria-selected:text-text"
+                aria-selected={shown() === kind}
+                data-tab={kind}
+                onClick={() => setPicked(kind)}
+              >
+                {kind}
+              </button>
+            )}
+          </For>
+        </div>
+        <Switch>
+          <Match when={shown() === "media"}>
+            <MediaList catalog={props.media} />
+          </Match>
+          <Match when={shown() === "links"}>
+            <LinksList catalog={props.links} />
+          </Match>
+        </Switch>
+      </section>
+    </Show>
   )
 }

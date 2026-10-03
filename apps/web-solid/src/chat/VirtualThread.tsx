@@ -118,10 +118,6 @@ const SCROLLER_CLASS =
  * 16px side padding so the column adds none, and the date chip floats 10px
  * down and is 30px tall — an inset under 40px puts the oldest row underneath
  * it.
- *
- * The empty state is reached through its `data-component` handle rather than a
- * class, because `ui/EmptyState.tsx` takes no `class` prop and no slice owns
- * it. It is a direct child of this element, so the child combinator is exact.
  */
 const COLUMN_CLASS =
   // `pb-12` is the composer's scrim height. Without it the last message lands
@@ -129,17 +125,7 @@ const COLUMN_CLASS =
   // bottom of a thread would leave the newest message half-dissolved — the
   // scrim is meant to soften content passing under the composer, not to dim
   // the place a conversation ends.
-  "mx-auto flex w-full max-w-(--content-max-w) flex-col pt-12 pb-12 " +
-  "[&>[data-component=chat-empty]]:flex " +
-  "[&>[data-component=chat-empty]]:flex-col " +
-  "[&>[data-component=chat-empty]]:items-center " +
-  "[&>[data-component=chat-empty]]:gap-1.5 " +
-  "[&>[data-component=chat-empty]]:px-4 " +
-  "[&>[data-component=chat-empty]]:py-12 " +
-  "[&>[data-component=chat-empty]]:text-center " +
-  "[&>[data-component=chat-empty]]:text-weak " +
-  "[&>[data-component=chat-empty]>span]:text-sm " +
-  "[&>[data-component=chat-empty]>span]:lowercase"
+  "mx-auto flex w-full max-w-(--content-max-w) flex-col pt-12 pb-12"
 
 const ROW_SELECTOR = '[data-component="chat-vrow"]'
 

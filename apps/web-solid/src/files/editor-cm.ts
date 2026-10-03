@@ -103,7 +103,7 @@ function highlighter(path: string): Extension {
 export function mountEditor(
 	parent: HTMLElement,
 	doc: string,
-	opts: { path: string; readOnly: boolean; onChange: () => void },
+	opts: { path: string; readOnly: boolean; onChange: () => void; onBlur?: () => void },
 ): Mounted {
 	const editable = new Compartment()
 	const lock = (readOnly: boolean) => [
@@ -123,6 +123,11 @@ export function mountEditor(
 		highlighter(opts.path),
 		EditorView.updateListener.of((u) => {
 			if (u.docChanged) opts.onChange()
+		}),
+		EditorView.domEventHandlers({
+			blur: () => {
+				opts.onBlur?.()
+			},
 		}),
 	]
 	let readOnly = opts.readOnly

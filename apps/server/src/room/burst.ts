@@ -35,6 +35,26 @@ export function debounce(event: "message" | "typing" | "fragment", now: number, 
 	return Math.min(now + wait, startedAt + MAX_BURST_MS)
 }
 
+/**
+ * The most of a burst one delivery carries. An agent's inbox refuses a delivery past 500 open rows or
+ * 128 KB in one entry (agent/inbox.ts), and a refused burst would wait forever or be dropped. A burst
+ * past either cap goes out in order, in several deliveries. ASSUMPTION: the numbers, well under the caps.
+ */
+export const MAX_DELIVERY_ENVELOPES = 100
+export const MAX_DELIVERY_BYTES = 64 * 1024
+
+/** The oldest envelopes of a burst that fit in one delivery. Always at least one. */
+export function deliverable<T>(envelopes: readonly T[], maxCount = MAX_DELIVERY_ENVELOPES, maxBytes = MAX_DELIVERY_BYTES): T[] {
+	let bytes = 0
+	const out: T[] = []
+	for (const e of envelopes) {
+		bytes += new TextEncoder().encode(JSON.stringify(e)).length
+		if (out.length && (out.length >= maxCount || bytes > maxBytes)) break
+		out.push(e)
+	}
+	return out
+}
+
 /** The delivery id of one human message. Stable, so a repeated delivery stores nothing twice. */
 export const envelopeId = (messageId: string) => `human:${messageId}`
 
@@ -54,6 +74,8 @@ export class Burst {
 			text TEXT NOT NULL,
 			reply_to TEXT
 		)`)
+		// `startedAt` runs on every human message; without this it reads the whole pending burst each time.
+		this.sql.exec("CREATE INDEX IF NOT EXISTS pending_at ON pending (at)")
 	}
 
 	/** True while a human message waits for the burst to close. */

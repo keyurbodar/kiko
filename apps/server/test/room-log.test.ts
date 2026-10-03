@@ -104,6 +104,31 @@ test("a send is acked, stored once, and broadcast to every ready socket", async 
 	for (const x of [a, b, c]) x.close()
 })
 
+test("a long chat keeps a bounded event log, and replay still has every event of its window", async () => {
+	const room = fresh()
+	const a = await Client.open(room)
+	const sendAll = async (from: number, to: number) => {
+		for (let i = from; i < to; i++) a.send({ t: "send", clientId: `m${i}`, text: `message ${i}` })
+		const deadline = Date.now() + 30_000
+		while (!a.frames.some((f) => f.t === "ack" && f.clientId === `m${to - 1}`) && Date.now() < deadline) await Bun.sleep(20)
+		a.frames.length = 0
+	}
+	const rows = async () => (await (await fetch(`${origin}/rows/${room}`)).json()) as number
+	await sendAll(0, 1_100)
+	const before = await rows()
+	await sendAll(1_100, 1_300)
+	// Each send keeps its message, its clientId, and its pending burst row. The event log stays near
+	// KEEP_EVENTS instead of growing one row a send.
+	expect((await rows()) - before).toBeLessThanOrEqual(3 * 200 + 50)
+	// A client 400 events behind still gets every one of them, in order.
+	const late = await Client.open(room, null)
+	late.send({ t: "hello", lastSeq: 900 })
+	const replay = await late.events()
+	expect(replay.map((e) => e.seq)).toEqual(Array.from({ length: 400 }, (_, i) => 901 + i))
+	late.close()
+	a.close()
+}, 60_000)
+
 test("edit, react, delete, and read are events, and hello replays them in order", async () => {
 	const room = fresh()
 	const a = await Client.open(room)

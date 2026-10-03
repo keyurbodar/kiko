@@ -1,9 +1,7 @@
 import { A } from "@solidjs/router"
 import { Suspense, createEffect, lazy } from "solid-js"
-import { SETTINGS_SECTIONS } from "./sections"
-import { ModelList } from "./model-picker"
-import { chatModel, setChatModel } from "./chat-model"
-import { ProviderList } from "./providers"
+import { NAV_SECTIONS, SETTINGS_SECTIONS } from "./sections"
+import { ModelsPage } from "./models"
 import { Integrations } from "./integrations"
 import { DeleteAccount } from "../app/delete-account"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
@@ -47,10 +45,10 @@ function Account() {
 }
 
 const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
-  providers: ProviderList,
+  models: ModelsPage,
   account: Account,
   integrations: Integrations,
-  skills: () => <p class="text-xs text-weak" data-component="skills-empty">no skills yet. skills you add will be listed here.</p>,
+  skills: () => <p class="text-xs text-weak" data-component="skills-empty">no skills yet</p>,
   appearance: () => (
     <Suspense>
       <Appearance />
@@ -59,20 +57,8 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
 }
 
 function section(id: string) {
-  const Section = COMPONENTS[id] ?? DefaultModel
+  const Section = COMPONENTS[id] ?? ModelsPage
   return <Section />
-}
-
-function DefaultModel() {
-  return (
-    <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="default-model">
-      <p class="text-xs text-weak">
-        new chats start with this model. pick another for one chat from its top bar.
-        {chatModel(null) ? ` now: ${chatModel(null)}` : ""}
-      </p>
-      <ModelList current={chatModel(null)} onPick={(ref) => setChatModel(null, ref)} />
-    </div>
-  )
 }
 
 export function SettingsShell(props: { sectionId: string }) {
@@ -94,7 +80,7 @@ export function SettingsShell(props: { sectionId: string }) {
         class="flex shrink-0 gap-1 overflow-x-auto [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
         aria-label="settings sections"
       >
-        {SETTINGS_SECTIONS.map((s) => (
+        {NAV_SECTIONS.map((s) => (
           <A
             href={`/settings/${s.id}`}
             class="flex h-10 shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-sm text-muted outline-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-9"

@@ -23,6 +23,13 @@ import { listTasks } from "./workspace"
 
 /** A `hello` further behind than this gets a `reset` instead of events. */
 export const REPLAY_LIMIT = 500
+/**
+ * Events kept in the log. Twice the replay window, so a replay never misses one and an agent's
+ * reaction brief reaches back as far. The messages table keeps the history; older events only
+ * repeated it. Trimmed every `TRIM_EVERY` events, so the delete is amortized.
+ */
+export const KEEP_EVENTS = 2 * REPLAY_LIMIT
+const TRIM_EVERY = 100
 /** The newest messages a `reset` snapshot carries. ASSUMPTION: the number. */
 export const SNAPSHOT_MESSAGES = 200
 
@@ -341,6 +348,7 @@ export class RoomLog {
 				JSON.stringify(body),
 			)
 			.one()
+		if (seq % TRIM_EVERY === 0) this.sql.exec("DELETE FROM events WHERE seq <= ?", seq - KEEP_EVENTS)
 		return { ...body, seq, at } as RoomEvent
 	}
 

@@ -13,6 +13,18 @@ export function previewUrl(text: string): string | null {
   return first ? normalizeUrl(first.url) : null
 }
 
+/**
+ * True when a human message holds this link (section 16.4). A tainted run's link is previewed only
+ * then: the human chose to share it, so the fetch carries nothing the run made up.
+ */
+export function humanWrote(sql: SqlStorage, url: string): boolean {
+  const host = new URL(url).host
+  return sql
+    .exec<{ text: string }>("SELECT text FROM messages WHERE deleted_at IS NULL AND instr(text, ?) > 0 AND json_extract(sender, '$.kind') = 'human'", host)
+    .toArray()
+    .some((m) => extractLinks(m.text).some((l) => normalizeUrl(l.url) === url))
+}
+
 /** The message and link to read for a stored event, or null when the event needs no card. */
 export function previewTarget(event: RoomEvent): { messageId: MessageId; url: string } | null {
   if (event.t === "message") {
