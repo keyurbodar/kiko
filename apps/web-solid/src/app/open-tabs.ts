@@ -78,8 +78,23 @@ function update(next: string[]): void {
   write(next)
 }
 
+/** Tabs closed this session, newest last, for "reopen closed". Capped, and never stored. */
+const MAX_CLOSED = 20
+let closed: string[] = []
+
 export const openTabs = {
   ids: tabs,
   open: (id: string) => update(openTab(tabs(), id)),
-  close: (id: string) => update(closeTab(tabs(), id)),
+  close: (id: string) => {
+    if (tabs().includes(id)) closed = [...closed.filter((c) => c !== id), id].slice(-MAX_CLOSED)
+    update(closeTab(tabs(), id))
+  },
+  /** The newest closed tab that `exists` still knows, taken off the list. Null when there is none. */
+  takeClosed: (exists: (id: string) => boolean): string | null => {
+    while (closed.length) {
+      const id = closed.pop()!
+      if (exists(id) && !tabs().includes(id)) return id
+    }
+    return null
+  },
 }
