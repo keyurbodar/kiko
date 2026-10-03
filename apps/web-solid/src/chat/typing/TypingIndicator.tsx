@@ -62,6 +62,8 @@ export function TypingIndicator(props: TypingIndicatorProps) {
     props.doing && props.typists.length === 1 && props.doing !== "writing a reply" ? `${props.typists[0]} is ${props.doing}` : describe(props.typists, max()),
   );
   const active = () => props.typists.length > 0;
+  // The bird acts out what the agent reports: a reply on its way, a tool at work, or typing.
+  const birdState = () => (props.sending ? "sending" : props.doing && props.doing !== "writing a reply" ? "working" : "typing");
 
   let bubble!: HTMLDivElement;
   const bubbleAnim = { current: null as Animation | null };
@@ -126,7 +128,7 @@ export function TypingIndicator(props: TypingIndicatorProps) {
       <div ref={bubble} class="typing-bubble" aria-hidden="true">
         <span class="typing-strut">&#8203;</span>
         <For each={[0, 1]}>{() => <span class="typing-dot" />}</For>
-        <Bird slug={props.seed ?? props.typists[0] ?? "kiko"} state={props.sending ? "sending" : "typing"} size={20} class="typing-bird" />
+        <Bird slug={props.seed ?? props.typists[0] ?? "kiko"} state={birdState()} size={20} class="typing-bird" />
       </div>
       <Show when={props.doing && props.doing !== "writing a reply" ? props.doing : undefined}>
         {(doing) => (

@@ -128,7 +128,8 @@ const suite: Suite = {
 		expectEqual((await call(s.cookie, "GET", "api/me")).status, 200, "/api/me before deletion")
 
 		const deleted = await call(s.cookie, "POST", "api/account/delete", { confirm: CONFIRM })
-		expectEqual([deleted.status, deleted.body], [202, { rooms: 3 }], "the delete answer, the room that is no chat included")
+		// Three rooms of this suite, plus the kiko chat every account gets when it signs in.
+		expectEqual([deleted.status, deleted.body], [202, { rooms: 4 }], "the delete answer, the room that is no chat and the kiko chat included")
 		if (!deleted.headers.getSetCookie().some((c) => /max-age=0/i.test(c))) throw new VerifyError("the delete answer did not clear the cookie")
 
 		// The old cookie still carries Better Auth's five-minute cache. It must not sign in.

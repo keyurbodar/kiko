@@ -39,17 +39,19 @@ export async function team(v: { url: string }, s: Session, slugs: string[], titl
   user.send({ t: "chat", op: { op: "create", roomId, title, agents: slugs.map((n) => agentOf(n).id) } })
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const room = await s.room(roomId)
-  await dev(v.url, s.cookie, "fake", { roomId, slugs })
+  // A group is seeded with kiko first, as its chief and lead (section 7.11), so kiko is a fake too.
+  const members = slugs.length > 1 ? ["kiko", ...slugs] : slugs
+  await dev(v.url, s.cookie, "fake", { roomId, slugs: members })
   /** Every envelope each agent's inbox ever stored. */
   const received = async () => {
     let total = 0
-    for (const slug of slugs) {
+    for (const slug of members) {
       const st = (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status
       total += st.inbox.waiting + st.inbox.claimed + st.inbox.submitted
     }
     return total
   }
-  return { room, received, roomId }
+  return { room, received, roomId, members }
 }
 
 /** Waits until nothing new arrives for `quietMs`. */
@@ -104,13 +106,14 @@ const suite: Suite = {
     }
 
     // 2. Five agents that broadcast to each other forever. An agent answers a batch once, so with fewer
-    // agents the hop limit trips first. Each broadcast is 4 deliveries, and one root may cause at most 40.
+    // agents the hop limit trips first. A broadcast reaches every other member (kiko included), and one
+    // root may cause at most 40 deliveries.
     {
-      const { room, received } = await team(v, s, ["cat", "dov", "eli", "fay", "gus"], "shout forever")
+      const { room, received, members } = await team(v, s, ["cat", "dov", "eli", "fay", "gus"], "shout forever")
       await send(room, "@cat [shout]")
       await until("the loop notice", () => notices(room).length > 0, 90_000)
       await settle(() => messages(room).length, 5_000, 60_000)
-      const deliveries = agentSends(room).length * 4
+      const deliveries = agentSends(room).length * (members.length - 1)
       const stored = (await received()) - 1
       if (stored > 40 || deliveries > 40) throw new VerifyError(`${stored} agent deliveries stored, ${deliveries} sent: more than 40`)
       expectEqual(stored, 40, "agent deliveries the inboxes stored")
