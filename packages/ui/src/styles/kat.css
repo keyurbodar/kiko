@@ -115,9 +115,9 @@
   --l-hover-bg: 0.2066;
   --c-hover-bg: 0;
   --l-selected-bg: 0.2583;
-  --c-selected-bg: 0.014;
+  --c-selected-bg: 0;
   --l-nav-active-bg: 0.3202;
-  --c-nav-active-bg: 0.03;
+  --c-nav-active-bg: 0.012;
   --l-nav-hover-bg: 0.2121;
   --c-nav-hover-bg: 0;
   --l-tooltip-bg: 0.3294;
@@ -338,6 +338,10 @@
    -------------------------------------------------------------------------- */
 
 :root {
+  /* Cards sit into the panel, like kat's lists: darker than it in dark, white in light. */
+  --l-card: 0.152;
+  --card: oklch(var(--l-card) 0 0);
+  --card-shadow: none;
   --hue: 340;
   --h-text: var(--hue);
   --cm: 1;
@@ -742,6 +746,8 @@
   --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
   --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.12), 0 10px 28px oklch(0% 0 none / 0.14);
   --out-quote-bg: oklch(0% 0 none / 0.14);
+  --l-card: 1;
+  --card-shadow: 0 0 0 1px oklch(0% 0 none / 0.06), 0 1px 2px oklch(0% 0 none / 0.04);
 }
 
 /* -----------------------------------------------------------------------------

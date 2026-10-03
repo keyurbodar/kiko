@@ -39,7 +39,7 @@ function Picker(props: { slug: string }) {
 
   return (
     <div class="flex flex-col gap-4" data-component="bird-picker" data-slug={props.slug}>
-      <div class="flex items-center gap-4 rounded-2xl bg-[var(--bg-subtle)] p-4">
+      <div class="flex items-center gap-4 rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">
         <Bird spec={draft()} state={MOODS[mood()]} size={96} />
         <div class="flex min-w-0 flex-col gap-1">
           <ModalV2.Title class="text-base font-medium text-text">{isKiko() ? "kiko, the chief" : `@${props.slug}`}</ModalV2.Title>

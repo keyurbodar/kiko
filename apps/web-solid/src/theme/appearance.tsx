@@ -42,7 +42,7 @@ export default function Appearance() {
 
   return (
     <div class="flex flex-col gap-6" data-component="appearance">
-      <section class="flex flex-col gap-3 rounded-2xl bg-[var(--bg-subtle)] p-4">
+      <section class="flex flex-col gap-3 rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">
         <LookPicker look={look()} onChange={saveLook} />
       </section>
 
@@ -55,7 +55,7 @@ export default function Appearance() {
         </div>
         <Show when={custom()}>
           {(t) => (
-            <div class="flex items-center gap-3 rounded-xl bg-[var(--bg-subtle)] px-3 py-2 text-sm" data-component="custom-active">
+            <div class="flex items-center gap-3 rounded-xl bg-[var(--card)] [box-shadow:var(--card-shadow)] px-3 py-2 text-sm" data-component="custom-active">
               <span class="size-2 rounded-full bg-[var(--accent)]" />
               <span class="min-w-0 flex-1 truncate">{t().name}</span>
               <span class="text-xs text-muted">in use</span>

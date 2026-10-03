@@ -45,7 +45,7 @@ export default function FirstLook() {
             <h1 id="first-look-title" class="text-2xl font-semibold text-text">make kiko yours</h1>
             <p class="text-sm text-muted">pick how it looks. you can change it any time in settings or with the command palette.</p>
           </div>
-          <div class="w-full rounded-2xl bg-[var(--bg-subtle)] p-4">
+          <div class="w-full rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">
             <LookPicker look={look()} onChange={saveLook} />
           </div>
           <div class="flex w-full flex-col gap-1.5 rounded-2xl bg-[var(--bg-sidebar)] p-4 text-sm" aria-hidden="true">

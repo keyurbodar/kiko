@@ -243,8 +243,9 @@
   width: 100%;
   height: 100%;
   place-items: center;
-  /* The bird stands on nothing: no disc, and its crest is not clipped. */
-  overflow: visible;
+  /* kat's pinned tile: a soft circle in the brand tint, the face inside it. List rows stay bare. */
+  background: oklch(from var(--accent) l c h / 16%);
+  border-radius: 50%;
 }
 
 .sidebar-shell .pin-tile-icon > img {
@@ -480,8 +481,8 @@
 }
 
 .sidebar-shell .pin-tile-avatar {
-  width: calc(var(--pin-circle) * 0.92);
-  height: calc(var(--pin-circle) * 0.92);
+  width: calc(var(--pin-circle) * 0.68);
+  height: calc(var(--pin-circle) * 0.68);
 }
 
 .sidebar-shell .chat-avatar > *,
@@ -771,11 +772,13 @@
   text-decoration: none;
 }
 
+/* The brand shows in the icons, the way kat does it, not in a coloured slab behind the row. */
 .sidebar-shell .settings-row-icon {
   display: grid;
   flex-shrink: 0;
   place-items: center;
   width: 24px;
+  color: var(--accent);
 }
 
 .sidebar-shell .settings-row-label {
@@ -790,8 +793,7 @@
 }
 
 .sidebar-shell .settings-panel-row-active {
-  background: var(--nav-active-bg);
-  color: var(--accent);
+  background: var(--selected-bg);
 }
 
 .sidebar-shell .settings-empty {

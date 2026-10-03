@@ -68,6 +68,7 @@ export const FIELDS: readonly Field[] = [
   color("accentFill", "--accent-fill", "filled buttons"),
   color("accentHover", "--accent-hover"),
   color("onAccent", "--on-accent", "text on a filled accent"),
+  color("card", "--card", "recessed cards: settings, the info panel, memory"),
   color("assistantBubble", "--assistant-bubble"),
   color("assistantBubbleText", "--assistant-bubble-text"),
   color("userBubble", "--user-bubble"),

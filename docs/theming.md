@@ -54,6 +54,7 @@ DEVIATION from the plan: `kat.css` has five radius variables, so `radius` has `b
 | `accentFill` | `--accent-fill` | a CSS color | `oklch( var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--hue) )` | filled buttons |
 | `accentHover` | `--accent-hover` | a CSS color | `oklch( var(--l-brand-hover) calc(var(--c-brand-hover) * var(--cm)) var(--hue) )` |  |
 | `onAccent` | `--on-accent` | a CSS color | `oklch( var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--hue) )` | text on a filled accent |
+| `card` | `--card` | a CSS color | `oklch(var(--l-card) 0 0)` | recessed cards: settings, the info panel, memory |
 | `assistantBubble` | `--assistant-bubble` | a CSS color | `oklch( var(--l-assistant-bubble) calc(var(--c-assistant-bubble) * var(--cm)) var(--hue) )` |  |
 | `assistantBubbleText` | `--assistant-bubble-text` | a CSS color | `var(--text)` |  |
 | `userBubble` | `--user-bubble` | a CSS color | `oklch( var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--h-brand) )` |  |
@@ -191,9 +192,9 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--l-hover-bg` | number | `0.2066` |
 | `--c-hover-bg` | number | `0` |
 | `--l-selected-bg` | number | `0.2583` |
-| `--c-selected-bg` | number | `0.014` |
+| `--c-selected-bg` | number | `0` |
 | `--l-nav-active-bg` | number | `0.3202` |
-| `--c-nav-active-bg` | number | `0.03` |
+| `--c-nav-active-bg` | number | `0.012` |
 | `--l-nav-hover-bg` | number | `0.2121` |
 | `--c-nav-hover-bg` | number | `0` |
 | `--l-tooltip-bg` | number | `0.3294` |
@@ -238,6 +239,9 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--c-on-accent` | number | `var(--c-brand-on)` |
 | `--radius-row` | length | `20px` |
 | `--radius-field` | length | `999px` |
+| `--l-card` | number | `0.152` |
+| `--card` | color | `oklch(var(--l-card) 0 0)` |
+| `--card-shadow` | any | `none` |
 | `--hue` | number | `340` |
 | `--h-text` | number | `var(--hue)` |
 | `--cm` | number | `1` |

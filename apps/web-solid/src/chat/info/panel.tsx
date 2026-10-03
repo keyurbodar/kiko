@@ -152,7 +152,10 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
           </Card>
         )}
       </For>
-      <DeleteChat chatId={props.chatId} />
+      {/* The kiko chat is always there, so it has no delete. */}
+      <Show when={!useApp.user()?.chats().find((c) => c.roomId === props.chatId)?.home}>
+        <DeleteChat chatId={props.chatId} />
+      </Show>
     </div>
   )
 }
