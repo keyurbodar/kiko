@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { fitWithin, STILL_EDGE } from "./uploads"
+import { fitWithin, STILL_EDGE } from "./still"
 
 test("a still fits the long edge and keeps the shape, and never scales up", () => {
 	expect(fitWithin(4000, 3000, STILL_EDGE)).toEqual({ width: 840, height: 630 })

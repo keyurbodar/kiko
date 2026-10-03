@@ -1,5 +1,4 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
-import { thumbHashToDataURL } from "thumbhash"
 import { cn } from "../../lib/cn"
 import type { MediaItem } from "../../lib/types"
 import { Play } from "lucide-solid"
@@ -27,15 +26,28 @@ function durationLabel(seconds: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`
 }
 
-/** The thumbhash as a tiny PNG, or undefined when there is none or it does not decode. */
+/** The decoder loads with the first picture that has a sketch, not with the first paint. */
+let decoder: Promise<typeof import("thumbhash")> | undefined
+const [decoderReady, setDecoderReady] = createSignal(false)
+
+/** The thumbhash as a tiny PNG, or undefined when there is none, it does not decode, or the decoder is still loading. */
 function sketchOf(hash: string | undefined): string | undefined {
   if (!hash) return undefined
+  if (!decoderReady()) {
+    decoder ??= import("thumbhash").then((m) => {
+      thumbHashToDataURL = m.thumbHashToDataURL
+      setDecoderReady(true)
+      return m
+    })
+    return undefined
+  }
   try {
-    return thumbHashToDataURL(Uint8Array.from(atob(hash), (c) => c.charCodeAt(0)))
+    return thumbHashToDataURL!(Uint8Array.from(atob(hash), (c) => c.charCodeAt(0)))
   } catch {
     return undefined
   }
 }
+let thumbHashToDataURL: ((hash: ArrayLike<number>) => string) | undefined
 
 function MediaFrame(props: { item: MediaItem; playMark: boolean }): JSX.Element {
   // The sketch shows until the still has painted, then goes, so a transparent picture never shows it through.

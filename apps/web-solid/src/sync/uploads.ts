@@ -1,5 +1,4 @@
 import type { FileRef } from "@kiko/protocol"
-import { rgbaToThumbHash } from "thumbhash"
 
 /*
  * Composer attachments (P8-06, architecture section 18.1). Each file goes to the room's file space
@@ -31,55 +30,6 @@ export function attachmentName(path: string): string {
   return m ? m[1]! : (path.split("/").pop() ?? path)
 }
 
-/** The long edge of a still: twice the widest transcript cell (420 px), for a 2x screen. */
-export const STILL_EDGE = 840
-/** The thumbhash format's own limit. */
-const HASH_EDGE = 100
-
-/** `width` x `height` scaled down to fit `edge`, never up. */
-export function fitWithin(width: number, height: number, edge: number): { width: number; height: number } {
-  const scale = Math.min(1, edge / Math.max(width, height))
-  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
-}
-
-const base64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
-
-type Still = { blob: Blob | null; thumbhash: string }
-
-/**
- * The still and thumbhash of a picture, or null when this browser cannot make them. `blob` is
- * null when the picture already fits a cell, so the original is small enough to draw. An animated
- * GIF keeps its original, which is the only copy that moves.
- */
-export async function makeStill(body: Blob, width: number, height: number): Promise<Still | null> {
-  if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas !== "function") return null
-  const fit = fitWithin(width, height, STILL_EDGE)
-  const big = fit.width < width && body.type !== "image/gif"
-  const bitmap = await createImageBitmap(body, { resizeWidth: fit.width, resizeHeight: fit.height, resizeQuality: "high" })
-  try {
-    let blob: Blob | null = null
-    if (big) {
-      const canvas = new OffscreenCanvas(fit.width, fit.height)
-      canvas.getContext("2d")!.drawImage(bitmap, 0, 0)
-      blob = await canvas.convertToBlob({ type: "image/webp", quality: 0.82 })
-      // A browser that cannot write WebP hands back a PNG, which is no smaller. JPEG is.
-      if (blob.type !== "image/webp") blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.85 })
-    }
-    const small = fitWithin(fit.width, fit.height, HASH_EDGE)
-    const sketch = new OffscreenCanvas(small.width, small.height).getContext("2d")!
-    sketch.drawImage(bitmap, 0, 0, small.width, small.height)
-    const pixels = sketch.getImageData(0, 0, small.width, small.height).data
-    return { blob, thumbhash: base64(rgbaToThumbHash(small.width, small.height, pixels)) }
-  } finally {
-    bitmap.close()
-  }
-}
-
-async function putStill(roomId: string, fileId: string, still: Blob): Promise<boolean> {
-  const res = await fetch(`/api/files/${roomId}/${encodeURIComponent(fileId)}/thumb`, { method: "PUT", headers: { "content-type": still.type }, body: still })
-  return res.ok
-}
-
 async function putOnce(roomId: string, file: LocalFile, body: Blob, path: string, thumbhash?: string): Promise<FileRef> {
   const headers: Record<string, string> = { "content-type": file.mime || body.type || "application/octet-stream" }
   if (thumbhash) headers["x-kiko-thumbhash"] = thumbhash
@@ -98,13 +48,15 @@ export async function uploadAttachment(roomId: string, file: LocalFile): Promise
   const path = attachmentPath(file.name)
   const picture = (file.mime || body.type).startsWith("image/") && !!file.width && !!file.height
   // A still that cannot be made costs only the saving: the transcript falls back to the original.
-  const still = picture ? await makeStill(body, file.width!, file.height!).catch(() => null) : null
+  // The still maker loads with the first picture sent, so it stays out of the first paint.
+  const still = picture ? await import("./still").then((m) => m.makeStill(body, file.width!, file.height!)).catch(() => null) : null
   let last: unknown
   for (let attempt = 0; attempt < RETRIES; attempt++) {
     try {
       const ref = await putOnce(roomId, file, body, path, still?.thumbhash)
       if (!still?.blob) return ref
-      return (await putStill(roomId, ref.id, still.blob).catch(() => false)) ? { ...ref, thumb: true } : ref
+      const stored = await fetch(`/api/files/${roomId}/${encodeURIComponent(ref.id)}/thumb`, { method: "PUT", headers: { "content-type": still.blob.type }, body: still.blob }).then((r) => r.ok, () => false)
+      return stored ? { ...ref, thumb: true } : ref
     } catch (e) {
       last = e
       await new Promise((r) => setTimeout(r, 500 * 2 ** attempt))
