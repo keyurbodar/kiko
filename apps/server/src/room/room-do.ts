@@ -12,8 +12,9 @@ import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { type AgentSend, attachedLine, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
 import { cleanPath, fileKey } from "../files/upload"
+import type { FileIndex } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
-import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
+import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
@@ -79,7 +80,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private bubbles!: Bubbles
 	private mail!: Mail
 	members!: Members
-	files!: RoomFiles
+	files!: FileIndex<RoomEvent>
 	workspace!: RoomWorkspace
 	approvals!: RoomApprovals
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
@@ -97,7 +98,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			migrate(ctx.storage)
 			this.log = new RoomLog(ctx.storage)
 			this.deliveries = new Deliveries(ctx.storage, this.log)
-			this.files = new RoomFiles(ctx.storage, this.log)
+			this.files = roomFiles(ctx.storage, this.log)
 			this.alarms = createAlarms(ctx)
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log)
@@ -501,10 +502,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
-	async putFile(input: NewFile): Promise<Omit<PutResult, "event"> & { fresh: boolean; entry: FsEntry | null }> {
-		const { event, ...result } = this.files.put(input)
-		if (event) this.publish([event])
-		return { ...result, fresh: event !== null, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
+	async putFile(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
+		const { events, ...result } = this.files.put(input)
+		if (events.length) this.publish(events)
+		const fresh = events.some((e) => e.t === "file")
+		return { ...result, fresh, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
 	}
 
 	/** RPC for the attachment job. */
@@ -530,26 +532,49 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** RPC for the agent file system: `mv`. */
-	async fsMove(slug: AgentSlug, from: string, to: string): Promise<FsChange | FsFail> {
+	async fsMove(slug: AgentSlug, from: string, to: string): Promise<FsChange<RoomEvent> | FsFail> {
 		return this.applyFs(this.files.move(from, to, { kind: "agent", slug }))
 	}
 
 	/** RPC for the agent file system: `rm`. */
-	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail> {
-		return this.applyFs(this.files.remove(paths, recursive, { kind: "agent", slug }))
+	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange<RoomEvent> | FsFail> {
+		// A file on a message stays: the bubble would point at nothing. The human can still delete it.
+		return this.applyFs(this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
+	}
+
+	/** RPC for the agent file system: `mkdir -p`. */
+	async fsMkdir(slug: AgentSlug, path: string): Promise<FsChange<RoomEvent> | FsFail> {
+		return this.applyFs(this.files.mkdir(path, { kind: "agent", slug }))
+	}
+
+	/** Why an agent may not delete these files: some sit on a live message. */
+	private attachedRefusal(ids: readonly string[]): string | null {
+		if (!ids.length) return null
+		const hit = this.ctx.storage.sql
+			.exec<{ id: string }>(
+				`SELECT DISTINCT json_extract(f.value, '$.id') AS id FROM messages m, json_each(m.files) f
+				 WHERE m.deleted_at IS NULL AND m.files IS NOT NULL AND json_extract(f.value, '$.id') IN (${ids.map(() => "?").join(",")})`,
+				...ids,
+			)
+			.toArray()
+		if (!hit.length) return null
+		const names = this.files.all().filter((f) => hit.some((h) => h.id === f.id)).map((f) => `/${f.name}`)
+		return `${names.join(", ")} ${names.length === 1 ? "is" : "are"} attached to a message in the chat, so it stays. move it instead, or ask the human to delete it.`
 	}
 
 	/** A human's `files` frame. Returns the refusal for the socket, or null. */
 	fileOp(op: FileOp): string | null {
 		const human = { kind: "human" } as const
-		const paths = op.op === "rm" ? op.paths : [op.from, op.to]
+		const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
 		if (paths.some((p) => cleanPath(p) === null)) return "that is not a path in this chat's files"
-		const out = this.applyFs(op.op === "rm" ? this.files.remove(op.paths, op.recursive ?? false, human) : this.files.move(op.from, op.to, human))
+		const out = this.applyFs(
+			op.op === "rm" ? this.files.remove(op.paths, op.recursive ?? false, human) : op.op === "mv" ? this.files.move(op.from, op.to, human) : this.files.mkdir(op.path, human),
+		)
 		return out.ok ? null : out.message
 	}
 
 	/** Publishes a change and deletes the R2 objects nothing points to any more. */
-	private applyFs<T extends FsChange | FsFail>(out: T): T {
+	private applyFs<T extends FsChange<RoomEvent> | FsFail>(out: T): T {
 		if (!out.ok) return out
 		if (out.events.length) this.publish(out.events)
 		if (out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))

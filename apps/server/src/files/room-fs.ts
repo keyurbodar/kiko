@@ -22,8 +22,8 @@ import { cleanPath, fileKey } from "./upload"
 // room sees one file space, rooted at `/`. `pi-durable`'s own `read`, `write`, and `edit` run on it
 // unchanged, and kiko's `ls`, `rm`, `mv`, and `cp` use the same object. There is no shell.
 //
-// Folders are path prefixes, as in R2: a folder exists while it holds a file, and writing
-// `a/b/c.md` makes `a` and `a/b`. The R2 key comes from the agent's home, never from the model.
+// Folders are real, as on Linux: mkdir makes one, writing `a/b/c.md` makes `a` and `a/b`, and an
+// emptied folder stays. The R2 key comes from the agent's home, never from the model.
 //
 // Speed. A stored object never changes (a write makes a new key), so bytes are cached by key with
 // no invalidation: an `edit` right after a `read` fetches nothing from R2. Each write carries the
@@ -49,6 +49,8 @@ export interface FilesBackend {
   write(path: string, bytes: Uint8Array, type: string, expectSha256?: string): Promise<{ ok: true; entry: FsEntry & { kind: "file" } } | FsFail | { ok: false; code: "conflict"; message: string }>
   move(from: string, to: string): Promise<FsChange | FsFail>
   remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
+  /** `mkdir -p`. */
+  mkdir(path: string): Promise<FsChange | FsFail>
 }
 
 const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
@@ -306,11 +308,18 @@ export class RoomFs implements ExecutionEnv {
     return found.error.code === "not_found" ? ok(false) : found
   }
 
-  /** Folders exist while they hold files, so making one changes nothing. */
+  /** `mkdir -p`: the folder and its parents. A folder that exists is fine. */
+  async mkdir(path: string): Promise<Result<FsChange, FileError>> {
+    const rel = this.roomPath(path)
+    if (!rel.ok) return rel
+    const out = await this.backend.mkdir(rel.value)
+    this.stats.clear()
+    return out.ok ? ok(out) : err(this.fail(out, path))
+  }
+
   async createDir(path: string): Promise<Result<void, FileError>> {
-    const found = await this.stat(path)
-    if (found.ok && found.value.kind === "file") return err(new FileError("not_directory", `${path} is a file`, path))
-    return found.ok || found.error.code === "not_found" ? ok(undefined) : found
+    const out = await this.mkdir(path)
+    return out.ok ? ok(undefined) : out
   }
 
   async createTempDir(): Promise<Result<string, FileError>> {
@@ -390,6 +399,7 @@ export function roomBackend(env: Env, home: () => AgentHome | null): FilesBacken
       return { ok: true, entry }
     },
     move: (from, to) => where().room.fsMove(where().home.slug as AgentSlug, from, to),
+    mkdir: (path) => where().room.fsMkdir(where().home.slug as AgentSlug, path),
     remove: (paths, recursive) => where().room.fsRemove(where().home.slug as AgentSlug, paths, recursive),
   }
 }
@@ -449,6 +459,9 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
     },
     async remove(paths, recursive) {
       return paths.some(mine) ? refuse("/me/soul.md cannot be deleted. edit it instead") : base.remove(paths, recursive)
+    },
+    async mkdir(path) {
+      return mine(path) ? refuse("only /me/soul.md lives in /me") : base.mkdir(path)
     },
   }
 }

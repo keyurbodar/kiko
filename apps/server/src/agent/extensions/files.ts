@@ -11,7 +11,7 @@ import { declareEffect } from "../effects"
 // Architecture sections 7.5 and 18.1. The chat's files, as a Linux-like file system rooted at `/`.
 // `write` and `edit` are `pi-durable`'s own tools, unchanged, running on `RoomFs` through the
 // harness's `env`. `read` is pi's too for text, with offset and limit; pdfs and images are read
-// here first, since pi's `read` does neither. `ls`, `rm`, `mv`, and `cp` are kiko's, with the
+// here first, since pi's `read` does neither. `ls`, `mkdir`, `rm`, `mv`, and `cp` are kiko's, with the
 // shell's meaning. Every agent in the room sees the same files; the human sees them in the panel.
 
 export const FILES = "files"
@@ -135,7 +135,8 @@ export function filesExtension({ fs, acceptsImages }: FilesOptions): Extension {
 
   const rm = defineTool({
     name: "rm",
-    description: "delete files or folders, as rm. a folder needs recursive. nothing is deleted if any path is missing. there is no undo.",
+    description:
+      "delete files or folders, as rm. an empty folder goes as with rmdir; one with things in it needs recursive. nothing is deleted if any path is missing, or if a file is attached to a message in the chat. there is no undo.",
     parameters: Type.Object({
       paths: Type.Array(Type.String(), { minItems: 1 }),
       recursive: Type.Optional(Type.Boolean()),
@@ -144,7 +145,9 @@ export function filesExtension({ fs, acceptsImages }: FilesOptions): Extension {
     replay: "safe",
     execute: async (args) => {
       const out = getOrThrow(await fs.removeAll(args.paths, args.recursive ?? false))
-      return { content: text(`deleted ${out.changed} file${out.changed === 1 ? "" : "s"}`) }
+      const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`
+      const parts = [out.changed ? count(out.changed, "file") : "", out.folders ? count(out.folders, "folder") : ""].filter(Boolean)
+      return { content: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete") }
     },
   })
 
@@ -159,6 +162,17 @@ export function filesExtension({ fs, acceptsImages }: FilesOptions): Extension {
       const where = dest.ok && dest.value.kind === "directory" ? `${args.to.replace(/\/$/, "")}/${baseName(args.from.replace(/\/$/, ""))}` : args.to
       const out = getOrThrow(await fs.move(args.from, args.to))
       return { content: text(out.changed ? `moved ${args.from} to ${where}` : `${args.from} is already there`) }
+    },
+  })
+
+  const mkdir = defineTool({
+    name: "mkdir",
+    description: "make a folder and any missing parents, as mkdir -p. an existing folder is fine. writing a file into a path also makes its folders.",
+    parameters: Type.Object({ path: Type.String() }),
+    replay: "safe",
+    execute: async (args) => {
+      const out = getOrThrow(await fs.mkdir(args.path))
+      return { content: text(out.changed ? `made ${args.path}` : `${args.path} already exists`) }
     },
   })
 
@@ -206,6 +220,7 @@ export function filesExtension({ fs, acceptsImages }: FilesOptions): Extension {
     declareEffect("write", rm) as ToolRegistration,
     declareEffect("write", mv) as ToolRegistration,
     declareEffect("write", cp) as ToolRegistration,
+    declareEffect("write", mkdir) as ToolRegistration,
   ]
   return defineExtension({ name: FILES, tools })
 }

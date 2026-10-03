@@ -23,7 +23,7 @@ import type {
 } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
-import { overlayFiles } from "./patches"
+import { overlayFiles, overlayFolders } from "./patches"
 import { type Connect, PING, PONG, type SocketLike } from "./socket"
 import { applyUserEvent, type UserData } from "./user-store"
 
@@ -235,19 +235,34 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		files(peer, f) {
 			const op = f.op
 			const under = (name: string, path: string) => name === path || name.startsWith(`${path}/`)
+			const folders = () => overlayFolders(data.folders, [{ clientId: "", at: 0, frame: f }])
+			if (op.op === "mkdir") {
+				if (data.files.some((x) => x.name === op.path)) return peer.push({ t: "files_refused", op, reason: "that is a file" })
+				const next = folders()
+				if (next.length !== data.folders.length) store({ t: "folders", folders: next })
+				return
+			}
 			if (op.op === "rm") {
+				const exists = (p: string) => data.files.some((x) => under(x.name, p)) || data.folders.some((x) => under(x, p))
+				if (!op.paths.every(exists)) return peer.push({ t: "files_refused", op, reason: "no such file or folder" })
+				const full = (p: string) => data.files.some((x) => x.name.startsWith(`${p}/`)) || data.folders.some((x) => x.startsWith(`${p}/`))
+				if (!op.recursive && op.paths.some(full)) return peer.push({ t: "files_refused", op, reason: "that folder has things in it" })
 				const gone = data.files.filter((x) => op.paths.some((p) => under(x.name, p)))
-				if (!op.paths.every((p) => data.files.some((x) => under(x.name, p)))) return peer.push({ t: "files_refused", op, reason: "no such file or folder" })
-				if (!op.recursive && op.paths.some((p) => !data.files.some((x) => x.name === p))) return peer.push({ t: "files_refused", op, reason: "that is a folder" })
-				return void store({ t: "file_removed", ids: gone.map((x) => x.id) })
+				if (gone.length) store({ t: "file_removed", ids: gone.map((x) => x.id) })
+				const next = folders()
+				if (next.length !== data.folders.length) store({ t: "folders", folders: next })
+				return
 			}
 			const before = new Map(data.files.map((x) => [x.id, x.name]))
-			const after = overlayFiles(data.files, [{ clientId: "", at: 0, frame: f }])
-			if (after.length === data.files.length && after.every((x) => before.get(x.id) === x.name)) return peer.push({ t: "files_refused", op, reason: "nothing moved" })
+			const after = overlayFiles(data.files, [{ clientId: "", at: 0, frame: f }], data.folders)
+			const nextFolders = folders()
+			const moved = after.some((x) => before.get(x.id) !== x.name) || nextFolders.join() !== data.folders.join()
+			if (!moved) return peer.push({ t: "files_refused", op, reason: "nothing moved" })
 			const kept = new Set(after.map((x) => x.id))
 			const replaced = data.files.filter((x) => !kept.has(x.id)).map((x) => x.id)
 			if (replaced.length) store({ t: "file_removed", ids: replaced })
 			for (const file of after) if (before.get(file.id) !== file.name) store({ t: "file", file })
+			if (nextFolders.join() !== data.folders.join()) store({ t: "folders", folders: nextFolders })
 		},
 		member(peer, f) {
 			const op = f.op

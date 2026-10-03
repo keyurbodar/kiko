@@ -74,7 +74,7 @@ export type MemberOp =
  * while they hold files. `mv` into an existing folder keeps the name; `mv` of a file onto a file
  * replaces it. `rm` of a folder needs `recursive`.
  */
-export type FileOp = { op: "rm"; paths: readonly string[]; recursive?: boolean } | { op: "mv"; from: string; to: string }
+export type FileOp = { op: "rm"; paths: readonly string[]; recursive?: boolean } | { op: "mv"; from: string; to: string } | { op: "mkdir"; path: string }
 
 /** Why the room refused a `files` frame, in lowercase, for the human. */
 export type FileRefusal = string
@@ -147,6 +147,8 @@ export type RoomEvent =
 	| (Stored & { t: "file"; file: FileRef })
 	/** Files were deleted. */
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
+	/** The folders changed. The whole list, since a move or an rm changes many at once. */
+	| (Stored & { t: "folders"; folders: readonly string[] })
 	/** Architecture section 11.3. The agent started no run: the user has no credential for `provider`. */
 	| (Stored & { t: "no_provider"; slug: AgentSlug; provider: string })
 
@@ -161,6 +163,8 @@ export type RoomSnapshot = {
 	tasks: readonly Task[]
 	approvals: readonly Approval[]
 	files: readonly FileRef[]
+	/** Every folder, empty ones included. */
+	folders: readonly string[]
 }
 
 export type SearchHit = { id: MessageId; seq: number; snippet: string }

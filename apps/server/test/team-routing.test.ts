@@ -363,3 +363,17 @@ test("a group starts with /chat.md listing who does what; it is written once", a
   expect(ws.events().filter((e) => e.t === "file" && e.file.name === "chat.md")).toHaveLength(1)
   ws.ws.close()
 })
+
+test("an agent cannot delete a file attached to a message; the human can", async () => {
+  const { room, ws } = await team()
+  const put = (await call(`/index/${room}?path=${encodeURIComponent("attachments/a1-photo.png")}`)) as { file: { id: string; name: string; size: number; type: string } }
+  await call(`/index/${room}?path=loose.md`)
+  ws.send({ t: "send", clientId: crypto.randomUUID(), text: "look", files: [put.file] })
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && (e.files?.length ?? 0) > 0))
+  const refused = (await call(`/rm/${room}/bob`, { paths: ["attachments/a1-photo.png", "loose.md"], by: "agent" })) as { refused: string | null }
+  expect(refused.refused).toContain("/attachments/a1-photo.png is attached to a message")
+  // Nothing went: the refusal is for the whole call.
+  expect((await call(`/rm/${room}/bob`, { paths: ["loose.md"], by: "agent" })) as { refused: null }).toEqual({ refused: null })
+  expect((await call(`/rm/${room}/bob`, { paths: ["attachments/a1-photo.png"], by: "human" })) as { refused: null }).toEqual({ refused: null })
+  ws.ws.close()
+})

@@ -51,7 +51,9 @@ test("write makes folders, read gives text back, ls shows folders and files", as
   expect(await a.read("/notes/../notes/plan.md")).toBe("# plan\nstep one\n")
   expect(await a.ls()).toMatch(/^\/me\/\t1 files, \d+ b\n\/notes\/\t2 files, 17 b\n\/readme.md\t2 b\ttext\/markdown$/)
   expect(await a.ls("notes")).toBe("/notes/deep/\t1 files, 1 b\n/notes/plan.md\t16 b\ttext/markdown")
-  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe("/notes/deep/idea.txt\t1 b\ttext/plain\n/notes/plan.md\t16 b\ttext/markdown\n/readme.md\t2 b\ttext/markdown")
+  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe(
+    "/notes/\t2 files, 17 b\n/notes/deep/\t1 files, 1 b\n/notes/deep/idea.txt\t1 b\ttext/plain\n/notes/plan.md\t16 b\ttext/markdown\n/readme.md\t2 b\ttext/markdown",
+  )
 })
 
 test("read takes an offset and a limit, as pi's read does", async () => {
@@ -107,7 +109,7 @@ test("mv renames, moves into a folder, moves a whole folder, and replaces a file
   expect((await a.run("mv", { from: "renamed.md", to: "docs" })).text).toBe("moved renamed.md to docs/renamed.md")
   expect(await a.read("docs/renamed.md")).toBe("a")
   expect((await a.run("mv", { from: "docs", to: "archive/2026" })).ok).toBe(true)
-  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe("/archive/2026/b.md\t1 b\ttext/markdown\n/archive/2026/renamed.md\t1 b\ttext/markdown\n/archive/2026/sub/c.md\t1 b\ttext/markdown")
+  expect((await a.ls("/", true)).split("\n").slice(1).join("\n")).toBe("/archive/\t3 files, 3 b\n/archive/2026/\t3 files, 3 b\n/archive/2026/sub/\t1 files, 1 b\n/archive/2026/b.md\t1 b\ttext/markdown\n/archive/2026/renamed.md\t1 b\ttext/markdown\n/archive/2026/sub/c.md\t1 b\ttext/markdown")
   // A file onto a file replaces it, and the replaced bytes leave R2.
   const before = (await keys(room)).length
   await a.write("x.md", "new")
@@ -131,7 +133,7 @@ test("rm deletes files and, with recursive, folders; a refusal deletes nothing; 
   expect((await a.run("rm", { paths: ["tmp"] })).text).toContain("is a folder")
   expect((await a.run("rm", { paths: ["keep.md", "missing.md"] })).ok).toBe(false)
   expect(await a.read("keep.md")).toBe("k")
-  expect((await a.run("rm", { paths: ["tmp"], recursive: true })).text).toBe("deleted 2 files")
+  expect((await a.run("rm", { paths: ["tmp"], recursive: true })).text).toBe("deleted 2 files and 2 folders")
   expect((await a.run("rm", { paths: ["keep.md"] })).text).toBe("deleted 1 file")
   expect(await a.ls()).toMatch(/^\/me\/\t1 files/)
   await Bun.sleep(100)
@@ -229,4 +231,26 @@ test("/chat.md stays short: a write past the cap is refused", async () => {
   const long = await a.write("/chat.md", "x".repeat(3_001))
   expect(long.ok).toBe(false)
   expect(long.text).toContain("tighten it")
+})
+
+test("folders are real: mkdir -p, they survive their last file, an empty one goes like rmdir", async () => {
+  const room = fresh()
+  const a = agent(room)
+  expect((await a.run("mkdir", { path: "/inbox/2026" })).text).toBe("made /inbox/2026")
+  expect((await a.run("mkdir", { path: "inbox" })).text).toBe("inbox already exists")
+  expect((await a.ls("/inbox")).split("\n")).toEqual(["/inbox/2026/\t0 files, 0 b"])
+  await a.write("done/a.md", "a")
+  await a.run("rm", { paths: ["done/a.md"] })
+  expect(await a.ls("/done")).toBe("/done is empty")
+  expect((await a.run("rm", { paths: ["done"] })).text).toBe("deleted 1 folder")
+  expect((await a.run("read", { path: "done" })).ok).toBe(false)
+  await a.write("full/x.md", "x")
+  expect((await a.run("rm", { paths: ["full"] })).text).toContain("remove it with recursive")
+  // A folder in the way of a file, and a file in the way of a folder.
+  await a.write("doc.md", "d")
+  expect((await a.run("mkdir", { path: "doc.md/sub" })).ok).toBe(false)
+  expect((await a.write("inbox", "x")).text).toContain("is a folder")
+  // The human makes an empty folder too, and agents see it.
+  expect(await human(room, { op: "mkdir", path: "drafts/q3" })).toBeNull()
+  expect(await a.ls("/drafts")).toBe("/drafts/q3/\t0 files, 0 b")
 })

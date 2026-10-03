@@ -117,6 +117,12 @@ export default {
       const path = new URL(request.url).searchParams.get("path")!
       return Response.json(await room.putFile({ id: crypto.randomUUID(), path, r2Key: `k/${path}`, size: 2048, type: "text/markdown", sha256: path, author: { kind: "human" } }))
     }
+    if (kind === "rm") {
+      const { paths, by } = (await request.json()) as { paths: string[]; by: "agent" | "human" }
+      if (by === "human") return Response.json({ refused: await room.fileOp({ op: "rm", paths }) })
+      const out = await room.fsRemove(slug as AgentSlug, paths, false)
+      return Response.json({ refused: out.ok ? null : out.message })
+    }
     if (kind === "mail") return Response.json(await room.agentMessage(slug as AgentSlug, (await request.json()) as never))
     if (kind === "calls") return Response.json(await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).calls())
     if (kind === "status") {

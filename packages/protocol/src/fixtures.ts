@@ -156,6 +156,7 @@ export const roomSnapshot: RoomSnapshot = {
 	tasks: [task],
 	approvals: [approval],
 	files: [file],
+	folders: [],
 }
 
 export const clientToRoom: readonly ClientToRoom[] = [

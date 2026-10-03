@@ -449,7 +449,12 @@ export function createApp(options: AppOptions = {}) {
         return room()?.files() ?? []
       },
 
-      /** `rm` or `mv` on the open room's files, shown at once. */
+      /** The open room's folders, empty ones included. */
+      activeFolders(): string[] {
+        return room()?.folders() ?? []
+      },
+
+      /** `rm`, `mv`, or `mkdir` on the open room's files, shown at once. */
       fileOp(op: FileOp): void {
         room()?.fileOp(op)
       },

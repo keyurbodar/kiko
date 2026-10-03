@@ -107,6 +107,8 @@ export default function FilesPane(props: { chatId: string }) {
 				<FileTree
 					roomId={props.chatId}
 					files={files()}
+					folders={useApp.activeFolders()}
+					onNewFolder={(path) => useApp.fileOp({ op: "mkdir", path })}
 					active={path()}
 					newFileRequests={newFile}
 					newFolderRequests={newFolder}
@@ -119,8 +121,6 @@ export default function FilesPane(props: { chatId: string }) {
 						if (open && (open === from || open.startsWith(`${from}/`))) openFile(props.chatId, to + open.slice(from.length))
 					}}
 					onDelete={(p, paths) => {
-						// A folder made here and never filled holds nothing on the server.
-						if (!paths.length) return
 						const open = path()
 						useApp.fileOp({ op: "rm", paths: [p], recursive: paths.length !== 1 || paths[0] !== p })
 						if (open && (open === p || open.startsWith(`${p}/`))) closeFile(props.chatId)

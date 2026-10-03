@@ -188,6 +188,7 @@ export const RoomEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("approval"), approval: Approval }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
+	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("no_provider"), slug: AgentSlug, provider: Schema.String }),
 ])
 
@@ -199,6 +200,7 @@ export const RoomSnapshot = Schema.Struct({
 	tasks: Schema.Array(Task),
 	approvals: Schema.Array(Approval),
 	files: Schema.Array(FileRef),
+	folders: Schema.Array(Schema.String),
 })
 
 const Hello = Schema.Struct({ t: Schema.Literal("hello"), lastSeq: Count })
@@ -209,6 +211,7 @@ const FilePath = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(5
 export const FileOp = Schema.Union([
 	Schema.Struct({ op: Schema.Literal("rm"), paths: Schema.Array(FilePath).check(Schema.isMinLength(1), Schema.isMaxLength(200)), recursive: Schema.optionalKey(Schema.Boolean) }),
 	Schema.Struct({ op: Schema.Literal("mv"), from: FilePath, to: FilePath }),
+	Schema.Struct({ op: Schema.Literal("mkdir"), path: FilePath }),
 ])
 
 export const ClientToRoom = Schema.Union([

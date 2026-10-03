@@ -88,8 +88,12 @@ const roomConfirms: Confirms = {
 		f.op.op === "remove" ? e.t === "member_removed" && e.slug === f.op.slug : e.t === "member" && e.member.slug === f.op.slug,
 	// ASSUMPTION: the events carry ids, not the paths the frame named, so any removal confirms an rm
 	// and a file landing under the target confirms an mv. A refusal drops the patch at once.
-	files: (f, e) =>
-		f.op.op === "rm" ? e.t === "file_removed" : e.t === "file" && (e.file.name === f.op.to || e.file.name.startsWith(`${f.op.to}/`)),
+	files: (f, e) => {
+		const op = f.op
+		if (op.op === "mkdir") return e.t === "folders" && e.folders.includes(op.path)
+		if (op.op === "rm") return e.t === "file_removed" || (e.t === "folders" && !op.paths.some((p) => e.folders.includes(p)))
+		return (e.t === "file" && (e.file.name === op.to || e.file.name.startsWith(`${op.to}/`))) || (e.t === "folders" && e.folders.some((p) => p === op.to || p.startsWith(`${op.to}/`)))
+	},
 }
 
 export function roomConfirmedBy(patch: RoomPatch, event: RoomEvent): boolean {
@@ -265,17 +269,18 @@ const under = (name: string, path: string) => name === path || name.startsWith(`
  * The room's files with pending `rm` and `mv` applied, by the server's rules (room/files.ts): a
  * folder is a path prefix, `mv` into an existing folder keeps the name, a file onto a file replaces it.
  */
-export function overlayFiles(files: readonly FileRef[], patches: readonly RoomPatch[]): FileRef[] {
+export function overlayFiles(files: readonly FileRef[], patches: readonly RoomPatch[], folders: readonly string[] = []): FileRef[] {
 	let out = files as FileRef[]
 	for (const p of patches) {
 		const f = p.frame
 		if (f.t !== "files") continue
 		const op = f.op
+		if (op.op === "mkdir") continue
 		if (op.op === "rm") {
 			out = out.filter((x) => !op.paths.some((path) => under(x.name, path)))
 			continue
 		}
-		const isFolder = out.some((x) => x.name.startsWith(`${op.to}/`))
+		const isFolder = folders.includes(op.to) || out.some((x) => x.name.startsWith(`${op.to}/`))
 		const target = isFolder ? `${op.to}/${op.from.slice(op.from.lastIndexOf("/") + 1)}` : op.to
 		if (target === op.from || target.startsWith(`${op.from}/`)) continue
 		const moving = out.filter((x) => under(x.name, op.from))
@@ -283,6 +288,28 @@ export function overlayFiles(files: readonly FileRef[], patches: readonly RoomPa
 		out = out
 			.filter((x) => x.name !== target)
 			.map((x) => (under(x.name, op.from) ? { ...x, name: target + x.name.slice(op.from.length) } : x))
+	}
+	return out
+}
+
+/** The room's folders with pending `mkdir`, `rm`, and `mv` applied, by the room's rules. */
+export function overlayFolders(folders: readonly string[], patches: readonly RoomPatch[]): string[] {
+	let out = folders as string[]
+	for (const p of patches) {
+		const f = p.frame
+		if (f.t !== "files") continue
+		const op = f.op
+		if (op.op === "mkdir") {
+			const add = op.path.split("/").map((_, i, parts) => parts.slice(0, i + 1).join("/"))
+			out = [...new Set([...out, ...add])].sort()
+		} else if (op.op === "rm") {
+			out = out.filter((x) => !op.paths.some((path) => under(x, path)))
+		} else if (out.some((x) => under(x, op.from))) {
+			const into = out.includes(op.to)
+			const target = into ? `${op.to}/${op.from.slice(op.from.lastIndexOf("/") + 1)}` : op.to
+			if (target === op.from || target.startsWith(`${op.from}/`)) continue
+			out = [...new Set(out.map((x) => (under(x, op.from) ? target + x.slice(op.from.length) : x)))].sort()
+		}
 	}
 	return out
 }

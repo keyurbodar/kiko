@@ -17,7 +17,7 @@ import type {
 	Sender,
 } from "@kiko/protocol"
 import { listApprovals } from "./approvals"
-import { listFiles } from "./files"
+import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listTasks } from "./workspace"
 
@@ -141,7 +141,7 @@ export class RoomLog {
 			messages: rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [])),
 			tasks: listTasks(this.storage),
 			approvals: listApprovals(this.storage),
-			files: listFiles(this.storage),
+			...listSpace(this.storage, ROOM_TABLES),
 		}
 	}
 

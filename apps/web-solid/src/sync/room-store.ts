@@ -47,6 +47,7 @@ import {
 	expire,
 	overlayApprovals,
 	overlayFiles,
+	overlayFolders,
 	overlayMembers,
 	overlayMessages,
 	overlayReadSeq,
@@ -72,6 +73,8 @@ export type RoomData = {
 	tasks: Task[]
 	approvals: Approval[]
 	files: FileRef[]
+	/** Every folder, empty ones included. */
+	folders: string[]
 	/** The newest "no provider" refusal (P4-02), until an agent next speaks. The chat shows a connect notice. */
 	noProvider?: { slug: AgentSlug; provider: string } | null
 	/** Who joined and left, oldest first, for the transcript's system lines. The newest `ROSTER_LIMIT`. */
@@ -91,6 +94,7 @@ export const emptyRoom = (): RoomData => ({
 	tasks: [],
 	approvals: [],
 	files: [],
+	folders: [],
 	roster: [],
 })
 
@@ -103,6 +107,7 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 		tasks: [...s.tasks],
 		approvals: [...s.approvals],
 		files: [...s.files],
+		folders: [...s.folders],
 		// A snapshot carries members, not their history. `reset` keeps the lines it already had.
 		roster: [],
 	}
@@ -225,6 +230,9 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 		case "file_removed":
 			removeWhere(data.files, (x) => e.ids.includes(x.id))
 			return { meta: true }
+		case "folders":
+			data.folders = [...e.folders]
+			return { meta: true }
 		case "no_provider":
 			// The full connect card is P4-06. Until then the chat shows a one-line notice from this.
 			data.noProvider = { slug: e.slug, provider: e.provider }
@@ -291,6 +299,8 @@ export type RoomStore = {
 	members(): Member[]
 	/** The room's files with pending `rm` and `mv` applied. */
 	files(): FileRef[]
+	/** The room's folders with pending `mkdir`, `rm`, and `mv` applied. */
+	folders(): string[]
 	readSeq(): number
 	/** Resolves once the warm tier has painted and the socket has started. */
 	readonly ready: Promise<void>
@@ -423,6 +433,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			tasks: s.tasks,
 			approvals: s.approvals,
 			files: s.files,
+			folders: s.folders,
 			roster: s.roster,
 		}
 		warm.put("meta", metaKey(roomId), meta)
@@ -584,6 +595,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						s.tasks = [...(meta?.tasks ?? [])]
 						s.approvals = [...(meta?.approvals ?? [])]
 						s.files = [...(meta?.files ?? [])]
+						s.folders = [...(meta?.folders ?? [])]
 						s.roster = [...(meta?.roster ?? [])]
 						s.seq = seq
 					}
@@ -619,7 +631,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		tasks: () => overlayTasks(state.tasks, state.patches),
 		approvals: () => overlayApprovals(state.approvals, state.patches),
 		members: () => overlayMembers(state.members, state.patches),
-		files: () => overlayFiles(state.files, state.patches),
+		files: () => overlayFiles(state.files, state.patches, state.folders),
+		folders: () => overlayFolders(state.folders, state.patches),
 		readSeq: () => overlayReadSeq(state.readSeq, state.patches),
 		ready,
 		send(text, opts = {}) {
