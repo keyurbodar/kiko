@@ -143,6 +143,14 @@ Alarms deliver at least once. Every alarm handler in kiko is idempotent: it read
 
 **What kiko borrows.** The SDK's pattern of a schedule table multiplexed over one alarm.
 
+**Rechecked on 2026-10-03 against 0.26.0.** The SDK now ships `PiHarness` (`agents/harness/pi`, beta). It hosts `pi-durable` on a Durable Object the same way `AgentDO` does: the work runs from the alarm, with a 30 second heartbeat, and resumes after an eviction. It replaces about 300 lines of kiko (the SQLite facade, `alarm.ts`, the wake in `host.ts`) and none of the inbox, mid-run rules, room, or team. It also needs the SDK's `Agent` base class, which brings its own alarm and socket handling. The decision stands. Kiko took three things from it:
+
+- A crash-loop breaker. A run that kills its process on every resume (past the memory limit, say) is dropped after 3 resumes in a row, and the room says so. The count is stored, because the process that would count it in memory is the one that dies. From the SDK's alarm breaker (cloudflare/agents#1825).
+- The SQLite facade runs a statement at once when no transaction is open, instead of always queueing it behind a promise.
+- The socket liveness probe of section 9 (the SDK's PartySocket does the same).
+
+Not taken: handing pi's long waits to the alarm, because pi caps its retry wait at 60 seconds, which is the SDK's own threshold.
+
 ## 6. Human-style messaging
 
 ### 6.1 Incoming messages and the debounce
@@ -297,6 +305,8 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 **Reasoning.** One place enforces the hop limit and the budgets. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
 
+Agent mail is queued in the room before any delivery, and drained in order. A failed delivery or a full inbox stays at the head and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. While a human burst is open, nothing drains (section 7.8).
+
 A plain reply bubble wakes nobody. Only `send_message`, `broadcast`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
 
 ### 7.6 Tasks and waking
@@ -368,6 +378,8 @@ The client holds one WebSocket to `UserDO` and one to the `RoomDO` of the visibl
 **Reasoning.** A direct socket to the room avoids a relay hop on the hot path. A relay through `UserDO` would cost one billed request per forwarded event. A hibernated socket costs nothing, so an always-on user socket is free while idle. Intent-based preloading may open the socket of the chat under the pointer and close it if the user does not navigate.
 
 The Worker authenticates the upgrade request with the session cookie, builds the Durable Object name from the session's user id, and forwards the upgrade. A client cannot name a Durable Object.
+
+A socket can die without a close event, after a laptop sleeps or the network changes, and the chat would sit stale. The client sends a bare `ping` after 25 seconds of silence, and at once when the tab returns or the network comes back. Both objects answer `pong` with `setWebSocketAutoResponse`, which never wakes them. Any frame counts as life. A socket silent for 8 seconds after a ping is dropped and reconnected at once.
 
 ### 9.2 Durable events and resume
 

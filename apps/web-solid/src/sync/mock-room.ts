@@ -23,7 +23,7 @@ import type {
 } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
-import type { Connect, SocketLike } from "./socket"
+import { type Connect, PING, PONG, type SocketLike } from "./socket"
 import { applyUserEvent, type UserData } from "./user-store"
 
 /** Distributes `Omit` over a union, so each event keeps its own fields. */
@@ -54,6 +54,8 @@ function fakeConnect<In, Out>(server: FakeServer<In, Out>, schedule: Schedule): 
 			onerror: null,
 			send(data) {
 				if (!open) throw new Error("socket is not open")
+				// The runtime's auto-response, as the Durable Objects set it.
+				if (data === PING) return schedule(() => open && socket.onmessage?.({ data: PONG }))
 				const frame = JSON.parse(data) as In
 				schedule(() => open && server.receive(peer, frame))
 			},

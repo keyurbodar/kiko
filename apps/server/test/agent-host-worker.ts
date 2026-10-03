@@ -31,6 +31,9 @@ export class T extends AgentDO {
     onOpen: async () => {
       await this.ctx.storage.put("opens", ((await this.ctx.storage.get<number>("opens")) ?? 0) + 1)
     },
+    onGiveUp: async () => {
+      await this.ctx.storage.put("gave-up", ((await this.ctx.storage.get<number>("gave-up")) ?? 0) + 1)
+    },
   }
 
   protected override async setup(): Promise<AgentSetup> {
@@ -53,7 +56,7 @@ export class T extends AgentDO {
   override async fetch(request: Request) {
     const body = (await request.json()) as Body
     if (body.op === "receive") return Response.json(await this.receive(body.envelopes, body.brief ?? ""))
-    if (body.op === "status") return Response.json({ ...(await this.status()), opens: (await this.ctx.storage.get<number>("opens")) ?? 0 })
+    if (body.op === "status") return Response.json({ ...(await this.status()), opens: (await this.ctx.storage.get<number>("opens")) ?? 0, gaveUp: (await this.ctx.storage.get<number>("gave-up")) ?? 0 })
     if (body.op === "fail-open") {
       await this.ctx.storage.put("fail-open", true)
       return Response.json({ ok: true })

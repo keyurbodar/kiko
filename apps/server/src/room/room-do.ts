@@ -35,6 +35,9 @@ export const DEFAULT_AGENT = "kiko" as AgentSlug
 const DELIVERY_RETRY_MS = 2_000
 /** The wakeup key for `task_unblocked` deliveries that failed (section 7.6). */
 const WAKES_WAKEUP = "ws_wakes"
+/** Agent mail that waits for delivery: held behind a human burst, or retried after a failure. */
+const MAIL_WAKEUP = "mail"
+const MAIL_KEY = "held_mail"
 
 /**
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
@@ -83,6 +86,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env)
 		instrument(ctx, "room")
+		// The client's liveness ping, answered by the runtime without waking this object.
+		ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
 		// Architecture section 23: the schema migration runs before any other work on every start.
 		void ctx.blockConcurrencyWhile(async () => {
 			migrate(ctx.storage)
@@ -139,6 +144,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
 		if (due.includes(BURST_WAKEUP)) await this.flush()
 		if (due.includes(WAKES_WAKEUP)) await this.deliverWakes()
+		if (due.includes(MAIL_WAKEUP)) await this.drainMail()
 		if (due.includes(APPROVALS_WAKEUP)) {
 			this.publish(this.approvals.expire())
 			await this.deliverApprovals()
@@ -158,7 +164,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (!chat) return this.burst.delivered(envelopes)
 			// P9-01: one turn per burst, counted in UserDO against the plan record. A refused burst starts
 			// no run; the room says when the count resets.
-			const turn = await userStub(this.env.USER, home.userId).takeTurn()
+			// Once per burst: a retry after a failed delivery must not count the burst again.
+			const burstId = envelopes[0]!.id
+			const turn = this.log.meta("turn_taken") === burstId ? ({ ok: true } as const) : await userStub(this.env.USER, home.userId).takeTurn()
+			if (turn.ok) this.log.setMeta("turn_taken", burstId)
 			if (!turn.ok) {
 				const at = new Date(turn.resetAt).toISOString().slice(11, 16)
 				const { event } = this.log.addMessage({ from: { kind: "system", reason: "limit" }, text: `you've used today's ${turn.limit} replies. they come back at ${at} utc.` })
@@ -204,7 +213,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (followers.length) this.log.setMeta(`follow:${lead.slug}`, JSON.stringify({ followers, envelopes }))
 			}
 			this.burst.delivered(envelopes)
-			await this.releaseHeldMail()
+			await this.drainMail()
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			await this.burst.retry(DELIVERY_RETRY_MS)
@@ -259,17 +268,45 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const out = this.mail.send(slug, send, members)
 		this.publish(out.events)
 		if (!out.ok) return out
-		// The human outranks every agent (section 7.8): while a human message waits for its burst to
-		// close, an agent message is stored and shown but not delivered. The burst goes out first, and
-		// the held mail right after it, so no agent answers a teammate ahead of the human.
-		if (this.burst.pending()) {
-			const held = JSON.parse(this.log.meta("held_mail") ?? "[]") as HeldMail[]
-			held.push({ from: slug, send: out.send })
-			this.log.setMeta("held_mail", JSON.stringify(held))
-			return { ok: true, to: out.send.recipients }
-		}
-		await this.deliverMail(home, slug, out.send)
+		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
+		// repeat delivers the same envelope ids, which the inboxes ignore.
+		const queue = JSON.parse(this.log.meta(MAIL_KEY) ?? "[]") as HeldMail[]
+		queue.push({ from: slug, send: out.send })
+		this.log.setMeta(MAIL_KEY, JSON.stringify(queue))
+		await this.drainMail()
 		return { ok: true, to: out.send.recipients }
+	}
+
+	#draining = false
+
+	/**
+	 * Delivers queued agent mail in order. The human outranks every agent (section 7.8): while a human
+	 * message waits for its burst to close, nothing goes out, and the flush drains right after the
+	 * burst. A failed delivery stays at the head and the alarm tries again. One drain at a time; a send
+	 * during a drain is picked up by it.
+	 */
+	private async drainMail(): Promise<void> {
+		const home = this.home()
+		if (!home || this.#draining || this.burst.pending()) return
+		this.#draining = true
+		try {
+			for (;;) {
+				const head = (JSON.parse(this.log.meta(MAIL_KEY) ?? "[]") as HeldMail[])[0]
+				if (!head) return
+				try {
+					await this.deliverMail(home, head.from, head.send)
+				} catch (error) {
+					console.error(`agent mail delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+					await this.alarms.setWakeup(MAIL_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
+					return
+				}
+				const rest = (JSON.parse(this.log.meta(MAIL_KEY) ?? "[]") as HeldMail[]).slice(1)
+				if (rest.length) this.log.setMeta(MAIL_KEY, JSON.stringify(rest))
+				else this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", MAIL_KEY)
+			}
+		} finally {
+			this.#draining = false
+		}
 	}
 
 	private async warnBusyAgents(): Promise<void> {
@@ -302,15 +339,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return lines.length ? { ...e, body: lines.join("\n") } : e
 	}
 
-	/** Delivers the agent messages held while a human burst was pending, in order. */
-	private async releaseHeldMail(): Promise<void> {
-		const home = this.home()
-		const raw = this.log.meta("held_mail")
-		if (!home || !raw) return
-		this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = 'held_mail'")
-		for (const { from, send } of JSON.parse(raw) as HeldMail[]) await this.deliverMail(home, from, send)
-	}
-
 	private async deliverMail(home: { userId: string; roomId: RoomId }, slug: AgentSlug, send: SentMail): Promise<void> {
 		const members = this.members.list()
 		const goal = (await this.chat(home))?.title ?? ""
@@ -323,7 +351,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const d = this.delivery(member, members, goal, [this.mail.envelope(home.roomId, slug, out.send, to)])
 			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, to)
 			const { refused } = await agent.receive(d.envelopes, d.brief, { ...home, slug: to, role: member.role, lead: member.lead })
-			// ASSUMPTION: a refused delivery is dropped. The message stays in the log, and the next brief shows it.
+			// A full inbox is backpressure: the drain tries again. A message past the size cap never fits, so it
+			// is dropped; it stays in the log, and the next brief shows it.
+			if (refused === "full") throw new Error(`${to}'s inbox is full`)
 			if (refused) {
 				console.error(`agent message to ${to} refused: ${refused}`)
 				continue
@@ -683,6 +713,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		})
 		if (event) this.publish([event])
 		return event !== null
+	}
+
+	/**
+	 * RPC for an agent whose run kept killing its process and was dropped (the host's breaker). The
+	 * human sees why the agent went quiet, and the agent shows idle.
+	 */
+	async runDropped(slug: AgentSlug): Promise<void> {
+		const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text: `@${slug} stopped: its reply kept crashing, so it was dropped. send a message to try again.` })
+		if (event) this.publish([event])
+		await this.setStatus(slug, "idle")
 	}
 
 	/** RPC for an agent. A growing block past the draft threshold. Sent, never stored. */

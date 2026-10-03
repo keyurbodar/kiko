@@ -40,6 +40,7 @@ type Status = {
   tasks: number
   submissions: number
   opens: number
+  gaveUp: number
 }
 type Transcript = { users: string[]; assistants: { text: string; stopReason?: string }[] }
 
@@ -135,6 +136,43 @@ test("the object restarts mid-run and the heartbeat finishes the run", async () 
   expect(assistants.at(-1)).toEqual({ text: LONG_ANSWER, stopReason: "stop" })
   expect(assistants.slice(0, -1).every((m) => m.stopReason === "aborted")).toBe(true)
 }, 40_000)
+
+test("a run that kills its process every time is dropped after three resumes, not resumed forever", async () => {
+  const a = await agent()
+  await a.receive([human(`${SLOW} please`)])
+  const crash = () => a.call({ op: "crash" }).catch(() => undefined)
+  // The first process starts the run; each of the next three resumes it and dies again.
+  for (let opens = 1; opens <= 4; opens++) {
+    await until(a.status, (s) => s.opens === opens && s.tasks > 0)
+    await Bun.sleep(300)
+    await crash()
+  }
+  // The fifth process finds the same run unfinished a fourth time in a row and drops it.
+  const status = await until(a.status, (s) => s.opens === 5 && s.tasks === 0 && s.submissions === 0)
+  expect(status.gaveUp).toBe(1)
+  // Dropped, not answered again: nothing goes back in the inbox, and no model call is made.
+  await Bun.sleep(1_500)
+  expect((await a.status()).tasks).toBe(0)
+  expect((await a.transcript()).assistants).toEqual([])
+}, 60_000)
+
+test("a run that dies once is resumed, and a later crash starts a fresh count", async () => {
+  const a = await agent()
+  await a.receive([human(`${SLOW} first`)])
+  await until(a.status, (s) => s.opens === 1 && s.tasks > 0)
+  await a.call({ op: "crash" }).catch(() => undefined)
+  await until(a.status, settled(1))
+  // The resumed run finished, so the count was cleared. Three more crashes of a new run still resume.
+  await a.receive([human(`${SLOW} second`)])
+  for (let opens = 2; opens <= 4; opens++) {
+    await until(a.status, (s) => s.opens === opens && s.tasks > 0)
+    await Bun.sleep(300)
+    await a.call({ op: "crash" }).catch(() => undefined)
+  }
+  const status = await until(a.status, settled(2), 30_000)
+  expect(status.gaveUp).toBe(0)
+  expect((await a.transcript()).assistants.at(-1)).toEqual({ text: LONG_ANSWER, stopReason: "stop" })
+}, 80_000)
 
 test("a failing alarm re-arms and the next one runs", async () => {
   const a = await agent()

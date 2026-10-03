@@ -68,6 +68,11 @@ export class AgentDO extends DurableObject<Env> {
         // Before resume, so the outbox sees a resumed run from its first event.
         await this.outbox.attach(opened.harness, opened.root.id)
       },
+      onGiveUp: async () => {
+        await this.hostOptions.onGiveUp?.()
+        const home = this.home()
+        if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runDropped(home.slug)
+      },
     })
     return this.hostInstance
   }

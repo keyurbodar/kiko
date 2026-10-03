@@ -11,18 +11,35 @@ const ignore = () => {}
  *
  * `ctx.storage.sql` is synchronous. `ctx.storage.transaction()` is the only way to get a rollback
  * around an async callback, because `sql.exec` refuses BEGIN and SAVEPOINT. Every call on the
- * database goes through one promise chain, so an operation issued while a transaction runs waits
+ * database is ordered: an operation issued while a transaction runs waits
  * for its commit or rollback. A transaction handle skips the chain and runs at once.
  */
 export function openDurableObjectSqlite(storage: DurableObjectStorage): SqliteDatabase {
   let tail: Promise<void> = Promise.resolve()
   let closed = false
 
-  const queued = <T>(operation: () => T | Promise<T>): Promise<T> => {
-    const result = tail.then(() => {
+  let pending = 0
+  // A statement runs at once when nothing waits, so the common case costs no promise hop. While a
+  // transaction is open, it and everything after it wait their turn (the Agents SDK's adapter does the same).
+  const now = <T>(operation: () => T): Promise<T> => {
+    if (pending > 0) return held(operation)
+    try {
       if (closed) throw new Error("sqlite database is closed")
-      return operation()
-    })
+      return Promise.resolve(operation())
+    } catch (error) {
+      return Promise.reject(error)
+    }
+  }
+  const held = <T>(operation: () => T | Promise<T>): Promise<T> => {
+    pending++
+    const result = tail
+      .then(() => {
+        if (closed) throw new Error("sqlite database is closed")
+        return operation()
+      })
+      .finally(() => {
+        pending--
+      })
     tail = result.then(ignore, ignore)
     return result
   }
@@ -38,9 +55,9 @@ export function openDurableObjectSqlite(storage: DurableObjectStorage): SqliteDa
   })
 
   return {
-    ...executor(queued),
+    ...executor(now),
     transaction: (callback) =>
-      queued(() =>
+      held(() =>
         // A throw from the callback rolls back and rejects with the same error. Both are the
         // runtime's behavior. A rollback that fails breaks the object, so no later call succeeds.
         storage.transaction(async () => {
@@ -58,11 +75,9 @@ export function openDurableObjectSqlite(storage: DurableObjectStorage): SqliteDa
       ),
     // The Durable Object owns the database, so there is nothing to release. Closing only stops
     // later calls, after everything already queued has finished.
-    close: () => {
-      tail = tail.then(() => {
+    close: () =>
+      held(() => {
         closed = true
-      })
-      return tail
-    },
+      }),
   }
 }

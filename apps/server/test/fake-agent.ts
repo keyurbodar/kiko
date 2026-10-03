@@ -22,8 +22,18 @@ export class FakeAgent extends DurableObject {
     }
   }
 
+  /** The next `n` receives throw, as a transient failure between objects would. */
+  async failNext(n: number) {
+    await this.ctx.storage.put("fail", n)
+  }
+
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     this.log()
+    const fail = (await this.ctx.storage.get<number>("fail")) ?? 0
+    if (fail > 0) {
+      await this.ctx.storage.put("fail", fail - 1)
+      throw new Error("network connection lost")
+    }
     this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('receive', ?)", JSON.stringify({ envelopes, brief, home: home ?? null }))
     return { admitted: envelopes.map((e) => e.id) }
   }
@@ -59,7 +69,12 @@ export class FakeUser extends DurableObject {
   }
   /** Limits are not under test here: every burst gets its turn. */
   async takeTurn() {
-    return { ok: true as const, used: 1 }
+    const used = ((await this.ctx.storage.get<number>("turns")) ?? 0) + 1
+    await this.ctx.storage.put("turns", used)
+    return { ok: true as const, used }
+  }
+  async turns() {
+    return (await this.ctx.storage.get<number>("turns")) ?? 0
   }
   /** A run ended. The chat list's touch is not under test here. */
   async touchChat() {}
@@ -80,6 +95,9 @@ const ALICE = "alice"
 // `/inventory/<roomId>`             the room's inventory for account deletion
 // `/post/<roomId>/<slug>`           the agent posts one bubble
 // `/end/<roomId>/<slug>/<runId>`    the agent's run ends
+// `/fail/<roomId>/<slug>/<n>`       the agent's next n receives throw
+// `/turns`                          the turns alice has taken
+// `POST /mail/<roomId>/<slug>`      the agent sends an agent message (AgentSend)
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, roomId, slug, state] = new URL(request.url).pathname.split("/")
@@ -87,7 +105,14 @@ export default {
       await env.USER.get(env.USER.idFromName(`user:${ALICE}`)).set((await request.json()) as UserState)
       return Response.json({ ok: true })
     }
+    const user = env.USER.get(env.USER.idFromName(`user:${ALICE}`))
+    if (kind === "turns") return Response.json({ turns: await user.turns() })
     const room = roomStub(env.ROOM, ALICE, roomId!)
+    if (kind === "fail") {
+      await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).failNext(Number(state))
+      return Response.json({ ok: true })
+    }
+    if (kind === "mail") return Response.json(await room.agentMessage(slug as AgentSlug, (await request.json()) as never))
     if (kind === "calls") return Response.json(await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).calls())
     if (kind === "status") {
       await room.setStatus(slug as AgentSlug, state as AgentState)

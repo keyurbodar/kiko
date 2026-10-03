@@ -55,6 +55,8 @@ export class UserDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     instrument(ctx, "user")
+    // The client's liveness ping, answered by the runtime without waking this object.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
     this.sql = ctx.storage.sql
     // Architecture section 23: the schema migration runs before any other work on every start.
     void ctx.blockConcurrencyWhile(async () => {

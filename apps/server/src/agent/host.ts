@@ -49,6 +49,8 @@ export type HostOptions = {
   setup: () => AgentSetup | Promise<AgentSetup>
   /** Runs once per process after the harness opens and before it resumes, so a watcher sees the resumed run. */
   onOpen?: (opened: Opened) => void | Promise<void>
+  /** The breaker dropped a run that kept killing its process. The agent tells the room. */
+  onGiveUp?: () => void | Promise<void>
   /** Default `HEARTBEAT_MS`. Tests pass less. Never more than `HEARTBEAT_MS`. */
   heartbeatMs?: number
   /** What the run in flight has shown so far: bubbles and tools. The outbox knows. Null before it saw the run start. */
@@ -73,6 +75,15 @@ const HUMAN_COMING_MS = 10_000
 const RESET_AFTER = 3
 /** Failures that come from stored harness state, not from the provider or the network. */
 const UNRECOVERABLE = /unresolvable path|unsafe path|sqlite database is closed|malformed/i
+/**
+ * Processes in a row that opened to unfinished work without the harness going idle in between. A run
+ * that kills its process every time (past the memory limit, say) would otherwise resume forever, and
+ * every resume calls the model again on the user's key. The count is stored because the process that
+ * would count it in memory is the one that dies. Borrowed from the Agents SDK's alarm breaker
+ * (cloudflare/agents#1825).
+ */
+const MAX_RESUMES = 3
+const RESUMES_KEY = "crash:resumes"
 /** The tables `pi-durable`'s SQLite storage creates (its migrations.ts). Kiko's own tables are kept. */
 const PI_DURABLE_TABLES = ["document_revisions", "documents", "submissions", "tasks", "entries", "conversations", "record_ids", "durable_metadata", "durable_schema"]
 
@@ -83,6 +94,8 @@ export class AgentHost {
   private opened?: Promise<Opened>
   private failures = 0
   private watchingIdle = false
+  /** This process resumed a dead one's work, so the stored resume count is cleared once idle. */
+  private resumed = false
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -159,12 +172,16 @@ export class AgentHost {
     if (this.opened) return this.opened
     const opening = (async () => {
       const setup = await this.options.setup()
-      const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
-      const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings }, context)
-      const root = await harness.root(context, { agent: setup.agent })
-      const opened = { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext }
+      let opened = await this.openHarness(setup)
+      if (await this.crashLooping(opened.harness)) {
+        // The run is dropped, not resumed. The room log keeps the transcript.
+        await opened.harness.close(context).catch(() => {})
+        this.reset(false)
+        opened = await this.openHarness(setup)
+        await this.options.onGiveUp?.()
+      }
       await this.options.onOpen?.(opened)
-      harness.resume()
+      opened.harness.resume()
       return opened
     })()
     // A failed open is not cached, so the next alarm tries again.
@@ -173,6 +190,41 @@ export class AgentHost {
     })
     this.opened = opening
     return opening
+  }
+
+  private async openHarness(setup: AgentSetup): Promise<Opened> {
+    const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
+    const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings }, context)
+    const root = await harness.root(context, { agent: setup.agent })
+    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext }
+  }
+
+  /**
+   * Called before `resume()`. Live tasks at open were left by a dead process. True once more than
+   * `MAX_RESUMES` processes in a row opened to such work: the caller drops it instead of resuming.
+   */
+  private async crashLooping(harness: Harness): Promise<boolean> {
+    const live = await harness.inspect(context)
+    if (live.tasks.length === 0) {
+      await this.ctx.storage.delete(RESUMES_KEY)
+      return false
+    }
+    const resumes = ((await this.ctx.storage.get<number>(RESUMES_KEY)) ?? 0) + 1
+    if (resumes > MAX_RESUMES) {
+      await this.ctx.storage.delete(RESUMES_KEY)
+      console.error(`agent run dropped after ${MAX_RESUMES} resumes that never finished`)
+      return true
+    }
+    await this.ctx.storage.put(RESUMES_KEY, resumes)
+    this.resumed = true
+    return false
+  }
+
+  /** The harness went idle: the run chain finished, so the resume count starts over. */
+  private async idle(): Promise<void> {
+    if (!this.resumed) return
+    this.resumed = false
+    await this.ctx.storage.delete(RESUMES_KEY)
   }
 
   /** The child conversations of the root, with the task that owns each (P6-05). Opens the harness. */
@@ -277,6 +329,7 @@ export class AgentHost {
     const live = await harness.inspect(context)
     if (live.tasks.length === 0 && live.submissions.length === 0) {
       await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
+      await this.idle()
       // The run answered between the drain's check and now, so a batch it held is placed at once.
       if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
       return
@@ -300,8 +353,10 @@ export class AgentHost {
         const live = await harness.inspect(context)
         // A held agent or system batch is placed now that the run answered (section 7.8).
         if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
-        if (live.tasks.length === 0 && live.submissions.length === 0) await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
-        else this.watchIdle(harness)
+        if (live.tasks.length === 0 && live.submissions.length === 0) {
+          await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
+          await this.idle()
+        } else this.watchIdle(harness)
       })
       .catch(() => {
         // The harness closed or failed. The heartbeat stays armed and the next alarm reopens it.
@@ -309,12 +364,16 @@ export class AgentHost {
       })
   }
 
-  /** Forgets the harness after a failure. A fatal storage error poisons the session, so it is never reused. */
-  /** Drops every `pi-durable` table and the outbox's run state, and puts the newest batch back in the inbox. */
-  private reset(): void {
+  /**
+   * Drops every `pi-durable` table and the outbox's run state. With `requeue`, the newest batch goes
+   * back in the inbox to be answered again; the breaker passes false, since that batch is the one
+   * that kept failing.
+   */
+  private reset(requeue = true): void {
     const sql = this.ctx.storage.sql
     for (const table of PI_DURABLE_TABLES) sql.exec(`DROP TABLE IF EXISTS ${table}`)
     sql.exec("DELETE FROM outbox")
+    if (!requeue) return
     const newest = sql
       .exec<{ request_id: string }>("SELECT request_id FROM inbox WHERE submitted = 1 AND request_id IS NOT NULL AND request_id != 'stopped' ORDER BY arrival DESC LIMIT 1")
       .toArray()[0]
@@ -322,6 +381,7 @@ export class AgentHost {
     console.error("agent harness reset after repeated unrecoverable failures")
   }
 
+  /** Forgets the harness after a failure. A fatal storage error poisons the session, so it is never reused. */
   private async drop(): Promise<void> {
     const opened = this.opened
     this.opened = undefined

@@ -309,3 +309,26 @@ test("stop reaches every member", async () => {
   expect(await Promise.all(["bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))).toEqual([1, 1, 1])
   ws.ws.close()
 })
+
+test("a burst whose delivery fails once is retried, and counts as one turn", async () => {
+  const { room, ws } = await team()
+  const before = ((await call("/turns")) as { turns: number }).turns
+  await call(`/fail/${room}/bob/1`)
+  await ws.say("plan the launch")
+  // The first delivery throws; the room's retry delivers it.
+  const got = await delivered(room, "bob", 1)
+  expect(got[0]!.envelopes.map((e) => e.body)).toEqual(["plan the launch"])
+  expect(((await call("/turns")) as { turns: number }).turns).toBe(before + 1)
+  ws.ws.close()
+})
+
+test("agent mail that fails to deliver is retried until it arrives", async () => {
+  const { room, ws } = await team()
+  await call(`/fail/${room}/ada/2`)
+  const sent = (await call(`/mail/${room}/bob`, { id: "m-retry-1", to: "ada", text: "@ada can you check the tests", tainted: false })) as { ok: boolean }
+  expect(sent.ok).toBe(true)
+  // Two failures, then the alarm's retry gets it through.
+  const got = await delivered(room, "ada", 1)
+  expect(got[0]!.envelopes.map((e) => e.body)).toEqual(["@ada can you check the tests"])
+  ws.ws.close()
+})
