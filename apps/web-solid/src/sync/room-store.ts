@@ -285,6 +285,8 @@ export const TYPING_EVERY_MS = 2000
 
 export type SendOptions = {
 	replyTo?: MessageId
+	/** The words of `replyTo` this message answers. */
+	quote?: string
 	files?: readonly FileRef[]
 	/** Attachments still uploading: the message shows them now and leaves when `uploads` resolves (P8-06). */
 	local?: readonly LocalAttachment[]
@@ -646,6 +648,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const clientId = newId()
 			const frame: RoomPatchFrame = { t: "send", clientId, text }
 			if (opts.replyTo) frame.replyTo = opts.replyTo
+			if (opts.replyTo && opts.quote) frame.quote = opts.quote
 			if (opts.files?.length) frame.files = opts.files
 			const p: RoomPatch = { clientId, frame, at: now() }
 			if (opts.uploads) {

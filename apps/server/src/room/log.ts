@@ -42,6 +42,7 @@ type MessageRow = {
 	edited_at: number | null
 	deleted_at: number | null
 	goto: string | null
+	quote: string | null
 }
 
 export type NewMessage = {
@@ -55,6 +56,8 @@ export type NewMessage = {
 	clientId?: string
 	/** A chat the message points to. */
 	goto?: RoomId
+	/** The words of `replyTo` the sender answers. */
+	quote?: string
 }
 
 /** The stored form of an actor or sender: "human", "agent:<slug>", or "system:<reason>". */
@@ -206,6 +209,7 @@ export class RoomLog {
 				...(input.files?.length ? { files: input.files } : {}),
 				...(input.run ? { run: input.run } : {}),
 				...(input.goto ? { goto: input.goto } : {}),
+				...(input.quote ? { quote: input.quote } : {}),
 			}
 			const event = this.append(actorKey(input.from), {
 				t: "message",
@@ -213,8 +217,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -227,6 +231,7 @@ export class RoomLog {
 				input.run?.attempt ?? null,
 				input.run?.index ?? null,
 				input.goto ?? null,
+				input.quote ?? null,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
@@ -346,6 +351,7 @@ export class RoomLog {
 				: {}),
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
+			...(r.quote ? { quote: r.quote } : {}),
 			...(reactions.length ? { reactions } : {}),
 		}
 	}

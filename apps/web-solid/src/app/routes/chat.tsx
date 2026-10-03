@@ -9,6 +9,8 @@ import type { ChatMessage } from "../../lib/types";
 
 // The new chat screen loads when `/chat/new` is first opened, not with the transcript.
 const NewChat = lazy(() => import("../../chat/new-chat").then((m) => ({ default: m.NewChat })));
+// Quoting a selection loads after first paint.
+const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 // Approval cards load the first time an open room has one (P7-02).
 const ApprovalCards = lazy(() => import("../../chat/ApprovalCard"));
 
@@ -87,6 +89,12 @@ export default function ChatRoute() {
     ),
   );
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null);
+  /** The words of the reply target the human picked to answer, with the target they belong to. */
+  const [quote, setQuote] = createSignal<{ target: string; text: string } | null>(null);
+  const replyQuote = () => {
+    const q = quote();
+    return q && q.target === replyTarget() ? q.text : undefined;
+  };
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
   /*
    * Unsent text and the reply target are saved per chat, and both come back from
@@ -244,6 +252,13 @@ export default function ChatRoute() {
               </div>
             )}
           </Show>
+          <QuoteOnSelect
+            onQuote={(id, text) => {
+              setReplyTarget(id);
+              setQuote({ target: id, text });
+              document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus();
+            }}
+          />
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
             title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
@@ -266,7 +281,8 @@ export default function ChatRoute() {
               const sent =
                 target === null
                   ? useApp.appendMessage(message)
-                  : useApp.appendReply(message, target);
+                  : useApp.appendReply(message, target, replyQuote());
+              setQuote(null);
               /*
                * Sending is a statement about where you want to be looking. If
                * the reader had scrolled up and then sent, leaving them parked
@@ -280,7 +296,8 @@ export default function ChatRoute() {
               if (sent !== undefined) scrollToLatest?.();
             }}
             replyTo={replyTo()}
-            onClearReply={() => setReplyTarget(null)}
+            replyQuote={replyQuote()}
+            onClearReply={() => (setReplyTarget(null), setQuote(null))}
             onJumpToReply={(messageId) => jumpToMessage?.(messageId)}
           />
         </div>

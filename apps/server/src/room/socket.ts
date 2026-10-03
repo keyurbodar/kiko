@@ -115,6 +115,8 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 				text: frame.text,
 				clientId: frame.clientId,
 				...(replyTo ? { replyTo } : {}),
+				// A quote belongs to a reply: the words the human picked from the message they answer.
+				...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
 				...(frame.files ? { files: frame.files } : {}),
 			})
 			send(ws, { t: "ack", clientId: frame.clientId, id: stored.id, seq: stored.seq })

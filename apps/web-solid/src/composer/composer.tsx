@@ -14,7 +14,7 @@ import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import { createPromptInputV2Store } from "./prompt-input/store"
 import type { PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
-import { replySummary } from "../chat/lib/reply"
+import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createMediaViewer } from "../chat/media/mediaViewer"
 
 import { runSlash, slashSuggestions } from "./slash"
@@ -306,7 +306,7 @@ export function Composer(props: ComposerProps) {
       <Show when={props.replyTo}>
         {(message) => (
           <ReplyBar
-            summary={replySummary(message())}
+            summary={props.replyQuote ? quoteSummary(props.replyQuote) : replySummary(message())}
             role={
               message().sender === "user"
                 ? "you"

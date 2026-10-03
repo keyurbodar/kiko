@@ -14,6 +14,7 @@ import { type RemindersPort, remindersExtension } from "./extensions/reminders"
 import { skillsExtension } from "./extensions/skills"
 import { selfExtension } from "./extensions/self"
 import { type ChiefPort, chiefExtension } from "./extensions/chief"
+import { presenceExtension } from "./extensions/presence"
 import type { SoulPort } from "../files/room-fs"
 import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
@@ -31,6 +32,8 @@ export type BuildAgentInput = RoleInput & {
   soul?: SoulPort
   /** kiko only (section 7.11): making the human's agents and groups. */
   chief?: ChiefPort
+  /** Tells the room what each tool call is about, for the team board (section 7.12). */
+  presence?: (doing: string) => Promise<unknown>
   /** The user's memory (P5-02). Without it the agent has no memory tools and no profile, as in the fake agent. */
   memory?: MemoryPort
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
@@ -73,6 +76,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     webExtension(),
     ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),
     ...(input.chief ? [chiefExtension(input.chief)] : []),
+    ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate)] : []),
     Subagent,

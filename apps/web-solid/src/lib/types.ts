@@ -134,6 +134,8 @@ export interface ChatMessage {
   edited?: boolean
   /** A chat this message points to, such as the one kiko just made. */
   goto?: string
+  /** The words of the replied-to message this one answers, shown in its reply header. */
+  quote?: string
   /** Marks the message as pinned in its thread. */
   pinned?: boolean
   /** The card rendered from the metadata of a page the body points at. */
@@ -183,6 +185,8 @@ export interface ComposerProps {
   replyTo?: ChatMessage | null;
   /** Drop the reply, after a send or when the reader dismisses the bar. */
   onClearReply?: () => void;
+  /** The words of the reply target being answered, shown in the reply bar in place of its start. */
+  replyQuote?: string;
   /** Scroll the transcript to the quoted message. */
   onJumpToReply?: (messageId: string) => void;
   /**

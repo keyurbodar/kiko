@@ -207,6 +207,12 @@ export class AgentDO extends DurableObject<Env> {
     return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input), team: () => room().teamNow() }
   }
 
+  /** One line for the team board: what this agent's current tool call is about (section 7.12). */
+  private async report(doing: string): Promise<void> {
+    const home = this.home()
+    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportDoing(home.slug, doing)
+  }
+
   /** kiko's making of agents and groups (section 7.11). Every other agent gets none. */
   private chiefPort(): ChiefPort | undefined {
     const home = this.home()
@@ -267,7 +273,7 @@ export class AgentDO extends DurableObject<Env> {
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, soul, chief: this.chiefPort(), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...buildAgent({ ...role, model: await this.model(), files, soul, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
       env: fs,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),

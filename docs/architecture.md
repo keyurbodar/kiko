@@ -375,7 +375,7 @@ The human never fills in a form. A new chat starts as a draft with kiko ("ask ki
 
 **Decision.** Agents share one chat and one file space, so without a shared picture they race: two answer the same question, two rewrite the same file. The room is where every visible act passes, so it keeps the picture (`room/team.ts`).
 
-- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "writing a reply"), taken from its acts, never self-reported. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
+- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using gmail (connected apps)", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Executor and other integrations, web pages, subagents, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
 - **Leases.** The paths an agent changes during a run are its own until the run ends. A teammate's write, move, or delete there is refused with who holds it, so it waits or messages them. Reads stay open, the human is never refused, `/chat.md` is shared, and a lease from a run that never ended expires after 10 minutes.
 - **The rule.** Every agent looks before it acts: if a teammate is on it or just did it, it adds only what is missing or leaves it.
 

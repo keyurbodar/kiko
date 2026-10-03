@@ -532,7 +532,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const quoted = message.replyTo ? this.log.message(message.replyTo) : null
 		if (quoted) {
 			const by = quoted.from.kind === "agent" ? `@${quoted.from.slug}` : quoted.from.kind === "human" ? "the human" : "the room"
-			lines.push(`(replying to ${by}: "${quoted.text.replace(/\s+/g, " ").slice(0, 400)}")`)
+			// A quote names the exact words the human answers; without one, the start of the whole message.
+			lines.push(
+				message.quote
+					? `(replying to ${by}, about this part: "${message.quote.replace(/\s+/g, " ").slice(0, 600)}")`
+					: `(replying to ${by}: "${quoted.text.replace(/\s+/g, " ").slice(0, 400)}")`,
+			)
 		}
 		if (e.body.trim()) lines.push(e.body)
 		if (message.files?.length) lines.push(attachedLine(message.files))
@@ -744,6 +749,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const out = this.applyFs(act())
 		if (out.ok) this.working(slug, paths, doing)
 		return out
+	}
+
+	/** RPC from an agent's presence hook: what its current tool call is about. Holds nothing. */
+	async reportDoing(slug: AgentSlug, doing: string): Promise<void> {
+		if (this.members.list().some((m) => m.slug === slug)) this.working(slug, [], doing.slice(0, 120))
 	}
 
 	/** RPC for an agent's `team` tool: what everyone is doing now, and what they hold. */

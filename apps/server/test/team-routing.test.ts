@@ -459,3 +459,17 @@ test("a group from a draft: the draft becomes the group, with its members and ki
   expect(await (await (await mf.getR2Bucket("FILES")).get(key))!.text()).toBe(chatMd)
   ws.ws.close()
 })
+
+test("a quote tells the agent exactly which words the human answers", async () => {
+  const { room, ws } = await team()
+  await ws.say("first")
+  await delivered(room, "bob", 1)
+  const posted = (await call(`/post/${room}/bob`)) as boolean
+  expect(posted).toBe(true)
+  const bubble = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
+  const target = bubble.t === "events" ? bubble.events.find((e) => e.t === "message")! : null
+  ws.send({ t: "send", clientId: crypto.randomUUID(), text: "why?", replyTo: target!.t === "message" ? target!.id : "", quote: "help" })
+  const got = await delivered(room, "bob", 2)
+  expect(got[1]!.envelopes[0]!.body).toBe('(replying to @bob, about this part: "help")\nwhy?')
+  ws.ws.close()
+})

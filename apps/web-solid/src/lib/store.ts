@@ -79,7 +79,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 
 function signature(m: ViewMessage): string {
   const reactions = (m.reactions ?? []).map((r) => `${reactionKey(r)}=${r.emoji}`).join(",")
-  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions, m.goto ?? ""].join("|")
+  return [m.id, m.seq, m.pending ? 1 : 0, m.text, m.editedAt ?? "", m.replyTo ?? "", m.files?.length ?? 0, reactions, m.goto ?? "", m.quote ?? ""].join("|")
 }
 
 /** The transcript's view of one protocol message. */
@@ -97,6 +97,7 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.replyTo) out.replyToId = m.replyTo
   if (m.editedAt !== undefined) out.edited = true
   if (m.goto) out.goto = m.goto
+  if (m.quote) out.quote = m.quote
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   if (m.files?.length) {
@@ -352,7 +353,7 @@ export function createApp(options: AppOptions = {}) {
       return r.members().map((m) => memberRow(m, presenceOf(r.state.typing.includes(m.slug), r.state.status[m.slug])))
     }
 
-    function send(message: OutgoingMessage, replyTo?: string): string | undefined {
+    function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {
       const r = room()
       const local: LocalAttachment[] = [
         ...(message.media ?? []).map((m) => ({ src: m.src, name: m.alt || "photo", mime: "", width: m.width, height: m.height })),
@@ -360,7 +361,7 @@ export function createApp(options: AppOptions = {}) {
       ]
       if (!r || (message.body.trim().length === 0 && local.length === 0)) return undefined
       const stored = replyTo !== undefined && !replyTo.startsWith("local:")
-      const opts: SendOptions = stored ? { replyTo: replyTo as MessageId } : {}
+      const opts: SendOptions = stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}
       // Attachments show at once from their blob URLs and upload in the background (P8-06).
       if (local.length) Object.assign(opts, { local, uploads: uploadAll(r.state.roomId, local) })
       const clientId = r.send(message.body, opts)
@@ -638,9 +639,9 @@ export function createApp(options: AppOptions = {}) {
         return send(message)
       },
 
-      appendReply(message: OutgoingMessage, replyToId: string, _sentAt?: number): string | undefined {
+      appendReply(message: OutgoingMessage, replyToId: string, quote?: string): string | undefined {
         if (!replyToId || !findView(replyToId)) return undefined
-        return send(message, replyToId)
+        return send(message, replyToId, quote)
       },
 
       /** Marks the open room read up to its newest message. Another room has no socket to mark it on. */

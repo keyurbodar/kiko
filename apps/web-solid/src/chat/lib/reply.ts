@@ -45,6 +45,11 @@ function documentLabel(documents: NonNullable<ChatMessage["documents"]>): string
   return documents.length > 1 ? `${first} and ${documents.length - 1} more` : first;
 }
 
+/** The reply header for a quote: the words the sender picked, in quote marks, cut like any reply. */
+export function quoteSummary(quote: string): ReplySummary {
+  return { text: `“${replyQuoteText(quote)}”` };
+}
+
 export function replySummary(message: ChatMessage): ReplySummary {
   const thumb = mediaThumbnail(message.media?.[0]);
   const media = message.media ?? [];

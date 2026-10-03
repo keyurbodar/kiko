@@ -103,6 +103,7 @@ export const Message = Schema.Struct({
 	editedAt: Schema.optionalKey(Count),
 	reactions: Schema.optionalKey(Schema.Array(Reaction)),
 	goto: Schema.optionalKey(RoomId),
+	quote: Schema.optionalKey(Schema.String),
 })
 
 export const Member = Schema.Struct({
@@ -222,6 +223,7 @@ export const ClientToRoom = Schema.Union([
 		clientId: Id,
 		text: Schema.String,
 		replyTo: Schema.optionalKey(MessageId),
+		quote: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1000))),
 		files: Schema.optionalKey(Schema.Array(FileRef)),
 	}),
 	Schema.Struct({ t: Schema.Literal("react"), messageId: MessageId, emoji: Schema.NullOr(Schema.String) }),

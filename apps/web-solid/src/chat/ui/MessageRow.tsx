@@ -5,7 +5,7 @@ import type { ChatMessage, MediaItem, RosterBot } from "../../lib/types"
 import { formatTimeOfDay } from "../lib/dayLabel"
 import { draftLinkUrl } from "../../composer/link-draft"
 import { resolveLinkPreview } from "../lib/linkPreview"
-import { replySummary } from "../lib/reply"
+import { quoteSummary, replySummary } from "../lib/reply"
 import { MessageDocuments } from "./Documents"
 import { MessageMedia } from "./Media"
 import { Quote } from "./Quote"
@@ -148,7 +148,7 @@ export function MessageRow(props: {
                   parent={parent()}
                   label={quoteSender(parent(), props.parentBot)}
                   tint={props.group && parent().botId !== undefined ? identityLook(parent().botId!).color : undefined}
-                  summary={replySummary(parent())}
+                  summary={props.message.quote ? quoteSummary(props.message.quote) : replySummary(parent())}
                   side={props.message.sender}
                   onOpenReplyTarget={props.onOpenReplyTarget}
                   class={hasAttachment() ? "mb-0" : undefined}

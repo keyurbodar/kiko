@@ -49,6 +49,8 @@ export type Message = {
 	reactions?: readonly Reaction[]
 	/** A chat this message points to, such as the one kiko just made. The client opens it. */
 	goto?: RoomId
+	/** The words of `replyTo` the sender picked to answer, as Telegram's quote does. */
+	quote?: string
 }
 
 export type Member = {
@@ -178,7 +180,7 @@ export type CatalogItem =
 
 export type ClientToRoom =
 	| { t: "hello"; lastSeq: number }
-	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; files?: readonly FileRef[] }
+	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; files?: readonly FileRef[] }
 	| { t: "react"; messageId: MessageId; emoji: string | null }
 	| { t: "edit"; messageId: MessageId; text: string }
 	| { t: "delete"; messageId: MessageId }
