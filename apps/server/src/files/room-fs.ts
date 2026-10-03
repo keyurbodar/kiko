@@ -32,7 +32,7 @@ import { cleanPath, fileKey } from "./upload"
 
 /** ASSUMPTION: the largest file an agent writes. */
 export const MAX_WRITE_BYTES = 1024 * 1024
-/** The chat's own file (section 8.4): what the chat is for. Read into every agent's prompt, so it stays short. */
+/** The chat's own file (section 7.10): what the chat is for. Read into every agent's prompt, so it stays short. */
 export const CHAT_PATH = "chat.md"
 /** ASSUMPTION: the longest /chat.md, in bytes. */
 export const MAX_CHAT = 3_000
@@ -394,7 +394,7 @@ export function roomBackend(env: Env, home: () => AgentHome | null): FilesBacken
   }
 }
 
-/** The agent's own soul, as the mount at /me/soul.md reads and writes it (section 8.4). */
+/** The agent's own soul, as the mount at /me/soul.md reads and writes it (section 7.10). */
 export interface SoulPort {
   get(): Promise<{ body: string; sha: string; at: number }>
   set(body: string, expectSha?: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>

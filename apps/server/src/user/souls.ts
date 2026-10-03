@@ -1,4 +1,4 @@
-// Architecture section 8.4. Each of the user's agents has a soul: one short markdown file that says
+// Architecture section 7.10. Each of the user's agents has a soul: one short markdown file that says
 // who it is and how it works with this person. The agent reads it in its system prompt on every
 // request and keeps it current itself, at /me/soul.md; the human edits it in the app. It lives in
 // UserDO, so an agent is the same agent in every chat. A soul is capped so it stays sharp and cheap.

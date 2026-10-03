@@ -3,7 +3,7 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 
-// Architecture section 8.4. The human reads and edits an agent's soul.
+// Architecture section 7.10. The human reads and edits an agent's soul.
 //   GET /api/souls/<slug>   { body, sha }
 //   PUT /api/souls/<slug>   { body, expectSha }  ->  { body, sha } | 409 { error, body, sha } | 400 { error }
 const PREFIX = "/api/souls/"

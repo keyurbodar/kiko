@@ -1,6 +1,6 @@
 import { type PromptSection, section } from "@earendil-works/pi-durable"
 
-// The system prompt (architecture sections 6.5, 7.4, 8.4, 13.2, and 15). Stable sections come
+// The system prompt (architecture sections 6.5, 7.4, 7.10, 13.2, and 15). Stable sections come
 // first so the provider's prompt cache keeps hitting: the core every agent shares, then the
 // agent's soul and the chat's file, which change rarely. Anything that changes per delivery (the
 // brief, `now`, `todo`) goes into the `<context>` block of the user entry instead.
@@ -63,7 +63,7 @@ function roleText({ role, lead }: RoleInput): string {
 const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
 
 /**
- * The base sections in `SECTION_ORDER`. `soul` and `chat` (section 8.4), `skills` (section 15),
+ * The base sections in `SECTION_ORDER`. `soul` and `chat` (section 7.10), `skills` (section 15),
  * and `profile` (memory, section 13.2) are empty slots. The extension that owns one fills it with
  * `wrapSection` and is selected after `Base` in `factory.ts`.
  */

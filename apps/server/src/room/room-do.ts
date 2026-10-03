@@ -135,7 +135,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				// The built-in agent is not a stored record: the new-chat picker sends its slug as its id.
 				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: "kiko" }]
 				const a = mine.find((x) => x.id === id)
-				// Who the agent is lives in its soul (section 8.4); the member row keeps a tagline for teammates.
+				// Who the agent is lives in its soul (section 7.10); the member row keeps a tagline for teammates.
 				const role = tagline(a?.prompt ?? "")
 				return a ? [{ slug: a.slug, name: a.name, ...(role ? { role } : {}), model: a.model }] : []
 			})
@@ -151,7 +151,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * A group starts with /chat.md (section 8.4): the goal, who does what, and decisions. The lead
+	 * A group starts with /chat.md (section 7.10): the goal, who does what, and decisions. The lead
 	 * fills it in and the team keeps it current. Written once, when the room first has two agents;
 	 * a failed write is tried again at the next flush, and a file the human deleted stays deleted.
 	 */

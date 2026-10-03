@@ -26,7 +26,7 @@ export type BuildAgentInput = RoleInput & {
   model: ModelRef
   /** The room's files (P8-05). Without it the agent has no file tools, as in the fake agent. */
   files?: FilesOptions
-  /** The agent's soul (section 8.4). With `files`, fills the soul and chat sections. */
+  /** The agent's soul (section 7.10). With `files`, fills the soul and chat sections. */
   soul?: SoulPort
   /** The user's memory (P5-02). Without it the agent has no memory tools and no profile, as in the fake agent. */
   memory?: MemoryPort

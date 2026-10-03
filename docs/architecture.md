@@ -348,6 +348,25 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 
 **Reasoning.** A turn is latency-sensitive and a queue adds batching delay. A Durable Object alarm already retries with backoff and survives eviction, and `pi-durable` already checkpoints. The Free plan allows 10,000 queue operations a day, and one message costs about three operations, so queues are kept for jobs that need them.
 
+### 7.10 Souls and the chat file
+
+**Decision.** Three files shape an agent, each with one job, all short and all kept current by the agents themselves.
+
+| File | Holds | Lives in | Written by | Cap |
+| --- | --- | --- | --- | --- |
+| the core prompt (`prompt.ts`) | voice and judgment every agent shares: how to talk, how to decide, the chat's rules | code | kiko | about 600 tokens |
+| `/me/soul.md` | who this agent is and how it works with this human | `UserDO` (`souls.ts`), so it is the same agent in every chat | the agent, quietly, and the human in the agent's info view | 3,000 characters |
+| `/chat.md` | what this chat is for: the goal, who does what, decisions | the room's files, a normal file | the team, and the human in the files panel | 3,000 bytes |
+
+The human's own profile stays in memory (section 13), so nothing is stored twice.
+
+- The system prompt renders the core, then the soul, the role, the chat file, skills, and the profile. Stable text comes first, so the provider's prompt cache holds; a soul or chat file changes rarely, and an edit applies on the next request.
+- The soul is mounted at `/me/soul.md` in the agent's file system (`withSoul` in `room-fs.ts`), so pi's own `read` and `edit` work on it. It cannot be moved or deleted, and a write over the cap tells the agent to tighten it, the way Hermes Agent bounds its memory files.
+- kiko, the chief, starts with the strongest soul. A new agent's soul starts from the description it was made with; an agent the lead spawns starts from its role. The member row keeps a one-line tagline, so teammates see who does what without a copy of each soul.
+- A group gets `/chat.md` when the room first has two agents. A failed write is retried at the next flush and never holds up a delivery; a file the human deleted stays deleted.
+
+**Reasoning.** OpenClaw and Hermes Agent both split identity, the human, and the workspace into separate files the agent maintains, and both find that short beats long. A soul per agent lets each one fit the human over time without the human writing a prompt. A file per chat gives a team one picture of the goal and the decisions, which an agent reads each turn instead of rereading the history. Caps keep every turn cheap.
+
 ## 8. Subagents
 
 **Decision.** `spawn_subagent(task)` is a tool in a `Subagent` extension, written from the pattern in the `pi-durable` README ("Abort and Subagents"). It is about 40 lines.

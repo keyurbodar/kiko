@@ -200,7 +200,7 @@ export class AgentDO extends DurableObject<Env> {
     return { send: (input) => room().agentMessage(home.slug, input), check: (slug) => room().checkAgent(slug), spawn: (input) => room().spawnAgent(home.slug, input) }
   }
 
-  /** This agent's soul in UserDO (section 8.4). The slug comes from the room's delivery, never the model. */
+  /** This agent's soul in UserDO (section 7.10). The slug comes from the room's delivery, never the model. */
   private soulPort(): SoulPort {
     const user = () => {
       const home = this.home()

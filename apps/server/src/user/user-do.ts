@@ -148,7 +148,7 @@ export class UserDO extends DurableObject<Env> {
     return listAgents(this.sql)
   }
 
-  /** An agent's soul (section 8.4), made on first read. The agent reads it on every request. */
+  /** An agent's soul (section 7.10), made on first read. The agent reads it on every request. */
   async soul(slug: string): Promise<Soul> {
     return this.souls.get(slug)
   }
