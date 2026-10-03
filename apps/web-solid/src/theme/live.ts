@@ -1,13 +1,12 @@
-// The saved look for the signed-in user. It loads after the first paint, opens its own
-// user socket (the same pattern as the memory client), applies what the server holds, and
-// applies a change from another device at once. Saving applies locally first, then sends.
+// The saved look for the signed-in user. It loads after the first paint, listens on the shared
+// user socket (`sync/user-channel.ts`), applies what the server holds, and applies a change
+// from another device at once. Saving applies locally first, then sends.
 // The inline script in `index.html` already painted from the cache, so nothing here is on
 // the first-paint path.
 
-import type { UserToClient } from "@kiko/protocol"
-import { createMemo, createRoot, createSignal } from "solid-js"
-import { urls } from "../lib/store"
-import { type Connect, createSyncSocket, type SyncSocket } from "../sync/socket"
+import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
+import { useApp } from "../lib/store"
+import { type UserChannel, userChannel } from "../sync/user-channel"
 import { applyCommitted, readCache, writeCache } from "./apply"
 import { setBirdPicks } from "../mascot/choices"
 import { formatLook, parseLook, type Look } from "./look"
@@ -28,7 +27,8 @@ const [synced, setSynced] = createSignal(cached !== null)
 /** True once the server has said what look this person has, or the cache already knew. */
 export const lookSynced = synced
 
-let socket: SyncSocket | null = null
+let channel: UserChannel | null = null
+let stops: (() => void)[] = []
 let owner: string | null = null
 /** What still has to reach the server. `undefined` means nothing. */
 let outbox: string | null | undefined
@@ -43,8 +43,8 @@ function adopt(text: string | null): void {
 }
 
 function flush(): void {
-  if (outbox === undefined || !socket) return
-  if (socket.send({ t: "theme", theme: outbox })) outbox = undefined
+  if (outbox === undefined || !channel) return
+  if (channel.send({ t: "theme", theme: outbox })) outbox = undefined
 }
 
 /** Saves a look. Applies now and sends when it can. */
@@ -58,38 +58,44 @@ export function saveLook(next: Look): void {
 /** Changes part of the saved look. */
 export const updateLook = (patch: Partial<Look>) => saveLook({ ...look(), ...patch })
 
-function onFrame(frame: UserToClient): void {
-  if (frame.t === "reset") {
-    setSynced(true)
-    // Pending local changes win until they have been sent.
-    if (frame.snapshot.theme !== undefined && outbox === undefined) adopt(frame.snapshot.theme)
-  } else if (frame.t === "events") {
-    for (const e of frame.events) if (e.t === "theme" && outbox === undefined) adopt(e.theme)
-  }
-}
-
 const mocked = () => import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock"
 
-/** Starts once per user. A different user closes the old socket first. */
-export function startTheme(userId: string, connect?: Connect): void {
+/**
+ * Starts once per user. The user store keeps what the server said about the look (its catch-up
+ * snapshot and every theme event), so starting late misses nothing.
+ */
+export function startTheme(userId: string, shared: UserChannel = userChannel): void {
   if (owner === userId) return
   stopTheme()
   owner = userId
   // The dev mock has no theme record, so the cache is the only copy there.
-  if (mocked() && !connect) return void setSynced(true)
-  socket = createSyncSocket<UserToClient>({
-    url: urls.user(),
-    connect,
-    // A `lastSeq` past the end gets one small snapshot with the theme in it, not a replay.
-    hello: () => ({ t: "hello", lastSeq: Number.MAX_SAFE_INTEGER }),
-    onOpen: flush,
-    onFrame,
-  })
+  if (mocked() && shared === userChannel) return void setSynced(true)
+  channel = shared
+  stops = [
+    createRoot((dispose) => {
+      createEffect(() => {
+        if (useApp.user()?.state.caughtUp) setSynced(true)
+      })
+      createEffect(
+        on(
+          () => useApp.user()?.state.theme,
+          // Pending local changes win until they have been sent.
+          (theme) => {
+            if (theme !== undefined && outbox === undefined) adopt(theme)
+          },
+        ),
+      )
+      return dispose
+    }),
+    shared.onOpen(flush),
+  ]
+  flush()
 }
 
 export function stopTheme(): void {
-  socket?.close()
-  socket = null
+  for (const stop of stops) stop()
+  stops = []
+  channel = null
   owner = null
 }
 

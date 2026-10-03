@@ -52,6 +52,19 @@ export function fileKey(userId: string, roomId: string, fileId: string): string 
 
 export const isFileId = (id: string) => FILE_ID.test(id)
 
+/**
+ * The R2 key of a file's small still: a picture scaled to fit 840 px, or a video's first frame.
+ * The client makes it at upload time, so the transcript never decodes the original.
+ */
+export const thumbKey = (key: string) => `${key}/thumb`
+
+/** The keys to delete for dropped files: each object and its still, which may not exist. */
+export const withThumbs = (keys: readonly string[]) => keys.flatMap((k) => [k, thumbKey(k)])
+
+/** ASSUMPTION: a still at 840 px in WebP or JPEG is far under this. */
+export const MAX_THUMB_BYTES = 1024 * 1024
+const THUMB_TYPES = new Set(["image/webp", "image/jpeg", "image/png"])
+
 export function error(status: number, message: string): Response {
 	return Response.json({ error: message }, { status })
 }
@@ -126,7 +139,7 @@ async function index(env: Env, userId: string, roomId: string, input: NewFile, f
 		return error(410, "account deleted")
 	}
 	const { file, drop, fresh, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
-	if (drop) await env.FILES.delete(drop)
+	if (drop) await env.FILES.delete(withThumbs([drop]))
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	// A stale edit writes nothing. The answer names what the path holds now, so the editor can offer it.
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })
@@ -196,6 +209,23 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	const expectSha256 = expect && /^(none|[0-9a-f]{64})$/.test(expect) ? expect : undefined
 	if (expect && !expectSha256) return error(400, "bad x-kiko-if-sha256")
 	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...sent, ...(expectSha256 ? { expectSha256 } : {}) }, testFailures(request))
+}
+
+/**
+ * PUT /api/files/<roomId>/<fileId>/thumb stores the file's still. Only for a file the room
+ * indexes, so a still never outlives its file by more than the next delete.
+ */
+async function putThumb(request: Request, env: Env, userId: string, roomId: string, fileId: string): Promise<Response> {
+	if (roomId === HOME || !isFileId(fileId)) return error(404, "not found")
+	const type = mime(request.headers.get("content-type"))
+	if (!THUMB_TYPES.has(type)) return error(415, "a still is webp, jpeg, or png")
+	const length = contentLength(request)
+	if (length === null) return error(411, "content-length required")
+	if (length > MAX_THUMB_BYTES) return error(413, "still too large")
+	const room = await addressRoom(env, userId, roomId)
+	if (!room || !(await room.fileMeta(fileId))) return error(404, "not found")
+	await env.FILES.put(thumbKey(fileKey(userId, roomId, fileId)), sized(request, length), { httpMetadata: { contentType: type } })
+	return new Response(null, { status: 204 })
 }
 
 async function create(request: Request, env: Env, userId: string, roomId: string): Promise<Response> {
@@ -289,6 +319,7 @@ export async function uploadRoute(
 	const [head, fileId = "", n] = rest
 
 	if (!rest.length && request.method === "PUT") return putOne(request, env, user.id, roomId, url)
+	if (rest.length === 2 && rest[1] === "thumb" && request.method === "PUT") return putThumb(request, env, user.id, roomId, head!)
 	if (head !== "uploads") return error(404, "not found")
 	if (rest.length === 1 && request.method === "POST") return create(request, env, user.id, roomId)
 	if (!isFileId(fileId) || !uploadId) return error(404, "not found")

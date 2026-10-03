@@ -3,8 +3,8 @@
 // with no `reqId` is a push, for example when the sign-in finishes in another tab. A request
 // made while the socket is down goes out on connect. No answer in `timeoutMs` is an error.
 
-import type { ClientToUser, ExecutorResult, ExecutorStatus, UserToClient } from "@kiko/protocol"
-import { type Connect, createSyncSocket } from "../sync/socket"
+import type { ClientToUser, ExecutorResult, ExecutorStatus } from "@kiko/protocol"
+import { type UserChannel, userChannel } from "../sync/user-channel"
 
 type Ask = ClientToUser extends infer F ? (F extends { t: "connectExecutor" | "disconnectExecutor" | "executorStatus" } ? Omit<F, "reqId"> : never) : never
 
@@ -15,33 +15,28 @@ export type ExecutorClient = {
 	close(): void
 }
 
-export type ExecutorClientOptions = { url: string; connect?: Connect; timeoutMs?: number }
+/** The user socket's channel: the app's one by default. */
+export type ExecutorClientOptions = { channel?: UserChannel; timeoutMs?: number }
 
 type Pending = { frame: ClientToUser; resolve: (r: ExecutorResult) => void; timer: ReturnType<typeof setTimeout> }
 
-export function createExecutorClient(options: ExecutorClientOptions): ExecutorClient {
+export function createExecutorClient(options: ExecutorClientOptions = {}): ExecutorClient {
 	const timeoutMs = options.timeoutMs ?? 30_000
+	const socket = options.channel ?? userChannel
 	const pending = new Map<string, Pending>()
 	const listeners = new Set<(r: ExecutorResult) => void>()
 	let n = 0
 
-	const socket = createSyncSocket<UserToClient>({
-		url: options.url,
-		connect: options.connect,
-		// This screen reads no user events. A `lastSeq` past the end gets one small snapshot back.
-		hello: () => ({ t: "hello", lastSeq: Number.MAX_SAFE_INTEGER }),
-		onOpen: () => {
-			for (const p of pending.values()) socket.send(p.frame)
-		},
-		onFrame(frame) {
-			if (frame.t !== "executor") return
-			if (frame.reqId === undefined) return void listeners.forEach((fn) => fn(frame.result))
-			const p = pending.get(frame.reqId)
-			if (!p) return
-			pending.delete(frame.reqId)
-			clearTimeout(p.timer)
-			p.resolve(frame.result)
-		},
+	const stopOpen = socket.onOpen(() => {
+		for (const p of pending.values()) socket.send(p.frame)
+	})
+	const stopFrames = socket.on("executor", (frame) => {
+		if (frame.reqId === undefined) return void listeners.forEach((fn) => fn(frame.result))
+		const p = pending.get(frame.reqId)
+		if (!p) return
+		pending.delete(frame.reqId)
+		clearTimeout(p.timer)
+		p.resolve(frame.result)
 	})
 
 	return {
@@ -62,7 +57,8 @@ export function createExecutorClient(options: ExecutorClientOptions): ExecutorCl
 			return () => void listeners.delete(fn)
 		},
 		close() {
-			socket.close()
+			stopOpen()
+			stopFrames()
 			for (const p of pending.values()) {
 				clearTimeout(p.timer)
 				p.resolve({ ok: false, error: "closed" })

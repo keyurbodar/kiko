@@ -1,31 +1,20 @@
 import { expect, test } from "bun:test"
-import type { ClientToUser, ExecutorResult } from "@kiko/protocol"
+import type { ClientToUser, ExecutorResult, UserToClient } from "@kiko/protocol"
 import { createExecutorClient } from "./integrations-client"
-import type { SocketLike } from "../sync/socket"
+import { createUserChannel } from "../sync/user-channel"
 
 function fake() {
 	const sent: ClientToUser[] = []
-	let sock!: SocketLike
-	const connect = () => {
-		sock = {
-			send: (d: string) => void sent.push(JSON.parse(d)),
-			close() {},
-			onopen: null,
-			onmessage: null,
-			onclose: null,
-			onerror: null,
-		}
-		queueMicrotask(() => sock.onopen?.({}))
-		return sock
-	}
-	const reply = (f: object) => sock.onmessage?.({ data: JSON.stringify(f) })
-	return { connect, sent, reply }
+	const channel = createUserChannel()
+	channel.attach((f) => (sent.push(f), true))
+	const reply = (f: object) => channel.deliver(f as UserToClient)
+	return { channel, sent, reply }
 }
 const status = { connected: true, kind: "oauth" as const, pending: false, expiresAt: null, issuedAt: null, refreshable: true, rows: 2, organization: "acme" }
 
 test("a reply with the same reqId answers the request, a push reaches listeners", async () => {
 	const f = fake()
-	const client = createExecutorClient({ url: "ws://x", connect: f.connect })
+	const client = createExecutorClient({ channel: f.channel })
 	const pushed: ExecutorResult[] = []
 	client.onPush((r) => pushed.push(r))
 	const p = client.request({ t: "executorStatus", tools: true })
@@ -41,7 +30,25 @@ test("a reply with the same reqId answers the request, a push reaches listeners"
 
 test("no answer is an error, not a hang", async () => {
 	const f = fake()
-	const client = createExecutorClient({ url: "ws://x", connect: f.connect, timeoutMs: 20 })
+	const client = createExecutorClient({ channel: f.channel, timeoutMs: 20 })
 	expect(await client.request({ t: "disconnectExecutor" })).toEqual({ ok: false, error: "kiko did not answer" })
 	client.close()
+})
+
+test("a request made while the socket is down goes out on connect, and close stops listening", async () => {
+	const channel = createUserChannel()
+	const sent: ClientToUser[] = []
+	const client = createExecutorClient({ channel })
+	const p = client.request({ t: "executorStatus" })
+	expect(sent).toHaveLength(0)
+	channel.attach((f) => (sent.push(f), true))
+	channel.opened()
+	const asked = sent[0] as { reqId: string }
+	channel.deliver({ t: "executor", reqId: asked.reqId, result: { ok: true, status } } as UserToClient)
+	expect(await p).toEqual({ ok: true, status })
+	const pushed: ExecutorResult[] = []
+	client.onPush((r) => pushed.push(r))
+	client.close()
+	channel.deliver({ t: "executor", result: { ok: true, status } } as UserToClient)
+	expect(pushed).toHaveLength(0)
 })

@@ -11,10 +11,11 @@ import type { MediaItem } from "../../lib/types";
  * one frame's worth. So every surface that shows an item WITHOUT playing it
  * asks this, and only the viewer mounts a player.
  *
- * `undefined` for no item, so a caller can hand it a possibly-absent item
- * without branching first.
+ * A small still wins over the original whenever the file has one. `undefined`
+ * for no item, or for a clip with no still (the caller draws its thumbhash).
  */
 export function mediaThumbnail(item: MediaItem | undefined): string | undefined {
   if (!item) return undefined;
-  return item.kind === "video" ? (item.poster ?? item.src) : item.src;
+  // Never the clip itself: an <img> cannot draw a video, and the bytes of the clip are the expensive part.
+  return item.thumb ?? (item.kind === "video" ? item.poster : item.src);
 }

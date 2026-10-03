@@ -1,4 +1,5 @@
-import { createEffect, For, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
+import { thumbHashToDataURL } from "thumbhash"
 import { cn } from "../../lib/cn"
 import type { MediaItem } from "../../lib/types"
 import { Play } from "lucide-solid"
@@ -26,19 +27,40 @@ function durationLabel(seconds: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`
 }
 
+/** The thumbhash as a tiny PNG, or undefined when there is none or it does not decode. */
+function sketchOf(hash: string | undefined): string | undefined {
+  if (!hash) return undefined
+  try {
+    return thumbHashToDataURL(Uint8Array.from(atob(hash), (c) => c.charCodeAt(0)))
+  } catch {
+    return undefined
+  }
+}
+
 function MediaFrame(props: { item: MediaItem; playMark: boolean }): JSX.Element {
+  // The sketch shows until the still has painted, then goes, so a transparent picture never shows it through.
+  const [loaded, setLoaded] = createSignal(false)
+  const sketch = createMemo(() => (loaded() ? undefined : sketchOf(props.item.thumbhash)))
+  const still = () => mediaThumbnail(props.item)
   return (
     <>
-      <img
-        class="block size-full object-cover"
-        src={mediaThumbnail(props.item)}
-        alt={props.item.alt}
-        width={props.item.width}
-        height={props.item.height}
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-      />
+      <Show
+        when={still()}
+        fallback={<span class="block size-full bg-cover bg-center" style={{ "background-image": sketch() ? `url(${sketch()})` : undefined }} />}
+      >
+        <img
+          class="block size-full bg-cover bg-center object-cover"
+          style={{ "background-image": sketch() ? `url(${sketch()})` : undefined }}
+          src={still()}
+          alt={props.item.alt}
+          width={props.item.width}
+          height={props.item.height}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onLoad={() => setLoaded(true)}
+        />
+      </Show>
       <Show when={props.item.kind === "video"}>
         <Show when={props.playMark}>
           <span class="pointer-events-none absolute inset-0 grid place-items-center">

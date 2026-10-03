@@ -15,6 +15,7 @@ import { allAgents, allChats, getUserSeq, putAgents, putChats, removeChat, repla
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
+import { type UserChannelHost, userChannel } from "./user-channel"
 
 /** The user's drive, /home (architecture section 18.3). */
 export type Home = { files: FileRef[]; folders: string[] }
@@ -59,6 +60,10 @@ export type UserState = UserData & {
 	pendingAgents: Agent[]
 	/** Drive changes the server has not confirmed yet, laid over `home`. */
 	pendingHome: RoomPatch[]
+	/** The saved look as the server last said it, as JSON text. Undefined until it says. `theme/live.ts` applies it. */
+	theme?: string | null
+	/** True once the socket's first catch-up has arrived, so the server has had its say on the look. */
+	caughtUp: boolean
 }
 
 export type UserStoreOptions = {
@@ -69,6 +74,8 @@ export type UserStoreOptions = {
 	now?: () => number
 	newId?: () => string
 	ttlMs?: number
+	/** Where the socket is shared with the look, memory, and Executor. The app's channel by default. */
+	channel?: UserChannelHost
 }
 
 export type UserStore = {
@@ -101,6 +108,7 @@ export type UserStore = {
 
 export function createUserStore(options: UserStoreOptions): UserStore {
 	const { warm } = options
+	const channel = options.channel ?? userChannel
 	const now = options.now ?? Date.now
 	const newId = options.newId ?? (() => crypto.randomUUID())
 	const ttl = options.ttlMs ?? PATCH_TTL_MS
@@ -115,10 +123,12 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		patches: [],
 		pendingAgents: [],
 		pendingHome: [],
+		caughtUp: false,
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
 	let socket: SyncSocket | null = null
 	let closed = false
+	let detach = () => {}
 	let expiry: ReturnType<typeof setTimeout> | undefined
 
 	function transmit(p: UserPatch) {
@@ -151,6 +161,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			if (confirmed.length) setState("pendingAgents", (list) => list.filter((a) => !confirmed.includes(a.id)))
 			const next = settleUser(state.patches, applied)
 			if (next.length !== state.patches.length) setState("patches", next)
+			for (const e of applied) if (e.t === "theme") setState("theme", e.theme)
 			const home = state.pendingHome.filter((p) => !applied.some((e) => roomConfirmedBy(p, e as never)))
 			if (home.length !== state.pendingHome.length) setState("pendingHome", home)
 		})
@@ -165,14 +176,17 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	function reset(snapshot: UserSnapshot) {
 		const agents = [...(snapshot.agents ?? [])]
 		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home: { files: [...snapshot.home.files], folders: [...snapshot.home.folders] } })
+		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
 		putAgents(warm, agents)
 	}
 
 	function onFrame(frame: UserToClient) {
+		channel.deliver(frame)
 		if (frame.t === "events") applyEvents(frame.events)
 		else if (frame.t === "reset") reset(frame.snapshot)
+		if ((frame.t === "events" || frame.t === "reset") && !state.caughtUp) setState("caughtUp", true)
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
 			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))
@@ -192,10 +206,13 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			onOpen: () => {
 				for (const p of [...unwrap(state.patches)]) transmit(p)
 				for (const agent of [...unwrap(state.pendingAgents)]) socket?.send({ t: "agent", op: { op: "create", agent } })
+				channel.opened()
 			},
 			onFrame,
 			onStatus: (c) => setState("connection", c),
 		})
+		const own = socket
+		detach = channel.attach((frame) => own.send(frame))
 	}
 
 	const ready = boot()
@@ -237,6 +254,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		close() {
 			closed = true
 			if (expiry !== undefined) clearTimeout(expiry)
+			detach()
 			socket?.close()
 		},
 	}

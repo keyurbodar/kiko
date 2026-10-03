@@ -6,6 +6,12 @@ import type { KeyRange, Warm } from "./db"
 
 /** The boot paint reads this many. */
 export const BOOT_WINDOW = 50
+/**
+ * How far back, in room sequence numbers, a room's messages stay on disk when it closes. Most
+ * events are messages, so this keeps somewhat fewer than this many. Counted by sequence so the
+ * trim is one range delete with no read.
+ */
+export const KEEP_ON_DISK = 2000
 
 const roomRange = (roomId: RoomId, from = -Infinity, to = Infinity): KeyRange => ({
 	lower: [roomId, from],
@@ -33,12 +39,22 @@ export async function messagesBefore(warm: Warm, roomId: RoomId, seq: number, li
 	return rows.reverse()
 }
 
+/** Every stored message of a room, oldest first. For the rare change to one outside the open window. */
+export function storedMessages(warm: Warm, roomId: RoomId): Promise<Message[]> {
+	return warm.getAll<Message>("messages", roomRange(roomId))
+}
+
 /** Keeps only the newest `keep` messages of a room. */
 export async function trimRoom(warm: Warm, roomId: RoomId, keep: number) {
 	const kept = await warm.newest<Message>("messages", roomRange(roomId), keep)
 	if (kept.length < keep) return
 	const oldestKept = kept[kept.length - 1].seq
 	warm.deleteRange("messages", roomRange(roomId, -Infinity, oldestKept - 1))
+}
+
+/** Deletes the room's messages stored before `seq`. No read, so closing a room costs nothing. */
+export function dropBefore(warm: Warm, roomId: RoomId, seq: number) {
+	if (seq > 0) warm.deleteRange("messages", roomRange(roomId, -Infinity, seq - 1))
 }
 
 /** Drops a room's messages and cursor, as on a `reset` frame or a deleted chat. */

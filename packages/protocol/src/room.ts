@@ -22,6 +22,12 @@ export type FileRef = {
 	width?: number
 	height?: number
 	thumbhash?: string
+	/**
+	 * True when a small still of the file is stored beside it, at `GET /api/files/<room>/<id>/thumb`:
+	 * a picture scaled to fit 840 px, or a video's first frame. The transcript draws it; only the
+	 * media viewer loads the original.
+	 */
+	thumb?: boolean
 }
 
 /** One actor has at most one reaction on a message. */

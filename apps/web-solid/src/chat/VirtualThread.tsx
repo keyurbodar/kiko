@@ -179,6 +179,10 @@ export function VirtualThread(props: {
    * scrolls and put them back when the chat is opened again. Leave them out and
    * the transcript always opens at the end.
    */
+  /** The reader reached the oldest rows held: page in older ones. */
+  onNearTop?: () => void
+  /** The reader is at the newest message: the store may drop the oldest rows again. */
+  onAtLatest?: () => void
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll">
   /** Receives a stable jump function for the transcript's scroller. */
@@ -204,52 +208,63 @@ export function VirtualThread(props: {
   const memberSet = createMemo(() => (props.groupChat ? new Set(props.memberSlugs ?? []) : undefined))
   /** The items last built, by key, so an unchanged row keeps its object and the list keeps its DOM. */
   const lastItems = new Map<string, TimelineItem>()
-  const items = createMemo<TimelineItem[]>(() =>
-    keepUnchanged(
+  /*
+   * True when the rows changed at the top (an older page came in, or the oldest rows were let
+   * go), so the virtualizer keeps the rows on screen where they are. Read when the row count changes.
+   */
+  let shifted = false
+  let firstKey: string | undefined
+  let itemsOwner: string | undefined
+  const items = createMemo<TimelineItem[]>(() => {
+    const next = keepUnchanged(
       lastItems,
       buildTimelineItems(props.messages, props.firstUnreadMessageId, {
         notices: props.groupChat ? props.notices : undefined,
         members: memberSet(),
         expanded: expanded(),
       }),
-    ),
-  )
+    )
+    const owner = props.scrollKey
+    shifted = owner === itemsOwner && firstKey !== undefined && next.length > 0 && next[0].key !== firstKey
+    itemsOwner = owner
+    firstKey = next[0]?.key
+    return next
+  })
+  const isShifted = () => shifted
 
   /*
    * A message that arrives while the thread is open eases in (`motion-bubble-in`, 180 ms).
    * Messages that were there when the thread opened, older pages, and the server's echo of a
-   * message the reader just sent do not, so nothing replays on a scroll or a reload. The
-   * signature is sender plus body, with a count, so an echo is matched to its optimistic row.
+   * message the reader just sent do not, so nothing replays on a scroll or a reload. Keyed by id:
+   * the reader's own send eases in once, under its `local:` id, and its echo arrives under the
+   * server's id, which is never fresh for the reader's own message.
    */
-  const heard = new Map<string, number>()
+  let heard = new Set<string>()
   const fresh = new Set<string>()
   let heardKey: string | undefined
   let primed = false
   createComputed(() => {
     const messages = props.messages
     const key = props.scrollKey
-    const sign = (m: (typeof messages)[number]) => `${m.sender}|${m.body}`
+    const now = new Set<string>()
+    for (const m of messages) now.add(m.id)
     if (!primed || key !== heardKey) {
       primed = true
       heardKey = key
-      heard.clear()
+      heard = now
       fresh.clear()
-      for (const m of messages) heard.set(sign(m), (heard.get(sign(m)) ?? 0) + 1)
       return
     }
-    const now = new Map<string, number>()
     for (const m of messages) {
-      const sig = sign(m)
-      const n = (now.get(sig) ?? 0) + 1
-      now.set(sig, n)
-      if (n > (heard.get(sig) ?? 0) && Date.now() - m.sentAt < 10_000) {
-        fresh.add(m.id)
-        const id = m.id
-        setTimeout(() => fresh.delete(id), 600)
-      }
+      if (heard.has(m.id)) continue
+      const own = m.sender === "user" && !m.id.startsWith("local:")
+      // A page of older messages is old, so it never eases in.
+      if (own || Date.now() - m.sentAt >= 10_000) continue
+      fresh.add(m.id)
+      const id = m.id
+      setTimeout(() => fresh.delete(id), 600)
     }
-    heard.clear()
-    for (const [sig, n] of now) heard.set(sig, n)
+    heard = now
   })
 
   /**
@@ -459,11 +474,14 @@ export function VirtualThread(props: {
     return true
   }
 
+  /** Rows from the top at which the next older page is asked for. */
+  const NEAR_TOP_ROWS = 8
   const commitState = (state: VirtualThreadState) => {
     setScrollState(state)
     recordScroll(state)
     if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
       setPinnedCount(messageCount())
+      props.onAtLatest?.()
     }
     props.onStateChange(state)
   }
@@ -607,7 +625,10 @@ export function VirtualThread(props: {
     if (!scroller || !column) return
     const onScroll = () => {
       seedAnchor()
-      commitState(readState())
+      const state = readState()
+      commitState(state)
+      // Only a scroll asks for older rows: the first paint starts at the top for a frame.
+      if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
     const onViewportResize = () => {
       seedAnchor()
@@ -860,6 +881,7 @@ export function VirtualThread(props: {
               data={items()}
               scrollRef={scrollElement}
               bufferSize={BUFFER_SIZE}
+              shift={isShifted()}
               ref={setHandle}
             >
               {(item) => (

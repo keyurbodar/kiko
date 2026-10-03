@@ -221,11 +221,37 @@ export function createPromptInputV2Attachments(
 
 const imageMimes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
 
-async function blobReference(file: File) {
-  const id = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())))
+/** How much of each end of a file the duplicate check reads. */
+const EDGE_BYTES = 64 * 1024
+
+/**
+ * An id for a file's bytes that reads at most 128 KB of it: the size and both ends. Hashing the
+ * whole file held a second copy of a 30 MB video in memory just to spot a double paste.
+ */
+export async function blobId(file: Blob): Promise<string> {
+  const head = new Uint8Array(await file.slice(0, EDGE_BYTES).arrayBuffer())
+  const tail = file.size > EDGE_BYTES ? new Uint8Array(await file.slice(-EDGE_BYTES).arrayBuffer()) : new Uint8Array()
+  const size = new TextEncoder().encode(`${file.size}:`)
+  const all = new Uint8Array(size.length + head.length + tail.length)
+  all.set(size)
+  all.set(head, size.length)
+  all.set(tail, size.length + head.length)
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", all)))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("")
-  return { id, url: URL.createObjectURL(file) }
+}
+
+async function blobReference(file: File) {
+  return { id: await blobId(file), url: URL.createObjectURL(file) }
+}
+
+/**
+ * Frees an attachment's object URL. The composer calls it when an attachment is removed or the
+ * composer goes away; a sent attachment belongs to its message, and the room store frees it once
+ * the upload has landed. Only `blob:` URLs are ours to revoke.
+ */
+export function releaseBlobUrl(url: string | undefined): void {
+  if (url?.startsWith("blob:")) URL.revokeObjectURL(url)
 }
 const imageExtensions = new Map([
   ["gif", "image/gif"],

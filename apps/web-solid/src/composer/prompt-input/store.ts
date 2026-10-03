@@ -1,4 +1,5 @@
 import { reorderById } from "../../chat/lib/album"
+import { releaseBlobUrl } from "./attachments"
 import { batch, type Accessor } from "solid-js"
 import type { SetStoreFunction, Store } from "solid-js/store"
 import type {
@@ -96,6 +97,8 @@ export function createPromptInputV2Store(input: PromptInputV2StoreInput) {
       })
     },
     removeAttachment(id: string) {
+      const gone = store().prompt.find((part) => part.type === "image" && part.id === id)
+      if (gone?.type === "image") releaseBlobUrl(gone.blob.url)
       setStore()("prompt", (parts) => parts.filter((part) => part.type !== "image" || part.id !== id))
     },
   }

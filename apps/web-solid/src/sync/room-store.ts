@@ -41,7 +41,7 @@ import type {
 import { batch } from "solid-js"
 import { $RAW, createStore, produce } from "solid-js/store"
 import type { Warm } from "../warm/db"
-import { clearRoom, deleteMessages, getLastSeq, messagesBefore, newestMessages, putMessages, setLastSeq } from "../warm/messages"
+import { clearRoom, deleteMessages, getLastSeq, KEEP_ON_DISK, messagesBefore, newestMessages, putMessages, setLastSeq, storedMessages, dropBefore } from "../warm/messages"
 import { addToOutbox, outbox, removeFromOutbox } from "../warm/outbox"
 import {
 	expire,
@@ -85,6 +85,14 @@ export type RoomData = {
 export type MemberNotice = { seq: number; at: number; slug: AgentSlug; name: string; kind: "joined" | "left" }
 
 export const ROSTER_LIMIT = 100
+
+/**
+ * The most messages the open room holds in memory while the reader follows the end. Older ones
+ * stay in IndexedDB and come back a page at a time when the reader scrolls up (`loadOlder`).
+ * The window is cut back only once it is `WINDOW_SLACK` over, so most new messages cost no cut.
+ */
+export const MAX_MESSAGES_IN_MEMORY = 200
+export const WINDOW_SLACK = 50
 
 export const emptyRoom = (): RoomData => ({
 	seq: 0,
@@ -336,8 +344,10 @@ export type RoomStore = {
 	 * previous page. Resolves to null when the socket is down or the room does not answer.
 	 */
 	catalog(kind: "links" | "media", before?: number, limit?: number): Promise<CatalogPage | null>
-	/** Prepends up to `limit` older messages from IndexedDB. Resolves to how many. */
+	/** Prepends up to `limit` older messages from IndexedDB, and stops cutting the window. Resolves to how many. */
 	loadOlder(limit?: number): Promise<number>
+	/** The reader is back at the end: cut the window to `MAX_MESSAGES_IN_MEMORY` again, now and on every new message. */
+	follow(): void
 	/** Resolves when every queued event is applied. */
 	settled(): Promise<void>
 	close(): void
@@ -345,6 +355,15 @@ export type RoomStore = {
 
 type RoomMeta = Omit<RoomData, "messages" | "seq">
 const metaKey = (roomId: RoomId) => `room:${roomId}`
+
+/**
+ * Frees the object URLs a send drew its attachments from. Called once the uploads landed and the
+ * message shows the server's files, and for a send still uploading when the room closes (its
+ * upload already holds the bytes).
+ */
+export function freeLocal(local: readonly LocalAttachment[] | undefined): void {
+	for (const f of local ?? []) if (f.src.startsWith("blob:")) URL.revokeObjectURL(f.src)
+}
 
 export function defaultSchedule(run: () => void) {
 	const MC = (globalThis as { MessageChannel?: typeof MessageChannel }).MessageChannel
@@ -389,6 +408,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	let draining = false
 	let waiters: (() => void)[] = []
 	let expiry: ReturnType<typeof setTimeout> | undefined
+	/** True while the reader is at the end, so the window may drop its oldest messages. */
+	let following = true
 	const refusalListeners = new Set<(op: MemberOp, reason: MemberRefusal) => void>()
 	const fileRefusalListeners = new Set<(op: FileOp, reason: string) => void>()
 
@@ -444,6 +465,30 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		warm.put("meta", metaKey(roomId), meta)
 	}
 
+	/** Drops the oldest messages beyond the window. They are already on disk, or queued for it. */
+	function trimWindow(force = false) {
+		const n = state.messages.length
+		if (!following || n <= MAX_MESSAGES_IN_MEMORY || (!force && n <= MAX_MESSAGES_IN_MEMORY + WINDOW_SLACK)) return
+		setState("messages", (m) => m.slice(m.length - MAX_MESSAGES_IN_MEMORY))
+	}
+
+	/**
+	 * Applies an edit, reaction, or delete to messages that are on disk but outside the window, so
+	 * scrolling back up never shows the old version. Rare, so it reads the room's rows.
+	 */
+	async function patchDisk(events: readonly RoomEvent[]) {
+		const rows = await storedMessages(warm, roomId)
+		for (const e of events) {
+			const ids: readonly string[] = e.t === "delete" ? e.messageIds : e.t === "edit" || e.t === "react" ? [e.messageId] : []
+			for (const m of rows) {
+				if (!ids.includes(m.id)) continue
+				const change = applyRoomEvent({ ...emptyRoom(), seq: e.seq - 1, messages: [m] }, e)
+				if (change?.put) putMessages(warm, roomId, [change.put])
+				if (change?.deleted?.length) deleteMessages(warm, roomId, change.deleted.map((x) => x.seq))
+			}
+		}
+	}
+
 	// Applying frames.
 
 	function drain() {
@@ -454,6 +499,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		const puts = new Map<MessageId, Message>()
 		const deleted: number[] = []
 		let meta = false
+		const offWindow: RoomEvent[] = []
 		batch(() => {
 			setState(
 				produce((s) => {
@@ -468,13 +514,19 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 							deleted.push(m.seq)
 						}
 						if (change.meta) meta = true
+						const missed =
+							((e.t === "edit" || e.t === "react") && !change.put) ||
+							(e.t === "delete" && (change.deleted?.length ?? 0) < e.messageIds.length)
+						if (missed) offWindow.push(e)
 						if (e.t === "message" && e.run) delete s.drafts[`${e.run.runId}:${e.run.index}`]
 						if (performance.now() - start >= budget) break
 					}
 				}),
 			)
 			dropPatches(settleRoom(state.patches, applied, state.seq))
+			trimWindow()
 		})
+		if (offWindow.length) void patchDisk(offWindow)
 		if (applied.length > 0) {
 			putMessages(warm, roomId, [...puts.values()])
 			deleteMessages(warm, roomId, deleted)
@@ -506,9 +558,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
 		data.roster = raw(state.roster).filter((n) => n.seq <= snapshot.seq)
+		following = true
 		batch(() => {
 			setState({ ...data, drafts: {} })
 			dropPatches(settleRoom(state.patches, [], snapshot.seq))
+			trimWindow(true)
 		})
 		clearRoom(warm, roomId)
 		putMessages(warm, roomId, snapshot.messages)
@@ -662,6 +716,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						const ready: RoomPatch = { ...p, held: false, frame: sent, local: undefined }
 						void addToOutbox(warm, { roomId, frame: sent, createdAt: p.at })
 						setPatches((list) => list.map((x) => (x.clientId === clientId ? ready : x)))
+						freeLocal(p.local)
 						transmit(ready)
 					},
 					() => setPatches((list) => list.map((x) => (x.clientId === clientId ? { ...x, failed: true } : x))),
@@ -732,8 +787,13 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const oldest = state.messages[0]?.seq ?? state.seq + 1
 			const older = await messagesBefore(warm, roomId, oldest, limit)
 			if (older.length === 0 || closed) return 0
+			following = false
 			setState("messages", (m) => [...older.filter((o) => o.seq < (m[0]?.seq ?? Infinity)), ...m])
 			return older.length
+		},
+		follow() {
+			following = true
+			trimWindow(true)
 		},
 		settled() {
 			if (queue.length === 0 && !draining) return Promise.resolve()
@@ -741,6 +801,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		close() {
 			closed = true
+			for (const p of raw(state.patches)) if (p.held) freeLocal(p.local)
+			// The disk keeps a long history, not every message the room ever had.
+			dropBefore(warm, roomId, state.seq - KEEP_ON_DISK)
 			for (const waiting of asked.values()) for (const done of waiting) done(null)
 			asked.clear()
 			if (expiry !== undefined) clearTimeout(expiry)

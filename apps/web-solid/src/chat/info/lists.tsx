@@ -1,6 +1,6 @@
 import type { CatalogItem } from "@kiko/protocol"
 import { createSignal, For, Show } from "solid-js"
-import { urls, useApp } from "../../lib/store"
+import { stillOf, urls, useApp } from "../../lib/store"
 import type { MediaItem } from "../../lib/types"
 import { createMediaViewer } from "../media/mediaViewer"
 import type { createCatalog } from "./catalog"
@@ -118,13 +118,18 @@ function Grid(props: { catalog: Catalog; max?: number }) {
               <svg class="absolute inset-0 m-auto text-faint" width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M2 3.5h12v9H2zM2 10.5l3.5-3 3 2.5 2-1.5 3.5 3" />
               </svg>
-              <img
-                class="relative size-full object-cover"
-                src={urls.file(roomId(), m.file.id)}
-                alt=""
-                loading="lazy"
-                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-              />
+              <Show when={stillOf(roomId(), m.file)}>
+                {(src) => (
+                  <img
+                    class="relative size-full object-cover"
+                    src={src()}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                  />
+                )}
+              </Show>
               <Show when={m.file.type.startsWith("video/")}>
                 <span class="absolute right-1 bottom-1 rounded bg-black/60 px-1 text-[10px] text-white">video</span>
               </Show>

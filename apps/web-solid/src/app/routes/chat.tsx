@@ -85,6 +85,8 @@ export default function ChatRoute() {
       () => params.id,
       (_, previous) => {
         if (previous && isDraft(previous) && !wrote.has(previous)) useApp.user()?.remove(previous as never);
+        // Only the draft being left needed remembering.
+        if (previous) wrote.delete(previous);
       },
     ),
   );
@@ -189,6 +191,8 @@ export default function ChatRoute() {
             onReplyTarget={setReplyTarget}
             scrollRef={() => {}}
             onStateChange={setThreadState}
+            onNearTop={useApp.loadOlder}
+            onAtLatest={useApp.followLatest}
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
             waitingDoing={useApp.typingDoing()}
