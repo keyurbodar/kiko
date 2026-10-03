@@ -119,8 +119,9 @@ async function index(env: Env, userId: string, roomId: string, input: NewFile, f
 		await env.FILES.delete(input.r2Key)
 		return error(410, "account deleted")
 	}
-	const { file, drop, fresh, conflict } = await room.putFile(input)
+	const { file, drop, fresh, conflict, refused } = await room.putFile(input)
 	if (drop) await env.FILES.delete(drop)
+	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	// A stale edit writes nothing. The answer names what the path holds now, so the editor can offer it.
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })
 	// Architecture section 7.9: the room is not held awake for image metadata. A queue job fills what the client did not send.

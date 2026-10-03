@@ -1,5 +1,6 @@
 import { FileIcon } from "@kiko/ui/file-icon"
-import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { closeFile, openFile, openFilePath } from "../chat/info/state"
 import { urls, useApp } from "../lib/store"
 import { createFile, withMade } from "./api"
@@ -70,6 +71,8 @@ function IconButton(props: { label: string; action: string; pressed?: boolean; o
 }
 
 export default function FilesPane(props: { chatId: string }) {
+	// Bound to the open room, so it follows a chat switch.
+	createEffect(() => onCleanup(useApp.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
 	const files = createMemo(() => withMade(props.chatId, useApp.activeFiles()))
 	const path = () => openFilePath(props.chatId)
 	const file = createMemo(() => files().find((f) => f.name === path()))
@@ -109,6 +112,19 @@ export default function FilesPane(props: { chatId: string }) {
 					newFolderRequests={newFolder}
 					onOpen={(p) => openFile(props.chatId, p)}
 					onNewFile={make}
+					onRename={(from, to) => {
+						useApp.fileOp({ op: "mv", from, to })
+						// The open file follows its move.
+						const open = path()
+						if (open && (open === from || open.startsWith(`${from}/`))) openFile(props.chatId, to + open.slice(from.length))
+					}}
+					onDelete={(p, paths) => {
+						// A folder made here and never filled holds nothing on the server.
+						if (!paths.length) return
+						const open = path()
+						useApp.fileOp({ op: "rm", paths: [p], recursive: paths.length !== 1 || paths[0] !== p })
+						if (open && (open === p || open.startsWith(`${p}/`))) closeFile(props.chatId)
+					}}
 				/>
 			</div>
 			<Show when={path()} keyed>

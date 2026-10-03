@@ -1,5 +1,5 @@
 import { isAgentSlug } from "@kiko/protocol"
-import type { AgentSlug, AgentState, Chat, Envelope, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
@@ -10,8 +10,9 @@ import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
-import { type AgentSend, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
-import { type FileMeta, type FileMetaPatch, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
+import { type AgentSend, attachedLine, Bubbles, Deliveries, Mail, type ReminderDelivery, route, untagged } from "./deliver"
+import { cleanPath } from "../files/upload"
+import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, listFiles, type NewFile, type PutResult, RoomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
@@ -38,6 +39,8 @@ const WAKES_WAKEUP = "ws_wakes"
 /** Agent mail that waits for delivery: held behind a human burst, or retried after a failure. */
 const MAIL_WAKEUP = "mail"
 const MAIL_KEY = "held_mail"
+/** ASSUMPTION: the most files one agent message carries. */
+const MAX_SENT_FILES = 50
 
 /**
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
@@ -265,7 +268,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		const members = this.members.list()
 		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
-		const out = this.mail.send(slug, send, members)
+		// Files are handed over by reference: every agent in the room reads the same file space.
+		const files = send.files?.length ? this.files.refs(send.files.map((p) => p.replace(/^\/+|\/+$/g, "")), MAX_SENT_FILES) : []
+		if (!Array.isArray(files)) return { ok: false, error: `not sent: ${files.message}` }
+		const out = this.mail.send(slug, send, members, files)
 		this.publish(out.events)
 		if (!out.ok) return out
 		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
@@ -318,7 +324,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/**
 	 * What the agent needs to read a human message the way the human sees it: the bubble it replies
-	 * to, and the files it carries (each one opens with read_file). Added after routing, so a quoted
+	 * to, and the files it carries (each one opens with read). Added after routing, so a quoted
 	 * "@ada" never addresses ada. The envelope id is unchanged, so a repeat is still ignored.
 	 */
 	private withContext(e: Envelope): Envelope {
@@ -332,10 +338,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			lines.push(`(replying to ${by}: "${quoted.text.replace(/\s+/g, " ").slice(0, 400)}")`)
 		}
 		if (e.body.trim()) lines.push(e.body)
-		if (message.files?.length) {
-			const list = message.files.map((f) => `${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`).join(", ")
-			lines.push(`(attached: ${list}. open each with read_file before you answer about it.)`)
-		}
+		if (message.files?.length) lines.push(attachedLine(message.files))
 		return lines.length ? { ...e, body: lines.join("\n") } : e
 	}
 
@@ -466,10 +469,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
-	async putFile(input: NewFile): Promise<Omit<PutResult, "event"> & { fresh: boolean }> {
+	async putFile(input: NewFile): Promise<Omit<PutResult, "event"> & { fresh: boolean; entry: FsEntry | null }> {
 		const { event, ...result } = this.files.put(input)
 		if (event) this.publish([event])
-		return { ...result, fresh: event !== null }
+		return { ...result, fresh: event !== null, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
 	}
 
 	/** RPC for the attachment job. */
@@ -484,15 +487,41 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
-	/** RPC for the agent file tools (P8-05). Where the file at `path` lives, or null. */
-	async fileAt(path: string): Promise<{ r2Key: string; size: number; type: string } | null> {
-		const row = this.ctx.storage.sql.exec<{ r2_key: string; size: number; type: string }>("SELECT r2_key, size, type FROM ws_files WHERE path = ?", path).toArray()[0]
-		return row ? { r2Key: row.r2_key, size: row.size, type: row.type } : null
+	/** RPC for the agent file system. A file, a folder, or null. */
+	async fsStat(path: string): Promise<FsEntry | null> {
+		return this.files.stat(path)
 	}
 
-	/** RPC for the agent file tools (P8-05). Every file whose path starts with `prefix`, by path. */
-	async filesUnder(prefix: string): Promise<FileRef[]> {
-		return listFiles(this.ctx.storage).filter((f) => f.name.startsWith(prefix))
+	/** RPC for the agent file system. What a folder holds; everything below it with `recursive`. */
+	async fsList(dir: string, recursive = false): Promise<FsEntry[] | FsFail> {
+		return this.files.list(dir, recursive)
+	}
+
+	/** RPC for the agent file system: `mv`. */
+	async fsMove(slug: AgentSlug, from: string, to: string): Promise<FsChange | FsFail> {
+		return this.applyFs(this.files.move(from, to, { kind: "agent", slug }))
+	}
+
+	/** RPC for the agent file system: `rm`. */
+	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail> {
+		return this.applyFs(this.files.remove(paths, recursive, { kind: "agent", slug }))
+	}
+
+	/** A human's `files` frame. Returns the refusal for the socket, or null. */
+	fileOp(op: FileOp): string | null {
+		const human = { kind: "human" } as const
+		const paths = op.op === "rm" ? op.paths : [op.from, op.to]
+		if (paths.some((p) => cleanPath(p) === null)) return "that is not a path in this chat's files"
+		const out = this.applyFs(op.op === "rm" ? this.files.remove(op.paths, op.recursive ?? false, human) : this.files.move(op.from, op.to, human))
+		return out.ok ? null : out.message
+	}
+
+	/** Publishes a change and deletes the R2 objects nothing points to any more. */
+	private applyFs<T extends FsChange | FsFail>(out: T): T {
+		if (!out.ok) return out
+		if (out.events.length) this.publish(out.events)
+		if (out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+		return out
 	}
 
 	/**

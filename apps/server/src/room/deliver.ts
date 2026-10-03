@@ -1,8 +1,14 @@
-import type { AgentSlug, Envelope, RoomEvent, RoomId, RunRef } from "@kiko/protocol"
+import type { AgentSlug, Envelope, FileRef, RoomEvent, RoomId, RunRef } from "@kiko/protocol"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
 import { type RecipientMember, resolveRecipients, tags } from "./recipients"
 import { parseRichText } from "./rich-text"
+
+/** How an envelope names the files a message carries. Paths are as the agent's file tools take them. */
+export function attachedLine(files: readonly FileRef[]): string {
+	const list = files.map((f) => `/${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`).join(", ")
+	return `(attached: ${list}. open each with read before you answer about it.)`
+}
 
 /**
  * Architecture section 7.2 over a human burst. Each envelope goes to the members `resolveRecipients`
@@ -139,10 +145,11 @@ export class Bubbles {
 // A plain reply bubble (`Bubbles.post`) goes through none of this, so it wakes nobody.
 
 /** One `send_message` or `broadcast` call. `id` is stable per tool call, so a repeat stores nothing. */
-export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean }
+/** `files` are room paths, files or folders, handed over with the message. */
+export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean; files?: readonly string[] }
 
 /** A stored agent message and who it goes to. */
-export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[] }
+export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[]; files?: readonly FileRef[] }
 
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[] } | { ok: false; error: string; events: RoomEvent[] }
 
@@ -197,7 +204,7 @@ export class Mail {
 	}
 
 	/** Checks the limits, then stores the message and counts its deliveries. Returns the stored send for a repeated id. */
-	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[]): SendOutcome {
+	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], files: readonly FileRef[] = []): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
 			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [] }
@@ -218,8 +225,8 @@ export class Mail {
 			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
 			// The addressee is part of the stored text, as a Telegram mention. ASSUMPTION: no wire field for it.
 			const shown = `@${input.to} ${text}`
-			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown) })
-			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients }
+			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), ...(files.length ? { files } : {}) })
+			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients, ...(files.length ? { files } : {}) }
 			this.sql.exec(
 				"INSERT INTO root_counts (root_id, deliveries) VALUES (?, ?) ON CONFLICT(root_id) DO UPDATE SET deliveries = deliveries + excluded.deliveries",
 				rootId,
@@ -236,7 +243,7 @@ export class Mail {
 			id: `agent:${send.messageId}:${to}`,
 			roomId,
 			from: { kind: "agent", slug: from },
-			body: send.text,
+			body: send.files?.length ? `${send.text}\n${attachedLine(send.files)}` : send.text,
 			hop: send.hop,
 			rootId: send.rootId,
 			tainted: send.tainted,

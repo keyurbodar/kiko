@@ -20,6 +20,7 @@ import type {
 	Member,
 	ChatOp,
 	ClientToRoom,
+	FileRef,
 	Message,
 	MessageId,
 	RoomEvent,
@@ -85,6 +86,10 @@ const roomConfirms: Confirms = {
 	approve: (f, e) => e.t === "approval" && e.approval.id === f.approvalId && e.approval.state !== "pending",
 	member: (f, e) =>
 		f.op.op === "remove" ? e.t === "member_removed" && e.slug === f.op.slug : e.t === "member" && e.member.slug === f.op.slug,
+	// ASSUMPTION: the events carry ids, not the paths the frame named, so any removal confirms an rm
+	// and a file landing under the target confirms an mv. A refusal drops the patch at once.
+	files: (f, e) =>
+		f.op.op === "rm" ? e.t === "file_removed" : e.t === "file" && (e.file.name === f.op.to || e.file.name.startsWith(`${f.op.to}/`)),
 }
 
 export function roomConfirmedBy(patch: RoomPatch, event: RoomEvent): boolean {
@@ -250,6 +255,34 @@ export function overlayMembers(members: readonly Member[], patches: readonly Roo
 		} else {
 			out = out.map((m) => (m.slug === op.slug ? { ...m, name: op.name } : m))
 		}
+	}
+	return out
+}
+
+const under = (name: string, path: string) => name === path || name.startsWith(`${path}/`)
+
+/**
+ * The room's files with pending `rm` and `mv` applied, by the server's rules (room/files.ts): a
+ * folder is a path prefix, `mv` into an existing folder keeps the name, a file onto a file replaces it.
+ */
+export function overlayFiles(files: readonly FileRef[], patches: readonly RoomPatch[]): FileRef[] {
+	let out = files as FileRef[]
+	for (const p of patches) {
+		const f = p.frame
+		if (f.t !== "files") continue
+		const op = f.op
+		if (op.op === "rm") {
+			out = out.filter((x) => !op.paths.some((path) => under(x.name, path)))
+			continue
+		}
+		const isFolder = out.some((x) => x.name.startsWith(`${op.to}/`))
+		const target = isFolder ? `${op.to}/${op.from.slice(op.from.lastIndexOf("/") + 1)}` : op.to
+		if (target === op.from || target.startsWith(`${op.from}/`)) continue
+		const moving = out.filter((x) => under(x.name, op.from))
+		if (!moving.length) continue
+		out = out
+			.filter((x) => x.name !== target)
+			.map((x) => (under(x.name, op.from) ? { ...x, name: target + x.name.slice(op.from.length) } : x))
 	}
 	return out
 }

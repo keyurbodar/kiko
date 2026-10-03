@@ -112,6 +112,11 @@ export default {
       await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).failNext(Number(state))
       return Response.json({ ok: true })
     }
+    if (kind === "index") {
+      // Indexes a file with no bytes behind it: the room keeps only the row.
+      const path = new URL(request.url).searchParams.get("path")!
+      return Response.json(await room.putFile({ id: crypto.randomUUID(), path, r2Key: `k/${path}`, size: 2048, type: "text/markdown", sha256: path, author: { kind: "human" } }))
+    }
     if (kind === "mail") return Response.json(await room.agentMessage(slug as AgentSlug, (await request.json()) as never))
     if (kind === "calls") return Response.json(await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).calls())
     if (kind === "status") {

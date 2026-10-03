@@ -69,6 +69,16 @@ export type MemberOp =
 	| { op: "remove"; slug: AgentSlug }
 	| { op: "rename"; slug: AgentSlug; name: string }
 
+/**
+ * A human's change to the room's files, as on a Linux shell. Folders are path prefixes and exist
+ * while they hold files. `mv` into an existing folder keeps the name; `mv` of a file onto a file
+ * replaces it. `rm` of a folder needs `recursive`.
+ */
+export type FileOp = { op: "rm"; paths: readonly string[]; recursive?: boolean } | { op: "mv"; from: string; to: string }
+
+/** Why the room refused a `files` frame, in lowercase, for the human. */
+export type FileRefusal = string
+
 /** Why the room refused a `member` frame. */
 export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved"
 
@@ -133,7 +143,10 @@ export type RoomEvent =
 	| (Stored & { t: "task_removed"; id: string })
 	/** An approval card was posted or changed state. */
 	| (Stored & { t: "approval"; approval: Approval })
+	/** A file was added, replaced, or moved. A move keeps the id and changes `name`. */
 	| (Stored & { t: "file"; file: FileRef })
+	/** Files were deleted. */
+	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	/** Architecture section 11.3. The agent started no run: the user has no credential for `provider`. */
 	| (Stored & { t: "no_provider"; slug: AgentSlug; provider: string })
 
@@ -171,6 +184,7 @@ export type ClientToRoom =
 	| { t: "approve"; approvalId: string; action: "accept" | "decline" }
 	| { t: "task"; op: TaskOp }
 	| { t: "member"; op: MemberOp }
+	| { t: "files"; op: FileOp }
 	/** Searches this room's live messages, newest first. `before` is the `next` of the previous page. */
 	| { t: "search"; query: string; before?: number; limit?: number }
 	/** The links or the media sent in this room, newest first. `before` is the `next` of the previous page. */
@@ -192,6 +206,8 @@ export type RoomToClient =
 	| { t: "status"; slug: AgentSlug; state: AgentState }
 	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
+	/** Not stored. Sent only to the socket whose `files` frame changed nothing. */
+	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
 	/** Not stored. The answer to `search` for one socket. `next` is the `before` for the following page, or null at the end. */
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
 	/** Not stored. The answer to `catalog` for one socket. `next` is the `before` for the following page, or null at the end. */

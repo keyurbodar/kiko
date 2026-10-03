@@ -30,11 +30,16 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
     return p
   }
   // The id is the tool call, so a replayed call stores and delivers nothing new.
-  const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "registry" | "conversationId" | "callId">) => {
-    const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body, tainted: isRunTainted(api) })
+  const send = async (to: AgentSlug | "all", body: string, files: readonly string[] | undefined, api: Pick<ToolExecutionApi, "registry" | "conversationId" | "callId">) => {
+    const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body, tainted: isRunTainted(api), ...(files?.length ? { files } : {}) })
     return out.ok ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}`) } : { content: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })
+  const files = Type.Optional(
+    Type.Array(Type.String(), {
+      description: "files or folders to hand over, as paths like /notes/plan.md or /drafts. they show on the message, and the recipient reads them with read. nothing is copied: every agent here shares the chat's files.",
+    }),
+  )
 
   // Section 7.5. Only the lead grows the team, so only the lead's agent is offered the tool.
   const spawnTool = declareEffect(
@@ -67,9 +72,9 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
           name: "send_message",
           description:
             "send a message to one agent in this room. it shows in the chat and wakes that agent. a plain reply wakes nobody, so use this to answer a teammate.",
-          parameters: Type.Object({ to: slug("the agent's slug, without @"), text: Type.String({ description: "the message" }) }),
+          parameters: Type.Object({ to: slug("the agent's slug, without @"), text: Type.String({ description: "the message" }), files }),
           replay: "safe",
-          execute: async ({ to, text: body }, api) => send(to.replace(/^@/, "") as AgentSlug, body, api),
+          execute: async ({ to, text: body, files: paths }, api) => send(to.replace(/^@/, "") as AgentSlug, body, paths, api),
         }),
       ),
       declareEffect(
@@ -77,9 +82,9 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
         defineTool({
           name: "broadcast",
           description: "send one message to every other agent in this room. it shows in the chat and wakes each of them.",
-          parameters: Type.Object({ text: Type.String({ description: "the message" }) }),
+          parameters: Type.Object({ text: Type.String({ description: "the message" }), files }),
           replay: "safe",
-          execute: async ({ text: body }, api) => send("all", body, api),
+          execute: async ({ text: body, files: paths }, api) => send("all", body, paths, api),
         }),
       ),
       declareEffect(

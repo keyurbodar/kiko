@@ -187,6 +187,7 @@ export const RoomEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("task_removed"), id: Id }),
 	Schema.Struct({ ...stored, t: Schema.Literal("approval"), approval: Approval }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
+	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("no_provider"), slug: AgentSlug, provider: Schema.String }),
 ])
 
@@ -201,6 +202,14 @@ export const RoomSnapshot = Schema.Struct({
 })
 
 const Hello = Schema.Struct({ t: Schema.Literal("hello"), lastSeq: Count })
+
+/** A room path: 1 to 512 characters. The room checks the shape. */
+const FilePath = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(512))
+
+export const FileOp = Schema.Union([
+	Schema.Struct({ op: Schema.Literal("rm"), paths: Schema.Array(FilePath).check(Schema.isMinLength(1), Schema.isMaxLength(200)), recursive: Schema.optionalKey(Schema.Boolean) }),
+	Schema.Struct({ op: Schema.Literal("mv"), from: FilePath, to: FilePath }),
+])
 
 export const ClientToRoom = Schema.Union([
 	Hello,
@@ -221,6 +230,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("approve"), approvalId: Id, action: Schema.Literals(["accept", "decline"]) }),
 	Schema.Struct({ t: Schema.Literal("task"), op: TaskOp }),
 	Schema.Struct({ t: Schema.Literal("member"), op: MemberOp }),
+	Schema.Struct({ t: Schema.Literal("files"), op: FileOp }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
 		query: Schema.String,
@@ -252,6 +262,7 @@ export const RoomToClient = Schema.Union([
 		op: MemberOp,
 		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved"]),
 	}),
+	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
 		query: Schema.String,

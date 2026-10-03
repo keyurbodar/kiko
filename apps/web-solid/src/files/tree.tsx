@@ -151,15 +151,18 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		const d = draft()
 		setDraft(null)
 		const name = value.trim().replace(/\/+$/, "")
-		if (!d || !name || name.includes("/")) return
+		if (!d || !name) return
 		if (d.kind === "rename") {
-			const to = join(dirname(d.path), name)
+			// A name with a slash moves: "/x/y" from the root, "x/y" from the current folder, as mv does.
+			const to = name.startsWith("/") ? name.replace(/^\/+/, "") : join(dirname(d.path), name)
+			if (!to || to.split("/").some((part) => part === "" || part === "." || part === "..")) return
 			if (to === d.path) return
 			const under = pathsUnder(paths(), d.path)
 			setLocalFolders((f) => f.map((x) => (x === d.path || x.startsWith(`${d.path}/`) ? to + x.slice(d.path.length) : x)))
 			props.onRename?.(d.path, to, under)
 			return
 		}
+		if (name.includes("/")) return
 		const path = join(d.parent, name)
 		if (d.kind === "folder") {
 			setLocalFolders((f) => [...f, path])

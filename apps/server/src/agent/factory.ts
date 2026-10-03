@@ -5,7 +5,7 @@ import { type AgentChange, createRegistry, defineExtension, type Extension, type
 import { Subagent } from "./extensions/subagent"
 import { effectTable } from "./effects"
 import { type Approvals, trustExtension } from "./extensions/trust"
-import { type FilesPort, filesExtension } from "./extensions/files"
+import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
 import { type MemoryPort, memoryExtension } from "./extensions/memory"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
@@ -23,7 +23,7 @@ import { baseSections, type RoleInput } from "./prompt"
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
   /** The room's files (P8-05). Without it the agent has no file tools, as in the fake agent. */
-  files?: FilesPort
+  files?: FilesOptions
   /** The user's memory (P5-02). Without it the agent has no memory tools and no profile, as in the fake agent. */
   memory?: MemoryPort
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
@@ -60,7 +60,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.memory ? [memoryExtension(input.memory)] : []),
     ...(input.files ? [filesExtension(input.files)] : []),
-    skillsExtension(input.files),
+    skillsExtension(input.files?.fs),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(),
     ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),

@@ -291,11 +291,11 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 | Tool | Who | Effect |
 | --- | --- | --- |
-| `send_message(to, text)` | every agent | posts a visible room message addressed to one agent and delivers it |
-| `broadcast(text)` | every agent | the same, addressed to every agent |
+| `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
+| `broadcast(text, files?)` | every agent | the same, addressed to every agent |
 | `check_agent(slug)` | every agent | reads status and current task from the room. It does not call the other agent |
 | `claim_task(id)`, `update_task(id, status, note)`, `post_update(text)` | every agent | task board and activity log |
-| `read_file(path)`, `write_file(path, content)`, `list_files(prefix)` | every agent | room files in R2 |
+| `read`, `write`, `edit` (`pi-durable`'s own), `ls`, `mv`, `cp`, `rm` | every agent | the chat's files, a Linux-like tree rooted at `/` (section 18.1) |
 | `write_note(title, body)` | every agent | shared notes and decisions |
 | `create_task(title, owner, depends_on)` | lead | task board |
 | `spawn_agent(slug, role, task)` | lead | adds a member, creates its first task, delivers the task |
@@ -678,8 +678,8 @@ Every tool declares one effect.
 
 | Effect | Examples | In a tainted run |
 | --- | --- | --- |
-| `read` | `memory_search`, `read_file`, `check_agent` | allowed |
-| `write` | `memory_write`, `create_reminder`, `write_file`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
+| `read` | `memory_search`, `read`, `ls`, `check_agent` | allowed |
+| `write` | `memory_write`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `broadcast`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
 | `external` | Executor `execute` and `invoke` | needs human approval, whatever the Executor policy says |
 
@@ -798,7 +798,9 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - `RoomDO` holds the index: path, R2 key, size, type, SHA-256, dimensions, thumbhash, author.
 - Upload goes from the client through the Worker to R2 as a stream. Large files use R2 multipart upload.
 - Download is a Worker route that checks the session, supports `Range`, and sets an immutable cache header keyed by content hash. Video seeks with `Range`, so no service worker is needed for streaming.
-- `read_file` returns text, truncated, or an image for a model that accepts images (`Model.input` in pi-ai). The result is untrusted content.
+- The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, and `edit` run unchanged. There is no shell. Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
+- `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
+- R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again. A write carries the hash of the bytes the agent last read at that path, and the room refuses it if the file changed since, so a whole-file `write` never drops a teammate's edit. `edit` reads the file itself, so it lands on top.
 
 `pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Kiko does not use them. Its file tools are ordinary tools over R2.
 

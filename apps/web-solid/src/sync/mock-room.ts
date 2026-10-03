@@ -23,6 +23,7 @@ import type {
 } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
+import { overlayFiles } from "./patches"
 import { type Connect, PING, PONG, type SocketLike } from "./socket"
 import { applyUserEvent, type UserData } from "./user-store"
 
@@ -229,6 +230,24 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 				}
 			}
 			peer.push({ t: "catalog", kind: f.kind, ...(f.before !== undefined ? { before: f.before } : {}), items, next })
+		},
+		// The server's rules in room/files.ts, through the same overlay the client draws with.
+		files(peer, f) {
+			const op = f.op
+			const under = (name: string, path: string) => name === path || name.startsWith(`${path}/`)
+			if (op.op === "rm") {
+				const gone = data.files.filter((x) => op.paths.some((p) => under(x.name, p)))
+				if (!op.paths.every((p) => data.files.some((x) => under(x.name, p)))) return peer.push({ t: "files_refused", op, reason: "no such file or folder" })
+				if (!op.recursive && op.paths.some((p) => !data.files.some((x) => x.name === p))) return peer.push({ t: "files_refused", op, reason: "that is a folder" })
+				return void store({ t: "file_removed", ids: gone.map((x) => x.id) })
+			}
+			const before = new Map(data.files.map((x) => [x.id, x.name]))
+			const after = overlayFiles(data.files, [{ clientId: "", at: 0, frame: f }])
+			if (after.length === data.files.length && after.every((x) => before.get(x.id) === x.name)) return peer.push({ t: "files_refused", op, reason: "nothing moved" })
+			const kept = new Set(after.map((x) => x.id))
+			const replaced = data.files.filter((x) => !kept.has(x.id)).map((x) => x.id)
+			if (replaced.length) store({ t: "file_removed", ids: replaced })
+			for (const file of after) if (before.get(file.id) !== file.name) store({ t: "file", file })
 		},
 		member(peer, f) {
 			const op = f.op

@@ -3,14 +3,14 @@ import { defineExtension, defineTool, type Extension, wrapSection } from "@earen
 import { BUILTIN_SKILLS } from "../../skills/builtin.gen"
 import { formatSkills, parseSkill, resolveSkills, type Skill } from "../../skills/registry"
 import { declareEffect } from "../effects"
-import type { FilesPort } from "./files"
+import type { RoomFs } from "../../files/room-fs"
 
 // Architecture section 15, P5-08. Skills load on demand, as in pi's coding agent: the prompt's
 // skills slot lists each name and description, and read_skill returns the instructions. A room
 // skill is a chat file at skills/<name>/SKILL.md and wins over a built-in skill of the same name.
 
 export const SKILLS = "skills"
-const ROOM_PREFIX = "skills/"
+const ROOM_PREFIX = "skills"
 const MAX_SKILL_BYTES = 64 * 1024
 
 const builtin = (): Skill[] =>
@@ -19,22 +19,24 @@ const builtin = (): Skill[] =>
     return "warning" in s ? (console.warn(s.warning), []) : [s]
   })
 
-async function roomSkills(files: FilesPort | undefined): Promise<Skill[]> {
-  if (!files) return []
+async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
+  if (!fs) return []
+  const listed = await fs.list(ROOM_PREFIX, true)
+  if (!listed.ok) return []
   const out: Skill[] = []
-  for (const f of await files.list(ROOM_PREFIX).catch(() => [])) {
-    const m = /^skills\/([^/]+)\/SKILL\.md$/.exec(f.name)
-    if (!m) continue
-    const stored = await files.read(f.name, MAX_SKILL_BYTES).catch(() => null)
-    if (!stored) continue
-    const s = parseSkill(new TextDecoder().decode(stored.bytes), m[1]!, "room")
+  for (const f of listed.value) {
+    const m = /^skills\/([^/]+)\/SKILL\.md$/.exec(f.path)
+    if (!m || f.kind !== "file") continue
+    const bytes = await fs.bytesOf(f, MAX_SKILL_BYTES).catch(() => null)
+    if (!bytes) continue
+    const s = parseSkill(new TextDecoder().decode(bytes), m[1]!, "room")
     if ("warning" in s) console.warn(s.warning)
     else out.push(s)
   }
   return out
 }
 
-export function skillsExtension(files?: FilesPort): Extension {
+export function skillsExtension(files?: RoomFs): Extension {
   const all = async () => resolveSkills(await roomSkills(files), builtin())
   return defineExtension({
     name: SKILLS,

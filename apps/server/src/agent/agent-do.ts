@@ -10,7 +10,8 @@ import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import { findProvider, type TurnMemory } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
-import { roomFilesPort } from "./extensions/files"
+import { imageReader } from "./extensions/files"
+import { RoomFs, roomBackend } from "../files/room-fs"
 import { type MemoryPort, memoryContext } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
@@ -212,12 +213,14 @@ export class AgentDO extends DurableObject<Env> {
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort())
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
-    const files = roomFilesPort(this.env, () => this.home(), user.models)
+    const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, roomBackend(this.env, () => this.home()))
+    const files = { fs, acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     return {
       ...buildAgent({ ...role, model: await this.model(), files, memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
       ...user,
+      env: fs,
       beginRun: (batch, root) => this.beginRun(batch.requestId, root),
       // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
       inputContext: async () => {

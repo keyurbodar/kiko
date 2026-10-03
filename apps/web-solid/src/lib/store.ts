@@ -16,7 +16,7 @@ import { onChatModelChange } from "../settings/chat-model"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, AgentState, Chat, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
@@ -446,7 +446,16 @@ export function createApp(options: AppOptions = {}) {
 
       /** The open room's file index. `name` is the full path. */
       activeFiles(): FileRef[] {
-        return room()?.state.files ?? []
+        return room()?.files() ?? []
+      },
+
+      /** `rm` or `mv` on the open room's files, shown at once. */
+      fileOp(op: FileOp): void {
+        room()?.fileOp(op)
+      },
+
+      onFilesRefused(listener: (op: FileOp, reason: string) => void): () => void {
+        return room()?.onFilesRefused(listener) ?? (() => {})
       },
 
       selectThread(threadId: string) {

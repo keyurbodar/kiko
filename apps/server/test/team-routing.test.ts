@@ -332,3 +332,17 @@ test("agent mail that fails to deliver is retried until it arrives", async () =>
   expect(got[0]!.envelopes.map((e) => e.body)).toEqual(["@ada can you check the tests"])
   ws.ws.close()
 })
+
+test("an agent hands files and folders to another by reference: shown on the message, listed in the envelope", async () => {
+  const { room, ws } = await team()
+  for (const path of ["drafts/a.md", "drafts/b.md", "plan.md"]) await call(`/index/${room}?path=${encodeURIComponent(path)}`)
+  const sent = (await call(`/mail/${room}/bob`, { id: "m-files-1", to: "ada", text: "here is the draft", tainted: false, files: ["/drafts", "plan.md"] })) as { ok: boolean }
+  expect(sent.ok).toBe(true)
+  const got = await delivered(room, "ada", 1)
+  expect(got[0]!.envelopes[0]!.body).toBe("here is the draft\n(attached: /drafts/a.md (text/markdown, 2 kb), /drafts/b.md (text/markdown, 2 kb), /plan.md (text/markdown, 2 kb). open each with read before you answer about it.)")
+  const shown = ws.events().find((e) => e.t === "message" && e.from.kind === "agent" && e.from.slug === "bob")
+  expect(shown?.t === "message" && shown.files?.map((f) => f.name)).toEqual(["drafts/a.md", "drafts/b.md", "plan.md"])
+  const missing = (await call(`/mail/${room}/bob`, { id: "m-files-2", to: "ada", text: "and this", tainted: false, files: ["nope.md"] })) as { ok: boolean; error: string }
+  expect(missing).toEqual({ ok: false, error: "not sent: no such file or folder: /nope.md" })
+  ws.ws.close()
+})
