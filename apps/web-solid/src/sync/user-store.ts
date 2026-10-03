@@ -94,6 +94,8 @@ export type UserStore = {
 	rename(roomId: RoomId, title: string): void
 	pin(roomId: RoomId, pinned: boolean): void
 	mute(roomId: RoomId, muted: boolean): void
+	/** A private chat: its agents save no memory, change no soul, and write nothing to /home. */
+	setPrivate(roomId: RoomId, value: boolean): void
 	remove(roomId: RoomId): void
 	/** The drive's files and folders, with pending changes applied. */
 	homeFiles(): FileRef[]
@@ -222,6 +224,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		rename: (roomId, title) => act({ op: "rename", roomId, title }),
 		pin: (roomId, pinned) => act({ op: "pin", roomId, pinned }),
 		mute: (roomId, muted) => act({ op: "mute", roomId, muted }),
+		setPrivate: (roomId, value) => act({ op: "private", roomId, private: value }),
 		remove: (roomId) => act({ op: "delete", roomId }),
 		homeFiles: () => overlayFiles(state.home.files, state.pendingHome, state.home.folders),
 		homeFolders: () => overlayFolders(state.home.folders, state.pendingHome),

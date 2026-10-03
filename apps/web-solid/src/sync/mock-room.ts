@@ -417,6 +417,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			else if (op.op === "delete") store({ t: "chat_removed", roomId: op.roomId })
 			else if (op.op === "rename") store({ t: "chat", chat: { ...chat, title: op.title } })
 			else if (op.op === "pin") store({ t: "chat", chat: { ...chat, pinned: op.pinned } })
+			else if (op.op === "private") store({ t: "chat", chat: { ...chat, private: op.private } })
 			else store({ t: "chat", chat: { ...chat, muted: op.muted } })
 		},
 	}

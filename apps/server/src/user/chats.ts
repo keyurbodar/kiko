@@ -18,6 +18,7 @@ type Row = {
   unread: number
   updated_at: number
   agents: string
+  private: number
 }
 
 /** What a room reports once at the end of a run. */
@@ -45,6 +46,7 @@ function toChat(row: Row): Chat {
     lastPreview: row.last_preview,
     unread: row.unread,
     updatedAt: row.updated_at,
+    ...(row.private === 1 ? { private: true } : {}),
   }
 }
 
@@ -71,11 +73,11 @@ export function listChats(sql: SqlStorage): Chat[] {
 
 function write(sql: SqlStorage, chat: Chat): ChatChange {
   sql.exec(
-    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(room_id) DO UPDATE SET title = excluded.title, pinned = excluded.pinned, muted = excluded.muted,
        last_seq = excluded.last_seq, last_preview = excluded.last_preview, unread = excluded.unread,
-       updated_at = excluded.updated_at, agents = excluded.agents`,
+       updated_at = excluded.updated_at, agents = excluded.agents, private = excluded.private`,
     chat.roomId,
     chat.title,
     chat.pinned ? 1 : 0,
@@ -85,6 +87,7 @@ function write(sql: SqlStorage, chat: Chat): ChatChange {
     chat.unread,
     chat.updatedAt,
     JSON.stringify(chat.agents ?? []),
+    chat.private ? 1 : 0,
   )
   return { t: "chat", chat }
 }
@@ -113,6 +116,8 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
       return current && current.pinned !== op.pinned ? { ...current, pinned: op.pinned } : null
     case "mute":
       return current && current.muted !== op.muted ? { ...current, muted: op.muted } : null
+    case "private":
+      return current && (current.private ?? false) !== op.private ? { ...current, ...(op.private ? { private: true } : { private: undefined }) } : null
     case "delete":
       return current ? undefined : null
   }

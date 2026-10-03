@@ -36,6 +36,11 @@ const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
 
 /** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
+/** Memory ops that only read. In a private chat every other op is refused. */
+const READ_OPS = new Set(["list", "search", "view", "history"])
+const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
+const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
+
 export class AgentDO extends DurableObject<Env> {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
@@ -212,7 +217,8 @@ export class AgentDO extends DurableObject<Env> {
         const { stub, slug } = user()
         return stub.soul(slug)
       },
-      set: (body, expectSha) => {
+      set: async (body, expectSha) => {
+        if (this.home()?.private) return { ok: false, code: "invalid", message: PRIVATE_REFUSAL }
         const { stub, slug } = user()
         return stub.setSoul(slug, body, expectSha)
       },
@@ -240,7 +246,8 @@ export class AgentDO extends DurableObject<Env> {
       const h = this.home()
       return h ? roomStub(this.env.ROOM, h.userId, h.roomId).homeNotice(h.slug, text) : Promise.resolve()
     }
-    const backend = withMount(roomBackend(this.env, where, cache), HOME_PATH, homeBackend(this.env, where, notice, cache))
+    const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
+    const backend = withMount(roomBackend(this.env, where, cache), HOME_PATH, homeBackend(this.env, where, notice, cache, locked))
     const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, withSoul(backend, soul))
     const files = { fs, acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
@@ -255,7 +262,8 @@ export class AgentDO extends DurableObject<Env> {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
         const down = executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
-        return [clock, down, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
+        const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
+        return [clock, down, quiet, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
       },
     }
   }
@@ -286,7 +294,9 @@ export class AgentDO extends DurableObject<Env> {
         if (!this.#run) await this.loadAuth((await this.model()).provider)
         return this.#run?.memory ?? null
       },
-      op: (op) => userStub(this.env.USER, home.userId).memoryOp(op),
+      // A private chat leaves no trace: reads work, writes are refused (section 7.10).
+      op: async (op) =>
+        this.home()?.private && !READ_OPS.has(op.op) ? { ok: false, error: PRIVATE_REFUSAL } : userStub(this.env.USER, home.userId).memoryOp(op),
     }
   }
 

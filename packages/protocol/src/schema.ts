@@ -294,6 +294,7 @@ export const Chat = Schema.Struct({
 	unread: Count,
 	updatedAt: Count,
 	agents: Schema.optionalKey(Schema.Array(Schema.String)),
+	private: Schema.optionalKey(Schema.Boolean),
 })
 
 export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })
@@ -305,6 +306,7 @@ export const ChatOp = Schema.Union([
 	Schema.Struct({ op: Schema.Literal("rename"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ op: Schema.Literal("pin"), roomId: RoomId, pinned: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("mute"), roomId: RoomId, muted: Schema.Boolean }),
+	Schema.Struct({ op: Schema.Literal("private"), roomId: RoomId, private: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("delete"), roomId: RoomId }),
 ])
 

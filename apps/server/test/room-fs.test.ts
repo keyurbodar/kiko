@@ -281,3 +281,15 @@ test("/home is the user's drive: one agent saves there in one chat, another read
   const notices = (await (await fetch(`${origin}/notices/x/x`)).json()) as string[]
   expect(notices).toEqual(["@ada saved /home/cv.md", "@kiko saved /home/cv.md"])
 })
+
+test("in a private chat the drive is read-only", async () => {
+  await agent(fresh(), "ada").write("/home/shared.md", "hello")
+  const quiet = agent(fresh(), "quiet")
+  expect(await quiet.read("/home/shared.md")).toBe("hello")
+  for (const out of [await quiet.write("/home/secret.md", "x"), await quiet.run("rm", { paths: ["/home/shared.md"] }), await quiet.run("mkdir", { path: "/home/x" })]) {
+    expect(out.ok).toBe(false)
+    expect(out.text).toContain("this chat is private")
+  }
+  // The chat's own files are untouched by the flag.
+  expect((await quiet.write("/notes.md", "fine")).ok).toBe(true)
+})

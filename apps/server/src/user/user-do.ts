@@ -76,9 +76,11 @@ export class UserDO extends DurableObject<Env> {
         sql: this.sql,
         memory: this.memory,
         now: Date.now,
-        chats: () => listChats(this.sql),
+        // A private chat is never read: nothing from it reaches memory (section 7.10).
+        chats: () => listChats(this.sql).filter((c) => !c.private),
         readChat: (roomId, since, limit) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).humanMessagesSince(since, limit),
         complete: (system, prompt) => this.completeDefault(system, prompt),
+        souls: this.souls,
       })
     })
   }
@@ -547,7 +549,13 @@ export class UserDO extends DurableObject<Env> {
   // Internals.
 
   private apply(op: ChatOp): UserEvent | null {
-    return this.commit(applyChatOp(this.sql, op, Date.now()))
+    const event = this.commit(applyChatOp(this.sql, op, Date.now()))
+    // The room tells its agents on every delivery, so it hears of the change now, not at the next burst.
+    if (event && op.op === "private") {
+      const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
+      this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))
+    }
+    return event
   }
 
   private saveAgent(agent: Agent): Agent | null {

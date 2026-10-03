@@ -442,7 +442,14 @@ export function roomBackend(env: Env, home: () => AgentHome | null, cache = new 
  * The backend over the user's drive (section 18.4), in UserDO. Every change an agent makes there
  * is told to the chat through `notice`, so the human sees what landed in their drive.
  */
-export function homeBackend(env: Env, home: () => AgentHome | null, notice: (text: string) => Promise<unknown>, cache = new ObjectCache()): FilesBackend {
+export function homeBackend(
+  env: Env,
+  home: () => AgentHome | null,
+  notice: (text: string) => Promise<unknown>,
+  cache = new ObjectCache(),
+  /** Why the drive is read-only right now (a private chat), or null. */
+  locked: () => string | null = () => null,
+): FilesBackend {
   const h = homeOf(home)
   const told = async <T extends { ok: boolean }>(out: T, text: string) => {
     if (out.ok) await notice(text).catch(() => undefined)
@@ -462,11 +469,25 @@ export function homeBackend(env: Env, home: () => AgentHome | null, notice: (tex
       mkdir: (p) => user.homeMkdir(me, p),
     }
   }, cache)
+  const refuse = (message: string): FsFail => ({ ok: false, code: "invalid", message })
   return {
     ...base,
-    write: async (path, bytes, type, expect) => told(await base.write(path, bytes, type, expect), `saved /home/${path}`),
-    move: async (from, to) => told(await base.move(from, to), `moved /home/${from} to /home/${to}`),
-    remove: async (paths, recursive) => told(await base.remove(paths, recursive), `deleted ${paths.map((p) => `/home/${p}`).join(", ")}`),
+    write: async (path, bytes, type, expect) => {
+      const why = locked()
+      return why ? refuse(why) : told(await base.write(path, bytes, type, expect), `saved /home/${path}`)
+    },
+    move: async (from, to) => {
+      const why = locked()
+      return why ? refuse(why) : told(await base.move(from, to), `moved /home/${from} to /home/${to}`)
+    },
+    remove: async (paths, recursive) => {
+      const why = locked()
+      return why ? refuse(why) : told(await base.remove(paths, recursive), `deleted ${paths.map((p) => `/home/${p}`).join(", ")}`)
+    },
+    mkdir: async (path) => {
+      const why = locked()
+      return why ? refuse(why) : base.mkdir(path)
+    },
   }
 }
 

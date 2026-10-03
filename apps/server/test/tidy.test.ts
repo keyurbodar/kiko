@@ -62,7 +62,7 @@ test("merges, corrects, extracts, archives, keeps history, and a second run chan
   t.at(NOW)
 
   const report = await t.tidy.run()
-  expect(report).toEqual({ ran: true, appended: 1, rewritten: 3, merged: 1, corrected: 1, archived: 1 })
+  expect(report).toEqual({ ran: true, appended: 1, rewritten: 3, merged: 1, corrected: 1, archived: 1, souls: 0 })
 
   // A fact already in memory is not appended again; a new one is, in the dated tidy format.
   expect(t.prompts[0]).toContain("rex hides under the bed")
@@ -79,7 +79,7 @@ test("merges, corrects, extracts, archives, keeps history, and a second run chan
 
   // Done when: a second run right after the first calls no model and changes nothing.
   const before = t.memory.list(true).map((r) => [r.id, r.version, r.archived])
-  expect(await t.tidy.run()).toEqual({ ran: false, skipped: "unchanged", appended: 0, rewritten: 0, merged: 0, corrected: 0, archived: 0 })
+  expect(await t.tidy.run()).toEqual({ ran: false, skipped: "unchanged", appended: 0, rewritten: 0, merged: 0, corrected: 0, archived: 0, souls: 0 })
   expect(t.memory.list(true).map((r) => [r.id, r.version, r.archived])).toEqual(before)
 })
 
@@ -120,4 +120,36 @@ test("helpers", () => {
   // 03:00 in New York on 2 October 2026 is 07:00 UTC.
   expect(new Date(nextTidyAt("America/New_York", Date.UTC(2026, 9, 2, 0))).toISOString()).toBe("2026-10-02T07:00:00.000Z")
   expect(STALE_MS).toBe(90 * 86_400_000)
+})
+
+test("souls: a changed soul loses one chat's details, keeps its voice and lessons, and facts about the person move to memory", async () => {
+  const { Souls, KIKO_SOUL } = await import("../src/user/souls")
+  const sql = sqlStorage(new Database(":memory:"))
+  migrate(sql)
+  const memory = createMemory(sql, (fn) => fn(), () => NOW)
+  const souls = new Souls(sql)
+  const messy = `${KIKO_SOUL}- no emojis, ever.\n- the lisbon budget is 662 euros.\n- they're a nurse, so evenings are busy.\n`
+  await souls.seed("kiko", messy)
+  const clean = `${KIKO_SOUL}- no emojis, ever.\n- evenings are busy for them; keep evening replies short.`
+  // No chats, so no extract call: the memory tidy, then the soul tidy.
+  const answers = [JSON.stringify({ records: [] }), JSON.stringify({ souls: [{ slug: "kiko", body: clean }], facts: [{ id: "profile", fact: "works as a nurse" }] })]
+  const prompts: string[] = []
+  const tidy = new Tidy({
+    sql,
+    memory,
+    now: () => NOW,
+    chats: () => [],
+    readChat: async () => [],
+    complete: async (_s, prompt) => (prompts.push(prompt), answers.shift() ?? null),
+    souls,
+  })
+  const report = await tidy.run()
+  expect(report).toMatchObject({ ran: true, souls: 1, appended: 1 })
+  expect(prompts.at(-1)).toContain("### kiko")
+  const after = await souls.get("kiko")
+  expect(after.body).not.toContain("lisbon")
+  expect(after.body).toContain("i'm kiko, their chief")
+  expect(memory.peek("profile")?.body).toContain("works as a nurse")
+  // Nothing changed since, so the next run calls no model.
+  expect((await tidy.run()).skipped).toBe("unchanged")
 })

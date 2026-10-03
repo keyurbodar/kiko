@@ -22,6 +22,8 @@ export type Chat = {
 	updatedAt: number
 	/** The ids of the agents the chat was created with. Absent for a chat made without any. */
 	agents?: readonly string[]
+	/** A private chat (architecture section 7.10): agents in it save no memory, change no soul, and write nothing to /home. */
+	private?: boolean
 }
 
 /**
@@ -46,6 +48,7 @@ export type ChatOp =
 	| { op: "rename"; roomId: RoomId; title: string }
 	| { op: "pin"; roomId: RoomId; pinned: boolean }
 	| { op: "mute"; roomId: RoomId; muted: boolean }
+	| { op: "private"; roomId: RoomId; private: boolean }
 	| { op: "delete"; roomId: RoomId }
 
 type Stored = {

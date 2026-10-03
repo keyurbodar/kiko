@@ -115,6 +115,7 @@ const userConfirms: UserConfirms = {
 	rename: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.title === op.title,
 	pin: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.pinned === op.pinned,
 	mute: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && e.chat.muted === op.muted,
+	private: (op, e) => e.t === "chat" && e.chat.roomId === op.roomId && (e.chat.private ?? false) === op.private,
 	delete: (op, e) => e.t === "chat_removed" && e.roomId === op.roomId,
 }
 
@@ -348,6 +349,7 @@ export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch
 				if (c.roomId !== op.roomId) return c
 				if (op.op === "rename") return { ...c, title: op.title }
 				if (op.op === "pin") return { ...c, pinned: op.pinned }
+				if (op.op === "private") return { ...c, private: op.private }
 				return { ...c, muted: op.muted }
 			})
 		}

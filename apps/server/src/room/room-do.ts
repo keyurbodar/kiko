@@ -51,7 +51,8 @@ const MAX_SENT_FILES = 50
 /** What `check_agent` shows of a member. */
 export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask">
 
-export type AgentHome ={ userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean }
+/** What an agent learns about itself on every delivery. `private` is the chat's flag (section 7.10). */
+export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
 
 /** What a member reads when the lead already answered. It may add to the reply, react, or stay quiet. */
 const FOLLOW_UP_NOTE = (lead: AgentSlug) =>
@@ -119,7 +120,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** The user's chat row for this room, or null when the room is not in the chat list. */
 	private async chat(home: { userId: string; roomId: RoomId }): Promise<Chat | null> {
 		// One row, not the whole chat list, so the hop costs the same for a user with a thousand chats.
-		return userStub(this.env.USER, home.userId).getChat(home.roomId)
+		const chat = await userStub(this.env.USER, home.userId).getChat(home.roomId)
+		if (chat) this.setPrivate(chat.private ?? false)
+		return chat
+	}
+
+	/** RPC from UserDO when the human toggles the chat's private flag, and on every read of the chat. */
+	setPrivate(value: boolean): void {
+		if ((this.log.meta("private") === "1") !== value) this.log.setMeta("private", value ? "1" : "0")
+	}
+
+	/** The home an agent is told on a delivery: who it is here, and whether the chat is private. */
+	private agentHome(home: { userId: string; roomId: RoomId }, slug: AgentSlug, member: { role?: string; lead: boolean }): AgentHome {
+		return { ...home, slug, role: member.role, lead: member.lead, private: this.log.meta("private") === "1" }
 	}
 
 	/**
@@ -227,7 +240,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const results = await Promise.allSettled(
 				deliveries.map(async ({ member, envelopes: mine, brief, reactionsUpTo }) => {
 					const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
-					const { refused } = await agent.receive(mine, brief, { ...home, slug: member.slug, role: member.role, lead: member.lead })
+					const { refused } = await agent.receive(mine, brief, this.agentHome(home, member.slug, member))
 					// ASSUMPTION (P1-13): a full inbox is backpressure, so the burst waits and tries again. An entry past
 					// the size cap can never fit, so it is dropped. The messages stay in the log either way.
 					if (refused === "full") return "full"
@@ -386,7 +399,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (!member || this.mail.stopped(out.send.rootId)) continue
 			const d = this.delivery(member, members, goal, [this.mail.envelope(home.roomId, slug, out.send, to)])
 			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, to)
-			const { refused } = await agent.receive(d.envelopes, d.brief, { ...home, slug: to, role: member.role, lead: member.lead })
+			const { refused } = await agent.receive(d.envelopes, d.brief, this.agentHome(home, to, member))
 			// A full inbox is backpressure: the drain tries again. A message past the size cap never fits, so it
 			// is dropped; it stays in the log, and the next brief shows it.
 			if (refused === "full") throw new Error(`${to}'s inbox is full`)
@@ -490,12 +503,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			}
 			const goal = (await this.chat(home))?.title ?? ""
 			const d = this.delivery(member, this.members.list(), goal, [envelope])
-			const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).receive(d.envelopes, d.brief, {
-				...home,
-				slug: member.slug,
-				role: member.role,
-				lead: member.lead,
-			})
+			const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).receive(d.envelopes, d.brief, this.agentHome(home, member.slug, member))
 			if (!refused) this.members.markDelivered(member.slug, event.seq)
 		}
 		return event !== null
@@ -619,6 +627,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const result = this.members.apply(op)
 		if (!result.ok) return result.reason
 		this.publish(result.events)
+		// A newcomer sees every file the chat already has. The human is told, once, at the moment it happens.
+		if (op.op === "add") {
+			const count = this.files.stat("")
+			const n = count?.kind === "directory" ? count.files : 0
+			if (n) {
+				const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${op.slug} can now see this chat's ${n} file${n === 1 ? "" : "s"}` })
+				if (event) this.publish([event])
+			}
+		}
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
 		return null
@@ -694,7 +711,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const seq = this.log.lastSeq()
 				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat.title, new Set(), null))
 				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
-				const { refused } = await agent.receive([wakeEnvelope(home.roomId, wake)], brief, { ...home, slug: member.slug, role: member.role, lead: member.lead })
+				const { refused } = await agent.receive([wakeEnvelope(home.roomId, wake)], brief, this.agentHome(home, member.slug, member))
 				if (refused === "full") throw new Error("inbox full")
 				if (refused) console.error(`task_unblocked delivery to ${member.slug} refused: ${refused}`)
 				this.members.markDelivered(member.slug, seq)
@@ -756,7 +773,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				}
 				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat?.title ?? "", new Set(), null))
 				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, slug)
-				const { refused } = await agent.receive([envelope], brief, { ...home, slug, role: member.role, lead: member.lead })
+				const { refused } = await agent.receive([envelope], brief, this.agentHome(home, slug, member))
 				if (refused === "full") throw new Error("inbox full")
 				if (refused) console.error(`approval_result delivery to ${slug} refused: ${refused}`)
 				this.approvals.markDelivered(id)
@@ -867,12 +884,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (!member) return
 				const d = this.delivery(member, members, goal, envelopes)
 				const brief = `${d.brief}\n\n${FOLLOW_UP_NOTE(lead)}`
-				const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, brief, {
-					...home,
-					slug,
-					role: member.role,
-					lead: member.lead,
-				})
+				const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, brief, this.agentHome(home, slug, member))
 				if (refused) return
 				this.members.markDelivered(slug, seq)
 				markReactionsBriefed(this.log, slug, d.reactionsUpTo)

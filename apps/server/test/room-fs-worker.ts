@@ -124,7 +124,8 @@ export default {
       // One user, alice, in every room: the drive and the souls are hers.
       const user = () => users.get(users.idFromName("user:alice"))
       const soul = { get: () => user().soul(slug!), set: (body: string, expect?: string) => user().setSoul(slug!, body, expect) }
-      const drive = homeBackend(env, () => home, async (text) => void notices.push(`@${slug} ${text}`))
+      // An agent named "quiet" works in a private chat: the drive is read-only for it.
+      const drive = homeBackend(env, () => home, async (text) => void notices.push(`@${slug} ${text}`), undefined, () => (slug === "quiet" ? "this chat is private" : null))
       fs = new RoomFs(`test:${key}`, withSoul(withMount(counted(key, roomBackend(env, () => home), env), HOME_PATH, drive), soul))
       systems.set(key, fs)
     }

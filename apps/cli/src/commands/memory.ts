@@ -10,6 +10,7 @@ export type TidyReport = {
   merged: number
   corrected: number
   archived: number
+  souls: number
 }
 
 /** Runs the signed-in user's memory tidy now. It can call the user's model, so it waits up to two minutes. */

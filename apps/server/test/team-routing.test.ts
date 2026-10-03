@@ -377,3 +377,25 @@ test("an agent cannot delete a file attached to a message; the human can", async
   expect((await call(`/rm/${room}/bob`, { paths: ["attachments/a1-photo.png"], by: "human" })) as { refused: null }).toEqual({ refused: null })
   ws.ws.close()
 })
+
+test("adding an agent to a chat with files says so in the chat", async () => {
+  const { room, ws } = await team()
+  await call(`/index/${room}?path=notes.md`)
+  await call(`/index/${room}?path=plan.md`)
+  ws.send({ t: "member", op: { op: "add", slug: "dee", name: "dee" } })
+  const line = (await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && e.from.reason === "files"))) as Extract<RoomToClient, { t: "events" }>
+  const msg = line.events.find((e) => e.t === "message")
+  // Two files here, and the group's /chat.md.
+  expect(msg?.t === "message" && msg.text).toBe("@dee can now see this chat's 3 files")
+  ws.ws.close()
+})
+
+test("a private chat's agents are told so on every delivery", async () => {
+  const room = fresh()
+  await call("/user", { chats: [{ ...chatFor(room, "secret plans", AGENTS.map((a) => a.id)), private: true }], agents: AGENTS })
+  const ws = await Socket.open(room)
+  await ws.say("between us")
+  const got = await delivered(room, "bob", 1)
+  expect(got[0]!.home?.private).toBe(true)
+  ws.ws.close()
+})
