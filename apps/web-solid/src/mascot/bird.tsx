@@ -22,7 +22,8 @@ export function Bird(props: { slug?: string; spec?: BirdSpec; size?: number; sta
       style={props.size ? { width: `${props.size}px`, height: `${props.size}px` } : undefined}
       aria-hidden="true"
     >
-      <svg viewBox="-4 -4 108 104" innerHTML={markup()} />
+      {/* Square, and centred on the bird's outline (x 16 to 92, y 16 to 91), so it sits in the middle of any box. */}
+      <svg viewBox="2 1.5 104 104" innerHTML={markup()} />
     </span>
   )
 }

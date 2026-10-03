@@ -286,7 +286,11 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
             <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
           </span>
 
-          <span class="chat-preview" data-typing={props.bot.presence === "typing" ? "" : undefined}>
+          <span
+            class="chat-preview"
+            data-typing={props.bot.presence === "typing" ? "" : undefined}
+            data-empty={!props.bot.preview && !draft() && props.bot.presence !== "typing" ? "" : undefined}
+          >
             <Show
               when={props.bot.presence === "typing"}
               fallback={

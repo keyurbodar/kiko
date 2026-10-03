@@ -530,6 +530,11 @@
   white-space: nowrap;
 }
 
+/* A chat with nothing to preview yet: the title alone, centred on the avatar. */
+.sidebar-shell .chat-preview[data-empty] {
+  display: none;
+}
+
 .sidebar-shell .chat-preview {
   display: block;
   min-width: 0;
