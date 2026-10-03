@@ -1,6 +1,8 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState } from "@kiko/protocol"
+import type { Message } from "@earendil-works/pi-ai"
+import { taints } from "./extensions/trust"
 import type { RunState } from "./mid-run"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -25,7 +27,8 @@ export const DRAFT_INTERVAL_MS = 300
 
 /** What the agent can do in its room. `AgentDO` binds it to the room's RPC and the agent's slug. */
 export interface RoomPort {
-  post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
+  /** `tainted` is true once the run has read outside content: the room shows no link card for it (section 16.4). */
+  post(runId: string, attempt: number, index: number, block: string, tainted: boolean): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
   endRun(runId: string): Promise<void>
@@ -33,7 +36,7 @@ export interface RoomPort {
   react(emoji: string, messageId?: string): Promise<unknown>
 }
 
-type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
+type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number; tainted: number }
 
 type AssistantLike = { role?: string; stopReason?: string; content?: readonly { type: string; text?: string }[] }
 
@@ -73,6 +76,8 @@ type Run = {
   cursor: number
   blocks: string[]
   posted: number
+  /** The run has read outside content (a tainted envelope or an `<untrusted>` tool result). Stored. */
+  tainted: boolean
   /** Reactions of finished generations not yet sent to the room. */
   reactions: Reaction[]
   generation: Generation | null
@@ -109,6 +114,20 @@ export class Outbox {
       posted INTEGER NOT NULL,
       ended INTEGER NOT NULL DEFAULT 0
     ) STRICT`)
+    if (!this.sql.exec<{ name: string }>("SELECT name FROM pragma_table_info('outbox')").toArray().some((c) => c.name === "tainted")) {
+      this.sql.exec("ALTER TABLE outbox ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0")
+    }
+  }
+
+  /** A tainting entry seen before its run started, such as the run's own input. */
+  private taintPending = false
+
+  /** Notes an entry that taints the run: the current one, or the next to start. */
+  private see(entry: EntryRecord | undefined): void {
+    const message = entry?.model?.[0] as Message | undefined
+    if (!message || !taints(message)) return
+    if (this.run) this.run.tainted = true
+    else this.taintPending = true
   }
 
   /**
@@ -176,9 +195,11 @@ export class Outbox {
       }
       case "message_end":
         this.lastEntry = Math.max(this.lastEntry, event.entry.id)
+        this.see(event.entry)
         return this.entry(event.entry)
       case "entry_appended":
         this.lastEntry = Math.max(this.lastEntry, event.entry.id)
+        this.see(event.entry)
         return
       case "tool_execution_start":
         if (this.run) {
@@ -187,6 +208,7 @@ export class Outbox {
         }
         return this.setStatus("working")
       case "tool_execution_end":
+        this.see(event.entry)
         if (this.run) this.run.toolsRunning = Math.max(0, this.run.toolsRunning - 1)
         return this.setStatus("typing")
       case "run_end":
@@ -214,6 +236,7 @@ export class Outbox {
       for (const entry of entries) {
         if (entry.id <= run.cursor) continue
         if (row.run_id !== liveId && entry.kind === "pi.user") break
+        if (entry.model?.[0] && taints(entry.model[0])) run.tainted = true
         this.finishGeneration(run, entry)
       }
       this.run = run
@@ -226,7 +249,10 @@ export class Outbox {
       const input = entries.findLast((e) => e.kind === "pi.user")?.id ?? 0
       await this.start(liveId, input)
       const run = this.run!
-      for (const entry of entries) if (entry.id > input) this.finishGeneration(run, entry)
+      for (const entry of entries) {
+        if (entry.id >= input && entry.model?.[0] && taints(entry.model[0])) run.tainted = true
+        if (entry.id > input) this.finishGeneration(run, entry)
+      }
       this.save(run)
     }
     if (!this.run) return
@@ -251,6 +277,8 @@ export class Outbox {
     this.sql.exec("INSERT OR IGNORE INTO outbox (run_id, attempt, cursor, blocks, posted) VALUES (?, 0, ?, '[]', 0)", id, cursor)
     const row = this.sql.exec<Row>("SELECT * FROM outbox WHERE run_id = ?", id).one()
     this.run = this.load(row)
+    if (this.taintPending) this.run.tainted = true
+    this.taintPending = false
     await this.setStatus("typing")
   }
 
@@ -318,7 +346,7 @@ export class Outbox {
     const all = [...run.blocks, ...(run.generation?.blocks ?? [])]
     while (run.posted < all.length) {
       run.bubbled = true
-      await room.post(run.id, run.attempt, run.posted, all[run.posted]!)
+      await room.post(run.id, run.attempt, run.posted, all[run.posted]!, run.tainted)
       run.posted++
       this.sql.exec("UPDATE outbox SET posted = ?, attempt = ? WHERE run_id = ?", run.posted, run.attempt, run.id)
     }
@@ -340,6 +368,7 @@ export class Outbox {
     await this.room()?.endRun(id)
     this.sql.exec("UPDATE outbox SET ended = 1 WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
+    this.taintPending = false
     this.state = "idle"
   }
 
@@ -350,7 +379,7 @@ export class Outbox {
   }
 
   private openRows(): Row[] {
-    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted FROM outbox WHERE ended = 0 ORDER BY rowid").toArray()
+    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted, tainted FROM outbox WHERE ended = 0 ORDER BY rowid").toArray()
   }
 
   private load(row: Row): Run {
@@ -360,6 +389,7 @@ export class Outbox {
       cursor: row.cursor,
       blocks: JSON.parse(row.blocks) as string[],
       posted: row.posted,
+      tainted: row.tainted === 1,
       reactions: [],
       generation: null,
       bubbled: false,
@@ -370,11 +400,12 @@ export class Outbox {
 
   private save(run: Run): void {
     this.sql.exec(
-      "UPDATE outbox SET attempt = ?, cursor = ?, blocks = ?, posted = ? WHERE run_id = ?",
+      "UPDATE outbox SET attempt = ?, cursor = ?, blocks = ?, posted = ?, tainted = ? WHERE run_id = ?",
       run.attempt,
       run.cursor,
       JSON.stringify(run.blocks),
       run.posted,
+      run.tainted ? 1 : 0,
       run.id,
     )
   }

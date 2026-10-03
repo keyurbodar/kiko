@@ -419,6 +419,8 @@ The client holds one WebSocket to `UserDO` and one to the `RoomDO` of the visibl
 
 The Worker authenticates the upgrade request with the session cookie, builds the Durable Object name from the session's user id, and forwards the upgrade. A client cannot name a Durable Object.
 
+The upgrade is one hop. The session check reads only the signed cookie cache; Better Auth's schema check is off, because the D1 migrations own the schema and each request builds a new instance that would otherwise read the schema from D1. The deleted-account tombstone is read from D1 once per user per isolate every 30 seconds. A room records itself in the user's ledger on its first socket, not on every upgrade, so the Worker forwards straight to the room. Once deletion begins, `UserDO` refuses the user socket and any room that was never recorded, and the deletion job closes the rest.
+
 A socket can die without a close event, after a laptop sleeps or the network changes, and the chat would sit stale. The client sends a bare `ping` after 25 seconds of silence, and at once when the tab returns or the network comes back. Both objects answer `pong` with `setWebSocketAutoResponse`, which never wakes them. Any frame counts as life. A socket silent for 8 seconds after a ping is dropped and reconnected at once.
 
 ### 9.2 Durable events and resume
@@ -447,7 +449,7 @@ type RoomToClient =
 	| { t: "status"; slug: string; state: AgentState }            // not stored
 ```
 
-On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON.
+On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON. The room keeps the newest 1,000 events (twice the replay window) and trims the rest in steps of 100. The `messages` table keeps the history, so a trimmed event only repeated what a snapshot carries. An index on `(kind, seq)` finds the newest event of one kind without reading the log. Two partial indexes on `messages` hold only agent messages, so the chat row's unread count and mention scan never read the human's own messages. One send costs the same in a chat of 70 events and one of 1,500 messages: about 20 rows read.
 
 **Reasoning.** `pi-durable` says "a client that joins late or reconnects starts from the current view; nothing is replayed". That is not enough for a chat client on a bad network, so the room keeps its own log. The room log is what the human sees (bubbles, reactions, replies, files). The `pi-durable` transcript is what a model sees (tool calls, briefs, other agents' messages). One room maps to several transcripts, so the two logs have different shapes and neither can stand in for the other.
 
@@ -896,7 +898,7 @@ The design follows the spec's additions.
 - The room attaches the card to the message, as Telegram does. After it stores a message or an edit, it resolves the first `http(s)` link in the background, checks the link is still the message's first, and stores a `preview` event. The card lives in the room log, the snapshot, and the client's IndexedDB. Agents never see it. A message with files gets no card.
 - The client keeps a 100-entry LRU in memory over an IndexedDB store of 500 previews, loaded before the first room paints. The composer looks a pasted link up at once and debounces typing by 150 ms. The card's panel colour is the most common vivid hue of its picture, darkened until white text reads at 4.5:1, then the page's `theme-color`, then the bubble surface. The colour is stored with the preview.
 
-OPEN: section 16.4 says a tainted run's URLs are not previewed. The room cannot tell a tainted bubble from a clean one, because `post()` carries no taint. The client already previewed every agent link before this change, so the exposure is unchanged. Passing the run's taint through `post()` would close it.
+- A tainted run's bubbles (section 16.4) get a card only for a link a human message already holds. The outbox marks a run tainted when it sees a tainted envelope or an `<untrusted>` tool result in the run, keeps the mark in its `outbox` row, and passes it with every `post()`.
 
 UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The route validates on its own and does not rely on the platform. The existing proxy in `apps/web-solid/vite.config.ts` checks hosts by name only and is deleted.
 
@@ -1087,7 +1089,7 @@ How P1-13 built them:
 
 - `lib/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works. `history()` returns the last 100 fired keys with their due and fired times.
 - `agent/inbox.ts` marks a claimed batch with `in_flight_at` and the id of the process that took it. A batch held by another process is reclaimed at once, because a Durable Object has one live process and the other one is dead. A batch held by this process is reclaimed after 5 minutes. A failed drain releases what it took. `submitted()` returns false the second time. `receive()` returns `{ admitted: [], refused: "full" | "too_large" }` instead of throwing.
-- ASSUMPTION: the caps are 500 open rows (waiting or claimed) and 128 KiB per envelope plus brief. Submitted rows stay for dedupe and do not count.
+- ASSUMPTION: the caps are 500 open rows (waiting or claimed) and 128 KiB per envelope plus brief. Submitted rows stay for dedupe and do not count. A delivery stores its brief on its first row only, since one delivery always lands in one batch. The room sends a burst past the caps in deliveries of at most 100 envelopes and 64 KiB (`deliverable` in `room/burst.ts`), so a huge burst is never refused forever or dropped.
 - ASSUMPTION: the room treats `full` as backpressure and retries the burst after 2 seconds. It drops a `too_large` burst from the queue. The messages stay in the log either way.
 - `RoomDO`, `UserDO`, and `AgentDO` build their tables inside `blockConcurrencyWhile`. The callback runs after the constructor returns but before any request or alarm.
 - The hello deadline is stored in each socket's attachment and enforced by a `hello` wakeup, not `setTimeout`, so it survives hibernation. A late socket is closed with code 4408 and reason `no hello within 5 seconds`. The Worker answers 504 when the session check and the object's upgrade take more than 5 seconds.

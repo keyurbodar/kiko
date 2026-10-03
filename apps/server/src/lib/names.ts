@@ -57,9 +57,10 @@ export function roomStub(ns: DurableObjectNamespace<RoomDO>, userId: string, roo
 }
 
 /**
- * The stub of one of the session user's rooms, for a Worker route. It records the room in
- * `UserDO` first, so account deletion finds a room that never became a chat. Null once
- * deletion has begun. Throws `NameError` for a bad room id.
+ * The stub of one of the session user's rooms, for a Worker HTTP route such as an upload. It
+ * records the room in `UserDO` first, so account deletion finds a room that never became a chat.
+ * Null once deletion has begun. Throws `NameError` for a bad room id. A socket upgrade skips this
+ * hop: `RoomDO` records itself on its first socket.
  *
  * DEVIATION from refusing rooms the chat index does not list: a client creates a chat
  * optimistically and may open its socket before the create reaches `UserDO`, and a

@@ -1,7 +1,7 @@
 import { type AuthEnv, getSessionUser } from "./auth/auth"
 import type { Env } from "./index"
 import { humanHandle } from "@kiko/protocol"
-import { addressRoom, HANDLE_HEADER, NameError, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "./lib/names"
+import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
 
 // Architecture sections 4.2 and 9.1. The Worker checks the session, builds the object
 // name from the session's user id, and forwards the socket upgrade. A client never names
@@ -119,8 +119,8 @@ async function upgrade(request: Request, env: Env, url: URL, target: Target, loo
       headers.delete(ROOM_ID_HEADER)
       return await userStub(env.USER, user.id).fetch(new Request(request, { headers }))
     }
-    const stub = await addressRoom(env, user.id, target.roomId)
-    if (!stub) return error(410, "account deleted")
+    // The room records itself in UserDO on its first socket (RoomDO.fetch), so this is one hop, not two.
+    const stub = roomStub(env.ROOM, user.id, target.roomId)
     headers.set(ROOM_ID_HEADER, target.roomId)
     headers.set(HANDLE_HEADER, humanHandle(user.name))
     return await stub.fetch(new Request(request, { headers }))

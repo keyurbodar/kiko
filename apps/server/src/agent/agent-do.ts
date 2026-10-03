@@ -152,7 +152,7 @@ export class AgentDO extends DurableObject<Env> {
     if (!home) return null
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
-      post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
+      post: (runId, attempt, index, block, tainted) => room().post(home.slug, runId, attempt, index, block, tainted),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
       status: (state) => room().setStatus(home.slug, state),
       endRun: (runId) => room().endRun(home.slug, runId),

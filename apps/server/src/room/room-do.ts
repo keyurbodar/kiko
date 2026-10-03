@@ -8,7 +8,7 @@ import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
-import { BURST_WAKEUP, Burst } from "./burst"
+import { BURST_WAKEUP, Burst, deliverable } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
 import { cleanPath, fileKey } from "../files/upload"
@@ -17,7 +17,7 @@ import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, type Proposal, type ProposalInput } from "./chief"
 import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
-import { attachPreview, previewTarget } from "./link-preview"
+import { attachPreview, humanWrote, previewTarget } from "./link-preview"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
@@ -352,7 +352,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private async flush(): Promise<void> {
 		const home = this.home()
 		if (!home) return
-		const envelopes = this.burst.envelopes(home.roomId)
+		const pending = this.burst.envelopes(home.roomId)
+		const envelopes = deliverable(pending)
 		if (!envelopes.length) return
 		try {
 			const chat = await this.chat(home)
@@ -410,6 +411,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (followers.length) this.log.setMeta(`follow:${lead.slug}`, JSON.stringify({ followers, envelopes }))
 			}
 			this.burst.delivered(envelopes)
+			// The rest of a burst too big for one delivery goes next, at once.
+			if (envelopes.length < pending.length) return await this.burst.retry(0)
 			await this.drainMail()
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -586,6 +589,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
 		if (this.#closed || this.#wiped) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
+			// The first socket records the room in the user's ledger, so account deletion finds a room that
+			// never became a chat. Once, not on every upgrade: later sockets save the Worker a hop to UserDO.
+			// A test worker without a user object has no ledger to write.
+			const recorded = this.env.USER ? await userStub(this.env.USER, userId).recordRoom(roomId as RoomId) : true
+			if (!recorded) return new Response("account deleted", { status: 410 })
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
 		}
@@ -618,8 +626,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** Sends stored events to every socket that has said hello. */
-	publish(events: readonly RoomEvent[]): void {
+	/** Sends stored events to every socket that has said hello. `previews: false` reads only links a human sent. */
+	publish(events: readonly RoomEvent[], { previews = true }: { previews?: boolean } = {}): void {
 		if (!events.length) return
 		this.broadcast({ t: "events", events })
 		if (events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
@@ -631,6 +639,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// The card for a message's first link follows the message, in its own event.
 		for (const e of events) {
 			const target = previewTarget(e)
+			if (target && !previews && !humanWrote(this.ctx.storage.sql, target.url)) continue
 			if (target) this.ctx.waitUntil(attachPreview(this.log, this.env, target, (w) => this.ctx.waitUntil(w), (out) => this.publish(out)))
 		}
 	}
@@ -1030,11 +1039,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/**
 	 * RPC for an agent in this room (section 6.3). Stores one closed block of a run's answer. A repeated
 	 * `(runId, attempt, index)` stores nothing. A higher attempt deletes the bubbles of earlier attempts.
-	 * Returns true when this call stored the bubble.
+	 * Returns true when this call stored the bubble. A bubble of a `tainted` run gets a link card only
+	 * for a link a human message holds: any other link may carry what outside content made the run
+	 * write, so the room never fetches it (section 16.4).
 	 */
-	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string): Promise<boolean> {
+	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string, tainted = false): Promise<boolean> {
 		const events = this.bubbles.post(slug, { runId, attempt, index }, block)
-		this.publish(events)
+		this.publish(events, { previews: !tainted })
 		return events.some((e) => e.t === "message")
 	}
 
@@ -1092,8 +1103,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
 		await this.setTyping(slug, state === "typing")
 		// A marker that outlives the process, so a room that starts after a restart knows a run was live.
+		// Written once per run, not on every typing and working change.
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
-		else this.log.setMeta(`live:${slug}`, "1")
+		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, "1")
 	}
 
 	/**

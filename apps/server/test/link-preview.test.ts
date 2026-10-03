@@ -305,4 +305,45 @@ describe("room", () => {
     expect(kinds.filter((k) => k === "preview")).toHaveLength(1)
     late.close()
   })
+
+  test("a tainted run's link gets a card only once a human sent it; a clean run's always does", async () => {
+    // Section 16.4: a link a tainted run wrote may carry what outside content told it to write.
+    const preview = { url: "https://cached.test/agent", title: "an agent's page" }
+    const kv = await mf.getKVNamespace("PREVIEWS")
+    await kv.put(`preview:v2:${preview.url}`, JSON.stringify({ preview }))
+    const room = `01JZ8Q4T6MA${String(Date.now()).padStart(15, "0")}`
+    const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
+    const frames: RoomToClient[] = []
+    ws.onmessage = (e) => frames.push(JSON.parse(String(e.data)))
+    await new Promise((r) => (ws.onopen = r))
+    ws.send(JSON.stringify({ t: "hello", lastSeq: 0 }))
+    const events = () => frames.flatMap((f) => (f.t === "events" ? f.events : []))
+    const messages = () => events().filter((e): e is Extract<RoomEvent, { t: "message" }> => e.t === "message")
+    const cards = () => events().filter((e) => e.t === "preview")
+    const until = async (done: () => boolean) => {
+      const deadline = Date.now() + 5000
+      while (!done() && Date.now() < deadline) await Bun.sleep(50)
+    }
+    const post = async (runId: string, tainted: boolean) => {
+      const res = await fetch(`${origin}/post/${room}/kiko`, { method: "POST", body: JSON.stringify({ runId, block: `see ${preview.url}`, tainted }) })
+      expect(await res.json()).toBe(true)
+    }
+
+    await post("kiko:tainted", true)
+    await Bun.sleep(1000)
+    expect(messages()).toHaveLength(1)
+    expect(cards()).toHaveLength(0)
+
+    await post("kiko:clean", false)
+    await until(() => cards().length === 1)
+    expect(cards()).toMatchObject([{ messageId: messages()[1]!.id }])
+
+    // The human sends the link. Its own card is the second; the tainted run's next bubble gets the third.
+    ws.send(JSON.stringify({ t: "send", clientId: "h1", text: `what about ${preview.url}?` }))
+    await until(() => cards().length === 2)
+    await post("kiko:tainted-after", true)
+    await until(() => cards().length === 3)
+    expect(cards()[2]).toMatchObject({ messageId: messages()[3]!.id })
+    ws.close()
+  })
 })
