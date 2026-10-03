@@ -22,6 +22,12 @@ export interface RosterBot {
   name: string;
   /** One-line preview of the last exchange, shown under the name. */
   preview: string;
+  /** Who the preview is from (`you`, or an agent in a group), drawn before it. */
+  previewFrom?: string;
+  /** Who is typing, in words, while `presence` is `typing`: `typing`, or `ada is typing` in a group. */
+  typing?: string;
+  /** Unread messages that mention the human or reply to them: the row's @ badge. */
+  mentions?: number;
   /** Epoch ms of the last activity; the sidebar renders this relatively. */
   updatedAt: number;
   presence: BotPresence;

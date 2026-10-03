@@ -26,6 +26,8 @@ export type BriefView = {
 	reactions: string | null
 	/** What each member is doing right now and the paths it holds (team.ts, section 7.12). */
 	team?: Record<string, { doing: string | null; holds: readonly string[] }>
+	/** The human's handle, so the agent can @ them. Absent until the human's first socket. */
+	human?: string
 }
 
 /** The header of the missed-message section. The fake agent of the `team-routing` suite looks for it. */
@@ -41,7 +43,9 @@ const oneLine = (text: string) => {
 
 /** The brief for `member`. Pure: the room gathers the view from its tables. */
 export function buildBrief(member: MemberRow, view: BriefView): string {
-	const lines = [`room goal: ${oneLine(view.goal) || "none yet"}`, `you are @${member.slug}${member.lead ? ", the lead" : ""}.`, "members:"]
+	const lines = [`room goal: ${oneLine(view.goal) || "none yet"}`, `you are @${member.slug}${member.lead ? ", the lead" : ""}.`]
+	if (view.human) lines.push(`the human is @${view.human}. write @${view.human} only when you need them, such as a question only they can answer.`)
+	lines.push("members:")
 	for (const m of view.members) {
 		const now = view.team?.[m.slug]
 		const parts = [

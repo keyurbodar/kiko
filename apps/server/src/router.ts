@@ -1,6 +1,7 @@
 import { type AuthEnv, getSessionUser } from "./auth/auth"
 import type { Env } from "./index"
-import { addressRoom, NameError, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "./lib/names"
+import { humanHandle } from "@kiko/protocol"
+import { addressRoom, HANDLE_HEADER, NameError, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "./lib/names"
 
 // Architecture sections 4.2 and 9.1. The Worker checks the session, builds the object
 // name from the session's user id, and forwards the socket upgrade. A client never names
@@ -9,7 +10,7 @@ import { addressRoom, NameError, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from
 declare const process: { env: { NODE_ENV?: string } }
 
 /** Finds the signed-in user. Tests pass their own. */
-export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string } | null>
+export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
 
 type Target = { kind: "user" } | { kind: "room"; roomId: string }
 
@@ -121,6 +122,7 @@ async function upgrade(request: Request, env: Env, url: URL, target: Target, loo
     const stub = await addressRoom(env, user.id, target.roomId)
     if (!stub) return error(410, "account deleted")
     headers.set(ROOM_ID_HEADER, target.roomId)
+    headers.set(HANDLE_HEADER, humanHandle(user.name))
     return await stub.fetch(new Request(request, { headers }))
   } catch (e) {
     if (e instanceof NameError) return error(400, e.message)

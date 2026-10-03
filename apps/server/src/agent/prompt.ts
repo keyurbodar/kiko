@@ -51,7 +51,7 @@ your files
 
 /** Architecture section 6.5: the tag is documented in one line. `split-bubbles.ts` parses it. */
 const REACTION_LINE =
-  "when a message needs no real answer (ok, thanks, lol, got it), react like a person would: reply with just [react:👍] (or ❤️ 😂 🙏 🔥 👀 🎉), or one tiny bubble; [react:<emoji>:<messageId>] targets an older message (ids are in the context). put a reaction tag first, before any text, so it lands at once."
+  "when a message needs no real answer (ok, thanks, lol, got it), react like a person would: reply with just [react:👍] (or ❤️ 😂 🙏 🔥 👀 🎉), or one tiny bubble; [react:<emoji>:<messageId>] targets an older message (ids are in the context). put a reaction tag first, before any text, so it lands at once. to answer one older message directly, start that bubble with [reply:<messageId>]."
 
 function roleText({ role, lead }: RoleInput): string {
   const rank = lead

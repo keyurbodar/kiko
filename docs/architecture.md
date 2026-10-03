@@ -444,6 +444,18 @@ On connect the client sends `hello`. The room answers with the events after `las
 
 **Reasoning.** `pi-durable` says "a client that joins late or reconnects starts from the current view; nothing is replayed". That is not enough for a chat client on a bad network, so the room keeps its own log. The room log is what the human sees (bubbles, reactions, replies, files). The `pi-durable` transcript is what a model sees (tool calls, briefs, other agents' messages). One room maps to several transcripts, so the two logs have different shapes and neither can stand in for the other.
 
+### 9.2.1 The chat list row
+
+The room keeps the user's chat row current. After each change to its newest activity, its read position, or its members, it sends `UserDO.touchChat` one row summary: `last`, `unread`, `mentions`, and `group`. Changes made in one step share one touch. A touch with an older `lastSeq` is ignored.
+
+- `last` is the newest activity as data (`ChatLast` in `packages/protocol/src/activity.ts`): who, a kind (text, photo, video, album, file, voice, audio, link, react, joined, left, renamed, created, approval, notice), and a clipped text. It is the newest of: a live message, an agent's reaction to a human message that still stands, a pending approval, and a member joining or leaving. A deleted newest message falls back to the one before it. A rename of a group is stored by `UserDO` and stays the line until something newer happens.
+- The client words it in `sidebar/activity.ts`, as Telegram does: `you: text` for your own messages, `ada: text` in a group, `photo, caption`, `ada reacted ❤️ to "hello"`, `ada joined`. A row stored before `last` existed shows `lastPreview`.
+- The row sorts by its newest activity, so reading a chat never moves it.
+- The open room's row uses its own newest message until the server's touch arrives, so a send shows in the list at once.
+- Who is typing reaches the chat list through `UserDO.chatTyping`, a `typing { roomId, names }` frame on the user socket. It is sent when the set changes, never per keystroke, and never stored.
+
+Mentions. The Worker passes the human's handle (`humanHandle`, the first word of the account name) to the room on every socket, and the brief tells agents to write `@<handle>` when they need the human. An agent answers one message inline by starting a bubble with `[reply:<messageId>]`, which becomes `replyTo`. An agent message mentions the human when it names the handle or replies to a human message (`mentionsHuman`). `mentions` counts the unread ones. The open chat marks every message read at once, so it tracks the mentions the reader has not seen on screen in memory, and its `@` button jumps to the oldest.
+
 ### 9.3 Optimistic updates
 
 Every client action is applied locally first. The client keeps a list of pending patches over the server state and drops a patch when an event with the matching `clientId` or a `seq` at or past the acknowledged one arrives. Pending sends are also written to IndexedDB, so a reload or a lost connection resends them. The t3code reference uses the same pending-patch list for pin and reorder (`packages/client-runtime/src/state/threadLifecycle.ts`). Kiko uses it for every action, including sending.
