@@ -1,5 +1,5 @@
 // The kiko chat. Every user has one, pinned, with kiko as its only agent, and it cannot be
-// deleted. Its room id is minted once and kept in `settings`, so making sure it exists is
+// deleted or unpinned. Its room id is minted once and kept in `settings`, so making sure it exists is
 // safe to run on every sign-in.
 
 import { isRoomId, newRoomId, type Chat, type ChatOp, type RoomId } from "@kiko/protocol"
@@ -26,8 +26,9 @@ export function kikoChatOps(sql: SqlStorage, exists: (roomId: RoomId) => boolean
   ]
 }
 
-/** True when `op` would delete the kiko chat, which never happens. */
-export const deletesKikoChat = (sql: SqlStorage, op: ChatOp) => op.op === "delete" && op.roomId === kikoChatRoom(sql)
+/** True when `op` would delete or unpin the kiko chat, which never happens. */
+export const movesKikoChat = (sql: SqlStorage, op: ChatOp) =>
+  (op.op === "delete" || (op.op === "pin" && !op.pinned)) && op.roomId === kikoChatRoom(sql)
 
 /** The chat with `kiko` set when it is the kiko chat. */
 export const markKikoChat = (sql: SqlStorage, chat: Chat): Chat => (chat.roomId === kikoChatRoom(sql) ? { ...chat, kiko: true } : chat)

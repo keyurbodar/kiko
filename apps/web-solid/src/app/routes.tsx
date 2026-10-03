@@ -1,5 +1,5 @@
-import { Navigate, type RouteDefinition, useParams } from "@solidjs/router"
-import { lazy } from "solid-js"
+import { Navigate, type RouteDefinition, useNavigate, useParams } from "@solidjs/router"
+import { createEffect, lazy } from "solid-js"
 import { useApp } from "../lib/store"
 import { openFile, openInfo } from "../chat/info/state"
 import { openTabs } from "./open-tabs"
@@ -24,6 +24,20 @@ export function preloadRoute(href: string): void {
 
 /** The chat a redirect lands on when the path names none: the last one open, else the first tab. */
 const activeChat = () => useApp.activeThreadId() ?? openTabs.ids()[0] ?? null
+
+/*
+ * `/` and `/chat` name no chat, so the app goes back to the one the user was last in (architecture
+ * section 7.11): this device's copy at once, else the server's, else the kiko chat.
+ */
+function Resume() {
+  const navigate = useNavigate()
+  void pages.chat.preload()
+  createEffect(() => {
+    const id = useApp.resumeChat()
+    if (id) navigate(`/chat/${id}`, { replace: true })
+  })
+  return null
+}
 
 /*
  * Memory is part of a chat now. `/memory` and `/memory/:id` open the active chat with the panel on
@@ -56,8 +70,8 @@ function FilesRedirect() {
 }
 
 export const routes: RouteDefinition[] = [
-  { path: "/", component: () => <Navigate href="/chat" /> },
-  { path: ["/chat", "/chat/new", "/chat/:id"], component: pages.chat },
+  { path: ["/", "/chat"], component: Resume },
+  { path: "/chat/:id", component: pages.chat },
   { path: ["/files", "/files/:chatId", "/files/:chatId/*path"], component: FilesRedirect },
   { path: ["/board", "/board/:chatId"], component: () => <Navigate href="/chat" /> },
   { path: ["/memory", "/memory/:id"], component: MemoryRedirect },

@@ -11,7 +11,7 @@ import { createMockRoom, createMockUser, type MockRoomOptions } from "./mock-roo
 import { overlayChats, overlayMessages, type RoomPatch, settleRoom } from "./patches"
 import { applyRoomEvent, createRoomStore, emptyRoom, type RoomStoreOptions } from "./room-store"
 import { backoffDelay, createSyncSocket, parseFrame } from "./socket"
-import { createUserStore, newRoomId } from "./user-store"
+import { createUserStore, newRoomId, OPEN_DEBOUNCE_MS } from "./user-store"
 
 const roomId = fixtures.roomId
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -491,7 +491,7 @@ describe("the user store", () => {
 		const store = createUserStore({ warm, url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
 		await store.ready
 		const roomIdNew = store.createChat("new chat")
-		expect(roomIdNew as string).toMatch(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/)
+		expect(roomIdNew as string).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
 		store.pin(roomIdNew, true)
 		expect(store.chats()[0]).toMatchObject({ roomId: roomIdNew, title: "new chat", pinned: true })
 
@@ -510,7 +510,47 @@ describe("the user store", () => {
 		store.close()
 	})
 
-	test("room ids are ULIDs", () => {
-		expect(newRoomId(0, () => new Uint8Array(16)) as string).toBe("0".repeat(26))
+	test("a second direct chat with an agent is refused: it leaves the list and points at the first", async () => {
+		const mock = createMockUser({ chats: [{ ...fixtures.chat, roomId: fixtures.otherRoomId, agents: ["id-ada"] }] })
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await store.ready
+		await until(() => store.state.synced)
+		const second = store.createChat("ada", ["id-ada"])
+		expect(store.chats().some((c) => c.roomId === second)).toBe(true)
+		await until(() => store.state.refused[second] !== undefined)
+		expect(store.state.refused[second]).toBe(fixtures.otherRoomId)
+		expect(store.chats().map((c) => c.roomId)).toEqual([fixtures.otherRoomId])
+		store.close()
+	})
+
+	test("a temporary chat is kept as a group at once, and the server agrees", async () => {
+		const mock = createMockUser()
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await store.ready
+		const id = store.createTemp()
+		expect(store.chats().find((c) => c.roomId === id)).toMatchObject({ title: "new chat", agents: ["kiko"], temp: true })
+		store.keep(id, "kiko, ada", ["kiko", "id-ada"])
+		const kept = store.chats().find((c) => c.roomId === id)!
+		expect(kept).toMatchObject({ title: "kiko, ada", agents: ["kiko", "id-ada"] })
+		expect(kept.temp).toBeUndefined()
+		await until(() => store.state.patches.length === 0)
+		expect(store.state.chats.find((c) => c.roomId === id)?.temp).toBeUndefined()
+		store.close()
+	})
+
+	test("opening chats tells the server once, after the user settles", async () => {
+		const mock = createMockUser()
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await store.ready
+		await until(() => store.state.synced)
+		store.open(fixtures.roomId as RoomId)
+		store.open(fixtures.otherRoomId as RoomId)
+		await new Promise((r) => setTimeout(r, OPEN_DEBOUNCE_MS + 100))
+		expect(mock.received.filter((f) => f.t === "open")).toEqual([{ t: "open", roomId: fixtures.otherRoomId }])
+		store.close()
+	})
+
+	test("room ids are UUIDv7s", () => {
+		expect(newRoomId(0, new Uint8Array(16)) as string).toBe("00000000-0000-7000-8000-000000000000")
 	})
 })
