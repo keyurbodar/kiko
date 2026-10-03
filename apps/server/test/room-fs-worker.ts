@@ -4,7 +4,7 @@ import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { FileOp } from "@kiko/protocol"
 import "../src/agent/effects"
 import { filesExtension } from "../src/agent/extensions/files"
-import { RoomFs, roomBackend } from "../src/files/room-fs"
+import { type FilesBackend, RoomFs, roomBackend } from "../src/files/room-fs"
 import type { Env } from "../src/index"
 import { roomStub } from "../src/lib/names"
 
@@ -24,6 +24,25 @@ export class UserDO extends DurableObject {
 
 /** One file system per agent, kept across requests as an agent process keeps it. */
 const systems = new Map<string, RoomFs>()
+/** Room calls and R2 reads per agent, so a test can pin how many a tool makes. */
+const counts = new Map<string, { stat: number; get: number; put: number }>()
+
+function counted(key: string, backend: FilesBackend, env: Env): FilesBackend {
+  const c = { stat: 0, get: 0, put: 0 }
+  counts.set(key, c)
+  const get = env.FILES.get.bind(env.FILES)
+  return {
+    ...backend,
+    stat: (p) => (c.stat++, backend.stat(p)),
+    bytes: async (k, m) => {
+      // Counts only the R2 reads the cache did not answer.
+      const before = (env.FILES as unknown as { _gets?: number })._gets ?? 0
+      const out = await backend.bytes(k, m)
+      return (c.get += ((env.FILES as unknown as { _gets?: number })._gets ?? 0) - before), out
+    },
+    write: (...a) => (c.put++, backend.write(...a)),
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env) {
@@ -40,12 +59,24 @@ export default {
       const out = await fs.write(url.searchParams.get("path")!, new Uint8Array(await request.arrayBuffer()), url.searchParams.get("type")!)
       return Response.json({ ok: out.ok })
     }
+    if (kind === "counts") {
+      const c = counts.get(`${roomId}/${slug}`)!
+      const out = { ...c }
+      c.stat = c.get = c.put = 0
+      return Response.json(out)
+    }
     if (kind === "op") return Response.json({ refused: await roomStub(env.ROOM, "alice", roomId!).fileOp((await request.json()) as FileOp) })
     const key = `${roomId}/${slug}`
     let fs = systems.get(key)
     if (!fs) {
       const home = { userId: "alice", roomId: roomId as never, slug: slug as never, role: "", lead: true }
-      fs = new RoomFs(`test:${key}`, roomBackend(env, () => home))
+      const files = env.FILES as unknown as { get: R2Bucket["get"]; _gets?: number }
+      if (!("_gets" in files)) {
+        const get = files.get.bind(env.FILES)
+        files._gets = 0
+        files.get = ((...a: Parameters<R2Bucket["get"]>) => (files._gets!++, get(...a))) as R2Bucket["get"]
+      }
+      fs = new RoomFs(`test:${key}`, counted(key, roomBackend(env, () => home), env))
       systems.set(key, fs)
     }
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }

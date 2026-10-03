@@ -92,6 +92,13 @@ export class RoomFs implements ExecutionEnv {
   readonly cwd = "/"
   /** The hash this agent last read or wrote at each room path. */
   private readonly seen = new Map<string, string>()
+  /**
+   * Stats reused inside one `within` call, null for a missing path. pi's `read` checks a path exists
+   * and then reads it, after kiko's `read` looked at it: one room call instead of three. Outside a
+   * call every stat is fresh, so an edit always starts from what the room holds now.
+   */
+  private readonly stats = new Map<string, FsEntry | null>()
+  private depth = 0
 
   constructor(
     readonly id: string,
@@ -114,7 +121,9 @@ export class RoomFs implements ExecutionEnv {
   async stat(path: string): Promise<Result<FsEntry, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
-    const entry = await this.backend.stat(rel.value)
+    const memo = this.depth > 0
+    const entry = memo && this.stats.has(rel.value) ? this.stats.get(rel.value)! : await this.backend.stat(rel.value)
+    if (memo) this.stats.set(rel.value, entry)
     return entry ? ok(entry) : err(new FileError("not_found", `no such file or folder: ${path}`, path))
   }
 
@@ -174,6 +183,8 @@ export class RoomFs implements ExecutionEnv {
     if (rel.value === "") return err(new FileError("is_directory", "/ is a folder", path))
     if (bytes.length > MAX_WRITE_BYTES) return err(new FileError("invalid", `${path} would be ${bytes.length} bytes, over the ${MAX_WRITE_BYTES} byte limit`, path))
     const out = await this.backend.write(rel.value, bytes, type, this.seen.get(rel.value))
+    // A new file changes its folders too.
+    this.stats.clear()
     if (!out.ok) {
       if (out.code === "conflict") this.seen.delete(rel.value)
       return err(out.code === "conflict" ? new FileError("unknown", out.message, path) : this.fail(out, path))
@@ -216,6 +227,7 @@ export class RoomFs implements ExecutionEnv {
     const b = this.roomPath(to)
     if (!b.ok) return b
     const out = await this.backend.move(a.value, b.value)
+    this.stats.clear()
     return out.ok ? ok(out) : err(this.fail(out, from))
   }
 
@@ -238,9 +250,20 @@ export class RoomFs implements ExecutionEnv {
       rels.push(rel.value)
     }
     const out = await this.backend.remove(rels, recursive)
+    this.stats.clear()
     if (!out.ok) return err(this.fail(out))
     for (const rel of rels) this.seen.delete(rel)
     return ok(out)
+  }
+
+  /** Runs `fn` with stats reused across it. For one read-only tool call. */
+  async within<T>(fn: () => Promise<T>): Promise<T> {
+    this.depth++
+    try {
+      return await fn()
+    } finally {
+      if (--this.depth === 0) this.stats.clear()
+    }
   }
 
   async list(path: string, recursive = false): Promise<Result<FsEntry[], FileError>> {

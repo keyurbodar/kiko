@@ -1,6 +1,6 @@
 import type { RoomToClient } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
-import { expectEqual, VerifyError } from "../client"
+import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 // P8-05, architecture sections 7.5 and 18. Real model turns with the chat's file system (pi's
@@ -87,7 +87,8 @@ const suite: Suite = {
       },
     })
     try {
-      const s = await v.as("file-tools")
+      const s = await v.as(`file-tools-${Date.now().toString(36)}`)
+      await connectTestModel(s)
       const roomId = ulid()
       const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
       const user = await s.user()

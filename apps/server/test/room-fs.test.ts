@@ -191,3 +191,18 @@ test("read gives an image to a model that sees images, a pdf as text, and refuse
   expect(bin.ok).toBe(false)
   expect(bin.text).toContain("binary")
 })
+
+test("speed: a read is one room call and one R2 read; an edit after it reads nothing again", async () => {
+  const room = fresh()
+  const a = agent(room)
+  await a.write("big.md", `title\n${"line\n".repeat(2000)}`)
+  const counts = async () => (await (await fetch(`${origin}/counts/${room}/ada`)).json()) as { stat: number; get: number; put: number }
+  await Bun.sleep(1_100)
+  await counts()
+  await a.read("big.md")
+  expect(await counts()).toEqual({ stat: 1, get: 0, put: 0 })
+  await Bun.sleep(1_100)
+  expect((await a.run("edit", { path: "big.md", edits: [{ oldText: "title\n", newText: "head\n" }] })).ok).toBe(true)
+  // The bytes came from the cache: the object at a key never changes.
+  expect(await counts()).toEqual({ stat: 1, get: 0, put: 1 })
+})
