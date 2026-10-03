@@ -162,10 +162,10 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--l-brand-mark` | number | `0.7075` |
 | `--l-brand-hover` | number | `0.7475` |
 | `--l-brand-on` | number | `0.9571` |
-| `--c-brand-user` | number | `0.0455` |
-| `--c-brand-fill` | number | `0.07` |
-| `--c-brand-mark` | number | `0.075` |
-| `--c-brand-hover` | number | `0.075` |
+| `--c-brand-user` | number | `0.0585` |
+| `--c-brand-fill` | number | `0.09` |
+| `--c-brand-mark` | number | `0.085` |
+| `--c-brand-hover` | number | `0.085` |
 | `--c-brand-on` | number | `0.008` |
 | `--l-signal-danger` | number | `0.7894` |
 | `--c-signal-danger` | number | `0.12` |
