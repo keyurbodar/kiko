@@ -61,6 +61,15 @@ export const thumbKey = (key: string) => `${key}/thumb`
 /** The keys to delete for dropped files: each object and its still, which may not exist. */
 export const withThumbs = (keys: readonly string[]) => keys.flatMap((k) => [k, thumbKey(k)])
 
+/** R2 deletes at most 1,000 keys per call. */
+const R2_DELETE_LIMIT = 1000
+
+/** Deletes dropped files and their stills, in calls R2 accepts however many there are. */
+export async function deleteFiles(bucket: R2Bucket, keys: string | readonly string[]): Promise<void> {
+	const all = withThumbs(typeof keys === "string" ? [keys] : keys)
+	for (let i = 0; i < all.length; i += R2_DELETE_LIMIT) await bucket.delete(all.slice(i, i + R2_DELETE_LIMIT))
+}
+
 /** ASSUMPTION: a still at 840 px in WebP or JPEG is far under this. */
 export const MAX_THUMB_BYTES = 1024 * 1024
 const THUMB_TYPES = new Set(["image/webp", "image/jpeg", "image/png"])
@@ -139,7 +148,7 @@ async function index(env: Env, userId: string, roomId: string, input: NewFile, f
 		return error(410, "account deleted")
 	}
 	const { file, drop, fresh, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
-	if (drop) await env.FILES.delete(withThumbs([drop]))
+	if (drop) await deleteFiles(env.FILES, drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	// A stale edit writes nothing. The answer names what the path holds now, so the editor can offer it.
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })

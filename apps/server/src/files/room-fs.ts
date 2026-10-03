@@ -16,7 +16,7 @@ import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
-import { cleanPath, fileKey } from "./upload"
+import { cleanPath, deleteFiles, fileKey } from "./upload"
 import type { NewFile } from "./file-index"
 
 // The room's files as `pi-durable`'s `ExecutionEnv` (architecture section 18.1). Every agent in a
@@ -398,7 +398,7 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
       const sha256 = hex(await crypto.subtle.digest("SHA-256", bytes))
       await env.FILES.put(r2Key, bytes, { httpMetadata: { contentType: type } })
       const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, ...(expectSha256 ? { expectSha256 } : {}) })
-      if (out.drop) await env.FILES.delete(out.drop)
+      if (out.drop) await deleteFiles(env.FILES, out.drop)
       if (out.refused) return out.refused
       if (out.conflict) return { ok: false, code: "conflict", message: `${path} changed since you last read it (a teammate or the human edited it). read it again, then make your change.` }
       const entry = out.entry

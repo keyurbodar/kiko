@@ -17,7 +17,7 @@ import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./cred
 import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type FileBody, FileIndex, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
-import { cleanPath } from "../files/upload"
+import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { createMemory, type MemoryStore } from "./memory"
@@ -225,7 +225,7 @@ export class UserDO extends DurableObject<Env> {
 
   /** Deletes the R2 objects nothing points to any more. */
   private dropAfter<T extends FsChange | FsFail>(out: T): T {
-    if (out.ok && out.drop.length) this.ctx.waitUntil(this.env.FILES.delete(out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+    if (out.ok && out.drop.length) this.ctx.waitUntil(deleteFiles(this.env.FILES, out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
     return out
   }
 
