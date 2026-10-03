@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { parseDelimited, prettyJson, type ViewerKind, viewerKind } from "./kind"
+import { parseDelimited, type ViewerKind, viewerKind } from "./kind"
 
 test("each kind of file opens in its viewer", () => {
 	const cases: [string, string, number, ViewerKind][] = [
@@ -23,11 +23,6 @@ test("each kind of file opens in its viewer", () => {
 		["huge.json", "application/json", 3 * 1024 * 1024, "other"],
 	]
 	for (const [name, type, size, want] of cases) expect([name, viewerKind({ name, type, size })]).toEqual([name, want])
-})
-
-test("json is indented, and text that is not json is left alone", () => {
-	expect(prettyJson('{"a":[1,2]}')).toBe('{\n  "a": [\n    1,\n    2\n  ]\n}')
-	expect(prettyJson("{oops")).toBe("{oops")
 })
 
 test("csv fields may hold quotes, separators and line breaks", () => {

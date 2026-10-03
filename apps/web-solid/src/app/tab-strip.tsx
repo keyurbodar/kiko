@@ -1,10 +1,11 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { For, Show, createEffect, createMemo, untrack } from "solid-js"
+import { For, createEffect, createMemo, onCleanup, onMount, untrack } from "solid-js"
 import { infoOpen, loadInfoPanel, toggleInfo } from "../chat/info/state"
 import { intentRef } from "../lib/intent"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { nextAfterClose, openTabs, stepTab } from "./open-tabs"
+import "./tab-strip.css"
 
 /*
  * The chat tab strip: kat's horizontal tabs in the top bar. Every size and
@@ -59,6 +60,34 @@ export function TabStrip() {
     el?.scrollIntoView({ inline: "nearest", block: "nearest" })
   }
 
+  /*
+   * Overflow fades. The strip scrolls sideways with no scrollbar; each edge fades
+   * only while there is more to scroll that way, so the first tab is never dimmed.
+   */
+  const edges = () => {
+    const el = strip.el
+    if (!el) return
+    el.toggleAttribute("data-fade-start", el.scrollLeft > 1)
+    el.toggleAttribute("data-fade-end", el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }
+  createEffect(() => {
+    openTabs.ids()
+    queueMicrotask(edges)
+  })
+  onMount(() => {
+    if (!strip.el || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(edges)
+    observer.observe(strip.el)
+    onCleanup(() => observer.disconnect())
+  })
+  // A vertical wheel scrolls the strip sideways, as a trackpad's sideways swipe already does.
+  const onWheel = (event: WheelEvent) => {
+    const el = strip.el
+    if (!el || Math.abs(event.deltaY) <= Math.abs(event.deltaX) || el.scrollWidth <= el.clientWidth) return
+    event.preventDefault()
+    el.scrollLeft += event.deltaY
+  }
+
   const onKeyDown = (event: KeyboardEvent, id: string) => {
     if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
       event.preventDefault()
@@ -78,10 +107,12 @@ export function TabStrip() {
   return (
     <div
       ref={(el) => (strip.el = el)}
-      class="flex min-w-0 flex-1 items-center gap-[6px] overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      class="tab-strip flex h-full min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
       data-component="tab-strip"
       role="tablist"
       aria-label="open chats"
+      onScroll={edges}
+      onWheel={onWheel}
     >
       <For each={openTabs.ids()}>
         {(id) => {
@@ -96,7 +127,7 @@ export function TabStrip() {
               data-tab-id={id}
               data-active={active() ? "" : undefined}
               data-unread={unread(id) && !active() ? "" : undefined}
-              class="group flex h-[var(--tab-h)] max-w-[var(--tab-max-w)] shrink-0 cursor-default items-center gap-[6px] rounded-[10px] bg-[var(--tab-bg)] py-0 pr-[6px] pl-[9px] text-[13px] font-medium text-[var(--tab-text)] outline-none select-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] active:scale-[.97] data-[active]:bg-[var(--tab-bg-active)] data-[active]:text-[var(--tab-text-active)] data-[active]:shadow-[var(--tab-shadow)]"
+              class="group flex h-[var(--tab-h)] max-w-[var(--tab-max-w)] shrink-0 cursor-default items-center gap-1.5 rounded-[9px] pr-1 pl-2.5 text-[13px] font-medium text-[var(--tab-text)] outline-none select-none hover:text-[var(--tab-text-active)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] data-[active]:bg-[var(--tab-bg-active)] data-[active]:text-[var(--tab-text-active)]"
               onClick={() => go(id)}
               onAuxClick={(event) => {
                 if (event.button === 1) close(id)
@@ -120,23 +151,22 @@ export function TabStrip() {
                   toggleInfo()
                 }}
               >
-                <ChatAvatar faces={useApp.chatFaces(id)} size={16} />
-                <span class="min-w-0 flex-1 overflow-hidden whitespace-nowrap pr-3 [mask-image:linear-gradient(to_right,#000_calc(100%-12px),transparent)] group-data-[unread]:[-webkit-text-stroke:0.3px]">
+                {/* One 16 px box for every icon, so a group's stacked faces and a single bird line up. */}
+                <span class="flex size-4 shrink-0 items-center justify-center" data-component="tab-icon">
+                  <ChatAvatar faces={useApp.chatFaces(id)} size={16} />
+                </span>
+                {/* The title fades out at its max width instead of ending in an ellipsis. */}
+                <span class="min-w-0 flex-1 overflow-hidden leading-[var(--tab-h)] whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)] group-data-[unread]:text-[var(--tab-text-active)]">
                   {label(id)}
                 </span>
               </span>
-              <Show when={!active() && useApp.drafts()?.has(id)}>
-                <span class="shrink-0 text-[10px] text-[var(--accent)]" data-component="tab-draft">
-                  draft
-                </span>
-              </Show>
               <span class="flex size-4 shrink-0 items-center justify-center">
                 <button
                   type="button"
                   tabindex="-1"
                   aria-label={`close ${label(id)}`}
                   data-component="tab-close"
-                  class="relative hidden size-4 items-center justify-center rounded-full before:absolute before:-inset-[10px] before:content-[''] before:md:-inset-1 text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-hover)] group-hover:flex group-data-[active]:flex"
+                  class="relative hidden size-4 items-center justify-center rounded-[5px] text-[var(--tab-text)] before:absolute before:-inset-[10px] before:content-[''] before:md:-inset-1 hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] group-hover:flex group-data-[active]:flex"
                   onClick={(event) => {
                     event.stopPropagation()
                     close(id)

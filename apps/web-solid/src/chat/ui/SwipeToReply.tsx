@@ -4,31 +4,17 @@ import { cn } from "../../lib/cn"
 import { useSwipeToReply } from "../lib/useSwipeToReply"
 
 export interface SwipeToReplyProps {
-  /** Fires once, after the row has sprung back. */
+  /** Fires once, on the release that armed it. */
   onCommit: () => void
   children: JSX.Element
   class?: string
 }
 
 /**
- * The row wrapper that carries the swipe-to-reply gesture. It writes
- * `--swipe-x` onto itself and the row's contents translate off it, so the
- * indicator underneath is revealed without anything re-rendering per move.
- *
- * Two gestures feed it: a pointer drag and a trackpad two-finger swipe, which
- * arrives as `wheel`. Both are RIGHTWARD only, so the indicator lives on the left
- * edge and a leftward drag does nothing at all.
- *
- * This element is also the whole grab area. It is a full-column-width block,
- * not a wrapper sized to the bubble, so a reader can start a swipe anywhere
- * across the row and never has to aim at the message text.
- *
- * The gesture is `@solid-primitives/pointer` plus the state machine in
- * `lib/useSwipeToReply`; nothing here is hand-rolled beyond the markup.
- *
- * `group/swipe` is how the indicator reads the row's own `data-swiping`: the
- * gesture owns that attribute, and the indicator only ever needs to know about
- * the parent it sits in.
+ * The row wrapper that carries the swipe-to-reply gesture, rightward only. It is
+ * the full column width, so a swipe can start anywhere across the row. The
+ * gesture writes the bubble's and the indicator's transforms directly; nothing
+ * here re-renders while the finger moves.
  */
 export function SwipeToReply(props: SwipeToReplyProps) {
   const swipe = useSwipeToReply({
@@ -37,41 +23,19 @@ export function SwipeToReply(props: SwipeToReplyProps) {
 
   return (
     <div
-      // `ref` and the two data attributes are passed EXPLICITLY, not spread.
-      // Spreading `handlers` reads its getters once, so `data-swiping` would
-      // freeze at its initial value and never mark the row; and a `ref` that
-      // arrives through a spread is not a ref at all in Solid, so the gesture
-      // never received its element and the swipe did nothing.
+      // Passed explicitly, not spread: a spread reads the getter once and a
+      // spread `ref` is not a ref in Solid.
       ref={swipe.handlers.ref}
       data-swiping={swipe.handlers["data-swiping"]}
-      class={cn(
-        "group/swipe relative flex touch-pan-y",
-        // The gesture writes this; the default lives here because this element
-        // owns the variable. Declaring it on the row below would shadow the
-        // parent's value and pin every bubble at zero.
-        "[--swipe-x:0px]",
-        props.class,
-      )}
+      class={cn("relative flex touch-pan-y", props.class)}
       data-component="chat-swipe-row"
     >
-      {/* No transform, deliberately: the gesture writes `--swipe-x` onto the
-          row and the bubble already reads it, so translating this wrapper too
-          would apply the travel twice — a 60px drag would move 120px and arm
-          the reply at the wrong point. One owner for the variable. */}
       <div class="min-w-0 flex-1">{props.children}</div>
       <span
         class={cn(
-          "pointer-events-none absolute top-1/2 z-0 hidden size-7 items-center justify-center rounded-full",
+          "pointer-events-none absolute top-1/2 left-4 z-0 flex size-7 items-center justify-center rounded-full",
           "bg-[color-mix(in_oklch,var(--text)_10%,transparent)] text-text",
-          // Scale and opacity are written by the gesture; reading them here is
-          // what makes the indicator track the finger without a re-render.
-          "[transform:translateY(-50%)_scale(var(--swipe-scale,0))] [opacity:var(--swipe-progress,0)]",
-          // Nothing is drawn until the axis lock is behind us, so a tap leaves
-          // no trace.
-          "group-data-[swiping]/swipe:flex",
-          "left-4",
-          // Reduced motion: fade only, no scale.
-          "motion-reduce:[transform:translateY(-50%)]",
+          "opacity-0 [transform:translateY(-50%)_scale(0.4)]",
         )}
         data-component="chat-swipe-indicator"
         aria-hidden="true"

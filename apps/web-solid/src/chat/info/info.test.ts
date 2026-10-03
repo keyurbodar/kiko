@@ -17,12 +17,12 @@ describe("header text", () => {
     expect(startedAt("!!!!!!!!!!0000000000000000")).toBeNull()
   })
 
-  test("one agent says when it started, a group counts the human too", () => {
+  test("the header says when the chat started, for one agent or a group", () => {
     const at = new Date(2026, 9, 2, 12).getTime()
     const id = newRoomId(at)
     expect(shortDate(at)).toBe("oct 2, 2026")
     expect(subtitle(id, [member("kiko", true)])).toBe("started oct 2, 2026")
-    expect(subtitle(id, [member("kiko", true), member("ada"), member("bo")])).toBe("4 members")
+    expect(subtitle(id, [member("kiko", true), member("ada"), member("bo")])).toBe("started oct 2, 2026")
   })
 
   test("sizes", () => {
@@ -65,8 +65,8 @@ describe("panel state", () => {
     toggleInfo()
     expect(infoOpen()).toBe(true)
     expect(infoView().kind).toBe("home")
-    pushInfo({ kind: "links" })
-    expect(infoView().kind).toBe("links")
+    pushInfo({ kind: "tasks" })
+    expect(infoView().kind).toBe("tasks")
     popInfo()
     popInfo()
     expect(infoView().kind).toBe("home")

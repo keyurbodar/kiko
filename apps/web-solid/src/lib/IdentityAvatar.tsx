@@ -11,7 +11,7 @@ export function IdentityAvatar(props: { seed: string; size?: number; class?: str
   const look = () => identityLook(props.seed)
   return (
     <span
-      class={`inline-block shrink-0 ${props.class ?? ""}`}
+      class={`inline-block shrink-0 align-middle leading-none ${props.class ?? ""}`}
       style={{
         width: props.size ? `${props.size}px` : undefined,
         height: props.size ? `${props.size}px` : undefined,
@@ -75,7 +75,7 @@ export function ChatAvatar(props: { faces: readonly string[]; size?: number; cla
     <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} />}>
       {(spots) => (
         <span
-          class={`relative inline-block shrink-0 ${props.class ?? ""}`}
+          class={`relative inline-block shrink-0 align-middle leading-none ${props.class ?? ""}`}
           style={{ width: props.size ? `${props.size}px` : undefined, height: props.size ? `${props.size}px` : undefined }}
           data-component="chat-avatar-stack"
           data-faces={props.faces.length}
@@ -84,7 +84,9 @@ export function ChatAvatar(props: { faces: readonly string[]; size?: number; cla
           <For each={spots()}>
             {(spot, i) => (
               <span
-                class="absolute rounded-full"
+                // `flex`, not inline: an inline face sits on a text line whose strut is
+                // taller than the face, which pushed small group faces down and left.
+                class="absolute flex rounded-full"
                 style={{
                   left: `${spot.x * 100}%`,
                   top: `${spot.y * 100}%`,

@@ -313,7 +313,7 @@ These were read out of a live page on both entry points, not inferred from sourc
 - `loc=css:[data-component="chat-typing-row"]` / `chat-typing-bubble` / `chat-typing-dot` — the in-list typing row and its three dots.
 - `loc=css:[data-component="chat-fades"]` / `chat-fade-top` / `chat-fade-bottom` — the scrims on the stage.
 - `loc=css:[data-component="chat-jump-latest"]` / `chat-jump` — the jump-to-latest control, carrying `data-visible` and `data-arrivals`.
-- `loc=css:[data-component="chat-empty"]` — the empty-thread state, with `.chat-empty__text`.
+- `loc=css:[data-component="chat-empty"]` — the empty-thread state: the dim kiko bird with a heart, no text.
 - `loc=css:.menu-v2-content` — **the** handle for a Kobalte menu's content element. `MenuV2.Context.Content` overwrites any `data-component` passed to it with its own. Measured: the message menu is open with `[data-component="chat-menu"]` at `0` and `[data-component="menu-v2-content"]` at `1`, while the class `.chat-menu` is present on the same element. So **scope the menu by `.chat-menu` or `[data-component="menu-v2-content"]`; `[data-component="chat-menu"]` matches nothing.** Read its `[data-component="menu-v2-item"]` children for the action list.
 - `loc=css:.media-viewer` — the full-screen media viewer, a Kobalte modal. **Not `[data-component="media-viewer"]`**, which is what `probe().viewer` looks for.
 

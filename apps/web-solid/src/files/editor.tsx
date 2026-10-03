@@ -1,17 +1,21 @@
 import type { FileRef } from "@kiko/protocol"
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js"
-import { useCommands } from "../commands/registry"
 import { putFile, readFile, sha256Hex } from "./api"
 import type { Mounted } from "./editor-cm"
 import "./editor.css"
 
 /*
- * The text view for one room file: CodeMirror, read-only until the reader turns on edit. The
- * room's file index is the source of truth for which version exists; this component keeps the
- * version it started from (`base`) and sends its SHA-256 with every save. The server refuses a
- * save whose base is stale, so another writer's content is never overwritten. A refusal, or an
- * index change while the text is dirty, shows a conflict bar and leaves the user's text alone.
+ * The text editor for one room file: CodeMirror, always editable, with autosave. An edit saves
+ * itself AUTOSAVE_MS after the last keystroke, and at once when the editor loses focus or
+ * closes, so there is no save button and nothing to forget. The room's file index is the source
+ * of truth for which version exists; this component keeps the version it started from (`base`)
+ * and sends its SHA-256 with every save. The server refuses a save whose base is stale, so
+ * another writer's content is never overwritten. A refusal, or an index change while the text is
+ * dirty, shows a conflict bar and leaves the user's text alone.
  */
+
+/** Quiet time after the last keystroke before an edit saves itself. */
+export const AUTOSAVE_MS = 700
 
 export type IndexChange = "none" | "reload" | "conflict"
 
@@ -25,7 +29,8 @@ export function onIndexChange(known: ReadonlySet<string>, latestId: string | und
 }
 
 type Base = { id: string; sha256: string }
-type State = "loading" | "clean" | "dirty" | "saving" | "conflict" | "error"
+export type EditorState = "loading" | "clean" | "dirty" | "saving" | "conflict" | "error"
+type State = EditorState
 
 export function TextEditor(props: {
 	roomId: string
@@ -34,35 +39,32 @@ export function TextEditor(props: {
 	file: FileRef | undefined
 	/** The first version to show. */
 	initial: FileRef
-	/** False shows the text read-only. */
-	editing: boolean
-	/** How to show clean text while read-only, for example formatted JSON. Editing shows the bytes. */
-	pretty?: (text: string) => string
+	/** Told every state change, so the header can show an unsaved dot. */
+	onState?: (state: EditorState) => void
 }) {
 	let host!: HTMLDivElement
 	let cm: Mounted | undefined
 	let base: Base | undefined
-	let raw = ""
 	const known = new Set<string>()
 	const [state, setState] = createSignal<State>("loading")
 	const [theirs, setTheirs] = createSignal<FileRef | null>(null)
 	const [message, setMessage] = createSignal("")
 	const type = () => (props.initial.type === "application/octet-stream" ? "text/plain" : props.initial.type)
-	/** What the editor should hold for clean text in the current mode. */
-	const shown = (text: string) => (!props.editing && props.pretty ? props.pretty(text) : text)
+	let timer: ReturnType<typeof setTimeout> | undefined
+	let gone = false
+	createEffect(() => props.onState?.(state()))
 
 	async function load(file: FileRef) {
 		setState("loading")
 		try {
 			const { text, sha256 } = await readFile(props.roomId, file.id)
 			base = { id: file.id, sha256 }
-			raw = text
 			known.add(file.id)
 			if (!cm) {
 				const { mountEditor } = await import("./editor-cm")
 				if (!host.isConnected) return
-				cm = mountEditor(host, shown(text), { path: props.path, readOnly: !props.editing, onChange: markDirty })
-			} else cm.setValue(shown(text))
+				cm = mountEditor(host, text, { path: props.path, readOnly: false, onChange: markDirty, onBlur: flush })
+			} else cm.setValue(text)
 			setTheirs(null)
 			setState("clean")
 		} catch (e) {
@@ -73,20 +75,34 @@ export function TextEditor(props: {
 
 	function markDirty() {
 		// Typing during a save or a conflict keeps that state. The save result decides the rest.
-		if (state() === "clean" && props.editing) setState("dirty")
+		if (state() === "clean") setState("dirty")
+		if (state() !== "conflict" && state() !== "loading") schedule()
 	}
 
-	async function save() {
-		if (!cm || !base || state() === "saving" || state() === "loading") return
-		const text = cm.value()
+	function schedule() {
+		clearTimeout(timer)
+		timer = setTimeout(flush, AUTOSAVE_MS)
+	}
+
+	/** Saves now if there is anything to save. Safe to call at any time. */
+	function flush() {
+		clearTimeout(timer)
+		timer = undefined
+		if (state() === "dirty" || state() === "error") void save()
+	}
+
+	async function save(text = cm?.value()) {
+		if (text === undefined || !base || state() === "saving" || state() === "loading") return
 		setState("saving")
 		const res = await putFile(props.roomId, props.path, text, type(), base.sha256)
 		if (res.kind === "saved") {
 			base = { id: res.file.id, sha256: await sha256Hex(new TextEncoder().encode(text)) }
-			raw = text
 			known.add(res.file.id)
+			if (gone) return
 			// Typing that landed while the request was out is a new edit on the saved version.
-			setState(cm.value() === text ? "clean" : "dirty")
+			const later = cm !== undefined && cm.value() !== text
+			setState(later ? "dirty" : "clean")
+			if (later) schedule()
 		} else if (res.kind === "conflict") {
 			setTheirs(res.theirs)
 			setState("conflict")
@@ -122,35 +138,29 @@ export function TextEditor(props: {
 	}
 
 	onMount(() => void load(props.initial))
-	onCleanup(() => cm?.destroy())
+	// Closing the file, switching to the rendered view or leaving the chat saves what is typed.
+	onCleanup(() => {
+		clearTimeout(timer)
+		const text = cm?.value()
+		gone = true
+		if (text !== undefined && (state() === "dirty" || state() === "error")) void save(text)
+		cm?.destroy()
+		cm = undefined
+	})
 
-	// Mod+S inside the editor saves. It is caught on the window in the capture phase, before the
-	// hotkey library sees it, so the same key does not also toggle the sidebar.
+	// Mod+S inside the editor saves at once, out of habit. It is caught on the window in the
+	// capture phase, before the hotkey library sees it, so it does not also toggle the sidebar.
 	onMount(() => {
 		const onKey = (e: KeyboardEvent) => {
 			if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "s") return
 			if (!(e.target instanceof Node) || !host.contains(e.target)) return
 			e.preventDefault()
 			e.stopImmediatePropagation()
-			void save()
+			flush()
 		}
 		window.addEventListener("keydown", onKey, true)
 		onCleanup(() => window.removeEventListener("keydown", onKey, true))
 	})
-
-	// Edit on and off. Clean text swaps between its pretty and raw forms; unsaved text stays as typed.
-	createEffect(
-		on(
-			() => props.editing,
-			(editing) => {
-				if (!cm) return
-				cm.setReadOnly(!editing)
-				if (state() === "clean") cm.setValue(shown(raw))
-				if (editing) cm.focus()
-			},
-			{ defer: true },
-		),
-	)
 
 	// A new version in the index while this file is open.
 	createEffect(
@@ -169,22 +179,11 @@ export function TextEditor(props: {
 		),
 	)
 
-	// In the palette. The key is caught above, inside the editor only.
-	useCommands([
-		{
-			id: "files.save",
-			title: "file: save",
-			group: "view",
-			icon: "save",
-			when: () => state() === "dirty" || state() === "error",
-			run: () => void save(),
-		},
-	])
-
-	const bar = () => props.editing || state() === "conflict" || state() === "error" || state() === "dirty"
+	// The bar shows only when a human has to decide something.
+	const bar = () => state() === "conflict" || state() === "error"
 
 	return (
-		<div class="file-editor" data-component="file-editor" data-state={state()} data-editing={props.editing ? "" : undefined}>
+		<div class="file-editor" data-component="file-editor" data-state={state()}>
 			<div class="fe-body" ref={host} />
 			<Show when={bar()}>
 				<footer class="fe-bar">
@@ -208,13 +207,10 @@ export function TextEditor(props: {
 						<span class="fe-warn" role="alert">
 							{message()}
 						</span>
+						<button type="button" class="fe-btn" data-action="retry-save" onClick={flush}>
+							try again
+						</button>
 					</Show>
-					<span class="fe-status" data-component="file-status">
-						{{ loading: "loading...", clean: "saved", dirty: "unsaved changes", saving: "saving...", conflict: "", error: "not saved" }[state()]}
-					</span>
-					<button type="button" class="fe-btn fe-save" data-action="save" disabled={state() !== "dirty" && state() !== "error"} onClick={() => void save()}>
-						save
-					</button>
 				</footer>
 			</Show>
 		</div>

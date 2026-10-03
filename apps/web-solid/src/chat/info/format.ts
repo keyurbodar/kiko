@@ -22,9 +22,8 @@ export function shortDate(at: number): string {
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
 }
 
-/** `started <date>` for a chat with one agent, `<n> members` for a group. The human counts as a member. */
-export function subtitle(roomId: string, members: readonly Member[]): string {
-  if (members.length > 1) return `${members.length + 1} members`
+/** `started <date>`. A group's member count is the members section's title, not repeated here. */
+export function subtitle(roomId: string, _members: readonly Member[]): string {
   const at = startedAt(roomId)
   return at === null ? "chat" : `started ${shortDate(at)}`
 }
