@@ -59,8 +59,8 @@ const LIFE_WAKEUP = "life_naps"
 /** Summaries per alarm, and at once per user across every room. */
 const NAPS_PER_ALARM = 4
 const MAX_NAPS = 4
-/** ASSUMPTION: the longest one summary call may take. */
-const COMPRESS_TIMEOUT_MS = 60_000
+/** ASSUMPTION: the longest one summary call may take. A model that always thinks needs more than a minute for a page. */
+const COMPRESS_TIMEOUT_MS = 120_000
 /** The `settings` key of what memory summaries have spent: input, output, cacheRead, calls. */
 const MEMORY_USAGE = "memory_usage"
 /** The `settings` key of the memory model the human chose. */

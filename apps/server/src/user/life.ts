@@ -94,7 +94,9 @@ export class Life {
         limit,
       )
       .toArray()
-    if (!rows.length) rows = this.sql.exec<Row>("SELECT * FROM life WHERE redacted = 0 AND text LIKE ? ORDER BY pos DESC LIMIT ?", `%${query.trim()}%`, limit).toArray()
+    // A part of a word FTS does not index ("4417" inside "4417b"): the longest word, escaped, as a substring.
+    const longest = words.map((w) => w.replace(/[%_\\]/g, "")).sort((a, b) => b.length - a.length)[0]!.slice(0, 40)
+    if (!rows.length && longest.length > 2) rows = this.sql.exec<Row>("SELECT * FROM life WHERE redacted = 0 AND text LIKE ? ORDER BY pos DESC LIMIT ?", `%${longest}%`, limit).toArray()
     return rows.map(toLine)
   }
 

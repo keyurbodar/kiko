@@ -236,3 +236,11 @@ test("the delta since an agent's last turn leaves out its own turns and the burs
   expect(text).not.toContain("what did bob book")
   expect(count).toBe(memory.sync())
 })
+
+test("recall survives a long question and still finds a part of a word", () => {
+  const l = life()
+  l.append("gym locker code is 4417b", "@ada", false)
+  const question = "what's my gym locker code? ".repeat(20)
+  expect(l.recall(question).map((x) => x.text)).toContain("gym locker code is 4417b")
+  expect(l.recall("4417").map((x) => x.text)).toContain("gym locker code is 4417b")
+})
