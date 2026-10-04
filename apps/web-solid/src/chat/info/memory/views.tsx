@@ -1,5 +1,6 @@
 import type { MemoryRecord, MemoryVersion } from "@kiko/protocol"
-import { createEffect, createMemo, createResource, createSignal, For, on, Show } from "solid-js"
+import { Moment } from "../../../mascot/pixel/lazy"
+import { createEffect, createMemo, createResource, createSignal, For, on, Show, Suspense } from "solid-js"
 import { session } from "../../../app/session"
 import { Editor, preloadEditor } from "./editor"
 import { IdentityAvatar } from "../../../lib/IdentityAvatar"
@@ -421,11 +422,19 @@ export function MemoryList(props: { store: MemoryStore; onOpen: (id: string) => 
 				)}
 			</For>
 			<Show when={props.store.state.loaded && searching() && !groups().length}>
-				<p class="px-2 py-6 text-center text-sm text-weak">nothing matches "{query().trim()}"</p>
+				<div class="flex flex-col items-center gap-2 px-2 py-6">
+					<Suspense>
+						<Moment kind="nothing" />
+					</Suspense>
+					<p class="text-center text-sm text-weak">nothing matches "{query().trim()}"</p>
+				</div>
 			</Show>
 			<Show when={props.store.state.loaded && !searching() && !rest().length}>
 				<div class="flex flex-col items-center gap-1 px-6 py-8 text-center">
-					<p class="text-sm text-text">nothing else remembered yet</p>
+					<Suspense>
+						<Moment kind="nest" />
+					</Suspense>
+					<p class="mt-2 text-sm text-text">nothing else remembered yet</p>
 					<p class="text-xs text-weak">tell kiko about people, places, and how you like things done. it keeps them here.</p>
 				</div>
 			</Show>

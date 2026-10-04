@@ -1,7 +1,8 @@
 import { useNavigate } from "@solidjs/router"
+import { Moment } from "../mascot/pixel/lazy"
 import { Icon } from "@kiko/ui/v2/icon"
 import { type ChatSearchPage, type RoomId, snippetParts } from "@kiko/protocol"
-import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
+import { For, Show, Suspense, createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { dividerLabel } from "../chat/lib/time-label"
 import { useApp } from "../lib/store"
 import { createSearch, type Hit, type HitPage, type SearchView, senderName } from "./model"
@@ -180,6 +181,11 @@ export default function SearchOverlay() {
             </For>
             <Show when={!view()?.hits.length}>
               <div class="search-empty" data-component="search-empty">
+                <Show when={view()?.status === "done"}>
+                  <Suspense>
+                    <Moment kind="nothing" />
+                  </Suspense>
+                </Show>
                 {view()?.status === "error" ? "search is not reachable" : view()?.status === "done" ? "no messages found" : "searching..."}
               </div>
             </Show>

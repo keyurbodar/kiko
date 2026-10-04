@@ -1,10 +1,11 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { Moment } from "../mascot/pixel/lazy"
 import { FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openBirdPicker } from "../mascot/picker-state"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, type JSX, Show, Suspense } from "solid-js"
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
@@ -451,7 +452,12 @@ export function ChatPanel() {
         </div>
       </Show>
       <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
-        <p class="px-3 py-2 text-xs text-weak" data-component="sidebar-empty">no chats match</p>
+        <div class="flex flex-col items-center gap-2 py-6" data-component="sidebar-empty">
+          <Suspense>
+            <Moment kind="nothing" />
+          </Suspense>
+          <p class="text-xs text-weak">no chats match</p>
+        </div>
       </Show>
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (

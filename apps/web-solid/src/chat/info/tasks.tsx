@@ -1,5 +1,6 @@
 import type { AgentSlug, Task, TaskStatus } from "@kiko/protocol"
-import { createMemo, For, Show } from "solid-js"
+import { Moment } from "../../mascot/pixel/lazy"
+import { createMemo, For, Show, Suspense } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 export { openTasks } from "./tasks-model"
@@ -41,7 +42,14 @@ export function TasksView() {
   const title = (id: string) => tasks().find((t) => t.id === id)?.title ?? id
   return (
     <div class="flex flex-col gap-4" data-component="info-tasks">
-      <For each={groups()} fallback={<p class="px-2 py-6 text-center text-sm text-weak">no tasks yet. the lead puts work here when a job needs splitting up.</p>}>
+      <For each={groups()} fallback={
+          <div class="flex flex-col items-center gap-3 px-2 py-6">
+            <Suspense>
+              <Moment kind="nest" />
+            </Suspense>
+            <p class="text-center text-sm text-weak">no tasks yet. the lead puts work here when a job needs splitting up.</p>
+          </div>
+        }>
         {(g) => (
           <section class="flex flex-col gap-1" data-status={g.status}>
             <h3 class="flex items-baseline gap-1.5 px-2.5 text-xs font-medium text-weak">

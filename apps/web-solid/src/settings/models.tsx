@@ -1,10 +1,11 @@
-import { For, Show, createMemo, createResource, createSignal, onCleanup, untrack } from "solid-js"
+import { For, Show, Suspense, createEffect, createMemo, createResource, createSignal, on, onCleanup, untrack } from "solid-js"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { chatModel, setChatModel } from "./chat-model"
-import { connectedProviders, refreshConnected } from "./connected"
+import { connectedProviders, connectedReady, refreshConnected } from "./connected"
+import { Moment } from "../mascot/pixel/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
 
@@ -41,8 +42,31 @@ export function ModelsPage() {
     if (first) setDialog(first)
   }
 
+  // The first provider is the moment kiko starts working, so the birds cheer once. Only a
+  // change seen on this page counts: a list that loads with providers in it is not a moment.
+  const [cheer, setCheer] = createSignal(false)
+  createEffect(
+    on(
+      () => (connectedReady() ? connectedProviders().length : -1),
+      (count, prev) => {
+        if (prev !== 0 || count < 1) return
+        setCheer(true)
+        const timer = setTimeout(() => setCheer(false), 2400)
+        onCleanup(() => clearTimeout(timer))
+      },
+    ),
+  )
+
   return (
     <div class="flex flex-col gap-6" data-component="models-page">
+      <Show when={cheer()}>
+        <div class="flex items-center gap-3 rounded-xl bg-[var(--accent-wash)] px-3 py-2" data-component="first-provider-cheer" role="status">
+          <Suspense>
+            <Moment kind="cheer" faces={["kiko", "scout", "budget"]} />
+          </Suspense>
+          <p class="text-sm text-text">connected. your agents can reply now.</p>
+        </div>
+      </Show>
       <Show when={catalog.error}>
         <p class="px-1 text-sm text-weak">the model catalog did not load. reload to try again.</p>
       </Show>
