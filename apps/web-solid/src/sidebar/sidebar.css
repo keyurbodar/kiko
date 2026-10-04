@@ -318,6 +318,7 @@
 .sidebar-shell .pin-tile[data-active] {
   color: var(--text);
   background: var(--selected-bg);
+  box-shadow: var(--row-sheen);
 }
 
 .sidebar-shell .pin-tile-circle {
@@ -414,6 +415,7 @@
 
 .sidebar-shell .chat-row[data-active] {
   background: var(--selected-bg);
+  box-shadow: var(--row-sheen);
 }
 
 /* A bird is its own shape: no disc behind it and nothing clipping its crest. */
@@ -779,6 +781,7 @@
   margin: 0 8px 8px 0;
   background: var(--panel);
   border-radius: 12px;
+  box-shadow: var(--glass-sheen);
 }
 
 .sidebar-shell .main-panel[data-top] {

@@ -389,6 +389,8 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--panel` | color | `var(--bg)` |
 | `--dock-bg` | color | `var(--bg)` |
 | `--scene` | any | `none` |
+| `--glass-sheen` | any | `none` |
+| `--row-sheen` | any | `none` |
 | `--v2-background-bg-base` | color | `var(--input-bg)` |
 | `--v2-background-bg-deep` | color | `var(--bg)` |
 | `--v2-background-bg-layer-01` | color | `var(--bg-subtle)` |
