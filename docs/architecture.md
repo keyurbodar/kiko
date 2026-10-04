@@ -693,7 +693,7 @@ Three tools cover what the block does not show. `recall(query)` searches every l
 
 **Reasoning for the reset.** Without it, every run would add a fresh memory block to a transcript that already holds the last one, and pi-durable would compact the pile. With it, a request is the system prompt, the block, and the run: about 10,000 tokens before the burst, at any chat length. What a run loses is the tool output of earlier runs, which the trace line, files, and notes carry instead. `RESET_EACH_RUN` in `agent/host.ts` turns it off.
 
-**Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. See P11-05 for the score.
+**Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. On 2026-10-04 with deepseek-v4.1-flash: 8 of 8, from a chat block of 75 lines and about 7,900 characters. The summaries took about 7 minutes in the background. The nap prompt asks for every name, number, date, and code word for word; the facts survive two to four levels of the tree that way.
 
 ### 13.5 Later
 

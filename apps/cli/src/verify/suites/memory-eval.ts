@@ -12,16 +12,17 @@ import type { Suite } from "../runner"
 // and one answer.
 
 const TURNS = 320
-/** Below this score the suite fails. ASSUMPTION: the number, 6 of 8. */
-const PASS = 6
+/** Below this score the suite fails. Measured 8 of 8 on 2026-10-04 with deepseek-v4.1-flash. */
+const PASS = 7
 
+/** `at` is an even turn: the human speaks on even turns, kiko on odd ones. */
 const FACTS: { at: number; said: string; ask: string; expect: RegExp }[] = [
   { at: 4, said: "oh and the dog's name is miso, she's a shiba", ask: "what is the dog called?", expect: /miso/i },
   { at: 30, said: "sam's birthday is march 3rd, don't let me forget", ask: "when is sam's birthday?", expect: /march\s*3|3(rd)?\s*march|03\/03|3\/3/i },
-  { at: 75, said: "we settled it: the budget for the whole trip is 2400 euros", ask: "what is the trip budget?", expect: /2[,.]?400/ },
+  { at: 74, said: "we settled it: the budget for the whole trip is 2400 euros", ask: "what is the trip budget?", expect: /2[,.]?400/ },
   { at: 120, said: "kenji is allergic to shellfish, so no seafood places when he's with us", ask: "what is kenji allergic to?", expect: /shellfish|seafood/i },
   { at: 170, said: "the hotel is the sotetsu fresa inn in shinjuku, booked for nov 4 to 14", ask: "which hotel did we book?", expect: /sotetsu|fresa/i },
-  { at: 215, said: "flight is JL 41 on nov 3, seat 32a", ask: "what is the flight number?", expect: /JL\s*41/i },
+  { at: 214, said: "flight is JL 41 on nov 3, seat 32a", ask: "what is the flight number?", expect: /JL\s*41/i },
   { at: 262, said: "my new dentist is dr okafor, in alfama", ask: "who is my new dentist?", expect: /okafor/i },
   { at: 300, said: "the team standup moved to thursdays at 10", ask: "when is the team standup now?", expect: /thursday/i },
 ]
@@ -46,6 +47,8 @@ const FILLER_AGENT = [
   "fuunji near the south exit is the classic pick.",
   "works for me.",
 ]
+
+if (FACTS.some((f) => f.at % 2)) throw new Error("a fact must sit on a human turn (an even one)")
 
 function script(): { from: "human" | "kiko"; text: string }[] {
   const out: { from: "human" | "kiko"; text: string }[] = []
@@ -103,6 +106,7 @@ const suite: Suite = {
       state = await dev(v.url, s.cookie, "memory", { roomId })
     }
     const view: string = state.view
+    for (const line of view.split("\n").filter((l) => /^#\d+-\d+ /.test(l))) console.log(`  summary ${line}`)
     console.log(`  summaries done in ${Math.round((Date.now() - started) / 1000)} s; the chat block is ${view.split("\n").length} lines, ${view.length} characters, for ${TURNS} turns`)
 
     const quiz = ["quick quiz from everything we talked about. answer each in a few words, numbered, all in one bubble:", ...FACTS.map((f, i) => `${i + 1}) ${f.ask}`)].join("\n")

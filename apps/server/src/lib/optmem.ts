@@ -371,7 +371,7 @@ export function napPrompt(input: NapInput, what: "turns" | "memories"): string {
       : input.halves.map((h, n) => `  #${n === 0 ? span.lo : (span.lo + span.hi) / 2}-${n === 0 ? (span.lo + span.hi) / 2 - 1 : span.hi - 1} ${h.text}`).join("\n")
   return [
     `compress ${what} #${span.lo}-${span.hi - 1} into one line of at most ${LINE_BYTES} bytes.`,
-    "keep what has lasting effect: facts about people, decisions, plans, results, open questions, who did what. drop small talk and greetings. invent nothing. name people and agents as they are named below.",
+    "keep what has lasting effect: facts about people, decisions, plans, results, open questions, who did what. copy exactly every name, number, amount, date, time, place, and code (like a flight or booking number): a later reader needs them word for word. drop small talk, greetings, and repeats. invent nothing. name people and agents as they are named below.",
     "",
     body,
   ].join("\n")

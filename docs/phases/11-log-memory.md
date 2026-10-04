@@ -80,7 +80,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P11-04` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 6 of 8.
+**Verify.** `bun kiko verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 7 of 8 (measured 8 of 8).
 
 **Goal.** A number for how well an agent knows a long chat, so later changes to the tree or the prompt can be compared.
 
