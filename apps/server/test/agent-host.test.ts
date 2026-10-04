@@ -146,6 +146,9 @@ test("with memory, a run wakes from the block once, goes on with deltas, starts 
   await until(a.status, done(51))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter"])
   expect(((await a.call({ op: "entries" })) as { entries: number }).entries).toBeLessThan(grown)
+  // Run ids are built from pi-durable's entry ids, which start over with the tables: the epoch moves
+  // on, so a new run's bubbles are never taken for repeats of an old run's.
+  expect(((await a.call({ op: "epoch" })) as { epoch: number }).epoch).toBe(1)
 }, 180_000)
 
 test("the object restarts mid-run and the heartbeat finishes the run", async () => {

@@ -105,7 +105,10 @@ export class AgentDO extends DurableObject<Env> {
     this.outboxInstance ??= new Outbox(
       this.ctx.storage,
       () => this.roomPort(),
-      () => this.home()?.slug ?? "agent",
+      () => {
+        const epoch = this.host.epoch()
+        return `${this.home()?.slug ?? "agent"}${epoch ? `~${epoch}` : ""}`
+      },
     )
     return this.outboxInstance
   }

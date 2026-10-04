@@ -26,6 +26,7 @@ type Body =
   | { op: "crash" }
   | { op: "memory" }
   | { op: "entries" }
+  | { op: "epoch" }
 
 export class T extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
@@ -70,6 +71,7 @@ export class T extends AgentDO {
       await this.ctx.storage.put("memory", true)
       return Response.json({ ok: true })
     }
+    if (body.op === "epoch") return Response.json({ epoch: this.host.epoch() })
     if (body.op === "entries") {
       const has = this.ctx.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'entries'").toArray().length > 0
       return Response.json({ entries: has ? this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM entries").one().n : 0 })

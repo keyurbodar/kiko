@@ -75,6 +75,12 @@ async function chat(v: { url: string; as(name: string): Promise<any> }, mode: "c
   const end = Date.now() + 180_000
   while (answers().length <= asked && Date.now() < end) await Bun.sleep(500)
   const recalled = answers().slice(asked).join(" ")
+  if (!recalled) {
+    // Why there is no answer: everything the room sent after the question, and the agent's last run.
+    const from = room.raw.log.length - 40
+    for (const e of room.raw.log.slice(Math.max(0, from))) if (e.dir === "in") console.log(`    ${mode} event: ${JSON.stringify(e.frame).slice(0, 300)}`)
+    console.log(`    ${mode} trace: ${JSON.stringify(await dev(v.url, s.cookie, "trace", { roomId })).slice(0, 2000)}`)
+  }
   // Give the background summaries a moment, then read what they cost.
   await Bun.sleep(mode === "memory" ? 60_000 : 0)
   const memory = (await usage()).memory
@@ -90,8 +96,10 @@ const suite: Suite = {
   name: "token-cost",
   model: true,
   async run(v) {
-    const results = { classic: await chat(v, "classic"), memory: await chat(v, "memory") }
-    for (const [mode, r] of Object.entries(results)) {
+    const modes = (process.env.KIKO_TOKEN_MODES ?? "classic,memory").split(",") as ("classic" | "memory")[]
+    const results: Partial<Record<"classic" | "memory", Awaited<ReturnType<typeof chat>>>> = {}
+    for (const m of modes) results[m] = await chat(v, m)
+    for (const [mode, r] of Object.entries(results) as [string, NonNullable<(typeof results)["memory"]>][]) {
       const first = r.perRun.slice(0, 5)
       const lastFive = r.perRun.slice(-5)
       const per = (runs: Usage[], k: keyof Usage) => Math.round(sum(runs, k) / runs.length)
@@ -101,7 +109,7 @@ const suite: Suite = {
       const summaries = { input: r.memory.input ?? 0, cacheRead: r.memory.cacheRead ?? 0, output: r.memory.output ?? 0 }
       console.log(`  ${mode}: cost with cache at 10%: agent ${Math.round(cost(agent, CACHE_WEIGHT))} + summaries ${Math.round(cost(summaries, CACHE_WEIGHT))}; at 2%: agent ${Math.round(cost(agent, 0.02))} + summaries ${Math.round(cost(summaries, 0.02))}; turn 2 recalled: ${JSON.stringify(r.recalled)}`)
     }
-    if (!results.memory.recalled.includes("4417")) throw new VerifyError("memory mode lost the fact from turn 2")
+    if (results.memory && !results.memory.recalled.includes("4417")) throw new VerifyError("memory mode lost the fact from turn 2")
   },
 }
 

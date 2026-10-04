@@ -137,6 +137,7 @@ export class AgentHost {
     private readonly ctx: DurableObjectState,
     private readonly options: HostOptions,
   ) {
+    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)")
     this.inbox = new Inbox(ctx.storage)
     this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
@@ -400,6 +401,11 @@ export class AgentHost {
     this.ctx.storage.sql.exec("INSERT OR REPLACE INTO wakeups (key, at) VALUES (?, ?)", HUMAN_COMING, Date.now() + HUMAN_COMING_MS)
   }
 
+  /** How many times pi-durable's tables were dropped. Part of every run id after the first time. */
+  epoch(): number {
+    return this.ctx.storage.sql.exec<{ n: number }>("SELECT n FROM harness_epoch WHERE id = 1").toArray()[0]?.n ?? 0
+  }
+
   /** A human message waits in the inbox or in the room's open burst. A waiting tool stops for it (section 7.8). */
   humanWaiting(): boolean {
     return this.inbox.humanWaiting() || this.humanComingUntil() > Date.now()
@@ -465,6 +471,10 @@ export class AgentHost {
   private reset(requeue = true): void {
     const sql = this.ctx.storage.sql
     for (const table of PI_DURABLE_TABLES) sql.exec(`DROP TABLE IF EXISTS ${table}`)
+    // pi-durable's entry ids start over with its tables, and a run id is built from one, so the epoch
+    // goes into every run id from now on. Without it, the room takes a new run's bubbles for repeats of
+    // an old run's and stores none of them.
+    sql.exec("INSERT INTO harness_epoch (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1")
     sql.exec("DELETE FROM outbox")
     if (!requeue) return
     const newest = sql
