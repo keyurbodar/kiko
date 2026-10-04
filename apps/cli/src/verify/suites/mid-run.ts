@@ -159,9 +159,7 @@ const cases: Case[] = [
       await send(room, "c")
       await until("an answer after stop", () => texts(room).length > 1, 15_000)
       await Bun.sleep(1_000)
-      // b was discarded, and the stopped request is not answered again: the next run starts from memory
-      // (section 13), where a and "part one." are part of the chat, not an open turn.
-      expectEqual(texts(room), ["part one.", "heard: c"], "the answer after stop: b was discarded")
+      expectEqual(texts(room), ["part one.", "heard: [two-part] a | c"], "the answer after stop: b was discarded")
     },
   },
 ]

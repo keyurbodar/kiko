@@ -217,3 +217,18 @@ test("a node the model keeps failing on gets a model-free line after three tries
   await memory.nap(span!, failing, null)
   expect(memory.node(span!)!.text).toStartWith("human: turn 0; @ada: turn 1")
 })
+
+test("the delta since an agent's last turn leaves out its own turns and the burst it is answering", () => {
+  const { memory, say, now } = room()
+  say(human, "hello")
+  say(agent("ada"), "hi there", "r1")
+  const pos = memory.sync()
+  say(agent("bob"), "@ada i booked it", undefined)
+  say(agent("ada"), "great", "r2")
+  const burst = say(human, "@ada what did bob book?")
+  const { text, count } = memory.since("ada" as AgentSlug, pos, now(), new Set([burst.seq]))
+  expect(text).toContain("@bob: @ada i booked it")
+  expect(text).not.toContain("great")
+  expect(text).not.toContain("what did bob book")
+  expect(count).toBe(memory.sync())
+})

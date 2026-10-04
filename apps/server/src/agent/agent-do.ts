@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
-import type { Conversation, ModelRef } from "@earendil-works/pi-durable"
+import type { Conversation, Harness, ModelRef } from "@earendil-works/pi-durable"
 import type { Envelope, RoomId } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
@@ -14,7 +14,7 @@ import { imageReader } from "./extensions/files"
 import type { ChiefPort } from "./extensions/chief"
 import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
-import { type MemoryPort, memoryBlock } from "./extensions/memory"
+import { type MemoryPort, memoryBlock, memoryDelta } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
 import type { MessagingPort } from "./extensions/messaging"
@@ -40,6 +40,11 @@ import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
 const DEV_CLASSIC_KEY = "dev-classic"
+/** The room's turn count when this agent last read it: where the next run's delta starts (section 13). */
+const MEMORY_POS_KEY = "memory:pos"
+/** Missed more turns than this, and the run starts over from the whole block instead of a long delta. */
+const MAX_DELTA_TURNS = 32
+const USAGE_CARRIED_KEY = "usage:carried"
 /** One outside request as it crosses to `egress`. */
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 /** Extension bundles this agent fetched, by content hash (section 24.5). */
@@ -283,7 +288,8 @@ export class AgentDO extends DurableObject<Env> {
           return true
         },
         // The fake reads memory like a real agent, so the suites prove the <memory> block, not a stand-in.
-        inputMemory: (batch) => this.inputMemory(batch, ""),
+        inputMemory: (batch, fresh) => this.inputMemory(batch, fresh, ""),
+        beforeCompact: (harness) => this.carryUsage(harness),
       }
     }
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
@@ -324,7 +330,8 @@ export class AgentDO extends DurableObject<Env> {
       },
       // Development only: `classic` keeps the old transcript (no reset, no memory block), so `verify
       // token-cost` can measure both designs on the same model.
-      ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch) => this.inputMemory(batch, this.#run?.life ?? "") }),
+      ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean) => this.inputMemory(batch, fresh, this.#run?.life ?? "") }),
+      beforeCompact: (harness) => this.carryUsage(harness),
     }
   }
 
@@ -332,12 +339,43 @@ export class AgentDO extends DurableObject<Env> {
    * Section 13. The <memory> block a new run opens with: the user's life log, from the run's one
    * `turnContext` call, and this chat as of now, without the messages the batch itself delivers.
    */
-  private async inputMemory(batch: Batch, life: string): Promise<string | undefined> {
+  private async inputMemory(batch: Batch, fresh: boolean, life: string): Promise<{ text?: string; fresh: boolean }> {
     const home = this.home()
-    if (!home) return undefined
+    if (!home) return { fresh }
+    const room = roomStub(this.env.ROOM, home.userId, home.roomId)
     const seqs = batch.envelopes.map((e) => e.seq)
-    const chat = await roomStub(this.env.ROOM, home.userId, home.roomId).memoryView(seqs)
-    return memoryBlock(life, chat)
+    const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
+    // Going on: only the turns since this agent's last run, without its own, which its transcript holds.
+    if (!fresh && seen !== undefined) {
+      const delta = await room.memorySince(home.slug, seen, seqs)
+      if (delta.count - seen <= MAX_DELTA_TURNS) {
+        await this.ctx.storage.put(MEMORY_POS_KEY, delta.count)
+        return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
+      }
+    }
+    // Starting over: the whole block, as OptMem's wake.
+    const view = await room.memoryView(seqs)
+    await this.ctx.storage.put(MEMORY_POS_KEY, view.count)
+    return { fresh: true, text: memoryBlock(life, view.text) }
+  }
+
+  /** Keeps the token count across a drop of pi-durable's tables, so `devUsage` still adds up. */
+  private async carryUsage(harness: Harness): Promise<void> {
+    const now = await this.usageOf(harness)
+    const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    await this.ctx.storage.put(USAGE_CARRIED_KEY, { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite })
+  }
+
+  private async usageOf(harness: Harness): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
+    const usage = await harness.usage(BACKGROUND_CONTEXT)
+    const sum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    for (const u of Object.values(usage.models) as unknown as (typeof sum)[]) {
+      sum.input += u.input
+      sum.output += u.output
+      sum.cacheRead += u.cacheRead
+      sum.cacheWrite += u.cacheWrite
+    }
+    return sum
   }
 
   /**
@@ -609,15 +647,9 @@ export class AgentDO extends DurableObject<Env> {
   async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     const { harness } = await this.host.open()
-    const usage = await harness.usage(BACKGROUND_CONTEXT)
-    const sum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-    for (const u of Object.values(usage.models) as unknown as { input: number; output: number; cacheRead: number; cacheWrite: number }[]) {
-      sum.input += u.input
-      sum.output += u.output
-      sum.cacheRead += u.cacheRead
-      sum.cacheWrite += u.cacheWrite
-    }
-    return sum
+    const now = await this.usageOf(harness)
+    const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    return { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
   }
 
   /** Development only. Each run's requests: the tools it called and how long its text was, for `verify token-cost`. */

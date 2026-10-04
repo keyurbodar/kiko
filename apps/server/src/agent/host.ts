@@ -26,14 +26,15 @@ export const HEARTBEAT_MS = 30_000
 /** The first retry after a failed alarm. It doubles up to the heartbeat. */
 const RETRY_MS = 1_000
 /**
- * Section 13. Clear the root conversation when a batch starts a run, so the run reads memory instead of
- * an ever longer transcript. The pi-durable entries stay in storage; only the model's view starts over.
+ * Section 13, after OptMem: an agent wakes from memory once, then works in an ordinary transcript, which
+ * the provider caches because it only grows. When the transcript passes this many characters (about
+ * 15,000 tokens), the next run starts over from the <memory> block: the log is the memory, so nothing
+ * is lost, and no request grows without bound.
  */
-export const RESET_EACH_RUN = true
+export const CONTEXT_BUDGET_CHARS = 60_000
 /**
- * With `RESET_EACH_RUN`, old pi-durable entries are never read again, yet they stay in storage. Every
- * this many runs, an idle agent drops pi-durable's tables, so storage stays bounded. The room's log
- * and memory keep the history.
+ * A fresh start leaves old pi-durable entries in storage that are never read again. Every this many runs,
+ * an idle agent drops pi-durable's tables, so storage stays bounded; its next run starts fresh.
  */
 export const COMPACT_EVERY_RUNS = 50
 const RUNS_KEY = "runs:since-compact"
@@ -59,10 +60,14 @@ export type AgentSetup = {
   /** One more `<context>` block for each submitted input, after the briefs: the clock and run notes. */
   inputContext?: () => Promise<string | undefined>
   /**
-   * The `<memory>` block that opens a new run (section 13): the user's life log and this chat, as of
-   * now. Called only when a batch starts a run, never for one that joins a live run.
+   * Section 13. Called when a batch starts a run, never for one that joins a live run. With `fresh`, or
+   * when it decides the agent missed too much, it returns the whole <memory> block and `fresh: true`,
+   * and the host starts the context over. Otherwise it returns only what is new in the chat since the
+   * agent's last run, and the transcript goes on.
    */
-  inputMemory?: (batch: Batch) => Promise<string | undefined>
+  inputMemory?: (batch: Batch, fresh: boolean) => Promise<{ text?: string; fresh: boolean }>
+  /** pi-durable's tables are about to be dropped: the agent keeps what it needs from them (its token count). */
+  beforeCompact?: (harness: Harness) => Promise<void>
 }
 
 export type HostOptions = {
@@ -86,6 +91,7 @@ export type Opened = {
   beginRun?: AgentSetup["beginRun"]
   inputContext?: AgentSetup["inputContext"]
   inputMemory?: AgentSetup["inputMemory"]
+  beforeCompact?: AgentSetup["beforeCompact"]
 }
 
 export type HostStatus = {
@@ -225,7 +231,7 @@ export class AgentHost {
     const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(setup.env ? { env: () => setup.env } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
-    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory }
+    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact }
   }
 
   /**
@@ -263,11 +269,12 @@ export class AgentHost {
    * is idle with nothing waiting. The harness is closed first and opens fresh on the next alarm.
    */
   private async compact(): Promise<void> {
-    if (!RESET_EACH_RUN || ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) < COMPACT_EVERY_RUNS || this.inbox.hasOpen()) return
+    if (((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) < COMPACT_EVERY_RUNS || this.inbox.hasOpen()) return
     const opened = await this.opened
     if (opened) {
       const live = await opened.harness.inspect(context)
       if (live.tasks.length || live.submissions.length) return
+      await opened.beforeCompact?.(opened.harness)
     }
     await this.drop()
     this.reset(false)
@@ -333,20 +340,36 @@ export class AgentHost {
       }
       await this.ctx.storage.put(RESTARTS_KEY, restarts)
       const whenBusy = action === "steer" ? ({ whenBusy: "steer" } as const) : {}
-      // Section 13. A new run starts from memory, not from a transcript: the context is cleared and the
-      // run opens with the <memory> block, so every request costs the same at turn 50 or 50,000. A
-      // restart keeps its context, since the aborted burst must stay in view, and so does a steer.
+      // Section 13. A new run either goes on with the transcript plus what is new in the chat, or, when
+      // the transcript is empty or past its budget, starts over from the <memory> block. A restart and a
+      // steer keep their context, since the aborted burst must stay in view.
       let memory: string | undefined
       if (!run && inputMemory) {
-        if (RESET_EACH_RUN) await root.reset(undefined, context)
+        const out = await inputMemory(batch, await this.contextFull(root))
+        if (out.fresh) await root.reset(undefined, context)
         await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
-        memory = await inputMemory(batch)
+        memory = out.text
       }
       const extra = await inputContext?.()
       const content = renderInput(extra ? { ...batch, briefs: [...batch.briefs, extra] } : batch, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
     }
+  }
+
+  /** True when the model's view holds no input yet, or more than `CONTEXT_BUDGET_CHARS` of text. */
+  private async contextFull(root: Conversation): Promise<boolean> {
+    const view = await root.context(context)
+    let chars = 0
+    let inputs = 0
+    for (const entry of view.entries) {
+      if (entry.kind === "pi.user") inputs++
+      for (const m of (entry.model ?? []) as unknown as { content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[] }[]) {
+        if (typeof m.content === "string") chars += m.content.length
+        else for (const p of m.content ?? []) chars += (p.text?.length ?? 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+      }
+    }
+    return inputs === 0 || chars > CONTEXT_BUDGET_CHARS
   }
 
   /** The root conversation's run, or null when it is idle. */

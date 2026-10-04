@@ -116,7 +116,7 @@ test("a burst drains as one input, human first, with the brief as context", asyn
   )
 }, 30_000)
 
-test("with memory, each run starts from its <memory> block, and an idle agent drops old history every 50 runs", async () => {
+test("with memory, a run wakes from the block once, goes on with deltas, starts over past its budget, and an idle agent drops old history every 50 runs", async () => {
   const a = await agent()
   await a.call({ op: "memory" })
   const done = (k: number) => (s: Status) => s.tasks === 0 && s.submissions === 0 && s.inbox.submitted === k
@@ -124,20 +124,27 @@ test("with memory, each run starts from its <memory> block, and an idle agent dr
   await until(a.status, done(1))
   await a.receive([human("two")])
   await until(a.status, done(2))
-  // The second run sees its own input only: the first run is in memory, not in the transcript.
-  const { users } = await a.transcript()
-  expect(users).toEqual(["<memory>\nchat:\n#0 now human: earlier\n</memory>\n\ntwo"])
+  // The first run woke from the whole block; the second goes on with its transcript and only what is new.
+  expect((await a.transcript()).users).toEqual([
+    "<memory>\nchat:\n#0 human: earlier\n</memory>\n\none",
+    "<memory>\nchat since your last turn:\n#9 human: new\n</memory>\n\ntwo",
+  ])
+  // Past the context budget, the next run starts over from the block.
+  await a.receive([human("x".repeat(61_000))])
+  await until(a.status, done(3))
+  await a.receive([human("after the budget")])
+  await until(a.status, done(4))
+  expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter the budget"])
   const grown = ((await a.call({ op: "entries" })) as { entries: number }).entries
-  for (let i = 3; i <= 50; i++) {
+  for (let i = 5; i <= 50; i++) {
     await a.receive([human(`run ${i}`)])
     await until(a.status, done(i), 30_000)
   }
-  // Fifty runs, then idle: pi-durable's tables are dropped and the next run opens a fresh harness.
-  const compacted = await until(() => a.call<{ entries: number }>({ op: "entries" }), (r) => r.entries < grown, 30_000)
-  expect(compacted.entries).toBeLessThan(grown)
+  // Fifty runs, then idle: pi-durable's tables are dropped and the next run wakes from the block again.
+  await until(() => a.call<{ entries: number }>({ op: "entries" }), (r) => r.entries < grown, 30_000)
   await a.receive([human("after")])
   await until(a.status, done(51))
-  expect((await a.transcript()).users.at(-1)).toContain("after")
+  expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter"])
 }, 180_000)
 
 test("the object restarts mid-run and the heartbeat finishes the run", async () => {

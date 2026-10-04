@@ -166,6 +166,26 @@ export class RoomMemory {
     return lines.join("\n")
   }
 
+  /** The turns after `pos`, as verbatim lines, without `slug`'s own turns and the messages `skip`. */
+  since(slug: AgentSlug, pos: number, now: number, skip: ReadonlySet<number>): { text: string; count: number } {
+    const count = this.sync()
+    const own = new Set(
+      this.sql
+        .exec<{ pos: number }>("SELECT pos FROM mem_turns WHERE pos >= ? AND (key LIKE ? OR key LIKE ?)", pos, `agent:${slug}:%`, `trace:${slug}:%`)
+        .toArray()
+        .map((r) => r.pos),
+    )
+    let day = ""
+    const lines: string[] = []
+    for (const item of this.items(pos, count, skip)) {
+      if (own.has(item.pos)) continue
+      const d = dayOf(item.at, now)
+      lines.push(itemLine(item, 300, d !== day))
+      day = d
+    }
+    return { text: lines.join("\n"), count }
+  }
+
   /** `zoom`: `t12` for one turn in full, or `12-19` / `0-63` for a node opened into its halves. */
   zoom(id: string, now: number): string | null {
     const count = this.sync()

@@ -56,11 +56,11 @@ const rawOf = (m: Message) => (typeof m.content === "string" ? m.content : (m.co
 /** The chat lines of the <memory> block in `raw`, as `<who>: <text>`, without positions, ages, or message ids. */
 function missedOf(raw: string): string[] {
   const memory = /<memory>([\s\S]*?)<\/memory>/.exec(raw)?.[1] ?? ""
-  const chat = memory.slice(memory.indexOf("\nchat:\n") + 7)
+  const chat = memory.slice(memory.search(/(^|\n)chat[^\n]*:\n/) + 1)
   return chat
     .split("\n")
     .filter((line) => line.startsWith("#"))
-    .map((line) => line.replace(/^#\S+ \S+ /, "").replace(/\[[0-9a-f-]{36}\] /g, ""))
+    .map((line) => line.replace(/^#\S+ (?:[a-z]{3} \d+ (?:\d{4} )?)?\d\d:\d\d /, "").replace(/\[[0-9a-f-]{36}\] /g, ""))
 }
 
 /** The text of a message without the run's <memory> block and the room's `<context>` brief. */

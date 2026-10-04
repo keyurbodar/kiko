@@ -170,7 +170,7 @@ export default {
     if (kind === "ask") return Response.json(await room.ask(slug as AgentSlug, (await request.json()) as never))
     if (kind === "askstate") return Response.json(await room.askState(slug!))
     if (kind === "closeask") return Response.json(await room.closeAsk(slug!))
-    if (kind === "memory") return Response.json({ view: await room.memoryView((await request.json()) as number[]) })
+    if (kind === "memory") return Response.json({ view: (await room.memoryView((await request.json()) as number[])).text })
     if (kind === "mail") return Response.json(await room.agentMessage(slug as AgentSlug, (await request.json()) as never))
     if (kind === "calls") return Response.json(await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).calls())
     if (kind === "status") {

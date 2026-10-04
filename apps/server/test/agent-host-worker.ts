@@ -53,7 +53,12 @@ export class T extends AgentDO {
     const models = createModels()
     models.setProvider(faux.provider)
     // Section 13: with memory on, every run starts from a <memory> block, as a real agent's does.
-    const memory = (await this.ctx.storage.get<boolean>("memory")) ? { inputMemory: async () => "<memory>\nchat:\n#0 now human: earlier\n</memory>" } : {}
+    const memory = (await this.ctx.storage.get<boolean>("memory"))
+      ? {
+          inputMemory: async (_batch: unknown, fresh: boolean) =>
+            fresh ? { fresh: true, text: "<memory>\nchat:\n#0 human: earlier\n</memory>" } : { fresh: false, text: "<memory>\nchat since your last turn:\n#9 human: new\n</memory>" },
+        }
+      : {}
     return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }), ...memory }
   }
 

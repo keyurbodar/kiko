@@ -685,10 +685,12 @@ DEVIATION from OptMem, in four places. A page is 8 items, not 2, so a chat pays 
 
 ### 13.4 Reading and writing
 
-A batch that starts a run (the conversation is idle) does two things before it submits:
+Kiko follows OptMem's own loop: wake from memory once, then work in an ordinary transcript.
 
-1. `root.reset()`. The model's view of the conversation starts over. The pi-durable entries stay in storage. A steer and a mid-run restart keep their context, because the aborted burst must stay in view.
-2. The input opens with the `<memory>` block: the life view from the run's one `turnContext` call, then this chat's view from `RoomDO.memoryView`, without the messages the batch delivers on their own. Then the `<context>` brief, then the burst.
+1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block: the life view from the run's one `turnContext` call, then this chat's view from `RoomDO.memoryView`.
+2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own.
+
+A steer and a mid-run restart add no block. Every view line is written once and never changes (a fixed UTC time, one cut), so both the transcript and a fresh block are mostly served from the provider's cache.
 
 Three tools cover what the block does not show. `recall(query)` searches every life line and this chat's messages. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
 
@@ -696,7 +698,7 @@ Three tools cover what the block does not show. `recall(query)` searches every l
 
 **Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started from memory, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one.
 
-**Reasoning for the reset.** Without it, every run would add a fresh memory block to a transcript that already holds the last one, and pi-durable would compact the pile. With it, a request is the system prompt, the block, and the run: about 10,000 tokens before the burst, at any chat length. What a run loses is the tool output of earlier runs, which the trace line, files, and notes carry instead. `RESET_EACH_RUN` in `agent/host.ts` turns it off.
+**Reasoning.** A first version reset the context on every run. It was bounded, but it rebuilt the block every time, lost tool output between runs, and measured about 1.8 times the tokens of the old transcript design on a 30-turn chat. Waking only when the transcript is full keeps the old design's cache behavior and adds the bound: on the same 30-turn chat the agent's requests cost about 12% less than the old design's (`bun kiko verify token-cost`), and the gap grows with the chat, because the old transcript never stopped growing. Summary calls ask for no thinking, or the least a model allows, since a one-line summary needs none.
 
 **Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. On 2026-10-04 with deepseek-v4.1-flash, a group chat of the human and three agents, with a fact buried in a long teammate reply and two facts corrected later: 10 of 10, from a chat block of 64 lines and about 9,000 characters. The summaries took about 7 minutes in the background. The nap prompt asks for every name, number, date, and code word for word; the facts survive two to four levels of the tree that way.
 

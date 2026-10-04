@@ -635,10 +635,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * RPC for an agent starting a run: this chat as its <memory> block shows it, older turns compressed,
 	 * without the messages `seqs` that the run receives on their own. Never waits on a summary.
 	 */
-	async memoryView(seqs: number[]): Promise<string> {
-		const view = this.memory.view(Date.now(), new Set(seqs))
+	async memoryView(seqs: number[]): Promise<{ text: string; count: number }> {
+		const text = this.memory.view(Date.now(), new Set(seqs))
 		await this.armMemory()
-		return view
+		return { text, count: this.memory.count() }
+	}
+
+	/**
+	 * RPC for an agent going on with its transcript: the turns after `pos`, without its own and without
+	 * the messages `seqs` the run receives on their own. `count` is where the next delta starts.
+	 */
+	async memorySince(slug: AgentSlug, pos: number, seqs: number[]): Promise<{ text: string; count: number }> {
+		const out = this.memory.since(slug, pos, Date.now(), new Set(seqs))
+		await this.armMemory()
+		return out
 	}
 
 	/** RPC for an agent's `recall`: this chat's messages that match. */

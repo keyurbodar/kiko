@@ -529,8 +529,9 @@ export class UserDO extends DurableObject<Env> {
     const reply = await models.completeSimple(
       model,
       { systemPrompt: system, messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
-      // A summary that hangs would hold its room's pass forever, so each call has a deadline.
-      { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS) },
+      // A summary that hangs would hold its room's pass forever, so each call has a deadline. A summary is
+      // an easy task, so it asks for no thinking: none where the model can turn it off, the least where not.
+      { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS), ...(model.reasoning && model.thinkingLevelMap?.off === null ? { reasoning: "minimal" as const } : {}) },
     )
     // The provider's own words, cut short: they name the cause (a timeout, a refusal) and carry no key.
     // What memory costs, for the memory screen and `verify token-cost`: one row, summed.
