@@ -8,7 +8,7 @@ import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
 import type { CatalogPage } from "./catalog"
-import type { SearchPage } from "./search"
+import type { SearchOptions, SearchPage } from "./search"
 
 /** Per-socket state. It survives hibernation. */
 export type Attachment = {
@@ -28,7 +28,7 @@ export interface SocketRoom {
 	/** The human pressed stop. Drops the pending burst and stops every agent's run (section 6.2). Not stored. */
 	stop(): void
 	/** Searches the room's live messages. */
-	search(query: string, before?: number, limit?: number): SearchPage
+	search(query: string, options?: SearchOptions): SearchPage
 	/** The links or the media sent in the room. */
 	catalog(kind: "links" | "media", before?: number, limit?: number): CatalogPage
 	/** Adds, removes, or renames an agent (section 7.7) and publishes the change. Returns why it was refused, or null. */
@@ -49,6 +49,8 @@ const MAX_FRAME = 64 * 1024
 // ASSUMPTION: the limits on a message and on a reaction.
 export const MAX_TEXT = 16_000
 const MAX_EMOJI = 32
+/** The most messages one `history` frame returns on each side. */
+export const MAX_HISTORY = 100
 
 const decode = Schema.decodeUnknownSync(ClientToRoomSchema)
 
@@ -136,13 +138,18 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			room.humanTyping()
 			return null
 		case "search": {
-			const page = room.search(frame.query.slice(0, 200), frame.before, frame.limit)
+			const page = room.search(frame.query.slice(0, 200), { before: frame.before, limit: frame.limit })
 			send(ws, { t: "search", query: frame.query, ...(frame.before !== undefined ? { before: frame.before } : {}), ...page })
 			return null
 		}
 		case "catalog": {
 			const page = room.catalog(frame.kind, frame.before, frame.limit)
 			send(ws, { t: "catalog", kind: frame.kind, ...(frame.before !== undefined ? { before: frame.before } : {}), ...page })
+			return null
+		}
+		case "history": {
+			const messages = log.around(frame.seq, Math.min(frame.before, MAX_HISTORY), Math.min(frame.after, MAX_HISTORY))
+			send(ws, { t: "history", seq: frame.seq, before: frame.before, after: frame.after, messages })
 			return null
 		}
 		case "stop":

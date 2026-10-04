@@ -261,7 +261,7 @@ export const ClientToRoom = Schema.Union([
 		kind: Schema.Literals(["links", "media"]),
 		before: Schema.optionalKey(Count),
 		limit: Schema.optionalKey(Count),
-	}),
+	}),	Schema.Struct({ t: Schema.Literal("history"), seq: Count, before: Count, after: Count }),
 ])
 
 export const CatalogItem = Schema.Union([
@@ -286,7 +286,7 @@ export const RoomToClient = Schema.Union([
 		t: Schema.Literal("search"),
 		query: Schema.String,
 		before: Schema.optionalKey(Count),
-		results: Schema.Array(Schema.Struct({ id: MessageId, seq: Count, snippet: Schema.String })),
+		results: Schema.Array(Schema.Struct({ id: MessageId, seq: Count, at: Count, from: Sender, snippet: Schema.String })),
 		next: Schema.NullOr(Count),
 	}),
 	Schema.Struct({
@@ -295,6 +295,12 @@ export const RoomToClient = Schema.Union([
 		before: Schema.optionalKey(Count),
 		items: Schema.Array(CatalogItem),
 		next: Schema.NullOr(Count),
+	}),	Schema.Struct({
+		t: Schema.Literal("history"),
+		seq: Count,
+		before: Count,
+		after: Count,
+		messages: Schema.Array(Message),
 	}),
 ])
 

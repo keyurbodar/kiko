@@ -189,6 +189,7 @@ export const clientToRoom: readonly ClientToRoom[] = [
 	{ t: "search", query: "protocol", before: 9, limit: 20 },
 	{ t: "catalog", kind: "links" },
 	{ t: "catalog", kind: "media", before: 9, limit: 20 },
+	{ t: "history", seq: 9, before: 30, after: 30 },
 ]
 
 export const roomToClient: readonly RoomToClient[] = [
@@ -202,10 +203,12 @@ export const roomToClient: readonly RoomToClient[] = [
 	{ t: "draft", slug: ada, runId: "run1", index: 1, text: "a long block that is still gro" },
 	{ t: "status", slug: ada, state: "idle" },
 	{ t: "member_refused", op: { op: "add", slug: "cy" as AgentSlug, name: "cy" }, reason: "limit" },
-	{ t: "search", query: "protocol", results: [{ id: messageId(1), seq: 1, snippet: "plan the protocol package" }], next: null },
+	{ t: "search", query: "protocol", results: [{ id: messageId(1), seq: 1, at: 1, from: { kind: "human" }, snippet: "plan the \u0002protocol\u0003 package" }], next: null },
 	{ t: "search", query: "plan", before: 9, results: [], next: null },
 	{ t: "catalog", kind: "links", items: [{ kind: "link", url: "https://example.com/a", site: "example.com", messageId: messageId(1), seq: 1, at: 1 }], next: null },
 	{ t: "catalog", kind: "media", before: 9, items: [], next: null },
+	{ t: "history", seq: 1, before: 30, after: 30, messages: roomSnapshot.messages },
+	{ t: "history", seq: 9, before: 50, after: 0, messages: [] },
 ]
 
 export const chat: Chat = {

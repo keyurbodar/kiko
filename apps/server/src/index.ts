@@ -20,6 +20,7 @@ import type { UserDO } from "./user/user-do"
 import { remindersRoute } from "./user/reminders-route"
 import { tidyRoute } from "./user/tidy-route"
 import { soulRoute } from "./user/soul-route"
+import { searchRoute } from "./room/search-route"
 
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
@@ -60,6 +61,8 @@ export default {
     if (reminders) return reminders
     const soul = await soulRoute(request, env)
     if (soul) return soul
+    const searched = await searchRoute(request, env)
+    if (searched) return searched
     const tidied = await tidyRoute(request, env)
     if (tidied) return tidied
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))

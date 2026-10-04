@@ -23,7 +23,7 @@ import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
 import { migrate } from "./schema"
 import { listCatalog } from "./catalog"
-import { searchMessages } from "./search"
+import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
 import { applyTaskOp, RoomWorkspace, runCall, wakeEnvelope, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 
@@ -669,8 +669,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		for (const ws of this.ctx.getWebSockets()) if (attachment(ws).ready) send(ws, frame)
 	}
 
-	search(query: string, before?: number, limit?: number) {
-		return searchMessages(this.ctx.storage.sql, query, before, limit)
+	/** The socket's search, and RPC for the Worker's search across chats (`room/search-route.ts`). */
+	search(query: string, options?: SearchOptions) {
+		return searchMessages(this.ctx.storage.sql, query, options)
 	}
 
 	catalog(kind: "links" | "media", before?: number, limit?: number) {
