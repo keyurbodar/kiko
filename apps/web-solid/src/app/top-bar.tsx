@@ -48,6 +48,7 @@ export function TopBar() {
           title="search messages"
           data-action="search-messages"
           data-hint="chats.search-current"
+          data-hint-label="search"
           onPointerEnter={preloadSearch}
           onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
         >

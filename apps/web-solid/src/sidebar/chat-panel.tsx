@@ -355,7 +355,7 @@ function SearchRow(props: {
   onUnreadOnly: (on: boolean) => void
 }): JSX.Element {
   return (
-    <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="search" data-hint-side="top">
+    <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="go to chat">
       <label class="chat-search-field">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
         <input

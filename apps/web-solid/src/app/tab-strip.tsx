@@ -165,6 +165,8 @@ export function TabStrip() {
                   tabindex="-1"
                   aria-label={`close ${label(id)}`}
                   data-component="tab-close"
+                  data-hint={active() ? "chat.close" : undefined}
+                  data-hint-label="close"
                   class="relative hidden size-4 items-center justify-center rounded-[5px] text-[var(--tab-text)] before:absolute before:-inset-[10px] before:content-[''] before:md:-inset-1 hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] group-hover:flex group-data-[active]:flex"
                   onClick={(event) => {
                     event.stopPropagation()

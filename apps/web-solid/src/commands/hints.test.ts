@@ -31,3 +31,24 @@ describe("pill labels", () => {
     expect(pillLabel("view: toggle sidebar")).toBe("toggle sidebar")
   })
 })
+
+import { place } from "./HintLayer"
+
+describe("placing pills", () => {
+  test("a pill past the right edge is pulled fully on screen", () => {
+    const [box] = place([{ x: 1380, y: 40, w: 120, h: 24 }], ["bottom"], 1400, 900)
+    expect(box!.x + box!.w).toBeLessThanOrEqual(1392)
+  })
+
+  test("a pill that lands on another moves along its side until clear", () => {
+    const [a, b] = place([{ x: 60, y: 30, w: 110, h: 24 }, { x: 100, y: 30, w: 90, h: 24 }], ["right", "bottom"], 1400, 900)
+    const clear = b!.y >= a!.y + a!.h || b!.x >= a!.x + a!.w || b!.x + b!.w <= a!.x || b!.y + b!.h <= a!.y
+    expect(clear).toBe(true)
+    expect(b!.y).toBeGreaterThan(a!.y)
+  })
+
+  test("pills that do not touch keep their places", () => {
+    const boxes = [{ x: 20, y: 20, w: 80, h: 24 }, { x: 300, y: 20, w: 80, h: 24 }]
+    expect(place(boxes, ["bottom", "bottom"], 1400, 900)).toEqual(boxes)
+  })
+})
