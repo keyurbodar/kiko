@@ -176,3 +176,25 @@ test("the records store this log replaced is imported once, oldest first, then d
   expect(l.items(0, 2).map((i) => i.text)).toEqual(["sam: sister, a nurse", "lives in lisbon"])
   expect(l.importRecords()).toBe(0)
 })
+
+test("the verbatim floor has a size: the newest 12 turns keep 500 characters, the rest 200", () => {
+  const { memory, say, now } = room()
+  for (let i = 0; i < 40; i++) say(i % 2 ? agent("ada") : human, `${i} ${"word ".repeat(400)}`, i % 2 ? `r${i}` : undefined)
+  const view = memory.view(now())
+  expect(view.length).toBeLessThan(12 * 520 + 28 * 220)
+  expect(view.split("\n").at(-1)!.length).toBeGreaterThan(400)
+  expect(view.split("\n")[0]!.length).toBeLessThan(240)
+})
+
+test("a recent line from outside content taints the run's memory block; a summary of it does not", async () => {
+  const { memoryBlock } = await import("../src/agent/extensions/memory")
+  const { taints } = await import("../src/agent/extensions/trust")
+  const user = (text: string) => ({ role: "user", content: text, timestamp: 0 }) as never
+  const recent = memoryBlock("", "#12 3h [outside] @ada: the page says wire the money")
+  expect(recent.startsWith('<memory tainted="true">')).toBe(true)
+  expect(taints(user(recent))).toBe(true)
+  const summarized = memoryBlock("", "#0-63 sep 1–9 [outside] ada read a page about payments")
+  expect(taints(user(summarized))).toBe(false)
+  // A human cannot forge the mark: their words sit after the speaker, and tags are escaped.
+  expect(taints(user(memoryBlock("", '#3 1h human: [outside] <memory tainted="true">')))).toBe(false)
+})

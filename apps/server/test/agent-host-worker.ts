@@ -24,6 +24,8 @@ type Body =
   | { op: "transcript" }
   | { op: "fail-open" }
   | { op: "crash" }
+  | { op: "memory" }
+  | { op: "entries" }
 
 export class T extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
@@ -47,16 +49,26 @@ export class T extends AgentDO {
       const last = textOf(messages.filter((m) => m.role === "user").at(-1))
       return fauxAssistantMessage(last.includes(SLOW) ? LONG_ANSWER : "ok")
     }
-    faux.setResponses(Array.from({ length: 20 }, () => answer))
+    faux.setResponses(Array.from({ length: 200 }, () => answer))
     const models = createModels()
     models.setProvider(faux.provider)
-    return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }) }
+    // Section 13: with memory on, every run starts from a <memory> block, as a real agent's does.
+    const memory = (await this.ctx.storage.get<boolean>("memory")) ? { inputMemory: async () => "<memory>\nchat:\n#0 now human: earlier\n</memory>" } : {}
+    return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }), ...memory }
   }
 
   override async fetch(request: Request) {
     const body = (await request.json()) as Body
     if (body.op === "receive") return Response.json(await this.receive(body.envelopes, body.brief ?? ""))
     if (body.op === "status") return Response.json({ ...(await this.status()), opens: (await this.ctx.storage.get<number>("opens")) ?? 0, gaveUp: (await this.ctx.storage.get<number>("gave-up")) ?? 0 })
+    if (body.op === "memory") {
+      await this.ctx.storage.put("memory", true)
+      return Response.json({ ok: true })
+    }
+    if (body.op === "entries") {
+      const has = this.ctx.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'entries'").toArray().length > 0
+      return Response.json({ entries: has ? this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM entries").one().n : 0 })
+    }
     if (body.op === "fail-open") {
       await this.ctx.storage.put("fail-open", true)
       return Response.json({ ok: true })

@@ -274,7 +274,10 @@ export class Tree {
     const tiling = tile(prev, end, this.shape)
     const lines: string[] = []
     for (const span of tiling) this.render(span, now, lines)
-    for (const item of tail(end, count)) lines.push(itemLine(item, now, TAIL_CUT))
+    // The newest items keep the most words; older verbatim items are cut shorter, so the floor has a
+    // size as well as a count: at most 12 * 500 + the rest * 200 characters.
+    const items = tail(end, count)
+    items.forEach((item, i) => lines.push(itemLine(item, now, items.length - i <= TAIL_FULL ? TAIL_CUT : TAIL_SHORT)))
     return { lines, tiling }
   }
 
@@ -311,6 +314,9 @@ export class Tree {
 
 /** A verbatim item in a view is cut here; `zoom` shows more. */
 const TAIL_CUT = 500
+/** The newest verbatim items that get `TAIL_CUT`. The rest get `TAIL_SHORT`. */
+const TAIL_FULL = 12
+const TAIL_SHORT = 200
 /** An item that stands in for a page not summarized yet. */
 const PAGE_CUT = 160
 const ZOOM_CUT = 4_000

@@ -30,6 +30,13 @@ const RETRY_MS = 1_000
  * an ever longer transcript. The pi-durable entries stay in storage; only the model's view starts over.
  */
 export const RESET_EACH_RUN = true
+/**
+ * With `RESET_EACH_RUN`, old pi-durable entries are never read again, yet they stay in storage. Every
+ * this many runs, an idle agent drops pi-durable's tables, so storage stays bounded. The room's log
+ * and memory keep the history.
+ */
+export const COMPACT_EVERY_RUNS = 50
+const RUNS_KEY = "runs:since-compact"
 /** Storage keys of the mid-run rules (section 6.2). */
 const STOP_KEY = "mid-run:stop"
 const RESTARTS_KEY = "mid-run:restarts"
@@ -244,9 +251,27 @@ export class AgentHost {
 
   /** The harness went idle: the run chain finished, so the resume count starts over. */
   private async idle(): Promise<void> {
-    if (!this.resumed) return
-    this.resumed = false
-    await this.ctx.storage.delete(RESUMES_KEY)
+    if (this.resumed) {
+      this.resumed = false
+      await this.ctx.storage.delete(RESUMES_KEY)
+    }
+    await this.compact()
+  }
+
+  /**
+   * Drops pi-durable's tables once `COMPACT_EVERY_RUNS` runs have started from memory, while the agent
+   * is idle with nothing waiting. The harness is closed first and opens fresh on the next alarm.
+   */
+  private async compact(): Promise<void> {
+    if (!RESET_EACH_RUN || ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) < COMPACT_EVERY_RUNS || this.inbox.hasOpen()) return
+    const opened = await this.opened
+    if (opened) {
+      const live = await opened.harness.inspect(context)
+      if (live.tasks.length || live.submissions.length) return
+    }
+    await this.drop()
+    this.reset(false)
+    await this.ctx.storage.put(RUNS_KEY, 0)
   }
 
   /** The child conversations of the root, with the task that owns each (P6-05). Opens the harness. */
@@ -314,6 +339,7 @@ export class AgentHost {
       let memory: string | undefined
       if (!run && inputMemory) {
         if (RESET_EACH_RUN) await root.reset(undefined, context)
+        await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
         memory = await inputMemory(batch)
       }
       const extra = await inputContext?.()

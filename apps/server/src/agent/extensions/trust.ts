@@ -116,7 +116,7 @@ export function wrapUntrusted(text: string, source: string, nonce: string): stri
 /** Matches the opening of a block made by `wrapUntrusted`. Escaped look-alikes never match. */
 const UNTRUSTED_BLOCK = /<untrusted source="[\w.:-]*" id="[0-9a-f]{32}">/
 /** An agent or system envelope from a tainted run, as `renderInput` writes it. */
-const TAINTED_ENVELOPE = /<(agent-message|system-event)\b[^>\n]*\btainted="true"/
+const TAINTED_ENVELOPE = /<(agent-message|system-event|memory)\b[^>\n]*\btainted="true"/
 
 const textOf = (message: Message): string => {
   const content = (message as { content?: unknown }).content
