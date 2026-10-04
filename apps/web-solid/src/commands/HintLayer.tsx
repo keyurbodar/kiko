@@ -71,13 +71,28 @@ export function place(boxes: readonly Box[], sides: readonly Side[], vw: number,
   return placed
 }
 
+/**
+ * Whether the reader can see the control now. A sidebar panel for another section stays mounted
+ * with `visibility: hidden` to keep its scroll, so a size alone is not enough; and a control under
+ * a dialog or a panel is covered, so the point at its centre has to be the control itself.
+ */
+function onScreen(el: HTMLElement, r: DOMRect): boolean {
+  if (r.width === 0 || r.height === 0 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return false
+  if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false
+  if (el.closest("[inert], [aria-hidden='true']")) return false
+  const x = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1)
+  const y = Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1)
+  const top = document.elementFromPoint(x, y)
+  return !top || top === el || el.contains(top) || top.contains(el)
+}
+
 function collect(): Pill[] {
   const pills: Pill[] = []
   for (const el of document.querySelectorAll<HTMLElement>("[data-hint]")) {
     const command = findCommand(el.dataset.hint!)
     if (!command?.shortcut || !isEnabled(command)) continue
     const r = el.getBoundingClientRect()
-    if (r.width === 0 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue
+    if (!onScreen(el, r)) continue
     pills.push({
       key: `${command.id}:${pills.length}`,
       label: el.dataset.hintLabel ?? pillLabel(command.title),
