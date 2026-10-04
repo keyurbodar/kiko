@@ -692,13 +692,13 @@ A batch that starts a run (the conversation is idle) does two things before it s
 
 Three tools cover what the block does not show. `recall(query)` searches every life line and this chat's messages. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
 
-**Outside content.** A memory block whose verbatim lines came from outside content is marked `tainted="true"`, and the trust gate treats the run like one that read the content itself (section 16.3). A summary built from outside content is marked `[outside]` but does not taint, or one web page would gate a chat forever.
+**Outside content.** A memory line built from outside content is marked `[outside]`, and the memory rule calls it hearsay, never instructions. It does not taint the run: taint ends with the run that read the content (section 16.3), and outside content handed to an agent arrives as a tainted envelope, which does taint. Tainting on memory would gate every run for 32 turns after one web page.
 
 **Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started from memory, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one.
 
 **Reasoning for the reset.** Without it, every run would add a fresh memory block to a transcript that already holds the last one, and pi-durable would compact the pile. With it, a request is the system prompt, the block, and the run: about 10,000 tokens before the burst, at any chat length. What a run loses is the tool output of earlier runs, which the trace line, files, and notes carry instead. `RESET_EACH_RUN` in `agent/host.ts` turns it off.
 
-**Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. On 2026-10-04 with deepseek-v4.1-flash: 8 of 8, from a chat block of 75 lines and about 7,900 characters. The summaries took about 7 minutes in the background. The nap prompt asks for every name, number, date, and code word for word; the facts survive two to four levels of the tree that way.
+**Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. On 2026-10-04 with deepseek-v4.1-flash, a group chat of the human and three agents, with a fact buried in a long teammate reply and two facts corrected later: 10 of 10, from a chat block of 64 lines and about 9,000 characters. The summaries took about 7 minutes in the background. The nap prompt asks for every name, number, date, and code word for word; the facts survive two to four levels of the tree that way.
 
 ### 13.5 Later
 

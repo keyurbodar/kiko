@@ -71,17 +71,13 @@ export function memoryExtension(port: MemoryPort): Extension {
   })
 }
 
-/** A verbatim line (`#12 3h [outside] ...`) that came from outside content. A summary line (`#0-63`) is not one. */
-const RECENT_OUTSIDE = /^#\d+ \S+ \[outside\] /m
-
 /**
  * The <memory> block of a run's input. Text is escaped, so a remembered line cannot close the block or
- * forge a tag. Section 16.3: when a recent line came from outside content, the block is marked
- * tainted and the run is gated like one that read the content itself. A summary built from outside
- * content is marked `[outside]` but does not taint, or one web page would gate a chat forever.
+ * forge a tag. A line from outside content is marked `[outside]` and the rule calls it hearsay, but it
+ * does not taint the run: taint ends with the run that read the content (section 16.3), and outside
+ * content handed to this agent arrives as a tainted envelope, which does.
  */
 export function memoryBlock(life: string, chat: string): string {
   const escape = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-  const tainted = RECENT_OUTSIDE.test(life) || RECENT_OUTSIDE.test(chat)
-  return `<memory${tainted ? ' tainted="true"' : ""}>\nlife:\n${escape(life.trim()) || "(nothing yet)"}\n\nchat:\n${escape(chat.trim()) || "(nothing before this)"}\n</memory>`
+  return `<memory>\nlife:\n${escape(life.trim()) || "(nothing yet)"}\n\nchat:\n${escape(chat.trim()) || "(nothing before this)"}\n</memory>`
 }

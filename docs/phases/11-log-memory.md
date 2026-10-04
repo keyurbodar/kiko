@@ -110,6 +110,6 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P11-04` `difficulty: 2` `area: backend`
 
-**Verify.** `test/agent-host.test.ts` runs 51 runs from memory and sees pi-durable's tables dropped while idle; `test/log-memory.test.ts` bounds the floor's size and taints a block with a recent outside line, not a summarized one.
+**Verify.** `test/agent-host.test.ts` runs 51 runs from memory and sees pi-durable's tables dropped while idle; `test/log-memory.test.ts` bounds the floor's size and marks outside lines without tainting the run.
 
-**Goal.** Nothing grows without bound, and recent outside content gates a run like a tool result does.
+**Goal.** Nothing grows without bound.
