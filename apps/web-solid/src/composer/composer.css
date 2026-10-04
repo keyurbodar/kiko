@@ -37,8 +37,9 @@
   max-width: var(--content-max-w);
   margin-right: auto;
   margin-left: auto;
-  /* Opaque by declaration, not by luck — see "The seam" below. */
-  background: var(--bg);
+  /* Opaque by declaration, not by luck — see "The seam" below. Frost clears it: the panel
+   * there is glass, and an opaque block would show as a patch. */
+  background: var(--dock-bg);
 }
 
 /* No backdrop fade, deliberately, and this is a real departure from kat.

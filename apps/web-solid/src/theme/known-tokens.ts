@@ -251,6 +251,7 @@ export const KNOWN_TOKENS: Record<string, TokenKind> = {
   "--danger-wash": "color",
   "--scrim": "color",
   "--panel": "color",
+  "--dock-bg": "color",
   "--scene": "any",
   "--v2-background-bg-base": "color",
   "--v2-background-bg-deep": "color",

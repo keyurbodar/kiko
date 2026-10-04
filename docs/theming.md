@@ -387,6 +387,7 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--danger-wash` | color | `oklch(from var(--danger) l c h / 12%)` |
 | `--scrim` | color | `oklch(0% 0 none / 0.6)` |
 | `--panel` | color | `var(--bg)` |
+| `--dock-bg` | color | `var(--bg)` |
 | `--scene` | any | `none` |
 | `--v2-background-bg-base` | color | `var(--input-bg)` |
 | `--v2-background-bg-deep` | color | `var(--bg)` |

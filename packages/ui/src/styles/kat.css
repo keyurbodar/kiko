@@ -768,7 +768,7 @@
 /* -----------------------------------------------------------------------------
    4d. Frost
 
-   Translucent panels over a still scene. The scene is soft gradients painted on
+   Translucent panels over a still scene. The scene is one soft wash painted on
    `body`, so nothing needs a live blur: the glass is the panels' alpha over a
    picture that is already soft. `--panel` is the main panel's own fill and
    `--bg-sidebar` the shell's. `--bg` stays the opaque colour the eye sees
@@ -777,24 +777,25 @@
 
 :root {
   --panel: var(--bg);
+  --dock-bg: var(--bg);
   --scene: none;
 }
 
 :root[data-material="frost"] {
+  --scene-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.05 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --scene-l: 0.24;
   --scene-c: calc(0.02 * var(--tinge) * var(--cm));
-  --scene-1: oklch(0.33 calc(var(--scene-c) * 1.5) calc(var(--hue) - 10));
-  --scene-2: oklch(0.18 calc(var(--scene-c) * 0.8) var(--hue));
-  --scene-3: oklch(0.38 calc(var(--scene-c) * 1.7) var(--hue));
-  --scene-4: oklch(0.22 calc(var(--scene-c) * 1.5) calc(var(--hue) - 20));
-  /* Four soft shapes over a base, placed as the frost mockup placed them. Each holds its
-     colour to 55% of its radius and fades out by the edge, like a blurred blob. */
+  --scene-hi: oklch(0.3 calc(var(--scene-c) * 1.4) calc(var(--hue) - 12));
+  --scene-lo: oklch(0.19 calc(var(--scene-c) * 0.9) calc(var(--hue) + 8));
+  /* One wash of light: brighter from the top left, deeper toward the bottom right, with no
+     shape to catch the eye. The grain is under 5% white, enough to dither the gradient so it
+     never shows contour lines on an 8-bit screen. */
   --scene:
-    radial-gradient(23% 19% at 17% 27%, var(--scene-1) 55%, transparent),
-    radial-gradient(30% 15% at 60% 61%, var(--scene-2) 55%, transparent),
-    radial-gradient(17% 20% at 87% 14%, var(--scene-3) 55%, transparent),
-    radial-gradient(20% 17% at 26% 93%, var(--scene-4) 55%, transparent),
+    var(--scene-grain) 0 0 / 180px 180px repeat,
+    radial-gradient(140% 110% at 0% 0%, var(--scene-hi), transparent 72%),
+    radial-gradient(120% 100% at 100% 100%, var(--scene-lo), transparent 70%),
     oklch(var(--scene-l) var(--scene-c) var(--hue));
+  --dock-bg: transparent;
   --bg-sidebar: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
   --panel: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.62);
   --hover-bg: oklch(100% 0 none / 0.05);
@@ -826,10 +827,8 @@
 
 :root[data-material="frost"][data-appearance="light"] {
   --scene-l: 0.9;
-  --scene-1: oklch(0.82 calc(var(--scene-c) * 1.5) calc(var(--hue) - 10));
-  --scene-2: oklch(0.95 calc(var(--scene-c) * 0.8) var(--hue));
-  --scene-3: oklch(0.84 calc(var(--scene-c) * 1.7) var(--hue));
-  --scene-4: oklch(0.86 calc(var(--scene-c) * 1.5) calc(var(--hue) - 20));
+  --scene-hi: oklch(0.96 calc(var(--scene-c) * 0.8) calc(var(--hue) - 12));
+  --scene-lo: oklch(0.84 calc(var(--scene-c) * 1.4) calc(var(--hue) + 8));
   --bg-sidebar: oklch(0.98 calc(0.01 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
   --panel: oklch(0.99 calc(0.006 * var(--tinge) * var(--cm)) var(--hue) / 0.7);
   --hover-bg: oklch(0% 0 none / 0.04);
