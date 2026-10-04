@@ -35,7 +35,7 @@ const suite: Suite = {
     const handle = humanHandle(s.name)
     const user = await s.user()
     const { roomId, room } = await newRoom(s, "activity")
-    // Both agents are scripted, so the group's follow-up turn costs nothing either.
+    // Both agents are scripted, so their turns cost nothing.
     const res = await fetch(new URL("api/dev/agent/fake", v.url.endsWith("/") ? v.url : `${v.url}/`), {
       method: "POST",
       headers: { "content-type": "application/json", cookie: s.cookie },

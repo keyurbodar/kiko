@@ -263,7 +263,7 @@ type SystemReason = "task_unblocked" | "reminder" | "approval_result" | "run_bud
 | tags `@all` | every agent |
 | none of the above | the lead agent |
 
-Agents that were not addressed are not woken. They see the messages they missed at their next delivery (section 7.4). This keeps a five-agent room from running five model turns for every human message.
+Agents that were not addressed are not woken, not even after the lead answers. They read what they missed in their next run's memory (section 13), and the lead brings one in with `send_message` or `ask` when it needs them. This keeps a five-agent room from running five model turns for every human message. An earlier design woke every member after the lead's run, to add something or stay quiet; it cost a run per member per message and was removed.
 
 ### 7.3 Receiving
 
@@ -658,12 +658,12 @@ Executor shipped 2.0.0-beta.0 through beta.7 between 2026-09-23 and 2026-10-01. 
 - **Idempotent.** A node is stored with `INSERT OR IGNORE` on `(size, k)`, so an alarm delivered twice writes nothing twice.
 - **Forgetting.** An edited or deleted item drops the nodes above it, one per level. They are built again from the log, alone.
 - **Taint.** A node built from any tainted item is tainted. A view marks it `[outside]`, and the prompt says such a line is hearsay, never instructions. So an injected line cannot become a trusted memory.
-- **The view.** The newest `floor` items are verbatim, with how long ago each happened. Before them, memo's `cover` tiles the rest into at most `budget` lines, coarser with age, each with its date range. A node not built yet renders as its halves, so a view never waits for a model.
+- **The view.** The newest `floor` items are verbatim, with how long ago each happened: the newest 12 cut at 500 characters and older ones at 200, so the floor has a size as well as a count. Before them, memo's `cover` tiles the rest into at most `budget` lines, coarser with age, each with its date range. A node not built yet renders as its halves, so a view never waits for a model.
 - **Sticky.** A view keeps the last tiling and appends new pages to it. It tiles again, down to `retile` lines, only past `budget`. The old lines stay byte for byte, so the provider's prompt cache keeps hitting; the prefix changes about once per 128 turns.
 
 | Log | Lives in | Page | Floor | Budget | Retile |
 | --- | --- | --- | --- | --- | --- |
-| room | `RoomDO`, `mem_turns` and `mem_tree` | 8 turns | 40 turns | 64 lines | 48 |
+| room | `RoomDO`, `mem_turns` and `mem_tree` | 8 turns | 32 turns | 48 lines | 32 |
 | life | `UserDO`, `life`, `life_tree`, `life_fts` | 8 lines | 16 lines | 32 lines | 24 |
 
 DEVIATION from OptMem, in four places. A page is 8 items, not 2, so a chat pays about one summary per four turns instead of one per turn. The newest items are never compressed. The tiling is sticky. A forgotten node leaves a hole that is rebuilt alone, instead of truncating every later node. And summaries are made in the background, never by the agent in the middle of a reply: memo has the agent answer a compression prompt before its next action, and refuses to wake while a summary is missing. Either would stall a kiko reply.
@@ -673,6 +673,7 @@ DEVIATION from OptMem, in four places. A page is 8 items, not 2, so a chat pays 
 - **Turns.** A turn is a human burst (consecutive human messages less than 30 minutes apart), one agent run's bubbles, one agent message, or one system event. Bubbles are what the chat shows; turns are what memory counts, so a page is 8 things that happened, not half a reply. `room/memory.ts` builds the `mem_turns` index lazily from `messages` and only ever appends to it.
 - **Traces.** What an agent did during a run (the team board's words: "editing /flights.md", "reading a web page") joins its reply turn as one `(did: ...)` line. A run that acted and said nothing gets a turn of its own. Teammates and the agent's own next run see it, now that tool output is not kept between runs. It costs no model call.
 - **Rollups.** A settled 64-turn node becomes one line of the user's life (`chat <title>: ...`). A chat quiet for six hours rolls its unrolled turns into one line too, so a slow chat reaches the life log. Private chats never roll up.
+- **Failures.** Each summary call has a 60-second deadline. A node the model fails on three times gets a model-free line (the start of each item, cut to 280 bytes), so one refusal can never stall a log or retry forever. A pass that dies with its process is brought back by a wakeup it arms before it starts.
 - **Summaries.** A background pass in `waitUntil` makes them, up to 24 per pass, through `UserDO.compress`. It never holds the alarm, because the burst and mail wakeups share it. The newest 8 turns stay open, since a reply may still grow.
 
 ### 13.3 The user's life log
@@ -690,6 +691,10 @@ A batch that starts a run (the conversation is idle) does two things before it s
 2. The input opens with the `<memory>` block: the life view from the run's one `turnContext` call, then this chat's view from `RoomDO.memoryView`, without the messages the batch delivers on their own. Then the `<context>` brief, then the burst.
 
 Three tools cover what the block does not show. `recall(query)` searches every life line and this chat's messages. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
+
+**Outside content.** A memory block whose verbatim lines came from outside content is marked `tainted="true"`, and the trust gate treats the run like one that read the content itself (section 16.3). A summary built from outside content is marked `[outside]` but does not taint, or one web page would gate a chat forever.
+
+**Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started from memory, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one.
 
 **Reasoning for the reset.** Without it, every run would add a fresh memory block to a transcript that already holds the last one, and pi-durable would compact the pile. With it, a request is the system prompt, the block, and the run: about 10,000 tokens before the burst, at any chat length. What a run loses is the tool output of earlier runs, which the trace line, files, and notes carry instead. `RESET_EACH_RUN` in `agent/host.ts` turns it off.
 

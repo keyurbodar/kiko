@@ -21,7 +21,7 @@ import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { Life } from "./life"
-import { cleanLine, itemLine, NAP_SYSTEM, spanOf } from "../lib/optmem"
+import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "../lib/optmem"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
@@ -480,8 +480,8 @@ export class UserDO extends DurableObject<Env> {
       if (!prompt) continue
       const out = await this.compress(prompt)
       if ("retryAt" in out) return void (await this.alarms.setWakeup(LIFE_WAKEUP, out.retryAt))
-      if ("error" in out) throw new Error(out.error)
-      this.life.settle(span, out.text)
+      if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
+      this.life.settle(span, "text" in out ? out.text : null)
     }
     await this.armNaps()
   }
@@ -526,7 +526,8 @@ export class UserDO extends DurableObject<Env> {
       // A summary that hangs would hold its room's pass forever, so each call has a deadline.
       { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS) },
     )
-    if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error("the model call failed")
+    // The provider's own words, cut short: they name the cause (a timeout, a refusal) and carry no key.
+    if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }
 

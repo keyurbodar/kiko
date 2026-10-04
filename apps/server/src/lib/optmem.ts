@@ -33,13 +33,15 @@ export type Shape = {
   retile: number
 }
 
-/** A room: 40 turns verbatim, then at most 64 lines. */
-export const ROOM_SHAPE: Shape = { page: 8, floor: 40, budget: 64, retile: 48 }
+/** A room: 32 turns verbatim, then at most 48 lines. */
+export const ROOM_SHAPE: Shape = { page: 8, floor: 32, budget: 48, retile: 32 }
 /** A user's life: 16 lines verbatim, then at most 32 lines. */
 export const LIFE_SHAPE: Shape = { page: 8, floor: 16, budget: 32, retile: 24 }
 
 /** The longest summary, in UTF-8 bytes. memo's 280. */
 export const LINE_BYTES = 280
+/** After this many failed model calls, a node gets `Tree.fallback` and the log moves on. */
+export const MAX_NAP_FAILS = 3
 
 // ---------------------------------------------------------------- cover
 
@@ -254,6 +256,23 @@ export class Tree {
     const a = this.node({ lo: span.lo, hi: mid })
     const b = this.node({ lo: mid, hi: span.hi })
     return a && b ? { span, halves: [a, b] } : null
+  }
+
+  /**
+   * A summary made without a model, for a node the model failed on again and again: the start of each
+   * item or half, cut to `LINE_BYTES`. Worse than a real summary, better than a log that stops moving.
+   */
+  fallback(input: NapInput): string {
+    const parts = "items" in input ? input.items.map((i) => oneLine(i.text, 60)) : input.halves.map((h) => h.text)
+    return capBytes(parts.join("; "), LINE_BYTES)
+  }
+
+  /** Counts one failed summary of `span`. Returns the failures so far. */
+  failed(span: Span): number {
+    const size = span.hi - span.lo
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS ${this.name}_fails (size INTEGER NOT NULL, k INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
+    this.sql.exec(`INSERT INTO ${this.name}_fails (size, k, n) VALUES (?, ?, 1) ON CONFLICT(size, k) DO UPDATE SET n = n + 1`, size, span.lo / size)
+    return this.sql.exec<{ n: number }>(`SELECT n FROM ${this.name}_fails WHERE size = ? AND k = ?`, size, span.lo / size).one().n
   }
 
   /** The summary of `input` with the text the model wrote: tainted when any input is, timed by its items. */

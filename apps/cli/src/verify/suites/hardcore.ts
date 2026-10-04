@@ -7,10 +7,11 @@ import { until } from "./mid-run"
 // The whole product at once, with the real test model. One group (kiko the lead and ada), then:
 //
 //   1. rapid fire   five short human messages 350 ms apart are one burst, answered by the lead
-//                   in one run, and ada follows with something to add or stays quiet
+//                   in one run; ada, untagged, is not woken
 //   2. tagged       "@ada ..." wakes only ada
 //   3. spawn        the lead adds a new agent on request, and the new agent speaks
-//   4. a2a          the lead messages ada with send_message, and ada answers in the room
+//   4. a2a          the lead asks ada with ask, ada answers in the room, and the lead's reply in the
+//                   same run carries her answer
 //   5. reminder     "remind me in 20 seconds" posts a reminder line in time
 //   6. interrupt    a message sent while the lead is still typing is folded into the reply
 //
@@ -110,7 +111,8 @@ const suite: Suite = {
     const leadRuns = seen(room).runs.get("kiko") ?? 0
     print(room, from)
     if (leadRuns !== 1) fail.push(`rapid fire: the lead ran ${leadRuns} times for one burst`)
-    step(`rapid fire: 5 messages, the lead answered once (first bubble ${firstLead} ms), ada ${agentSays(room, from, "ada").length ? "added to it" : "stayed quiet"}`)
+    if (agentSays(room, from, "ada").length) fail.push("rapid fire: ada spoke on a message that tagged nobody")
+    step(`rapid fire: 5 messages, the lead answered once (first bubble ${firstLead} ms), ada was not woken`)
 
     // 2. Tagged.
     from = lastSeq(room)
@@ -134,12 +136,15 @@ const suite: Suite = {
 
     // 4. Agent to agent.
     from = lastSeq(room)
-    room.send("@kiko use send_message to ask ada privately for one dessert idea, then tell me what she said")
+    room.send("@kiko ask ada for one dessert idea, then tell me what she said")
     await until("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "kiko"), 90_000)
     await until("ada's answer to kiko", () => agentSays(room, from, "ada").length > 0, 90_000)
     await quiet(room, 8_000, 120_000)
     print(room, from)
-    step("a2a: kiko messaged ada and ada answered in the room")
+    const kikoRuns = seen(room).runs.get("kiko") ?? 0
+    const answerAt = agentSays(room, from, "ada")[0]!.seq
+    if (!agentSays(room, from, "kiko").some((m) => m.seq > answerAt)) fail.push("a2a: kiko never told the human what ada said")
+    step(`a2a: kiko asked ada, ada answered, and kiko passed it on (kiko runs so far: ${kikoRuns})`)
 
     // 5. Reminder.
     from = lastSeq(room)

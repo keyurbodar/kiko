@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender } from "@kiko/protocol"
+import { ROOM_SHAPE } from "../src/lib/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { migrate } from "../src/room/schema"
@@ -48,7 +49,7 @@ test("a human burst and an agent's whole reply are one turn each, bubbles are no
   expect(items.map((i) => i.text)).toEqual(["human: hey / can you book the flight?", "@ada: on it / booked JL 41", "@bob: @ada nice"])
 })
 
-test("a view stays bounded at any length, keeps the newest 40 turns verbatim, and repeats its old lines", async () => {
+test("a view stays bounded at any length, keeps the newest turns verbatim, and repeats its old lines", async () => {
   const { memory, say, napAll, now } = room()
   for (let i = 0; i < 600; i++) {
     say(human, `question ${i}`)
@@ -57,9 +58,9 @@ test("a view stays bounded at any length, keeps the newest 40 turns verbatim, an
   expect(memory.sync()).toBe(1200)
   await napAll()
   const view = memory.view(now()).split("\n")
-  expect(view.length).toBeLessThanOrEqual(64 + 48)
+  expect(view.length).toBeLessThanOrEqual(ROOM_SHAPE.budget + ROOM_SHAPE.floor + ROOM_SHAPE.page)
   expect(view.at(-1)).toContain("answer 599")
-  expect(view.filter((l) => /^#\d+ /.test(l)).length).toBeGreaterThanOrEqual(40)
+  expect(view.filter((l) => /^#\d+ /.test(l)).length).toBeGreaterThanOrEqual(ROOM_SHAPE.floor)
   expect(view[0]).toMatch(/^#0-\d+ sep \d+.* summary 0-\d+$/)
   // Eight more turns later, the old lines are byte for byte the same: the prompt cache holds.
   for (let i = 600; i < 604; i++) {
@@ -206,4 +207,14 @@ test("recall falls back to any word when no message has them all", () => {
   expect(memory.recall("trip budget", now()).join("\n")).toContain("2400")
   expect(memory.recall("trip money", now()).join("\n")).toContain("2400")
   expect(memory.recall("zebra", now())).toEqual([])
+})
+
+test("a node the model keeps failing on gets a model-free line after three tries, and the log moves on", async () => {
+  const { memory, say } = room()
+  for (let i = 0; i < 16; i++) say(i % 2 ? agent("ada") : human, `turn ${i}`, i % 2 ? `r${i}` : undefined)
+  const failing = async () => ({ error: "refused" })
+  const [span] = memory.pending(1)
+  for (let i = 0; i < 2; i++) await expect(memory.nap(span!, failing, null)).rejects.toThrow("refused")
+  await memory.nap(span!, failing, null)
+  expect(memory.node(span!)!.text).toStartWith("human: turn 0; @ada: turn 1")
 })

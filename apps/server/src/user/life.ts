@@ -144,10 +144,10 @@ export class Life {
     return input ? napPrompt(input, "memories") : null
   }
 
-  /** Stores a summary the model wrote for `span`. */
-  settle(span: Span, text: string): void {
+  /** Stores a summary the model wrote for `span`, or the model-free one when `text` is null. */
+  settle(span: Span, text: string | null): void {
     const input = this.tree.input(span)
-    if (input) this.tree.put(span, this.tree.nodeFor(input, text))
+    if (input) this.tree.put(span, this.tree.nodeFor(input, text ?? this.tree.fallback(input)))
   }
 
   /**

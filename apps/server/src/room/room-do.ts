@@ -12,7 +12,7 @@ import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burs
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
-import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
+import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route } from "./deliver"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
@@ -66,9 +66,6 @@ const NAPS_AT_ONCE = 4
 /** What an agent learns about itself on every delivery. `private` is the chat's flag (section 7.10). */
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
 
-/** What a member reads when the lead already answered. It may add to the reply, react, or stay quiet. */
-const FOLLOW_UP_NOTE = (lead: AgentSlug) =>
-`@${lead} (the lead) already answered this, above. you are in the group too: if it is meant for you, or you have something real to add that @${lead} did not say, reply briefly. a reaction alone is fine. otherwise reply exactly [skip] and say nothing. never repeat or redo what @${lead} did or offered to do, and if @${lead} asked the human something, leave that question to the human.`
 
 /** Stored events that can change the chat list row: its activity line, its unread counts, or its members. */
 const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed", "approval"])
@@ -443,13 +440,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const failed = results.find((r) => r.status === "rejected")
 			if (failed) throw failed.reason
 			if (results.some((r) => r.status === "fulfilled" && r.value === "full")) return await this.burst.retry(DELIVERY_RETRY_MS)
-			// A group is all awake: an untagged burst goes to the lead first, and every other member gets it
-			// once the lead's run ends, with the lead's reply in its brief (section 7.2, DEVIATION).
-			const lead = members.find((m) => m.lead)
-			if (lead && members.length > 1 && untagged(envelopes, replyAuthor)) {
-				const followers = members.filter((m) => !routes.has(m.slug)).map((m) => m.slug)
-				if (followers.length) this.log.setMeta(`follow:${lead.slug}`, JSON.stringify({ followers, envelopes }))
-			}
 			this.burst.delivered(envelopes)
 			// The rest of a burst too big for one delivery goes next, at once.
 			if (envelopes.length < pending.length) return await this.burst.retry(0)
@@ -674,17 +664,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * and mail wakeups share this alarm, so the pass runs beside it. Summaries are idempotent, so a pass
 	 * cut short by eviction loses nothing; the next one finds the same work.
 	 */
-	private naps(): void {
+	private async naps(): Promise<void> {
 		const home = this.home()
 		if (!home || this.#napping) return
 		this.#napping = true
+		// A pass that dies with its process (an eviction, a deploy) would leave the work until the room's
+		// next run. This wakeup brings it back; the pass moves or clears it when it ends.
+		await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 120_000)
 		const user = userStub(this.env.USER, home.userId)
 		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number) => user.lifeRollup(home.roomId, text, tainted, at)
 		const pass = async () => {
 			// Up to the most `compress` runs at once for one user; a refusal says when to try again.
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
 				const spans = this.memory.pending(NAPS_AT_ONCE)
-				if (!spans.length) return
+				if (!spans.length) return void (await this.alarms.clearWakeup(MEMORY_WAKEUP))
 				const outs = await Promise.all(spans.map((span) => this.memory.nap(span, (prompt) => user.compress(prompt), rollup)))
 				const retryAt = outs.find((o) => o.retryAt)?.retryAt
 				if (retryAt) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, retryAt))
@@ -1257,31 +1250,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.armMemory()
 		await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 		this.bubbles.markEnded(runId)
-		await this.followUp(slug)
-	}
-
-	/** After the lead answered an untagged burst, the other members get it, to add to the reply or stay quiet. */
-	private async followUp(lead: AgentSlug): Promise<void> {
-		const home = this.home()
-		const raw = this.log.meta(`follow:${lead}`)
-		if (!home || !raw) return
-		this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `follow:${lead}`)
-		const { followers, envelopes } = JSON.parse(raw) as { followers: AgentSlug[]; envelopes: Envelope[] }
-		const members = this.members.list()
-		const goal = (await this.chat(home))?.title ?? ""
-		const seq = this.log.lastSeq()
-		await Promise.allSettled(
-			followers.map(async (slug) => {
-				const member = members.find((m) => m.slug === slug)
-				if (!member) return
-				const d = this.delivery(member, members, goal, envelopes)
-				const brief = `${d.brief}\n\n${FOLLOW_UP_NOTE(lead)}`
-				const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, brief, this.agentHome(home, slug, member))
-				if (refused) return
-				this.members.markDelivered(slug, seq)
-				markReactionsBriefed(this.log, slug, d.reactionsUpTo)
-			}),
-		)
 	}
 
 	/** RPC for an agent in this room. Broadcasts who is typing, without storing it. */

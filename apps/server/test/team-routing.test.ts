@@ -165,22 +165,14 @@ test("a group with the built-in agent seeds kiko too: the client names it by its
   ws.ws.close()
 })
 
-test("an untagged burst reaches the others after the lead's run ends, with a note to add or skip", async () => {
+test("an untagged burst reaches only the lead; the others are not woken, even after the lead's run ends", async () => {
   const { room, ws } = await team()
   await ws.say("anyone around?")
   await delivered(room, "kiko", 1)
-  await Bun.sleep(300)
+  await call(`/end/${room}/kiko/kiko:r1`)
+  await Bun.sleep(500)
+  // Every member reads the whole chat in its next run's memory, so nobody needs a run of its own now.
   expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 0, cy: 0 })
-  await call(`/end/${room}/kiko/kiko:r1`)
-  const [toAda] = await delivered(room, "ada", 1)
-  await delivered(room, "bob", 1)
-  await delivered(room, "cy", 1)
-  expect(toAda!.envelopes.map((e) => e.body)).toEqual(["anyone around?"])
-  expect(toAda!.brief).toContain("already answered this")
-  // A second end of the same run delivers nothing more.
-  await call(`/end/${room}/kiko/kiko:r1`)
-  await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ kiko: 1, bob: 1, ada: 1, cy: 1 })
   ws.ws.close()
 })
 

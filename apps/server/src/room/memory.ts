@@ -1,5 +1,5 @@
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { age, type Item, itemLine, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree } from "../lib/optmem"
+import { age, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree } from "../lib/optmem"
 import { searchMessages } from "./search"
 
 // Architecture section 13. A room's log memory. The log is the room's own messages, read as turns:
@@ -242,8 +242,8 @@ export class RoomMemory {
     if (!input) return {}
     const out = await compress(napPrompt(input, "turns"))
     if ("retryAt" in out) return { retryAt: out.retryAt }
-    if ("error" in out) throw new Error(out.error)
-    const node = this.tree.nodeFor(input, out.text)
+    if ("error" in out && this.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
+    const node = this.tree.nodeFor(input, "text" in out ? out.text : this.tree.fallback(input))
     this.tree.put(span, node)
     if (rollup && span.hi - span.lo === ROLLUP_SIZE && span.lo >= Number(this.meta.get(ROLLED) ?? 0)) {
       await rollup(node.text, node.tainted, node.to)

@@ -41,7 +41,7 @@ export function createSplitter(): Splitter {
 
 	const close = () => {
 		const text = block.trim();
-		// `[skip]` is how a group member that has nothing to add stays quiet (section 7.2). It never posts.
+		// `[skip]` is how an agent with nothing to add stays quiet. It never posts.
 		if (text && !SKIP.test(text)) blocks.push(text);
 		block = "";
 	};
