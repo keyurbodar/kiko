@@ -26,7 +26,7 @@ import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { attachmentName, uploadAll } from "../sync/uploads"
-import { createRoomStore, type MemberNotice, type RoomStore, type SendOptions } from "../sync/room-store"
+import { createRoomStore, type MemberNotice, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
@@ -733,9 +733,41 @@ export function createApp(options: AppOptions = {}) {
         )
       },
 
-      /** The reader is at the newest message: the open room goes back to holding only its newest window. */
+      /**
+       * The reader is at the end of what is shown: the open room goes back to holding only its newest
+       * window, or, in a window it jumped to, pages newer messages in.
+       */
       followLatest(): void {
         room()?.follow()
+      },
+
+      /** Searches the open room's messages, newest first. Null when the room does not answer. */
+      searchRoom(query: string, before?: number): Promise<SearchPage | null> {
+        return room()?.search(query, before) ?? Promise.resolve(null)
+      },
+
+      /**
+       * Makes the open room's message at `seq` part of the transcript, loading a window around it from
+       * the room when it is not held. Resolves to false when there is no such message.
+       */
+      async jumpTo(seq: number): Promise<boolean> {
+        const r = room()
+        if (!r) return false
+        await r.ready
+        const found = await r.jumpTo(seq)
+        // The window may start anywhere now, so scrolling up may page again.
+        if (found && olderDone === r) olderDone = null
+        return found
+      },
+
+      /** True while the transcript shows a window the reader jumped to, not the live end. */
+      showingHistory(): boolean {
+        return !!room()?.state.history
+      },
+
+      /** Leaves a jumped-to window for the live end. */
+      goLive(): void {
+        room()?.live()
       },
 
       messageById(messageId: string): ChatMessage | undefined {

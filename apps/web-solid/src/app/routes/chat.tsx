@@ -7,6 +7,7 @@ import { useApp } from "../../lib/store";
 import type { MessageId, RoomId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
+import { jumpRequest, requestJump } from "../../search/state";
 
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
@@ -150,6 +151,35 @@ export default function ChatRoute() {
   let scrollToLatest: (() => void) | undefined;
 
   /*
+   * A search hit to land on (search/state.ts). It waits until its chat is the open one, then the
+   * room makes the message part of the transcript (from the room when it is older than anything
+   * held) and the same jump a reply quote uses scrolls to it and marks it; a second jump lands it
+   * again once the rows are measured. While it lands, the scroller passing the end of the new, shorter
+   * list is not the reader reaching the end, so it pages nothing in (`landing`).
+   */
+  let landing = false;
+  createEffect(() => {
+    const request = jumpRequest();
+    if (!request || request.roomId !== useApp.activeThreadId()) return;
+    requestJump(null);
+    landing = true;
+    void useApp.jumpTo(request.seq).then((found) => {
+      if (!found) return void (landing = false);
+      jumpToMessage?.(request.id);
+      requestAnimationFrame(() => {
+        jumpToMessage?.(request.id);
+        requestAnimationFrame(() => (landing = false));
+      });
+    });
+  });
+  /** Back to the newest message, leaving a window the reader jumped to. */
+  const toLatest = () => {
+    if (!useApp.showingHistory()) return scrollToLatest?.();
+    useApp.goLive();
+    requestAnimationFrame(() => scrollToLatest?.());
+  };
+
+  /*
    * `data-scrolled` means "away from the latest message", not "not at the top".
    * Reading it as `scrollOffset > 0` looked right and was backwards: the offset
    * is largest when the reader is at the BOTTOM of the thread, so the composer
@@ -160,7 +190,7 @@ export default function ChatRoute() {
   const scrolled = () => {
     const state = threadState();
     if (!state) return false;
-    return state.scrollOffset + state.viewportSize < state.scrollSize - 1;
+    return state.scrollOffset + state.viewportSize < state.scrollSize - 1 || useApp.showingHistory();
   };
 
   /*
@@ -219,7 +249,7 @@ export default function ChatRoute() {
             scrollRef={() => {}}
             onStateChange={setThreadState}
             onNearTop={useApp.loadOlder}
-            onAtLatest={useApp.followLatest}
+            onAtLatest={() => landing || useApp.followLatest()}
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
             waitingDoing={useApp.typingDoing()}
@@ -264,7 +294,7 @@ export default function ChatRoute() {
               class="composer-scroll-down"
               data-component="composer-scroll-down"
               aria-label="scroll to latest"
-              onClick={() => scrollToLatest?.()}
+              onClick={toLatest}
             >
               <IconV2 name="chevron-down" />
             </button>
@@ -340,6 +370,8 @@ export default function ChatRoute() {
              */
             onSend={(message) => {
               const target = replyTarget();
+              // A send from a window the reader jumped to lands at the live end, which renders first.
+              const fromHistory = useApp.showingHistory();
               const sent =
                 target === null
                   ? useApp.appendMessage(message)
@@ -361,7 +393,7 @@ export default function ChatRoute() {
                * go find a message and wrong here — it made every message the
                * reader sent flash on arrival.
                */
-              if (sent !== undefined) scrollToLatest?.();
+              if (sent !== undefined) (fromHistory ? requestAnimationFrame(() => scrollToLatest?.()) : scrollToLatest?.());
             }}
             replyTo={replyTo()}
             replyQuote={replyQuote()}
