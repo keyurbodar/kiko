@@ -140,11 +140,12 @@ test("with memory, a run wakes from the block once, goes on with deltas, starts 
     await a.receive([human(`run ${i}`)])
     await until(a.status, done(i), 30_000)
   }
-  // Fifty runs, then idle: pi-durable's tables are dropped and the next run wakes from the block again.
-  await until(() => a.call<{ entries: number }>({ op: "entries" }), (r) => r.entries < grown, 30_000)
+  // Fifty runs: the next alarm drops pi-durable's tables before it opens the harness, so the next run
+  // wakes from the block again, even though it arrives right after the fiftieth.
   await a.receive([human("after")])
   await until(a.status, done(51))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter"])
+  expect(((await a.call({ op: "entries" })) as { entries: number }).entries).toBeLessThan(grown)
 }, 180_000)
 
 test("the object restarts mid-run and the heartbeat finishes the run", async () => {

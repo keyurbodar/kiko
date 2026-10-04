@@ -38,6 +38,7 @@ export const CONTEXT_BUDGET_CHARS = 60_000
  */
 export const COMPACT_EVERY_RUNS = 50
 const RUNS_KEY = "runs:since-compact"
+const COMPACT_DUE_KEY = "compact:due"
 /** Storage keys of the mid-run rules (section 6.2). */
 const STOP_KEY = "mid-run:stop"
 const RESTARTS_KEY = "mid-run:restarts"
@@ -174,6 +175,7 @@ export class AgentHost {
     try {
       // The keys only say why the alarm fired. The inbox table and the live tasks say what to do.
       await this.alarms.dueWakeups(Date.now())
+      await this.compactIfDue()
       const opened = await this.open()
       await this.drain(opened)
       await this.pulse(opened.harness)
@@ -265,20 +267,25 @@ export class AgentHost {
   }
 
   /**
-   * Drops pi-durable's tables once `COMPACT_EVERY_RUNS` runs have started from memory, while the agent
-   * is idle with nothing waiting. The harness is closed first and opens fresh on the next alarm.
+   * Marks the drop of pi-durable's tables as due once `COMPACT_EVERY_RUNS` runs have passed. It runs at
+   * the start of the next alarm, before the harness opens, so a delivery that arrives meanwhile can
+   * never open a harness on tables about to be dropped.
    */
   private async compact(): Promise<void> {
-    if (((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) < COMPACT_EVERY_RUNS || this.inbox.hasOpen()) return
-    const opened = await this.opened
-    if (opened) {
-      const live = await opened.harness.inspect(context)
-      if (live.tasks.length || live.submissions.length) return
-      await opened.beforeCompact?.(opened.harness)
-    }
+    if (((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) >= COMPACT_EVERY_RUNS) await this.ctx.storage.put(COMPACT_DUE_KEY, true)
+  }
+
+  /** The drop itself, in the alarm, while nothing runs: no live task, nothing claimed. */
+  private async compactIfDue(): Promise<void> {
+    if (!(await this.ctx.storage.get<boolean>(COMPACT_DUE_KEY))) return
+    const opened = await this.open()
+    const live = await opened.harness.inspect(context)
+    if (live.tasks.length || live.submissions.length) return
+    await opened.beforeCompact?.(opened.harness)
     await this.drop()
     this.reset(false)
     await this.ctx.storage.put(RUNS_KEY, 0)
+    await this.ctx.storage.delete(COMPACT_DUE_KEY)
   }
 
   /** The child conversations of the root, with the task that owns each (P6-05). Opens the harness. */
