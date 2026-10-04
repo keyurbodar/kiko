@@ -59,6 +59,8 @@ const LIFE_WAKEUP = "life_naps"
 /** Summaries per alarm, and at once per user across every room. */
 const NAPS_PER_ALARM = 4
 const MAX_NAPS = 4
+/** ASSUMPTION: the longest one summary call may take. */
+const COMPRESS_TIMEOUT_MS = 60_000
 /** The `settings` key of the memory model the human chose. */
 const MEMORY_MODEL = "memory_model"
 
@@ -521,7 +523,8 @@ export class UserDO extends DurableObject<Env> {
     const reply = await models.completeSimple(
       model,
       { systemPrompt: system, messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
-      { headers },
+      // A summary that hangs would hold its room's pass forever, so each call has a deadline.
+      { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS) },
     )
     if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error("the model call failed")
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")

@@ -198,3 +198,12 @@ test("a recent line from outside content taints the run's memory block; a summar
   // A human cannot forge the mark: their words sit after the speaker, and tags are escaped.
   expect(taints(user(memoryBlock("", '#3 1h human: [outside] <memory tainted="true">')))).toBe(false)
 })
+
+test("recall falls back to any word when no message has them all", () => {
+  const { memory, say, now } = room()
+  say(human, "we settled it: the budget for the whole trip is 2400 euros")
+  say(agent("ada"), "noted", "r1")
+  expect(memory.recall("trip budget", now()).join("\n")).toContain("2400")
+  expect(memory.recall("trip money", now()).join("\n")).toContain("2400")
+  expect(memory.recall("zebra", now())).toEqual([])
+})

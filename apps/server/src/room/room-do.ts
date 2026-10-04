@@ -218,6 +218,18 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** RPC for kiko's create tool. Makes what was proposed, once the human has answered. */
+	/**
+	 * kiko's newest proposal that is not made yet, as a line of its brief. A run starts from memory, not
+	 * from the tool result that saved the proposal (section 13), so the room says it is waiting.
+	 */
+	private openProposal(): string | null {
+		const id = this.newestProposal()
+		if (!id || this.log.meta(`created:${id}`)) return null
+		const p = JSON.parse(this.log.meta(`proposal:${id}`)!) as Proposal
+		const what = p.kind === "agent" ? `the agent @${p.agent.handle}` : `the group "${p.title}"`
+		return `your proposal of ${what} waits for the human's answer. if they say yes, call create. if they want changes, propose again.`
+	}
+
 	/** The id of the newest stored proposal, or null. */
 	private newestProposal(): string | null {
 		const rows = this.ctx.storage.sql.exec<{ value: string }>("SELECT value FROM meta WHERE key LIKE 'proposal:%'").toArray()
@@ -482,7 +494,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const now = Date.now()
 		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
 		const human = this.log.meta(HUMAN_HANDLE) ?? undefined
-		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, reactions.text), team, ...(human ? { human } : {}) }
+		const proposal = member.slug === CHIEF ? this.openProposal() : null
+		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, reactions.text), team, ...(human ? { human } : {}), ...(proposal ? { proposal } : {}) }
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 

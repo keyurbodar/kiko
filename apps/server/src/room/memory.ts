@@ -182,10 +182,21 @@ export class RoomMemory {
     return lines.length ? lines.join("\n") : null
   }
 
-  /** `recall` in this room: messages that match, newest first, each with its turn. */
+  /**
+   * `recall` in this room: messages that match every word, newest first, each with its turn. When none
+   * matches every word, the messages that match any of the longest words: "trip money" still finds
+   * "the budget for the whole trip".
+   */
   recall(query: string, now: number, limit = 10): string[] {
     this.sync()
-    return searchMessages(this.sql, query, { limit }).results.map((hit) => {
+    let hits = searchMessages(this.sql, query, { limit }).results
+    if (!hits.length) {
+      const words = [...new Set(query.toLowerCase().split(/\W+/).filter((w) => w.length > 2))].sort((a, b) => b.length - a.length).slice(0, 4)
+      const seen = new Map<string, (typeof hits)[number]>()
+      for (const w of words) for (const h of searchMessages(this.sql, w, { limit }).results) seen.set(h.id, h)
+      hits = [...seen.values()].sort((a, b) => b.seq - a.seq).slice(0, limit)
+    }
+    return hits.map((hit) => {
       const pos = this.posOfMessage(hit.id)
       const text = hit.snippet.replace(/[\u0002\u0003]/g, "")
       return `${pos === null ? "" : `#${pos} `}${age(hit.at, now)} ${who(hit.from)}: ${oneLine(text, 300)}`

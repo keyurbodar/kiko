@@ -22,6 +22,8 @@ export type BriefView = {
 	team?: Record<string, { doing: string | null; holds: readonly string[] }>
 	/** The human's handle, so the agent can @ them. Absent until the human's first socket. */
 	human?: string
+	/** kiko only: the proposal that waits for the human's answer (section 7.11). */
+	proposal?: string
 }
 
 /** Message text is escaped, so it cannot close the `<context>` block or forge a tag (section 16.2). */
@@ -50,6 +52,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 	lines.push("your tasks:")
 	if (view.tasks.length) for (const t of view.tasks) lines.push(`- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`)
 	else lines.push("- none")
+	if (view.proposal) lines.push(escape(view.proposal))
 	if (view.reactions) lines.push(escape(view.reactions))
 	return lines.join("\n")
 }
