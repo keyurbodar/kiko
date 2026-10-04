@@ -4,7 +4,7 @@ import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
-import type { MessageId } from "@kiko/protocol";
+import type { MessageId, RoomId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
 
@@ -12,6 +12,8 @@ import { connectedProviders, connectedReady } from "../../settings/connected";
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 // Approval cards load the first time an open room has one (P7-02).
 const ApprovalCards = lazy(() => import("../../chat/ApprovalCard"));
+// A temporary chat's "to:" row loads the first time one is open, not with the transcript.
+const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
 
 /*
  * The composed app: the transcript over the open room in the sync store. The
@@ -297,6 +299,15 @@ export default function ChatRoute() {
               document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus();
             }}
           />
+          {/* Who the first message goes to, picked right where it is written. Once a message is sent
+              the chat is an ordinary chat, and people are added from its info panel. */}
+          <Show when={isTemp() && messages().length === 0 && params.id}>
+            {(id) => (
+              <div class="mx-auto w-full max-w-[720px] pb-2">
+                <ToBar roomId={id() as RoomId} />
+              </div>
+            )}
+          </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
             /* A temporary chat is still "new chat"; its composer names who will read the message. */
@@ -321,6 +332,12 @@ export default function ChatRoute() {
                 target === null
                   ? useApp.appendMessage(message)
                   : useApp.appendReply(message, target, replyQuote());
+              // A temporary chat is named by its first message, so its tab stops reading "new chat".
+              const id = params.id;
+              if (sent !== undefined && id && isTemp() && messages().length <= 1) {
+                const title = message.body.trim().replace(/\s+/g, " ").slice(0, 40).toLowerCase();
+                if (title) useApp.user()?.rename(id as RoomId, title);
+              }
               setQuote(null);
               /*
                * Sending is a statement about where you want to be looking. If

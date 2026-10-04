@@ -1,21 +1,15 @@
 import { useLocation } from "@solidjs/router"
-import { Show, Suspense, lazy } from "solid-js"
-import type { RoomId } from "@kiko/protocol"
+import { Show } from "solid-js"
 import { runCommand } from "../commands/registry"
-import { useApp } from "../lib/store"
 import { Bird } from "../mascot/bird"
 import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
 
-// A temporary chat's "to:" bar loads the first time one is open, not with the shell.
-const ToBar = lazy(() => import("../chat/to-bar").then((m) => ({ default: m.ToBar })))
-
 /*
  * The 50 px bar over the main panel, laid out as kat's: the bird at the far left, the chat tabs,
  * and one quiet control on the right, the chat's model. The bird is the new chat button: it turns
- * into a + under the pointer, as kat's cat does. A temporary chat has no tab of its own; its "to:"
- * bar stands in the row instead, outside the strip's scroller so its search is never clipped.
+ * into a + under the pointer, as kat's cat does.
  * Other sections have no bar: the sidebar already names them, and their panel starts at the top.
  */
 export function TopBar() {
@@ -24,10 +18,6 @@ export function TopBar() {
   const chatId = () => {
     const id = /^\/chat\/([^/]+)$/.exec(location.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
-  }
-  const temp = () => {
-    const id = chatId()
-    return id && useApp.chat(id)?.temp ? (id as RoomId) : null
   }
   return (
     <Show when={section() === "chat"}>
@@ -47,14 +37,7 @@ export function TopBar() {
             <path d="M8 2.5v11M2.5 8h11" />
           </svg>
         </button>
-        <TabStrip hide={temp()} />
-        <Show when={temp()}>
-          {(id) => (
-            <Suspense>
-              <ToBar roomId={id()} />
-            </Suspense>
-          )}
-        </Show>
+        <TabStrip />
         <span class="flex-1" aria-hidden="true" />
         <ModelPickerButton chatId={chatId()} />
       </header>
