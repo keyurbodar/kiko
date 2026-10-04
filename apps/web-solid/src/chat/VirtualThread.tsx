@@ -909,7 +909,7 @@ export function VirtualThread(props: {
                 )}
                 data-component="chat-typing-row"
               >
-                <TypingIndicator typists={[...props.waitingNames]} avatar={props.groupChat} seed={props.waitingSlugs?.[0]} doing={props.waitingDoing} />
+                <TypingIndicator typists={[...props.waitingNames]} seeds={props.waitingSlugs} doing={props.waitingDoing} />
               </div>
             </Show>
           </Show>
