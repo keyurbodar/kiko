@@ -1,3 +1,4 @@
+import { connectTestModel } from "../client"
 import type { Suite } from "../runner"
 import { Samples, timedTurn } from "./latency"
 import { ulid } from "./mid-run"
@@ -14,6 +15,7 @@ const suite: Suite = {
   model: true,
   async run(v) {
     const s = await v.as("latency")
+    await connectTestModel(s)
     const user = await s.user()
     const roomId = ulid()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "latency model" } })
