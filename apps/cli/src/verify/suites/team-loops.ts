@@ -96,7 +96,7 @@ const suite: Suite = {
 
       // team reads the room and wakes nobody.
       await send(room, "@ana [team]")
-      await until("ana's look at the team", () => bubbles(room).some((m) => m.text.includes("tool: @ben:")), 15_000)
+      await until("ana's look at the team", () => bubbles(room).some((m) => m.text.startsWith("heard: @ana [team]") && m.text.includes("@ben:")), 15_000)
       await Bun.sleep(1_500)
       expectEqual(await received(), 10, "envelopes after team (only the human's)")
       console.log("  ok team: read what ben is doing, woke nobody")
