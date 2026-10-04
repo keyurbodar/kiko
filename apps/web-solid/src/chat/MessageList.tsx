@@ -33,6 +33,10 @@ export function MessageList(props: {
   notices?: readonly Notice[]
   /** The viewer tapped an emoji on a message. */
   onReact?: (messageId: string, emoji: string) => void
+  /** Edit one of the human's own messages. Absent: the menu has no edit. */
+  onEdit?: (messageId: string) => void
+  /** Delete one of the human's own messages. Absent: the menu has no delete. */
+  onDelete?: (messageId: string) => void
   /**
    * Controlled reply target. When this prop is supplied the transcript stops
    * owning the reply and renders whatever the parent says; `null` means no

@@ -19,7 +19,7 @@ const deps = (over: { newChat?: () => void } = {}) => ({
   rename() {},
   togglePin() {},
   deleteChat() {},
-  canMove: () => false, goToChat() {}, chatCount: () => 0,
+  canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0,
 })
 
 describe("palette rows", () => {

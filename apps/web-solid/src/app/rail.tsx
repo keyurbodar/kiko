@@ -26,8 +26,8 @@ export function Rail(props: { collapsed: boolean; onToggleSidebar: () => void })
         ref={intentRef(() => preloadRoute(href))}
         data-component="sidebar-rail-tab"
         data-panel={id}
-        data-hint={id === "settings" ? "settings.open" : undefined}
-        data-hint-label="settings"
+        data-hint={id === "settings" ? "settings.open" : "go.chat"}
+        data-hint-label={id === "settings" ? "settings" : "chats"}
         data-hint-side="right"
         data-active={active() === id ? "" : undefined}
         aria-label={label}

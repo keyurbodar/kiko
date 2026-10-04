@@ -80,14 +80,30 @@ export function Composer(props: ComposerProps) {
   // Escape drops the quote, the way it closes a menu. A menu, a dialog or the mention list that
   // wants the key has already used it by the time it reaches the document.
   const dropReply = (event: KeyboardEvent) => {
-    if (event.key !== "Escape" || event.defaultPrevented || !props.replyTo) return
+    if (event.key !== "Escape" || event.defaultPrevented || (!props.replyTo && !props.editing)) return
     const target = event.target
     if (!(target instanceof HTMLElement) || !target.closest('[data-component="composer-dock"]')) return
     if (document.querySelector('[role="dialog"], [role="menu"]')) return
     event.preventDefault()
-    props.onClearReply?.()
+    if (props.editing) {
+      props.onCancelEdit?.()
+      store.reset()
+    } else props.onClearReply?.()
   }
   document.addEventListener("keydown", dropReply)
+  // Up in an empty composer edits the last message, as in Telegram. Any text, attachment or open
+  // list (the mention menu uses the arrows) leaves the key alone.
+  const editLast = (event: KeyboardEvent) => {
+    if (event.key !== "ArrowUp" || event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
+    const target = event.target
+    if (!(target instanceof HTMLElement) || !target.closest('[data-component="prompt-input"]')) return
+    if (props.editing || draftText() !== "" || store.state.prompt.some((part) => part.type === "image")) return
+    if (document.querySelector('[role="listbox"], [role="dialog"], [role="menu"]')) return
+    event.preventDefault()
+    props.onEditLast?.()
+  }
+  document.addEventListener("keydown", editLast)
+  onCleanup(() => document.removeEventListener("keydown", editLast))
   onCleanup(() => document.removeEventListener("keydown", dropReply))
   // Attachments still in the box when the composer goes were never sent: free their object URLs.
   onCleanup(() => {
@@ -124,6 +140,20 @@ export function Composer(props: ComposerProps) {
     on(draftText, (text) => {
       if (filledFor && filledFor === props.draftKey) props.onDraftChange?.(filledFor, text)
     }, { defer: true }),
+  )
+
+  // Entering an edit puts the message's text in the box; leaving it empties the box.
+  createEffect(
+    on(
+      () => props.editing?.id,
+      (id, previous) => {
+        if (id) {
+          store.setText(props.editing!.body)
+          queueMicrotask(() => document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus())
+        } else if (previous) store.reset()
+      },
+      { defer: true },
+    ),
   )
 
   const [draftLink, setDraftLink] = createSignal<DraftLink | null>(null)
@@ -272,6 +302,12 @@ export function Composer(props: ComposerProps) {
           // There is no conversation to land in, so there is nothing to send.
           if (!props.threadId) return
           const text = draftText()
+          const editing = props.editing
+          if (editing) {
+            if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
+            props.onCancelEdit?.()
+            return
+          }
           if (runSlash(text)) return void store.reset()
           const files = store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
           // A file that is not a picture turns the whole send into a list of documents.
@@ -321,7 +357,17 @@ export function Composer(props: ComposerProps) {
    */
   const above = (
     <>
-      <Show when={props.replyTo}>
+      <Show when={props.editing}>
+        {(message) => (
+          <ReplyBar
+            summary={replySummary(message())}
+            role="edit message"
+            onJump={() => props.onJumpToReply?.(message().id)}
+            onDismiss={() => props.onCancelEdit?.()}
+          />
+        )}
+      </Show>
+      <Show when={!props.editing && props.replyTo}>
         {(message) => (
           <ReplyBar
             summary={props.replyQuote ? quoteSummary(props.replyQuote) : replySummary(message())}

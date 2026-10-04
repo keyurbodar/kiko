@@ -848,6 +848,22 @@ export function createApp(options: AppOptions = {}) {
         r.react(m.id, nextReaction(m.reactions, emoji))
       },
 
+      /** Replaces the text of one of the human's own stored messages. Applies at once. */
+      editMessage(messageId: string, text: string) {
+        const r = room()
+        const m = findView(messageId)
+        if (!r || !m || m.pending || m.from.kind !== "human" || text.trim() === "" || text === m.text) return
+        r.edit(m.id, text)
+      },
+
+      /** Deletes one of the human's own stored messages. Applies at once. */
+      deleteMessage(messageId: string) {
+        const r = room()
+        const m = findView(messageId)
+        if (!r || !m || m.pending || m.from.kind !== "human") return
+        r.remove(m.id)
+      },
+
       appendMessage(message: OutgoingMessage, _sentAt?: number): string | undefined {
         return send(message)
       },

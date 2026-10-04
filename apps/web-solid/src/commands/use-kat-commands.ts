@@ -19,6 +19,12 @@ const CHAT_PATH = /^\/chat\/([^/]+)$/
  * The router glue, kept apart from the table so the table tests without a
  * router. Call it once in the shell: kat's map registers for the shell's life.
  */
+/** The sidebar's order: pinned tiles first, then the list. */
+const sidebarOrder = () => {
+  const rows = useApp.bots()
+  return [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)]
+}
+
 /** Register kat's map for the life of the calling component. Call it in the shell. */
 export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   const navigate = useNavigate()
@@ -52,10 +58,14 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         if (id) closeChat(id, id, navigate)
       },
       goToChat: (n) => {
-        // The sidebar's order: pinned tiles first, then the list.
-        const rows = useApp.bots()
-        const row = [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)][n - 1]
+        const row = sidebarOrder()[n - 1]
         if (row) navigate(`/chat/${row.id}`)
+      },
+      stepChat: (step) => {
+        const order = sidebarOrder()
+        const at = order.findIndex((r) => r.id === activeId())
+        const row = order[at === -1 ? 0 : Math.max(0, Math.min(order.length - 1, at + step))]
+        if (row && row.id !== activeId()) navigate(`/chat/${row.id}`)
       },
       chatCount: () => useApp.bots().length,
       reopenClosed: () => {

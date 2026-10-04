@@ -201,6 +201,12 @@ export interface ComposerProps {
   replyTo?: ChatMessage | null;
   /** Drop the reply, after a send or when the reader dismisses the bar. */
   onClearReply?: () => void;
+  /** One of the human's own messages being edited: the composer holds its text, and a send replaces it. */
+  editing?: ChatMessage | null;
+  onEdit?: (messageId: string, text: string) => void;
+  onCancelEdit?: () => void;
+  /** Up arrow in an empty composer: edit the human's last message, as in Telegram. */
+  onEditLast?: () => void;
   /** The words of the reply target being answered, shown in the reply bar in place of its start. */
   replyQuote?: string;
   /** Scroll the transcript to the quoted message. */

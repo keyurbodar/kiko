@@ -152,6 +152,10 @@ export function VirtualThread(props: {
   notices?: readonly Notice[]
   /** The viewer tapped an emoji on a message. Leave it out and reactions do nothing. */
   onReact?: (messageId: string, emoji: string) => void
+  /** Edit one of the human's own messages. Absent: the menu has no edit. */
+  onEdit?: (messageId: string) => void
+  /** Delete one of the human's own messages. Absent: the menu has no delete. */
+  onDelete?: (messageId: string) => void
   /**
    * Controlled reply target. When this prop is supplied the transcript stops
    * owning the reply and renders whatever the parent says; `null` means no
@@ -754,9 +758,14 @@ export function VirtualThread(props: {
       },
       side: message.sender,
       onReply: () => aimReplyAt(menu.targetId() ?? message.id),
-      /* Pin, edit and delete have no store mutation behind them yet, so they are
-         omitted rather than wired to an empty handler: a menu item that accepts
-         a click and then does nothing is worse than a missing one. */
+      /* Pin has no store mutation behind it yet, so it is omitted rather than wired to an empty
+         handler. Edit and delete are the human's, on their own stored messages only; edit needs text. */
+      onEdit: message.sender === "user" && !message.id.startsWith("local:") && message.body.trim() && props.onEdit
+        ? () => props.onEdit!(menu.targetId() ?? message.id)
+        : undefined,
+      onDelete: message.sender === "user" && !message.id.startsWith("local:") && props.onDelete
+        ? () => props.onDelete!(menu.targetId() ?? message.id)
+        : undefined,
       onReact: (emoji) => props.onReact?.(menu.targetId() ?? message.id, emoji),
     })
     return (

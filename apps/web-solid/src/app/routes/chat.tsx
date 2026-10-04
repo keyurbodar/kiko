@@ -83,6 +83,13 @@ export default function ChatRoute() {
     ),
   );
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null);
+  /** One of the human's own messages being edited in the composer, or null. Never outlives its chat. */
+  const [editTarget, setEditTarget] = createSignal<string | null>(null);
+  createEffect(on(() => params.id, () => setEditTarget(null), { defer: true }));
+  const startEdit = (id: string) => {
+    setReplyTarget(null);
+    setEditTarget(id);
+  };
   /** The words of the reply target the human picked to answer, with the target they belong to. */
   const [quote, setQuote] = createSignal<{ target: string; text: string } | null>(null);
   const replyQuote = () => {
@@ -220,6 +227,11 @@ export default function ChatRoute() {
             memberSlugs={[...members().keys()]}
             notices={notices()}
             onReact={useApp.toggleReaction}
+            onEdit={startEdit}
+            onDelete={(id) => {
+              if (editTarget() === id) setEditTarget(null);
+              useApp.deleteMessage(id);
+            }}
             replyTarget={replyTarget()}
             scrollKey={useApp.activeThreadId() ?? undefined}
             scrollBook={book() ?? undefined}
@@ -354,6 +366,14 @@ export default function ChatRoute() {
             replyTo={replyTo()}
             replyQuote={replyQuote()}
             onClearReply={() => (setReplyTarget(null), setQuote(null))}
+            editing={editTarget() === null ? null : (byId().get(editTarget()!) ?? null)}
+            onEdit={(id, text) => useApp.editMessage(id, text)}
+            onCancelEdit={() => setEditTarget(null)}
+            onEditLast={() => {
+              // The newest stored text message the human wrote. Attachments alone have nothing to edit.
+              const last = [...messages()].reverse().find((m) => m.sender === "user" && m.seq !== undefined && m.body.trim() !== "");
+              if (last) startEdit(last.id);
+            }}
             onJumpToReply={(messageId) => jumpToMessage?.(messageId)}
           />
         </div>

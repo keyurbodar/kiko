@@ -24,6 +24,8 @@ export function katCommands(deps: {
   deleteChat: () => void
   /** Opens the nth chat (from 1) in the sidebar's order. */
   goToChat: (n: number) => void
+  /** Opens the chat one step up (-1) or down (1) the sidebar from the open one. */
+  stepChat: (step: 1 | -1) => void
   /** How many chats the sidebar lists. */
   chatCount: () => number
   /** The open chat may be pinned, unpinned, or deleted: it is not the kiko chat. */
@@ -54,6 +56,9 @@ export function katCommands(deps: {
       when: () => deps.chatCount() > i,
       run: () => deps.goToChat(i + 1),
     })),
+    // Telegram's way through the list without the mouse.
+    { id: "chats.previous", title: "chats: previous chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowUp", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(-1) },
+    { id: "chats.next", title: "chats: next chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowDown", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(1) },
     { id: "palette.open", title: "palette: open", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
   ]
 }
