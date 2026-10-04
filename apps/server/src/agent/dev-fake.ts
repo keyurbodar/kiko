@@ -212,11 +212,11 @@ function teamCall(turn: string) {
   return check ? fauxToolCall("check_agent", { slug: check[1]! }) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals): AgentSetup {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals, scripts?: BuildAgentInput["scripts"]) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(approvals ? { approvals } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) }
+  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(approvals ? { approvals } : {}), ...(scripts ? { scripts } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) } satisfies AgentSetup
 }

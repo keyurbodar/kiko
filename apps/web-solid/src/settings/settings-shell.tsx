@@ -16,6 +16,8 @@ import type { JSX } from "solid-js"
 
 // The appearance section and its validator load with the section, not with the route.
 const Appearance = lazy(() => import("../theme/appearance"))
+// The extensions section, with the manifest review and the code view, loads with the section too.
+const Extensions = lazy(() => import("./extensions"))
 
 function Account() {
   const user = () => {
@@ -52,6 +54,11 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   appearance: () => (
     <Suspense>
       <Appearance />
+    </Suspense>
+  ),
+  extensions: () => (
+    <Suspense>
+      <Extensions />
     </Suspense>
   ),
 }

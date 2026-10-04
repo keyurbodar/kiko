@@ -388,7 +388,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 	const now = options.now ?? Date.now
 	const resetAfter = options.resetAfter ?? 500
 	const log: UserEvent[] = []
-	const data: UserData = { seq: 0, chats: [], agents: [], home: { files: [], folders: [] } }
+	const data: UserData = { seq: 0, chats: [], agents: [], home: { files: [], folders: [] }, extensions: [], proposals: [] }
 	const peers = new Set<Peer<UserToClient>>()
 	const received: ClientToUser[] = []
 
@@ -428,6 +428,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 				if (out.events.length) store(...(out.events as WithoutStored<UserEvent>[]))
 				return
 			}
+			if (frame.t === "extension") return peer.push({ t: "extension_result", reqId: frame.reqId, result: { ok: false, error: "the mock server runs no extensions" } })
 			if (frame.t !== "chat") return // the mock has no memory, search, executor, sign-in, or theme store
 			const op = frame.op
 			const chat = find(op.roomId)

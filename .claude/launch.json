@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "redesign-web",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "/Users/keyur/.kiko-coord/wt-redesign/apps/web-solid", "dev", "--port", "5174", "--strictPort"],
+      "port": 5174
+    }
+  ]
+}

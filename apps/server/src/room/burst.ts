@@ -108,10 +108,14 @@ export class Burst {
 		await this.alarms.setWakeup(BURST_WAKEUP, debounce("typing", this.now(), startedAt))
 	}
 
-	/** One envelope per pending message, oldest first. */
-	envelopes(roomId: RoomId): Envelope[] {
+	/**
+	 * One envelope per pending message, oldest first, at most `limit`. A flush delivers at most
+	 * `MAX_DELIVERY_ENVELOPES`, so it reads only those: reading the whole backlog on every flush cost
+	 * N²/100 row reads for N pending messages.
+	 */
+	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES): Envelope[] {
 		return this.sql
-			.exec<Row>("SELECT id, seq, at, text, reply_to FROM pending ORDER BY seq")
+			.exec<Row>("SELECT id, seq, at, text, reply_to FROM pending ORDER BY seq LIMIT ?", limit)
 			.toArray()
 			.map((r) => ({
 				id: envelopeId(r.id),
@@ -129,6 +133,11 @@ export class Burst {
 	/** Removes the delivered messages. Messages that arrived during the delivery stay for the next one. */
 	delivered(envelopes: readonly Envelope[]): void {
 		for (const e of envelopes) this.sql.exec("DELETE FROM pending WHERE id = ?", e.rootId)
+	}
+
+	/** Drops the whole burst, as when the room has nobody to deliver to. */
+	clear(): void {
+		this.sql.exec("DELETE FROM pending")
 	}
 
 	/** Messages that arrived during a delivery still have their own wakeup. A failed delivery retries after `ms`. */

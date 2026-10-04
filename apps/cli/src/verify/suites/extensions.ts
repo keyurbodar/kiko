@@ -1,0 +1,138 @@
+import type { ExtensionOp, ExtensionResult, UserEvent } from "@kiko/protocol"
+import { expectEqual, type Session, VerifyError } from "../client"
+import type { Suite } from "../runner"
+import { fake, newRoom, seen, send, until } from "./mid-run"
+
+// Architecture section 24. Extensions end to end on the dev server, with the scripted fake agent so
+// no token is spent. The human's side goes over the user socket the way settings does; the agent's
+// side is the fake model calling the extension's tools (`[ws <tool> {json}]`).
+//
+// What it proves:
+// - an install waits for the human, and only the socket's `install` makes it live
+// - the extension's tool runs in the sandbox and its state survives between runs
+// - its beforeTool hook blocks a built-in tool's call
+// - switching it off removes its tool from the next run, without a deploy
+// - an update replaces the running code at the next run
+// - a bundle with problems is refused with every problem named
+// - uninstall removes it and its state
+
+const MANIFEST = (version: string) => ({
+  kiko: 1,
+  name: "verify-counter",
+  version,
+  description: "counts, for kiko verify",
+  tools: { verify_bump: { description: "adds one to the count", effect: "write" } },
+  hooks: ["beforeTool"],
+  state: "room",
+  tests: [{ tool: "verify_bump", expect: "count" }],
+})
+
+const SOURCE = (word: string) => `
+export const tools = {
+  async verify_bump(_args, kiko) {
+    const n = ((await kiko.state.get("n")) ?? 0) + 1
+    await kiko.state.set("n", n)
+    return "${word} " + n
+  },
+}
+export const hooks = {
+  async beforeTool(call) {
+    if (call.name === "fake_note") return { block: "notes are off" }
+  },
+}
+`
+
+async function extensionOps(s: Session) {
+  const user = await s.user()
+  let n = 0
+  return async (op: ExtensionOp): Promise<ExtensionResult> => {
+    const reqId = `x${++n}-${Date.now()}`
+    user.send({ t: "extension", reqId, op })
+    const frame = await user.expect((f) => f.t === "extension_result" && f.reqId === reqId, 10_000)
+    return (frame as { result: ExtensionResult }).result
+  }
+}
+
+const ok = (r: ExtensionResult, what: string) => {
+  if (!r.ok) throw new VerifyError(`${what}: ${r.error}${r.problems ? ` (${r.problems.join("; ")})` : ""}`)
+  return r
+}
+
+const suite: Suite = {
+  name: "extensions",
+  async run(v) {
+    const s = await v.as(`extensions-${Date.now()}`)
+    const op = await extensionOps(s)
+    const user = await s.user()
+
+    // A broken bundle is refused, with each problem on its own line.
+    const broken = await op({ op: "propose", bundle: { manifest: { ...MANIFEST("x"), name: "Bad Name" }, files: {} } })
+    if (broken.ok) throw new VerifyError("a bundle with a bad name and version was accepted")
+    if (!broken.problems?.some((p) => p.startsWith('"name"')) || !broken.problems?.some((p) => p.startsWith('"version"'))) throw new VerifyError(`the problems do not name the bad fields: ${JSON.stringify(broken.problems)}`)
+
+    // Proposed, it waits; nothing is installed until the socket says install.
+    const proposed = ok(await op({ op: "propose", bundle: { manifest: MANIFEST("1.0.0"), files: { "main.js": SOURCE("count") } } }), "propose")
+    const id = proposed.proposal!.id
+    await user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension_proposal" && e.proposal.id === id))
+
+    const { roomId, room } = await newRoom(s, "extensions")
+    await fake(v, s, roomId)
+    await send(room, "[ws verify_bump {}]")
+    await until("the agent's answer before the install", () => seen(room).live.length >= 1, 20_000)
+    const before = seen(room).live.at(-1)!.text
+    if (!/not available|not found|unknown/i.test(before)) throw new VerifyError(`the tool ran before the human installed it: ${before}`)
+
+    ok(await op({ op: "install", id }), "install")
+    await user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension" && e.extension.name === "verify-counter"))
+
+    // Live at the next run: the tool runs in the sandbox and keeps its count between runs.
+    const answer = async (text: string, n: number) => {
+      await send(room, text)
+      await until(`answer ${n}`, () => seen(room).live.length >= n, 20_000)
+      return seen(room).live[n - 1]!.text
+    }
+    const first = await answer("[ws verify_bump {}]", 2)
+    if (!first.includes("tool: count 1")) throw new VerifyError(`the first bump answered ${first}`)
+    const second = await answer("[ws verify_bump {}]", 3)
+    if (!second.includes("tool: count 2")) throw new VerifyError(`the count did not survive between runs: ${second}`)
+
+    // Its beforeTool hook blocks a built-in tool. In a clean run trust lets a write through, so the
+    // block is the extension's. (The fake model words a trust tool's result as `ran` or `blocked`.)
+    const blocked = await answer("[ws fake_note {}]", 4)
+    if (!blocked.includes("fake_note blocked")) throw new VerifyError(`the hook did not block fake_note: ${blocked}`)
+
+    // Off: the next run has no such tool. No deploy.
+    ok(await op({ op: "enable", name: "verify-counter", enabled: false }), "switch off")
+    const off = await answer("[ws verify_bump {}]", 5)
+    if (off.includes("tool: count")) throw new VerifyError(`the tool still ran while switched off: ${off}`)
+
+    // An update replaces the running code at the next run and keeps the state.
+    ok(await op({ op: "enable", name: "verify-counter", enabled: true }), "switch on")
+    const update = ok(await op({ op: "propose", bundle: { manifest: MANIFEST("1.1.0"), files: { "main.js": SOURCE("tally") } } }), "propose the update")
+    expectEqual(Boolean(update.proposal!.replaces), true, "the update names the version it replaces")
+    ok(await op({ op: "install", id: update.proposal!.id }), "install the update")
+    const updated = await answer("[ws verify_bump {}]", 6)
+    if (!updated.includes("tool: tally 3")) throw new VerifyError(`the update did not take over at the next run: ${updated}`)
+
+    // The same version twice is refused.
+    const again = await op({ op: "propose", bundle: { manifest: MANIFEST("1.1.0"), files: { "main.js": SOURCE("tally") } } })
+    if (again.ok) throw new VerifyError("proposing the installed version again was accepted")
+
+    // The catalog is served and installs through the same review.
+    const catalog = ok(await op({ op: "catalog" }), "catalog").catalog ?? []
+    if (!catalog.some((e) => e.name === "tally")) throw new VerifyError(`the catalog has no tally: ${catalog.map((e) => e.name).join(", ")}`)
+    const fromCatalog = ok(await op({ op: "propose_catalog", name: "tally" }), "propose from the catalog")
+    expectEqual(fromCatalog.proposal!.source, "catalog", "a catalog install says where it came from")
+    ok(await op({ op: "decline", id: fromCatalog.proposal!.id }), "decline")
+
+    // Uninstall removes it, and a fresh install starts from a clean count.
+    ok(await op({ op: "uninstall", name: "verify-counter" }), "uninstall")
+    const reinstall = ok(await op({ op: "propose", bundle: { manifest: MANIFEST("1.1.0"), files: { "main.js": SOURCE("tally") } } }), "propose after uninstall")
+    ok(await op({ op: "install", id: reinstall.proposal!.id }), "reinstall")
+    const fresh = await answer("[ws verify_bump {}]", 7)
+    if (!fresh.includes("tool: tally 1")) throw new VerifyError(`uninstall kept the old state: ${fresh}`)
+    ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
+  },
+}
+
+export default suite

@@ -29,9 +29,11 @@ async function build(nodeEnv: "production" | "development"): Promise<string> {
 }
 
 async function start(path: string): Promise<string> {
-  // The bundle imports modules by computed names, so list it as the only module.
+  // The bundle imports modules by computed names, so list it and the wasm wrangler emits beside it
+  // (QuickJS for extensions, architecture section 24.3) as the modules.
+  const wasm = (await readdir(dirname(path))).filter((f) => f.endsWith(".wasm")).map((f) => ({ type: "CompiledWasm" as const, path: join(dirname(path), f) }))
   const mf = new Miniflare({
-    modules: [{ type: "ESModule", path }],
+    modules: [{ type: "ESModule", path }, ...wasm],
     modulesRoot: dirname(path),
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],

@@ -153,6 +153,16 @@ test("rm deletes files and, with recursive, folders; a refusal deletes nothing; 
   expect(await keys(room)).toEqual([])
 })
 
+test("rm -r of a folder with more files than one query may bind (100) deletes them all", async () => {
+  const room = fresh()
+  const a = agent(room)
+  await Promise.all(Array.from({ length: 150 }, (_, i) => a.write(`big/f${i}.md`, String(i))))
+  const out = await a.run("rm", { paths: ["big"], recursive: true })
+  expect(out.ok).toBe(true)
+  expect(out.text).toBe("deleted 150 files and 1 folder")
+  expect(chatOnly(await a.ls())).toBe("")
+}, 60_000)
+
 test("cp copies a file, and a folder with recursive", async () => {
   const a = agent(fresh())
   await a.write("src/a.md", "a")
