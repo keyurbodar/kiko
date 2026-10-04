@@ -773,28 +773,37 @@
   }
 }
 
-/* ===== Main panel ----------------------------------------------------- */
+/* ===== Main panes ----------------------------------------------------- */
 
-/* The rounded pane beside the sidebar. In frost it is the denser glass; in solid it is the
- * panel colour against the darker shell. The top bar sits above it, so its top corners show. */
-.sidebar-shell .main-panel {
+/* The chat pane, and the info pane beside it when it is open: rounded panes under the top bar,
+ * 8px apart. In frost each is the denser glass with a lit rim; in solid each is the panel
+ * colour against the darker shell. */
+.sidebar-shell .main-row {
+  gap: 8px;
   margin: 0 8px 8px 0;
+}
+
+.sidebar-shell .main-row[data-top] {
+  margin-top: 8px;
+}
+
+.sidebar-shell:has(.panel[data-collapsed]) .main-row {
+  margin-left: 8px;
+}
+
+.sidebar-shell .main-panel,
+.sidebar-shell .info-pane {
   background: var(--panel);
   border-radius: 12px;
   box-shadow: var(--glass-sheen);
 }
 
-.sidebar-shell .main-panel[data-top] {
-  margin-top: 8px;
-}
-
-.sidebar-shell:has(.panel[data-collapsed]) .main-panel {
-  margin-left: 8px;
-}
-
 @media (width < 768px) {
-  .sidebar-shell .main-panel {
+  .sidebar-shell .main-row {
     margin: 0;
+  }
+
+  .sidebar-shell .main-panel {
     border-radius: 0;
   }
 }

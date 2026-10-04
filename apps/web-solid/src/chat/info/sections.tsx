@@ -1,6 +1,7 @@
 import type { Chat, Member } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, type JSX, Show } from "solid-js"
+import { HugeIcon, type IconKey } from "@kiko/ui/huge-icon"
 import { nextAfterClose, openTabs } from "../../app/open-tabs"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import { MemberList } from "../members/members"
@@ -9,23 +10,22 @@ import { subtitle } from "./format"
 import { pushInfo } from "./state"
 
 /*
- * The cards on the panel's home view. Each is small and draws from the stores the app
- * already holds, so opening the panel waits on nothing.
+ * The sections on the panel's home view. Each is small and draws from the stores the app
+ * already holds, so opening the panel waits on nothing. Sections are not cards: a quiet label
+ * and the space around it separate them, as in Claude's and monocode's side panels.
  */
 
-export const flat = "rounded-xl bg-bg-subtle"
-
-/** A card with a title and a chevron that opens its full list. */
+/** A section with a label, and a chevron that opens its full list when it has one. */
 export function Card(props: { id: string; title: string; hint?: string; onOpen?: () => void; children: JSX.Element }) {
   return (
-    <section class={`${flat} p-2`} data-component="info-card" data-card={props.id}>
+    <section class="flex flex-col gap-0.5" data-component="info-card" data-card={props.id}>
       <Show
         when={props.onOpen}
-        fallback={<h3 class="px-2 pt-1 pb-1 text-xs text-weak">{props.title}</h3>}
+        fallback={<h3 class="px-2 pb-1 text-[11px] font-medium tracking-[0.02em] text-faint">{props.title}</h3>}
       >
         <button
           type="button"
-          class="flex w-full items-center justify-between rounded-lg px-2 pt-1 pb-1 text-xs text-weak hover:text-text"
+          class="flex w-full items-center justify-between rounded-md px-2 pb-1 text-[11px] font-medium tracking-[0.02em] text-faint hover:text-text"
           data-action="open-card"
           aria-label={`open ${props.title}`}
           onClick={() => props.onOpen?.()}
@@ -45,11 +45,7 @@ export function Card(props: { id: string; title: string; hint?: string; onOpen?:
 }
 
 export function Chevron() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M4.5 2.5L8 6l-3.5 3.5" />
-    </svg>
-  )
+  return <HugeIcon name="chevron-right" size={14} />
 }
 
 /*
@@ -79,14 +75,14 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
     if (next && next !== title() && user) user.rename(props.chatId as never, next)
   }
   return (
-    <header class="flex flex-col items-center gap-2 pt-2 pb-1 text-center" data-component="info-header">
-      <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={96} />
+    <header class="flex flex-col items-center gap-1.5 pt-3 pb-2 text-center" data-component="info-header">
+      <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={72} />
       <Show
         when={editing()}
         fallback={
           <button
             type="button"
-            class="max-w-full truncate rounded-lg px-2 py-0.5 text-lg font-medium text-text hover:bg-nav-hover"
+            class="mt-1 max-w-full truncate rounded-md px-2 py-0.5 text-[15px] font-semibold text-text hover:bg-hover"
             data-component="info-name"
             aria-label="rename chat"
             onClick={() => setEditing(true)}
@@ -96,7 +92,7 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
         }
       >
         <input
-          class="h-9 w-full rounded-lg bg-input px-3 text-center text-lg text-text outline-none"
+          class="mt-1 h-8 w-full rounded-md bg-input px-3 text-center text-[15px] font-semibold text-text outline-none"
           data-component="info-name-input"
           aria-label="chat name"
           value={title()}
@@ -112,7 +108,7 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
           }}
         />
       </Show>
-      <p class="text-sm text-weak" data-component="info-subtitle">
+      <p class="text-xs text-faint" data-component="info-subtitle">
         {subtitle(props.chatId, props.members)}
       </p>
     </header>
@@ -128,47 +124,33 @@ export function Members(props: { members: readonly Member[] }) {
   )
 }
 
-/** A colored circle with a line icon. The hue sets the color, so each kind of row reads at a glance. */
-export function Badge(props: { hue: number; path: string; size?: number }) {
-  const size = () => props.size ?? 28
+/** A neutral tile holding a line icon: the row's kind at a glance, without a colour per kind. */
+export function Badge(props: { icon: IconKey; danger?: boolean }) {
   return (
     <span
-      class="grid shrink-0 place-items-center rounded-full"
-      style={{
-        width: `${size()}px`,
-        height: `${size()}px`,
-        background: `oklch(0.62 0.13 ${props.hue} / 0.2)`,
-        color: `oklch(0.8 0.13 ${props.hue})`,
-      }}
+      class="grid size-7 shrink-0 place-items-center rounded-md bg-[var(--tint-subtle)]"
+      classList={{ "text-weak": !props.danger, "text-danger": props.danger }}
       aria-hidden="true"
     >
-      <svg width={size() / 2} height={size() / 2} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <path d={props.path} />
-      </svg>
+      <HugeIcon name={props.icon} size={15} />
     </span>
   )
 }
 
-export const ICON = {
-  memory: "M8 2.5c-2.5 0-4.5 1.8-4.5 4.2 0 1.4.7 2.5 1.7 3.3V12h5.6v-2c1-.8 1.7-1.9 1.7-3.3 0-2.4-2-4.2-4.5-4.2zM6 14h4",
-  tasks: "M3 4l1.5 1.5L7 3M3 9.5L4.5 11 7 8.5M9 4.5h4.5M9 10h4.5",
-  trash: "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 9h6l.5-9",
-} as const
-
-/** A row in a grouped list: badge, label, a value or count on the right, and a chevron. */
-export function ListRow(props: { id: string; label: string; hue: number; path: string; value?: string | number; onClick: () => void }) {
+/** A row in a grouped list: icon, label, a value or count on the right, and a chevron. */
+export function ListRow(props: { id: string; label: string; icon: IconKey; value?: string | number; onClick: () => void }) {
   return (
     <button
       type="button"
-      class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm text-text hover:bg-nav-hover"
+      class="flex h-10 w-full items-center gap-3 rounded-lg px-2 text-left text-[13px] text-text hover:bg-hover"
       data-action={`open-${props.id}`}
       data-card={props.id}
       onClick={() => props.onClick()}
     >
-      <Badge hue={props.hue} path={props.path} />
+      <Badge icon={props.icon} />
       <span class="flex-1">{props.label}</span>
       <Show when={props.value !== undefined && props.value !== ""}>
-        <span class="max-w-[50%] truncate text-sm text-weak">{props.value}</span>
+        <span class="max-w-[50%] truncate text-xs tabular-nums text-faint">{props.value}</span>
       </Show>
       <span class="text-faint">
         <Chevron />
@@ -189,15 +171,15 @@ export function DeleteChat(props: { chatId: string }) {
     navigate(next ? `/chat/${next}` : "/chat")
   }
   return (
-    <div class={`${flat} p-1`} data-card="danger">
+    <div data-card="danger">
       <button
         type="button"
-        class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] hover:bg-nav-hover"
+        class="flex h-10 w-full items-center gap-3 rounded-lg px-2 text-left text-[13px] text-danger hover:bg-[var(--danger-wash)]"
         data-action="delete-chat"
         onClick={remove}
         onBlur={() => setSure(false)}
       >
-        <Badge hue={25} path={ICON.trash} />
+        <Badge icon="trash" danger />
         {sure() ? "sure? delete this chat" : "delete chat"}
       </button>
     </div>

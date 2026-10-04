@@ -9,7 +9,8 @@ import { createCatalog } from "./catalog"
 import { SharedContent } from "./lists"
 import { MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
-import { Card, DeleteChat, flat, Header, ICON, ListRow, Members, roomMembers } from "./sections"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { Card, DeleteChat, Header, ListRow, Members, roomMembers } from "./sections"
 import {
   closeFile,
   closeInfo,
@@ -131,13 +132,13 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
   const memoryCount = () => count(memory()?.state.records.filter((r) => !r.archived).length ?? 0)
   const extras = createMemo(() => infoSections().filter((s) => !s.when || s.when(props.chatId)))
   return (
-    <div class="flex flex-col gap-3" data-component="info-home">
+    <div class="flex flex-col gap-5" data-component="info-home">
       <Header chatId={props.chatId} members={members()} />
       <Members members={members()} />
-      <div class={`${flat} flex flex-col p-1`} data-component="info-rows">
-        <ListRow id="memory" label="memory" hue={330} path={ICON.memory} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
+      <div class="flex flex-col" data-component="info-rows">
+        <ListRow id="memory" label="memory" icon="memory" value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
         <Show when={roomMembers().length > 1}>
-          <ListRow id="tasks" label="tasks" hue={185} path={ICON.tasks} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
+          <ListRow id="tasks" label="tasks" icon="tasks" value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
         </Show>
       </div>
       <SharedContent media={props.media} links={props.links} />
@@ -188,11 +189,7 @@ function MemoryViews(props: { view: Extract<InfoView, { kind: "memory" | "record
 }
 
 function Back() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M10 3L5 8l5 5" />
-    </svg>
-  )
+  return <HugeIcon name="back" size={16} />
 }
 
 
@@ -233,7 +230,7 @@ function Resizer(props: { chatId: string }) {
   )
 }
 
-const iconButton = "grid size-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-[var(--hover-bg)] hover:text-text"
+const iconButton = "grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-[var(--hover-bg)] hover:text-text"
 
 /*
  * The chat's right panel: two tabs, info and files, after t3code's right panel. The tab row is
@@ -290,21 +287,21 @@ export default function InfoPanel(props: { chatId: string }) {
   // Beside the chat the panel leaves the chat at least 400 px. Below 760 px it covers the chat instead.
   return (
     <aside
-      class="relative flex min-h-0 shrink-0 flex-col bg-[var(--bg-sidebar)] @min-[761px]/main:max-w-[calc(100%-400px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:shadow-[-12px_0_32px_rgb(0_0_0/0.35)]"
+      class="info-pane relative flex min-h-0 shrink-0 flex-col overflow-hidden @min-[761px]/main:max-w-[calc(100%-400px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:bg-[var(--sidebar-solid)] @max-[760px]/main:shadow-[var(--popover-shadow)]"
       style={{ width: `min(${panelWidth(props.chatId)}px, 100%)` }}
       data-component="info-panel"
       data-tab={infoTab()}
       aria-label="chat panel"
     >
       <Resizer chatId={props.chatId} />
-      <div class="flex h-[50px] shrink-0 items-center gap-1 pr-2 pl-3">
-        <div class="flex min-w-0 flex-1 items-center gap-1" role="tablist" aria-label="panel" data-component="info-tabs">
+      <div class="flex h-12 shrink-0 items-center gap-1 pr-2 pl-2.5">
+        <div class="flex min-w-0 items-center gap-0.5 rounded-lg bg-[var(--tint-subtle)] p-0.5" role="tablist" aria-label="panel" data-component="info-tabs">
           <For each={TABS}>
             {(tab) => (
               <button
                 type="button"
                 role="tab"
-                class="h-7 rounded-lg px-2.5 text-[13px] font-medium text-muted hover:text-text aria-selected:bg-[var(--selected-bg)] aria-selected:text-text"
+                class="h-6 rounded-md px-2.5 text-xs font-medium text-muted hover:text-text aria-selected:bg-[var(--tab-bg-active)] aria-selected:text-text aria-selected:shadow-[var(--tab-shadow)]"
                 aria-selected={infoTab() === tab}
                 data-tab={tab}
                 onClick={() => setInfoTab(tab)}
@@ -314,15 +311,14 @@ export default function InfoPanel(props: { chatId: string }) {
             )}
           </For>
         </div>
+        <span class="flex-1" aria-hidden="true" />
         <Show when={infoTab() === "files"}>
           <Suspense>
             <FilesActions />
           </Suspense>
         </Show>
         <button type="button" class={iconButton} data-action="close" aria-label="close panel" title="close panel" onClick={() => closeInfo()}>
-          <svg width="10" height="10" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
-            <path d="M1 1l6 6M7 1L1 7" />
-          </svg>
+          <HugeIcon name="close" size={15} />
         </button>
       </div>
       <Switch>
@@ -335,7 +331,7 @@ export default function InfoPanel(props: { chatId: string }) {
         </Match>
         <Match when={infoTab() === "info"}>
           <Show when={infoDepth() > 1}>
-            <div class="flex h-10 shrink-0 items-center gap-1 px-2">
+            <div class="flex h-10 shrink-0 items-center gap-1 px-2.5">
               <button type="button" class={iconButton} data-action="back" aria-label="back" onClick={() => popInfo()}>
                 <Back />
               </button>
@@ -346,7 +342,7 @@ export default function InfoPanel(props: { chatId: string }) {
           </Show>
           <div
             ref={scroller}
-            class="min-h-0 flex-1 overflow-y-auto px-2 pb-4"
+            class="min-h-0 flex-1 overflow-y-auto px-2.5 pb-4"
             role="tabpanel"
             data-component="info-scroll"
             onScroll={(event) => scrolls.set(key(), event.currentTarget.scrollTop)}

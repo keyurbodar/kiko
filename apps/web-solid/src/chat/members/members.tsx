@@ -1,4 +1,5 @@
 import type { Member } from "@kiko/protocol"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { session } from "../../app/session"
@@ -13,8 +14,8 @@ import { addable, addOp, refusalText, renameOp, roleLabel } from "./model"
  * room's `member` frame and shows at once; a refusal rolls it back and says why in a toast.
  */
 
-const row = "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm text-text hover:bg-nav-hover"
-const action = "rounded-md px-1.5 py-0.5 text-xs text-weak hover:bg-nav-hover hover:text-text"
+const row = "flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-[13px] text-text hover:bg-hover"
+const action = "rounded-md px-1.5 py-0.5 text-xs text-weak hover:bg-hover hover:text-text"
 
 /** Toasts each refusal from the open room while the section is on screen. */
 function useRefusalToasts() {
@@ -137,7 +138,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
         when={adding()}
         fallback={
           <button type="button" class={`${row} text-weak`} data-action="add-agent" onClick={() => setAdding(true)}>
-            <span class="grid size-8 place-items-center rounded-full bg-btn text-base">+</span>
+            <span class="grid size-8 place-items-center rounded-full bg-[var(--tint-subtle)]"><HugeIcon name="plus" size={15} /></span>
             add
           </button>
         }

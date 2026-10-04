@@ -187,25 +187,27 @@ export function Shell(props: ParentProps) {
             <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
           </Show>
           <div
-            class="main-panel @container/main relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
-            data-component="main-panel"
+            class="main-row @container/main relative flex min-h-0 min-w-0 flex-1"
+            data-component="main-row"
             data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
           >
-            <div class="flex min-w-0 flex-1 flex-col">
-              {props.children}
+            <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel">
+              <div class="flex min-w-0 flex-1 flex-col">
+                {props.children}
+              </div>
             </div>
-            {/* Message search sits over the transcript and the info panel, inside the rounded panel. */}
-            <Show when={searchScope()}>
-              <Suspense>
-                <SearchOverlay />
-              </Suspense>
-            </Show>
+            {/* The info panel is a second pane beside the chat. Message search sits over both. */}
             <Show when={infoOpen() ? infoChat() : null}>
               {(chatId) => (
                 <Suspense>
                   <InfoPanel chatId={chatId()} />
                 </Suspense>
               )}
+            </Show>
+            <Show when={searchScope()}>
+              <Suspense>
+                <SearchOverlay />
+              </Suspense>
             </Show>
           </div>
         </main>
