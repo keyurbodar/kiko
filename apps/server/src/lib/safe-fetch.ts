@@ -63,6 +63,8 @@ export type SafeFetchOptions = {
   userAgent?: string
   /** The one deadline for DNS, every hop, and the body. Defaults to 3 seconds. */
   timeoutMs?: number
+  /** Keep DNS answers for their TTL. On by default for the real `fetch`; a test with its own fetcher opts in. */
+  dnsCache?: boolean
 }
 
 export async function safeFetch(
@@ -88,7 +90,7 @@ async function follow(
   let next = rawUrl
   let base: URL | undefined
   for (let redirects = 0; ; redirects++) {
-    const url = await check(next, base, fetcher, signal)
+    const url = await check(next, base, fetcher, signal, cacheFor(fetcher, options))
     if (!(url instanceof URL)) return url
 
     // No cookie and no authorization header: the caller chooses only the user agent,
@@ -109,12 +111,40 @@ async function follow(
   }
 }
 
+export type SafeRequest = {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+  /** The caller's headers, such as an extension's authorization header. Sent to this one URL only. */
+  headers: Record<string, string>
+  body?: string
+}
+
+/**
+ * Architecture section 24.7. One request with a method, headers, and a body, for an extension's
+ * `kiko.fetch`. The address checks are `safeFetch`'s. A redirect is never followed: it comes back as
+ * the response, so headers chosen for one host never reach another. Only `https` is allowed.
+ */
+export async function safeRequest(rawUrl: string, request: SafeRequest, fetcher: Fetcher = globalFetcher, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
+  const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS)
+  try {
+    const url = await check(rawUrl, undefined, fetcher, signal, cacheFor(fetcher, options))
+    if (!(url instanceof URL)) return url
+    if (url.protocol !== "https:") return refuse("scheme", url.href)
+    const headers: Record<string, string> = { accept: "*/*", ...request.headers }
+    if (options.userAgent) headers["user-agent"] = options.userAgent
+    const response = await untilAbort(fetcher(url.href, { method: request.method, redirect: "manual", headers, body: request.body, signal }), signal)
+    return read(response, url, signal, options)
+  } catch {
+    return refuse(signal.aborted ? "timeout" : "fetch-failed", rawUrl)
+  }
+}
+
 /** Returns the URL to fetch, or the reason it must not be fetched. */
 async function check(
   raw: string,
   base: URL | undefined,
   fetcher: Fetcher,
   signal: AbortSignal,
+  cached = false,
 ): Promise<URL | Refusal> {
   let url: URL
   try {
@@ -132,7 +162,7 @@ async function check(
   // A public name has a dot. This also stops `localhost`, which the runtime may resolve by itself.
   if (!host.includes(".") || host.endsWith(".localhost")) return refuse("blocked-host", url.href)
 
-  const addresses = await resolve(host, fetcher, signal)
+  const addresses = await resolve(host, fetcher, signal, cached)
   if (addresses === null || addresses.length === 0) return refuse("dns-failed", url.href)
   if (!addresses.every(isPublicAddress)) return refuse("blocked-address", url.href)
   return url
@@ -179,8 +209,24 @@ const RECORD_TYPES = { A: 1, AAAA: 28 } as const
 const NOERROR = 0
 const NXDOMAIN = 3
 
+/**
+ * Answers per fetcher, so each test's fake resolver keeps its own. A Free Worker invocation has 50
+ * subrequests and every lookup is two of them, so a fetch to a host seen in the last few minutes
+ * costs one subrequest instead of three. Only full answers are kept, for their TTL within bounds.
+ */
+const DNS_CACHE = new WeakMap<Fetcher, Map<string, { addresses: string[]; until: number }>>()
+const cacheFor = (fetcher: Fetcher, options: SafeFetchOptions) => options.dnsCache ?? fetcher === globalFetcher
+const DNS_MIN_TTL_S = 30
+const DNS_MAX_TTL_S = 300
+const DNS_MAX_HOSTS = 500
+
 /** Every A and AAAA address of the host. Null when either lookup fails, so the caller refuses. */
-async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal): Promise<string[] | null> {
+async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal, cached: boolean): Promise<string[] | null> {
+  let cache = cached ? DNS_CACHE.get(fetcher) : undefined
+  if (cached && !cache) DNS_CACHE.set(fetcher, (cache = new Map()))
+  const hit = cache?.get(host)
+  if (hit && hit.until > Date.now()) return hit.addresses
+  let ttl = DNS_MAX_TTL_S
   const lookups = Object.entries(RECORD_TYPES).map(async ([name, type]) => {
     const response = await untilAbort(
       fetcher(`${DOH_URL}?name=${encodeURIComponent(host)}&type=${name}`, {
@@ -196,12 +242,20 @@ async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal): Pro
     if (answer.Status !== NOERROR) return null
     const records: unknown[] = Array.isArray(answer.Answer) ? answer.Answer : []
     // A CNAME record is skipped. The resolver also returns the addresses at the end of the chain.
-    return records.flatMap((record) =>
-      isRecord(record) && record.type === type && typeof record.data === "string" ? [record.data] : [],
-    )
+    return records.flatMap((record) => {
+      if (!isRecord(record) || record.type !== type || typeof record.data !== "string") return []
+      if (typeof record.TTL === "number") ttl = Math.min(ttl, record.TTL)
+      return [record.data]
+    })
   })
   const found = await Promise.all(lookups)
-  return found.some((addresses) => addresses === null) ? null : found.flatMap((addresses) => addresses ?? [])
+  if (found.some((addresses) => addresses === null)) return null
+  const addresses = found.flatMap((a) => a ?? [])
+  if (cache && addresses.length) {
+    if (cache.size >= DNS_MAX_HOSTS) cache.delete(cache.keys().next().value!)
+    cache.set(host, { addresses, until: Date.now() + Math.max(DNS_MIN_TTL_S, Math.min(ttl, DNS_MAX_TTL_S)) * 1000 })
+  }
+  return addresses
 }
 
 // Addresses.

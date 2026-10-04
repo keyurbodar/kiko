@@ -17,14 +17,21 @@ import { experimentTurnRoute } from "./experiments/turn"
 import { experimentCoalescingRoute } from "./experiments/coalescing"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
+import type { WorkDO } from "./jobs/work-do"
 import { remindersRoute } from "./user/reminders-route"
 import { tidyRoute } from "./user/tidy-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
+import { setScriptWasm } from "./agent/script/wasm"
+import quickjsWasm from "quickjs-wasi/quickjs.wasm"
+
+// Extensions run in QuickJS (architecture section 24.3). The runtime compiles the binary once per isolate.
+setScriptWasm(quickjsWasm)
 
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
 export { UserDO } from "./user/user-do"
+export { WorkDO } from "./jobs/work-do"
 
 declare const process: { env: { NODE_ENV?: string } }
 
@@ -32,6 +39,8 @@ export interface Env {
   USER: DurableObjectNamespace<UserDO>
   ROOM: DurableObjectNamespace<RoomDO>
   AGENT: DurableObjectNamespace<AgentDO>
+  /** CPU-heavy job work (section 17.3). Absent in tests that bundle one object. */
+  WORK?: DurableObjectNamespace<WorkDO>
   AUTH_DB: D1Database
   FILES: R2Bucket
   PREVIEWS: KVNamespace

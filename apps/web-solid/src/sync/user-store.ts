@@ -8,10 +8,10 @@
 // ASSUMPTION: chat edits are not written to the outbox, which holds sends
 // only. A chat edit made offline is lost on reload.
 
-import type { Agent, Chat, ChatOp, FileOp, FileRef, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, Chat, ChatOp, ExtensionInfo, ExtensionOp, ExtensionProposal, ExtensionResult, FileOp, FileRef, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { allAgents, allChats, getUserSeq, putAgents, putChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
+import { allAgents, allChats, getExtensions, getUserSeq, putAgents, putChats, putExtensions, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
@@ -19,7 +19,7 @@ import { type UserChannelHost, userChannel } from "./user-channel"
 
 /** The user's drive, /home (architecture section 18.3). */
 export type Home = { files: FileRef[]; folders: string[] }
-export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home }
+export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home; extensions: ExtensionInfo[]; proposals: ExtensionProposal[] }
 
 /** Applies one event in place. An event at or below `data.seq` is skipped. Returns false then. */
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
@@ -41,6 +41,26 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 		if (!data.agents.some((a) => a.id === e.agent.id)) data.agents.push(e.agent)
 		return true
 	}
+	// Extensions (architecture section 24): installed ones by name, waiting installs by id.
+	if (e.t === "extension") {
+		const at = data.extensions.findIndex((x) => x.name === e.extension.name)
+		if (at === -1) data.extensions.push(e.extension)
+		else data.extensions[at] = e.extension
+		data.extensions.sort((a, b) => a.name.localeCompare(b.name))
+		return true
+	}
+	if (e.t === "extension_removed") {
+		data.extensions = data.extensions.filter((x) => x.name !== e.name)
+		return true
+	}
+	if (e.t === "extension_proposal") {
+		data.proposals = [...data.proposals.filter((p) => p.id !== e.proposal.id), e.proposal]
+		return true
+	}
+	if (e.t === "extension_proposal_removed") {
+		data.proposals = data.proposals.filter((p) => p.id !== e.id)
+		return true
+	}
 	const i = data.chats.findIndex((c) => c.roomId === (e.t === "chat" ? e.chat.roomId : e.roomId))
 	if (e.t === "chat") {
 		if (i === -1) data.chats.push(e.chat)
@@ -52,8 +72,53 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 import { KIKO, newRoomId } from "@kiko/protocol"
 export { newRoomId }
 
+/** An extension change the server has not answered yet, laid over the server's lists. */
+export type ExtensionPatch = { reqId: string; op: ExtensionOp }
+
+/**
+ * The extensions and waiting installs with the unanswered changes applied, so a switch flips, an
+ * install moves, and an uninstall disappears the moment the human acts. Pure, for tests.
+ */
+export function overlayExtensions(data: Pick<UserData, "extensions" | "proposals">, patches: readonly ExtensionPatch[], now: number): Pick<UserData, "extensions" | "proposals"> {
+	let extensions = data.extensions
+	let proposals = data.proposals
+	for (const { op } of patches) {
+		if (op.op === "enable") extensions = extensions.map((x) => (x.name === op.name ? { ...x, enabled: op.enabled } : x))
+		else if (op.op === "agents") extensions = extensions.map((x) => (x.name === op.name ? { ...x, agents: op.agents } : x))
+		else if (op.op === "secret") extensions = extensions.map((x) => (x.name === op.name ? { ...x, secrets: x.secrets.map((s) => (s.name === op.secret ? { ...s, set: op.value !== null } : s)) } : x))
+		else if (op.op === "uninstall") extensions = extensions.filter((x) => x.name !== op.name)
+		else if (op.op === "decline") proposals = proposals.filter((p) => p.id !== op.id)
+		else if (op.op === "install") {
+			const p = proposals.find((x) => x.id === op.id)
+			if (!p) continue
+			proposals = proposals.filter((x) => x.id !== op.id)
+			const before = extensions.find((x) => x.name === p.name)
+			const m = p.bundle.manifest
+			const next: ExtensionInfo = {
+				name: p.name,
+				version: p.version,
+				description: m.description,
+				hash: p.hash,
+				enabled: before?.enabled ?? true,
+				agents: before?.agents ?? null,
+				source: p.source,
+				...(p.by ? { by: p.by } : {}),
+				...(p.room ? { room: p.room } : before?.room ? { room: before.room } : {}),
+				manifest: m,
+				secrets: Object.keys(m.secrets ?? {}).map((name) => ({ name, set: before?.secrets.some((s) => s.name === name && s.set) ?? false })),
+				installedAt: before?.installedAt ?? now,
+				updatedAt: now,
+			}
+			extensions = [...extensions.filter((x) => x.name !== p.name), next].sort((a, b) => a.name.localeCompare(b.name))
+		}
+	}
+	return { extensions, proposals }
+}
+
 export type UserState = UserData & {
 	loaded: boolean
+	/** Extension changes sent and not answered yet. */
+	extensionPatches: ExtensionPatch[]
 	connection: SocketStatus
 	patches: UserPatch[]
 	/** Agents made here that the server has not confirmed yet. Sent again after a reconnect. */
@@ -114,8 +179,16 @@ export type UserStore = {
 	/** `rm`, `mv`, or `mkdir` on the drive, shown at once. A refusal rolls it back and calls `onHomeRefused`. */
 	homeOp(op: FileOp): void
 	onHomeRefused(listener: (op: FileOp, reason: string) => void): () => void
+	/** Installed extensions and waiting installs, with unanswered changes applied. */
+	extensions(): ExtensionInfo[]
+	proposals(): ExtensionProposal[]
+	/** Sends one extension change or read. The change shows at once; an error rolls it back. */
+	extensionOp(op: ExtensionOp): Promise<ExtensionResult>
 	close(): void
 }
+
+/** How long an extension request waits for its answer. */
+const EXTENSION_TIMEOUT_MS = 15_000
 
 /** How long the user stays in a chat before the server hears of it. A quick tab switch sends one frame. */
 export const OPEN_DEBOUNCE_MS = 2_000
@@ -132,6 +205,9 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		chats: [],
 		agents: [],
 		home: { files: [], folders: [] },
+		extensions: [],
+		proposals: [],
+		extensionPatches: [],
 		loaded: false,
 		connection: "closed",
 		patches: [],
@@ -143,6 +219,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		typing: {},
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
+	const answers = new Map<string, (result: ExtensionResult) => void>()
 	let opening: ReturnType<typeof setTimeout> | undefined
 	let socket: SyncSocket | null = null
 	let closed = false
@@ -188,12 +265,14 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			else if (e.t === "chat_removed") removeChat(warm, e.roomId)
 		}
 		if (applied.some((e) => e.t === "agent")) putAgents(warm, unwrap(state.agents))
+		if (applied.some((e) => e.t.startsWith("extension"))) putExtensions(warm, unwrap(state.extensions), unwrap(state.proposals))
 		if (applied.length) setUserSeq(warm, state.seq)
 	}
 
 	function reset(snapshot: UserSnapshot) {
 		const agents = [...(snapshot.agents ?? [])]
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home: { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }, lastChat: snapshot.lastChat ?? null })
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home: { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }, lastChat: snapshot.lastChat ?? null, extensions: [...(snapshot.extensions ?? [])], proposals: [...(snapshot.proposals ?? [])] })
+		putExtensions(warm, snapshot.extensions ?? [], snapshot.proposals ?? [])
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
@@ -212,6 +291,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				setState("refused", frame.roomId, frame.existing)
 				setState("patches", (list) => list.filter((p) => p.op.roomId !== frame.roomId))
 			})
+		} else if (frame.t === "extension_result") {
+			setState("extensionPatches", (list) => list.filter((p) => p.reqId !== frame.reqId))
+			answers.get(frame.reqId)?.(frame.result)
+			answers.delete(frame.reqId)
 		} else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
@@ -221,9 +304,9 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	}
 
 	async function boot() {
-		const [chats, seq, agents] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm)])
+		const [chats, seq, agents, ext] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getExtensions(warm)])
 		if (closed) return
-		setState({ chats, seq, agents, loaded: true })
+		setState({ chats, seq, agents, extensions: ext.extensions, proposals: ext.proposals, loaded: true })
 		socket = createSyncSocket<UserToClient>({
 			url: options.url,
 			connect: options.connect,
@@ -285,6 +368,38 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		onHomeRefused(listener) {
 			homeRefusals.add(listener)
 			return () => homeRefusals.delete(listener)
+		},
+		extensions: () => overlayExtensions(state, state.extensionPatches, now()).extensions,
+		proposals: () => overlayExtensions(state, state.extensionPatches, now()).proposals,
+		async extensionOp(op) {
+			const reqId = newId()
+			// A page that just opened may ask before the socket is up: wait for the next open, once.
+			if (!socket?.send({ t: "extension", reqId, op })) {
+				await new Promise<void>((resolve) => {
+					const off = channel.onOpen(() => {
+						off()
+						clearTimeout(timer)
+						resolve()
+					})
+					const timer = setTimeout(() => {
+						off()
+						resolve()
+					}, EXTENSION_TIMEOUT_MS / 3)
+				})
+				if (!socket?.send({ t: "extension", reqId, op })) return { ok: false, error: "you are offline. try again when kiko reconnects." }
+			}
+			setState("extensionPatches", (list) => [...list, { reqId, op }])
+			return new Promise<ExtensionResult>((resolve) => {
+				const timer = setTimeout(() => {
+					answers.delete(reqId)
+					setState("extensionPatches", (list) => list.filter((p) => p.reqId !== reqId))
+					resolve({ ok: false, error: "kiko did not answer. try again." })
+				}, EXTENSION_TIMEOUT_MS)
+				answers.set(reqId, (result) => {
+					clearTimeout(timer)
+					resolve(result)
+				})
+			})
 		},
 		close() {
 			closed = true

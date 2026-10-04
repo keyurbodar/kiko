@@ -1,0 +1,27 @@
+{
+  "kiko": 1,
+  "name": "slack-post",
+  "version": "1.0.0",
+  "description": "post a message to one slack channel through an incoming webhook.",
+  "tools": {
+    "slack_post": {
+      "description": "post a message to the human's slack channel",
+      "effect": "external",
+      "parameters": {
+        "type": "object",
+        "properties": { "text": { "type": "string", "description": "the message, slack markdown allowed" } },
+        "required": ["text"]
+      }
+    }
+  },
+  "egress": ["hooks.slack.com"],
+  "secrets": {
+    "SLACK_WEBHOOK_PATH": {
+      "hosts": ["hooks.slack.com"],
+      "description": "the part of your webhook url after https://hooks.slack.com/services/"
+    }
+  },
+  "tests": [
+    { "tool": "slack_post", "args": { "text": "hi" }, "fetch": { "status": 200, "body": "ok" }, "expect": "posted" }
+  ]
+}

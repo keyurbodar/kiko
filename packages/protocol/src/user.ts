@@ -5,6 +5,7 @@
 // memory join these unions in the tasks that build them.
 
 import type { ChatLast } from "./activity"
+import type { ExtensionInfo, ExtensionOp, ExtensionProposal, ExtensionResult } from "./extensions"
 import type { AgentSlug, RoomId } from "./ids"
 import type { MemoryOp, MemoryResult } from "./memory"
 import type { FileOp, FileRef } from "./room"
@@ -87,6 +88,11 @@ export type UserEvent =
 	| (Stored & { t: "file"; file: FileRef })
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	| (Stored & { t: "folders"; folders: readonly string[] })
+	// Extensions (architecture section 24): installed ones and installs that wait for the human.
+	| (Stored & { t: "extension"; extension: ExtensionInfo })
+	| (Stored & { t: "extension_removed"; name: string })
+	| (Stored & { t: "extension_proposal"; proposal: ExtensionProposal })
+	| (Stored & { t: "extension_proposal_removed"; id: string })
 
 export type UserSnapshot = {
 	/** The sequence this snapshot is current to. */
@@ -99,6 +105,10 @@ export type UserSnapshot = {
 	home: { files: readonly FileRef[]; folders: readonly string[] }
 	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
 	lastChat?: RoomId
+	/** Installed extensions, without their code. */
+	extensions?: readonly ExtensionInfo[]
+	/** Installs that wait for the human, newest last. */
+	proposals?: readonly ExtensionProposal[]
 }
 
 /**
@@ -158,6 +168,8 @@ export type ClientToUser =
 	| { t: "login.cancel"; loginId: string }
 	/** `rm`, `mv`, or `mkdir` on the user's drive. */
 	| { t: "home"; op: FileOp }
+	/** One change to the user's extensions, or a read of the catalog or of an extension's code. */
+	| { t: "extension"; reqId: string; op: ExtensionOp }
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[] }
@@ -187,6 +199,8 @@ export type UserToClient =
 	| { t: "home_refused"; op: FileOp; reason: string }
 	/** Not stored. The display names of a chat's agents that are typing now, sent when the set changes. */
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }
+	/** The answer to one `extension` frame, sent only to the socket that asked. */
+	| { t: "extension_result"; reqId: string; result: ExtensionResult }
 
 /** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */
 export type LoginEvent =

@@ -42,7 +42,7 @@ Sources: /durable-objects/platform/pricing/ (updated Sep 30 2026), /durable-obje
 | Storage per DO | doc FAQ says 1 GB on Free | 10 GB |
 | Key+value / row / string size | 2 MB | 2 MB |
 | WS message size | 32 MiB (received) | 32 MiB |
-| CPU per request/WS message/alarm | 30 s default (Paid configurable to 5 min). Free: UNVERIFIED (page says Workers limits apply per plan, which suggests 10 ms) | 30 s default, 5 min max |
+| CPU per request/WS message/alarm | 30 s default (Paid configurable to 5 min). Free: measured 2026-10-04 on a Free account, a Durable Object call ran 9.9 s of CPU and passed; the published 10 ms is not enforced there (experiment-2-turn-cost.md, experiment 4) | 30 s default, 5 min max |
 | Simultaneous outgoing connections | 6 | 6 |
 | Soft throughput per DO | ~1,000 req/s | same |
 - Duration is billed on 128 MB regardless of real usage (GB-s = seconds x 0.125).

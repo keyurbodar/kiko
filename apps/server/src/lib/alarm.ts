@@ -85,3 +85,32 @@ export function createAlarms(ctx: DurableObjectState): Alarms {
     },
   }
 }
+
+/** How long a failed wakeup waits before it runs again. */
+export const WAKEUP_RETRY_MS = 30_000
+
+/**
+ * Runs the handler of each due key on its own. `dueWakeups` has already claimed the keys, so a
+ * handler that throws would otherwise lose its wakeup (the runtime's alarm retry finds nothing due)
+ * and skip every handler after it. A failed key is set again `WAKEUP_RETRY_MS` later.
+ */
+export async function runDue(
+  alarms: Alarms,
+  due: readonly string[],
+  handlers: Readonly<Record<string, () => unknown>>,
+  options: { retryMs?: Readonly<Record<string, number>>; now?: () => number } = {},
+): Promise<string[]> {
+  const now = options.now ?? Date.now
+  const failed: string[] = []
+  for (const [key, handler] of Object.entries(handlers)) {
+    if (!due.includes(key)) continue
+    try {
+      await handler()
+    } catch (error) {
+      failed.push(key)
+      console.error(`wakeup ${key} failed: ${error instanceof Error ? error.message : String(error)}`)
+      await alarms.setWakeup(key, now() + (options.retryMs?.[key] ?? WAKEUP_RETRY_MS))
+    }
+  }
+  return failed
+}

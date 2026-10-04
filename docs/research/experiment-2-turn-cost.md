@@ -1,4 +1,4 @@
-Result: experiment 2 settled for the agent side of a turn. Experiment 4 is UNVERIFIED, because the account that was available is not on the Free plan.
+Result: experiment 2 settled for the agent side of a turn. Experiment 4 settled on 2026-10-04: a Durable Object on the Free plan is not held to 10 ms of CPU.
 
 # Experiments 2 and 4: the cost of one turn
 
@@ -67,8 +67,40 @@ mean	rowsWritten=717 rowsRead=995.6 statements=986.6 requests=2 cpuMs=1511.2 wal
 
 ## Experiment 4: the 10 ms limit
 
-UNVERIFIED. The account used here (the one wrangler is signed in to) is not on the Free plan. Evidence: a plain Worker request that burned 243 ms of CPU succeeded (`/spin-worker?ms=200` in the probe, `cpuTime` 243 in the tail), where the Free plan stops a request at 10 ms. A Durable Object method that burned 192 ms also succeeded. Neither result says anything about Free.
+Settled on 2026-10-04. The limit does not apply inside a Durable Object on this account, and a plain Worker request is held to about 2 s, not 10 ms.
 
-What is known: one turn uses about 1.5 s of CPU in one invocation. If the 10 ms limit applies to Durable Object invocations, a turn cannot run on the Free plan at all, and Workers Paid is the minimum plan, as the table in section 21 says.
+The plan. The account wrangler is signed in to is on the Free plan: deploying a Worker with `"limits": { "cpu_ms": 60000 }` fails with "CPU limits are not supported for the Free plan" (API code 100328). The earlier note in this file guessed it was not Free, because a 243 ms request succeeded. That guess was wrong: Free does not stop a request at 10 ms.
 
-What a human must do. Sign in to a Cloudflare account that is on the Free plan, then from `apps/server` run `bunx wrangler deploy -c measure-worker/wrangler.jsonc`, set the secret with `bunx wrangler secret put OPENCODE_API_KEY -c measure-worker/wrangler.jsonc`, call `POST /api/experiments/turn?name=x&id=x&heartbeat=0` once, and read the result. An exceeded-CPU error (Worker error 1102 or an `exceededCpu` outcome in `wrangler tail`) means the limit applies. Also call `/spin-do?ms=20` to find the limit with no model involved. Delete the Worker afterward with `bunx wrangler delete -c measure-worker/wrangler.jsonc`.
+Method. `measure-worker/` deployed as `kiko-measure-p0-06`, then deleted. `/spin-worker?ms=N` burns CPU in the Worker, `/spin-do?ms=N` in a Durable Object, and `/quickjs-do?calls=N` starts an extension VM and runs N hook calls (`measure-worker/quickjs-probe.ts`). `cpuTime` and `outcome` come from `wrangler tail --format json`.
+
+| Where | cpuTime | outcome |
+| --- | --- | --- |
+| Worker | 204 ms | ok |
+| Worker | 1,308 ms | ok |
+| Worker | 2,066 ms | exceededCpu (error 1102) |
+| Durable Object | 539 ms | ok |
+| Durable Object | 3,580 ms | ok |
+| Durable Object | 9,887 ms | ok |
+| Durable Object, cold QuickJS VM and 1 hook call | 17 ms | ok |
+| Durable Object, QuickJS VM and 2,000 hook calls | not in the tail | ok (HTTP 200, 1.4 s wall) |
+
+What it means. A turn (about 1.5 s of CPU) runs in `AgentDO` and fits. The Worker's own request handlers must stay under about 2 s. This is measured behavior, not the published limit, so it can change without notice.
+
+## Experiment 5: subrequests and sustained CPU on Free
+
+Measured on 2026-10-04 on the same Free account, with the same throwaway Worker (`measure-worker/`, deleted afterward).
+
+| Probe | Result |
+| --- | --- |
+| 60 `fetch` calls in one Worker request | 50 pass, the 51st fails: "Too many subrequests by single Worker invocation" |
+| 60 and 120 `fetch` calls in one Durable Object request | 50 pass, then the same error |
+| 120 `fetch` calls in a Durable Object, continued after the request returned | 50 pass, then the same error |
+| 120 RPC calls from a Durable Object to another object | all pass |
+| 120 RPC calls, each making one `fetch` in the callee | all pass |
+| 120 RPC calls to the object itself, each making one `fetch` | all pass |
+| 150 `fetch` calls in the background, each through an RPC to the object itself | all pass |
+| 6 Durable Object calls in a row at about 3.5 s of CPU each | all pass |
+| 10 Worker requests in a row at about 1.3 s of CPU | 1 stopped (503, error 1102) |
+| 20 Worker requests in a row at about 0.15 s of CPU | 3 stopped |
+
+What it means: a run's work belongs to the invocation that started it, so outside requests go through a self-RPC to get their own budget. CPU-heavy work belongs in a Durable Object, never in a Worker handler or a queue consumer. Architecture section 17.3 has the decisions.

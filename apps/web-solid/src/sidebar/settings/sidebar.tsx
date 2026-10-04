@@ -3,6 +3,7 @@ import { createSignal, For, Show } from "solid-js"
 import { session } from "../../app/session"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { SECTION_ICON, searchSections } from "../../settings/sections"
+import { useApp } from "../../lib/store"
 
 /*
  * The settings sidebar, laid out like kat's: a search, the signed-in user's card (which opens
@@ -65,6 +66,12 @@ export default function SettingsSidebar() {
               <Icon path={SECTION_ICON[s.id]} />
             </span>
             <span class="settings-row-label">{s.label}</span>
+            {/* Installs that wait for the human: a count, so an agent's proposal is never missed. */}
+            <Show when={s.id === "extensions" && (useApp.user()?.proposals().length ?? 0) > 0}>
+              <span class="ml-auto min-w-5 rounded-full bg-[var(--accent-fill)] px-1.5 text-center text-[11px] leading-5 text-[var(--on-accent)]" data-component="proposals-count">
+                {useApp.user()?.proposals().length}
+              </span>
+            </Show>
           </A>
         )}
       </For>

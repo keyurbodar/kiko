@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-111 tasks in 11 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+119 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -10,6 +10,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | --- | --- | --- | --- | --- | --- |
 | [P0-01](wave-00/P0-01-scaffold-the-server-worker-and-the-workspace.md) | Scaffold the server Worker and the workspace | infra | 2 | none | no |
 | [P0-02](wave-00/P0-02-clean-the-frontend-baseline.md) | Clean the frontend baseline | frontend | 2 | none | yes |
+| [P10-01](wave-00/P10-01-prove-quickjs-runs-in-a-durable-object.md) | Prove QuickJS runs in a Durable Object | backend | 2 | none | no |
 
 ## Wave 1
 
@@ -26,6 +27,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P0-14](wave-01/P0-14-upgrade-vite-and-compare-the-build.md) | Upgrade Vite and compare the build | frontend | 2 | P0-02 | yes |
 | [P1-01](wave-01/P1-01-build-the-alarm-multiplexer.md) | Build the alarm multiplexer | backend | 2 | P0-01 | yes |
 | [P1-02](wave-01/P1-02-add-accounts-with-better-auth-and-d1.md) | Add accounts with Better Auth and D1 | backend | 3 | P0-01 | yes |
+| [P10-02](wave-01/P10-02-define-the-extension-format.md) | Define the extension format | docs | 2 | P10-01 | yes |
 | [P2-01](wave-01/P2-01-rewrite-the-theme-to-the-kat-values.md) | Rewrite the theme to the kat values | frontend | 3 | P0-02 | yes |
 | [P3-02](wave-01/P3-02-reverse-swipe-to-reply.md) | Reverse swipe to reply | frontend | 2 | P0-02 | yes |
 | [P8-01](wave-01/P8-01-build-the-safe-fetcher.md) | Build the safe fetcher | backend | 4 | P0-01 | yes |
@@ -41,6 +43,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-07](wave-02/P1-07-write-the-bubble-splitter-and-the-reaction.md) | Write the bubble splitter and the reaction tag parser | backend | 3 | P0-03 | yes |
 | [P1-08](wave-02/P1-08-parse-agent-markdown-into-the-rich-text.md) | Parse agent markdown into the rich text tree | backend | 3 | P0-03 | yes |
 | [P1-09](wave-02/P1-09-add-the-verify-suite-runner-to-the.md) | Add the verify suite runner to the CLI | backend | 3 | P0-04, P1-02, P0-03 | yes |
+| [P10-04](wave-02/P10-04-store-extensions-in-userdo.md) | Store extensions in UserDO | backend | 3 | P10-02 | yes |
 | [P2-02](wave-02/P2-02-build-the-app-shell-and-the-routes.md) | Build the app shell and the routes | frontend | 3 | P0-02, P0-14 | yes |
 | [P2-05](wave-02/P2-05-build-the-indexeddb-warm-tier.md) | Build the IndexedDB warm tier | frontend | 4 | P0-02, P0-03 | yes |
 | [P3-01](wave-02/P3-01-port-the-typing-indicator.md) | Port the typing indicator | frontend | 3 | P2-01 | yes |
@@ -60,6 +63,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-04](wave-03/P1-04-build-the-room-event-log-and-socket.md) | Build the room event log and socket | backend | 4 | P1-03 | yes |
 | [P1-05](wave-03/P1-05-build-the-user-object-the-chat-index.md) | Build the user object, the chat index, and the user socket | backend | 3 | P1-03 | yes |
 | [P1-06](wave-03/P1-06-build-the-agent-host.md) | Build the agent host | backend | 5 | P0-05, P0-07, P1-01 | yes |
+| [P10-07](wave-03/P10-07-build-the-extensions-settings-page.md) | Build the extensions settings page | frontend | 3 | P10-04 | yes |
 | [P2-03](wave-03/P2-03-build-the-html-shell-and-split-the.md) | Build the HTML shell and split the bundle by tier | frontend | 4 | P2-02 | yes |
 | [P2-04](wave-03/P2-04-build-the-horizontal-tab-strip.md) | Build the horizontal tab strip | frontend | 3 | P2-01, P2-02 | yes |
 | [P2-06](wave-03/P2-06-build-the-sync-client-with-optimistic-patches.md) | Build the sync client with optimistic patches | frontend | 5 | P2-05 | yes |
@@ -132,6 +136,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
+| [P10-03](wave-08/P10-03-build-the-sandbox-and-the-compiler.md) | Build the sandbox and the compiler | backend | 4 | P10-02, P7-01, P1-10 | yes |
 | [P2-14](wave-08/P2-14-audit-the-frontend-verification-skill.md) | Audit the frontend verification skill | docs | 3 | P2-08, P2-09, P2-04 | yes |
 | [P2-17](wave-08/P2-17-fill-the-sidebar-for-every-section.md) | Fill the sidebar for every section | frontend | 2 | P2-19 | yes |
 | [P3-11](wave-08/P3-11-add-stop-edit-regenerate-and-pinned-messages.md) | Add stop, edit, regenerate, and pinned messages | frontend | 3 | P2-08 | yes |
@@ -155,6 +160,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
+| [P10-05](wave-09/P10-05-sync-extensions-into-each-run.md) | Sync extensions into each run | backend | 3 | P10-03, P10-04 | yes |
 | [P5-03](wave-09/P5-03-build-the-daily-tidy-job.md) | Build the daily tidy job | backend | 4 | P5-02 | yes |
 | [P6-04](wave-09/P6-04-add-spawn-agent-for-the-lead.md) | Add spawn_agent for the lead | backend | 3 | P6-02, P6-03 | yes |
 | [P6-06](wave-09/P6-06-enforce-human-priority-and-stop-across-a.md) | Enforce human priority and stop across a team | backend | 3 | P6-03 | yes |
@@ -166,6 +172,13 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
+| [P10-06](wave-10/P10-06-let-agents-write-extensions.md) | Let agents write extensions | backend | 3 | P10-05, P5-08, P8-05 | yes |
 | [P9-05](wave-10/P9-05-audit-both-verification-skills.md) | Audit both verification skills | docs | 3 | P6-09, P7-05, P8-08, P5-09 | yes |
 | [P9-06](wave-10/P9-06-measure-the-real-cost-and-update-the.md) | Measure the real cost and update the documents | docs | 2 | P6-04, P7-04, P0-06 | yes |
 | [P9-07](wave-10/P9-07-prepare-the-production-deploy.md) | Prepare the production deploy | infra | 3 | P9-01, P9-02, P9-04 | yes |
+
+## Wave 11
+
+| Task | Title | Area | Difficulty | Depends on | Parallel |
+| --- | --- | --- | --- | --- | --- |
+| [P10-08](wave-11/P10-08-seed-the-catalog.md) | Seed the catalog | backend | 2 | P10-06 | yes |

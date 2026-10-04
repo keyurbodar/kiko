@@ -23,7 +23,12 @@ import type { ExecutorTool } from "../integrations/executor/tools"
 
 const EXECUTOR_TOOLS_KEY = "executor_tools"
 const EXECUTOR_TOOLS_TTL_MS = 5 * 60_000
-import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
+import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
+import type { GuestResponse, Installed, ScriptPorts } from "./script/compile"
+import { hasScriptWasm, scriptWasm } from "./script/wasm"
+import { checkExtension } from "./script/check"
+import type { BuilderPorts } from "./extensions/builder"
+import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@kiko/protocol"
 import { createAlarms } from "../lib/alarm"
 import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
 import { storedRows, wipeStorage } from "../lib/wipe"
@@ -33,6 +38,10 @@ declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
+/** One outside request as it crosses to `egress`. */
+type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
+/** Extension bundles this agent fetched, by content hash (section 24.5). */
+const BUNDLE_PREFIX = "ext-bundle:"
 /** The model chosen for this agent in this room, and the one last applied to its conversation. */
 const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
@@ -69,6 +78,8 @@ export class AgentDO extends DurableObject<Env> {
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
       progress: () => this.outbox.progress(),
+      // Extension VMs live for a run. Wasm memory never shrinks, and the isolate's 128 MB is shared.
+      onIdle: () => this.#userExtensions?.release(),
       ...this.hostOptions,
       setup: () => this.setup(),
       onOpen: async (opened) => {
@@ -255,9 +266,19 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     const messaging = () => this.messagingPort()
-    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) return fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort())
+    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
+      const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort(), this.scriptPorts())
+      return {
+        ...fake,
+        beginRun: async (_batch, root) => {
+          await this.syncExtensions(fake.extensions, root)
+          return true
+        },
+      }
+    }
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
-    const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString())
+    const egress = this.egressFetch()
+    const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString(), egress)
     const soul = this.soulPort()
     // The chat's files at /, the user's drive at /home, and this agent's soul at /me, on one byte cache.
     const cache = new ObjectCache()
@@ -272,19 +293,162 @@ export class AgentDO extends DurableObject<Env> {
     const files = { fs, acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const executor = await this.executorTools()
+    const scripts = this.scriptPorts()
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), ...(scripts ? { scripts, builder: this.builderPorts(fs) } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
-      ...buildAgent({ ...role, model: await this.model(), files, soul, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort() }),
+      ...built,
       ...user,
       env: fs,
-      beginRun: (batch, root) => this.beginRun(batch.requestId, root),
+      beginRun: async (batch, root) => {
+        await this.syncExtensions(built.extensions, root)
+        return this.beginRun(batch.requestId, root)
+      },
       // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
         const down = executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
-        return [clock, down, quiet, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
+        const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
+        return [clock, down, quiet, extensions, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
       },
+    }
+  }
+
+  /**
+   * Architecture section 24.5. Before each run: read the versions this agent runs, fetch the
+   * bundles it has not seen, install them in the registry, and give the root conversation the new
+   * selection when it changed. A failure keeps what the agent had: an extension never stops a run.
+   */
+  private async syncExtensions(extensions: UserExtensions, root: Conversation): Promise<void> {
+    this.#userExtensions = extensions
+    const home = this.home()
+    if (!home) return
+    const user = userStub(this.env.USER, home.userId)
+    try {
+      const list = await user.extensionsFor(home.slug)
+      const installed: Installed[] = []
+      const missing: string[] = []
+      for (const item of list) {
+        const stored = await this.ctx.storage.get<Installed>(`${BUNDLE_PREFIX}${item.hash}`)
+        if (stored) installed.push(stored)
+        else missing.push(item.hash)
+      }
+      if (missing.length) {
+        for (const b of (await user.extensionBundles(missing)) as unknown as Installed[]) {
+          await this.ctx.storage.put(`${BUNDLE_PREFIX}${b.hash}`, b)
+          installed.push(b)
+        }
+      }
+      // Bundles no longer installed are dropped from storage.
+      const keep = new Set(list.map((i) => `${BUNDLE_PREFIX}${i.hash}`))
+      const stale = [...(await this.ctx.storage.list({ prefix: BUNDLE_PREFIX })).keys()].filter((k) => !keep.has(k))
+      if (stale.length) await this.ctx.storage.delete(stale)
+      const problems = extensions.sync(installed)
+      for (const p of problems) void user.extensionError(p.name, p.hash, p.error).catch(() => {})
+      // The run's context names what is installed, so the agent knows a tool it proposed is live now.
+      const broken = new Set(problems.map((p) => p.name))
+      this.#extensionsNote = installed
+        .filter((i) => !broken.has(i.name))
+        .map((i) => `${i.name} ${i.bundle.manifest.version}${Object.keys(i.bundle.manifest.tools ?? {}).length ? ` (tools: ${Object.keys(i.bundle.manifest.tools ?? {}).join(", ")})` : ""}`)
+        .join("; ")
+      const want = extensions.selection()
+      const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
+      if (want.map((e) => e.name).join("\n") !== have.join("\n")) await root.configure({ extensions: want }, BACKGROUND_CONTEXT)
+    } catch (error) {
+      console.error(`extensions not synced: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /**
+   * Architecture section 17.3. One outside request, made in its own invocation. On the Free plan an
+   * invocation may make 50 subrequests, and a run's work all belongs to the invocation that started
+   * it, so a long run would fail partway. A call through this object's own stub is a new incoming
+   * request with a fresh budget, and RPC calls do not count against the 50 (measured 2026-10-04).
+   * Only this object calls it, through `egressFetch`.
+   */
+  async egress(request: EgressRequest): Promise<Response> {
+    if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+    return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
+  }
+
+  /**
+   * A `fetch` that goes out through `egress`. An abort signal cannot cross RPC, so it is applied
+   * here: before the call it throws, and after it the body stream is cut.
+   */
+  private egressFetch(): typeof fetch {
+    const self = () => this.env.AGENT.get(this.ctx.id) as unknown as { egress(request: EgressRequest): Promise<Response> }
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
+      signal?.throwIfAborted()
+      // The request crosses as plain data: a request body streamed over RPC can be cut off before the
+      // other side reads it. Model requests are small JSON, so reading it whole costs nothing.
+      const request = new Request(input as RequestInfo, { ...init, signal: null })
+      const body = request.body ? await request.arrayBuffer() : null
+      const response = await self().egress({ url: request.url, method: request.method, headers: [...request.headers], body })
+      if (!signal || !response.body) return response
+      const { readable, writable } = new TransformStream()
+      response.body.pipeTo(writable, { signal }).catch(() => {})
+      return new Response(readable, { status: response.status, statusText: response.statusText, headers: response.headers })
+    }) as typeof fetch
+  }
+
+  /** This process's user extensions, so going idle can free their VMs. */
+  #userExtensions?: UserExtensions
+
+  /** The installed extensions, as one line for the run's context. Empty when there are none. */
+  #extensionsNote = ""
+
+  /** What a running extension script reaches, bound to this agent's user, room, and slug. Null without the QuickJS binary. */
+  private scriptPorts(): ScriptPorts | undefined {
+    if (!hasScriptWasm()) return undefined
+    const where = () => {
+      const home = this.home()
+      if (!home) throw new Error("this agent has no room yet")
+      return home
+    }
+    const scope = (kind: ExtensionStateScope) => {
+      const home = where()
+      return kind === "user" ? "user" : kind === "room" ? `room:${home.roomId}` : `agent:${home.roomId}:${home.slug}`
+    }
+    return {
+      wasm: scriptWasm,
+      state: async (name, kind, op, key, value) => {
+        const home = where()
+        // A private chat leaves no trace across chats (section 7.10): user-wide state only reads.
+        if (home.private && kind === "user" && (op === "set" || op === "delete")) throw new Error(PRIVATE_REFUSAL)
+        return userStub(this.env.USER, home.userId).extensionState(name, scope(kind), op, key, value)
+      },
+      fetch: async (name, request) => (await userStub(this.env.USER, where().userId).extensionFetch(name, request)) as GuestResponse,
+      env: () => {
+        const home = this.home()
+        return { agent: home?.slug ?? "agent", ...(home ? { room: home.roomId } : {}), timezone: this.#run?.timezone ?? "UTC" }
+      },
+      report: (name, hash, error) => {
+        const home = this.home()
+        if (home) void userStub(this.env.USER, home.userId).extensionError(name, hash, error).catch(() => {})
+      },
+    }
+  }
+
+  /** `extension_check` and `extension_propose`, on this chat's files. */
+  private builderPorts(fs: RoomFs): BuilderPorts {
+    const where = () => {
+      const home = this.home()
+      if (!home) throw new Error("this agent has no room yet")
+      return home
+    }
+    return {
+      fs,
+      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
+      propose: async (bundle, tainted) => {
+        const home = where()
+        const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId, tainted })) as ExtensionResult
+        if (out.ok && out.proposal) await roomStub(this.env.ROOM, home.userId, home.roomId).homeNotice(home.slug, `proposed the ${out.proposal.name} extension. review it in settings → extensions`)
+        return out
+      },
+      list: async () => (await userStub(this.env.USER, where().userId).extensionList()) as unknown as ExtensionInfo[],
+      source: async (name) => (await userStub(this.env.USER, where().userId).extensionSource(name)) as unknown as ExtensionBundle | null,
     }
   }
 

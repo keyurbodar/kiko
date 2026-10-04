@@ -313,3 +313,16 @@ test("does not mark a body of exactly 1 MB as truncated", async () => {
   expect(result.truncated).toBe(false)
   expect(result.body.byteLength).toBe(MB)
 })
+
+test("with the dns cache on, a second fetch to the same host makes no lookup, and each fetcher keeps its own answers", async () => {
+  const own: Fetcher = (url, init) => fetcher(url, init)
+  expect((await safeFetch("http://public.test/small", own, { dnsCache: true })).ok).toBe(true)
+  expect((await safeFetch("http://public.test/small", own, { dnsCache: true })).ok).toBe(true)
+  expect(lookups).toEqual(["A public.test", "AAAA public.test"])
+  expect(requests).toHaveLength(2)
+  // Off (the default for a fetcher a caller passes): every fetch looks the host up again.
+  lookups = []
+  await safeFetch("http://public.test/small", fetcher)
+  await safeFetch("http://public.test/small", fetcher)
+  expect(lookups).toHaveLength(4)
+})

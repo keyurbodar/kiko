@@ -1,0 +1,12 @@
+{
+  "kiko": 1,
+  "name": "daily-plan",
+  "version": "1.0.0",
+  "description": "every weekday at 9 your agent sends a short plan for the day, from the chat's goal and its task board.",
+  "sections": {
+    "daily-plan": { "text": "when a [daily-plan] reminder arrives, read /chat.md and the task board, then send the human the day's plan in three short lines: what matters most, what is next, and anything blocked. no greeting." }
+  },
+  "triggers": [
+    { "id": "morning", "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0", "send": "time for today's plan." }
+  ]
+}
