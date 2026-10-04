@@ -10,6 +10,7 @@ import type { Command } from "./registry"
 export function katCommands(deps: {
   toggleSidebar: () => void
   newChat: () => void
+  newGroup: () => void
   closeChat: () => void
   hasActiveChat: () => boolean
   toggleInfo: () => void
@@ -27,6 +28,7 @@ export function katCommands(deps: {
   return [
     { id: "view.toggle-sidebar", title: "view: toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+S", global: true, run: deps.toggleSidebar },
     { id: "chat.new", title: "chat: new", group: "chat", icon: "plus", shortcut: "Mod+N", alias: "Mod+T", run: deps.newChat },
+    { id: "chat.new-group", title: "chat: new group", group: "chat", icon: "plus", run: deps.newGroup },
     { id: "chat.reopen", title: "chat: reopen closed", group: "chat", icon: "undo", shortcut: "Mod+Shift+T", run: deps.reopenClosed },
     { id: "chat.attach", title: "chat: attach file...", group: "chat", icon: "attach", shortcut: "Mod+O", when: deps.hasActiveChat, run: deps.attach },
     { id: "chat.rename", title: "chat: rename", group: "chat", icon: "edit", shortcut: "F2", when: deps.hasActiveChat, run: deps.rename },

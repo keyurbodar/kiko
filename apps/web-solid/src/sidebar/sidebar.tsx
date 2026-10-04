@@ -6,6 +6,7 @@ import { runCommand } from "../commands/registry"
 import { cn } from "../lib/cn"
 import { ChatPanel } from "./chat-panel"
 import { PlusIcon } from "./icons"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import "./sidebar.css"
 
 /*
@@ -18,11 +19,23 @@ const PANELS: Record<SectionId, Component> = {
 }
 const SECTION_IDS = SECTIONS.map((section) => section.id)
 
-type PanelAction = { label: string; run: (navigate: (to: string) => void) => void }
+type PanelAction = {
+  label: string
+  run: (navigate: (to: string) => void) => void
+  /** When set, the + opens this menu of commands instead of running `run`. */
+  menu?: { label: string; command: string; shortcut?: string }[]
+}
 
 /** The header's one primary action. Settings has none. */
 const ACTIONS: Record<SectionId, PanelAction | null> = {
-  chat: { label: "new chat", run: () => runCommand("chat.new") },
+  chat: {
+    label: "new chat",
+    run: () => runCommand("chat.new"),
+    menu: [
+      { label: "new chat", command: "chat.new", shortcut: "⌘N" },
+      { label: "new group", command: "chat.new-group" },
+    ],
+  },
   settings: null,
 }
 
@@ -191,24 +204,45 @@ export function Sidebar(props: SidebarProps) {
 }
 
 /**
- * The `+` in the panel header: the section's one primary action. On chat it runs `chat.new`, the
- * same command as `Mod+N`: a temporary chat with kiko in a new tab. It does not own the sidebar toggle; the rail icon and `cmd+s` do.
+ * The `+` in the panel header. On chat it is a two-item menu: "new chat" (kiko, the same command
+ * as `Mod+N` and the bird in the top bar) and "new group", which opens the same temporary chat
+ * with its "to:" search already open. It does not own the sidebar toggle; the rail icon and
+ * `cmd+s` do.
  */
 function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
+  const button = cn(
+    "grid size-7 shrink-0 place-items-center rounded-full border-none bg-transparent p-0",
+    "text-weak hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] hover:text-text",
+    "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] focus-visible:text-text",
+  )
   return (
-    <button
-      type="button"
-      class={cn(
-        "grid size-7 shrink-0 place-items-center rounded-full border-none bg-transparent p-0",
-        "text-weak hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] hover:text-text",
-        "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] focus-visible:text-text",
-      )}
-      data-component="sidebar-add"
-      aria-label={props.action.label}
-      onClick={() => props.action.run(navigate)}
+    <Show
+      when={props.action.menu}
+      fallback={
+        <button type="button" class={button} data-component="sidebar-add" aria-label={props.action.label} onClick={() => props.action.run(navigate)}>
+          <PlusIcon />
+        </button>
+      }
     >
-      <PlusIcon />
-    </button>
+      {(items) => (
+        <MenuV2 gutter={6} placement="bottom-end">
+          <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label}>
+            <PlusIcon />
+          </MenuV2.Trigger>
+          <MenuV2.Portal>
+            <MenuV2.Content data-component="sidebar-add-menu">
+              <For each={items()}>
+                {(item) => (
+                  <MenuV2.Item shortcut={item.shortcut} onSelect={() => runCommand(item.command)}>
+                    {item.label}
+                  </MenuV2.Item>
+                )}
+              </For>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
+      )}
+    </Show>
   )
 }

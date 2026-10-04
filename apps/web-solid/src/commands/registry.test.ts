@@ -37,13 +37,14 @@ describe("registry", () => {
 })
 
 describe("kat commands", () => {
-  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, })
+  const list = katCommands({ toggleSidebar() {}, newChat() {}, newGroup() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, })
 
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.map((c) => [c.title, c.shortcut]))
     expect(map).toEqual({
       "view: toggle sidebar": "Mod+S",
       "chat: new": "Mod+N",
+      "chat: new group": undefined,
       "chat: reopen closed": "Mod+Shift+T",
       "chat: attach file...": "Mod+O",
       "chat: rename": "F2",

@@ -7,6 +7,7 @@ import { paletteRows } from "./model"
 const deps = (over: { newChat?: () => void } = {}) => ({
   toggleSidebar() {},
   newChat: over.newChat ?? (() => {}),
+  newGroup() {},
   closeChat() {},
   hasActiveChat: () => false,
   toggleInfo() {},
@@ -26,7 +27,7 @@ describe("palette rows", () => {
 
   test("keep registry order, drop disabled commands and the palette itself", () => {
     const titles = paletteRows(list).map((c) => c.title)
-    expect(titles).toEqual(["view: toggle sidebar", "chat: new", "chat: reopen closed", "chats: go to chat..."])
+    expect(titles).toEqual(["view: toggle sidebar", "chat: new", "chat: new group", "chat: reopen closed", "chats: go to chat..."])
   })
 
   test("palette.open and chats.go are enabled", () => {

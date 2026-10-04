@@ -8,6 +8,7 @@ import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { addOp } from "./members/model"
 import { pickerMatches, toChips } from "./to-bar-model"
+import { pickFor, setPickFor } from "./to-bar-state"
 
 /*
  * The "to:" row of a temporary chat, just above its composer until the first message is sent (architecture section 7.11). A chip for each
@@ -26,7 +27,17 @@ export function ToBar(props: { roomId: RoomId }) {
   const [at, setAt] = createSignal(0)
   /** kiko taken off an empty chat. Only this bar knows; the room keeps kiko until something is sent. */
   const [kikoOff, setKikoOff] = createSignal(false)
-  createEffect(on(() => props.roomId, () => (setKikoOff(false), setOpen(false))))
+  createEffect(
+    on(
+      () => props.roomId,
+      (id) => {
+        setKikoOff(false)
+        // "new group" asked for the search to be open on arrival.
+        setOpen(pickFor() === id)
+        if (pickFor() === id) setPickFor(null)
+      },
+    ),
+  )
 
   const empty = () => useApp.activeMessages().length === 0
   createEffect(() => {

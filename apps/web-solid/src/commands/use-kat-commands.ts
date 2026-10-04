@@ -9,6 +9,7 @@ import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openBirdPicker } from "../mascot/picker-state"
 import { useApp } from "../lib/store"
+import { setPickFor } from "../chat/to-bar-state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
@@ -33,6 +34,13 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       newChat: () => {
         const id = useApp.createTemp()
         if (id) navigate(`/chat/${id}`)
+      },
+      // A group starts the same way, with the "to:" search already open.
+      newGroup: () => {
+        const id = useApp.createTemp()
+        if (!id) return
+        setPickFor(id)
+        navigate(`/chat/${id}`)
       },
       openPalette: () => openPalette("commands"),
       openChats: () => openPalette("chats"),
