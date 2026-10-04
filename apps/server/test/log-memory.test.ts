@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { ROOM_SHAPE } from "../src/lib/optmem"
+import { ancestors, region, ROOM_SHAPE } from "../src/lib/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { migrate } from "../src/room/schema"
@@ -75,10 +75,10 @@ test("a view stays bounded at any length, keeps the newest turns verbatim, and r
 
 test("summaries are made once: a repeated pass writes nothing", async () => {
   const { memory, say, napAll, prompts } = room()
-  for (let i = 0; i < 100; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
+  for (let i = 0; i < 200; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
   await napAll()
   const made = prompts.length
-  expect(made).toBeGreaterThan(10)
+  expect(made).toBeGreaterThan(5)
   await napAll()
   expect(prompts.length).toBe(made)
 })
@@ -91,9 +91,10 @@ test("deleting an old message rebuilds only the summaries above its turn", async
   const before = prompts.length
   log.deleteMessages([first.id], human)
   await napAll()
-  // Turn 0's page, its 16, 32, and 64: four summaries, nothing else.
-  expect(prompts.length - before).toBe(4)
-  expect(prompts.at(-4)).not.toContain("passport")
+  // Turn 0's page and each node above it, nothing else.
+  const above = ancestors(0, region(100, ROOM_SHAPE), ROOM_SHAPE.page).length
+  expect(prompts.length - before).toBe(above)
+  expect(prompts.at(-above)).not.toContain("passport")
 })
 
 test("the burst a run answers is left out of its view, the rest of the burst stays", () => {
@@ -108,11 +109,13 @@ test("the burst a run answers is left out of its view, the rest of the burst sta
 
 test("taint climbs from a message into every summary above it", async () => {
   const { memory, say, napAll, now } = room()
-  for (let i = 0; i < 64; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined, i === 3)
+  const page = ROOM_SHAPE.page
+  for (let i = 0; i < ROOM_SHAPE.floor + 4 * page; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined, i === 3)
   await napAll()
-  expect(memory.node({ lo: 0, hi: 8 })!.tainted).toBe(true)
-  expect(memory.node({ lo: 8, hi: 16 })!.tainted).toBe(false)
-  expect(memory.zoom("0-15", now())).toContain("[outside]")
+  expect(memory.node({ lo: 0, hi: page })!.tainted).toBe(true)
+  expect(memory.node({ lo: page, hi: 2 * page })!.tainted).toBe(false)
+  expect(memory.node({ lo: 0, hi: 4 * page })!.tainted).toBe(true)
+  expect(memory.zoom(`0-${2 * page - 1}`, now())).toContain("[outside]")
 })
 
 test("a run's trace joins its reply, and a run that only acted gets a turn of its own", () => {
@@ -127,12 +130,13 @@ test("a run's trace joins its reply, and a run that only acted gets a turn of it
   expect(items.map((i) => i.text)).toEqual(["@ada: flights are in /flights.md (did: editing /flights.md)", "@bob: (deleted) (did: reading a web page)"])
 })
 
-test("a settled 64-turn stretch rolls up into the user's life once", async () => {
+test("a settled stretch of eight pages rolls up into the user's life once", async () => {
   const { say, napAll } = room()
-  for (let i = 0; i < 160; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
+  const size = ROOM_SHAPE.page * 8
+  for (let i = 0; i < ROOM_SHAPE.floor + 2 * size + 8; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
   const rollups: string[] = []
   await napAll(rollups)
-  expect(rollups).toEqual(["summary 0-63", "summary 64-127"])
+  expect(rollups).toEqual([`summary 0-${size - 1}`, `summary ${size}-${2 * size - 1}`])
   await napAll(rollups)
   expect(rollups.length).toBe(2)
 })

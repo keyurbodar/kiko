@@ -33,8 +33,8 @@ export type Shape = {
   retile: number
 }
 
-/** A room: 32 turns verbatim, then at most 48 lines. */
-export const ROOM_SHAPE: Shape = { page: 8, floor: 32, budget: 48, retile: 32 }
+/** A room: 32 turns verbatim, then at most 48 lines. A page is 16 turns, so a chat pays one summary per 8 turns. */
+export const ROOM_SHAPE: Shape = { page: 16, floor: 32, budget: 48, retile: 32 }
 /** A user's life: 16 lines verbatim, then at most 32 lines. */
 export const LIFE_SHAPE: Shape = { page: 8, floor: 16, budget: 32, retile: 24 }
 

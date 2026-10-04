@@ -70,8 +70,11 @@ async function chat(v: { url: string; as(name: string): Promise<any> }, mode: "c
     perRun.push({ input: now.input - last.input, output: now.output - last.output, cacheRead: now.cacheRead - last.cacheRead, cacheWrite: now.cacheWrite - last.cacheWrite })
     last = now
   }
+  const asked = answers().length
   await send("what's my gym locker code? just the number.")
-  const recalled = answers().at(-1) ?? ""
+  const end = Date.now() + 60_000
+  while (answers().length <= asked && Date.now() < end) await Bun.sleep(500)
+  const recalled = answers().slice(asked).join(" ")
   // Give the background summaries a moment, then read what they cost.
   await Bun.sleep(mode === "memory" ? 60_000 : 0)
   const memory = (await usage()).memory
@@ -94,9 +97,9 @@ const suite: Suite = {
       const per = (runs: Usage[], k: keyof Usage) => Math.round(sum(runs, k) / runs.length)
       console.log(`  ${mode}: requests' fresh input ${per(first, "input")} -> ${per(lastFive, "input")}, cached ${per(first, "cacheRead")} -> ${per(lastFive, "cacheRead")}, output ${per(lastFive, "output")} (first 5 runs -> last 5)`)
       console.log(`  ${mode}: total fresh ${sum(r.perRun, "input")}, cached ${sum(r.perRun, "cacheRead")}, output ${sum(r.perRun, "output")}; summaries ${JSON.stringify(r.memory)}`)
-      const all = (k: keyof Usage) => sum(r.perRun, k) + (r.memory[k] ?? 0)
-      const total = { input: all("input"), cacheRead: all("cacheRead"), output: all("output") }
-      console.log(`  ${mode}: cost with cache at 10%: ${Math.round(cost(total, CACHE_WEIGHT))}, at 2%: ${Math.round(cost(total, 0.02))}; turn 2 recalled: ${JSON.stringify(r.recalled)}`)
+      const agent = { input: sum(r.perRun, "input"), cacheRead: sum(r.perRun, "cacheRead"), output: sum(r.perRun, "output") }
+      const summaries = { input: r.memory.input ?? 0, cacheRead: r.memory.cacheRead ?? 0, output: r.memory.output ?? 0 }
+      console.log(`  ${mode}: cost with cache at 10%: agent ${Math.round(cost(agent, CACHE_WEIGHT))} + summaries ${Math.round(cost(summaries, CACHE_WEIGHT))}; at 2%: agent ${Math.round(cost(agent, 0.02))} + summaries ${Math.round(cost(summaries, 0.02))}; turn 2 recalled: ${JSON.stringify(r.recalled)}`)
     }
     if (!results.memory.recalled.includes("4417")) throw new VerifyError("memory mode lost the fact from turn 2")
   },
