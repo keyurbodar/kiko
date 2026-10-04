@@ -782,6 +782,11 @@
   /* A pane's lit edge. Solid has none; frost catches light along the top and the rim. */
   --glass-sheen: none;
   --row-sheen: none;
+  /* Menus, hover cards and the like. Solid is the opaque menu colour; frost is denser glass
+     with a live blur, the one place a blur earns its cost: a small box over moving content. */
+  --popover-bg: var(--menu-bg);
+  --popover-blur: none;
+  --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.08);
 }
 
 :root[data-material="frost"] {
@@ -803,6 +808,8 @@
   --dock-bg: transparent;
   --glass-sheen: inset 0 1px 0 oklch(100% 0 none / 0.07), inset 0 0 0 1px oklch(100% 0 none / 0.045);
   --row-sheen: inset 0 0 0 1px oklch(100% 0 none / 0.06);
+  --popover-bg: oklch(0.24 calc(0.016 * var(--tinge) * var(--cm)) var(--hue) / 0.8);
+  --popover-blur: blur(24px) saturate(1.4);
   --bg-sidebar: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
   --panel: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.62);
   --hover-bg: oklch(100% 0 none / 0.05);
@@ -841,6 +848,8 @@
   --panel: oklch(0.99 calc(0.006 * var(--tinge) * var(--cm)) var(--hue) / 0.7);
   --glass-sheen: inset 0 1px 0 oklch(100% 0 none / 0.8), inset 0 0 0 1px oklch(0% 0 none / 0.04);
   --row-sheen: inset 0 0 0 1px oklch(0% 0 none / 0.04);
+  --popover-bg: oklch(0.995 calc(0.004 * var(--tinge) * var(--cm)) var(--hue) / 0.82);
+  --popover-blur: blur(24px) saturate(1.4);
   --hover-bg: oklch(0% 0 none / 0.04);
   --selected-bg: oklch(0% 0 none / 0.07);
   --nav-hover-bg: oklch(0% 0 none / 0.04);

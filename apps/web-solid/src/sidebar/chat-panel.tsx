@@ -7,7 +7,6 @@ import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js"
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
-import { cn } from "../lib/cn"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
@@ -47,10 +46,7 @@ export function rowStamp(updatedAt: number, now: number): string {
   return `${Math.floor(delta / DAY)}d`
 }
 
-const menuClass = cn(
-  "min-w-[180px] rounded-[calc(20px*var(--brm))] p-2",
-  "border-none bg-menu text-base text-text shadow-menu",
-)
+const menuClass = "min-w-[180px]"
 
 /** What every chat's menu holds, in kat's order (screenshot 16). */
 function ChatMenuItems(props: { id: string }) {

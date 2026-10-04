@@ -30,9 +30,11 @@
      * screen after the pointer has left the row it describes. */
     pointer-events: none !important;
 
-    background: var(--surface-raised);
-    border-radius: calc(12px * var(--brm));
-    box-shadow: var(--v2-elevation-floating);
+    background: var(--popover-bg);
+    -webkit-backdrop-filter: var(--popover-blur);
+    backdrop-filter: var(--popover-blur);
+    border-radius: 12px;
+    box-shadow: var(--popover-edge), var(--menu-shadow);
 
     outline: none;
     color: var(--v2-text-text-base);

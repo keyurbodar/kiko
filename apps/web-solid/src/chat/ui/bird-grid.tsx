@@ -133,6 +133,8 @@ export default function BirdGrid() {
           }
           const target = seeds.reduce<Seed | null>((best, s) => (!best || Math.abs(s.x - beak) < Math.abs(best.x - beak) ? s : best), null)
           if (target) b.dir = target.x > beak ? 1 : -1
+          // A bird never walks into another: one in the way turns it round.
+          if (birds.some((o) => o !== b && Math.sign(o.x - b.x) === b.dir && Math.abs(o.x - b.x) < SPRITE_W + 2)) b.dir = b.dir === 1 ? -1 : 1
           if (b.x < 1) b.dir = 1
           if (b.x > cols - SPRITE_W - 1) b.dir = -1
           b.hop = 8

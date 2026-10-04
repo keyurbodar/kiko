@@ -15,14 +15,16 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    padding: 2px;
-    min-width: 160px;
+    padding: 4px;
+    min-width: 168px;
     z-index: 60;
     pointer-events: auto;
 
-    background: var(--v2-background-bg-layer-01);
-    border-radius: 6px;
-    box-shadow: var(--v2-elevation-floating);
+    background: var(--popover-bg);
+    -webkit-backdrop-filter: var(--popover-blur);
+    backdrop-filter: var(--popover-blur);
+    border-radius: 12px;
+    box-shadow: var(--popover-edge), var(--menu-shadow);
 
     outline: none;
 
@@ -60,9 +62,9 @@
     align-items: center;
     gap: 8px;
     height: 28px;
-    padding: 0 12px;
+    padding: 0 8px;
     background: transparent;
-    border-radius: 4px;
+    border-radius: 8px;
     outline: none;
     cursor: default;
     user-select: none;
@@ -161,12 +163,21 @@
       pointer-events: none;
       opacity: 0.5;
     }
+
+    /* A destructive item. Set here because this rule outranks a utility class. */
+    &.text-danger {
+      color: var(--danger);
+    }
+
+    &.text-danger[data-highlighted] {
+      background: var(--danger-wash);
+    }
   }
 
   [data-slot="menu-v2-separator"] {
     height: 1px;
-    width: calc(100% + 4px);
-    margin: 2px -2px;
+    width: calc(100% - 8px);
+    margin: 4px 4px;
     background: var(--v2-border-border-muted);
     border: none;
   }
