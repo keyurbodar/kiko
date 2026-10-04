@@ -54,25 +54,27 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  /* Dark values from kat-replica tokens.css; the screenshot pixels match them.
-     The sidebar is DARKER than the panel. */
-  --l-grey-sidebar: 0.1442;
-  --l-grey-canvas: 0.1837;
-  --l-grey-subtle: 0.2383;
-  --l-grey-elevated: 0.2332;
-  --l-grey-assistant: 0.2423;
-  --l-grey-input: 0.228;
-  --l-grey-menu: 0.273;
-  --l-grey-chip: 0.3432;
-  --l-grey-hairline: 0.3015;
-  --l-grey-thumb: 0.3749;
-  --l-grey-thumb-hover: 0.4815;
-  --l-grey-text-faint: 0.6686;
-  --l-grey-text-muted: 0.7678;
-  --l-grey-text: 0.884;
-  --c-neutral: 0;
-  --c-neutral-raised: 0;
-  --c-neutral-assistant: 0;
+  /* Graphite, the solid dark: Claude-like near-black greys. The sidebar is a step darker
+     than the panel, and a selected row is one step lighter than a hovered one. */
+  --l-grey-sidebar: 0.175;
+  --l-grey-canvas: 0.205;
+  --l-grey-subtle: 0.235;
+  --l-grey-elevated: 0.24;
+  --l-grey-assistant: 0.255;
+  --l-grey-input: 0.235;
+  --l-grey-menu: 0.25;
+  --l-grey-chip: 0.33;
+  --l-grey-hairline: 0.3;
+  --l-grey-thumb: 0.37;
+  --l-grey-thumb-hover: 0.48;
+  --l-grey-text-faint: 0.58;
+  --l-grey-text-muted: 0.72;
+  --l-grey-text: 0.93;
+  /* The greys take the theme's hue in proportion to `--tint`, the person's setting (0 to 1). */
+  --tinge: 0.5;
+  --c-neutral: calc(0.014 * var(--tinge));
+  --c-neutral-raised: calc(0.014 * var(--tinge));
+  --c-neutral-assistant: calc(0.012 * var(--tinge));
 
   /* The brand: plum by default. A preset sets `--hue` and `--h-brand` together
      and scales chroma with `--cm`. Lightness is shared by every preset. */
@@ -112,33 +114,33 @@
   --c-menu-bg: var(--c-neutral-raised);
   --l-input-bg: var(--l-grey-input);
   --c-input-bg: var(--c-neutral-raised);
-  --l-hover-bg: 0.2066;
-  --c-hover-bg: 0;
-  --l-selected-bg: 0.2583;
-  --c-selected-bg: 0.014;
-  --l-nav-active-bg: 0.29;
-  --c-nav-active-bg: 0.035;
-  --l-nav-hover-bg: 0.2121;
-  --c-nav-hover-bg: 0;
-  --l-tooltip-bg: 0.3294;
+  --l-hover-bg: 0.225;
+  --c-hover-bg: var(--c-neutral);
+  --l-selected-bg: 0.27;
+  --c-selected-bg: calc(var(--c-neutral) * 1.4);
+  --l-nav-active-bg: 0.27;
+  --c-nav-active-bg: calc(var(--c-neutral) * 1.4);
+  --l-nav-hover-bg: 0.225;
+  --c-nav-hover-bg: var(--c-neutral);
+  --l-tooltip-bg: 0.3;
   --c-tooltip-bg: var(--c-neutral-raised);
   --l-scrollbar-thumb: var(--l-grey-thumb);
   --c-scrollbar-thumb: var(--c-neutral);
   --l-scrollbar-thumb-hover: var(--l-grey-thumb-hover);
   --c-scrollbar-thumb-hover: var(--c-neutral);
-  --l-tint-subtle: 0.2921;
+  --l-tint-subtle: 0.28;
   --c-tint-subtle: var(--c-neutral-raised);
   --l-tint: var(--l-grey-chip);
   --c-tint: var(--c-neutral-raised);
-  --l-tint-strong: 0.4107;
+  --l-tint-strong: 0.4;
   --c-tint-strong: var(--c-neutral-raised);
 
   --l-text: var(--l-grey-text);
-  --c-text: 0.004;
+  --c-text: calc(0.004 * var(--tinge));
   --l-text-muted: var(--l-grey-text-muted);
-  --c-text-muted: 0.006;
+  --c-text-muted: calc(0.01 * var(--tinge));
   --l-text-faint: var(--l-grey-text-faint);
-  --c-text-faint: 0.006;
+  --c-text-faint: calc(0.012 * var(--tinge));
 
   --l-accent: var(--l-brand-mark);
   --c-accent: var(--c-brand-mark);
@@ -339,8 +341,8 @@
 
 :root {
   /* Cards sit into the panel, like kat's lists: darker than it in dark, white in light. */
-  --l-card: 0.152;
-  --card: oklch(var(--l-card) 0 0);
+  --l-card: 0.235;
+  --card: oklch(var(--l-card) calc(var(--c-neutral) * var(--cm)) var(--hue));
   --card-shadow: none;
   --hue: 340;
   --h-text: var(--hue);
@@ -597,6 +599,16 @@
   --board-column-gap: 12px;
   --board-card-gap: 8px;
 
+  /* sidebar. A count is grey: the accent is spent on the unread dot and the @, the two marks
+     that are about you. `--sidebar-solid` is the opaque colour behind the sidebar, for the
+     ring that cuts a dot out of an avatar. */
+  --count-bg: var(--tint);
+  --count-text: var(--text);
+  --count-muted-bg: var(--tint-subtle);
+  --count-muted-text: var(--text-faint);
+  --sidebar-solid: var(--bg-sidebar);
+  --sidebar-w: 272px;
+
   /* shared accent mixes, so a component never writes `oklch(from ...)` */
   --accent-wash: oklch(from var(--accent) l c h / 12%);
   --accent-wash-strong: oklch(from var(--accent) l c h / 22%);
@@ -705,27 +717,28 @@
 
 :root[data-appearance="light"] {
   color-scheme: light;
-  --l-grey-hairline: 0.885;
+  /* Porcelain, the solid light: paper greys. The tint carries the hue here too. */
+  --l-grey-hairline: 0.89;
   --l-grey-thumb: 0.8;
   --l-grey-thumb-hover: 0.7;
-  --l-bg: 0.985;
+  --l-bg: 0.988;
   --l-bg-sidebar: 0.962;
-  --l-bg-subtle: 0.95;
+  --l-bg-subtle: 0.955;
   --l-surface-raised: 1;
   --l-menu-bg: 1;
-  --l-input-bg: 0.95;
+  --l-input-bg: 0.955;
   --l-hover-bg: 0.935;
-  --l-selected-bg: 0.915;
-  --l-nav-active-bg: 0.89;
+  --l-selected-bg: 0.905;
+  --l-nav-active-bg: 0.905;
   --l-nav-hover-bg: 0.935;
   --l-tooltip-bg: 0.28;
   --l-tint-subtle: 0.935;
-  --l-tint: 0.905;
+  --l-tint: 0.9;
   --l-tint-strong: 0.86;
   --l-text: 0.22;
-  --l-text-muted: 0.47;
-  --l-text-faint: 0.63;
-  --l-assistant-bubble: 0.94;
+  --l-text-muted: 0.45;
+  --l-text-faint: 0.6;
+  --l-assistant-bubble: 0.945;
   --l-brand-user: 0.52;
   --l-brand-fill: 0.52;
   --l-brand-mark: 0.5;
@@ -744,10 +757,97 @@
   --l-gold: 0.6;
   --segment-shadow: 0 1px 4px oklch(0% 0 none / 0.12);
   --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
-  --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.12), 0 10px 28px oklch(0% 0 none / 0.14);
+  --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.1), 0 10px 28px oklch(0% 0 none / 0.12);
   --out-quote-bg: oklch(0% 0 none / 0.14);
   --l-card: 1;
-  --card-shadow: 0 0 0 1px oklch(0% 0 none / 0.06), 0 1px 2px oklch(0% 0 none / 0.04);
+  --card-shadow: 0 1px 2px oklch(0% 0 none / 0.05);
+  --count-bg: var(--text);
+  --count-text: var(--bg);
+}
+
+/* -----------------------------------------------------------------------------
+   4d. Frost
+
+   Translucent panels over a still scene. The scene is soft gradients painted on
+   `body`, so nothing needs a live blur: the glass is the panels' alpha over a
+   picture that is already soft. `--panel` is the main panel's own fill and
+   `--bg-sidebar` the shell's. `--bg` stays the opaque colour the eye sees
+   there, because fades, cut-outs and rings paint with it.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --panel: var(--bg);
+  --scene: none;
+}
+
+:root[data-material="frost"] {
+  --scene-l: 0.24;
+  --scene-c: calc(0.02 * var(--tinge) * var(--cm));
+  --scene-1: oklch(0.33 calc(var(--scene-c) * 1.5) calc(var(--hue) - 10));
+  --scene-2: oklch(0.18 calc(var(--scene-c) * 0.8) var(--hue));
+  --scene-3: oklch(0.38 calc(var(--scene-c) * 1.7) var(--hue));
+  --scene-4: oklch(0.22 calc(var(--scene-c) * 1.5) calc(var(--hue) - 20));
+  /* Four soft shapes over a base, placed as the frost mockup placed them. Each holds its
+     colour to 55% of its radius and fades out by the edge, like a blurred blob. */
+  --scene:
+    radial-gradient(23% 19% at 17% 27%, var(--scene-1) 55%, transparent),
+    radial-gradient(30% 15% at 60% 61%, var(--scene-2) 55%, transparent),
+    radial-gradient(17% 20% at 87% 14%, var(--scene-3) 55%, transparent),
+    radial-gradient(20% 17% at 26% 93%, var(--scene-4) 55%, transparent),
+    oklch(var(--scene-l) var(--scene-c) var(--hue));
+  --bg-sidebar: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
+  --panel: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.62);
+  --hover-bg: oklch(100% 0 none / 0.05);
+  --selected-bg: oklch(100% 0 none / 0.1);
+  --nav-hover-bg: oklch(100% 0 none / 0.05);
+  --nav-active-bg: oklch(100% 0 none / 0.1);
+  --input-bg: oklch(0% 0 none / 0.2);
+  --tint-subtle: oklch(100% 0 none / 0.08);
+  --tint: oklch(100% 0 none / 0.12);
+  --bg-subtle: oklch(100% 0 none / 0.06);
+  --card: oklch(100% 0 none / 0.06);
+  --tab-bg-active: oklch(100% 0 none / 0.1);
+  --sidebar-solid: oklch(0.215 calc(0.016 * var(--tinge) * var(--cm)) var(--hue));
+}
+
+:root[data-material="frost"]:not([data-appearance="light"]) {
+  --count-bg: oklch(100% 0 none / 0.16);
+  --count-muted-bg: oklch(100% 0 none / 0.08);
+  /* The mockup's glass: brighter text, a lighter bubble for you, a softer one for agents. */
+  --l-text: 0.95;
+  --l-text-muted: 0.76;
+  --l-text-faint: 0.62;
+  --l-assistant-bubble: 0.275;
+  --l-brand-user: 0.47;
+  --c-brand-user: 0.085;
+  --l-user-bubble: var(--l-brand-user);
+  --l-user-bubble-deep: var(--l-brand-user);
+}
+
+:root[data-material="frost"][data-appearance="light"] {
+  --scene-l: 0.9;
+  --scene-1: oklch(0.82 calc(var(--scene-c) * 1.5) calc(var(--hue) - 10));
+  --scene-2: oklch(0.95 calc(var(--scene-c) * 0.8) var(--hue));
+  --scene-3: oklch(0.84 calc(var(--scene-c) * 1.7) var(--hue));
+  --scene-4: oklch(0.86 calc(var(--scene-c) * 1.5) calc(var(--hue) - 20));
+  --bg-sidebar: oklch(0.98 calc(0.01 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
+  --panel: oklch(0.99 calc(0.006 * var(--tinge) * var(--cm)) var(--hue) / 0.7);
+  --hover-bg: oklch(0% 0 none / 0.04);
+  --selected-bg: oklch(0% 0 none / 0.07);
+  --nav-hover-bg: oklch(0% 0 none / 0.04);
+  --nav-active-bg: oklch(0% 0 none / 0.07);
+  --input-bg: oklch(100% 0 none / 0.55);
+  --tint-subtle: oklch(0% 0 none / 0.05);
+  --tint: oklch(0% 0 none / 0.08);
+  --bg-subtle: oklch(0% 0 none / 0.035);
+  --card: oklch(100% 0 none / 0.6);
+  --tab-bg-active: oklch(100% 0 none / 0.7);
+  --sidebar-solid: oklch(0.94 calc(0.012 * var(--tinge) * var(--cm)) var(--hue));
+}
+
+:root[data-material="frost"] body {
+  background: var(--scene);
+  background-attachment: fixed;
 }
 
 /* -----------------------------------------------------------------------------
@@ -808,6 +908,7 @@
   --color-foreground: var(--text);
   --color-text: var(--text);
   --color-weak: var(--text-muted);
+  --color-muted: var(--text-muted);
   --color-faint: var(--text-faint);
   --color-accent: var(--accent);
   --color-accent-fill: var(--accent-fill);

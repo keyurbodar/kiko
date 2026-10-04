@@ -1,5 +1,5 @@
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
-import { X } from "lucide-solid"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { dayChipLabel, formatFullTimestamp } from "../lib/dayLabel"
@@ -94,7 +94,7 @@ export function DateChip(props: {
               aria-label="close calendar"
               onClick={close}
             >
-              <X class="size-3.5" aria-hidden="true" />
+              <HugeIcon name="close" class="size-3.5" aria-hidden="true" />
             </button>
           </Show>
         </div>

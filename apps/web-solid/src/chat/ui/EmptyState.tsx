@@ -1,4 +1,4 @@
-import { Heart } from "lucide-solid"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { Bird } from "../../mascot/bird"
 import { cn } from "../../lib/cn"
 
@@ -18,7 +18,7 @@ export function EmptyState(props: { class?: string }) {
       aria-hidden="true"
     >
       <span class="relative opacity-30 grayscale">
-        <Heart size={18} stroke-width={1.75} class="absolute -top-3 -left-2 text-text" />
+        <HugeIcon name="heart" size={18} stroke-width={1.75} class="absolute -top-3 -left-2 text-text" />
         <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={72} />
       </span>
     </div>

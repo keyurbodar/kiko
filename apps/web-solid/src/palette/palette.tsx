@@ -1,6 +1,6 @@
 import { useNavigate } from "@solidjs/router"
 import { Command as Cmdk } from "cmdk-solid"
-import { Icon } from "@kiko/ui/icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { For, Show, createEffect, createMemo } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
@@ -79,7 +79,7 @@ export default function Palette() {
                 <For each={rows()}>
                   {(command) => (
                     <Cmdk.Item class="palette-row" value={command.title} onSelect={() => run(command.run)}>
-                      <Icon name={iconFor(command.icon) as never} size="small" />
+                      <HugeIcon name={iconFor(command.icon)} size={16} />
                       <span class="palette-label">{command.title}</span>
                       <Show when={command.shortcut}>
                         {(shortcut) => <span class="palette-keys">{displayShortcut(shortcut())}</span>}

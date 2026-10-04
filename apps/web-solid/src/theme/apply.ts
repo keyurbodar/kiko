@@ -5,7 +5,7 @@
 // Every function here is a no-op without a DOM, so tests can import it.
 
 import { setFavicon } from "../mascot/logo"
-import { DEFAULT_LOOK, type Look, type Mode } from "./look"
+import { DEFAULT_LOOK, type Look, type Material, type Mode } from "./look"
 import { DEFAULT_PRESET, presetFor } from "./presets"
 import { parseTheme, resolveTheme, type ResolvedTheme, type Theme } from "./schema"
 
@@ -13,7 +13,7 @@ import { parseTheme, resolveTheme, type ResolvedTheme, type Theme } from "./sche
 export const CACHE_KEY = "kiko:look"
 
 export type Appearance = "dark" | "light"
-export type Cache = { v: 2; text: string; mode: Mode; vars: ResolvedTheme }
+export type Cache = { v: 2; text: string; mode: Mode; material?: Material; tint?: number; vars: ResolvedTheme }
 
 export type Compiled = { ok: true; theme: Theme; notes: string[] } | { ok: false; errors: string[] }
 
@@ -53,6 +53,8 @@ function paint(look: Look): void {
   for (const [name, value] of Object.entries(next)) root.style.setProperty(name, value)
   applied = new Set(Object.keys(next))
   root.dataset.appearance = appearance
+  root.dataset.material = look.material
+  root.style.setProperty("--tinge", String(look.tint))
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
   // The boot screen and the overscroll area read this, so it follows the panel colour.
@@ -103,7 +105,7 @@ export function readCache(): Cache | null {
 export function writeCache(text: string | null, look: Look): void {
   try {
     if (text === null) localStorage.removeItem(CACHE_KEY)
-    else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 2, text, mode: look.mode, vars: resolveLook(look) } satisfies Cache))
+    else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 2, text, mode: look.mode, material: look.material, tint: look.tint, vars: resolveLook(look) } satisfies Cache))
   } catch {
     // storage can be blocked. the look still applies for this page load.
   }

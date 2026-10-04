@@ -6,6 +6,7 @@ import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
 import { preloadSearch } from "../search/state"
+import { SidebarToggle } from "../sidebar"
 
 /*
  * The 50 px bar over the main panel, laid out as kat's: the bird at the far left, the chat tabs,
@@ -13,7 +14,7 @@ import { preloadSearch } from "../search/state"
  * into a + under the pointer, as kat's cat does.
  * Other sections have no bar: the sidebar already names them, and their panel starts at the top.
  */
-export function TopBar() {
+export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const location = useLocation()
   const section = () => sectionOf(location.pathname)
   const chatId = () => {
@@ -23,6 +24,9 @@ export function TopBar() {
   return (
     <Show when={section() === "chat"}>
       <header class="flex h-[50px] shrink-0 items-center gap-2 px-3 text-sm font-medium text-muted" data-component="top-bar">
+        <Show when={!props.sidebarOpen}>
+          <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
+        </Show>
         <button
           type="button"
           class="group/new grid size-8 shrink-0 place-items-center rounded-[9px] text-[var(--tab-text)] hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"

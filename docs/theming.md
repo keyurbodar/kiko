@@ -54,7 +54,7 @@ DEVIATION from the plan: `kat.css` has five radius variables, so `radius` has `b
 | `accentFill` | `--accent-fill` | a CSS color | `oklch( var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--hue) )` | filled buttons |
 | `accentHover` | `--accent-hover` | a CSS color | `oklch( var(--l-brand-hover) calc(var(--c-brand-hover) * var(--cm)) var(--hue) )` |  |
 | `onAccent` | `--on-accent` | a CSS color | `oklch( var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--hue) )` | text on a filled accent |
-| `card` | `--card` | a CSS color | `oklch(var(--l-card) 0 0)` | recessed cards: settings, the info panel, memory |
+| `card` | `--card` | a CSS color | `oklch(var(--l-card) calc(var(--c-neutral) * var(--cm)) var(--hue))` | recessed cards: settings, the info panel, memory |
 | `assistantBubble` | `--assistant-bubble` | a CSS color | `oklch( var(--l-assistant-bubble) calc(var(--c-assistant-bubble) * var(--cm)) var(--hue) )` |  |
 | `assistantBubbleText` | `--assistant-bubble-text` | a CSS color | `var(--text)` |  |
 | `userBubble` | `--user-bubble` | a CSS color | `oklch( var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm)) var(--h-brand) )` |  |
@@ -140,23 +140,24 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 
 | Variable | Kind | Default |
 | --- | --- | --- |
-| `--l-grey-sidebar` | number | `0.1442` |
-| `--l-grey-canvas` | number | `0.1837` |
-| `--l-grey-subtle` | number | `0.2383` |
-| `--l-grey-elevated` | number | `0.2332` |
-| `--l-grey-assistant` | number | `0.2423` |
-| `--l-grey-input` | number | `0.228` |
-| `--l-grey-menu` | number | `0.273` |
-| `--l-grey-chip` | number | `0.3432` |
-| `--l-grey-hairline` | number | `0.3015` |
-| `--l-grey-thumb` | number | `0.3749` |
-| `--l-grey-thumb-hover` | number | `0.4815` |
-| `--l-grey-text-faint` | number | `0.6686` |
-| `--l-grey-text-muted` | number | `0.7678` |
-| `--l-grey-text` | number | `0.884` |
-| `--c-neutral` | number | `0` |
-| `--c-neutral-raised` | number | `0` |
-| `--c-neutral-assistant` | number | `0` |
+| `--l-grey-sidebar` | number | `0.175` |
+| `--l-grey-canvas` | number | `0.205` |
+| `--l-grey-subtle` | number | `0.235` |
+| `--l-grey-elevated` | number | `0.24` |
+| `--l-grey-assistant` | number | `0.255` |
+| `--l-grey-input` | number | `0.235` |
+| `--l-grey-menu` | number | `0.25` |
+| `--l-grey-chip` | number | `0.33` |
+| `--l-grey-hairline` | number | `0.3` |
+| `--l-grey-thumb` | number | `0.37` |
+| `--l-grey-thumb-hover` | number | `0.48` |
+| `--l-grey-text-faint` | number | `0.58` |
+| `--l-grey-text-muted` | number | `0.72` |
+| `--l-grey-text` | number | `0.93` |
+| `--tinge` | number | `0.5` |
+| `--c-neutral` | any | `calc(0.014 * var(--tinge))` |
+| `--c-neutral-raised` | any | `calc(0.014 * var(--tinge))` |
+| `--c-neutral-assistant` | any | `calc(0.012 * var(--tinge))` |
 | `--l-brand-user` | number | `0.4156` |
 | `--h-brand` | number | `340` |
 | `--l-brand-fill` | number | `0.5514` |
@@ -178,43 +179,43 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--c-signal-gold` | number | `0.15` |
 | `--h-signal-gold` | number | `88` |
 | `--l-bg` | number | `var(--l-grey-canvas)` |
-| `--c-bg` | number | `var(--c-neutral)` |
+| `--c-bg` | any | `var(--c-neutral)` |
 | `--l-bg-sidebar` | number | `var(--l-grey-sidebar)` |
-| `--c-bg-sidebar` | number | `var(--c-neutral)` |
+| `--c-bg-sidebar` | any | `var(--c-neutral)` |
 | `--l-bg-subtle` | number | `var(--l-grey-subtle)` |
-| `--c-bg-subtle` | number | `var(--c-neutral-raised)` |
+| `--c-bg-subtle` | any | `var(--c-neutral-raised)` |
 | `--l-surface-raised` | number | `var(--l-grey-elevated)` |
-| `--c-surface-raised` | number | `var(--c-neutral-raised)` |
+| `--c-surface-raised` | any | `var(--c-neutral-raised)` |
 | `--l-menu-bg` | number | `var(--l-grey-menu)` |
-| `--c-menu-bg` | number | `var(--c-neutral-raised)` |
+| `--c-menu-bg` | any | `var(--c-neutral-raised)` |
 | `--l-input-bg` | number | `var(--l-grey-input)` |
-| `--c-input-bg` | number | `var(--c-neutral-raised)` |
-| `--l-hover-bg` | number | `0.2066` |
-| `--c-hover-bg` | number | `0` |
-| `--l-selected-bg` | number | `0.2583` |
-| `--c-selected-bg` | number | `0.014` |
-| `--l-nav-active-bg` | number | `0.29` |
-| `--c-nav-active-bg` | number | `0.035` |
-| `--l-nav-hover-bg` | number | `0.2121` |
-| `--c-nav-hover-bg` | number | `0` |
-| `--l-tooltip-bg` | number | `0.3294` |
-| `--c-tooltip-bg` | number | `var(--c-neutral-raised)` |
+| `--c-input-bg` | any | `var(--c-neutral-raised)` |
+| `--l-hover-bg` | number | `0.225` |
+| `--c-hover-bg` | any | `var(--c-neutral)` |
+| `--l-selected-bg` | number | `0.27` |
+| `--c-selected-bg` | any | `calc(var(--c-neutral) * 1.4)` |
+| `--l-nav-active-bg` | number | `0.27` |
+| `--c-nav-active-bg` | any | `calc(var(--c-neutral) * 1.4)` |
+| `--l-nav-hover-bg` | number | `0.225` |
+| `--c-nav-hover-bg` | any | `var(--c-neutral)` |
+| `--l-tooltip-bg` | number | `0.3` |
+| `--c-tooltip-bg` | any | `var(--c-neutral-raised)` |
 | `--l-scrollbar-thumb` | number | `var(--l-grey-thumb)` |
-| `--c-scrollbar-thumb` | number | `var(--c-neutral)` |
+| `--c-scrollbar-thumb` | any | `var(--c-neutral)` |
 | `--l-scrollbar-thumb-hover` | number | `var(--l-grey-thumb-hover)` |
-| `--c-scrollbar-thumb-hover` | number | `var(--c-neutral)` |
-| `--l-tint-subtle` | number | `0.2921` |
-| `--c-tint-subtle` | number | `var(--c-neutral-raised)` |
+| `--c-scrollbar-thumb-hover` | any | `var(--c-neutral)` |
+| `--l-tint-subtle` | number | `0.28` |
+| `--c-tint-subtle` | any | `var(--c-neutral-raised)` |
 | `--l-tint` | number | `var(--l-grey-chip)` |
-| `--c-tint` | number | `var(--c-neutral-raised)` |
-| `--l-tint-strong` | number | `0.4107` |
-| `--c-tint-strong` | number | `var(--c-neutral-raised)` |
+| `--c-tint` | any | `var(--c-neutral-raised)` |
+| `--l-tint-strong` | number | `0.4` |
+| `--c-tint-strong` | any | `var(--c-neutral-raised)` |
 | `--l-text` | number | `var(--l-grey-text)` |
-| `--c-text` | number | `0.004` |
+| `--c-text` | any | `calc(0.004 * var(--tinge))` |
 | `--l-text-muted` | number | `var(--l-grey-text-muted)` |
-| `--c-text-muted` | number | `0.006` |
+| `--c-text-muted` | any | `calc(0.01 * var(--tinge))` |
 | `--l-text-faint` | number | `var(--l-grey-text-faint)` |
-| `--c-text-faint` | number | `0.006` |
+| `--c-text-faint` | any | `calc(0.012 * var(--tinge))` |
 | `--l-accent` | number | `var(--l-brand-mark)` |
 | `--c-accent` | number | `var(--c-brand-mark)` |
 | `--l-accent-fill` | number | `var(--l-brand-fill)` |
@@ -229,7 +230,7 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--c-gold` | number | `var(--c-signal-gold)` |
 | `--h-gold` | number | `var(--h-signal-gold)` |
 | `--l-assistant-bubble` | number | `var(--l-grey-assistant)` |
-| `--c-assistant-bubble` | number | `var(--c-neutral-assistant)` |
+| `--c-assistant-bubble` | any | `var(--c-neutral-assistant)` |
 | `--l-user-bubble` | number | `var(--l-brand-user)` |
 | `--c-user-bubble` | number | `var(--c-brand-user)` |
 | `--l-user-bubble-deep` | number | `var(--l-brand-user)` |
@@ -239,8 +240,8 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--c-on-accent` | number | `var(--c-brand-on)` |
 | `--radius-row` | length | `20px` |
 | `--radius-field` | length | `999px` |
-| `--l-card` | number | `0.152` |
-| `--card` | color | `oklch(var(--l-card) 0 0)` |
+| `--l-card` | number | `0.235` |
+| `--card` | color | `oklch(var(--l-card) calc(var(--c-neutral) * var(--cm)) var(--hue))` |
 | `--card-shadow` | any | `none` |
 | `--hue` | number | `340` |
 | `--h-text` | number | `var(--hue)` |
@@ -373,12 +374,20 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--board-card-hover` | color | `var(--menu-bg)` |
 | `--board-column-gap` | length | `12px` |
 | `--board-card-gap` | length | `8px` |
+| `--count-bg` | color | `var(--tint)` |
+| `--count-text` | color | `var(--text)` |
+| `--count-muted-bg` | color | `var(--tint-subtle)` |
+| `--count-muted-text` | color | `var(--text-faint)` |
+| `--sidebar-solid` | color | `var(--bg-sidebar)` |
+| `--sidebar-w` | length | `272px` |
 | `--accent-wash` | color | `oklch(from var(--accent) l c h / 12%)` |
 | `--accent-wash-strong` | color | `oklch(from var(--accent) l c h / 22%)` |
 | `--accent-wash-faint` | color | `oklch(from var(--accent) l c h / 16%)` |
 | `--text-wash` | color | `oklch(from var(--text) l c h / 6%)` |
 | `--danger-wash` | color | `oklch(from var(--danger) l c h / 12%)` |
 | `--scrim` | color | `oklch(0% 0 none / 0.6)` |
+| `--panel` | color | `var(--bg)` |
+| `--scene` | any | `none` |
 | `--v2-background-bg-base` | color | `var(--input-bg)` |
 | `--v2-background-bg-deep` | color | `var(--bg)` |
 | `--v2-background-bg-layer-01` | color | `var(--bg-subtle)` |

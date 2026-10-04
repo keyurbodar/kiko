@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { buildDoc, buildTokensFile, DOC_FILE, TOKENS_FILE } from "../../scripts/gen-theme"
 import { parseKat, ROOT } from "../../scripts/theme-tokens"
 import { applyCommitted, CACHE_KEY, compileTheme, endPreview, preview, resolveLook, writeCache } from "./apply"
-import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
+import { DEFAULT_LOOK, DEFAULT_TINT, formatLook, parseLook, STYLES, styleOf, withStyle, type Look } from "./look"
 import { KNOWN_TOKENS } from "./known-tokens"
 import { PRESETS, presetFor } from "./presets"
 import { FIELDS, PRESET_IDS, parseTheme, resolveTheme, type Theme } from "./schema"
@@ -210,11 +210,31 @@ describe("the look record", () => {
   })
 
   test("a look survives the round trip, and bad bird entries are dropped", () => {
-    const look: Look = { mode: "light", theme: { preset: "sage" }, birds: { scout: "cardinal.2.leaf" } }
+    const look: Look = { mode: "light", material: "solid", tint: 0.25, theme: { preset: "sage" }, birds: { scout: "cardinal.2.leaf" } }
     expect(parseLook(formatLook(look))).toEqual(look)
     const raw = JSON.parse(formatLook(look))
     raw.birds = { scout: "cardinal.2.leaf", "Bad Slug": "x", other: "<script>" }
     expect(parseLook(JSON.stringify(raw)).birds).toEqual({ scout: "cardinal.2.leaf" })
+  })
+
+  test("a look without a material or tint is frost at the default tint, and a tint is clamped", () => {
+    const old = parseLook(JSON.stringify({ version: 1, kind: "look", mode: "dark", preset: "sage", birds: {} }))
+    expect([old.material, old.tint]).toEqual(["frost", DEFAULT_TINT])
+    const loud = parseLook(JSON.stringify({ version: 1, kind: "look", mode: "dark", material: "chrome", tint: 7 }))
+    expect([loud.material, loud.tint]).toEqual(["frost", 1])
+    expect(parseLook(JSON.stringify({ version: 1, kind: "look", tint: -1 })).tint).toBe(0)
+  })
+
+  test("the three styles map to a material and an appearance, and back", () => {
+    const base = { ...DEFAULT_LOOK, mode: "system" as const }
+    expect(withStyle(base, "graphite")).toMatchObject({ material: "solid", mode: "dark" })
+    expect(withStyle(base, "porcelain")).toMatchObject({ material: "solid", mode: "light" })
+    expect(withStyle({ ...base, material: "solid", mode: "light" }, "frost")).toMatchObject({ material: "frost", mode: "light" })
+    for (const style of STYLES) {
+      const look = withStyle(base, style)
+      const appearance = look.mode === "light" ? "light" : "dark"
+      expect(styleOf(look, appearance)).toBe(style)
+    }
   })
 
   test("the server keeps it, because it is a version 1 object", () => {
@@ -249,15 +269,17 @@ describe("applying", () => {
   test("sets the variables and the appearance, previews, reverts, and clears what a reset leaves", () => {
     const { root, style, classes, dataset } = fakeRoot()
     g.document = { documentElement: root }
-    const custom: Look = { mode: "dark", theme: { custom: { version: 1, name: "c", colors: { accent: "#c00" } } }, birds: {} }
+    const custom: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "c", colors: { accent: "#c00" } } }, birds: {} }
     applyCommitted(custom)
     expect([style["--accent"], dataset.appearance, classes.has("dark")]).toEqual(["#c00", "dark", true])
-    preview({ mode: "light", theme: { preset: "mono" }, birds: {} })
+    preview({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, birds: {} })
     expect([style["--accent"] ?? "", style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["", "0.22", "light", false])
     endPreview()
     expect([style["--accent"], "--l-brand-user" in style, dataset.appearance]).toEqual(["#c00", false, "dark"])
+    expect([dataset.material, style["--tinge"]]).toEqual(["solid", "0.5"])
     applyCommitted({ ...DEFAULT_LOOK, mode: "dark" })
-    expect(Object.keys(style).filter((k) => k.startsWith("--") && k !== "--boot-bg")).toEqual([])
+    expect(Object.keys(style).filter((k) => k.startsWith("--") && k !== "--boot-bg" && k !== "--tinge")).toEqual([])
+    expect([dataset.material, style["--tinge"]]).toEqual(["frost", String(DEFAULT_TINT)])
   })
 })
 
@@ -271,17 +293,23 @@ describe("the pre-paint script", () => {
     new Function("document", "localStorage", "matchMedia", script)({ documentElement: root }, storage, () => ({ matches: prefersLight }))
     return { style, classes, dataset }
   }
-  const cacheOf = (look: Look) => JSON.stringify({ v: 2, text: "x", mode: look.mode, vars: resolveLook(look) })
+  const cacheOf = (look: Look) => JSON.stringify({ v: 2, text: "x", mode: look.mode, material: look.material, tint: look.tint, vars: resolveLook(look) })
 
   test("paints the cached variables for the saved appearance", () => {
-    const { style, dataset, classes } = boot(cacheOf({ mode: "light", theme: { preset: "mono" }, birds: {} }))
+    const { style, dataset, classes } = boot(cacheOf({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, birds: {} }))
     expect([style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["0.22", "light", false])
   })
 
   test("system follows the system", () => {
-    const cache = cacheOf({ mode: "system", theme: { preset: "mono" }, birds: {} })
+    const cache = cacheOf({ mode: "system", material: "solid", tint: 0.5, theme: { preset: "mono" }, birds: {} })
     expect(boot(cache, true).dataset.appearance).toBe("light")
     expect(boot(cache, false).style["--l-brand-user"]).toBe("0.9")
+  })
+
+  test("paints the material and tint before first paint, and frost without a cache", () => {
+    const { style, dataset } = boot(cacheOf({ mode: "dark", material: "solid", tint: 0.2, theme: { preset: "mono" }, birds: {} }))
+    expect([dataset.material, style["--tinge"]]).toEqual(["solid", "0.2"])
+    expect([boot(null).dataset.material, boot(null).style["--tinge"]]).toEqual(["frost", "0.5"])
   })
 
   test("falls back to the system appearance with no cache or a broken one", () => {
@@ -296,7 +324,7 @@ describe("the pre-paint script", () => {
       setItem: (k: string, v: string) => void (store[k] = v),
       removeItem: (k: string) => void delete store[k],
     }
-    const look: Look = { mode: "dark", theme: { custom: { version: 1, name: "g", colors: { accent: "#0a0" } } }, birds: {} }
+    const look: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "g", colors: { accent: "#0a0" } } }, birds: {} }
     writeCache("text", look)
     expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe("#0a0")
     delete (globalThis as { localStorage?: unknown }).localStorage

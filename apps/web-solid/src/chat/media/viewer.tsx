@@ -1,6 +1,6 @@
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { ChevronLeft, ChevronRight, Minus, Plus, Scan, X } from "lucide-solid"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js"
 import type { MediaItem } from "../../lib/types"
 import {
@@ -527,7 +527,7 @@ export default function MediaViewer(props: {
               aria-label="close"
               onClick={() => void requestClose()}
             >
-              <X aria-hidden="true" />
+              <HugeIcon name="close" size={24} aria-hidden="true" />
             </button>
 
             {/* The dialog's accessible name, so it is real text: a viewer with a
@@ -593,7 +593,7 @@ export default function MediaViewer(props: {
             aria-label="previous item"
             onClick={() => step(-1)}
           >
-            <ChevronLeft aria-hidden="true" />
+            <HugeIcon name="chevron-left" size={24} aria-hidden="true" />
           </button>
 
           <button
@@ -604,7 +604,7 @@ export default function MediaViewer(props: {
             aria-label="next item"
             onClick={() => step(1)}
           >
-            <ChevronRight aria-hidden="true" />
+            <HugeIcon name="chevron-right" size={24} aria-hidden="true" />
           </button>
 
           {/* A clip's own controls are its zoom, so the pill is a photo's only. */}
@@ -616,7 +616,7 @@ export default function MediaViewer(props: {
                 aria-label="zoom out"
                 onClick={() => changeScale(scale() - ZOOM_STEP)}
               >
-                <Minus aria-hidden="true" />
+                <HugeIcon name="minus" size={24} aria-hidden="true" />
               </button>
               <input
                 class="media-viewer-zoom-range"
@@ -634,7 +634,7 @@ export default function MediaViewer(props: {
                 aria-label="zoom in"
                 onClick={() => changeScale(scale() + ZOOM_STEP)}
               >
-                <Plus aria-hidden="true" />
+                <HugeIcon name="plus" size={24} aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -642,7 +642,7 @@ export default function MediaViewer(props: {
                 aria-label="fit to the window"
                 onClick={fit}
               >
-                <Scan aria-hidden="true" />
+                <HugeIcon name="scan" size={24} aria-hidden="true" />
               </button>
             </div>
           </Show>

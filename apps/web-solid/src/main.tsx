@@ -8,7 +8,6 @@ import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
 import { loadMotion } from "./lib/motion";
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
-import { ensureSprite } from "@kiko/ui/icon";
 import { startSnapshots } from "./lib/snapshot";
 
 const SignIn = lazy(() => import("./app/sign-in"));
@@ -73,7 +72,6 @@ export function start(): void {
 function preload(): void {
   void loadOverlaysV2();
   void loadMotion();
-  ensureSprite();
 }
 
 function whenIdle(task: () => void): void {

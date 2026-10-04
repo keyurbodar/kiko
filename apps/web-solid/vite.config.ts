@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 import solid from "vite-plugin-solid";
@@ -40,53 +38,8 @@ function modelCatalog(): Plugin {
   };
 }
 
-/*
- * Dev only. `import { X } from "lucide-solid"` loads the package's source barrel, which imports
- * every icon: about 1,800 module requests on the first dev load, because vite-plugin-solid keeps
- * packages with a `solid` export condition out of the dependency optimizer. This rewrites each
- * named import to the icon's own module, `lucide-solid/icons/<name>`. The build is unchanged:
- * it tree-shakes the barrel.
- */
-function lucideDeepImports(): Plugin {
-  let icons: Map<string, string> | undefined
-  const load = () => {
-    if (icons) return icons
-    icons = new Map()
-    const dist = resolve(dirname(createRequire(import.meta.url).resolve("lucide-solid")), "../source")
-    for (const file of ["icons/index.jsx", "aliases/aliases.jsx"]) {
-      const text = readFileSync(resolve(dist, file), "utf8")
-      const files = new Map<string, string>()
-      for (const m of text.matchAll(/import\s*\{\s*default as (\w+)\s*\}\s*from\s*"[^"]*\/([^"/]+)"/g)) files.set(m[1]!, m[2]!)
-      for (const m of text.matchAll(/^\s+(\w+) as (\w+),?$/gm)) {
-        const icon = files.get(m[1]!)
-        if (icon) icons.set(m[2]!, icon)
-      }
-    }
-    return icons
-  }
-  return {
-    name: "kiko-lucide-deep-imports",
-    apply: "serve",
-    enforce: "pre",
-    transform(code, id) {
-      if (id.includes("/node_modules/") || !code.includes("lucide-solid")) return undefined
-      const out = code.replace(/import\s*\{([^}]*)\}\s*from\s*["']lucide-solid["'];?/g, (whole, list: string) => {
-        const names = list.split(",").map((part) => part.trim()).filter(Boolean)
-        const lines = names.map((spec) => {
-          const [name, local = name] = spec.split(/\s+as\s+/)
-          const icon = load().get(name!)
-          return icon ? `import ${local} from "lucide-solid/icons/${icon}";` : undefined
-        })
-        // Same line count, so the source map of everything below stays right.
-        return lines.every(Boolean) ? lines.join(" ") + "\n".repeat(whole.split("\n").length - 1) : whole
-      })
-      return out === code ? undefined : { code: out, map: null }
-    },
-  }
-}
-
 export default defineConfig({
-  plugins: [lucideDeepImports(), solid(), tailwindcss(), modelCatalog()],
+  plugins: [solid(), tailwindcss(), modelCatalog()],
   optimizeDeps: {
     // Plain JS that Kobalte (kept out of the optimizer by vite-plugin-solid) imports file by file.
     include: ["@kiko/ui > @kobalte/core > @internationalized/date", "@kiko/ui > @kobalte/core > @internationalized/number"],

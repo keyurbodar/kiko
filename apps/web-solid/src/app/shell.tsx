@@ -17,9 +17,8 @@ import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
 // The shortcut pills load on the first modifier press, with the palette, so the hold shows them at once.
 const HintLayer = lazy(() => import("../commands/HintLayer"));
-import { Sidebar } from "../sidebar";
+import { Sidebar, SidebarToggle } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
-import { Rail } from "./rail";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
 
@@ -66,9 +65,10 @@ function writeCollapsed(value: boolean) {
 }
 
 /*
- * The kat frame around every screen: rail, sidebar column, then the main panel
- * with its 32 px top-left corner and the top bar. The shell is the router's
- * root, so it never remounts on a route change and the swap is instant.
+ * The frame around every screen: the sidebar column, then the main column with the top bar
+ * over a rounded panel. In frost the shell is glass over the scene `kat.css` paints on the
+ * body, and the panel is a second, denser pane. The shell is the router's root, so it never
+ * remounts on a route change and the swap is instant.
  *
  * `sidebar-shell` is the flex row the sidebar's stylesheet is scoped under.
  */
@@ -164,11 +164,11 @@ export function Shell(props: ParentProps) {
         data-component="app-shell"
         data-section={sectionOf(location.pathname) ?? undefined}
       >
-        <Rail collapsed={closed()} onToggleSidebar={toggle} />
         <Sidebar
           section={sectionOf(location.pathname)}
           collapsed={closed()}
           onCollapsedChange={setAndSave}
+          onToggle={toggle}
         />
         <Show when={narrow() && drawer()}>
           <div
@@ -178,13 +178,18 @@ export function Shell(props: ParentProps) {
             onPointerDown={() => setDrawer(false)}
           />
         </Show>
-        {/* kat's shape: the top bar sits on the shell's own background, and the rounded panel starts
-            under it. A section without a top bar (settings) gets the panel from the very top. */}
-        <main class="flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-          <TopBar />
+        {/* The top bar sits on the shell, and the panel is a rounded pane under it. A section
+            without a top bar (settings) gets the panel from the top, and the sidebar button
+            floats over its corner while the sidebar is shut. */}
+        <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
+          <TopBar sidebarOpen={!closed()} onToggleSidebar={toggle} />
+          <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
+            <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
+          </Show>
           <div
-            class="@container/main relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-tl-[32px] bg-bg"
+            class="main-panel @container/main relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
             data-component="main-panel"
+            data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
           >
             <div class="flex min-w-0 flex-1 flex-col">
               {props.children}

@@ -1,3 +1,4 @@
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openBirdPicker } from "../mascot/picker-state"
@@ -294,45 +295,57 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
         <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" />
 
         <span class="chat-text">
-          <span class="chat-title-line">
+          <span class="chat-line">
             <RowTitle id={props.bot.id} title={props.bot.name} />
-            {/* tweb's mention badge: a round @ beside the unread mark while a mention of you is unread. */}
-            <Show when={props.bot.mentions}>
-              <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="you were mentioned">@</i>
-            </Show>
-            <Show when={unread()}>
-              <i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
+            <Show when={props.muted}>
+              <HugeIcon name="mute" size={12} class="chat-muted-icon" />
             </Show>
             <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
           </span>
 
-          <span
-            class="chat-preview"
-            data-typing={props.bot.presence === "typing" ? "" : undefined}
-            data-empty={!props.bot.preview && !draft() && props.bot.presence !== "typing" ? "" : undefined}
-          >
-            <Show
-              when={props.bot.presence === "typing"}
-              fallback={
-                <Show
-                  when={draft()}
-                  fallback={
-                    <>
-                      <Show when={props.bot.previewFrom}>
-                        <span class="chat-preview-from" data-component="sidebar-preview-from">{props.bot.previewFrom}:</span>{" "}
-                      </Show>
-                      {props.bot.preview}
-                    </>
-                  }
-                >
-                  <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
-                </Show>
-              }
+          <span class="chat-line">
+            <span
+              class="chat-preview"
+              data-typing={props.bot.presence === "typing" ? "" : undefined}
+              data-empty={!props.bot.preview && !draft() && props.bot.presence !== "typing" ? "" : undefined}
             >
-              {props.bot.typing ?? "typing"}
-              <i class="typing-dot" aria-hidden="true" />
-              <i class="typing-dot" aria-hidden="true" />
-              <i class="typing-dot" aria-hidden="true" />
+              <Show
+                when={props.bot.presence === "typing"}
+                fallback={
+                  <Show
+                    when={draft()}
+                    fallback={
+                      <>
+                        <Show when={props.bot.previewFrom}>
+                          <span class="chat-preview-from" data-component="sidebar-preview-from">{props.bot.previewFrom}:</span>{" "}
+                        </Show>
+                        {props.bot.preview}
+                      </>
+                    }
+                  >
+                    <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
+                  </Show>
+                }
+              >
+                {props.bot.typing ?? "typing"}
+                <i class="typing-dot" aria-hidden="true" />
+                <i class="typing-dot" aria-hidden="true" />
+                <i class="typing-dot" aria-hidden="true" />
+              </Show>
+            </span>
+            {/* tweb's mention badge: a round @ beside the count while a mention of you is unread. */}
+            <Show when={props.bot.mentions}>
+              <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="you were mentioned">@</i>
+            </Show>
+            <Show when={unread()}>
+              <Show
+                when={props.bot.unread > 0}
+                fallback={<i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-label="marked unread" role="img" />}
+              >
+                <span class="chat-count" data-component="sidebar-unread-count" role="img" aria-label={`${props.bot.unread} unread`}>
+                  {props.bot.unread > 99 ? "99+" : props.bot.unread}
+                </span>
+              </Show>
             </Show>
           </span>
         </span>
@@ -357,12 +370,12 @@ function SearchRow(props: {
   return (
     <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="go to chat">
       <label class="chat-search-field">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
+        <HugeIcon name="search" size={15} />
         <input
           type="text"
           class="chat-search-input"
           data-component="sidebar-search-input"
-          placeholder="search chats"
+          placeholder="search"
           aria-label="search chats"
           autocomplete="off"
           spellcheck={false}
@@ -385,7 +398,7 @@ function SearchRow(props: {
         title="unread only"
         onClick={() => props.onUnreadOnly(!props.unreadOnly)}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 5H14M2 11H14" /><circle cx="10" cy="5" r="1.6" fill="var(--bg-sidebar)" /><circle cx="6" cy="11" r="1.6" fill="var(--bg-sidebar)" /></svg>
+        <HugeIcon name="filter" size={16} />
       </button>
     </div>
   )

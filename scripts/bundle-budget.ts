@@ -26,12 +26,10 @@ const TIER3 = [
   "src/chat/info/panel.tsx",
   "src/chat/ui/DateCalendar.tsx",
   "../../node_modules/.bun/emoji-picker-element@1.29.1/node_modules/emoji-picker-element/index.js",
-  // Loaded after first paint, on idle or first use: Kobalte overlays, the toaster, motion, icon glyphs.
+  // Loaded after first paint, on idle or first use: Kobalte overlays, the toaster, motion.
   "../../packages/ui/src/v2/components/overlays-impl.ts",
   "../../packages/ui/src/v2/components/toast-v2-impl.tsx",
   "../../node_modules/.bun/motion@12.34.5/node_modules/motion/dist/es/index.mjs",
-  "../../packages/ui/src/components/icon-paths.ts",
-  "../../packages/ui/src/v2/components/icon-bodies.ts",
   // Loaded on intent: the composer's attachment strip and popover, its link card, the picker wrapper, the masked link warning.
   "src/composer/prompt-input/extras.tsx",
   "src/composer/link-preview.tsx",

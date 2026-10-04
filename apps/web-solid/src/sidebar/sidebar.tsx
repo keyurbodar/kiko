@@ -1,11 +1,14 @@
 import { createPerPointerListeners } from "@solid-primitives/pointer"
-import { useNavigate } from "@solidjs/router"
+import { A, useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { session } from "../app/session"
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
-import { cn } from "../lib/cn"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
+import { Bird } from "../mascot/bird"
 import { ChatPanel } from "./chat-panel"
-import { PlusIcon } from "./icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import "./sidebar.css"
 
@@ -40,23 +43,25 @@ const ACTIONS: Record<SectionId, PanelAction | null> = {
 }
 
 /** Width is a user decision, so it is clamped rather than free. */
-const MIN_W = 200
+const MIN_W = 220
 const MAX_W = 420
 /** Mirrors `--sidebar-content-w`; used only until the first drag. */
-const DEFAULT_W = 280
+const DEFAULT_W = 272
 
 export interface SidebarProps {
   /** The active section, read from the URL by the shell. */
   section: SectionId | null
   collapsed: boolean
   onCollapsedChange: (collapsed: boolean) => void
+  /** The sidebar's own button and `cmd+s` both call this. */
+  onToggle: () => void
 }
 
 /**
- * The sidebar column. The rail is its sibling in the shell's flex row, and the
- * stylesheet scopes every rule under `.sidebar-shell`, the row's own class, so
- * nothing here can reach the main panel beside it. Which section it shows, and
- * whether it is collapsed, come from the shell; only its width is its own.
+ * The one sidebar: the brand and its two actions on top, the section's panel in the middle,
+ * and you and settings at the foot. The stylesheet scopes every rule under `.sidebar-shell`,
+ * the shell's own class, so nothing here can reach the main panel beside it. Which section it
+ * shows, and whether it is collapsed, come from the shell; only its width is its own.
  *
  * Deliberately NOT `.chat-shell`: that name is already the `data-component`
  * handle for the app's chat pane, and a bare class of it collided with the
@@ -153,8 +158,13 @@ export function Sidebar(props: SidebarProps) {
         style={{ "--sidebar-content-w": width() === null ? undefined : `${width()}px` }}
       >
         <header class="panel-header">
-          <span class="panel-title">{props.section}</span>
+          <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="chats">
+            <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={22} />
+            <span>kiko</span>
+          </A>
+          <span class="flex-1" aria-hidden="true" />
           <Show when={props.section && ACTIONS[props.section]}>{(action) => <HeaderAction action={action()} />}</Show>
+          <SidebarToggle open onToggle={props.onToggle} />
         </header>
 
         <div class="panel-scroll">
@@ -173,6 +183,8 @@ export function Sidebar(props: SidebarProps) {
             }}
           </For>
         </div>
+
+        <Foot section={props.section} />
 
         {/* The handle lives INSIDE the panel, not beside it: the panel is the
             positioned ancestor, so `right: -1.5px` lands on the panel's edge.
@@ -203,32 +215,78 @@ export function Sidebar(props: SidebarProps) {
   )
 }
 
+/** Opens and closes the sidebar. The top bar shows the same button while the sidebar is shut. */
+export function SidebarToggle(props: { open: boolean; onToggle: () => void; class?: string }) {
+  return (
+    <TooltipV2 placement="bottom" openDelay={400} value={props.open ? "hide sidebar" : "show sidebar"}>
+      <button
+        type="button"
+        class={props.class ?? "panel-icon-button"}
+        data-component="sidebar-toggle"
+        aria-label="toggle sidebar"
+        aria-expanded={props.open}
+        aria-keyshortcuts="Control+S Meta+S"
+        data-hint="view.toggle-sidebar"
+        onClick={() => props.onToggle()}
+      >
+        <HugeIcon name="sidebar-left" size={17} />
+      </button>
+    </TooltipV2>
+  )
+}
+
+/** You and settings, at the foot of every section. The card opens the account page. */
+function Foot(props: { section: SectionId | null }) {
+  const user = () => {
+    const s = session()
+    return s.status === "signed-in" ? s.user : null
+  }
+  return (
+    <footer class="panel-foot" data-component="sidebar-foot">
+      <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="account">
+        <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
+        <span class="panel-me-name">{(user()?.name ?? "you").toLowerCase()}</span>
+      </A>
+      <TooltipV2 placement="top" openDelay={400} value="settings">
+        <A
+          href="/settings"
+          class="panel-icon-button"
+          data-component="sidebar-settings"
+          data-hint="settings.open"
+          data-hint-label="settings"
+          data-active={props.section === "settings" ? "" : undefined}
+          aria-current={props.section === "settings" ? "page" : undefined}
+          aria-label="settings"
+        >
+          <HugeIcon name="settings" size={17} />
+        </A>
+      </TooltipV2>
+    </footer>
+  )
+}
+
 /**
- * The `+` in the panel header. On chat it is a two-item menu: "new chat" (kiko, the same command
+ * The compose button in the panel header. On chat it is a two-item menu: "new chat" (kiko, the same command
  * as `Mod+N` and the bird in the top bar) and "new group", which opens the same temporary chat
  * with its "to:" search already open. It does not own the sidebar toggle; the rail icon and
  * `cmd+s` do.
  */
 function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
-  const button = cn(
-    "grid size-7 shrink-0 place-items-center rounded-full border-none bg-transparent p-0",
-    "text-weak hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] hover:text-text",
-    "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] focus-visible:text-text",
-  )
+  const button = "panel-icon-button"
   return (
     <Show
       when={props.action.menu}
       fallback={
         <button type="button" class={button} data-component="sidebar-add" aria-label={props.action.label} onClick={() => props.action.run(navigate)}>
-          <PlusIcon />
+          <HugeIcon name="compose" size={17} />
         </button>
       }
     >
       {(items) => (
         <MenuV2 gutter={6} placement="bottom-end">
           <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="new chat">
-            <PlusIcon />
+            <HugeIcon name="compose" size={17} />
           </MenuV2.Trigger>
           <MenuV2.Portal>
             <MenuV2.Content data-component="sidebar-add-menu">

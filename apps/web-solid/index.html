@@ -1,5 +1,5 @@
 <!doctype html>
-<html class="dark" lang="en" data-appearance="dark">
+<html class="dark" lang="en" data-appearance="dark" data-material="frost">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
@@ -11,11 +11,13 @@
       /* the look before first paint: the appearance, then the theme's variables for it.
          src/theme/apply.ts writes this cache under the same key. */
       (function () {
-        var d = document.documentElement, mode = "system", vars = null;
+        var d = document.documentElement, mode = "system", vars = null, material = "frost", tint = 0.5;
         try {
           var c = JSON.parse(localStorage.getItem("kiko:look"));
-          if (c && c.v === 2) { mode = c.mode; vars = c.vars; }
+          if (c && c.v === 2) { mode = c.mode; vars = c.vars; if (c.material) material = c.material; if (typeof c.tint === "number") tint = c.tint; }
         } catch (e) {}
+        d.dataset.material = material;
+        d.style.setProperty("--tinge", String(tint));
         var a = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
         d.dataset.appearance = a;
         d.classList.toggle("dark", a === "dark");

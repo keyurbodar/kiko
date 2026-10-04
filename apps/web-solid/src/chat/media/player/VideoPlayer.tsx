@@ -1,5 +1,5 @@
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
-import { Maximize, Pause, Play, Volume2, VolumeX } from "lucide-solid"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { formatTime, playback } from "./playback"
 
 const btn = {
@@ -72,8 +72,8 @@ export function VideoPlayer(props: {
         }}
       >
         <button type="button" aria-label={playing() ? "pause" : "play"} onClick={toggle} style={btn}>
-          <Show when={playing()} fallback={<Play size={16} fill="currentColor" />}>
-            <Pause size={16} fill="currentColor" />
+          <Show when={playing()} fallback={<HugeIcon name="play" size={16} fill="currentColor" />}>
+            <HugeIcon name="pause" size={16} fill="currentColor" />
           </Show>
         </button>
         <span style={{ "font-size": "12px", "font-variant-numeric": "tabular-nums" }}>{formatTime(time())}</span>
@@ -89,8 +89,8 @@ export function VideoPlayer(props: {
         />
         <span style={{ "font-size": "12px", "font-variant-numeric": "tabular-nums" }}>{formatTime(length())}</span>
         <button type="button" aria-label={muted() ? "unmute" : "mute"} onClick={() => (video.muted = !video.muted)} style={btn}>
-          <Show when={muted()} fallback={<Volume2 size={16} />}>
-            <VolumeX size={16} />
+          <Show when={muted()} fallback={<HugeIcon name="volume" size={16} />}>
+            <HugeIcon name="volume-off" size={16} />
           </Show>
         </button>
         <button
@@ -99,7 +99,7 @@ export function VideoPlayer(props: {
           onClick={() => (document.fullscreenElement ? document.exitFullscreen() : box.requestFullscreen?.())}
           style={btn}
         >
-          <Maximize size={16} />
+          <HugeIcon name="maximize" size={16} />
         </button>
       </div>
     </div>

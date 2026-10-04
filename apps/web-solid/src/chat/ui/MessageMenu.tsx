@@ -1,6 +1,6 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { Copy, CornerUpLeft, ExternalLink, Link, Pencil, Pin, Plus, Share, Trash2 } from "lucide-solid"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { createSignal, For, lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
@@ -178,7 +178,7 @@ export function MessageMenu(props: MessageMenuProps) {
                   aria-expanded={pickerOpen()}
                   onClick={() => setPickerOpen(true)}
                 >
-                  <Plus class="size-4" aria-hidden="true" />
+                  <HugeIcon name="plus" class="size-4" aria-hidden="true" />
                 </button>
               </div>
               <MenuV2.Separator />
@@ -186,17 +186,17 @@ export function MessageMenu(props: MessageMenuProps) {
                 {(url) => (
                   <>
                     <MenuV2.Item onSelect={openLink}>
-                      <ExternalLink class="size-4 shrink-0" aria-hidden="true" />
+                      <HugeIcon name="external" class="size-4 shrink-0" aria-hidden="true" />
                       open link
                     </MenuV2.Item>
                     <MenuV2.Item onSelect={() => void copy(url(), "link copied")}>
-                      <Link class="size-4 shrink-0" aria-hidden="true" />
+                      <HugeIcon name="link" class="size-4 shrink-0" aria-hidden="true" />
                       copy link
                     </MenuV2.Item>
                     {/* Only where the system share sheet exists; elsewhere it would be copy link twice. */}
                     <Show when={canShare}>
                       <MenuV2.Item onSelect={() => void shareLink()}>
-                        <Share class="size-4 shrink-0" aria-hidden="true" />
+                        <HugeIcon name="share" class="size-4 shrink-0" aria-hidden="true" />
                         share link
                       </MenuV2.Item>
                     </Show>
@@ -205,16 +205,16 @@ export function MessageMenu(props: MessageMenuProps) {
                 )}
               </Show>
               <MenuV2.Item onSelect={props.onReply}>
-                <CornerUpLeft class="size-4 shrink-0" aria-hidden="true" />
+                <HugeIcon name="reply" class="size-4 shrink-0" aria-hidden="true" />
                 reply
               </MenuV2.Item>
               <MenuV2.Item onSelect={() => void copy()}>
-                <Copy class="size-4 shrink-0" aria-hidden="true" />
+                <HugeIcon name="copy" class="size-4 shrink-0" aria-hidden="true" />
                 copy
               </MenuV2.Item>
               <Show when={props.onTogglePin}>
                 <MenuV2.Item onSelect={props.onTogglePin}>
-                  <Pin class="size-4 shrink-0" aria-hidden="true" />
+                  <HugeIcon name="pin" class="size-4 shrink-0" aria-hidden="true" />
                   {props.pinned ? "unpin" : "pin"}
                 </MenuV2.Item>
               </Show>
@@ -224,7 +224,7 @@ export function MessageMenu(props: MessageMenuProps) {
               </Show>
               <Show when={props.side === "user" && props.onEdit}>
                 <MenuV2.Item onSelect={props.onEdit}>
-                  <Pencil class="size-4 shrink-0" aria-hidden="true" />
+                  <HugeIcon name="edit" class="size-4 shrink-0" aria-hidden="true" />
                   edit
                 </MenuV2.Item>
               </Show>
@@ -237,7 +237,7 @@ export function MessageMenu(props: MessageMenuProps) {
                   )}
                   onSelect={props.onDelete}
                 >
-                  <Trash2 class="size-4 shrink-0" aria-hidden="true" />
+                  <HugeIcon name="trash" class="size-4 shrink-0" aria-hidden="true" />
                   delete
                 </MenuV2.Item>
               </Show>

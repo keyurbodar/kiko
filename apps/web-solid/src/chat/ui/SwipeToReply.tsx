@@ -1,4 +1,4 @@
-import { CornerUpLeft } from "lucide-solid"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { useSwipeToReply } from "../lib/useSwipeToReply"
@@ -40,7 +40,7 @@ export function SwipeToReply(props: SwipeToReplyProps) {
         data-component="chat-swipe-indicator"
         aria-hidden="true"
       >
-        <CornerUpLeft size={14} />
+        <HugeIcon name="reply" size={14} />
       </span>
     </div>
   )
