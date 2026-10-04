@@ -10,7 +10,7 @@ import { addOp } from "./members/model"
 import { pickerMatches, toChips } from "./to-bar-model"
 
 /*
- * kat's "to:" bar, the header of a temporary chat (architecture section 7.11). A chip for each
+ * kat's "to:" bar, which stands in the top bar for a temporary chat's tab (architecture section 7.11). A chip for each
  * agent in it, then a round (+) that opens a search of the user's agents. Picking one adds it to
  * the room; with two agents the chat becomes a group and joins the list. In an empty chat the
  * human can take kiko off first, and then picking one agent opens that agent's own chat instead.
@@ -86,7 +86,7 @@ export function ToBar(props: { roomId: RoomId }) {
   })
 
   return (
-    <div class="relative flex h-11 shrink-0 items-center gap-2 px-4 text-sm" data-component="to-bar" ref={(el) => (root = el)}>
+    <div class="relative flex h-full shrink-0 items-center gap-2 pl-1 text-sm font-normal" data-component="to-bar" ref={(el) => (root = el)}>
       <span class="text-weak">to:</span>
       <For each={chips()}>
         {(chip) => (
@@ -126,7 +126,7 @@ export function ToBar(props: { roomId: RoomId }) {
       </Show>
       <Show when={open()}>
         <div
-          class="absolute top-full left-4 z-30 mt-1 flex w-[380px] max-w-[calc(100vw-32px)] flex-col gap-1 rounded-[calc(20px*var(--brm))] bg-menu p-3 shadow-menu"
+          class="absolute top-full left-0 z-30 mt-1 flex w-[380px] max-w-[calc(100vw-32px)] flex-col gap-1 rounded-[calc(20px*var(--brm))] bg-menu p-3 shadow-menu"
           data-component="to-picker"
         >
           <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--input-bg)] px-3 focus-within:shadow-[inset_0_0_0_1.5px_oklch(from_var(--accent)_l_c_h_/_60%)]">

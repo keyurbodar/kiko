@@ -171,13 +171,15 @@ export function Shell(props: ParentProps) {
             onPointerDown={() => setDrawer(false)}
           />
         </Show>
-        <main
-          class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-tl-[32px] bg-bg"
-          data-component="main-panel"
-        >
-          <div class="@container/main relative flex min-h-0 min-w-0 flex-1">
+        {/* kat's shape: the top bar sits on the shell's own background, and the rounded panel starts
+            under it. A section without a top bar (settings) gets the panel from the very top. */}
+        <main class="flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
+          <TopBar />
+          <div
+            class="@container/main relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-tl-[32px] bg-bg"
+            data-component="main-panel"
+          >
             <div class="flex min-w-0 flex-1 flex-col">
-              <TopBar />
               {props.children}
             </div>
             <Show when={infoOpen() ? infoChat() : null}>

@@ -4,12 +4,10 @@ import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
-import type { MessageId, RoomId } from "@kiko/protocol";
+import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
 
-// A temporary chat's "to:" bar loads the first time one is open, not with the transcript.
-const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 // Approval cards load the first time an open room has one (P7-02).
@@ -195,7 +193,6 @@ export default function ChatRoute() {
         data-reply-target={replyTarget() ?? undefined}
         data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}
       >
-        <Show when={isTemp() && params.id}>{(id) => <ToBar roomId={id() as RoomId} />}</Show>
         {/* The wrapper has to be a flex column, not a plain block: the
             transcript's stage is `flex min-h-0 flex-1 flex-col` and both of
             those are inert unless its parent is a flex container. As a block

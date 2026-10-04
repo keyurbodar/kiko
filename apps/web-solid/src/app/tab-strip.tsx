@@ -19,7 +19,8 @@ import "./tab-strip.css"
  */
 const CHAT_PATH = /^\/chat\/([^/]+)$/
 
-export function TabStrip() {
+/** `hide` is the open temporary chat: the top bar shows its "to:" bar in place of its tab. */
+export function TabStrip(props: { hide?: string | null }) {
   const location = useLocation()
   const navigate = useNavigate()
   const activeId = createMemo(() => {
@@ -104,14 +105,14 @@ export function TabStrip() {
   return (
     <div
       ref={(el) => (strip.el = el)}
-      class="tab-strip flex h-full min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
+      class="tab-strip flex h-full min-w-0 flex-initial items-center gap-0.5 overflow-x-auto overflow-y-hidden"
       data-component="tab-strip"
       role="tablist"
       aria-label="open chats"
       onScroll={edges}
       onWheel={onWheel}
     >
-      <For each={openTabs.ids()}>
+      <For each={openTabs.ids().filter((id) => id !== props.hide)}>
         {(id) => {
           const active = () => activeId() === id
           return (
