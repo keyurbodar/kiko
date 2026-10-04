@@ -674,7 +674,7 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 - **Traces.** What an agent did during a run (the team board's words: "editing /flights.md", "reading a web page") joins its reply turn as one `(did: ...)` line. A run that acted and said nothing gets a turn of its own. Teammates and the agent's own next run see it, now that tool output is not kept between runs. It costs no model call.
 - **Rollups.** A settled node of eight pages (128 turns) becomes one line of the user's life (`chat <title>: ...`). A chat quiet for six hours rolls its unrolled turns into one line too, so a slow chat reaches the life log. Private chats never roll up.
 - **Failures.** Each summary call has a 2-minute deadline. A node the model fails on three times gets a model-free line (the start of each item, cut to 280 bytes), so one refusal can never stall a log or retry forever. A pass that dies with its process is brought back by a wakeup it arms before it starts.
-- **Summaries.** A background pass in `waitUntil` makes them, up to 24 per pass, through `UserDO.compress`. It never holds the alarm, because the burst and mail wakeups share it. The newest 8 turns stay open, since a reply may still grow.
+- **Summaries.** They never compete with a live reply: while any member of the room is working, the pass waits 30 seconds and looks again. A background pass in `waitUntil` makes them, up to 24 per pass, through `UserDO.compress`. It never holds the alarm, because the burst and mail wakeups share it. The newest 8 turns stay open, since a reply may still grow.
 
 ### 13.3 The user's life log
 

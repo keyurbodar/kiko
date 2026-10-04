@@ -72,7 +72,7 @@ async function chat(v: { url: string; as(name: string): Promise<any> }, mode: "c
   }
   const asked = answers().length
   await send("what's my gym locker code? just the number.")
-  const end = Date.now() + 60_000
+  const end = Date.now() + 180_000
   while (answers().length <= asked && Date.now() < end) await Bun.sleep(500)
   const recalled = answers().slice(asked).join(" ")
   // Give the background summaries a moment, then read what they cost.

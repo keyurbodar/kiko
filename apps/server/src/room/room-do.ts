@@ -686,6 +686,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const pass = async () => {
 			// Up to the most `compress` runs at once for one user; a refusal says when to try again.
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
+				// Background work never competes with a live reply for the human's model: it waits its turn.
+				if (this.members.list().some((m) => m.status !== "idle")) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))
 				const spans = this.memory.pending(NAPS_AT_ONCE)
 				if (!spans.length) return void (await this.alarms.clearWakeup(MEMORY_WAKEUP))
 				const outs = await Promise.all(spans.map((span) => this.memory.nap(span, (prompt) => user.compress(prompt), rollup)))
