@@ -3,12 +3,12 @@ import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { useApp } from "../lib/store"
 
 /*
- * DEVELOPMENT ONLY. Two ways to watch the presence row without a model key.
+ * DEVELOPMENT ONLY. Two ways to watch the typing bubbles without a model key.
  *
- * `playPresenceDemo` plays a scripted run in the open chat: the same `typing`, `status` and
- * `draft` frames the room sends during a real run, fed through the room store's own handler.
- * Final messages are not faked, because the store would keep them in this browser's history;
- * the streaming bubbles are drafts, which the room never stores and clears at the end.
+ * `playPresenceDemo` plays a scripted run in the open chat: the same `typing` and `status`
+ * frames the room sends during a real run, fed through the room store's own handler. Messages
+ * are not faked, because the store would keep them in this browser's history; for replies
+ * landing, use `newFakeChat`.
  *
  * `newFakeChat` opens a new chat whose agents answer from the scripted fake of the server's
  * `dev-fake.ts`, which posts real messages and spends no tokens. An agent reads the flag when
@@ -17,24 +17,11 @@ import { useApp } from "../lib/store"
  * text pick the script, such as `[tool]`, `[slow]` and `[two-part]`.
  */
 
-const SOLO: readonly (string | undefined)[] = [
-  undefined,
-  "reading /notes.md",
-  "reading a web page",
-  "editing /draft.md",
-  "running code on the human's connected apps",
-  "working with a helper",
-  "handling a reminder",
-  "setting up agents",
-]
+// One report per motion: writing, reading, editing, a tool.
+const SOLO: readonly (string | undefined)[] = [undefined, "reading a web page", "editing /draft.md", "running code on the human's connected apps"]
 const TEAM: readonly (string | undefined)[] = ["editing /plan.md", "reading a web page", undefined]
-const REPLIES = [
-  "late november is peak maple season, so book early. scout is checking ryokans now.",
-  "found three that fit. the quietest is in ohara, forty minutes north, with private baths.",
-  "all three come in under ¥30k a night if you skip the weekend.",
-]
-const STEP_MS = 2_400
-const TYPE_MS = 60
+// Long enough for a slow act's caption to show.
+const STEP_MS = 3_200
 
 let timers: ReturnType<typeof setTimeout>[] = []
 
@@ -50,7 +37,6 @@ export function playPresenceDemo(): void {
   timers = []
   const slugs = slugsOf()
   const lead = slugs[0]!
-  const runId = `demo-${Date.now()}`
   let clock = 0
   const at = (ms: number, frames: RoomToClient[]) => timers.push(setTimeout(() => frames.forEach(feed), ms))
 
@@ -67,17 +53,12 @@ export function playPresenceDemo(): void {
     ...slugs.map((slug, i): RoomToClient => (TEAM[i] ? { t: "status", slug, state: "working", doing: TEAM[i]! } : { t: "status", slug, state: "typing" })),
   ])
 
-  // Each agent's reply streams in as a bubble, one after another. A drafting agent leaves the row.
+  // The agents finish one by one, and the run ends.
   clock += STEP_MS * 2
-  slugs.forEach((slug, i) => {
-    const text = REPLIES[i % REPLIES.length]!
-    for (let n = 4; n <= text.length + 3; n += 3) at(clock + n * TYPE_MS, [{ t: "draft", slug, runId, index: i, text: text.slice(0, n) }])
-    clock += text.length * TYPE_MS + 500
+  slugs.forEach((_, i) => {
+    const left = slugs.slice(i + 1)
+    at((clock += STEP_MS / 2), [{ t: "typing", who: left }, { t: "status", slug: slugs[i]!, state: "idle" }])
   })
-
-  // The run ends. Without a final message to replace them, the drafts clear with it.
-  clock += 4_000
-  at(clock, [{ t: "typing", who: [] }, ...slugs.map((slug): RoomToClient => ({ t: "status", slug, state: "idle" }))])
 }
 
 export async function newFakeChat(openChat: () => void): Promise<void> {

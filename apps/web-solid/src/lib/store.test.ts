@@ -128,13 +128,16 @@ describe("useApp over the mock room", () => {
     room.store({ t: "react", messageId: target.id as MessageId, by: { kind: "agent", slug: fixtures.bob }, emoji: "🔥" })
     await until(() => app.activeMessages().find((m) => m.id === target.id) !== target)
     for (const m of app.activeMessages()) if (m.id !== target.id) expect(after.includes(m)).toBe(true)
-    // A growing draft adds its own row and leaves every stored row alone.
+    // A growing draft shows no text: its agent stays typing until the whole bubble lands.
     const stored = app.activeMessages()
+    room.broadcast({ t: "typing", who: [fixtures.ada] })
     room.broadcast({ t: "draft", slug: fixtures.ada, runId: "r1", index: 0, text: "grow" })
-    await until(() => app.activeMessages().length === stored.length + 1)
-    const drafted = app.activeMessages()
-    for (let i = 0; i < stored.length; i++) expect(drafted[i]).toBe(stored[i])
-    expect(drafted.at(-1)?.body).toBe("grow")
+    await until(() => app.typingSlugs().includes(fixtures.ada))
+    await sleep(30)
+    const typed = app.activeMessages()
+    expect(typed).toHaveLength(stored.length)
+    for (let i = 0; i < stored.length; i++) expect(typed[i]).toBe(stored[i])
+    expect(app.typingSlugs()).toEqual([fixtures.ada])
     app.stop()
   })
 

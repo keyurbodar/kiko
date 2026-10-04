@@ -89,10 +89,10 @@ export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
  *
  * ASSUMPTION: the client cannot see a message's hop count, so "agent to agent" is read from
  * the text: an agent's message that starts with `@<another member>` is spoken to that agent,
- * not to the human. A growing draft is never folded, since its first word may still change.
+ * not to the human.
  */
 export function addressee(message: ChatMessage, members: ReadonlySet<string>): string | undefined {
-  if (message.sender !== "bot" || message.id.startsWith("draft:")) return undefined;
+  if (message.sender !== "bot") return undefined;
   const slug = /^\s*@([a-z0-9-]{1,32})(?![\w-])/i.exec(message.body)?.[1]?.toLowerCase();
   return slug !== undefined && slug !== message.botId && members.has(slug) ? slug : undefined;
 }
@@ -267,7 +267,7 @@ function sameItem(a: TimelineItem, b: TimelineItem): boolean {
  *
  * The virtual list keys its rows by object, so a new object for an unchanged message is a
  * row torn down and built again: its menu, its swipe, its bubble. Without this, every frame
- * that touched the transcript (a draft growing, a typing change, one new message) rebuilt
+ * that touched the transcript (a typing change, one new message) rebuilt
  * every visible row. `previous` maps key to item and is updated in place.
  */
 export function keepUnchanged(previous: Map<string, TimelineItem>, next: TimelineItem[]): TimelineItem[] {

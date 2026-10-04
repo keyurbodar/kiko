@@ -1,60 +1,76 @@
-/* The presence row: the working agents' pixel birds and one line of what they are doing. */
+/* Kat's typing bubble: a one-line agent bubble holding three dots. The dots move one way per
+   act (`data-motion`, from action.ts), so the bubble keeps its shape whatever the agent does. */
 
-.presence {
+.typing-stack {
   position: relative;
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--run-gap);
   max-width: 100%;
-  min-height: 39px;
+}
+
+.typing {
+  --typing-period: 1.25s;
+  display: flex;
+  max-width: 100%;
   align-items: flex-end;
-  gap: 6px;
-  animation: presence-in 160ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  gap: 8px;
 }
 
-.presence-stage {
-  display: block;
+.typing-bubble {
+  display: inline-flex;
   flex: none;
-  image-rendering: pixelated;
+  align-items: center;
+  padding: var(--bubble-pad-y) calc(var(--bubble-pad-x) + 2px);
+  border-radius: var(--radius-bubble);
+  background: var(--assistant-bubble);
+  color: var(--assistant-bubble-text);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  transform-origin: 0 100%;
 }
 
-/* A slow light runs across the words while the agent works, so the line reads as live
- * without a spinner. The colour is the muted text, lit to the full text colour. */
-.presence-line {
+/* One text line tall, so the bubble is a one-line message bubble's height. */
+.typing-dots {
+  position: relative;
+  display: inline-flex;
+  height: 1lh;
+  align-items: center;
+  gap: 5px;
+}
+
+.typing-dot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.typing-bird {
+  flex: none;
+}
+
+/* The act in words, only once it has run a while. Plain muted text. */
+.typing-doing {
   min-width: 0;
   overflow: hidden;
-  padding-bottom: 6px;
+  padding-bottom: calc(var(--bubble-pad-y) + 1px);
   color: var(--text-muted);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: linear-gradient(
-      100deg,
-      var(--text-muted) 0%,
-      var(--text-muted) 40%,
-      var(--text) 50%,
-      var(--text-muted) 60%,
-      var(--text-muted) 100%
-    )
-    0 0 / 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: presence-shine 2.4s linear infinite;
 }
 
-@keyframes presence-shine {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
-  }
+.typing-more {
+  color: var(--text-muted);
+  font-size: 13px;
 }
-
-@keyframes presence-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
+.typing-more[data-group] {
+  padding-left: 40px;
 }
 
 .typing-sr {
@@ -69,9 +85,147 @@
   border: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .presence,
-  .presence-line {
+@media (prefers-reduced-motion: no-preference) {
+  .typing-bubble {
+    animation: typing-pop 260ms cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+  }
+  .typing-doing:not(:empty) {
+    animation: typing-fade 200ms ease-out backwards;
+  }
+
+  /* The bird looks about now and then, so it reads as awake without fidgeting. */
+  .typing-bird .bird-body {
+    animation: typing-peek 2.8s ease-in-out infinite;
+  }
+
+  .typing-dot {
+    animation: var(--dot-anim, typing-wave) var(--typing-period) var(--dot-ease, linear) infinite;
+  }
+  .typing-dot:nth-child(2) {
+    animation-delay: calc(var(--typing-period) * var(--dot-step, -0.6667));
+  }
+  .typing-dot:nth-child(3) {
+    animation-delay: calc(var(--typing-period) * var(--dot-step, -0.6667) * 2);
+  }
+
+  /* Writing is the default: kat's wave, the leading dot swelling as the one before settles. */
+
+  /* Reading: one bright dot sweeps left to right, a line read and the next begun. */
+  [data-motion="scan"] {
+    --typing-period: 1.5s;
+    --dot-anim: typing-scan;
+    --dot-step: 0.16;
+  }
+
+  /* Editing: the dots hop in turn, like pieces set in place. */
+  [data-motion="hop"] {
+    --typing-period: 1.3s;
+    --dot-anim: typing-hop;
+    --dot-ease: cubic-bezier(0.3, 0.7, 0.4, 1);
+    --dot-step: 0.14;
+  }
+
+  /* A tool: the three dots turn around one centre. */
+  /* As wide as three dots in a row, so the bubble keeps its size. */
+  [data-motion="orbit"] .typing-dots {
+    width: 31px;
+    justify-content: center;
+    animation: typing-turn 1.4s linear infinite;
+  }
+  [data-motion="orbit"] .typing-dot {
+    position: absolute;
+    top: calc(50% - 3.5px);
+    left: calc(50% - 3.5px);
     animation: none;
+  }
+  [data-motion="orbit"] .typing-dot:nth-child(1) {
+    opacity: 1;
+    transform: translate(0, -7px);
+  }
+  [data-motion="orbit"] .typing-dot:nth-child(2) {
+    opacity: 0.7;
+    transform: translate(6px, 3.5px);
+  }
+  [data-motion="orbit"] .typing-dot:nth-child(3) {
+    opacity: 0.4;
+    transform: translate(-6px, 3.5px);
+  }
+}
+
+@keyframes typing-wave {
+  0%,
+  100% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  33.333%,
+  66.667% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+}
+
+@keyframes typing-scan {
+  0%,
+  40%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.35;
+  }
+  14% {
+    transform: scaleX(1.6);
+    opacity: 1;
+  }
+}
+
+@keyframes typing-hop {
+  0%,
+  55%,
+  100% {
+    transform: translateY(0) scaleY(1);
+    opacity: 0.6;
+  }
+  10% {
+    transform: translateY(0) scaleY(0.75);
+  }
+  27% {
+    transform: translateY(-6px) scaleY(1.1);
+    opacity: 1;
+  }
+  42% {
+    transform: translateY(0) scaleY(0.9);
+  }
+}
+
+@keyframes typing-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes typing-peek {
+  0%,
+  72%,
+  100% {
+    transform: rotate(0);
+  }
+  80% {
+    transform: rotate(-8deg);
+  }
+  90% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes typing-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+}
+
+@keyframes typing-fade {
+  from {
+    opacity: 0;
   }
 }

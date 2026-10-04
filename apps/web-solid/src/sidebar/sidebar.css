@@ -536,7 +536,7 @@
   color: var(--accent);
 }
 
-.sidebar-shell .typing-dot {
+.sidebar-shell .chat-typing-dot {
   display: inline-block;
   width: 2px;
   height: 2px;
@@ -547,11 +547,11 @@
   animation: sidebar-typing-dot 1.2s ease-in-out infinite;
 }
 
-.sidebar-shell .typing-dot:nth-of-type(2) {
+.sidebar-shell .chat-typing-dot:nth-of-type(2) {
   animation-delay: 0.15s;
 }
 
-.sidebar-shell .typing-dot:nth-of-type(3) {
+.sidebar-shell .chat-typing-dot:nth-of-type(3) {
   animation-delay: 0.3s;
 }
 
@@ -625,7 +625,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar-shell .typing-dot {
+  .sidebar-shell .chat-typing-dot {
     animation: none;
     opacity: 0.6;
   }

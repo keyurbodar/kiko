@@ -1,27 +1,27 @@
 import { describe, expect, test } from "bun:test"
 import { describeCall } from "../../../../server/src/agent/extensions/presence"
-import { actOf } from "./action"
+import { motionOf } from "./action"
 
-describe("what a working agent is shown doing", () => {
-  test("every report the server makes maps to the act it describes", () => {
+describe("how a working agent's dots move", () => {
+  test("every report the server makes maps to the motion it describes", () => {
     const cases: [string, Record<string, unknown>, string][] = [
-      ["read", { path: "notes.md" }, "read"],
-      ["ls", {}, "read"],
-      ["write", { path: "/a.html" }, "build"],
-      ["edit", { path: "a.html" }, "build"],
-      ["web_fetch", {}, "browse"],
-      ["spawn_subagent", {}, "helper"],
-      ["create_reminder", {}, "remind"],
-      ["propose_agent", {}, "hatch"],
-      ["executor_execute", {}, "tool"],
-      ["executor_gmail_send", {}, "tool"],
-      ["some_new_tool", {}, "tool"],
+      ["read", { path: "notes.md" }, "scan"],
+      ["ls", {}, "scan"],
+      ["web_fetch", {}, "scan"],
+      ["write", { path: "/a.html" }, "hop"],
+      ["edit", { path: "a.html" }, "hop"],
+      ["propose_agent", {}, "hop"],
+      ["spawn_subagent", {}, "orbit"],
+      ["create_reminder", {}, "orbit"],
+      ["executor_execute", {}, "orbit"],
+      ["executor_gmail_send", {}, "orbit"],
+      ["some_new_tool", {}, "orbit"],
     ]
-    for (const [name, args, act] of cases) expect([name, actOf(describeCall(name, args) ?? undefined)]).toEqual([name, act])
+    for (const [name, args, motion] of cases) expect([name, motionOf(describeCall(name, args) ?? undefined)]).toEqual([name, motion])
   })
 
-  test("no report, or the reply itself, is writing", () => {
-    expect(actOf(undefined)).toBe("write")
-    expect(actOf("writing a reply")).toBe("write")
+  test("no report, or the reply itself, is kat's wave", () => {
+    expect(motionOf(undefined)).toBe("wave")
+    expect(motionOf("writing a reply")).toBe("wave")
   })
 })

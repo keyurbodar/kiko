@@ -223,7 +223,8 @@ export function VirtualThread(props: {
   const isShifted = () => shifted
 
   /*
-   * A message that arrives while the thread is open eases in (`motion-bubble-in`, 180 ms).
+   * A message that arrives while the thread is open eases in (`motion-bubble-in`, 180 ms); an
+   * agent's reply grows out of the typing bubble's corner (`motion-reply-in`).
    * Messages that were there when the thread opened, older pages, and the server's echo of a
    * message the reader just sent do not, so nothing replays on a scroll or a reload. Keyed by id:
    * the reader's own send eases in once, under its `local:` id, and its echo arrives under the
@@ -785,7 +786,7 @@ export function VirtualThread(props: {
             runKey={item.runKey}
             hasRunGapBefore={item.hasRunGapBefore}
             group={props.groupChat}
-            class={fresh.has(message.id) ? "motion-bubble-in" : undefined}
+            class={fresh.has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined}
             highlighted={landed() === message.id}
             replying={activeReply() === message.id}
             /*
@@ -909,7 +910,7 @@ export function VirtualThread(props: {
                 )}
                 data-component="chat-typing-row"
               >
-                <TypingIndicator typists={[...props.waitingNames]} seeds={props.waitingSlugs} doings={props.waitingDoings} />
+                <TypingIndicator typists={[...props.waitingNames]} seeds={props.waitingSlugs} doings={props.waitingDoings} group={props.groupChat} />
               </div>
             </Show>
           </Show>

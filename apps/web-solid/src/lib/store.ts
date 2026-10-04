@@ -302,8 +302,6 @@ export function createApp(options: AppOptions = {}) {
     const LIVE_WINDOW_MS = 30_000
     const [paced, bumpPaced] = createSignal(0)
     let pacer = createPacer({ onChange: () => bumpPaced((n) => n + 1) })
-    /** Drafts by `runId:index` and when each was first seen, so a growing bubble keeps its time. */
-    const draftSince = new Map<string, number>()
     let pacedRoom: RoomStore | null = null
     let seeded = false
 
@@ -316,7 +314,6 @@ export function createApp(options: AppOptions = {}) {
         if (pacedRoom !== r) {
           pacer.dispose()
           pacer = createPacer({ onChange: () => bumpPaced((n) => n + 1) })
-          draftSince.clear()
           pacedRoom = r
           seeded = false
         }
@@ -369,18 +366,13 @@ export function createApp(options: AppOptions = {}) {
       })
     })
 
-    /*
-     * The transcript's rows in two parts, so a growing draft never walks the stored window and a
-     * stored change never rebuilds the drafts. Each part keeps an unchanged row's object.
-     */
-    const storedRows = shared(() => {
+    const activeRows = shared(() => {
       const r = room()
-      if (!r) return { rows: [] as ChatMessage[], finals: new Set<string>() }
+      if (!r) return [] as ChatMessage[]
       paced()
       const roomId = r.state.roomId
       const prev = views
       const next = new Map<string, { sig: string; view: ChatMessage }>()
-      const finals = new Set<string>()
       const rows: ChatMessage[] = []
       for (const m of roomMessages()) {
         if (pacer.isHeld(m.id)) continue
@@ -390,39 +382,9 @@ export function createApp(options: AppOptions = {}) {
         const entry = cached && cached.sig === sig ? cached : { sig, view: toChatMessage(m, roomId) }
         next.set(key, entry)
         rows.push(entry.view)
-        // A growing block shows until its final message is on screen.
-        if (m.run) finals.add(`${m.run.runId}:${m.run.index}`)
       }
       views = next
-      return { rows, finals }
-    })
-    let draftRowsCache = new Map<string, ChatMessage>()
-    const draftRows = shared((): ChatMessage[] => {
-      const r = room()
-      if (!r) return []
-      const roomId = r.state.roomId
-      const { finals } = storedRows()
-      const next = new Map<string, ChatMessage>()
-      const out: ChatMessage[] = []
-      for (const [key, d] of Object.entries(r.state.drafts)) {
-        if (finals.has(key) || d.text === "") continue
-        const since = draftSince.get(key) ?? Date.now()
-        draftSince.set(key, since)
-        // An unchanged draft keeps its object, so its row is not built again.
-        const id = `draft:${key}`
-        const cached = draftRowsCache.get(id)
-        const view = cached && cached.body === d.text ? cached : { id, threadId: roomId, sender: "bot" as const, botId: d.slug, body: d.text, sentAt: since }
-        next.set(id, view)
-        out.push(view)
-      }
-      for (const key of draftSince.keys()) if (!(key in r.state.drafts)) draftSince.delete(key)
-      draftRowsCache = next
-      return out
-    })
-    const activeRows = shared(() => {
-      const drafts = draftRows()
-      const { rows } = storedRows()
-      return drafts.length ? [...rows, ...drafts] : rows
+      return rows
     })
 
     function openRoom(roomId: RoomId | null) {
@@ -849,7 +811,6 @@ export function createApp(options: AppOptions = {}) {
         paced()
         const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
         slugs.delete("")
-        for (const d of Object.values(r.state.drafts)) slugs.delete(d.slug)
         return [...slugs]
       },
 
@@ -860,7 +821,6 @@ export function createApp(options: AppOptions = {}) {
         paced()
         const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
         slugs.delete("")
-        for (const d of Object.values(r.state.drafts)) slugs.delete(d.slug)
         return [...slugs].map((slug) => r.state.members.find((m) => m.slug === slug)?.name ?? slug)
       },
 

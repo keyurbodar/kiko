@@ -207,7 +207,7 @@ Human messages always outrank agent messages. The inbox sorts by priority first,
 
 - The tuple `(runId, attempt, index)` is unique in the room. A retried call stores nothing twice.
 - If a run restarts after a crash, `pi-durable` sends the request again and the model may write different text. The attempt number goes up, and the room deletes the bubbles of the earlier attempt for that run.
-- A block longer than about 400 characters that is still growing is sent as a draft bubble. Draft updates are batched to one every 300 ms and are not stored. The final block replaces the draft.
+- A block longer than about 400 characters that is still growing is sent as a `draft` frame. Draft updates are batched to one every 300 ms and are not stored. The client shows no draft text: kiko never streams, so a reply appears only as whole bubbles, and while a long block grows its agent shows as typing.
 
 **DEVIATION in pacing.** The spec asks the server to send each part "with a small typing delay". Kiko paces in the client. The server posts a block when the model finishes it. The client holds a bubble from a live run until a minimum gap has passed since the previous bubble (350 ms plus 12 ms per character, capped at 1200 ms) and shows the typing indicator in the gap. History loads and reduced-motion users get no delay.
 
@@ -957,7 +957,7 @@ Memory limits. RAM holds the open chat's window, the chat list, and presence. Ev
 - The open room keeps at most 200 messages (`MAX_MESSAGES_IN_MEMORY`) while the reader follows the end. It may grow 50 over before it is cut back. Scrolling near the top pages 50 older ones in from IndexedDB, then from the room once the disk has none (section 9.2.2), and the window is not cut while the reader is up there. Back at the end it is cut to 200 again. An edit, reaction, or delete of a message outside the window is applied to its row on disk.
 - On close a room's rows older than 2,000 sequence numbers are deleted from IndexedDB, with one range delete and no read.
 - Hover previews keep 20 chats. The memory twin of IndexedDB, used only when the browser refuses it, keeps 2,000 rows per store. Opening IndexedDB may take 10 seconds before the twin takes over.
-- The transcript's rows are one shared memo in two parts: stored rows, rebuilt only when a row's cheap signature changes (it never copies the text), and draft rows. A growing draft never walks the stored window.
+- The transcript's rows are one shared memo of stored rows, each rebuilt only when its cheap signature changes (it never copies the text).
 - Attachment object URLs are revoked when the attachment is removed, when its upload lands, and when the composer or the room closes.
 - The screen snapshot (`lib/snapshot.ts`) keeps a linked stylesheet as its URL, not its text, and skips a save when the screen did not change.
 

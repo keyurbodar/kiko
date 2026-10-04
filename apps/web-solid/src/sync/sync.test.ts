@@ -585,18 +585,14 @@ describe("the room store", () => {
 		store.close()
 	})
 
-	test("typing, status, and drafts are shown, and a final message replaces its draft", async () => {
+	test("typing and status are shown, and cleared when the socket drops", async () => {
 		const { mock, make } = setup()
 		const { store } = await make()
 		await until(() => store.state.seq === 18)
 		mock.broadcast({ t: "typing", who: [fixtures.ada] })
 		mock.broadcast({ t: "status", slug: fixtures.ada, state: "typing" })
-		mock.broadcast({ t: "draft", slug: fixtures.ada, runId: "r9", index: 0, text: "grow" })
-		await until(() => Object.keys(store.state.drafts).length === 1)
+		await until(() => store.state.status[fixtures.ada] === "typing")
 		expect(store.state.typing).toEqual([fixtures.ada])
-		expect(store.state.status[fixtures.ada]).toBe("typing")
-		mock.store({ t: "message", id: "m99" as MessageId, from: { kind: "agent", slug: fixtures.ada }, text: "grown", run: { runId: "r9", attempt: 1, index: 0 } })
-		await until(() => Object.keys(store.state.drafts).length === 0)
 		mock.drop()
 		await until(() => store.state.connection !== "open")
 		expect(store.state.typing).toEqual([])
@@ -620,19 +616,6 @@ describe("composer typing and run end", () => {
 		t += 1
 		store.typing()
 		await until(() => typed() === 2)
-		store.close()
-	})
-
-	test("an idle status clears that agent's drafts and keeps another's", async () => {
-		const { mock, make } = setup()
-		const { store } = await make()
-		await until(() => store.state.seq === 18)
-		mock.broadcast({ t: "draft", slug: fixtures.ada, runId: "r1", index: 0, text: "aborted" })
-		mock.broadcast({ t: "draft", slug: fixtures.bob, runId: "r2", index: 0, text: "going" })
-		await until(() => Object.keys(store.state.drafts).length === 2)
-		mock.broadcast({ t: "status", slug: fixtures.ada, state: "idle" })
-		await until(() => Object.keys(store.state.drafts).length === 1)
-		expect(Object.values(store.state.drafts)[0].slug).toBe(fixtures.bob)
 		store.close()
 	})
 })

@@ -289,7 +289,6 @@ export function applyToHistory(history: Message[], e: RoomEvent): void {
 
 // The store.
 
-export type Draft = { slug: AgentSlug; runId: string; index: number; text: string }
 
 export type RoomState = RoomData & {
 	/** What each agent is doing now, from status frames. Not stored. */
@@ -303,7 +302,6 @@ export type RoomState = RoomData & {
 	typing: AgentSlug[]
 	status: Record<string, AgentState>
 	/** Growing blocks, keyed by `runId:index`. A message from the same run and index replaces one. */
-	drafts: Record<string, Draft>
 	/**
 	 * A window of older messages the reader jumped to, oldest first, that does not reach the live
 	 * window. While it is set the transcript shows it instead of `messages`, which keeps following the
@@ -461,7 +459,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		typing: [],
 		status: {},
 		doing: {},
-		drafts: {},
 		history: null,
 	})
 
@@ -591,7 +588,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 							((e.t === "edit" || e.t === "react") && !change.put) ||
 							(e.t === "delete" && (change.deleted?.length ?? 0) < e.messageIds.length)
 						if (missed) offWindow.push(e)
-						if (e.t === "message" && e.run) delete s.drafts[`${e.run.runId}:${e.run.index}`]
 						if (s.history) applyToHistory(s.history, e)
 						if (performance.now() - start >= budget) break
 					}
@@ -665,7 +661,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		data.roster = raw(state.roster).filter((n) => n.seq <= snapshot.seq)
 		following = true
 		batch(() => {
-			setState({ ...data, drafts: {}, history: null })
+			setState({ ...data, history: null })
 			dropPatches(settleRoom(state.patches, [], snapshot.seq))
 			trimWindow(true)
 		})
@@ -692,20 +688,13 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 				setState("status", f.slug, f.state)
 				// What the agent is doing now (section 7.12): shown in place of "typing".
 				setState("doing", f.slug, f.state === "idle" ? undefined : f.doing)
-				// A run that ended, or was restarted, leaves no draft behind.
-				if (f.state === "idle")
-					setState(
-						"drafts",
-						produce((d) => {
-							for (const [key, x] of Object.entries(d)) if (x.slug === f.slug) delete d[key]
-						}),
-					)
 			}),
 		// Answers to one socket's questions. Nothing stores them.
 		search: (f) => answer(searchKey(f.query, f.before), { results: f.results, next: f.next }),
 		catalog: (f) => answer(catalogKey(f.kind, f.before), { items: f.items, next: f.next }),
 		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages),
-		draft: (f) => setState("drafts", `${f.runId}:${f.index}`, { slug: f.slug, runId: f.runId, index: f.index, text: f.text }),
+		// A reply lands as whole bubbles. While a long one grows, its agent shows as typing.
+		draft: () => {},
 		// The room refused a member change: the patch goes at once, so the list rolls back, and the UI says why.
 		member_refused: (f) => {
 			const refused = (p: RoomPatch) => p.frame.t === "member" && p.frame.op.op === f.op.op && p.frame.op.slug === f.op.slug
@@ -734,7 +723,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	function onStatus(connection: SocketStatus) {
 		setState("connection", connection)
-		if (connection !== "open") setState({ typing: [], status: {}, drafts: {} })
+		if (connection !== "open") setState({ typing: [], status: {} })
 	}
 
 	// Boot.

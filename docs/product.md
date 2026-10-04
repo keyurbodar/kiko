@@ -112,7 +112,7 @@ Kiko keeps what already works in `apps/web-solid` and adds or fixes the followin
 | Toasts | never render | mount the toast region |
 | Virtual lists | chat feed only | chat feed, sidebar chat list, search results, all on `virtua/solid` |
 
-**Note on the typing indicator.** The React reference from spec section 6.6 is saved unchanged at [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx). The Solid port keeps its timings, its label rules, and its geometry (a 68 by 34 px bubble at the default size, 8 px dots, a 5 px gap). The rapid-fire example that spec section 4.5 calls "img #1" is `~/kat-images/screenshot 8.png`.
+**Note on the typing indicator.** The React reference from spec section 6.6 is saved unchanged at [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx). The Solid port keeps its label rules and its shape: a one-line agent bubble of three dots. The dots say what the agent is doing by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an orbit while a tool runs. A slow act adds a muted caption. Each working agent gets its own bubble, and in a group each carries the agent's bird. The rapid-fire example that spec section 4.5 calls "img #1" is `~/kat-images/screenshot 8.png`.
 
 ### Suggested additions
 

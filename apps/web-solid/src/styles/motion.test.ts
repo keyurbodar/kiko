@@ -88,8 +88,8 @@ test("keyframes move only transform and opacity", () => {
   }
 });
 
-test("the five allowed motions exist", () => {
-  for (const c of ["reaction-pop", "attachment-in", "calendar-open", "toast-enter", "bubble-in"]) {
+test("the allowed motions exist", () => {
+  for (const c of ["reaction-pop", "attachment-in", "calendar-open", "toast-enter", "bubble-in", "reply-in"]) {
     expect(css).toContain(`.motion-${c}`);
   }
 });

@@ -1,53 +1,76 @@
-import { createEffect, createMemo, createSignal, lazy, on, onCleanup, Show, Suspense } from "solid-js";
-import { birdFor } from "../../mascot/choices";
-import { birdPixels } from "../../mascot/pixel/sprite";
-import { actOf } from "./action";
-import type { Actor } from "./presence-stage";
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
+import { Bird } from "../../mascot/bird";
+import { motionOf } from "./action";
 import { describe } from "./create-typing-presence";
 import "./typing.css";
 
 /*
- * The presence row: who is working on your reply, and what they are doing, shown instead of
- * told. Each working agent is its own pixel bird acting out its current act (pecking at a
- * page, carrying a twig to a nest, turning a gear), beside one quiet line that says it in
- * words. It replaces the typing bubble: no dots, no box, one row under the last message.
+ * Kat's typing bubble, one per working agent. A reply lands as whole bubbles, so this is all
+ * the reader sees of a run until a bubble arrives. The three dots say what the agent is doing
+ * by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an
+ * orbit while a tool runs. A slow act also gets a muted caption. In a group each row carries
+ * the agent's bird in the avatar gutter, the same bird as on its messages.
  */
 
 export interface TypingIndicatorProps {
   typists: string[];
   /** The typists' slugs, in the same order, so each bird is the agent's own. */
   seeds?: readonly string[];
-  sending?: boolean;
-  max?: number;
   /** What each typist is doing, in the same order, such as "editing /hello.html". */
   doings?: readonly (string | undefined)[];
+  /** A group chat: each row carries its agent's bird, as its messages do. */
+  group?: boolean;
+  max?: number;
   announceAfter?: number;
   class?: string;
 }
 
-const BIRDS = 3;
-/** Mirrors the stage: 13 rows of 3px cells, and a slot of 17 cells per bird. */
-const STAGE_H = 39;
-const SLOT_W = 51;
+const ROWS = 3;
+/** How long an act runs before its caption shows, so a quick tool call never flashes words. */
+const CAPTION_AFTER_MS = 2000;
 
-// The pixel stage loads the first time an agent works; its spot is held so nothing shifts.
-const PresenceStage = lazy(() => import("./presence-stage"));
+function Row(props: { seed: string; doing?: string; group?: boolean }) {
+  const motion = () => motionOf(props.doing);
+  const [caption, setCaption] = createSignal<string>();
+  createEffect(
+    on(
+      () => (motion() === "wave" ? undefined : props.doing),
+      (doing) => {
+        setCaption(undefined);
+        if (!doing) return;
+        const timer = setTimeout(() => setCaption(doing), CAPTION_AFTER_MS);
+        onCleanup(() => clearTimeout(timer));
+      },
+    ),
+  );
+  return (
+    <div class="typing" data-component="typing-row" data-motion={motion()}>
+      <Show when={props.group}>
+        <Bird slug={props.seed} size={32} class="typing-bird" />
+      </Show>
+      <div class="typing-bubble" aria-hidden="true">
+        <span class="typing-dots">
+          <span class="typing-dot" />
+          <span class="typing-dot" />
+          <span class="typing-dot" />
+        </span>
+      </div>
+      <span class="typing-doing" data-component="typing-doing" aria-hidden="true">
+        {caption()}
+      </span>
+    </div>
+  );
+}
 
 export function TypingIndicator(props: TypingIndicatorProps) {
   const max = () => props.max ?? 2;
-  const acts = createMemo(() => props.typists.map((_, i) => actOf(props.doings?.[i])));
-  // One agent says what it does. A team says who is at it; each bird already shows its act.
   const label = createMemo(() => {
-    if (props.typists.length === 1 && acts()[0] !== "write") return `${props.typists[0]} is ${props.doings?.[0]}`;
-    const typing = describe(props.typists, max());
-    return acts().some((a) => a !== "write") ? typing.replace(/ (is|are) typing$/, (_, verb: string) => ` ${verb} working`) : typing;
+    const doing = props.doings?.[0];
+    if (props.typists.length === 1 && motionOf(doing) !== "wave") return `${props.typists[0]} is ${doing}`;
+    return describe(props.typists, max());
   });
-  const actors = createMemo<Actor[]>(() =>
-    props.typists.slice(0, BIRDS).map((name, i) => ({
-      pixels: birdPixels(birdFor(props.seeds?.[i] ?? name)),
-      act: acts()[i]!,
-    })),
-  );
+  const rows = createMemo(() => props.typists.slice(0, ROWS).map((name, i) => props.seeds?.[i] ?? name));
+  const more = () => props.typists.length - ROWS;
 
   // The screen reader text trails the typing state. It is the only label read out.
   const [announced, setAnnounced] = createSignal(label());
@@ -63,18 +86,13 @@ export function TypingIndicator(props: TypingIndicatorProps) {
   );
 
   return (
-    <div class={`presence ${props.class ?? ""}`} data-component="typing-indicator" data-act={actors()[0]?.act}>
-      {/* The canvas is as wide as the birds on it, so it is made again when that count changes. */}
-      <Show when={actors().length} keyed>
-        {(count) => (
-          <Suspense fallback={<span class="block shrink-0" style={{ width: `${count * SLOT_W - 6}px`, height: `${STAGE_H}px` }} />}>
-            <PresenceStage count={count} actors={actors} sending={() => props.sending === true} />
-          </Suspense>
-        )}
+    <div class={`typing-stack ${props.class ?? ""}`} data-component="typing-indicator">
+      <For each={rows()}>{(seed, i) => <Row seed={seed} doing={props.doings?.[i()]} group={props.group} />}</For>
+      <Show when={more() > 0}>
+        <span class="typing-more" data-group={props.group ? "" : undefined} aria-hidden="true">
+          and {more()} {more() === 1 ? "other" : "others"}
+        </span>
       </Show>
-      <span class="presence-line" data-component="typing-doing" aria-hidden="true">
-        {label()}
-      </span>
       <span class="typing-sr" role="status" aria-live="polite" aria-atomic="true">
         {announced()}
       </span>

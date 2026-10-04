@@ -91,4 +91,15 @@
   .motion-bubble-in {
     animation: motion-bubble-in var(--motion-base) var(--motion-ease-out) both;
   }
+
+  /* An agent's reply grows out of the corner its typing bubble sat in. */
+  @keyframes motion-reply-in {
+    from { opacity: 0; transform: scale(0.94) translateY(4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .motion-reply-in {
+    transform-origin: 0 100%;
+    animation: motion-reply-in var(--motion-base) var(--motion-ease-pop) both;
+  }
 }

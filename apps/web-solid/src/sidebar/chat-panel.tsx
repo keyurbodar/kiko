@@ -326,9 +326,9 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
                 }
               >
                 {props.bot.typing ?? "typing"}
-                <i class="typing-dot" aria-hidden="true" />
-                <i class="typing-dot" aria-hidden="true" />
-                <i class="typing-dot" aria-hidden="true" />
+                <i class="chat-typing-dot" aria-hidden="true" />
+                <i class="chat-typing-dot" aria-hidden="true" />
+                <i class="chat-typing-dot" aria-hidden="true" />
               </Show>
             </span>
             {/* tweb's mention badge: a round @ beside the count while a mention of you is unread. */}
