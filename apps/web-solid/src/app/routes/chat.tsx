@@ -252,7 +252,7 @@ export default function ChatRoute() {
             onAtLatest={() => landing || useApp.followLatest()}
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
-            waitingDoing={useApp.typingDoing()}
+            waitingDoings={useApp.typingDoings()}
             groupChat={members().size > 1}
             memberSlugs={[...members().keys()]}
             notices={notices()}

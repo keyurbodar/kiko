@@ -19,8 +19,8 @@ export interface TypingIndicatorProps {
   seeds?: readonly string[];
   sending?: boolean;
   max?: number;
-  /** What the first typist is doing, such as "editing /hello.html". */
-  doing?: string;
+  /** What each typist is doing, in the same order, such as "editing /hello.html". */
+  doings?: readonly (string | undefined)[];
   announceAfter?: number;
   class?: string;
 }
@@ -35,12 +35,17 @@ const PresenceStage = lazy(() => import("./presence-stage"));
 
 export function TypingIndicator(props: TypingIndicatorProps) {
   const max = () => props.max ?? 2;
-  const working = () => props.doing && props.doing !== "writing a reply" && props.typists.length === 1;
-  const label = createMemo(() => (working() ? `${props.typists[0]} is ${props.doing}` : describe(props.typists, max())));
+  const acts = createMemo(() => props.typists.map((_, i) => actOf(props.doings?.[i])));
+  // One agent says what it does. A team says who is at it; each bird already shows its act.
+  const label = createMemo(() => {
+    if (props.typists.length === 1 && acts()[0] !== "write") return `${props.typists[0]} is ${props.doings?.[0]}`;
+    const typing = describe(props.typists, max());
+    return acts().some((a) => a !== "write") ? typing.replace(/ (is|are) typing$/, (_, verb: string) => ` ${verb} working`) : typing;
+  });
   const actors = createMemo<Actor[]>(() =>
     props.typists.slice(0, BIRDS).map((name, i) => ({
       pixels: birdPixels(birdFor(props.seeds?.[i] ?? name)),
-      act: i === 0 ? actOf(props.doing) : "write",
+      act: acts()[i]!,
     })),
   );
 

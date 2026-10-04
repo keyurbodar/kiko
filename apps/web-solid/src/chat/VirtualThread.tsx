@@ -143,7 +143,7 @@ export function VirtualThread(props: {
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
   waitingSlugs?: readonly string[]
-  waitingDoing?: string
+  waitingDoings?: readonly (string | undefined)[]
   /** A chat with more than one agent: runs show who wrote them, and agents' asides fold. */
   groupChat?: boolean
   /** The room's member slugs. In a group, an agent's message to another member folds into a thread. */
@@ -909,7 +909,7 @@ export function VirtualThread(props: {
                 )}
                 data-component="chat-typing-row"
               >
-                <TypingIndicator typists={[...props.waitingNames]} seeds={props.waitingSlugs} doing={props.waitingDoing} />
+                <TypingIndicator typists={[...props.waitingNames]} seeds={props.waitingSlugs} doings={props.waitingDoings} />
               </div>
             </Show>
           </Show>

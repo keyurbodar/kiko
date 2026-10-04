@@ -833,10 +833,13 @@ export function createApp(options: AppOptions = {}) {
         return room()?.state.roster ?? []
       },
 
-      /** What the first typing agent is doing now, such as "editing /hello.html", or undefined. */
-      typingDoing(): string | undefined {
-        const slug = this.typingSlugs()[0]
-        return slug ? room()?.state.doing[slug] : undefined
+      /**
+       * What each typing agent is doing now, in `typingSlugs` order, such as "editing /hello.html".
+       * A run that is working without saying on what is using a tool.
+       */
+      typingDoings(): (string | undefined)[] {
+        const r = room()
+        return this.typingSlugs().map((slug) => r?.state.doing[slug] ?? (r?.state.status[slug as never] === "working" ? "using a tool" : undefined))
       },
 
       /** The slugs of the agents typing now, for the typing bubble's avatar. */

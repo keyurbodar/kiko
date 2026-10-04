@@ -7,16 +7,17 @@ import { createTypingPresence } from "./create-typing-presence";
 import { TypingIndicator } from "./TypingIndicator";
 import Moment from "../../mascot/pixel/moment";
 
-const ROWS: [string[], string | undefined][] = [
-  [["kiko"], undefined],
-  [["scout"], "reading /notes.md"],
-  [["scout"], "reading a web page"],
-  [["editor"], "editing /draft.md"],
-  [["budget"], "running code on the human's connected apps"],
-  [["lead"], "working with a helper"],
-  [["planner"], "handling a reminder"],
-  [["kiko"], "setting up agents"],
-  [["lead", "scout", "budget"], undefined],
+const ROWS: [string[], (string | undefined)[]][] = [
+  [["kiko"], []],
+  [["scout"], ["reading /notes.md"]],
+  [["scout"], ["reading a web page"]],
+  [["editor"], ["editing /draft.md"]],
+  [["budget"], ["running code on the human's connected apps"]],
+  [["lead"], ["working with a helper"]],
+  [["planner"], ["handling a reminder"]],
+  [["kiko"], ["setting up agents"]],
+  [["lead", "scout", "budget"], []],
+  [["lead", "scout", "budget"], ["editing /plan.md", "reading a web page", undefined]],
 ];
 
 function Page() {
@@ -25,7 +26,7 @@ function Page() {
   return (
     <div style={{ padding: "24px", background: "var(--bg)", "min-height": "100vh", color: "var(--text)", display: "flex", "flex-direction": "column", gap: "14px" }}>
       {ROWS.map(([typists, doing]) => (
-        <TypingIndicator typists={typists} seeds={typists} doing={doing} />
+        <TypingIndicator typists={typists} seeds={typists} doings={doing} />
       ))}
       <TypingIndicator typists={presence.typists()} sending={presence.sending()} />
       <div style={{ display: "flex", gap: "32px", "align-items": "flex-end" }}>
