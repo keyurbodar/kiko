@@ -1,4 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ReplyIcon } from "@kiko/ui/icons"
 import { type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { useSwipeToReply } from "../lib/useSwipeToReply"
@@ -40,7 +41,7 @@ export function SwipeToReply(props: SwipeToReplyProps) {
         data-component="chat-swipe-indicator"
         aria-hidden="true"
       >
-        <HugeIcon name="reply" size={14} />
+        <HugeIcon icon={ReplyIcon} size={14} />
       </span>
     </div>
   )

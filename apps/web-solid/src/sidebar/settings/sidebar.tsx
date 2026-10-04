@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router"
 import { createSignal, For } from "solid-js"
-import { HugeIcon, type IconKey } from "@kiko/ui/huge-icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
 import { searchSections } from "../../settings/sections"
 
 /*
@@ -10,13 +11,13 @@ import { searchSections } from "../../settings/sections"
  */
 
 /** By section id. A section without an entry gets the gear. */
-const ICON: Record<string, IconKey> = {
-  models: "model",
-  integrations: "integrations",
-  extensions: "extensions",
-  skills: "skills",
-  appearance: "appearance",
-  account: "user",
+const ICON: Record<string, Glyph> = {
+  models: ModelIcon,
+  integrations: IntegrationsIcon,
+  extensions: ExtensionsIcon,
+  skills: SkillsIcon,
+  appearance: AppearanceIcon,
+  account: UserIcon,
 }
 
 export default function SettingsSidebar() {
@@ -25,11 +26,11 @@ export default function SettingsSidebar() {
   return (
     <nav class="settings-panel" data-component="settings-panel" aria-label="settings sections">
       <A href="/chat" class="settings-panel-row" data-component="settings-back">
-        <HugeIcon name="back" size={16} />
+        <HugeIcon icon={BackIcon} size={16} />
         <span class="settings-row-label">chats</span>
       </A>
       <label class="settings-search">
-        <HugeIcon name="search" size={15} />
+        <HugeIcon icon={SearchIcon} size={15} />
         <input
           type="search"
           placeholder="search settings"
@@ -47,7 +48,7 @@ export default function SettingsSidebar() {
       <For each={rows()} fallback={<p class="settings-empty">nothing matches</p>}>
         {(s) => (
           <A href={`/settings/${s.id}`} class="settings-panel-row" activeClass="settings-panel-row-active" data-section={s.id}>
-            <HugeIcon name={ICON[s.id] ?? "settings"} size={16} />
+            <HugeIcon icon={ICON[s.id] ?? SettingsIcon} size={16} />
             <span class="settings-row-label">{s.label}</span>
           </A>
         )}

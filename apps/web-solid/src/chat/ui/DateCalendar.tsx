@@ -1,5 +1,6 @@
 import Calendar from "@corvu/calendar"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { Index, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { dayStartOf } from "../lib/grouping"
@@ -64,7 +65,7 @@ export default function DateCalendar(props: {
                         ? calendar.month.getFullYear()
                         : MONTH_YEAR.format(calendar.month)}
                       <HugeIcon
-                        name="chevron-down"
+                        icon={ChevronDownIcon}
                         class={cn("size-4 transition-transform", picking() && "rotate-180")}
                         aria-hidden="true"
                       />
@@ -78,7 +79,7 @@ export default function DateCalendar(props: {
                           calendar.navigate(picking() ? "prev-year" : "prev-month")
                         }
                       >
-                        <HugeIcon name="chevron-left" class="size-4" aria-hidden="true" />
+                        <HugeIcon icon={ChevronLeftIcon} class="size-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -88,7 +89,7 @@ export default function DateCalendar(props: {
                           calendar.navigate(picking() ? "next-year" : "next-month")
                         }
                       >
-                        <HugeIcon name="chevron-right" class="size-4" aria-hidden="true" />
+                        <HugeIcon icon={ChevronRightIcon} class="size-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>

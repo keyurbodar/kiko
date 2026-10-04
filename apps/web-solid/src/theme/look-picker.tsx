@@ -1,5 +1,6 @@
 import { For } from "solid-js"
-import { HugeIcon, type IconKey } from "@kiko/ui/huge-icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { type Glyph, MonitorIcon, MoonIcon, SunIcon } from "@kiko/ui/icons"
 import { appearanceOf } from "./apply"
 import type { Look, Mode, Style } from "./look"
 import { MODES, presetOf, STYLES, styleOf, withStyle } from "./look"
@@ -11,7 +12,7 @@ import { SWATCHES, swatchColor } from "./presets"
  * instant, so there is nothing to confirm.
  */
 
-const MODE_ICON: Record<Mode, IconKey> = { system: "monitor", light: "sun", dark: "moon" }
+const MODE_ICON: Record<Mode, Glyph> = { system: MonitorIcon, light: SunIcon, dark: MoonIcon }
 
 /* Each card draws a small window in its own colours, so a style can be judged before it is picked. */
 const CARD: Record<Style, { label: string; side: string; panel: string; bubble: string; line: string; scene?: string }> = {
@@ -77,7 +78,7 @@ export function LookPicker(props: { look: Look; onChange: (next: Look) => void; 
               class="flex h-8 items-center gap-2 rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:bg-[var(--selected-bg)] aria-checked:text-text"
               onClick={() => props.onChange({ ...props.look, mode })}
             >
-              <HugeIcon name={MODE_ICON[mode]} size={15} />
+              <HugeIcon icon={MODE_ICON[mode]} size={15} />
               {mode}
             </button>
           )}

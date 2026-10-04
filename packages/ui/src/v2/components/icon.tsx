@@ -1,31 +1,32 @@
 import { splitProps, type ComponentProps } from "solid-js"
-import { HugeIcon, type IconKey } from "../../components/huge-icon"
+import { HugeIcon } from "../../components/huge-icon"
+import * as g from "../../icons.gen"
 
 /* The v2 set's names, each drawn by one of kiko's icons. */
 const NAMES = {
-  plus: "plus",
-  "chevron-down": "chevron-down",
-  "outline-chevron-down": "chevron-down",
-  "xmark-small": "close",
-  "outline-xmark": "close",
-  close: "close",
-  check: "check",
-  edit: "edit",
-  folder: "folder",
-  "magnifying-glass": "search",
-  menu: "menu",
-  "settings-gear": "settings",
-  "sidebar-right": "sidebar-right",
-  "outline-dots": "more",
-  "outline-copy": "copy",
-  "outline-share": "share",
-  reset: "undo",
-  "outline-reset": "undo",
-  expand: "maximize",
-  filetree: "folder-tree",
-  archive: "archive",
-  monitor: "monitor",
-} as const satisfies Record<string, IconKey>
+  plus: g.PlusIcon,
+  "chevron-down": g.ChevronDownIcon,
+  "outline-chevron-down": g.ChevronDownIcon,
+  "xmark-small": g.CloseIcon,
+  "outline-xmark": g.CloseIcon,
+  close: g.CloseIcon,
+  check: g.CheckIcon,
+  edit: g.EditIcon,
+  folder: g.FolderIcon,
+  "magnifying-glass": g.SearchIcon,
+  menu: g.MenuIcon,
+  "settings-gear": g.SettingsIcon,
+  "sidebar-right": g.SidebarRightIcon,
+  "outline-dots": g.MoreIcon,
+  "outline-copy": g.CopyIcon,
+  "outline-share": g.ShareIcon,
+  reset: g.UndoIcon,
+  "outline-reset": g.UndoIcon,
+  expand: g.MaximizeIcon,
+  filetree: g.FolderTreeIcon,
+  archive: g.ArchiveIcon,
+  monitor: g.MonitorIcon,
+} as const satisfies Record<string, g.Glyph>
 
 export type IconName = keyof typeof NAMES
 
@@ -37,5 +38,5 @@ export interface IconProps extends Omit<ComponentProps<"svg">, "children"> {
 export function Icon(props: IconProps) {
   const [split, rest] = splitProps(props, ["name", "size"])
   const px = () => (split.size === "small" ? 14 : split.size === "large" ? 20 : 16)
-  return <HugeIcon {...rest} data-slot="icon-svg" name={NAMES[split.name]} size={px()} />
+  return <HugeIcon {...rest} data-slot="icon-svg" icon={NAMES[split.name]} size={px()} />
 }

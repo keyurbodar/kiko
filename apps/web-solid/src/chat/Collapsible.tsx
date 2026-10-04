@@ -1,5 +1,6 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ChevronDownIcon } from "@kiko/ui/icons"
 import { createSignal, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 
@@ -121,7 +122,7 @@ export function Collapsible(props: {
           data-component="chat-collapsible-toggle"
           onClick={toggle}
         >
-          <HugeIcon name="chevron-down" class={cn("size-4", !clamped() && "rotate-180")} aria-hidden="true" />
+          <HugeIcon icon={ChevronDownIcon} class={cn("size-4", !clamped() && "rotate-180")} aria-hidden="true" />
         </button>
       </Show>
     </div>

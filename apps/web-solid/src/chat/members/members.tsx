@@ -1,5 +1,6 @@
 import type { Member } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { PlusIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { session } from "../../app/session"
@@ -138,7 +139,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
         when={adding()}
         fallback={
           <button type="button" class={`${row} text-weak`} data-action="add-agent" onClick={() => setAdding(true)}>
-            <span class="grid size-8 place-items-center rounded-full bg-[var(--tint-subtle)]"><HugeIcon name="plus" size={15} /></span>
+            <span class="grid size-8 place-items-center rounded-full bg-[var(--tint-subtle)]"><HugeIcon icon={PlusIcon} size={15} /></span>
             add
           </button>
         }

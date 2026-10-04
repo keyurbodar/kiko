@@ -79,7 +79,7 @@ export default function Palette() {
                 <For each={rows()}>
                   {(command) => (
                     <Cmdk.Item class="palette-row" value={command.title} onSelect={() => run(command.run)}>
-                      <HugeIcon name={iconFor(command.icon)} size={16} />
+                      <HugeIcon icon={iconFor(command.icon)} size={16} />
                       <span class="palette-label">{command.title}</span>
                       <Show when={command.shortcut}>
                         {(shortcut) => <span class="palette-keys">{displayShortcut(shortcut())}</span>}

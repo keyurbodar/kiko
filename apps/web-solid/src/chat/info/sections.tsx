@@ -1,7 +1,8 @@
 import type { Chat, Member } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, type JSX, Show } from "solid-js"
-import { HugeIcon, type IconKey } from "@kiko/ui/huge-icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ChevronRightIcon, type Glyph, TrashIcon } from "@kiko/ui/icons"
 import { nextAfterClose, openTabs } from "../../app/open-tabs"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import { MemberList } from "../members/members"
@@ -45,7 +46,7 @@ export function Card(props: { id: string; title: string; hint?: string; onOpen?:
 }
 
 export function Chevron() {
-  return <HugeIcon name="chevron-right" size={14} />
+  return <HugeIcon icon={ChevronRightIcon} size={14} />
 }
 
 /*
@@ -125,20 +126,20 @@ export function Members(props: { members: readonly Member[] }) {
 }
 
 /** A neutral tile holding a line icon: the row's kind at a glance, without a colour per kind. */
-export function Badge(props: { icon: IconKey; danger?: boolean }) {
+export function Badge(props: { icon: Glyph; danger?: boolean }) {
   return (
     <span
       class="grid size-7 shrink-0 place-items-center rounded-md bg-[var(--tint-subtle)]"
       classList={{ "text-weak": !props.danger, "text-danger": props.danger }}
       aria-hidden="true"
     >
-      <HugeIcon name={props.icon} size={15} />
+      <HugeIcon icon={props.icon} size={15} />
     </span>
   )
 }
 
 /** A row in a grouped list: icon, label, a value or count on the right, and a chevron. */
-export function ListRow(props: { id: string; label: string; icon: IconKey; value?: string | number; onClick: () => void }) {
+export function ListRow(props: { id: string; label: string; icon: Glyph; value?: string | number; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -179,7 +180,7 @@ export function DeleteChat(props: { chatId: string }) {
         onClick={remove}
         onBlur={() => setSure(false)}
       >
-        <Badge icon="trash" danger />
+        <Badge icon={TrashIcon} danger />
         {sure() ? "sure? delete this chat" : "delete chat"}
       </button>
     </div>

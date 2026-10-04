@@ -2,6 +2,7 @@ import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { A, useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ComposeIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { SECTIONS, type SectionId } from "../app/sections"
@@ -229,7 +230,7 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
         data-hint="view.toggle-sidebar"
         onClick={() => props.onToggle()}
       >
-        <HugeIcon name="sidebar-left" size={17} />
+        <HugeIcon icon={SidebarLeftIcon} size={17} />
       </button>
     </TooltipV2>
   )
@@ -258,7 +259,7 @@ function Foot(props: { section: SectionId | null }) {
           aria-current={props.section === "settings" ? "page" : undefined}
           aria-label="settings"
         >
-          <HugeIcon name="settings" size={17} />
+          <HugeIcon icon={SettingsIcon} size={17} />
         </A>
       </TooltipV2>
     </footer>
@@ -279,14 +280,14 @@ function HeaderAction(props: { action: PanelAction }) {
       when={props.action.menu}
       fallback={
         <button type="button" class={button} data-component="sidebar-add" aria-label={props.action.label} onClick={() => props.action.run(navigate)}>
-          <HugeIcon name="compose" size={17} />
+          <HugeIcon icon={ComposeIcon} size={17} />
         </button>
       }
     >
       {(items) => (
         <MenuV2 gutter={6} placement="bottom-end">
           <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="new chat">
-            <HugeIcon name="compose" size={17} />
+            <HugeIcon icon={ComposeIcon} size={17} />
           </MenuV2.Trigger>
           <MenuV2.Portal>
             <MenuV2.Content data-component="sidebar-add-menu">

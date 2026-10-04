@@ -1,4 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { FileTextIcon, LinkIcon } from "@kiko/ui/icons"
 import { Show, type JSX } from "solid-js"
 import type { ReplySummary } from "../chat/lib/reply"
 
@@ -19,7 +20,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
             <Show when={props.summary.glyph}>
               {(glyph) => (
                 <span class="reply-bar-glyph flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
-                  {glyph() === "document" ? <HugeIcon name="file-text" class="size-4" /> : <HugeIcon name="link" class="size-4" />}
+                  {glyph() === "document" ? <HugeIcon icon={FileTextIcon} class="size-4" /> : <HugeIcon icon={LinkIcon} class="size-4" />}
                 </span>
               )}
             </Show>

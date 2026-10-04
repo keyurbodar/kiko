@@ -1,4 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openBirdPicker } from "../mascot/picker-state"
@@ -298,7 +299,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
           <span class="chat-line">
             <RowTitle id={props.bot.id} title={props.bot.name} />
             <Show when={props.muted}>
-              <HugeIcon name="mute" size={12} class="chat-muted-icon" />
+              <HugeIcon icon={MuteIcon} size={12} class="chat-muted-icon" />
             </Show>
             <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
           </span>
@@ -370,7 +371,7 @@ function SearchRow(props: {
   return (
     <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="go to chat">
       <label class="chat-search-field">
-        <HugeIcon name="search" size={15} />
+        <HugeIcon icon={SearchIcon} size={15} />
         <input
           type="text"
           class="chat-search-input"
@@ -398,7 +399,7 @@ function SearchRow(props: {
         title="unread only"
         onClick={() => props.onUnreadOnly(!props.unreadOnly)}
       >
-        <HugeIcon name="filter" size={16} />
+        <HugeIcon icon={FilterIcon} size={16} />
       </button>
     </div>
   )

@@ -10,6 +10,7 @@ import { SharedContent } from "./lists"
 import { MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { BackIcon, CloseIcon, MemoryIcon, TasksIcon } from "@kiko/ui/icons"
 import { Card, DeleteChat, Header, ListRow, Members, roomMembers } from "./sections"
 import {
   closeFile,
@@ -136,9 +137,9 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
       <Header chatId={props.chatId} members={members()} />
       <Members members={members()} />
       <div class="flex flex-col" data-component="info-rows">
-        <ListRow id="memory" label="memory" icon="memory" value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
+        <ListRow id="memory" label="memory" icon={MemoryIcon} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
         <Show when={roomMembers().length > 1}>
-          <ListRow id="tasks" label="tasks" icon="tasks" value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
+          <ListRow id="tasks" label="tasks" icon={TasksIcon} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
         </Show>
       </div>
       <SharedContent media={props.media} links={props.links} />
@@ -189,7 +190,7 @@ function MemoryViews(props: { view: Extract<InfoView, { kind: "memory" | "record
 }
 
 function Back() {
-  return <HugeIcon name="back" size={16} />
+  return <HugeIcon icon={BackIcon} size={16} />
 }
 
 
@@ -318,7 +319,7 @@ export default function InfoPanel(props: { chatId: string }) {
           </Suspense>
         </Show>
         <button type="button" class={iconButton} data-action="close" aria-label="close panel" title="close panel" onClick={() => closeInfo()}>
-          <HugeIcon name="close" size={15} />
+          <HugeIcon icon={CloseIcon} size={15} />
         </button>
       </div>
       <Switch>

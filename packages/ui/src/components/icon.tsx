@@ -1,14 +1,15 @@
 import { splitProps, type ComponentProps } from "solid-js"
-import { HugeIcon, type IconKey } from "./huge-icon"
+import { HugeIcon } from "./huge-icon"
+import { ArrowUpIcon, type Glyph, LinkIcon, ReplyIcon, SearchIcon, StopIcon } from "../icons.gen"
 
 /* The older icon names still in use, each drawn by one of kiko's icons. */
 const NAMES = {
-  "arrow-up": "arrow-up",
-  stop: "stop",
-  "arrow-undo-down": "reply",
-  link: "link",
-  "magnifying-glass": "search",
-} as const satisfies Record<string, IconKey>
+  "arrow-up": ArrowUpIcon,
+  stop: StopIcon,
+  "arrow-undo-down": ReplyIcon,
+  link: LinkIcon,
+  "magnifying-glass": SearchIcon,
+} as const satisfies Record<string, Glyph>
 
 export type IconName = keyof typeof NAMES
 
@@ -22,7 +23,7 @@ export function Icon(props: IconProps) {
   const [local, others] = splitProps(props, ["name", "size"])
   return (
     <div data-component="icon" data-size={local.size || "normal"}>
-      <HugeIcon {...others} data-slot="icon-svg" name={NAMES[local.name]} />
+      <HugeIcon {...others} data-slot="icon-svg" icon={NAMES[local.name]} />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ChevronDownIcon } from "@kiko/ui/icons"
 import type { JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar } from "../lib/IdentityAvatar"
@@ -37,7 +38,7 @@ export function AgentThread(props: {
         <span class="truncate">{joinNames(props.names)}</span>
         <span aria-hidden="true">·</span>
         <span class="shrink-0">{messageCount(props.count)}</span>
-        <HugeIcon name="chevron-down" class={cn("size-3.5 shrink-0", props.expanded && "rotate-180")} aria-hidden="true" />
+        <HugeIcon icon={ChevronDownIcon} class={cn("size-3.5 shrink-0", props.expanded && "rotate-180")} aria-hidden="true" />
       </button>
     </div>
   )

@@ -1,4 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { FileTextIcon, LinkIcon } from "@kiko/ui/icons"
 import { Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
@@ -53,7 +54,7 @@ export function Quote(props: {
           <Show when={props.summary.glyph}>
             {(glyph) => (
               <span class="chat-quote__thumb flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(from_currentColor_l_c_h/15%)]">
-                {glyph() === "document" ? <HugeIcon name="file-text" class="size-4" /> : <HugeIcon name="link" class="size-4" />}
+                {glyph() === "document" ? <HugeIcon icon={FileTextIcon} class="size-4" /> : <HugeIcon icon={LinkIcon} class="size-4" />}
               </span>
             )}
           </Show>

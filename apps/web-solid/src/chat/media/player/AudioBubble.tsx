@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { PauseIcon, PlayIcon } from "@kiko/ui/icons"
 import { formatTime, playback, waveformBars } from "./playback"
 
 const BARS = 40
@@ -71,8 +72,8 @@ export function AudioBubble(props: {
           "place-items": "center",
         }}
       >
-        <Show when={playing()} fallback={<HugeIcon name="play" size={18} fill="currentColor" />}>
-          <HugeIcon name="pause" size={18} fill="currentColor" />
+        <Show when={playing()} fallback={<HugeIcon icon={PlayIcon} size={18} fill="currentColor" />}>
+          <HugeIcon icon={PauseIcon} size={18} fill="currentColor" />
         </Show>
       </button>
       <div style={{ flex: "1", "min-width": "0", display: "flex", "flex-direction": "column", gap: "4px" }}>

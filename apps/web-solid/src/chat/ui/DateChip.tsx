@@ -1,5 +1,6 @@
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { CloseIcon } from "@kiko/ui/icons"
 import { Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { dayChipLabel, formatFullTimestamp } from "../lib/dayLabel"
@@ -94,7 +95,7 @@ export function DateChip(props: {
               aria-label="close calendar"
               onClick={close}
             >
-              <HugeIcon name="close" class="size-3.5" aria-hidden="true" />
+              <HugeIcon icon={CloseIcon} class="size-3.5" aria-hidden="true" />
             </button>
           </Show>
         </div>

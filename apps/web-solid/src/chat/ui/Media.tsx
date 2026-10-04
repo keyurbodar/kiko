@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show, type JSX 
 import { cn } from "../../lib/cn"
 import type { MediaItem } from "../../lib/types"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { PlayIcon } from "@kiko/ui/icons"
 import { albumLayout, cornerRadii, singleMediaBox } from "../lib/album"
 import { mediaThumbnail } from "../lib/media"
 
@@ -77,7 +78,7 @@ function MediaFrame(props: { item: MediaItem; playMark: boolean }): JSX.Element 
         <Show when={props.playMark}>
           <span class="pointer-events-none absolute inset-0 grid place-items-center">
             <span class="grid size-14 place-items-center rounded-full bg-black/35 text-white">
-              <HugeIcon name="play" class="size-6 translate-x-px" fill="currentColor" stroke-width={0} />
+              <HugeIcon icon={PlayIcon} class="size-6 translate-x-px" fill="currentColor" stroke-width={0} />
             </span>
           </span>
         </Show>
