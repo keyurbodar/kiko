@@ -750,7 +750,7 @@
 
   .sidebar-shell .panel {
     position: absolute;
-    z-index: 30;
+    z-index: 40;
     top: 0;
     bottom: 0;
     left: 0;
@@ -796,6 +796,14 @@
   background: var(--panel);
   border-radius: 12px;
   box-shadow: var(--glass-sheen);
+}
+
+/* Where the info pane covers the chat instead of sitting beside it, it is opaque, so the
+ * transcript never shows through. */
+@container main (width <= 760px) {
+  .sidebar-shell .info-pane {
+    background: var(--sidebar-solid);
+  }
 }
 
 @media (width < 768px) {
