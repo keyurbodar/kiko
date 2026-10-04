@@ -318,7 +318,6 @@
 .sidebar-shell .pin-tile[data-active] {
   color: var(--text);
   background: var(--selected-bg);
-  box-shadow: var(--row-sheen);
 }
 
 .sidebar-shell .pin-tile-circle {
@@ -415,7 +414,6 @@
 
 .sidebar-shell .chat-row[data-active] {
   background: var(--selected-bg);
-  box-shadow: var(--row-sheen);
 }
 
 /* A bird is its own shape: no disc behind it and nothing clipping its crest. */
@@ -776,7 +774,7 @@
 /* ===== Main panes ----------------------------------------------------- */
 
 /* The chat pane, and the info pane beside it when it is open: rounded panes under the top bar,
- * 8px apart. In frost each is the denser glass with a lit rim; in solid each is the panel
+ * 8px apart, with no border. In frost each is the denser glass; in solid each is the panel
  * colour against the darker shell. */
 .sidebar-shell .main-row {
   gap: 8px;
@@ -795,7 +793,6 @@
 .sidebar-shell .info-pane {
   background: var(--panel);
   border-radius: 12px;
-  box-shadow: var(--glass-sheen);
 }
 
 /* Where the info pane covers the chat instead of sitting beside it, it is opaque, so the

@@ -389,8 +389,6 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--panel` | color | `var(--bg)` |
 | `--dock-bg` | color | `var(--bg)` |
 | `--scene` | any | `none` |
-| `--glass-sheen` | any | `none` |
-| `--row-sheen` | any | `none` |
 | `--popover-bg` | color | `var(--menu-bg)` |
 | `--popover-blur` | any | `none` |
 | `--popover-edge` | any | `0 0 0 1px oklch(from var(--text) l c h / 0.08)` |

@@ -55,8 +55,9 @@ export function DateChip(props: {
       <DismissableLayerV2
         active={open()}
         class={cn(
-          "flex w-max max-w-full flex-col items-stretch overflow-clip bg-surface-raised text-text shadow-popover",
-          open() ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full motion-calendar-open" : "rounded-[15px]",
+          "flex w-max max-w-full flex-col items-stretch overflow-clip bg-surface-raised text-text",
+          // The shadow belongs to the open calendar. On the closed pill it read as a halo.
+          open() ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full shadow-popover motion-calendar-open" : "rounded-[15px]",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}

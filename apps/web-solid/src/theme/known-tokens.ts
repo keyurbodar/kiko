@@ -253,8 +253,6 @@ export const KNOWN_TOKENS: Record<string, TokenKind> = {
   "--panel": "color",
   "--dock-bg": "color",
   "--scene": "any",
-  "--glass-sheen": "any",
-  "--row-sheen": "any",
   "--popover-bg": "color",
   "--popover-blur": "any",
   "--popover-edge": "any",
