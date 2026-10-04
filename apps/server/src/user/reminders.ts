@@ -242,6 +242,13 @@ export class Reminders {
     return this.get(id)
   }
 
+  /** Cancels every active reminder `createdBy` made, such as an extension's triggers (section 24.8). */
+  async cancelCreatedBy(createdBy: string): Promise<number> {
+    const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE created_by = ? AND status = 'active'", createdBy)
+    if (changed.rowsWritten) await this.rearm()
+    return changed.rowsWritten
+  }
+
   /**
    * Moves the next occurrence to `time`. A done one-off becomes active again. For a
    * recurring row the occurrences after it follow from the new time.

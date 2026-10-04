@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en" data-appearance="dark" data-backdrop="aurora" data-density="comfortable" data-frame="inset">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiko glass sidebar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/*
+  one hue drives everything, like kat.css: --hue and --cm come from kiko's swatches.
+  the window is a backdrop, the sidebar is glass over it, the chat is a solid sheet.
+*/
+:root {
+  --hue: 245; --cm: 1; --h-brand: var(--hue);
+  --glass-a: .52;             /* sidebar opacity, the slider */
+  --blur: 40px;
+
+  /* dark */
+  --backdrop: oklch(.16 calc(.03*var(--cm)) var(--hue));
+  --glass: oklch(.19 calc(.012*var(--cm)) var(--hue) / var(--glass-a));
+  --glass-edge: oklch(1 0 0 / .07);
+  --sheet: oklch(.175 calc(.006*var(--cm)) var(--hue));
+  --sheet-edge: oklch(1 0 0 / .08);
+  --text: oklch(.94 .005 var(--hue));
+  --text-2: oklch(.74 .012 var(--hue));
+  --text-3: oklch(.58 .014 var(--hue));
+  --hover: oklch(1 0 0 / .05);
+  --active: oklch(1 0 0 / .09);
+  --active-edge: oklch(1 0 0 / .06);
+  --field: oklch(0 0 0 / .18);
+  --field-edge: oklch(1 0 0 / .07);
+  --accent: oklch(.78 calc(.12*var(--cm)) var(--hue));
+  --accent-fill: oklch(.62 calc(.13*var(--cm)) var(--hue));
+  --on-accent: oklch(.99 .005 var(--hue));
+  --dot: oklch(.8 calc(.14*var(--cm)) var(--hue));
+  --danger: oklch(.72 .14 25);
+  --menu: oklch(.23 calc(.01*var(--cm)) var(--hue) / .82);
+  --shadow: 0 1px 0 oklch(1 0 0 / .04) inset, 0 20px 50px oklch(0 0 0 / .45), 0 2px 8px oklch(0 0 0 / .25);
+  --asst: oklch(.25 calc(.006*var(--cm)) var(--hue));
+  --user: oklch(.43 calc(.07*var(--cm)) var(--hue));
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --fs: 13.5px; --fs-2: 12.5px; --fs-3: 11.5px;
+  --row: 50px; --row-pad: 10px; --avatar: 30px;
+  --side-w: 276px;
+}
+:root[data-appearance="light"] {
+  --backdrop: oklch(.9 calc(.03*var(--cm)) var(--hue));
+  --glass: oklch(.975 calc(.008*var(--cm)) var(--hue) / var(--glass-a));
+  --glass-edge: oklch(0 0 0 / .07);
+  --sheet: oklch(.995 .002 var(--hue));
+  --sheet-edge: oklch(0 0 0 / .08);
+  --text: oklch(.22 .01 var(--hue));
+  --text-2: oklch(.44 .015 var(--hue));
+  --text-3: oklch(.56 .015 var(--hue));
+  --hover: oklch(0 0 0 / .04);
+  --active: oklch(0 0 0 / .07);
+  --active-edge: oklch(0 0 0 / .04);
+  --field: oklch(1 0 0 / .55);
+  --field-edge: oklch(0 0 0 / .07);
+  --accent: oklch(.52 calc(.14*var(--cm)) var(--hue));
+  --accent-fill: oklch(.56 calc(.14*var(--cm)) var(--hue));
+  --dot: oklch(.6 calc(.16*var(--cm)) var(--hue));
+  --menu: oklch(.99 .004 var(--hue) / .8);
+  --shadow: 0 0 0 1px oklch(0 0 0 / .06), 0 18px 44px oklch(0 0 0 / .14), 0 2px 6px oklch(0 0 0 / .06);
+  --asst: oklch(.95 calc(.006*var(--cm)) var(--hue));
+  --user: oklch(.58 calc(.11*var(--cm)) var(--hue));
+}
+:root[data-mono="1"] { --accent: oklch(.92 0 0); --accent-fill: oklch(.92 0 0); --on-accent: oklch(.18 0 0); --dot: oklch(.92 0 0); --user: oklch(.88 0 0); }
+:root[data-mono="1"][data-appearance="light"] { --accent: oklch(.22 0 0); --accent-fill: oklch(.22 0 0); --on-accent: oklch(.98 0 0); --dot: oklch(.22 0 0); --user: oklch(.24 0 0); }
+:root[data-density="compact"] { --row: 40px; --avatar: 24px; --fs: 13px; }
+:root[data-font="inter"] { --font: "Inter", system-ui, sans-serif; }
+:root[data-font="geist"] { --font: "Geist", system-ui, sans-serif; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font: var(--fs)/1.35 var(--font); color: var(--text); background: var(--backdrop); overflow: hidden; -webkit-font-smoothing: antialiased; letter-spacing: -0.005em; }
+button, input { font: inherit; color: inherit; letter-spacing: inherit; }
+button { background: none; border: 0; cursor: default; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- the backdrop the glass shows ---------- */
+.backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+[data-backdrop="aurora"] .backdrop {
+  background:
+    radial-gradient(60% 50% at 8% 12%, oklch(.42 calc(.12*var(--cm)) var(--hue) / .75), transparent 70%),
+    radial-gradient(45% 45% at 18% 85%, oklch(.38 calc(.1*var(--cm)) calc(var(--hue) + 50) / .65), transparent 70%),
+    radial-gradient(50% 40% at 80% 10%, oklch(.32 calc(.08*var(--cm)) calc(var(--hue) - 40) / .5), transparent 70%),
+    var(--backdrop);
+}
+[data-appearance="light"][data-backdrop="aurora"] .backdrop {
+  background:
+    radial-gradient(60% 50% at 8% 12%, oklch(.82 calc(.09*var(--cm)) var(--hue) / .9), transparent 70%),
+    radial-gradient(45% 45% at 18% 85%, oklch(.85 calc(.08*var(--cm)) calc(var(--hue) + 50) / .8), transparent 70%),
+    radial-gradient(50% 40% at 80% 10%, oklch(.88 calc(.06*var(--cm)) calc(var(--hue) - 40) / .7), transparent 70%),
+    var(--backdrop);
+}
+[data-backdrop="dusk"] .backdrop {
+  background:
+    linear-gradient(180deg, oklch(.3 calc(.05*var(--cm)) var(--hue)) 0%, oklch(.42 calc(.07*var(--cm)) calc(var(--hue) + 30)) 45%, oklch(.22 calc(.03*var(--cm)) var(--hue)) 46%, oklch(.14 calc(.02*var(--cm)) var(--hue)) 100%);
+}
+[data-backdrop="dusk"] .backdrop::before { /* far hills */
+  content: ""; position: absolute; left: 0; right: 0; top: 34%; height: 30%;
+  background: oklch(.2 calc(.03*var(--cm)) var(--hue));
+  clip-path: polygon(0 60%, 10% 40%, 22% 52%, 34% 20%, 46% 45%, 58% 30%, 70% 55%, 82% 25%, 92% 42%, 100% 35%, 100% 100%, 0 100%);
+}
+[data-appearance="light"][data-backdrop="dusk"] .backdrop { filter: invert(.86) hue-rotate(180deg) saturate(.8); }
+[data-backdrop="plain"] .backdrop { background: var(--backdrop); }
+.backdrop::after { /* grain, so blur reads as frosted not smeared */
+  content: ""; position: absolute; inset: 0; opacity: .08; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- shell ---------- */
+.shell { position: relative; z-index: 1; display: flex; height: 100vh; }
+.side {
+  width: var(--side-w); flex: none; display: flex; flex-direction: column; min-height: 0;
+  background: var(--glass); backdrop-filter: blur(var(--blur)) saturate(1.6); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6);
+  border-right: 1px solid var(--glass-edge);
+}
+[data-frame="inset"] .side { border-right-color: transparent; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+[data-frame="inset"] .shell { background: var(--glass); backdrop-filter: blur(var(--blur)) saturate(1.6); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6); }
+.side[hidden] { display: none; }
+
+.top { height: 48px; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 14px; flex: none; }
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; letter-spacing: -0.01em; }
+.logo .bird { width: 22px; height: 22px; }
+.top .sp { flex: 1; }
+.ib { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--text-3); }
+.ib:hover { background: var(--hover); color: var(--text); }
+.ib[hidden] { display: none; }
+.ib[aria-pressed="true"] { color: var(--accent); background: var(--active); }
+
+.nav { padding: 2px 8px 6px; display: flex; flex-direction: column; gap: 1px; flex: none; }
+.nav-row { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border-radius: 8px; color: var(--text-2); width: 100%; text-align: left; }
+.nav-row:hover { background: var(--hover); color: var(--text); }
+.nav-row kbd { margin-left: auto; font: var(--fs-3) var(--font); color: var(--text-3); visibility: hidden; }
+.nav-row:hover kbd { visibility: visible; }
+.search-field { display: none; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px; background: var(--field); box-shadow: inset 0 0 0 1px var(--field-edge); color: var(--text-3); }
+.search-field input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--text); }
+.search-field input::placeholder { color: var(--text-3); }
+.searching .search-field { display: flex; }
+.searching .nav-row.search { display: none; }
+
+.scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px; scrollbar-width: thin; scrollbar-color: var(--active) transparent; }
+
+/* pinned birds */
+.pins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 4px 0 6px; }
+.pin { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 2px 6px; border-radius: 10px; min-width: 0; }
+.pin:hover { background: var(--hover); }
+.pin[aria-current="true"] { background: var(--active); box-shadow: inset 0 0 0 1px var(--active-edge); }
+.pin .circle { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--field); box-shadow: inset 0 0 0 1px var(--field-edge); }
+.pin .circle .face { width: 30px; height: 30px; }
+.pin .circle .dot { position: absolute; right: 1px; top: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--dot); box-shadow: 0 0 0 2px var(--sheet); }
+[data-frame="inset"] .pin .circle .dot { box-shadow: none; }
+.pin span.n { font-size: var(--fs-3); color: var(--text-2); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin[data-unread] span.n { color: var(--text); font-weight: 500; }
+
+.label { display: flex; align-items: center; height: 30px; padding: 8px 6px 0 8px; color: var(--text-3); font-size: var(--fs-3); font-weight: 500; }
+.label .sp { flex: 1; }
+.label .ib { width: 24px; height: 24px; }
+.label .ib svg { width: 14px; height: 14px; }
+
+/* rows */
+.row { position: relative; display: flex; align-items: center; gap: 10px; height: var(--row); padding: 0 var(--row-pad); border-radius: 9px; width: 100%; text-align: left; }
+.row:hover { background: var(--hover); }
+.row[aria-current="true"] { background: var(--active); box-shadow: inset 0 0 0 1px var(--active-edge); }
+.row .face { width: var(--avatar); height: var(--avatar); }
+.row .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.row .l1 { display: flex; align-items: center; gap: 6px; }
+.row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.row[data-unread] .name { font-weight: 600; }
+.row .time { font-size: var(--fs-3); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.row .l2 { font-size: var(--fs-2); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-density="compact"] .row .l2 { display: none; }
+.row .from { color: var(--text-2); }
+.row .draft { color: var(--danger); }
+.row .typing { color: var(--accent); }
+.row .typing i { display: inline-block; width: 3px; height: 3px; margin-left: 2px; border-radius: 50%; background: currentColor; vertical-align: middle; }
+.row .badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent-fill); color: var(--on-accent); font-size: 11px; font-weight: 600; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.row[data-muted] .badge { background: var(--active); color: var(--text-2); }
+.row .at { width: 18px; height: 18px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); font-size: 11px; font-weight: 600; display: grid; place-items: center; font-style: normal; }
+.row .mute { width: 12px; height: 12px; color: var(--text-3); }
+.row .unread-dot { position: absolute; left: 2px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--dot); }
+
+/* group faces: kiko's own stack, cut with a mask like IdentityAvatar */
+.stack { position: relative; flex: none; }
+.stack > span { position: absolute; display: flex; }
+.face svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+/* footer */
+.foot { display: flex; align-items: center; gap: 10px; padding: 10px 10px 12px 14px; flex: none; border-top: 1px solid var(--glass-edge); }
+.foot .face { width: 28px; height: 28px; border-radius: 50%; background: var(--field); display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--field-edge); }
+.foot .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.foot .who small { color: var(--text-3); font-size: var(--fs-3); }
+
+/* settings mode */
+.settings { display: none; }
+.in-settings .chats, .in-settings .nav { display: none; }
+.in-settings .settings { display: block; }
+.set-row { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 8px; border-radius: 8px; width: 100%; text-align: left; color: var(--text-2); }
+.set-row:hover { background: var(--hover); color: var(--text); }
+.set-row[aria-current="true"] { background: var(--active); color: var(--text); box-shadow: inset 0 0 0 1px var(--active-edge); }
+.set-row .badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent-fill); color: var(--on-accent); font-size: 11px; font-weight: 600; display: grid; place-items: center; }
+.back { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin: 2px 0 6px; color: var(--text-2); border-radius: 8px; width: 100%; }
+.back:hover { background: var(--hover); color: var(--text); }
+
+/* context menu */
+.menu { position: fixed; z-index: 20; min-width: 196px; padding: 5px; border-radius: 11px; background: var(--menu); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: var(--shadow); display: none; }
+.menu.open { display: block; }
+.menu button { display: flex; align-items: center; gap: 9px; width: 100%; height: 30px; padding: 0 9px; border-radius: 7px; text-align: left; color: var(--text); }
+.menu button:hover { background: var(--accent-fill); color: var(--on-accent); }
+.menu button kbd { margin-left: auto; font: var(--fs-3) var(--font); opacity: .6; }
+.menu hr { border: 0; height: 1px; background: var(--glass-edge); margin: 4px 6px; }
+.menu .danger { color: var(--danger); }
+.menu .danger:hover { background: var(--danger); color: white; }
+
+/* ---------- the chat sheet (placeholder, the sidebar is the subject) ---------- */
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--sheet); position: relative; }
+[data-frame="inset"] .main { margin: 8px 8px 8px 0; border-radius: 12px; box-shadow: 0 0 0 1px var(--sheet-edge), 0 8px 30px oklch(0 0 0 / .18); overflow: hidden; }
+.main .bar { height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--sheet-edge); flex: none; }
+.main .bar .stack { width: 26px; height: 26px; }
+.main .bar b { font-weight: 600; }
+.main .bar small { color: var(--text-3); font-size: var(--fs-2); }
+.main .bar .sp { flex: 1; }
+.transcript { flex: 1; overflow: hidden; padding: 24px; display: flex; flex-direction: column; gap: 3px; max-width: 760px; width: 100%; margin: 0 auto; justify-content: flex-end; }
+.b { max-width: 70%; padding: 7px 12px; border-radius: 18px; background: var(--asst); width: fit-content; font-size: 14px; line-height: 1.45; }
+.b.me { align-self: flex-end; background: var(--user); color: oklch(.98 .01 var(--hue)); }
+[data-mono="1"] .b.me { color: oklch(.18 0 0); }
+[data-mono="1"][data-appearance="light"] .b.me { color: oklch(.98 0 0); }
+.b + .b.me, .b.me + .b:not(.me) { margin-top: 10px; }
+.composer { margin: 10px auto 18px; width: calc(100% - 48px); max-width: 712px; display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 14px; border-radius: 23px; background: var(--asst); color: var(--text-3); box-shadow: inset 0 0 0 1px var(--sheet-edge); }
+.composer .sp { flex: 1; }
+.send { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); display: grid; place-items: center; }
+
+/* ---------- design controls, not part of the app ---------- */
+.ctl { position: absolute; right: 18px; top: 62px; width: 248px; padding: 14px; border-radius: 12px; background: var(--menu); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; font-size: 12px; z-index: 5; }
+.ctl.min > :not(.ctl-head) { display: none; }
+.ctl-head { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
+.ctl-head button { color: var(--text-3); font-size: 11.5px; }
+.ctl h4 { font: 500 11px var(--font); color: var(--text-3); margin-bottom: 6px; }
+.seg { display: flex; padding: 2px; border-radius: 8px; background: var(--field); box-shadow: inset 0 0 0 1px var(--field-edge); }
+.seg button { flex: 1; height: 24px; border-radius: 6px; color: var(--text-2); font-size: 11.5px; }
+.seg button[aria-pressed="true"] { background: var(--active); color: var(--text); box-shadow: 0 1px 2px oklch(0 0 0 / .15); }
+.sw { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.sw button { aspect-ratio: 1; border-radius: 50%; }
+.sw button[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+input[type=range] { width: 100%; accent-color: var(--accent-fill); }
+
+@media (max-width: 720px) {
+  .main { display: none; }
+  .side { width: 100%; }
+  .ctl { position: fixed; top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; }
+}
+</style>
+</head>
+<body>
+<div class="backdrop"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="new" viewBox="0 0 16 16"><path d="M7.5 2.5H4A1.5 1.5 0 0 0 2.5 4v8A1.5 1.5 0 0 0 4 13.5h8a1.5 1.5 0 0 0 1.5-1.5V8.5"/><path d="M11.8 2.2a1.2 1.2 0 0 1 1.7 1.7L8.2 9.2 6 10l.8-2.2z"/></symbol>
+  <symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></symbol>
+  <symbol id="group" viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.3"/><path d="M1.8 13a4.2 4.2 0 0 1 8.4 0"/><path d="M10.5 3.4a2.3 2.3 0 0 1 0 4.3M12 9.3A4.2 4.2 0 0 1 14.2 13"/></symbol>
+  <symbol id="filter" viewBox="0 0 16 16"><path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3"/></symbol>
+  <symbol id="panel" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11"/></symbol>
+  <symbol id="gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></symbol>
+  <symbol id="chev" viewBox="0 0 16 16"><path d="M10 3.5 5.5 8l4.5 4.5"/></symbol>
+  <symbol id="bell-off" viewBox="0 0 16 16"><path d="M4.5 7a3.5 3.5 0 0 1 6.2-2.2M11.5 7.5V10l1.5 2H5M6.5 13.5a1.6 1.6 0 0 0 3 0M2.5 2.5l11 11"/></symbol>
+  <symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3.5M4 7.5l4-4 4 4"/></symbol>
+  <symbol id="s-models" viewBox="0 0 16 16"><path d="M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z"/></symbol>
+  <symbol id="s-integrations" viewBox="0 0 16 16"><path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z"/></symbol>
+  <symbol id="s-extensions" viewBox="0 0 16 16"><path d="M6 2.5a1.5 1.5 0 0 1 3 0V4h3a.5.5 0 0 1 .5.5v3H11a1.5 1.5 0 0 0 0 3h1.5v3a.5.5 0 0 1-.5.5H9V12.5a1.5 1.5 0 0 0-3 0V14H3a.5.5 0 0 1-.5-.5v-3H4a1.5 1.5 0 0 0 0-3H2.5v-3A.5.5 0 0 1 3 4h3z"/></symbol>
+  <symbol id="s-skills" viewBox="0 0 16 16"><path d="M8 1.5l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.3l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/></symbol>
+  <symbol id="s-appearance" viewBox="0 0 16 16"><path d="M8 1.5a6.5 6.5 0 1 0 0 13c.9 0 1.3-.6 1.3-1.2 0-.8-.6-1-.6-1.8 0-.7.5-1.2 1.2-1.2h1.6a3 3 0 0 0 3-3C14.5 4.2 11.6 1.5 8 1.5zM4.8 7.2h.01M6.5 4.6h.01M9.7 4.6h.01"/></symbol>
+  <symbol id="s-account" viewBox="0 0 16 16"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-5.5 6.5a5.5 5.5 0 0 1 11 0"/></symbol>
+</svg>
+
+<div class="shell">
+  <aside class="side" id="side" aria-label="sidebar">
+    <div class="top">
+      <div class="logo"><span class="face bird" data-bird="kiko"></span>kiko</div>
+      <span class="sp"></span>
+      <button class="ib" title="toggle sidebar  ⌘s" id="collapse"><svg class="i"><use href="#panel"/></svg></button>
+    </div>
+
+    <div class="nav" id="nav">
+      <button class="nav-row"><svg class="i"><use href="#new"/></svg>new chat<kbd>⌘n</kbd></button>
+      <button class="nav-row search" id="search-btn"><svg class="i"><use href="#search"/></svg>search<kbd>⌘k</kbd></button>
+      <label class="search-field"><svg class="i"><use href="#search"/></svg><input id="q" placeholder="search chats" autocomplete="off"></label>
+    </div>
+
+    <div class="scroll">
+      <div class="chats">
+        <div class="pins" id="pins"></div>
+        <div class="label">chats<span class="sp"></span>
+          <button class="ib" id="unread-only" title="unread only" aria-pressed="false"><svg class="i"><use href="#filter"/></svg></button>
+          <button class="ib" title="new group"><svg class="i"><use href="#group"/></svg></button>
+        </div>
+        <div id="rows"></div>
+      </div>
+
+      <nav class="settings" aria-label="settings sections">
+        <button class="back" id="back"><svg class="i"><use href="#chev"/></svg>settings</button>
+        <div id="set-rows"></div>
+      </nav>
+    </div>
+
+    <div class="foot">
+      <span class="face">k</span>
+      <span class="who">keyur<small>4 agents · 9 chats</small></span>
+      <button class="ib" id="open-settings" title="settings"><svg class="i"><use href="#gear"/></svg></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="bar">
+      <button class="ib" id="expand" title="show sidebar  ⌘s" hidden><svg class="i"><use href="#panel"/></svg></button>
+      <span class="stack" id="bar-face"></span>
+      <b id="bar-name">trip research</b><small id="bar-sub">lead, scout, budget</small>
+      <span class="sp"></span>
+    </div>
+    <div class="transcript">
+      <div class="b me">planning kyoto for late november</div>
+      <div class="b me">somewhere quiet with an onsen, around ¥30k a night</div>
+      <div class="b">late november is peak maple season</div>
+      <div class="b">scout is looking at ryokans now</div>
+      <div class="b">found 3 that fit. the quietest is in ohara</div>
+    </div>
+    <div class="composer">message trip research<span class="sp"></span><span class="send"><svg class="i"><use href="#up"/></svg></span></div>
+
+    <div class="ctl" id="ctl">
+      <div class="ctl-head">design controls<button id="ctl-min">hide</button></div>
+      <div><h4>color</h4><div class="sw" id="sw"></div></div>
+      <div><h4>appearance</h4><div class="seg" data-attr="appearance"><button data-v="dark">dark</button><button data-v="light">light</button></div></div>
+      <div><h4>frame</h4><div class="seg" data-attr="frame"><button data-v="inset">inset sheet</button><button data-v="flush">flush</button></div></div>
+      <div><h4>behind the glass</h4><div class="seg" data-attr="backdrop"><button data-v="aurora">aurora</button><button data-v="dusk">dusk</button><button data-v="plain">plain</button></div></div>
+      <div><h4>glass <span id="glass-v"></span></h4><input type="range" id="glass" min="20" max="95" value="52"></div>
+      <div><h4>density</h4><div class="seg" data-attr="density"><button data-v="comfortable">two lines</button><button data-v="compact">one line</button></div></div>
+      <div><h4>font</h4><div class="seg" data-attr="font"><button data-v="system">system</button><button data-v="inter">inter</button><button data-v="geist">geist</button></div></div>
+    </div>
+  </main>
+</div>
+
+<div class="menu" id="menu">
+  <button>rename<kbd>f2</kbd></button>
+  <button>pin</button>
+  <button>mute</button>
+  <button>change bird</button>
+  <hr>
+  <button>mark as unread</button>
+  <button>close</button>
+  <hr>
+  <button class="danger">delete</button>
+</div>
+
+<script>
+const BIRDS = {"kiko":"<defs><clipPath id=\"b-kiko\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/></g><g class=\"bird-body\"><ellipse cx=\"45\" cy=\"25\" rx=\"3.6\" ry=\"7.5\" transform=\"rotate(-24 47 31)\" style=\"fill:oklch(0.8 calc(0.095 * var(--cm, 1)) calc(var(--h-brand, 340) + 0))\"/><ellipse cx=\"50\" cy=\"24\" rx=\"3.6\" ry=\"7.5\" transform=\"rotate(14 50 31)\" style=\"fill:oklch(0.8 calc(0.095 * var(--cm, 1)) calc(var(--h-brand, 340) + 0))\"/><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.8 calc(0.095 * var(--cm, 1)) calc(var(--h-brand, 340) + 0))\"/><g clip-path=\"url(#b-kiko)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FFE3D2\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.72 calc(0.095 * var(--cm, 1)) calc(var(--h-brand, 340) + 0))\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#FFA14A\" stroke=\"#FFA14A\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>","scout":"<defs><clipPath id=\"b-scout\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.74 0.06 60)\"/><g clip-path=\"url(#b-scout)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FBF4E8\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.66 0.06 60)\"/><path d=\"M10 0 H100 V40 Q70 34 50 40 Q30 46 10 38Z\" fill=\"oklch(0.55 0.07 55)\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#3A3340\" stroke=\"#3A3340\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>","budget":"<defs><clipPath id=\"b-budget\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF7A6B\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF7A6B\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.82 0.14 100)\"/><g clip-path=\"url(#b-budget)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#E9FBE3\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.74 0.14 100)\"/><circle cx=\"66\" cy=\"50\" r=\"15\" fill=\"#FFAE8A\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#FF7A6B\" stroke=\"#FF7A6B\" stroke-width=\"3\" stroke-linejoin=\"round\"/><circle cx=\"63\" cy=\"52\" r=\"7.4\" fill=\"#FBF4E8\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/><path d=\"M24 40 Q26 22 48 22 Q68 22 72 38 Z\" fill=\"#E5484D\"/><path d=\"M66 36 Q80 34 88 40 Q78 42 68 41Z\" fill=\"#B92F35\"/><circle cx=\"48\" cy=\"22\" r=\"2.4\" fill=\"#B92F35\"/></g>","editor":"<defs><clipPath id=\"b-editor\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF7A6B\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF7A6B\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.82 0.14 145)\"/><g clip-path=\"url(#b-editor)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#E9FBE3\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.74 0.14 145)\"/><circle cx=\"66\" cy=\"50\" r=\"15\" fill=\"#FFAE8A\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#FF7A6B\" stroke=\"#FF7A6B\" stroke-width=\"3\" stroke-linejoin=\"round\"/><circle cx=\"63\" cy=\"52\" r=\"7.4\" fill=\"#FBF4E8\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/><path d=\"M49 24 v-7\" stroke=\"#5FB04F\" stroke-width=\"3\" stroke-linecap=\"round\"/><ellipse cx=\"43\" cy=\"14\" rx=\"7\" ry=\"3.8\" transform=\"rotate(-30 43 14)\" fill=\"#7DCB68\"/><ellipse cx=\"55\" cy=\"14\" rx=\"7\" ry=\"3.8\" transform=\"rotate(30 55 14)\" fill=\"#7DCB68\"/></g>","lead":"<defs><clipPath id=\"b-lead\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.38 0.06 265)\"/><g clip-path=\"url(#b-lead)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FBF4E8\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.3 0.06 265)\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#FFA14A\" stroke=\"#FFA14A\" stroke-width=\"3\" stroke-linejoin=\"round\"/><circle cx=\"63\" cy=\"52\" r=\"7.4\" fill=\"#FBF4E8\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/><path d=\"M22 42 Q22 18 48 18 Q74 18 74 42 Z\" fill=\"#4C7BD9\"/><rect x=\"21\" y=\"37\" width=\"54\" height=\"8\" rx=\"4\" fill=\"#3A64BE\"/><circle cx=\"48\" cy=\"15\" r=\"6\" fill=\"#FBF4E8\"/></g>","tutor":"<defs><clipPath id=\"b-tutor\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.38 0.06 265)\"/><g clip-path=\"url(#b-tutor)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FBF4E8\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.3 0.06 265)\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#FFA14A\" stroke=\"#FFA14A\" stroke-width=\"3\" stroke-linejoin=\"round\"/><circle cx=\"63\" cy=\"52\" r=\"7.4\" fill=\"#FBF4E8\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>","chef":"<defs><clipPath id=\"b-chef\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.74 0.06 100)\"/><g clip-path=\"url(#b-chef)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FBF4E8\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.66 0.06 100)\"/><path d=\"M10 0 H100 V40 Q70 34 50 40 Q30 46 10 38Z\" fill=\"oklch(0.55 0.07 55)\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#3A3340\" stroke=\"#3A3340\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/><path d=\"M22 42 Q22 18 48 18 Q74 18 74 42 Z\" fill=\"#4C7BD9\"/><rect x=\"21\" y=\"37\" width=\"54\" height=\"8\" rx=\"4\" fill=\"#3A64BE\"/><circle cx=\"48\" cy=\"15\" r=\"6\" fill=\"#FBF4E8\"/></g>","coach":"<defs><clipPath id=\"b-coach\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF9A4A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF9A4A\"/></g><g class=\"bird-body\"><path d=\"M36 32 C30 16 38 8 46 15 C45 20 47 26 52 29Z\" style=\"fill:oklch(0.66 0.17 25);stroke:oklch(0.66 0.17 25)\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.66 0.17 25)\"/><g clip-path=\"url(#b-coach)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FFE2D8\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.58 0.17 25)\"/><path d=\"M58 44 Q72 40 82 48 L82 58 Q70 62 58 54Z\" fill=\"#221A20\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#FF9A4A\" stroke=\"#FF9A4A\" stroke-width=\"3\" stroke-linejoin=\"round\"/><circle cx=\"63\" cy=\"52\" r=\"7.4\" fill=\"#FBF4E8\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>","critic":"<defs><clipPath id=\"b-critic\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF6A3D\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF6A3D\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.3 0.01 320)\"/><g clip-path=\"url(#b-critic)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FBF4E8\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.22 0.01 320)\"/><ellipse cx=\"65\" cy=\"50\" rx=\"15\" ry=\"13\" fill=\"#FBF4E8\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 43 Q93 49 93 53 Q93 57 77 62Z\" fill=\"#FF6A3D\" stroke=\"#FF6A3D\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>","planner":"<defs><clipPath id=\"b-planner\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FFA14A\"/></g><g class=\"bird-body\"><ellipse cx=\"45\" cy=\"25\" rx=\"3.6\" ry=\"7.5\" transform=\"rotate(-24 47 31)\" style=\"fill:oklch(0.76 0.1 240)\"/><ellipse cx=\"50\" cy=\"24\" rx=\"3.6\" ry=\"7.5\" transform=\"rotate(14 50 31)\" style=\"fill:oklch(0.76 0.1 240)\"/><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.76 0.1 240)\"/><g clip-path=\"url(#b-planner)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FFB27A\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.68 0.1 240)\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#3A3340\" stroke=\"#3A3340\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>","research":"<defs><clipPath id=\"b-research\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#F5C518\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#F5C518\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.78 0.04 230)\"/><g clip-path=\"url(#b-research)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#EFE5D4\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.7 0.04 230)\"/><rect width=\"100\" height=\"49\" fill=\"#3A9A62\"/><rect y=\"49\" width=\"100\" height=\"3.4\" fill=\"#FBF4E8\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q94 46 94 53 Q94 59 77 59Z\" fill=\"#F5C518\" stroke=\"#F5C518\" stroke-width=\"3\" stroke-linejoin=\"round\"/><circle cx=\"63\" cy=\"52\" r=\"7.4\" fill=\"#FBF4E8\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>","designer":"<defs><clipPath id=\"b-designer\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#F2B33D\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#F2B33D\"/></g><g class=\"bird-body\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.62 0.02 100)\"/><g clip-path=\"url(#b-designer)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FF8A4C\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.54 0.02 100)\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#F2B33D\" stroke=\"#F2B33D\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/><path d=\"M24 72 Q48 82 74 72 L74 79 Q48 89 24 79Z\" fill=\"#E5484D\"/><path d=\"M30 78 L26 92 L34 92 L36 80Z\" fill=\"#C93A40\"/></g>","lawyer":"<defs><clipPath id=\"b-lawyer\"><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\"/></clipPath></defs><g class=\"bird-feet\"><ellipse cx=\"40\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF9A4A\"/><ellipse cx=\"54\" cy=\"87.5\" rx=\"5\" ry=\"3\" fill=\"#FF9A4A\"/></g><g class=\"bird-body\"><path d=\"M36 32 C30 16 38 8 46 15 C45 20 47 26 52 29Z\" style=\"fill:oklch(0.66 0.17 25);stroke:oklch(0.66 0.17 25)\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse cx=\"48\" cy=\"57\" rx=\"32\" ry=\"30\" style=\"fill:oklch(0.66 0.17 25)\"/><g clip-path=\"url(#b-lawyer)\"><ellipse cx=\"62\" cy=\"76\" rx=\"20\" ry=\"15\" fill=\"#FFE2D8\"/><path class=\"bird-wing\" d=\"M22 60 Q31 48 46 57 Q37 71 22 60Z\" style=\"fill:oklch(0.58 0.17 25)\"/><path d=\"M58 44 Q72 40 82 48 L82 58 Q70 62 58 54Z\" fill=\"#221A20\"/><ellipse cx=\"34\" cy=\"40\" rx=\"6\" ry=\"3.6\" transform=\"rotate(-30 34 40)\" fill=\"#fff\" opacity=\".32\"/></g><path d=\"M77 47 Q90 50.5 90 53 Q90 55.5 77 59Z\" fill=\"#FF9A4A\" stroke=\"#FF9A4A\" stroke-width=\"3\" stroke-linejoin=\"round\"/><circle cx=\"63\" cy=\"52\" r=\"7.4\" fill=\"#FBF4E8\"/><ellipse class=\"bird-eye\" cx=\"63\" cy=\"52\" rx=\"4.4\" ry=\"5.4\" fill=\"#221A20\"/><circle cx=\"64.5\" cy=\"50\" r=\"1.7\" fill=\"#fff\"/><circle cx=\"61.8\" cy=\"54.2\" r=\".8\" fill=\"#fff\"/><ellipse cx=\"64\" cy=\"63\" rx=\"5\" ry=\"2.8\" fill=\"#FF7C99\" opacity=\".45\"/></g>"};
+const face = (slug) => `<svg viewBox="2 1.5 104 104">${BIRDS[slug] ?? BIRDS.lead}</svg>`;
+
+/* kiko's group layout and cutout, from lib/IdentityAvatar.tsx */
+const LAYOUT = { 2: [{x:0,y:0,s:.62},{x:.38,y:.38,s:.62}], 3: [{x:.24,y:0,s:.52},{x:0,y:.46,s:.54},{x:.46,y:.46,s:.54}] };
+function cut(spots, i) {
+  const me = spots[i];
+  const holes = spots.slice(i + 1).map(o => {
+    const cx = ((o.x + o.s/2 - me.x) / me.s) * 100, cy = ((o.y + o.s/2 - me.y) / me.s) * 100, r = (o.s/2/me.s) * 100;
+    return `radial-gradient(calc(${r}% + 2px) calc(${r}% + 2px) at ${cx}% ${cy}%, transparent 99%, #000 100%)`;
+  });
+  if (!holes.length) return "";
+  const m = holes.join(", ");
+  return `mask-image:${m};-webkit-mask-image:${m};mask-composite:intersect;-webkit-mask-composite:source-in;`;
+}
+function avatar(faces, cls = "face") {
+  const spots = LAYOUT[Math.min(faces.length, 3)];
+  if (!spots) return `<span class="${cls}">${face(faces[0])}</span>`;
+  return `<span class="${cls} stack">${spots.map((p, i) => `<span class="face" style="left:${p.x*100}%;top:${p.y*100}%;width:${p.s*100}%;height:${p.s*100}%;${cut(spots, i)}">${face(faces[i])}</span>`).join("")}</span>`;
+}
+
+const PINNED = [
+  { id: "kiko", name: "kiko", faces: ["kiko"], sub: "your chief of staff" },
+  { id: "trip", name: "trip research", faces: ["lead", "scout", "budget"], unread: 2, sub: "lead, scout, budget" },
+  { id: "write", name: "writing desk", faces: ["editor"], sub: "editor" },
+  { id: "spanish", name: "spanish", faces: ["tutor"], unread: 1, sub: "tutor" },
+];
+const CHATS = [
+  { id: "mascot", name: "mascot ideas", faces: ["designer"], time: "now", typing: "designer is typing", sub: "designer" },
+  { id: "tax", name: "tax questions", faces: ["lawyer"], time: "2h", from: "you", preview: "what about the 1099 from the side project?", sub: "lawyer" },
+  { id: "digest", name: "research digest", faces: ["research", "critic"], time: "4h", unread: 3, mention: true, from: "critic", preview: "@keyur the second paper's sample is tiny", sub: "research, critic" },
+  { id: "garden", name: "garden plan", faces: ["planner"], time: "1d", draft: "what about tomatoes next to", sub: "planner" },
+  { id: "dinner", name: "dinner ideas", faces: ["chef"], time: "2d", from: "chef", preview: "miso butter salmon, 25 minutes", sub: "chef" },
+  { id: "marathon", name: "marathon block", faces: ["coach"], time: "3d", unread: 5, muted: true, from: "coach", preview: "week 6: tempo on tuesday, long run sunday", sub: "coach" },
+  { id: "launch", name: "launch plan", faces: ["lead", "designer", "editor"], time: "6d", from: "lead", preview: "copy is final, waiting on the hero image", sub: "lead, designer, editor" },
+];
+const SETTINGS = [["models","models"],["integrations","integrations"],["extensions","extensions",2],["skills","skills"],["appearance","appearance"],["account","account"]];
+
+let active = "trip", unreadOnly = false, query = "";
+const $ = (s) => document.querySelector(s);
+
+function render() {
+  const match = (c) => (!query || c.name.includes(query.toLowerCase())) && (!unreadOnly || c.unread);
+  $("#pins").innerHTML = PINNED.filter(match).map(c => `
+    <button class="pin" data-id="${c.id}" ${c.unread ? "data-unread" : ""} aria-current="${c.id === active}">
+      <span class="circle">${avatar(c.faces)}${c.unread ? '<span class="dot"></span>' : ""}</span>
+      <span class="n">${c.name}</span>
+    </button>`).join("");
+  $("#pins").style.display = $("#pins").innerHTML.trim() ? "" : "none";
+  $("#rows").innerHTML = CHATS.filter(match).map(c => {
+    const l2 = c.typing ? `<span class="typing">${c.typing}<i></i><i></i><i></i></span>`
+      : c.draft ? `<span class="draft">draft:</span> ${c.draft}`
+      : `${c.from ? `<span class="from">${c.from}:</span> ` : ""}${c.preview}`;
+    return `<button class="row" data-id="${c.id}" ${c.unread ? "data-unread" : ""} ${c.muted ? "data-muted" : ""} aria-current="${c.id === active}">
+      ${avatar(c.faces)}
+      <span class="t">
+        <span class="l1"><span class="name">${c.name}</span>${c.muted ? '<svg class="i mute"><use href="#bell-off"/></svg>' : ""}<span class="time">${c.time}</span></span>
+        <span class="l1"><span class="l2" style="flex:1">${l2}</span>${c.mention ? '<i class="at">@</i>' : ""}${c.unread ? `<span class="badge">${c.unread}</span>` : ""}</span>
+      </span>
+    </button>`;
+  }).join("") || `<p class="label" style="padding-left:8px">no chats match</p>`;
+  $("#set-rows").innerHTML = SETTINGS.map(([id, label, n]) => `<button class="set-row" data-set="${id}" aria-current="${id === setActive}"><svg class="i"><use href="#s-${id}"/></svg>${label}${n ? `<span class="badge">${n}</span>` : ""}</button>`).join("");
+  const c = [...PINNED, ...CHATS].find(x => x.id === active);
+  $("#bar-face").outerHTML = avatar(c.faces, "stack").replace('class="stack', 'id="bar-face" class="stack');
+  $("#bar-face").style.cssText = "width:26px;height:26px";
+  $("#bar-name").textContent = c.name; $("#bar-sub").textContent = c.sub;
+  document.querySelector(".composer").firstChild.textContent = `message ${c.name}`;
+}
+let setActive = "models";
+
+document.addEventListener("click", (e) => {
+  const menu = $("#menu");
+  if (!menu.contains(e.target)) menu.classList.remove("open");
+  const row = e.target.closest("[data-id]");
+  if (row) { active = row.dataset.id; render(); }
+  const s = e.target.closest("[data-set]");
+  if (s) { setActive = s.dataset.set; render(); }
+});
+document.addEventListener("contextmenu", (e) => {
+  const row = e.target.closest("[data-id]");
+  if (!row) return;
+  e.preventDefault();
+  const m = $("#menu"); m.classList.add("open");
+  m.style.left = Math.min(e.clientX, innerWidth - 210) + "px"; m.style.top = Math.min(e.clientY, innerHeight - 280) + "px";
+});
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { $("#menu").classList.remove("open"); if (query || document.body.classList.contains("searching")) { query = ""; $("#q").value = ""; $("#nav").classList.remove("searching"); render(); } }
+  if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); openSearch(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); toggleSide(); }
+});
+function openSearch() { $("#nav").classList.add("searching"); $("#q").focus(); }
+$("#search-btn").onclick = openSearch;
+$("#q").oninput = (e) => { query = e.target.value; render(); };
+$("#q").onblur = () => { if (!query) $("#nav").classList.remove("searching"); };
+$("#unread-only").onclick = (e) => { unreadOnly = !unreadOnly; e.currentTarget.setAttribute("aria-pressed", unreadOnly); render(); };
+$("#open-settings").onclick = () => $("#side").classList.add("in-settings");
+$("#back").onclick = () => $("#side").classList.remove("in-settings");
+function toggleSide() { const s = $("#side"); s.hidden = !s.hidden; $("#expand").hidden = !s.hidden; }
+$("#collapse").onclick = toggleSide; $("#expand").onclick = toggleSide;
+document.querySelectorAll(".bird[data-bird]").forEach(el => el.innerHTML = face(el.dataset.bird));
+
+/* controls */
+const root = document.documentElement;
+const SW = [["plum",340,1],["bluebird",245,1],["ocean",228,.94],["periwinkle",268,1],["lilac",295,.94],["orchid",320,1],["sakura",5,.94],["coral",28,1],["sage",145,.78],["mint",172,.89],["teal",200,.83],["slate",255,.39],["graphite",255,.15],["mono",0,0]];
+const state = Object.assign({ swatch: "bluebird", appearance: "dark", frame: "inset", backdrop: "aurora", density: "comfortable", font: "system", glass: 52 }, (() => { try { return JSON.parse(localStorage.getItem("kiko-sidebar") || "{}"); } catch { return {}; } })());
+function apply() {
+  const [, h, c] = SW.find(s => s[0] === state.swatch);
+  root.style.setProperty("--hue", h); root.style.setProperty("--cm", c);
+  root.dataset.mono = state.swatch === "mono" ? "1" : "0";
+  for (const k of ["appearance", "frame", "backdrop", "density", "font"]) root.dataset[k] = state[k];
+  root.style.setProperty("--glass-a", state.glass / 100);
+  $("#glass").value = state.glass; $("#glass-v").textContent = state.glass + "%";
+  document.querySelectorAll(".seg").forEach(seg => seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === state[seg.dataset.attr])));
+  document.querySelectorAll("#sw button").forEach(b => b.setAttribute("aria-pressed", b.title === state.swatch));
+  try { localStorage.setItem("kiko-sidebar", JSON.stringify(state)); } catch {}
+}
+SW.forEach(([n, h, c]) => { const b = document.createElement("button"); b.title = n; b.style.background = n === "mono" ? "#ddd" : `oklch(.74 ${(.11*c).toFixed(3)} ${h})`; b.onclick = () => { state.swatch = n; apply(); }; $("#sw").append(b); });
+document.querySelectorAll(".seg").forEach(seg => seg.querySelectorAll("button").forEach(b => b.onclick = () => { state[seg.dataset.attr] = b.dataset.v; apply(); }));
+$("#glass").oninput = (e) => { state.glass = +e.target.value; apply(); };
+$("#ctl-min").onclick = (e) => { $("#ctl").classList.toggle("min"); e.target.textContent = $("#ctl").classList.contains("min") ? "show" : "hide"; };
+apply(); render();
+</script>
+</body>
+</html>

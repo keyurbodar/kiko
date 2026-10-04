@@ -1,6 +1,7 @@
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import { computeThumbhash, HEADER_BYTES, MAX_DECODE_BYTES, readDimensions } from "./image"
+import { workStub } from "../lib/names"
 
 // Architecture section 7.9. After an upload the Worker queues one job per new file. The job
 // computes only what the client did not send, then writes it to the room with a call that
@@ -56,18 +57,36 @@ export async function handleAttachmentJob(job: AttachmentJob, env: Env, attempt:
 	if (known.width && known.height && known.thumbhash) return "unchanged"
 
 	const full = known.size <= MAX_DECODE_BYTES
-	const object = await env.FILES.get(known.r2Key, full ? undefined : { range: { offset: 0, length: HEADER_BYTES } })
-	if (!object) return "gone"
-	const bytes = new Uint8Array(await object.arrayBuffer())
+	const input = {
+		r2Key: known.r2Key,
+		full,
+		headerBytes: HEADER_BYTES,
+		needSize: !known.width || !known.height,
+		needHash: !known.thumbhash,
+		...(known.width && known.height ? { size: { width: known.width, height: known.height } } : {}),
+	}
+	// The decode runs in the user's WorkDO: a queue consumer on the Free plan is stopped at random
+	// once it spends real CPU (section 17.3). A test env without WORK computes here.
+	const meta = env.WORK ? await workStub(env.WORK, job.userId).imageMeta(input) : await readImageMeta(env.FILES, input)
+	if (!meta || !Object.keys(meta).length) return "unchanged"
+	return (await room.setFileMeta(job.fileId, meta)) ? "updated" : "unchanged"
+}
 
-	const size = known.width && known.height ? { width: known.width, height: known.height } : readDimensions(bytes)
-	if (!size) return "unchanged"
+export type ImageMetaInput = { r2Key: string; full: boolean; headerBytes: number; needSize: boolean; needHash: boolean; size?: { width: number; height: number } }
+export type ImageMeta = { width?: number; height?: number; thumbhash?: string } | null
+
+/** Reads the image from R2 and computes what was asked for. `WorkDO` runs it; a test env without WORK runs it here. */
+export async function readImageMeta(files: R2Bucket, input: ImageMetaInput): Promise<ImageMeta> {
+	const object = await files.get(input.r2Key, input.full ? undefined : { range: { offset: 0, length: input.headerBytes } })
+	if (!object) return null
+	const bytes = new Uint8Array(await object.arrayBuffer())
+	const size = input.size ?? readDimensions(bytes)
+	if (!size) return null
 	const meta: { width?: number; height?: number; thumbhash?: string } = {}
-	if (!known.width || !known.height) Object.assign(meta, size)
-	if (!known.thumbhash && full) {
+	if (input.needSize) Object.assign(meta, size)
+	if (input.needHash && input.full) {
 		const hash = computeThumbhash(bytes, size)
 		if (hash) meta.thumbhash = hash
 	}
-	if (!Object.keys(meta).length) return "unchanged"
-	return (await room.setFileMeta(job.fileId, meta)) ? "updated" : "unchanged"
+	return meta
 }

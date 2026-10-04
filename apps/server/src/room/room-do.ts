@@ -3,12 +3,12 @@ import type { AgentSlug, AgentState, Chat, Envelope, FileOp, FileRef, MemberOp, 
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
-import { type Alarms, createAlarms } from "../lib/alarm"
+import { type Alarms, createAlarms, runDue } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
-import { BURST_WAKEUP, Burst, deliverable } from "./burst"
+import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
@@ -338,28 +338,31 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** Architecture sections 6.1 and 7.2. The burst wakeup fired: deliver the pending human messages to their recipients. */
 	async alarm(): Promise<void> {
 		const due = await this.alarms.dueWakeups(Date.now())
-		if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
-		if (due.includes(BURST_WAKEUP)) await this.flush()
-		if (due.includes(WAKES_WAKEUP)) await this.deliverWakes()
-		if (due.includes(MAIL_WAKEUP)) await this.drainMail()
-		if (due.includes(APPROVALS_WAKEUP)) {
-			this.publish(this.approvals.expire())
-			await this.deliverApprovals()
-			await this.armApprovals()
-		}
+		await runDue(this.alarms, due, {
+			[HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
+			[BURST_WAKEUP]: () => this.flush(),
+			[WAKES_WAKEUP]: () => this.deliverWakes(),
+			[MAIL_WAKEUP]: () => this.drainMail(),
+			[APPROVALS_WAKEUP]: async () => {
+				this.publish(this.approvals.expire())
+				await this.deliverApprovals()
+				await this.armApprovals()
+			},
+		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000 } })
 	}
 
 	private async flush(): Promise<void> {
 		const home = this.home()
 		if (!home) return
-		const pending = this.burst.envelopes(home.roomId)
+		// One more than a delivery takes, so `envelopes.length < pending.length` still says more remain.
+		const pending = this.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1)
 		const envelopes = deliverable(pending)
 		if (!envelopes.length) return
 		try {
 			const chat = await this.chat(home)
 			// ASSUMPTION: a room that is not in the user's chat list (never created, or deleted) wakes no
 			// agent. Its messages stay in the log and are dropped from the burst.
-			if (!chat) return this.burst.delivered(envelopes)
+			if (!chat) return this.burst.clear()
 			// P9-01: one turn per burst, counted in UserDO against the plan record. A refused burst starts
 			// no run; the room says when the count resets.
 			// Once per burst: a retry after a failed delivery must not count the burst again.
@@ -805,11 +808,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** Why an agent may not delete these files: some sit on a live message. */
 	private attachedRefusal(ids: readonly string[]): string | null {
 		if (!ids.length) return null
+		// One JSON value, not one bound value per id: a query binds at most 100 (Durable Objects SQL
+		// limits), and `rm -r` can name many more files.
 		const hit = this.ctx.storage.sql
 			.exec<{ id: string }>(
 				`SELECT DISTINCT json_extract(f.value, '$.id') AS id FROM messages m, json_each(m.files) f
-				 WHERE m.deleted_at IS NULL AND m.files IS NOT NULL AND json_extract(f.value, '$.id') IN (${ids.map(() => "?").join(",")})`,
-				...ids,
+				 WHERE m.deleted_at IS NULL AND m.files IS NOT NULL AND json_extract(f.value, '$.id') IN (SELECT value FROM json_each(?))`,
+				JSON.stringify(ids),
 			)
 			.toArray()
 		if (!hit.length) return null
@@ -845,7 +850,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	stop(): void {
 		const home = this.home()
 		if (!home) return
-		this.burst.delivered(this.burst.envelopes(home.roomId))
+		this.burst.clear()
 		this.mail.stop()
 		for (const member of this.members.list()) this.stopAgent(home, member.slug)
 	}

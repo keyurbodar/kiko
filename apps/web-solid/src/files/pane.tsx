@@ -5,6 +5,7 @@ import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "sol
 import { closeFile, openFile, openFilePath } from "../chat/info/state"
 import { urls, useApp } from "../lib/store"
 import { createFile, withMade } from "./api"
+import { useNavigate } from "@solidjs/router"
 import type { EditorState } from "./editor"
 import { viewerKind, type ViewerKind } from "./kind"
 import { FileTree } from "./tree"
@@ -106,6 +107,20 @@ export default function FilesPane(props: { chatId: string }) {
 		}),
 	)
 	const rendered = () => RENDERED[kind()]
+	/** The extension name when the open file is /extensions/<name>/extension.json in the chat's files. */
+	const extensionAt = (p: string) => /^extensions\/([a-z][a-z0-9-]{1,31})\/extension\.json$/.exec(p)?.[1] ?? null
+	const navigate = useNavigate()
+	const [proposing, setProposing] = createSignal(false)
+	/** Sends the open extension folder as a waiting install, then opens its review. */
+	const installExtension = async (name: string) => {
+		setProposing(true)
+		// The bundler for an extension folder loads on the click, so the files tab stays as small as before.
+		const { proposeFromFiles } = await import("./extension-install")
+		const out = await proposeFromFiles(props.chatId, name, useApp.activeFiles())
+		setProposing(false)
+		if (!out.ok) return showToastV2({ title: `${out.error}${out.problems?.length ? `: ${out.problems.slice(0, 3).join("; ")}` : ""}`.toLowerCase(), variant: "error" })
+		navigate("/settings/extensions")
+	}
 	const unsaved = () => editor() === "dirty" || editor() === "saving" || editor() === "error"
 
 	const make = (p: string) => {
@@ -160,6 +175,20 @@ export default function FilesPane(props: { chatId: string }) {
 									<span class="fp-dirty" data-component="file-unsaved" title="saving" aria-label="unsaved changes" />
 								</Show>
 							</span>
+							<Show when={!inHome(p) && file() ? extensionAt(p) : null}>
+								{(name) => (
+									<button
+										type="button"
+										class="h-7 shrink-0 rounded-[8px] bg-[var(--accent-fill)] px-2.5 text-xs text-[var(--on-accent)] disabled:opacity-50"
+										data-action="install-extension-file"
+										disabled={proposing() || unsaved()}
+										title="review and install this extension"
+										onClick={() => void installExtension(name())}
+									>
+										{proposing() ? "checking" : "install"}
+									</button>
+								)}
+							</Show>
 							<Show when={file() && rendered()}>
 								{(label) => (
 									<IconButton

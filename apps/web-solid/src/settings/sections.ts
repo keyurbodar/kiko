@@ -5,6 +5,7 @@
 export const SETTINGS_SECTIONS = [
   { id: "models", label: "models", hint: "providers and the default model", keywords: "provider key api openai anthropic google opencode connect sign in default model" },
   { id: "integrations", label: "integrations", hint: "executor and tools", keywords: "executor mcp tools apps" },
+  { id: "extensions", label: "extensions", hint: "new tools, instructions, and schedules for your agents", keywords: "extension plugin addon tool hook script catalog install" },
   { id: "skills", label: "skills", hint: "what agents can do", keywords: "skill" },
   { id: "appearance", label: "appearance", hint: "theme and colors", keywords: "theme json dark light font radius spacing" },
   { id: "account", label: "account", hint: "sign out or delete your account", keywords: "delete sign out email profile" },

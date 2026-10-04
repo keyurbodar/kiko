@@ -38,6 +38,7 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Subagent tool | the pattern, in `README.md` and two test examples | the tool, about 40 lines |
 | MCP client | `@earendil-works/pi-mcp`, streamable HTTP, OAuth with PKCE and dynamic registration | the token store |
 | Code mode | `@earendil-works/pi-codemode`, which needs Node `worker_threads` | nothing. See section 12 |
+| User extensions | the registry, `install` that replaces in place, and per-conversation selection | the manifest, the QuickJS sandbox, and the storage and review. See section 24 |
 
 **Decision.** Kiko depends on `pi-durable`, `pi-ai`, `pi-mcp`, and `chord` from npm at exact pinned versions. All four are published at 1.0.0 (checked against the npm registry on 2026-10-02). Kiko extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
 
@@ -631,6 +632,8 @@ This gate is the only Executor-specific code in kiko. It keys on the tool name `
 
 A user whose model writes poor TypeScript can switch the connection to `mode=passthrough`, which exposes `integrations`, `search`, and `invoke`.
 
+User extensions (section 24) do run QuickJS inside the agent's object, through `quickjs-wasi` imported as a compiled wasm module. That is a sandbox for small, declared extension functions, not a code-mode runtime for the model, so this decision stands.
+
 ### 12.5 Setup steps from the spec's additions
 
 The spec's additions say to discuss a form of Executor, install it, connect it over MCP, and get one tool working. The recommendation is Executor Cloud, for production and for development. Self-hosted Docker and the Cloudflare Worker build are single-organization, so they cannot serve many kiko users. The first integration task in the phase plan needs a human to create an Executor account and approve the OAuth client, and it pauses there.
@@ -814,7 +817,24 @@ Per user per day, with 30 turns plus sockets and background jobs: 420 requests, 
 
 The Free plan supports about 4 daily users as shipped and about 24 with coalesced writes. The next ceiling is duration, at about 100. Other Free limits that bind early are KV writes (1,000 a day, one per new link preview), Queues (10,000 operations a day), and 5 GB of total Durable Object storage.
 
-CPU. One turn uses about 1.5 s of CPU in one invocation, and the Free plan allows 10 ms per invocation. UNVERIFIED: whether that limit applies inside a Durable Object. The measurement account is not on the Free plan, so experiment 4 is open ([research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md)). If the limit applies, no turn fits on Free, the Free plan is not usable at all, and Workers Paid is the minimum.
+CPU. One turn uses about 1.5 s of CPU in one invocation. The Durable Objects limits page gives an object 30 s of CPU per incoming request or WebSocket message, reset by each one, on every plan. The Workers limits page gives a Free Worker 10 ms per request, with "some built-in flexibility" for infrequent overruns. Measured on 2026-10-04 on this Free account (the API refuses `limits.cpu_ms` with "CPU limits are not supported for the Free plan"):
+
+- A Durable Object ran 9.9 s of CPU in one call, and six 3.5 s calls in a row, all passing. A turn fits.
+- A plain Worker request is stopped with `exceededCpu` at random once it spends real CPU: 3 of 20 requests at about 0.15 s, 1 of 10 at 1.3 s, and every one at 2.1 s.
+
+So every CPU-heavy step runs inside a Durable Object, and Worker request handlers and the queue consumer stay light. The image decode of the attachment job (section 7.9) moved out of the queue consumer into `WorkDO` (`jobs/work-do.ts`), one stateless object per user that the Worker names from the user id.
+
+Subrequests. A Free invocation may make 50 outside requests, and it is enforced inside Durable Objects too, including work that keeps running after the request returned, which is how an agent's run continues after its alarm. Measured: the 51st fetch fails with "Too many subrequests by single Worker invocation", in a request and in the background. RPC calls to Durable Objects do not count against the 50 (120 calls passed), and a fetch made inside an RPC call, even one an object makes to itself, gets that call's own budget (150 background fetches passed that way). So `AgentDO` sends every model request and every `web_fetch` through its own stub (`egress`), and each one is its own invocation. `safeFetch` keeps DNS answers for their TTL (30 s to 5 minutes), so a fetch to a recently seen host costs one subrequest instead of three. pi-ai's Google adapters refuse a custom fetch, so their model requests keep the global one and still count against the run's 50.
+
+Each request through `egress` is one more Durable Object request, about five per turn. Free allows 100,000 a day, and rows written still bind first (the table above), so the user count does not move.
+
+Alarms. The runtime retries a throwing `alarm()` six times, and `dueWakeups` has already claimed the due keys, so a throwing step would lose its wakeup and skip the steps after it. `UserDO` and `RoomDO` run each due step through `runDue` (`lib/alarm.ts`), which catches a failure and sets that key again: after 30 seconds, or 2 seconds for the room's message path. `AgentHost` already catches and re-arms.
+
+SQL. A query binds at most 100 values. A list of ids is passed as one JSON value and read with `json_each(?)`, never as one `?` per id.
+
+Memory. An isolate has 128 MB, shared by every object in it. Extension VMs are released when the agent goes idle, and a VM whose wasm memory grew past 8 MB is retired after its call (section 24.3).
+
+Risk: these are measured behaviors, not documented guarantees, and Cloudflare could change them. Workers Paid lifts both: 30 s to 5 minutes of CPU per request, and 10,000 subrequests.
 
 ### 17.4 Workers Paid, 5 dollars a month
 
@@ -1064,7 +1084,7 @@ These experiments come before any feature work. Each one settles an UNVERIFIED i
 | 1 | Does `pi-durable` run in a Durable Object? | write the `SqliteDatabase` facade over `ctx.storage.sql` and `ctx.storage.transaction()`, run the storage conformance suite and one full turn under `wrangler dev` | stop. The foundation is wrong and the plan needs a new one |
 | 2 | What does a turn cost? Settled for the agent side, see [research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md) | measure rows written, rows read, requests, CPU ms, and wall time for one turn on the test model | redo the math in section 17 |
 | 3 | Can partial writes be coalesced? | build the `Storage` wrapper and run the conformance suite | ship as-is and treat the Free plan as a demo tier |
-| 4 | Does the Free plan's 10 ms CPU limit apply inside a Durable Object? | read the CPU time of experiment 2 against the limit | the Paid plan becomes the minimum. Open: the measurement account is not on Free, so this is still UNVERIFIED. A turn uses about 1.5 s of CPU |
+| 4 | Does the Free plan's 10 ms CPU limit apply inside a Durable Object? Settled on 2026-10-04: no. A Durable Object call ran 9.9 s of CPU on a Free account; a plain Worker request is stopped at random from about 0.15 s (section 17.3) | spin CPU in a Worker and in a Durable Object on a Free account and read `cpuTime` and `outcome` in `wrangler tail` | the Paid plan becomes the minimum |
 | 5 | How large is the Worker bundle with `pi-ai`, `pi-durable`, TypeBox, and the catalog? | build and read the size. The limit is 64 MiB and startup must stay under 1 second | load the catalog from an asset |
 | 6 | Which provider sign-in flows import on Workers? | import each module under `wrangler dev` with `nodejs_compat` | ship API keys only |
 | 7 | Does the published `pi-ai` contain the model catalog, and what is the test model's id? | inspect the npm package | generate the catalog at build time with pi's script |
@@ -1130,3 +1150,105 @@ How P1-13 built them:
 - The hello deadline is stored in each socket's attachment and enforced by a `hello` wakeup, not `setTimeout`, so it survives hibernation. A late socket is closed with code 4408 and reason `no hello within 5 seconds`. The Worker answers 504 when the session check and the object's upgrade take more than 5 seconds.
 
 Rivet's actor keys are client-supplied arrays checked in a connect hook. Kiko's rule that only the Worker builds a name from the session is stricter and stays.
+
+## 24. User extensions
+
+Users and agents add pi-durable extensions while kiko runs, on the Free plan, without a deploy. An extension is a JSON manifest and a few JavaScript files. The manifest says what the extension is and what it may do. The server enforces exactly that. The script runs in QuickJS inside the agent's object.
+
+### 24.1 Decision
+
+- An extension is data: `extension.json` plus files, stored by content hash in the user's `UserDO`. User extensions never live in the repository, so a pull from upstream never conflicts with them.
+- The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Kiko adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"kiko": 1` and checked by `checkManifest` in `packages/protocol/src/extensions.ts`, the same function on the server, in the CLI, and in the client.
+- The script is JavaScript, run by QuickJS compiled to wasm (`quickjs-wasi` 3.6.2). The wasm is imported with the Worker, so no code is evaluated by V8. The script is data for a bundled interpreter.
+- Only the human installs. Agents, the catalog, and files the human opens can only propose. The install is reachable from the human's socket alone.
+
+**Reasoning.**
+
+- Dynamic Workers (`worker_loaders`) would run real Worker code per extension, but they need the Paid plan (section 12.4). QuickJS needs nothing but the Worker.
+- A remote extension (a user's own Worker called over HTTP) was rejected by the owner. It adds a hop per call and a second deployment per user.
+- A declarative format with a hand-made step language was rejected. Once it has branches and loops it is a programming language that is worse to write than JavaScript, and kiko would own its docs and its edge cases forever. Models write JavaScript better than any other language, which is what makes agents good extension authors.
+
+**Measured.** Under `wrangler dev`, QuickJS starts in about 9 ms cold and 1 to 2 ms warm. A hook call costs about 11 µs. A turn already uses about 1.5 s of CPU (section 17.2), so an extension adds little. On the deployed Free account, a cold VM plus one hook call took 17 ms of CPU in a Durable Object, and 2,000 hook calls in one request passed; Durable Objects there are not held to 10 ms (experiment 4, section 17.3).
+
+### 24.2 Storage
+
+`UserDO` owns four tables, in `user/extensions.ts`:
+
+- `extensions`: one row per installed extension. The bundle, its hash, the on switch, the agents it is on for (null means every agent), who wrote it, the chat its triggers post to, and the last error an agent reported.
+- `extension_proposals`: installs that wait. One open proposal per extension name; a newer one replaces the older. At most 20.
+- `extension_secrets`: sealed like provider keys (section 11), with the provider id `ext:<name>:<secret>`. The client sees only whether each secret is set.
+- `extension_state`: `kiko.state`, keyed by extension, scope, and key. A value is at most 64 KB, an extension keeps at most 1,000 keys.
+
+The client gets extensions and proposals in the user snapshot and as user events (`extension`, `extension_removed`, `extension_proposal`, `extension_proposal_removed`). It keeps them in IndexedDB, so settings paints at once. Every change is optimistic: the user store lays it over the server's lists and rolls it back when the server says no.
+
+### 24.3 The sandbox
+
+`agent/script/vm.ts` runs one VM per extension version per agent process.
+
+- The VM has no `fetch`, timers, `process`, `WebAssembly`, or bindings. The only way out is `__host`, which the prelude hides before the extension's module runs. Each invocation gets its own `kiko` object, and the host decides per call what it may do.
+- Data crosses as JSON text only, so a guest object never becomes a host object.
+- CPU: the interrupt handler counts. The Workers clock does not move during computation, so a time check would never fire. QuickJS calls the handler about once per 5,000 loop iterations. 300 calls, about 100 ms, is the limit per entry into the VM.
+- Memory: 16 MB per VM. A VM that runs out is thrown away and restarted on the next call. Wasm memory never shrinks and an isolate's 128 MB is shared, so a VM that grew past 8 MB is retired after its call, and every VM is released when the agent goes idle. A VM starts at about 1.3 MB, and a warm start takes 1 to 2 ms.
+- Wall time: an invocation that has not settled in 30 seconds fails.
+- Imports resolve only to files in the bundle.
+
+### 24.4 How an extension becomes a pi-durable extension
+
+`agent/script/compile.ts` turns a manifest into an ordinary `Extension` named `ext:<name>`. Each tool, section, hook, and wrap is a host function that calls into the VM. The bridge enforces the manifest on every call:
+
+| `kiko.` | Rule |
+| --- | --- |
+| `call(tool)` | Only tools in `calls`, only tools the agent has, never the caller itself, and only with an effect the caller's effect covers. A `read` tool calls only reads; `write` adds writes; `message` adds messages; `external` calls anything. A callee whose result is outside content taints the run |
+| `fetch(url)` | From a tool or tool wrap. Any tool may GET without a body; another method or a body needs an `external` tool. `UserDO` checks the host against `egress` and fetches (24.7). The result taints the run, so trust wraps the tool's result as untrusted and holds the run's next `external` call for the human |
+| `state` | Needs `state` in the manifest. Sections only read. In a private chat (section 7.10) user-wide state only reads |
+| `next(args)` | Only in a tool wrap. Runs the wrapped tool |
+
+Hooks and sections can use only `state` and `log`. A failing hook changes nothing. `onYield` may continue a run at most three times in a row.
+
+The effect of a manifest tool goes into `effectTable` like a built-in tool's, so trust gates it by the table of section 16.3. A tool wrap keeps the wrapped tool's effect.
+
+DEVIATION from the earlier plan: effects are declared in the manifest and enforced at run time, not computed from the code. A script's calls are dynamic, so they cannot be read ahead of time.
+
+**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run raised an approval card. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so a later outside action still waits for the human.
+
+### 24.5 Selection and sync
+
+`factory.ts` stays the one place that selects extensions. `UserExtensions.sync` installs the given versions in the agent's registry, removes the rest, and returns the selection: every built-in extension, the user's in name order, then `trust`. Hooks run in selection order (pi-durable `agentHooks`), so `trust` sees the final arguments and results. A user hook can block more but never less, because the first block wins and trust runs last.
+
+A user extension never shares a tool name with a built-in tool or with another user extension. Such an extension is left out of the agent and the reason is shown on its row in settings.
+
+Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for the versions this agent runs, fetches the bundles it has not stored, syncs, and configures the root conversation when its selection changed. So an install, a switch, or an update reaches the next run. The same compare also brings a new built-in extension to an existing agent, which a conversation created before it would otherwise never select.
+
+### 24.6 Writing extensions
+
+- An extension in the chat's files lives at `/extensions/<name>/extension.json` plus its script, the same way skills live at `/skills/<name>/SKILL.md`.
+- The built-in skill `build-an-extension` is the SDK reference for agents.
+- `extension_check` (read) validates the manifest, loads the script, checks its exports against the manifest, and runs the manifest's `tests` with every call, fetch, and state op answered by mocks.
+- `extension_propose` (message) runs the same check, then stores a proposal and posts one line in the chat. A proposal from a tainted run is marked, and the review warns the human.
+- `extension_list` and `extension_open` let an agent see what is installed and copy one into the chat's files to change it.
+- The human can install from the file header of an `extension.json` too. The client reads the folder and proposes it.
+- Settings, extensions: waiting installs with their powers in plain lines (riskiest first), the code, and a line diff for an update; installed extensions with a switch, the agents that use them, their secrets, and remove; the catalog.
+
+### 24.7 Fetch and secrets
+
+`UserDO.extensionFetch` is the only way a script reaches the network.
+
+- The extension must be installed and on. Only `https`. The host must match `egress`, where `*.example.com` covers every subdomain.
+- `{{secret.NAME}}` in the URL, a header value, or the body is filled in here, and only when the host is one of that secret's `hosts`. The script never holds a key.
+- A server that echoes a secret does not hand it back: every set secret is replaced by its placeholder in the response text. `set-cookie` and `authorization` response headers are dropped.
+- `safeRequest` in `lib/safe-fetch.ts` makes the request. It has `safeFetch`'s address checks, and it never follows a redirect, so headers chosen for one host never reach another. Bodies are at most 256 KB each way, and the deadline is 10 seconds.
+
+### 24.8 Triggers
+
+A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to the chat the extension came from, for the agent that wrote it, or else to the kiko chat for kiko. Installing, switching on, or updating replaces the extension's reminders; switching off and uninstalling cancel them. A trigger fires at most once an hour.
+
+### 24.9 The catalog
+
+`apps/server/catalog/<name>/` holds extensions reviewed upstream. `scripts/gen-catalog.ts` bundles them into `user/catalog.gen.ts`, and a test fails when the file is stale or an entry fails its own `extension_check`. A catalog install goes through the same review as any other. Sharing is through the catalog, never a share link.
+
+### 24.10 Verification
+
+- `apps/server/test/script-vm.test.ts`: the sandbox. The bridge, the CPU stop, the memory cap, no I/O globals, imports only from the bundle.
+- `apps/server/test/user-extensions.test.ts`: a real harness on the faux model. Tools with state and calls, trust last, sections in the prompt, a fetch that taints the run so trust blocks the next external call, the effect rules, hooks, wraps, name clashes, `onYield`'s limit, and every catalog entry.
+- `apps/server/test/extension-store.test.ts`: the store in workerd with an echo server. Install gating, triggers, secrets per host, redaction, egress, switches, scopes, and users kept apart.
+- `bun kiko verify extensions`: end to end on the dev server with the fake agent.

@@ -9,7 +9,7 @@ import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } fro
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { type Limits, resolveLimits, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import type { ExecutorTool } from "../integrations/executor/tools"
-import { type Alarms, createAlarms } from "../lib/alarm"
+import { type Alarms, createAlarms, runDue } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "../lib/crypto"
@@ -29,6 +29,12 @@ import { getTheme, setTheme } from "./theme"
 import { nextTidyAt, TIDY_WAKEUP, Tidy, type TidyReport } from "./tidy"
 import { DEFAULT_MODEL, userModels } from "../agent/factory"
 import { roomStub } from "../lib/names"
+import { type ExtensionEvent, ExtensionError, ExtensionStore } from "./extensions"
+import { EXTENSION_CATALOG } from "./catalog.gen"
+import { nextOccurrence } from "./recurrence"
+import { CHIEF } from "../room/chief"
+import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
+import type { GuestRequest, GuestResponse } from "../agent/script/compile"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
@@ -77,6 +83,27 @@ export class UserDO extends DurableObject<Env> {
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
+      this.extensions = new ExtensionStore(
+        this.sql,
+        () => keyringFromEnv(this.env),
+        () => userIdFromObjectName(ctx.id.name),
+        (event) => this.commit(event),
+        {
+          // A trigger is a recurring reminder (section 14), made as the extension.
+          create: async ({ text, rrule, roomId, target, createdBy }) => {
+            const tz = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'").toArray()[0]?.value ?? DEFAULT_TIMEZONE
+            const first = nextOccurrence(rrule, tz, Date.now())
+            if (!first) throw new Error("the rule has no next time")
+            await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
+          },
+          cancelBy: (createdBy) => this.reminders.cancelCreatedBy(createdBy),
+          fallback: () => {
+            const roomId = kikoChatRoom(this.sql)
+            return roomId ? { roomId, target: CHIEF } : null
+          },
+        },
+        () => EXTENSION_CATALOG,
+      )
       this.tidy = new Tidy({
         sql: this.sql,
         memory: this.memory,
@@ -88,6 +115,97 @@ export class UserDO extends DurableObject<Env> {
         souls: this.souls,
       })
     })
+  }
+
+  // Extensions, architecture section 24. The logic is in extensions.ts. Agents reach these RPCs with
+  // a stub the Worker addressed by the session's user id, so every call is this user's own.
+  private extensions!: ExtensionStore
+
+  /** The versions agent `slug` runs this run. */
+  async extensionsFor(slug: string) {
+    return this.extensions.forAgent(slug)
+  }
+
+  async extensionBundles(hashes: string[]) {
+    return this.extensions.bundles(hashes)
+  }
+
+  /** `kiko.state` for a running script. Throws a message the script can read. */
+  async extensionState(name: string, scope: string, op: "get" | "set" | "delete" | "list", key: string, value?: unknown) {
+    return this.extensions.state(name, scope, op, key, value)
+  }
+
+  /** `kiko.fetch` for a running script. Secrets are filled in here and never leave this object. */
+  async extensionFetch(name: string, request: GuestRequest): Promise<GuestResponse> {
+    return this.extensions.fetch(name, request)
+  }
+
+  async extensionError(name: string, hash: string, error: string): Promise<void> {
+    this.extensions.setError(name, hash, error)
+  }
+
+  async extensionList() {
+    return this.extensions.list()
+  }
+
+  async extensionSource(name: string) {
+    try {
+      return this.extensions.source(name)
+    } catch {
+      return null
+    }
+  }
+
+  /** An agent's `extension_propose`. The human installs it from settings; an agent never can. */
+  async proposeExtension(input: { bundle: unknown; by: string; room: string; tainted: boolean }): Promise<ExtensionResult> {
+    return this.extensionResult(async () => ({ proposal: await this.extensions.propose({ bundle: input.bundle, source: "agent", by: input.by, room: input.room, tainted: input.tainted }) }))
+  }
+
+  /** The human's `extension` frame. Only a socket reaches this, so only the human installs. */
+  private async extensionOp(op: ExtensionOp): Promise<ExtensionResult> {
+    const x = this.extensions
+    return this.extensionResult(async () => {
+      switch (op.op) {
+        case "propose":
+          return { proposal: await x.propose({ bundle: op.bundle, source: "human", ...(op.room ? { room: op.room } : {}) }) }
+        case "catalog":
+          return { catalog: EXTENSION_CATALOG }
+        case "propose_catalog":
+          return { proposal: await x.proposeCatalog(op.name) }
+        case "install": {
+          const extension = await x.install(op.id)
+          // The chat an agent proposed it from hears that it is live, and so does the agent at its next delivery.
+          if (extension.room && extension.by) {
+            const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), extension.room)
+            this.ctx.waitUntil(Promise.resolve(room.homeNotice(extension.by, `the ${extension.name} extension is installed. its tools work from the next message.`)).catch(() => {}))
+          }
+          return { extension }
+        }
+        case "decline":
+          x.decline(op.id)
+          return {}
+        case "enable":
+          return { extension: await x.setEnabled(op.name, op.enabled) }
+        case "agents":
+          return { extension: x.setAgents(op.name, op.agents) }
+        case "secret":
+          return { extension: await x.setSecret(op.name, op.secret, op.value) }
+        case "uninstall":
+          await x.uninstall(op.name)
+          return {}
+        case "source":
+          return { bundle: x.source(op.name) }
+      }
+    })
+  }
+
+  private async extensionResult(run: () => Promise<Omit<Extract<ExtensionResult, { ok: true }>, "ok">>): Promise<ExtensionResult> {
+    try {
+      return { ok: true, ...(await run()) }
+    } catch (e) {
+      if (e instanceof ExtensionError) return { ok: false, error: e.message, ...(e.problems ? { problems: e.problems } : {}) }
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
   }
 
   // Reminders, architecture section 14. The logic is in reminders.ts. `owner` is the
@@ -510,6 +628,10 @@ export class UserDO extends DurableObject<Env> {
       this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", LAST_CHAT, frame.roomId)
       return
     }
+    if (frame.t === "extension") {
+      send(ws, { t: "extension_result", reqId: frame.reqId, result: await this.extensionOp(frame.op) })
+      return
+    }
     if (frame.t === "home") {
       const refused = this.homeOp(frame.op)
       if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
@@ -541,9 +663,11 @@ export class UserDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     if (this.#wiped || (await this.ctx.storage.get(DELETING))) return
     const due = await this.alarms.dueWakeups(Date.now())
-    if (due.includes(HELLO_WAKEUP)) await enforceHello(this.ctx, this.alarms)
-    if (due.includes(REMINDERS_WAKEUP)) await this.reminders.fire()
-    if (due.includes(TIDY_WAKEUP)) await this.tidy.run()
+    await runDue(this.alarms, due, {
+      [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
+      [REMINDERS_WAKEUP]: () => this.reminders.fire(),
+      [TIDY_WAKEUP]: () => this.tidy.run(),
+    })
     this.#loginState?.expire(due)
   }
 
@@ -646,7 +770,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** Stores `change` as the next event and sends it to every socket that said hello. */
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | ExtensionEvent | null): UserEvent | null {
     if (!change) return null
     // The kiko chat carries its flag on every event, so a client never offers to delete it.
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
@@ -680,7 +804,7 @@ export class UserDO extends DurableObject<Env> {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
+        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}), extensions: this.extensions.list(), proposals: this.extensions.proposals() },
       }
     }
     const events = this.sql

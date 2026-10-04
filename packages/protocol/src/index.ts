@@ -9,6 +9,7 @@
 export * from "./chats"
 export * from "./activity"
 export type * from "./envelope"
+export * from "./extensions"
 export * from "./ids"
 export type * from "./memory"
 export type * from "./rich-text"

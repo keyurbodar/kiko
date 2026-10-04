@@ -1,0 +1,24 @@
+{
+  "kiko": 1,
+  "name": "tally",
+  "version": "1.0.0",
+  "description": "keep counts in a chat: habits, scores, glasses of water, anything. each chat has its own.",
+  "tools": {
+    "tally": {
+      "description": "add to a count, set it, or show every count in this chat",
+      "effect": "write",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "what is counted, such as water" },
+          "add": { "type": "number", "description": "how much to add; negative takes away" },
+          "set": { "type": "number", "description": "the new value" }
+        }
+      }
+    }
+  },
+  "state": "room",
+  "tests": [
+    { "tool": "tally", "args": { "name": "water", "add": 2 }, "expect": "water: 2" }
+  ]
+}

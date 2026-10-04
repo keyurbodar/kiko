@@ -87,3 +87,12 @@ test("a wakeup re-set for the same key moves instead of duplicating", async () =
   expect((await call(id, "state")).alarm).toBe(B + 6000)
   expect((await call(id, "due", { now: B + 7000 })).keys).toEqual(["a"])
 })
+
+test("runDue runs every due handler even when one throws, and sets only the failed key again", async () => {
+  const id = fresh()
+  for (const key of ["a", "boom", "c"]) await call(id, "set", { key, at: B + 1000 })
+  const out = await call(id, "runDue", { now: B + 2000 })
+  expect(out.ran).toEqual(["a", "c"])
+  expect(out.failed).toEqual(["boom"])
+  expect(out.left).toEqual([{ key: "boom", at: B + 2000 + 5000 }])
+})

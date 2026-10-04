@@ -1,6 +1,6 @@
 // The chat list and the user socket's cursor.
 
-import type { Agent, Chat, RoomId } from "@kiko/protocol"
+import type { Agent, Chat, ExtensionInfo, ExtensionProposal, RoomId } from "@kiko/protocol"
 import type { Warm } from "./db"
 import { clearDraft } from "./drafts"
 import { clearRoom } from "./messages"
@@ -48,4 +48,15 @@ export const putAgents = (warm: Warm, agents: readonly Agent[]) => warm.put("met
 
 export async function allAgents(warm: Warm): Promise<Agent[]> {
 	return [...((await warm.get<Agent[]>("meta", AGENTS)) ?? [])]
+}
+
+const EXTENSIONS = "extensions"
+
+/** The user's extensions and waiting installs, one value under one key, so settings paints at once. */
+export const putExtensions = (warm: Warm, extensions: readonly ExtensionInfo[], proposals: readonly ExtensionProposal[]) =>
+	warm.put("meta", EXTENSIONS, { extensions, proposals })
+
+export async function getExtensions(warm: Warm): Promise<{ extensions: ExtensionInfo[]; proposals: ExtensionProposal[] }> {
+	const stored = await warm.get<{ extensions: ExtensionInfo[]; proposals: ExtensionProposal[] }>("meta", EXTENSIONS)
+	return { extensions: [...(stored?.extensions ?? [])], proposals: [...(stored?.proposals ?? [])] }
 }

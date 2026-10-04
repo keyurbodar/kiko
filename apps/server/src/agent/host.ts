@@ -58,6 +58,8 @@ export type HostOptions = {
   heartbeatMs?: number
   /** What the run in flight has shown so far: bubbles and tools. The outbox knows. Null before it saw the run start. */
   progress?: () => RunProgress | null
+  /** The harness went idle: no task and no submission. The agent frees what only a run needs. */
+  onIdle?: () => void
 }
 
 export type Opened = { harness: Harness; root: Conversation; storage: CoalescingStorage; beginRun?: AgentSetup["beginRun"]; inputContext?: AgentSetup["inputContext"] }
@@ -333,6 +335,7 @@ export class AgentHost {
     if (live.tasks.length === 0 && live.submissions.length === 0) {
       await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
       await this.idle()
+      this.options.onIdle?.()
       // The run answered between the drain's check and now, so a batch it held is placed at once.
       if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
       return
@@ -359,6 +362,7 @@ export class AgentHost {
         if (live.tasks.length === 0 && live.submissions.length === 0) {
           await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
           await this.idle()
+          this.options.onIdle?.()
         } else this.watchIdle(harness)
       })
       .catch(() => {
