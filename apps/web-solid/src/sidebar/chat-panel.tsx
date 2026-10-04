@@ -72,10 +72,12 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>close</MenuV2.Item>
       <Show when={!chat()?.kiko}>
         <MenuV2.Separator />
-        {/* Deleting cannot be undone, so the first select arms it and the second deletes, as in the info panel. */}
+        {/* Deleting cannot be undone, so the first select arms it and the second deletes, as in the info panel.
+            The menu never closes on select: Kobalte reads closeOnSelect after onSelect has armed it, and a
+            deleted chat's row takes its menu away with it. */}
         <MenuV2.Item
           class="text-danger hover:bg-[oklch(from_var(--danger)_l_c_h_/_12%)] focus-visible:bg-[oklch(from_var(--danger)_l_c_h_/_12%)]"
-          closeOnSelect={sure()}
+          closeOnSelect={false}
           onSelect={() => (sure() ? deleteChat(props.id, active(), navigate) : setSure(true))}
         >
           {sure() ? "sure? delete" : "delete"}
