@@ -5,11 +5,11 @@ import * as fixtures from "@kiko/protocol/fixtures"
 import { IDBFactory } from "fake-indexeddb"
 import { allChats } from "../warm/chats"
 import { openWarm, type Warm } from "../warm/db"
-import { getLastSeq, newestMessages, putMessages, setLastSeq } from "../warm/messages"
+import { dropBefore, getLastSeq, newestMessages, putMessages, setLastSeq } from "../warm/messages"
 import { outbox } from "../warm/outbox"
 import { createMockRoom, createMockUser, type MockRoomOptions } from "./mock-room"
 import { overlayChats, overlayMessages, type RoomPatch, settleRoom } from "./patches"
-import { applyRoomEvent, createRoomStore, emptyRoom, MAX_MESSAGES_IN_MEMORY, type RoomStoreOptions, WINDOW_SLACK } from "./room-store"
+import { applyRoomEvent, createRoomStore, emptyRoom, HISTORY_PAGE, MAX_MESSAGES_IN_MEMORY, type RoomStoreOptions, WINDOW_SLACK } from "./room-store"
 import { backoffDelay, createSyncSocket, parseFrame } from "./socket"
 import { createUserStore, newRoomId, OPEN_DEBOUNCE_MS } from "./user-store"
 import { createUserChannel } from "./user-channel"
@@ -414,6 +414,89 @@ describe("the room store", () => {
 		expect(store.state.messages).toHaveLength(MAX_MESSAGES_IN_MEMORY)
 		expect(store.state.messages.at(-1)?.text).toBe("n351")
 		store.close()
+	})
+
+	test("a jump past the disk shows a history window that follows edits, pages both ways, and joins the live end", async () => {
+		const events: RoomEvent[] = Array.from({ length: 600 }, (_, i) => ({ t: "message", seq: i + 1, at: i, id: `m${i + 1}` as MessageId, from: { kind: "human" }, text: `n${i + 1}` }))
+		const { mock, make } = setup({ events })
+		const warm = await freshWarm()
+		const { store } = await make(warm)
+		await until(() => store.state.seq === 600)
+		await store.settled()
+		await warm.flush()
+		// The disk kept only the newest 100, as after a long absence.
+		dropBefore(warm, roomId, 501)
+		await warm.flush()
+		const texts = () => store.messages().map((m) => m.text)
+
+		// A message in memory is shown at once, with no question to the room.
+		const asked = mock.received.length
+		expect(await store.jumpTo(550)).toBe(true)
+		expect(mock.received.length).toBe(asked)
+		expect(store.state.history).toBeNull()
+
+		expect(await store.jumpTo(100)).toBe(true)
+		expect(texts()[0]).toBe(`n${100 - HISTORY_PAGE}`)
+		expect(texts()).toContain("n100")
+		expect(store.state.messages.at(-1)?.text).toBe("n600")
+		// A live message goes to the live window; an edit of a shown message shows.
+		mock.store({ t: "message", id: "m601" as MessageId, from: { kind: "human" }, text: "n601" })
+		mock.store({ t: "edit", messageId: "m100" as MessageId, text: "edited" })
+		await until(() => store.state.seq === 602)
+		await store.settled()
+		expect(texts()).not.toContain("n601")
+		expect(texts()).toContain("edited")
+		expect(store.state.messages.at(-1)?.text).toBe("n601")
+
+		// Older pages come from the room, since the disk does not reach this far.
+		expect(await store.loadOlder(20)).toBe(20)
+		expect(texts()[0]).toBe(`n${100 - HISTORY_PAGE - 20}`)
+
+		// At the end of the window, newer pages come in until they reach the live window.
+		for (let i = 0; i < 20 && store.state.history; i++) {
+			store.follow()
+			await until(() => mock.received.at(-1)?.t === "history")
+			await sleep(5)
+		}
+		expect(store.state.history).toBeNull()
+		const joined = store.state.messages.map((m) => m.seq)
+		const first = 100 - HISTORY_PAGE - 20
+		// One contiguous list, from the oldest page to the newest live message.
+		expect(joined).toEqual(Array.from({ length: 601 - first + 1 }, (_, i) => first + i))
+		// Back at the live end, follow cuts the window as always.
+		store.follow()
+		expect(store.state.messages).toHaveLength(MAX_MESSAGES_IN_MEMORY)
+		store.close()
+	})
+
+	test("a send from a history window goes back to the live end, and an unknown seq is not a jump", async () => {
+		const events: RoomEvent[] = Array.from({ length: 300 }, (_, i) => ({ t: "message", seq: i + 1, at: i, id: `m${i + 1}` as MessageId, from: { kind: "human" }, text: `n${i + 1}` }))
+		const { mock, make } = setup({ events })
+		const { store } = await make()
+		await until(() => store.state.seq === 300)
+		await store.settled()
+		expect(await store.jumpTo(5)).toBe(true)
+		expect(store.state.history?.[0]?.text).toBe("n1")
+		expect(await store.jumpTo(9999)).toBe(false)
+		store.send("back")
+		expect(store.state.history).toBeNull()
+		expect(store.messages().at(-1)?.text).toBe("back")
+		await until(() => mock.received.some((f) => f.t === "send"))
+		store.close()
+	})
+
+	test("search asks the room and resolves to its page; paging passes the cursor", async () => {
+		const events: RoomEvent[] = Array.from({ length: 30 }, (_, i) => ({ t: "message", seq: i + 1, at: i, id: `m${i + 1}` as MessageId, from: { kind: "human" }, text: i % 2 ? `odd apple ${i + 1}` : `even ${i + 1}` }))
+		const { make } = setup({ events })
+		const { store } = await make()
+		// Asked before the socket is open: it waits for it.
+		const first = await store.search("apple", undefined, 5)
+		expect(first?.results.map((r) => r.seq)).toEqual([30, 28, 26, 24, 22])
+		expect(first?.results[0]?.snippet).toBe("odd \u0002apple\u0003 30")
+		const second = await store.search("apple", first!.next!, 5)
+		expect(second?.results[0]?.seq).toBe(20)
+		store.close()
+		expect(await store.search("apple")).toBeNull()
 	})
 
 	test("a send's object URLs are revoked once its uploads land, and a held send's when the room closes", async () => {

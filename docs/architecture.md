@@ -440,6 +440,8 @@ type ClientToRoom =
 	| { t: "stop" }
 	| { t: "approve"; approvalId: string; action: "accept" | "decline" }
 	| { t: "task"; op: TaskOp }
+	| { t: "search"; query: string; before?: number; limit?: number }    // section 9.2.2
+	| { t: "history"; seq: number; before: number; after: number }        // section 9.2.2
 
 type RoomToClient =
 	| { t: "events"; events: RoomEvent[] }           // each has a seq
@@ -465,6 +467,24 @@ The room keeps the user's chat row current. After each change to its newest acti
 - Who is typing reaches the chat list through `UserDO.chatTyping`, a `typing { roomId, names }` frame on the user socket. It is sent when the set changes, never per keystroke, and never stored.
 
 Mentions. The Worker passes the human's handle (`humanHandle`, the first word of the account name) to the room on every socket, and the brief tells agents to write `@<handle>` when they need the human. An agent answers one message inline by starting a bubble with `[reply:<messageId>]`, which becomes `replyTo`. An agent message mentions the human when it names the handle or replies to a human message (`mentionsHuman`). `mentions` counts the unread ones. The open chat marks every message read at once, so it tracks the mentions the reader has not seen on screen in memory, and its `@` button jumps to the oldest.
+
+### 9.2.2 Message search
+
+Each room indexes its own live messages with FTS5 (`messages_fts`, kept by triggers in the same transaction as the write). A query quotes every word, so FTS syntax in it is plain text, and its last word matches as a prefix.
+
+- The index is read newest first by rowid, which grows with `seq`, so a page stops after its limit and `snippet()` runs only for the rows returned. Ordering by `messages.seq` made SQLite sort every match and build a snippet for each first: a one-letter prefix in a room of 10,000 messages took 20 ms, and now takes 1 ms (`test/room-search.test.ts`).
+- A hit carries `id`, `seq`, `at`, `from`, and a snippet whose matched words are wrapped in `SNIPPET_OPEN` and `SNIPPET_CLOSE` (`packages/protocol/src/search.ts`), so the client marks exactly what the index matched.
+- One chat: the room socket's `search { query, before?, limit? }`, paged newest first by `seq`.
+- Every chat: `GET /api/search?q=&before=&limit=` (`room/search-route.ts`). The Worker lists the user's chats from `UserDO`, asks the 30 most recently active rooms in parallel over RPC, and merges their pages by time (`mergeHits`). Ranks from different rooms' indexes do not compare, so the order is by time, as Telegram's global search is. The cursor is a time. One request is one `UserDO` call and at most 30 room calls, under the Free plan's 50 subrequests. A user with more chats gets `partial: true`, and the older chats are not searched. No Durable Object waits on another: the fan-out is the Worker's. UNVERIFIED: whether Durable Object calls count toward the 6 simultaneous connections per invocation. If they do, the 30 calls run 6 at a time and the answer is slower, not wrong.
+- The client searches the server only. IndexedDB holds a part of each room, so a local pass would show partial results first and then change them under the reader.
+
+Jumping to a hit. The room socket's `history { seq, before, after }` returns live messages around a `seq`, oldest first, read from the `seq` index. The room store (`sync/room-store.ts`) uses it in three places.
+
+- `jumpTo(seq)`: a held message is shown at once. Otherwise the window around it comes from the room. If it reaches the live window the two join; else it is shown as `history`, a separate window, while `messages` keeps following the room.
+- In a history window, live events edit, react to, and delete the messages it holds, and new messages go to the live window. Reaching its end pages newer messages in until they reach the live window, and the two join. The scroll-down button and a send go straight back to the live end. Back at the end, `follow()` cuts the window to 200 as always.
+- `loadOlder` reads IndexedDB first and asks the room once the disk has nothing older. Pages from the room stay in memory, never on disk, so the disk stays one run that ends at the live end.
+
+The overlay (`search/overlay.tsx`) loads on the first modifier press, like the palette. Typing waits 120 ms; an answer to an older query is dropped (`search/model.ts`).
 
 ### 9.3 Optimistic updates
 
@@ -934,7 +954,7 @@ Boot order:
 
 Memory limits. RAM holds the open chat's window, the chat list, and presence. Every cache has a cap.
 
-- The open room keeps at most 200 messages (`MAX_MESSAGES_IN_MEMORY`) while the reader follows the end. It may grow 50 over before it is cut back. Scrolling near the top pages 50 older ones in from IndexedDB, and the window is not cut while the reader is up there. Back at the end it is cut to 200 again. An edit, reaction, or delete of a message outside the window is applied to its row on disk.
+- The open room keeps at most 200 messages (`MAX_MESSAGES_IN_MEMORY`) while the reader follows the end. It may grow 50 over before it is cut back. Scrolling near the top pages 50 older ones in from IndexedDB, then from the room once the disk has none (section 9.2.2), and the window is not cut while the reader is up there. Back at the end it is cut to 200 again. An edit, reaction, or delete of a message outside the window is applied to its row on disk.
 - On close a room's rows older than 2,000 sequence numbers are deleted from IndexedDB, with one range delete and no read.
 - Hover previews keep 20 chats. The memory twin of IndexedDB, used only when the browser refuses it, keeps 2,000 rows per store. Opening IndexedDB may take 10 seconds before the twin takes over.
 - The transcript's rows are one shared memo in two parts: stored rows, rebuilt only when a row's cheap signature changes (it never copies the text), and draft rows. A growing draft never walks the stored window.

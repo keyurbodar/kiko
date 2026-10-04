@@ -2,8 +2,7 @@ import type { Command } from "./registry"
 
 /*
  * kat's command map (screenshot 20). Titles are lowercase `noun: verb`.
- * Every command here does something. `chat: share` and message search are left
- * out: kiko has no share links, and search has no screen yet.
+ * Every command here does something. `chat: share` is left out: kiko has no share links.
  */
 
 /** The pure part: the table of commands, given what they act on. */
@@ -28,6 +27,9 @@ export function katCommands(deps: {
   stepChat: (step: 1 | -1) => void
   /** How many chats the sidebar lists. */
   chatCount: () => number
+  /** Opens message search over the open chat, or over every chat. */
+  searchChat: () => void
+  searchAll: () => void
   /** The open chat may be pinned, unpinned, or deleted: it is not the kiko chat. */
   canMove: () => boolean
 }): Command[] {
@@ -59,6 +61,8 @@ export function katCommands(deps: {
     // Telegram's way through the list without the mouse.
     { id: "chats.previous", title: "chats: previous chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowUp", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(-1) },
     { id: "chats.next", title: "chats: next chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowDown", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(1) },
+    { id: "chats.search-current", title: "chats: search messages in current chat", group: "chats", icon: "search", shortcut: "Mod+F", global: true, when: deps.hasActiveChat, run: deps.searchChat },
+    { id: "chats.search-all", title: "chats: search all chats", group: "chats", icon: "search", shortcut: "Mod+Shift+F", global: true, run: deps.searchAll },
     { id: "palette.open", title: "palette: open", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
   ]
 }

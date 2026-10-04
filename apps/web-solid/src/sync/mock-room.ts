@@ -23,7 +23,7 @@ import type {
 	UserEvent,
 	UserToClient,
 } from "@kiko/protocol"
-import { duplicateDm } from "@kiko/protocol"
+import { duplicateDm, SNIPPET_CLOSE, SNIPPET_OPEN } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
 import { overlayFiles, overlayFolders } from "./patches"
@@ -210,7 +210,29 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			if (a?.state === "pending")
 				store({ t: "approval", approval: { ...a, state: f.action === "accept" ? "accepted" : "declined" } })
 		},
-		search() {},
+		// A plain substring match stands in for the room's index. Every word must appear.
+		search(peer, f) {
+			const words = f.query.toLowerCase().split(/\s+/).filter(Boolean)
+			const size = Math.min(f.limit || 20, 50)
+			const hits = data.messages
+				.filter((m) => m.seq < (f.before ?? Infinity) && words.length > 0 && words.every((w) => m.text.toLowerCase().includes(w)))
+				.sort((a, b) => b.seq - a.seq)
+			const page = hits.slice(0, size)
+			const mark = (text: string) => text.replace(new RegExp(words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "gi"), (x) => `${SNIPPET_OPEN}${x}${SNIPPET_CLOSE}`)
+			peer.push({
+				t: "search",
+				query: f.query,
+				...(f.before !== undefined ? { before: f.before } : {}),
+				results: page.map((m) => ({ id: m.id, seq: m.seq, at: m.at, from: m.from, snippet: mark(m.text) })),
+				next: hits.length > size ? page[page.length - 1]!.seq : null,
+			})
+		},
+		history(peer, f) {
+			const sorted = [...data.messages].sort((a, b) => a.seq - b.seq)
+			const older = f.before ? sorted.filter((m) => m.seq < f.seq).slice(-f.before) : []
+			const newer = sorted.filter((m) => m.seq >= f.seq).slice(0, f.after)
+			peer.push({ t: "history", seq: f.seq, before: f.before, after: f.after, messages: structuredClone([...older, ...newer]) })
+		},
 		catalog(peer, f) {
 			const size = Math.min(f.limit || 30, 100)
 			const items: CatalogItem[] = []

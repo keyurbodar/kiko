@@ -13,6 +13,7 @@ import { infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
+import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
 // The shortcut pills load on the first modifier press, with the palette, so the hold shows them at once.
 const HintLayer = lazy(() => import("../commands/HintLayer"));
@@ -149,6 +150,7 @@ export function Shell(props: ParentProps) {
     const on = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
       preloadPalette();
+      preloadSearch();
       void HintLayer.preload();
       window.removeEventListener("keydown", on, true);
     };
@@ -187,6 +189,12 @@ export function Shell(props: ParentProps) {
             <div class="flex min-w-0 flex-1 flex-col">
               {props.children}
             </div>
+            {/* Message search sits over the transcript and the info panel, inside the rounded panel. */}
+            <Show when={searchScope()}>
+              <Suspense>
+                <SearchOverlay />
+              </Suspense>
+            </Show>
             <Show when={infoOpen() ? infoChat() : null}>
               {(chatId) => (
                 <Suspense>

@@ -25,6 +25,7 @@ import type {
 	AgentState,
 	Approval,
 	CatalogItem,
+	ClientToRoom,
 	FileRef,
 	Member,
 	MemberOp,
@@ -35,6 +36,7 @@ import type {
 	RoomId,
 	RoomSnapshot,
 	RoomToClient,
+	SearchHit,
 	Task,
 	TaskOp,
 } from "@kiko/protocol"
@@ -254,6 +256,37 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 	}
 }
 
+/** Two oldest-first lists as one, oldest first, one message per seq; `b` wins a tie. */
+export function mergeBySeq(a: readonly Message[], b: readonly Message[]): Message[] {
+	const out: Message[] = []
+	let i = 0
+	let j = 0
+	while (i < a.length || j < b.length) {
+		const x = a[i]
+		const y = b[j]
+		if (y === undefined || (x !== undefined && x.seq < y.seq)) out.push(a[i++]!)
+		else {
+			if (x !== undefined && x.seq === y.seq) i++
+			out.push(b[j++]!)
+		}
+	}
+	return out
+}
+
+/**
+ * Applies a live event to a jumped-to window: an edit, reaction, preview, or delete of a message it
+ * holds, and a newer version of one. A new message is not added: it belongs to the live end.
+ */
+export function applyToHistory(history: Message[], e: RoomEvent): void {
+	if (e.t === "message") {
+		const i = findMessage(history, e.id)
+		if (i !== -1) history[i] = toMessage(e)
+		return
+	}
+	if (e.t !== "edit" && e.t !== "react" && e.t !== "preview" && e.t !== "delete") return
+	applyRoomEvent({ ...emptyRoom(), seq: e.seq - 1, messages: history }, e)
+}
+
 // The store.
 
 export type Draft = { slug: AgentSlug; runId: string; index: number; text: string }
@@ -271,6 +304,12 @@ export type RoomState = RoomData & {
 	status: Record<string, AgentState>
 	/** Growing blocks, keyed by `runId:index`. A message from the same run and index replaces one. */
 	drafts: Record<string, Draft>
+	/**
+	 * A window of older messages the reader jumped to, oldest first, that does not reach the live
+	 * window. While it is set the transcript shows it instead of `messages`, which keeps following the
+	 * room. Paging newer joins it to the live window. Null at the live end. Memory only.
+	 */
+	history: Message[] | null
 }
 
 export type RoomStoreOptions = {
@@ -292,8 +331,12 @@ export type RoomStoreOptions = {
 }
 
 export type CatalogPage = { items: readonly CatalogItem[]; next: number | null }
+export type SearchPage = { results: readonly SearchHit[]; next: number | null }
 
-const CATALOG_TIMEOUT_MS = 8000
+/** How long a question to the room (catalog, search, history) waits for its answer. */
+const ASK_TIMEOUT_MS = 8000
+/** Messages on each side of a jump target, and in each page past what the disk holds. */
+export const HISTORY_PAGE = 30
 /** The composer's `typing` frames are spaced at least this far apart. */
 export const TYPING_EVERY_MS = 2000
 
@@ -350,9 +393,25 @@ export type RoomStore = {
 	 * previous page. Resolves to null when the socket is down or the room does not answer.
 	 */
 	catalog(kind: "links" | "media", before?: number, limit?: number): Promise<CatalogPage | null>
-	/** Prepends up to `limit` older messages from IndexedDB, and stops cutting the window. Resolves to how many. */
+	/** Searches the room's messages, newest first. `before` is the `next` of the previous page. Null when the room does not answer. */
+	search(query: string, before?: number, limit?: number): Promise<SearchPage | null>
+	/**
+	 * Makes the message at `seq` part of what the transcript shows: at once when it is held, else from
+	 * the room, as a `history` window around it. Resolves to false when the room has no such message.
+	 */
+	jumpTo(seq: number): Promise<boolean>
+	/** Drops a jumped-to window and shows the live end again. */
+	live(): void
+	/**
+	 * Prepends up to `limit` older messages, from IndexedDB and then from the room once the disk has
+	 * none, and stops cutting the window. Resolves to how many.
+	 */
 	loadOlder(limit?: number): Promise<number>
-	/** The reader is back at the end: cut the window to `MAX_MESSAGES_IN_MEMORY` again, now and on every new message. */
+	/**
+	 * The reader is at the end of what is shown. At the live end: cut the window to
+	 * `MAX_MESSAGES_IN_MEMORY` again, now and on every new message. In a jumped-to window: page newer
+	 * messages in, and join the live window once they reach it.
+	 */
 	follow(): void
 	/** Resolves when every queued event is applied. */
 	settled(): Promise<void>
@@ -401,12 +460,18 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		status: {},
 		doing: {},
 		drafts: {},
+		history: null,
 	})
 
 	let socket: SyncSocket | null = null
-	/** Catalog questions waiting for their answer, by kind and cursor. */
-	const asked = new Map<string, ((page: CatalogPage | null) => void)[]>()
-	const askKey = (kind: string, before: number | undefined) => `${kind}:${before ?? ""}`
+	/** Questions waiting for their answer (catalog, search, history), by a key the answer repeats. */
+	const asked = new Map<string, ((answer: unknown) => void)[]>()
+	const catalogKey = (kind: string, before: number | undefined) => `catalog:${kind}:${before ?? ""}`
+	const searchKey = (query: string, before: number | undefined) => `search:${before ?? ""}:${query}`
+	const historyKey = (seq: number, before: number, after: number) => `history:${seq}:${before}:${after}`
+	/** Resolved when the socket opens, for a question asked while it connects. */
+	let openWaiters: (() => void)[] = []
+	let newerBusy = false
 	let closed = false
 	let lastTypingAt: number | undefined
 	let suspended = false
@@ -525,6 +590,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 							(e.t === "delete" && (change.deleted?.length ?? 0) < e.messageIds.length)
 						if (missed) offWindow.push(e)
 						if (e.t === "message" && e.run) delete s.drafts[`${e.run.runId}:${e.run.index}`]
+						if (s.history) applyToHistory(s.history, e)
 						if (performance.now() - start >= budget) break
 					}
 				}),
@@ -560,13 +626,44 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		kick()
 	}
 
+	/** Ask the room a question and wait for the answer frame with the same key. Null when it does not come. */
+	async function ask<T>(key: string, frame: ClientToRoom): Promise<T | null> {
+		if (state.connection !== "open" && !closed && !suspended) {
+			// A question asked while the socket connects (a jump right after opening the chat) waits for it.
+			await new Promise<void>((resolve) => {
+				const timer = setTimeout(resolve, ASK_TIMEOUT_MS)
+				openWaiters.push(() => (clearTimeout(timer), resolve()))
+			})
+		}
+		return new Promise<T | null>((resolve) => {
+			const timer = setTimeout(() => finish(null), ASK_TIMEOUT_MS)
+			const finish = (answer: unknown) => {
+				clearTimeout(timer)
+				const list = asked.get(key)
+				if (list) asked.set(key, list.filter((x) => x !== finish))
+				resolve(answer as T | null)
+			}
+			if (!socket?.send(frame)) return finish(null)
+			asked.set(key, [...(asked.get(key) ?? []), finish])
+		})
+	}
+
+	function answer(key: string, value: unknown) {
+		const waiting = asked.get(key)
+		asked.delete(key)
+		for (const done of waiting ?? []) done(value)
+	}
+
+	const history = (seq: number, before: number, after: number) =>
+		ask<readonly Message[]>(historyKey(seq, before, after), { t: "history", seq, before, after })
+
 	function reset(snapshot: RoomSnapshot) {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
 		data.roster = raw(state.roster).filter((n) => n.seq <= snapshot.seq)
 		following = true
 		batch(() => {
-			setState({ ...data, drafts: {} })
+			setState({ ...data, drafts: {}, history: null })
 			dropPatches(settleRoom(state.patches, [], snapshot.seq))
 			trimWindow(true)
 		})
@@ -602,14 +699,10 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						}),
 					)
 			}),
-		// The search UI (P3-13) reads these answers. Nothing stores them.
-		search: () => {},
-		catalog: (f) => {
-			const key = askKey(f.kind, f.before)
-			const waiting = asked.get(key)
-			asked.delete(key)
-			for (const done of waiting ?? []) done({ items: f.items, next: f.next })
-		},
+		// Answers to one socket's questions. Nothing stores them.
+		search: (f) => answer(searchKey(f.query, f.before), { results: f.results, next: f.next }),
+		catalog: (f) => answer(catalogKey(f.kind, f.before), { items: f.items, next: f.next }),
+		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages),
 		draft: (f) => setState("drafts", `${f.runId}:${f.index}`, { slug: f.slug, runId: f.runId, index: f.index, text: f.text }),
 		// The room refused a member change: the patch goes at once, so the list rolls back, and the UI says why.
 		member_refused: (f) => {
@@ -630,6 +723,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	}
 
 	function onOpen() {
+		const waiting = openWaiters
+		openWaiters = []
+		for (const w of waiting) w()
 		// Pending frames go out after `hello`, oldest first. Acknowledged sends are already stored.
 		for (const p of [...raw(state.patches)]) if (!p.ack) transmit(p)
 	}
@@ -692,9 +788,27 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	const ready = boot()
 
+	/** Pages newer messages into a jumped-to window, and joins the live window once they reach it. */
+	async function loadNewer() {
+		const shown = state.history
+		if (!shown || newerBusy) return
+		newerBusy = true
+		try {
+			const from = (shown.at(-1)?.seq ?? 0) + 1
+			const page = await history(from, 0, HISTORY_PAGE * 2)
+			if (!page || closed || state.history !== shown) return
+			const live = raw(state.messages)
+			const reaches = page.length < HISTORY_PAGE * 2 || live.length === 0 || page.some((m) => m.seq >= live[0]!.seq)
+			if (reaches) setState({ messages: mergeBySeq(mergeBySeq(raw(shown), page), live), history: null })
+			else setState("history", mergeBySeq(raw(shown), page))
+		} finally {
+			newerBusy = false
+		}
+	}
+
 	return {
 		state,
-		messages: () => overlayMessages(state.messages, state.patches),
+		messages: () => overlayMessages(state.history ?? state.messages, state.history ? [] : state.patches),
 		tasks: () => overlayTasks(state.tasks, state.patches),
 		approvals: () => overlayApprovals(state.approvals, state.patches),
 		members: () => overlayMembers(state.members, state.patches),
@@ -705,6 +819,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		send(text, opts = {}) {
 			// The next keystroke after a send must reach the room at once: it is what holds a burst open.
 			lastTypingAt = Number.NEGATIVE_INFINITY
+			// A send is shown where it lands: at the live end.
+			if (state.history) setState("history", null)
 			const clientId = newId()
 			const frame: RoomPatchFrame = { t: "send", clientId, text }
 			if (opts.replyTo) frame.replyTo = opts.replyTo
@@ -775,29 +891,64 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			return () => fileRefusalListeners.delete(listener)
 		},
 		catalog(kind, before, limit) {
-			return new Promise<CatalogPage | null>((resolve) => {
-				const key = askKey(kind, before)
-				const timer = setTimeout(() => finish(null), CATALOG_TIMEOUT_MS)
-				const finish = (page: CatalogPage | null) => {
-					clearTimeout(timer)
-					const list = asked.get(key)
-					if (list) asked.set(key, list.filter((x) => x !== finish))
-					resolve(page)
-				}
-				const sent = socket?.send({ t: "catalog", kind, ...(before !== undefined ? { before } : {}), ...(limit !== undefined ? { limit } : {}) })
-				if (!sent) return finish(null)
-				asked.set(key, [...(asked.get(key) ?? []), finish])
+			return ask<CatalogPage>(catalogKey(kind, before), {
+				t: "catalog",
+				kind,
+				...(before !== undefined ? { before } : {}),
+				...(limit !== undefined ? { limit } : {}),
 			})
 		},
-		async loadOlder(limit = 50) {
-			const oldest = state.messages[0]?.seq ?? state.seq + 1
-			const older = await messagesBefore(warm, roomId, oldest, limit)
-			if (older.length === 0 || closed) return 0
+		search(query, before, limit) {
+			return ask<SearchPage>(searchKey(query, before), {
+				t: "search",
+				query,
+				...(before !== undefined ? { before } : {}),
+				...(limit !== undefined ? { limit } : {}),
+			})
+		},
+		async jumpTo(seq) {
+			const held = (list: readonly Message[] | null) => !!list && raw(list).some((m) => m.seq === seq)
+			if (held(state.history)) return true
+			if (held(state.messages)) {
+				// A message held in the live window: show that window, already in memory.
+				if (state.history) setState("history", null)
+				return true
+			}
+			const page = await history(seq, HISTORY_PAGE, HISTORY_PAGE)
+			if (!page || closed || !page.some((m) => m.seq === seq)) return false
+			const live = raw(state.messages)
 			following = false
-			setState("messages", (m) => [...older.filter((o) => o.seq < (m[0]?.seq ?? Infinity)), ...m])
-			return older.length
+			if (live.length === 0 || page.at(-1)!.seq >= live[0]!.seq) setState({ messages: mergeBySeq(page, live), history: null })
+			else setState("history", [...page])
+			return true
+		},
+		live() {
+			if (state.history) setState("history", null)
+		},
+		async loadOlder(limit = 50) {
+			const shown = state.history ?? state.messages
+			const oldest = shown[0]?.seq ?? state.seq + 1
+			// The disk is one contiguous run that ends at the live end, so it only continues the live window.
+			const older = state.history ? [] : await messagesBefore(warm, roomId, oldest, limit)
+			if (closed) return 0
+			if (older.length) {
+				following = false
+				setState("messages", (m) => [...older.filter((o) => o.seq < (m[0]?.seq ?? Infinity)), ...m])
+				return older.length
+			}
+			if (oldest <= 1) return 0
+			const page = (await history(oldest, Math.min(limit, HISTORY_PAGE * 2), 0)) ?? []
+			if (closed || !page.length || (state.history ?? state.messages)[0]?.seq !== oldest) return 0
+			following = false
+			if (state.history) setState("history", (h) => mergeBySeq(page, h ?? []))
+			else setState("messages", (m) => mergeBySeq(page, m))
+			return page.length
 		},
 		follow() {
+			if (state.history) {
+				void loadNewer()
+				return
+			}
 			following = true
 			trimWindow(true)
 		},
@@ -812,6 +963,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			dropBefore(warm, roomId, state.seq - KEEP_ON_DISK)
 			for (const waiting of asked.values()) for (const done of waiting) done(null)
 			asked.clear()
+			for (const w of openWaiters) w()
+			openWaiters = []
 			if (expiry !== undefined) clearTimeout(expiry)
 			socket?.close()
 			for (const w of waiters) w()

@@ -53,7 +53,7 @@ const suite: Suite = {
 		let page = await search("zanzibar")
 		expectEqual(
 			page.results.map((r) => [r.id, r.seq, r.snippet]),
-			[[old.id, old.seq, "remember the zanzibar invoice"]],
+			[[old.id, old.seq, "remember the \u0002zanzibar\u0003 invoice"]],
 			"the old message",
 		)
 		expectEqual(page.next, null, "one page")

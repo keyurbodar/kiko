@@ -348,7 +348,10 @@ export function VirtualThread(props: {
     landingGeneration += 1
   })
 
+  /** Bumped by a jump, so a pin to the end still settling (`pinToLatest`) stops instead of undoing it. */
+  let pinRun = 0
   const jumpToMessage = (messageId: string) => {
+    pinRun += 1
     // A message inside a folded thread opens the thread first, so there is a row to land on.
     const fold = items().find((item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId))
     if (fold) toggleThread(fold.key)
@@ -671,8 +674,9 @@ export function VirtualThread(props: {
    */
   const pinToLatest = () => {
     const until = performance.now() + PIN_SETTLE_MS
+    const run = ++pinRun
     const step = () => {
-      if (!scrollElement) return
+      if (!scrollElement || run !== pinRun) return
       scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "auto" })
       if (performance.now() < until) {
         requestAnimationFrame(step)

@@ -5,6 +5,7 @@ import { signOut } from "../app/session"
 import { toggleFiles, toggleInfo } from "../chat/info/state"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
+import { openSearch } from "../search/state"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openBirdPicker } from "../mascot/picker-state"
@@ -68,6 +69,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         if (row && row.id !== activeId()) navigate(`/chat/${row.id}`)
       },
       chatCount: () => useApp.bots().length,
+      searchChat: () => openSearch("chat"),
+      searchAll: () => openSearch("all"),
       reopenClosed: () => {
         const id = openTabs.takeClosed((id) => !!useApp.chat(id))
         if (id) navigate(`/chat/${id}`)

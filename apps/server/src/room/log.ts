@@ -135,28 +135,49 @@ export class RoomLog {
 				SNAPSHOT_MESSAGES,
 			)
 			.toArray()
-		// One query for the reactions of every row, not one per message.
+		return {
+			seq: this.lastSeq(),
+			readSeq: this.readSeq(),
+			members: listMembers(this.storage),
+			messages: this.withReactions(rows),
+			tasks: listTasks(this.storage),
+			approvals: listApprovals(this.storage),
+			...listSpace(this.storage, ROOM_TABLES),
+		}
+	}
+
+	/**
+	 * Live messages around `seq`, oldest first: up to `before` older than `seq`, then up to `after`
+	 * at or after it. Both ends read the seq index, so the cost is the window, not the room.
+	 */
+	around(seq: number, before: number, after: number): Message[] {
+		const older = before
+			? this.sql
+					.exec<MessageRow>("SELECT * FROM messages WHERE seq < ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?", seq, before)
+					.toArray()
+					.reverse()
+			: []
+		const newer = after
+			? this.sql.exec<MessageRow>("SELECT * FROM messages WHERE seq >= ? AND deleted_at IS NULL ORDER BY seq LIMIT ?", seq, after).toArray()
+			: []
+		return this.withReactions([...older, ...newer])
+	}
+
+	/** Messages for rows, with the reactions of every row read in one query, not one per message. */
+	private withReactions(rows: MessageRow[]): Message[] {
+		if (!rows.length) return []
 		const reactions = new Map<string, Reaction[]>()
 		for (const x of this.sql
 			.exec<{ message_id: string; actor: string; emoji: string }>(
-				`SELECT message_id, actor, emoji FROM reactions WHERE message_id IN
-				 (SELECT id FROM messages WHERE deleted_at IS NULL ORDER BY seq DESC LIMIT ?) ORDER BY at`,
-				SNAPSHOT_MESSAGES,
+				`SELECT message_id, actor, emoji FROM reactions WHERE message_id IN (SELECT value FROM json_each(?)) ORDER BY at`,
+				JSON.stringify(rows.map((r) => r.id)),
 			)
 			.toArray()) {
 			const list = reactions.get(x.message_id) ?? []
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		return {
-			seq: this.lastSeq(),
-			readSeq: this.readSeq(),
-			members: listMembers(this.storage),
-			messages: rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [])),
-			tasks: listTasks(this.storage),
-			approvals: listApprovals(this.storage),
-			...listSpace(this.storage, ROOM_TABLES),
-		}
+		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? []))
 	}
 
 	/** A live (not deleted) message, or null. */

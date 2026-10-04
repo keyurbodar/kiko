@@ -199,7 +199,21 @@ export type RoomSnapshot = {
 	folders: readonly string[]
 }
 
-export type SearchHit = { id: MessageId; seq: number; snippet: string }
+/**
+ * One message that matched. `snippet` is a few words around the match, and every matched word is
+ * wrapped in `SNIPPET_OPEN` and `SNIPPET_CLOSE` (search.ts), so the client highlights exactly what the index matched.
+ */
+export type SearchHit = { id: MessageId; seq: number; at: number; from: Sender; snippet: string }
+
+/** A hit from `GET /api/search`, which searches every chat: the hit and the chat it is in. */
+export type ChatSearchHit = SearchHit & { roomId: RoomId }
+
+/**
+ * The answer of `GET /api/search?q=&before=&limit=`, newest first. `next` is the `before` (a time in
+ * epoch ms) for the following page, or null at the end. `partial` is true when the user has more
+ * chats than one search reaches, and only the most recently active were searched.
+ */
+export type ChatSearchPage = { results: readonly ChatSearchHit[]; next: number | null; partial: boolean }
 
 /** One link or one picture or clip sent in the chat. `seq` is the message it came from. */
 export type CatalogItem =
@@ -225,6 +239,12 @@ export type ClientToRoom =
 	| { t: "search"; query: string; before?: number; limit?: number }
 	/** The links or the media sent in this room, newest first. `before` is the `next` of the previous page. */
 	| { t: "catalog"; kind: "links" | "media"; before?: number; limit?: number }
+	/**
+	 * A window of live messages around `seq`: up to `before` messages older than `seq`, then up to
+	 * `after` messages at or after it. For jumping to a message the client does not hold, and for paging
+	 * past what the client stored.
+	 */
+	| { t: "history"; seq: number; before: number; after: number }
 
 export type RoomToClient =
 	| { t: "events"; events: readonly RoomEvent[] }
@@ -248,3 +268,5 @@ export type RoomToClient =
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
 	/** Not stored. The answer to `catalog` for one socket. `next` is the `before` for the following page, or null at the end. */
 	| { t: "catalog"; kind: "links" | "media"; before?: number; items: readonly CatalogItem[]; next: number | null }
+	/** Not stored. The answer to `history` for one socket, oldest first. Fewer than asked for means that end of the room was reached. */
+	| { t: "history"; seq: number; before: number; after: number; messages: readonly Message[] }
