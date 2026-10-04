@@ -212,11 +212,12 @@ export async function requestIdFor(ids: readonly string[]): Promise<string> {
 const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
 
 /**
- * The text of one submitted input. The brief comes first as a `<context>` block (section 7.4). Human
- * text is plain. Agent and system text is wrapped and escaped (section 16.2).
+ * The text of one submitted input. A new run opens with its `<memory>` block (section 13), then the
+ * brief as a `<context>` block (section 7.4). Human text is plain. Agent and system text is wrapped and
+ * escaped (section 16.2).
  */
-export function renderInput(batch: Pick<Batch, "envelopes" | "briefs">): string {
-  const parts = batch.briefs.map((brief) => `<context>\n${brief.replaceAll("</context>", "&lt;/context>")}\n</context>`)
+export function renderInput(batch: Pick<Batch, "envelopes" | "briefs">, memory?: string): string {
+  const parts = [...(memory ? [memory] : []), ...batch.briefs.map((brief) => `<context>\n${brief.replaceAll("</context>", "&lt;/context>")}\n</context>`)]
   for (const { from, body, hop, tainted } of batch.envelopes) {
     // A tainted envelope starts a tainted run: the trust extension reads this attribute (section 16.3).
     const taint = tainted ? ' tainted="true"' : ""

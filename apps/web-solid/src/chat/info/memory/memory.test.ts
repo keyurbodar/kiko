@@ -1,121 +1,53 @@
-import { describe, expect, test } from "bun:test"
-import type { MemoryOp, MemoryRecord, MemoryResult } from "@kiko/protocol"
-import { createRoot } from "solid-js"
+import { expect, test } from "bun:test"
+import type { MemoryOp, MemoryResult } from "@kiko/protocol"
 import type { MemoryClient } from "./client"
 import { createMockMemory } from "./mock"
-import { fact, groupRecords, matches, parseBody, splitLinks } from "./records"
 import { createMemoryStore } from "./store"
 
-const rec = (over: Partial<MemoryRecord> & { id: string }): MemoryRecord => ({
-	type: "person",
-	title: over.id,
-	aliases: [],
-	body: "",
-	pinned: false,
-	archived: false,
-	uses: 0,
-	lastUsedAt: 0,
-	createdAt: 0,
-	updatedAt: 0,
-	version: 1,
-	...over,
+// The memory screen's store against the in-browser mock of UserDO, and against a server that says no.
+
+test("loads the newest lines first, with the view and the model", async () => {
+	const store = createMemoryStore(createMockMemory())
+	await store.load()
+	expect(store.state.loaded).toBe(true)
+	expect(store.state.lines.map((l) => l.pos)).toEqual([3, 2, 1, 0])
+	expect(store.state.view.length).toBe(4)
+	expect(store.state.model).toBeNull()
 })
 
-test("groups by type, pinned first, archived last", () => {
-	const groups = groupRecords([
-		rec({ id: "a", updatedAt: 5 }),
-		rec({ id: "b", updatedAt: 9 }),
-		rec({ id: "c", pinned: true, updatedAt: 1 }),
-		rec({ id: "d", type: "organization" }),
-		rec({ id: "e", archived: true }),
-	])
-	expect(groups.map((g) => [g.key, g.records.map((r) => r.id)])).toEqual([
-		["person", ["c", "b", "a"]],
-		["organization", ["d"]],
-		["archived", ["e"]],
-	])
+test("pin and redact apply at once and refresh what agents read", async () => {
+	const store = createMemoryStore(createMockMemory())
+	await store.load()
+	store.pin(1, true)
+	expect(store.state.lines.find((l) => l.pos === 1)!.pinned).toBe(true)
+	await Bun.sleep(0)
+	await Bun.sleep(0)
+	expect(store.state.view[0]).toBe("pinned: sister is sam; they talk every sunday")
+	store.redact(1)
+	const gone = store.state.lines.find((l) => l.pos === 1)!
+	expect([gone.redacted, gone.text, gone.pinned]).toEqual([true, "", false])
 })
 
-test("search needs every word in the title, an alias, or the body", () => {
-	const r = rec({ id: "m", title: "margaret", aliases: ["mum"], body: "- likes tea" })
-	expect(matches(r, "mum tea")).toBe(true)
-	expect(matches(r, "mum coffee")).toBe(false)
-	expect(groupRecords([r], "coffee")).toEqual([])
+test("a note shows at once and stays after the server agrees", async () => {
+	const store = createMemoryStore(createMockMemory())
+	await store.load()
+	const done = store.note("  allergic to   peanuts ")
+	expect(store.state.lines[0]!.text).toBe("allergic to peanuts")
+	await done
+	expect(store.state.lines[0]).toMatchObject({ pos: 4, text: "allergic to peanuts", source: "you" })
 })
 
-test("links and blocks", () => {
-	expect(splitLinks("works on [[kiko]] and [[a-b]].")).toEqual([
-		{ text: "works on " },
-		{ link: "kiko" },
-		{ text: " and " },
-		{ link: "a-b" },
-		{ text: "." },
-	])
-	expect(parseBody("# t\n- one\n\ntext").map((b) => b.kind)).toEqual(["heading", "bullet", "paragraph"])
-})
-
-/** A client the test answers by hand, so a request stays open while the test looks. */
-function manual() {
-	const sent: { op: MemoryOp; answer: (r: MemoryResult) => void }[] = []
-	const client: MemoryClient = {
-		request: (op) => new Promise((resolve) => sent.push({ op, answer: resolve })),
+test("a refused change is undone and says why", async () => {
+	const refusing: MemoryClient = {
+		request: async (op: MemoryOp): Promise<MemoryResult> =>
+			op.op === "list" ? { ok: true, lines: [{ pos: 0, at: 0, text: "x", source: "", tainted: false, pinned: false, redacted: false }], next: null } : op.op === "pin" ? { ok: false, error: "at most 10 pinned memories. unpin one first." } : { ok: true, text: [] },
 		close() {},
 	}
-	return { client, sent }
-}
-
-test("a pin shows before the server answers and is undone when it refuses", async () => {
-	await createRoot(async (dispose) => {
-		const { client, sent } = manual()
-		const store = createMemoryStore(client)
-		const loading = store.load()
-		sent[0].answer({ ok: true, records: [rec({ id: "a" })] })
-		await loading
-		const done = store.pin("a", true)
-		expect(store.get("a")?.pinned).toBe(true)
-		expect(sent[1].op).toEqual({ op: "pin", id: "a", pinned: true })
-		sent[1].answer({ ok: false, error: "no" })
-		await done
-		expect(store.get("a")?.pinned).toBe(false)
-		expect(store.state.error).toBe("no")
-		dispose()
-	})
-})
-
-test("an edit bumps the version at once, adds the old body to history, and restore is a new version", async () => {
-	await createRoot(async (dispose) => {
-		const store = createMemoryStore(createMockMemory())
-		await store.load()
-		await store.loadHistory("margaret")
-		expect(store.state.history.margaret).toEqual([])
-		const before = { ...store.get("margaret")! }
-		await store.save("margaret", "- likes coffee")
-		expect(store.get("margaret")).toMatchObject({ body: "- likes coffee", version: before.version + 1 })
-		expect(store.state.history.margaret.map((v) => [v.version, v.body])).toEqual([[1, before.body]])
-		await store.restore("margaret", store.state.history.margaret[0])
-		expect(store.get("margaret")).toMatchObject({ body: before.body, version: 3 })
-		expect(store.state.history.margaret.map((v) => v.version)).toEqual([2, 1])
-		dispose()
-	})
-})
-
-test("a delete leaves the list at once and comes back when refused", async () => {
-	await createRoot(async (dispose) => {
-		const store = createMemoryStore(createMockMemory())
-		await store.load()
-		await store.remove("margaret")
-		expect(store.get("margaret")).toBeUndefined()
-		await store.remove("profile") // the mock refuses a singleton
-		expect(store.get("profile")).toBeDefined()
-		expect(store.state.error).toContain("cannot be removed")
-		dispose()
-	})
-})
-
-describe("fact", () => {
-	test.each([
-		["2026-09-03: likes tea (human)", { text: "likes tea", date: "2026-09-03", author: "human" }],
-		["likes tea", { text: "likes tea", date: null, author: null }],
-		["2026-09-03: met at (the) cafe", { text: "met at (the) cafe", date: "2026-09-03", author: null }],
-	])("%s", (line, want) => expect(fact(line)).toEqual(want))
+	const store = createMemoryStore(refusing)
+	await store.load()
+	store.pin(0, true)
+	expect(store.state.lines[0]!.pinned).toBe(true)
+	await Bun.sleep(0)
+	expect(store.state.lines[0]!.pinned).toBe(false)
+	expect(store.state.error).toBe("at most 10 pinned memories. unpin one first.")
 })

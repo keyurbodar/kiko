@@ -8,13 +8,13 @@ import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
-import { findProvider, type TurnMemory } from "../user/turn-context"
+import { findProvider } from "../user/turn-context"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { ChiefPort } from "./extensions/chief"
 import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
-import { type MemoryPort, memoryContext } from "./extensions/memory"
+import { type MemoryPort, memoryBlock } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
 import type { MessagingPort } from "./extensions/messaging"
@@ -31,6 +31,7 @@ import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@kiko/protocol"
 import { createAlarms } from "../lib/alarm"
 import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
+import type { Batch } from "./inbox"
 import { storedRows, wipeStorage } from "../lib/wipe"
 import { instrument } from "../lib/dev-stats"
 
@@ -47,8 +48,6 @@ const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
 
 /** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
-/** Memory ops that only read. In a private chat every other op is refused. */
-const READ_OPS = new Set(["list", "search", "view", "history"])
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
 const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
 
@@ -274,6 +273,8 @@ export class AgentDO extends DurableObject<Env> {
           await this.syncExtensions(fake.extensions, root)
           return true
         },
+        // The fake reads memory like a real agent, so the suites prove the <memory> block, not a stand-in.
+        inputMemory: (batch) => this.inputMemory(batch, ""),
       }
     }
     // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
@@ -310,9 +311,22 @@ export class AgentDO extends DurableObject<Env> {
         const down = executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
-        return [clock, down, quiet, extensions, memoryContext(this.#run?.memory ?? null)].filter(Boolean).join("\n\n")
+        return [clock, down, quiet, extensions].filter(Boolean).join("\n\n")
       },
+      inputMemory: (batch) => this.inputMemory(batch, this.#run?.life ?? ""),
     }
+  }
+
+  /**
+   * Section 13. The <memory> block a new run opens with: the user's life log, from the run's one
+   * `turnContext` call, and this chat as of now, without the messages the batch itself delivers.
+   */
+  private async inputMemory(batch: Batch, life: string): Promise<string | undefined> {
+    const home = this.home()
+    if (!home) return undefined
+    const seqs = batch.envelopes.map((e) => e.seq)
+    const chat = await roomStub(this.env.ROOM, home.userId, home.roomId).memoryView(seqs)
+    return memoryBlock(life, chat)
   }
 
   /**
@@ -466,26 +480,30 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /**
-   * The memory tools' port (P5-02). The profile, `now`, and `todo` come from the run's one
-   * `turnContext` call. A process that resumed a run without one loads it here, once.
+   * The memory tools' port (section 13). Life lines live in `UserDO`, this chat in `RoomDO`. A private
+   * chat reads both and writes nothing (section 7.10).
    */
   private memoryPort(): MemoryPort | undefined {
     const home = this.home()
     if (!home) return undefined
+    const user = () => userStub(this.env.USER, home.userId)
+    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
-      author: home.slug,
-      context: async () => {
-        if (!this.#run) await this.loadAuth((await this.model()).provider)
-        return this.#run?.memory ?? null
+      note: async (text, tainted) => (this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted)),
+      recall: async (query) => {
+        const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query)])
+        return [life.length ? `life:\n${life.join("\n")}` : "", chat.length ? `chat:\n${chat.join("\n")}` : ""].filter(Boolean).join("\n\n")
       },
-      // A private chat leaves no trace: reads work, writes are refused (section 7.10).
-      op: async (op) =>
-        this.home()?.private && !READ_OPS.has(op.op) ? { ok: false, error: PRIVATE_REFUSAL } : userStub(this.env.USER, home.userId).memoryOp(op),
+      zoom: async (id) => {
+        const m = /^(life|chat|room):(.+)$/.exec(id)
+        if (!m) return null
+        return m[1] === "life" ? user().lifeZoom(m[2]!) : room().memoryZoom(m[2]!)
+      },
     }
   }
 
   // Per-run credentials (P4-02). The auth lives in this process's memory only, never in storage.
-  #run: { provider: string; auth: AuthResult | null; memory: TurnMemory | null; timezone: string } | null = null
+  #run: { provider: string; auth: AuthResult | null; life: string; timezone: string } | null = null
 
   /** Before a run: applies a newly chosen model, then loads the user's auth for its provider. */
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
@@ -512,8 +530,7 @@ export class AgentDO extends DurableObject<Env> {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider) : null
-    const memory = context ? { profile: context.profile, now: context.now, todo: context.todo } : null
-    this.#run = { provider, auth: context?.auth ?? null, memory, timezone: context?.timezone ?? "UTC" }
+    this.#run = { provider, auth: context?.auth ?? null, life: context?.life ?? "", timezone: context?.timezone ?? "UTC" }
     return this.#run.auth
   }
 

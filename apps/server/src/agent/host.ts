@@ -25,6 +25,11 @@ export const HEARTBEAT_WAKEUP = "heartbeat"
 export const HEARTBEAT_MS = 30_000
 /** The first retry after a failed alarm. It doubles up to the heartbeat. */
 const RETRY_MS = 1_000
+/**
+ * Section 13. Clear the root conversation when a batch starts a run, so the run reads memory instead of
+ * an ever longer transcript. The pi-durable entries stay in storage; only the model's view starts over.
+ */
+export const RESET_EACH_RUN = true
 /** Storage keys of the mid-run rules (section 6.2). */
 const STOP_KEY = "mid-run:stop"
 const RESTARTS_KEY = "mid-run:restarts"
@@ -44,8 +49,13 @@ export type AgentSetup = {
    * dropped and nothing is submitted. Absent means every run may start.
    */
   beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
-  /** One more `<context>` block for each submitted input, after the briefs: the user's `now` and `todo` (section 13.2). */
+  /** One more `<context>` block for each submitted input, after the briefs: the clock and run notes. */
   inputContext?: () => Promise<string | undefined>
+  /**
+   * The `<memory>` block that opens a new run (section 13): the user's life log and this chat, as of
+   * now. Called only when a batch starts a run, never for one that joins a live run.
+   */
+  inputMemory?: (batch: Batch) => Promise<string | undefined>
 }
 
 export type HostOptions = {
@@ -62,7 +72,14 @@ export type HostOptions = {
   onIdle?: () => void
 }
 
-export type Opened = { harness: Harness; root: Conversation; storage: CoalescingStorage; beginRun?: AgentSetup["beginRun"]; inputContext?: AgentSetup["inputContext"] }
+export type Opened = {
+  harness: Harness
+  root: Conversation
+  storage: CoalescingStorage
+  beginRun?: AgentSetup["beginRun"]
+  inputContext?: AgentSetup["inputContext"]
+  inputMemory?: AgentSetup["inputMemory"]
+}
 
 export type HostStatus = {
   open: boolean
@@ -201,7 +218,7 @@ export class AgentHost {
     const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(setup.env ? { env: () => setup.env } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
-    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext }
+    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory }
   }
 
   /**
@@ -253,7 +270,7 @@ export class AgentHost {
    * round, and a queue waits for its answer. A batch claimed before a crash is submitted again with
    * the same request id, which `pi-durable` ignores.
    */
-  private async drain({ harness, root, beginRun, inputContext }: Opened): Promise<void> {
+  private async drain({ harness, root, beginRun, inputContext, inputMemory }: Opened): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       // Withdraws every queued input and aborts the run's tasks, then waits until the conversation is idle.
       await root.abort(context)
@@ -291,8 +308,16 @@ export class AgentHost {
       }
       await this.ctx.storage.put(RESTARTS_KEY, restarts)
       const whenBusy = action === "steer" ? ({ whenBusy: "steer" } as const) : {}
+      // Section 13. A new run starts from memory, not from a transcript: the context is cleared and the
+      // run opens with the <memory> block, so every request costs the same at turn 50 or 50,000. A
+      // restart keeps its context, since the aborted burst must stay in view, and so does a steer.
+      let memory: string | undefined
+      if (!run && inputMemory) {
+        if (RESET_EACH_RUN) await root.reset(undefined, context)
+        memory = await inputMemory(batch)
+      }
       const extra = await inputContext?.()
-      const content = renderInput(extra ? { ...batch, briefs: [...batch.briefs, extra] } : batch)
+      const content = renderInput(extra ? { ...batch, briefs: [...batch.briefs, extra] } : batch, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
     }

@@ -7,7 +7,7 @@ import { useApp } from "../../lib/store"
 import { chatModel } from "../../settings/chat-model"
 import { createCatalog } from "./catalog"
 import { SharedContent } from "./lists"
-import { MemoryError, MemoryList, RecordView, useMemoryStore } from "./memory/views"
+import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { BackIcon, CloseIcon, MemoryIcon, TasksIcon } from "@kiko/ui/icons"
@@ -58,7 +58,6 @@ const scrolls = new Map<string, number>()
 const TITLES: Record<InfoView["kind"], string> = {
   home: "chat info",
   memory: "memory",
-  record: "memory",
   agent: "agent",
   tasks: "tasks",
 }
@@ -130,7 +129,7 @@ function AgentCard(props: { slug: string; chatId: string }) {
 function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; media: ReturnType<typeof createCatalog> }) {
   const members = roomMembers
   const memory = useMemoryStore()
-  const memoryCount = () => count(memory()?.state.records.filter((r) => !r.archived).length ?? 0)
+  const memoryCount = () => count(memory()?.state.lines.filter((l) => !l.redacted).length ?? 0)
   const extras = createMemo(() => infoSections().filter((s) => !s.when || s.when(props.chatId)))
   return (
     <div class="flex flex-col gap-5" data-component="info-home">
@@ -158,31 +157,14 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
   )
 }
 
-function MemoryViews(props: { view: Extract<InfoView, { kind: "memory" | "record" }> }) {
+function MemoryViews() {
   const store = useMemoryStore()
   return (
     <Show when={store()} fallback={<p class="p-2 text-sm text-weak">loading</p>}>
       {(s) => (
         <div class="flex flex-col gap-3" data-component="info-memory">
           <MemoryError store={s()} />
-          <Switch>
-            <Match when={props.view.kind === "record" && props.view}>
-              {(view) => {
-                const record = () => s().get((view() as { id: string }).id)
-                return (
-                  <Show
-                    when={record()}
-                    fallback={<p class="p-2 text-sm text-weak">{s().state.loaded ? "that record is gone" : "loading"}</p>}
-                  >
-                    {(r) => <RecordView record={r()} store={s()} onOpen={(id) => pushInfo({ kind: "record", id })} onGone={popInfo} />}
-                  </Show>
-                )
-              }}
-            </Match>
-            <Match when={true}>
-              <MemoryList store={s()} onOpen={(id) => pushInfo({ kind: "record", id })} />
-            </Match>
-          </Switch>
+          <MemoryList store={s()} />
         </div>
       )}
     </Show>
@@ -352,8 +334,8 @@ export default function InfoPanel(props: { chatId: string }) {
               <Match when={view().kind === "home"}>
                 <Home chatId={props.chatId} links={links} media={media} />
               </Match>
-              <Match when={view().kind === "memory" || view().kind === "record"}>
-                <MemoryViews view={view() as never} />
+              <Match when={view().kind === "memory"}>
+                <MemoryViews />
               </Match>
               <Match when={view().kind === "agent"}>
                 <AgentCard slug={(view() as { slug: string }).slug} chatId={props.chatId} />

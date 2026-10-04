@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test"
 import type { Agent, AgentSlug, Chat, Member, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
-import { MISSED_HEADER } from "../src/room/brief"
 import { bundleWorker } from "./bundle"
 import type { Received } from "./fake-agent"
 
@@ -185,7 +184,9 @@ test("an untagged burst reaches the others after the lead's run ends, with a not
   ws.ws.close()
 })
 
-test("untagged reaches only the lead, @ada only ada, @all everyone, and ada's next brief carries what she missed", async () => {
+const memory = async (room: RoomId, seqs: number[]) => ((await call(`/memory/${room}`, seqs)) as { view: string }).view
+
+test("untagged reaches only the lead, @ada only ada, @all everyone, and every memory view carries the whole chat", async () => {
   const { room, ws } = await team()
   await ws.say("hello team")
   await delivered(room, "kiko", 1)
@@ -201,10 +202,12 @@ test("untagged reaches only the lead, @ada only ada, @all everyone, and ada's ne
   expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 1, cy: 0 })
   expect(toAda!.envelopes.map((e) => e.body)).toEqual(["@ada your turn"])
   expect(toAda!.home).toMatchObject({ slug: "ada", lead: false })
-  // She missed "hello team". Her own envelope is not repeated in the brief.
-  const missed = toAda!.brief.slice(toAda!.brief.indexOf(MISSED_HEADER))
-  expect(missed).toContain("human: hello team")
-  expect(missed).not.toContain("your turn")
+  // She was not sent "hello team", yet her run's <memory> view holds it. Her own envelope is not repeated there.
+  const hers = await memory(room, toAda!.envelopes.map((e) => e.seq))
+  expect(hers).toContain("human: [")
+  expect(hers).toContain("hello team")
+  expect(hers).not.toContain("your turn")
+  expect(toAda!.brief).not.toContain("hello team")
   expect(toAda!.brief).toContain("room goal: ship the plan")
   expect(toAda!.brief).toContain("- @kiko (kiko): lead")
   expect(toAda!.brief).toContain("- @bob (bob): plans, idle")
@@ -215,12 +218,12 @@ test("untagged reaches only the lead, @ada only ada, @all everyone, and ada's ne
   await delivered(room, "bob", 1)
   await delivered(room, "ada", 2)
   expect(await counts(room)).toEqual({ kiko: 2, bob: 1, ada: 2, cy: 1 })
-  const adaAgain = (await received(room, "ada")).received[1]!
-  // Nothing new happened since ada's last delivery, so her brief has no missed section.
-  expect(adaAgain.brief).not.toContain(MISSED_HEADER)
   const cy = (await received(room, "cy")).received[0]!
-  expect(cy.brief).toContain("human: hello team")
-  expect(cy.brief).toContain("human: @ada your turn")
+  // cy joins the conversation late and still reads every turn before its burst.
+  const cys = await memory(room, cy.envelopes.map((e) => e.seq))
+  expect(cys).toContain("hello team")
+  expect(cys).toContain("@ada your turn")
+  expect(cys).not.toContain("ping")
   ws.ws.close()
 })
 
@@ -236,8 +239,8 @@ test("a burst sends each agent only its own messages, in one delivery", async ()
   const [cy] = (await received(room, "cy")).received
   expect(ada!.envelopes.map((e) => e.body)).toEqual(["@ada one", "@ada three"])
   expect(cy!.envelopes.map((e) => e.body)).toEqual(["@cy two"])
-  // A message of the same burst addressed to someone else is context, not lost.
-  expect(ada!.brief).toContain("human: @cy two")
+  // A message of the same burst addressed to someone else is in her <memory> view, not lost.
+  expect(await memory(room, ada!.envelopes.map((e) => e.seq))).toContain("@cy two")
   expect((await counts(room)).bob).toBe(0)
   ws.ws.close()
 })

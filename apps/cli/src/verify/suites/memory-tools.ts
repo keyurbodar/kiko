@@ -3,8 +3,8 @@ import type { RoomHandle, UserChannel } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P5-02, architecture section 13.2. Tell the agent a fact in one chat. It must save it with
-// `memory_write`, so the user's memory holds it in the dated fact format. Then ask in a second
+// Architecture section 13. Tell the agent a fact in one chat. It must note it, so the user's
+// life log holds it as a line from that agent. Then ask in a second
 // chat, which shares no transcript with the first, and the answer must carry the fact back.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -71,13 +71,13 @@ const suite: Suite = {
     let saved = ""
     const end = Date.now() + 60_000
     while (!saved) {
-      if (Date.now() > end) throw new VerifyError(`no memory record holds ${name}. the agent said: ${JSON.stringify(agentText(first))}`)
+      if (Date.now() > end) throw new VerifyError(`no life line holds ${name}. the agent said: ${JSON.stringify(agentText(first))}`)
       await Bun.sleep(1_000)
       const all = await memory({ op: "list" })
-      const hit = "records" in all ? all.records.find((r) => r.body.toLowerCase().includes(name)) : undefined
-      if (hit) saved = `${hit.id}: ${hit.body.split("\n").find((l) => l.toLowerCase().includes(name))}`
+      const hit = "lines" in all ? all.lines.find((l) => l.text.toLowerCase().includes(name)) : undefined
+      if (hit) saved = `${hit.source}: ${hit.text}`
     }
-    if (!/^[a-z0-9-]+: - \d{4}-\d{2}-\d{2}: .+ \([^)]+\)$/.test(saved)) throw new VerifyError(`the fact is not a dated line: ${saved}`)
+    if (!saved.startsWith("@")) throw new VerifyError(`the line does not say which agent noted it: ${saved}`)
     console.log(`  saved ${saved}`)
     // Let the first run finish before the second chat starts.
     for (let i = 0; i < 60 && !agentText(first); i++) await Bun.sleep(500)

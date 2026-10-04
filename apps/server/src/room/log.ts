@@ -67,6 +67,8 @@ export type NewMessage = {
 	goto?: RoomId
 	/** The words of `replyTo` the sender answers. */
 	quote?: string
+	/** Written by a run that read outside content (section 16). */
+	tainted?: boolean
 }
 
 /** The stored form of an actor or sender: "human", "agent:<slug>", or "system:<reason>". */
@@ -247,8 +249,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, tainted)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -262,6 +264,7 @@ export class RoomLog {
 				input.run?.index ?? null,
 				input.goto ?? null,
 				input.quote ?? null,
+				input.tainted ? 1 : 0,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)

@@ -441,52 +441,35 @@ export const UserSnapshot = Schema.Struct({
 
 // Memory
 
-const MemoryType = Schema.Literals(["profile", "now", "todo", "preference", "person", "organization", "conversation", "procedure"])
-const Provenance = Schema.Struct({ author: Id, tainted: Schema.optionalKey(Schema.Boolean) })
-
-export const MemoryRecord = Schema.Struct({
-	id: Id,
-	type: MemoryType,
-	title: Schema.String,
-	aliases: Schema.Array(Schema.String),
-	body: Schema.String,
+export const LifeLine = Schema.Struct({
+	pos: Count,
+	at: Count,
+	text: Schema.String,
+	source: Schema.String,
+	tainted: Schema.Boolean,
 	pinned: Schema.Boolean,
-	archived: Schema.Boolean,
-	uses: Count,
-	lastUsedAt: Count,
-	createdAt: Count,
-	updatedAt: Count,
-	version: Count,
+	redacted: Schema.Boolean,
 })
 
-export const MemoryVersion = Schema.Struct({ recordId: Id, version: Count, body: Schema.String, author: Schema.String, at: Count })
+const MemoryModel = Schema.NullOr(Schema.Struct({ provider: Id, modelId: Id }))
 
 export const MemoryOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("list"), includeArchived: Schema.optionalKey(Schema.Boolean) }),
-	Schema.Struct({ op: Schema.Literal("search"), query: Schema.String, limit: Schema.optionalKey(Count) }),
-	Schema.Struct({ op: Schema.Literal("view"), id: Id }),
-	Schema.Struct({ op: Schema.Literal("history"), id: Id }),
-	Schema.Struct({
-		op: Schema.Literal("create"),
-		id: Schema.optionalKey(Id),
-		type: MemoryType,
-		title: Id,
-		aliases: Schema.optionalKey(Schema.Array(Schema.String)),
-		body: Schema.optionalKey(Schema.String),
-		author: Id,
-	}),
-	Schema.Struct({ op: Schema.Literal("append"), id: Id, fact: Id, provenance: Provenance }),
-	Schema.Struct({ op: Schema.Literal("replace"), id: Id, body: Schema.String, author: Id }),
-	Schema.Struct({ op: Schema.Literal("pin"), id: Id, pinned: Schema.Boolean }),
-	Schema.Struct({ op: Schema.Literal("archive"), id: Id, archived: Schema.Boolean }),
-	Schema.Struct({ op: Schema.Literal("remove"), id: Id }),
+	Schema.Struct({ op: Schema.Literal("list"), before: Schema.optionalKey(Count), limit: Schema.optionalKey(Count) }),
+	Schema.Struct({ op: Schema.Literal("view") }),
+	Schema.Struct({ op: Schema.Literal("search"), query: Schema.String }),
+	Schema.Struct({ op: Schema.Literal("zoom"), id: Id }),
+	Schema.Struct({ op: Schema.Literal("note"), text: Id }),
+	Schema.Struct({ op: Schema.Literal("pin"), pos: Count, pinned: Schema.Boolean }),
+	Schema.Struct({ op: Schema.Literal("redact"), pos: Count }),
+	Schema.Struct({ op: Schema.Literal("model") }),
+	Schema.Struct({ op: Schema.Literal("set_model"), model: MemoryModel }),
 ])
 
 export const MemoryResult = Schema.Union([
-	Schema.Struct({ ok: Schema.Literal(true), records: Schema.Array(MemoryRecord) }),
-	Schema.Struct({ ok: Schema.Literal(true), record: Schema.NullOr(MemoryRecord) }),
-	Schema.Struct({ ok: Schema.Literal(true), versions: Schema.Array(MemoryVersion) }),
-	Schema.Struct({ ok: Schema.Literal(true), removed: Schema.Boolean }),
+	Schema.Struct({ ok: Schema.Literal(true), lines: Schema.Array(LifeLine), next: Schema.NullOr(Count) }),
+	Schema.Struct({ ok: Schema.Literal(true), text: Schema.Array(Schema.String) }),
+	Schema.Struct({ ok: Schema.Literal(true), model: MemoryModel }),
+	Schema.Struct({ ok: Schema.Literal(true) }),
 	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 

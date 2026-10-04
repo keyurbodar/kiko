@@ -10,7 +10,6 @@ import { createSignal, type JSX } from "solid-js"
 export type InfoView =
   | { kind: "home" }
   | { kind: "memory" }
-  | { kind: "record"; id: string }
   | { kind: "agent"; slug: string }
   | { kind: "tasks" }
 

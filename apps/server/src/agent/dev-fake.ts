@@ -3,7 +3,6 @@ import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { MISSED_HEADER } from "../room/brief"
 import { declareEffect } from "./effects"
 import { type Approvals, isRunTainted, markRunTainted } from "./extensions/trust"
 import { type BuildAgentInput, buildAgent } from "./factory"
@@ -22,7 +21,7 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [reply] x   the answer is exactly `x`, such as `[react:👍]` (P6-07). A tag such as `@all` may come first
 //   [brief]     the answer is the reaction lines of the room's brief, or `brief: none` (P6-07)
 //   a follow-up (the lead already answered)  the answer is [skip], which posts nothing
-//   [missed]    the answer ends with `; missed: <the brief's missed messages, joined by " | ">` (P6-01)
+//   [missed]    the answer ends with `; missed: <the chat lines of its <memory> block, joined by " | ">` (section 13)
 //   [fetch] x   the model calls `fake_fetch` with page `x`, outside content (P7-01)
 //   [mark] x    the model calls `fake_mark`, which returns `x` and marks the run tainted (P7-01)
 //   [call t]    the model calls trust tool `t`, from a user turn or from a tool result, which is
@@ -53,21 +52,20 @@ type Message = { role?: string; content?: string | Part[]; stopReason?: string; 
 /** The whole text of a message, the room's `<context>` brief included. */
 const rawOf = (m: Message) => (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join(""))
 
-/** The missed-message lines of the brief in `raw`, as `<who>: <text>`, without message ids. */
+/** The chat lines of the <memory> block in `raw`, as `<who>: <text>`, without positions, ages, or message ids. */
 function missedOf(raw: string): string[] {
-  const brief = /<context>([\s\S]*?)<\/context>/.exec(raw)?.[1] ?? ""
-  const at = brief.indexOf(MISSED_HEADER)
-  if (at < 0) return []
-  return brief
-    .slice(at + MISSED_HEADER.length)
+  const memory = /<memory>([\s\S]*?)<\/memory>/.exec(raw)?.[1] ?? ""
+  const chat = memory.slice(memory.indexOf("\nchat:\n") + 7)
+  return chat
     .split("\n")
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.slice(2).replace(/^\[[^\]]*\] /, ""))
+    .filter((line) => line.startsWith("#"))
+    .map((line) => line.replace(/^#\S+ \S+ /, "").replace(/\[[0-9a-f-]{36}\] /g, ""))
 }
 
-/** The text of a message without the room's `<context>` brief. */
+/** The text of a message without the run's <memory> block and the room's `<context>` brief. */
 const textOf = (m: Message) =>
   rawOf(m)
+    .replace(/<memory>[\s\S]*?<\/memory>\s*/g, "")
     .replace(/<context>[\s\S]*?<\/context>\s*/g, "")
     .trim()
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")

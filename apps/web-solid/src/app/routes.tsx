@@ -40,13 +40,12 @@ function Resume() {
 }
 
 /*
- * Memory is part of a chat now. `/memory` and `/memory/:id` open the active chat with the panel on
- * memory (and on the record, when the path names one).
+ * Memory is part of a chat now. `/memory` (and the old `/memory/:id`) open the active chat with the
+ * panel on memory.
  */
 function MemoryRedirect() {
-  const params = useParams<{ id?: string }>()
   const chat = activeChat()
-  openInfo(params.id ? { kind: "record", id: params.id } : { kind: "memory" })
+  openInfo({ kind: "memory" })
   return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
 }
 

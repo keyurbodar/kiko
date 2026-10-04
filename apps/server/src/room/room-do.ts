@@ -10,6 +10,7 @@ import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
+import { RoomMemory } from "./memory"
 import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
@@ -46,6 +47,13 @@ const MAIL_WAKEUP = "mail"
 const MAIL_KEY = "held_mail"
 /** ASSUMPTION: the most files one agent message carries. */
 const MAX_SENT_FILES = 50
+/** Log memory (section 13): the summaries still to make, and a chat gone quiet. */
+const MEMORY_WAKEUP = "memory_naps"
+const QUIET_WAKEUP = "memory_quiet"
+/** ASSUMPTION: a chat this long without a run is quiet, and its new turns roll up into the user's life. */
+const QUIET_MS = 6 * 3_600_000
+/** Summaries per background pass, then it yields and the alarm comes back. */
+const NAPS_PER_PASS = 24
 
 /**
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
@@ -87,6 +95,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private burst!: Burst
 	private bubbles!: Bubbles
 	private mail!: Mail
+	private memory!: RoomMemory
 	members!: Members
 	files!: FileIndex<RoomEvent>
 	team!: Team
@@ -116,6 +125,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.members = new Members(ctx.storage, this.log)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.approvals = new RoomApprovals(ctx.storage, this.log)
+			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 		})
 	}
 
@@ -343,6 +353,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[BURST_WAKEUP]: () => this.flush(),
 			[WAKES_WAKEUP]: () => this.deliverWakes(),
 			[MAIL_WAKEUP]: () => this.drainMail(),
+			[MEMORY_WAKEUP]: () => this.naps(),
+			[QUIET_WAKEUP]: () => this.rollupQuiet(),
 			[APPROVALS_WAKEUP]: async () => {
 				this.publish(this.approvals.expire())
 				await this.deliverApprovals()
@@ -457,7 +469,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const now = Date.now()
 		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
 		const human = this.log.meta(HUMAN_HANDLE) ?? undefined
-		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, new Set(envelopes.map((e) => e.seq)), reactions.text), team, ...(human ? { human } : {}) }
+		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, reactions.text), team, ...(human ? { human } : {}) }
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 
@@ -574,6 +586,77 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.mail.delivered(to, d.envelopes)
 			markReactionsBriefed(this.log, to, d.reactionsUpTo)
 		}
+	}
+
+	// Log memory (architecture section 13). The logic is in memory.ts and lib/optmem.ts.
+
+	/**
+	 * RPC for an agent starting a run: this chat as its <memory> block shows it, older turns compressed,
+	 * without the messages `seqs` that the run receives on their own. Never waits on a summary.
+	 */
+	async memoryView(seqs: number[]): Promise<string> {
+		const view = this.memory.view(Date.now(), new Set(seqs))
+		await this.armMemory()
+		return view
+	}
+
+	/** RPC for an agent's `recall`: this chat's messages that match. */
+	async memoryRecall(query: string): Promise<string[]> {
+		return this.memory.recall(query.slice(0, 200), Date.now())
+	}
+
+	/** RPC for an agent's `zoom` on a chat id: `12` for one turn, `0-63` for a summary. */
+	async memoryZoom(id: string): Promise<string | null> {
+		return this.memory.zoom(id, Date.now())
+	}
+
+	/** Sets the summary pass when there is work, and pushes the quiet rollup back. */
+	private async armMemory(): Promise<void> {
+		if (this.memory.pending(1).length) await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 2_000)
+		if (this.log.meta("private") !== "1") await this.alarms.setWakeup(QUIET_WAKEUP, Date.now() + QUIET_MS)
+	}
+
+	#napping = false
+
+	/**
+	 * The background pass. It never holds the alarm: a summary waits seconds on a model, and the burst
+	 * and mail wakeups share this alarm, so the pass runs beside it. Summaries are idempotent, so a pass
+	 * cut short by eviction loses nothing; the next one finds the same work.
+	 */
+	private naps(): void {
+		const home = this.home()
+		if (!home || this.#napping) return
+		this.#napping = true
+		const user = userStub(this.env.USER, home.userId)
+		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number) => user.lifeRollup(home.roomId, text, tainted, at)
+		const pass = async () => {
+			for (let i = 0; i < NAPS_PER_PASS; i++) {
+				const [span] = this.memory.pending(1)
+				if (!span) return
+				const out = await this.memory.nap(span, (prompt) => user.compress(prompt), rollup)
+				if (out.retryAt) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, out.retryAt))
+			}
+			await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 1_000)
+		}
+		this.ctx.waitUntil(
+			pass()
+				.catch(async (error: unknown) => {
+					console.error(`memory summary failed: ${error instanceof Error ? error.message : String(error)}`)
+					await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 60_000)
+				})
+				.finally(() => {
+					this.#napping = false
+				}),
+		)
+	}
+
+	/** The chat went quiet: its new turns become one line of the user's life. Private chats never roll up. */
+	private async rollupQuiet(): Promise<void> {
+		const home = this.home()
+		if (!home || this.log.meta("private") === "1") return
+		const user = userStub(this.env.USER, home.userId)
+		const out = await this.memory.rollupQuiet((prompt) => user.compress(prompt), (text, tainted, at) => user.lifeRollup(home.roomId, text, tainted, at))
+		if (out.retryAt) await this.alarms.setWakeup(QUIET_WAKEUP, out.retryAt)
 	}
 
 	/** RPC for an agent's `check_agent` (section 7.5). Reads the member row and calls no agent. */
@@ -780,6 +863,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private working(slug: AgentSlug, paths: readonly string[], doing: string): void {
 		const now = Date.now()
 		this.team.take(slug, paths, now)
+		this.memory.did(slug, doing, now)
 		if (this.team.now(slug) === doing) return
 		this.team.doing(slug, doing, now)
 		const member = this.members.list().find((m) => m.slug === slug)
@@ -962,7 +1046,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const member = members.find((m) => m.slug === wake.owner)
 				if (!member) continue
 				const seq = this.log.lastSeq()
-				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat.title, new Set(), null))
+				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat.title, null))
 				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
 				const { refused } = await agent.receive([wakeEnvelope(home.roomId, wake)], brief, this.agentHome(home, member.slug, member))
 				if (refused === "full") throw new Error("inbox full")
@@ -1024,7 +1108,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 					this.approvals.markDelivered(id)
 					continue
 				}
-				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat?.title ?? "", new Set(), null))
+				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat?.title ?? "", null))
 				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, slug)
 				const { refused } = await agent.receive([envelope], brief, this.agentHome(home, slug, member))
 				if (refused === "full") throw new Error("inbox full")
@@ -1050,7 +1134,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * write, so the room never fetches it (section 16.4).
 	 */
 	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string, tainted = false): Promise<boolean> {
-		const events = this.bubbles.post(slug, { runId, attempt, index }, block)
+		const events = this.bubbles.post(slug, { runId, attempt, index }, block, tainted)
 		this.publish(events, { previews: !tainted })
 		return events.some((e) => e.t === "message")
 	}
@@ -1119,9 +1203,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * after a crash finds the run ended, and `touchChat` ignores a `lastSeq` it already has.
 	 */
 	async endRun(slug: AgentSlug, runId: string): Promise<void> {
-		await this.setStatus(slug, "idle")
 		const home = this.home()
+		if (home && !this.bubbles.ended(runId)) this.memory.trace(slug, runId, Date.now())
+		await this.setStatus(slug, "idle")
 		if (!home || this.bubbles.ended(runId)) return
+		await this.armMemory()
 		await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 		this.bubbles.markEnded(runId)
 		await this.followUp(slug)
@@ -1202,18 +1288,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	async storedRows(): Promise<number> {
 		return this.#wiped ? 0 : storedRows(this.ctx.storage)
-	}
-
-	/** The memory tidy (P5-03) reads the human's own messages after `since`, the newest `limit`, oldest first. */
-	async humanMessagesSince(since: number, limit: number): Promise<{ at: number; text: string }[]> {
-		if (this.#wiped) return []
-		return this.ctx.storage.sql
-			.exec<{ at: number; text: string }>(
-				"SELECT at, text FROM (SELECT seq, at, text FROM messages WHERE json_extract(sender, '$.kind') = 'human' AND deleted_at IS NULL AND at > ? ORDER BY seq DESC LIMIT ?) ORDER BY seq",
-				since,
-				Math.max(1, Math.min(limit, 200)),
-			)
-			.toArray()
 	}
 
 	/** Development only. Makes `slug` a member and stores one message from it, for the deletion check. */

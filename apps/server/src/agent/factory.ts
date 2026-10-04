@@ -37,7 +37,7 @@ export type BuildAgentInput = RoleInput & {
   chief?: ChiefPort
   /** Tells the room what each tool call is about, for the team board (section 7.12). */
   presence?: (doing: string) => Promise<unknown>
-  /** The user's memory (P5-02). Without it the agent has no memory tools and no profile, as in the fake agent. */
+  /** The user's memory (section 13). Without it the agent has no memory tools, as in the fake agent. */
   memory?: MemoryPort
   /** The room's task board, activity log, and notes (P6-02). Without it the agent has no workspace tools. */
   workspace?: WorkspacePort
@@ -74,7 +74,7 @@ export const BASE = "base"
 /**
  * The extensions every agent selects, in order. Order is prompt order. A new extension is one more
  * entry here: `Trust` (P3), `Memory`, `Skills`, and the team tools come next. An extension that
- * fills a prompt slot (`skills`, `profile`) does it with `wrapSection` and goes after `Base`.
+ * fills a prompt slot (`soul`, `skills`) does it with `wrapSection` and goes after `Base`.
  */
 function extensionsFor(input: BuildAgentInput): Extension[] {
   return [

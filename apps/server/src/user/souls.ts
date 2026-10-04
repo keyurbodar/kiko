@@ -61,11 +61,6 @@ export class Souls {
     return this.seed(slug, slug === "kiko" ? KIKO_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
   }
 
-  /** Every soul, for the nightly tidy. */
-  all(): (Soul & { slug: string })[] {
-    return this.sql.exec<Row & { slug: string }>("SELECT slug, body, sha, at FROM souls ORDER BY slug").toArray()
-  }
-
   /** Stores a first soul unless the agent has one. Returns what the agent has. */
   async seed(slug: string, body: string): Promise<Soul> {
     const found = this.row(slug)

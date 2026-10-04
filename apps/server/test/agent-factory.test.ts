@@ -57,20 +57,19 @@ describe("buildAgent", () => {
     expect(at(system, "reactions")).toBeLessThan(at(system, "role"))
     expect(system).toContain("[react:👍]")
     expect(system).toContain("your job here: you plan trips.")
-    // The skills slot holds the built-in skills (P5-08), after the role; profile renders nothing without memory.
+    // The skills slot holds the built-in skills (P5-08), after the role. Memory lives in the input, not here.
     expect(at(system, "skills")).toBeGreaterThan(at(system, "role"))
     expect(system).toContain("<name>haiku</name>")
     expect(at(system, "profile")).toBe(-1)
   })
 
   test("a later extension fills the slots without changing the order", async () => {
-    // Selected after Base, as a real Memory or Skills extension will be. Its wraps fill in reverse
+    // Selected after Base, as a real Self or Skills extension is. Its wraps fill in reverse
     // order on purpose: the slot's position, not the extension's, decides where the text goes.
     const fill = {
       name: "fill",
       wraps: [
-        wrapSection("profile", (s) => ({ ...s, render: () => "likes short answers" })),
-        wrapSection("skills", (s) => ({ ...s, render: () => "<available_skills></available_skills>" })),
+        wrapSection("skills", (s) => ({ ...s, render: () => "<available_skills>short answers</available_skills>" })),
         wrapSection("chat", (s) => ({ ...s, render: () => "/chat.md:\n# trip" })),
         wrapSection("soul", (s) => ({ ...s, render: () => "# ada\nsharp and dry" })),
       ],
@@ -79,7 +78,7 @@ describe("buildAgent", () => {
     const positions = SECTION_ORDER.map((key) => at(system, key))
     expect(positions.every((p) => p >= 0)).toBe(true)
     expect([...positions].sort((a, b) => a - b)).toEqual(positions)
-    expect(system).toContain("likes short answers")
+    expect(system).toContain("short answers")
   })
 
   test("every built agent selects the same base extensions, in the same order", async () => {

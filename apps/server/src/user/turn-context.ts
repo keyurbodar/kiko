@@ -24,15 +24,9 @@ export type TurnContext = {
   auth: AuthResult | null
   timezone: string
   limits: Limits
-  /** The memory records read on every run (section 13.2). The profile goes into the system prompt. */
-  profile: string
-  /** `now` and `todo` go into the input's `<context>` block, because they change more often. */
-  now: string
-  todo: string
+  /** The user's life log as every agent reads it (section 13). */
+  life: string
 }
-
-/** The bodies of the three memory records every run reads. */
-export type TurnMemory = Pick<TurnContext, "profile" | "now" | "todo">
 
 /** Credentials come from the vault only. A run never reads the Worker's environment or files. */
 const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async () => false }
@@ -58,9 +52,9 @@ export async function resolveTurnContext(
   store: CredentialStore,
   provider: string,
   settings: { timezone: string | null; limits: Partial<Limits> | null },
-  memory: TurnMemory,
+  life: string,
 ): Promise<TurnContext> {
-  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), ...memory }
+  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), life }
   const found = findProvider(provider)
   if (!found) return { ...base, auth: null }
   const models = createModels({ credentials: store, authContext: NO_AMBIENT })

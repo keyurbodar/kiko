@@ -138,6 +138,17 @@ export function ancestors(pos: number, count: number, page: number): Span[] {
   return out
 }
 
+/** `12-19` or `room:12-19` as a span. Null when it is not an aligned power-of-two span. */
+export function spanOf(id: string): Span | null {
+  const m = /^(?:\w+:)?#?(\d+)-(\d+)$/.exec(id.trim())
+  if (!m) return null
+  const lo = Number(m[1])
+  const hi = Number(m[2]) + 1
+  const size = hi - lo
+  if (size < 2 || (size & (size - 1)) !== 0 || lo % size !== 0) return null
+  return { lo, hi }
+}
+
 // ---------------------------------------------------------------- the tree in SQLite
 
 /** One item of a log, as a summary prompt and a view read it. */
@@ -147,8 +158,8 @@ export type Item = {
   /** The item in plain words, such as `@ada: booked JL 41`. */
   text: string
   tainted: boolean
-  /** Shown before the text in a view, such as message ids a reaction can target. */
-  ref?: string
+  /** The item as a view shows it, when that differs from `text`: with message ids a reaction can target. */
+  shown?: string
 }
 
 /** One summary. `from` and `to` are the times of its first and last item. */
@@ -256,18 +267,14 @@ export class Tree {
 
   /**
    * The view of a log of `count` items: the compressed part as `tiling` (sticky, see `tile`), then the
-   * floor verbatim. Returns the lines and the tiling to keep for next time.
+   * floor verbatim, as `tail` reads it. Returns the lines and the tiling to keep for next time.
    */
-  view(count: number, prev: readonly Span[] | null, now: number, opts: { cut?: number; before?: (pos: number) => string | null } = {}): { lines: string[]; tiling: Span[] } {
+  view(count: number, prev: readonly Span[] | null, now: number, tail: (lo: number, hi: number) => Item[] = this.items): { lines: string[]; tiling: Span[] } {
     const end = region(count, this.shape)
     const tiling = tile(prev, end, this.shape)
     const lines: string[] = []
     for (const span of tiling) this.render(span, now, lines)
-    for (const item of this.items(end, count)) {
-      const mark = opts.before?.(item.pos)
-      if (mark) lines.push(mark)
-      lines.push(itemLine(item, now, opts.cut ?? TAIL_CUT))
-    }
+    for (const item of tail(end, count)) lines.push(itemLine(item, now, TAIL_CUT))
     return { lines, tiling }
   }
 
@@ -311,8 +318,7 @@ const ZOOM_CUT = 4_000
 const OUTSIDE = "[outside] "
 
 export function itemLine(item: Item, now: number, cut: number): string {
-  const text = oneLine(item.text, cut)
-  return `#${item.pos} ${age(item.at, now)} ${item.tainted ? OUTSIDE : ""}${item.ref ? `${item.ref} ` : ""}${text}`
+  return `#${item.pos} ${age(item.at, now)} ${item.tainted ? OUTSIDE : ""}${oneLine(item.shown ?? item.text, cut)}`
 }
 
 export function nodeLine(span: Span, node: Node, now: number): string {

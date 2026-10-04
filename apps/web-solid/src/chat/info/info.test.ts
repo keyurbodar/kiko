@@ -3,7 +3,6 @@ import type { AgentSlug, CatalogItem, Member } from "@kiko/protocol"
 import { newRoomId } from "../../sync/user-store"
 import { mergeCatalog } from "./catalog"
 import { formatBytes, shortDate, startedAt, subtitle } from "./format"
-import { forChat } from "./memory/records"
 import { clampWidth, closeFile, closeInfo, DEFAULT_WIDTH, FILE_DEFAULT_WIDTH, infoOpen, infoSections, infoTab, infoView, openFile, openFilePath, openInfo, panelWidth, popInfo, pushInfo, registerInfoSection, toggleFiles, toggleInfo } from "./state"
 
 const member = (slug: string, lead = false): Member => ({ slug: slug as AgentSlug, name: slug, lead })
@@ -47,15 +46,6 @@ describe("catalog merge", () => {
 
   test("a short list takes the page's cursor", () => {
     expect(mergeCatalog([link(2)], null, { items: [link(3), link(2)], next: 2 })).toEqual({ items: [link(3), link(2)], next: 2 })
-  })
-})
-
-describe("memory for a chat", () => {
-  const rec = (id: string, extra: object) =>
-    ({ id, type: "person", title: id, aliases: [], body: "", pinned: false, archived: false, uses: 0, lastUsedAt: 0, createdAt: 0, updatedAt: 0, version: 1, ...extra }) as never
-  test("pinned, then naming the chat, then most used; archived and unused stay out", () => {
-    const records = [rec("a", { uses: 5 }), rec("b", { pinned: true }), rec("c", { body: "plans for the lisbon trip" }), rec("d", {}), rec("e", { uses: 9, archived: true })]
-    expect(forChat(records, "lisbon trip").map((r: { id: string }) => r.id)).toEqual(["b", "c", "a"])
   })
 })
 

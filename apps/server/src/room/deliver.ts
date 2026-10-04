@@ -218,7 +218,7 @@ export class Bubbles {
 	}
 
 	/** Stores one bubble. Returns the events to publish: none for a repeat or a late attempt. */
-	post(slug: AgentSlug, run: RunRef, block: string): RoomEvent[] {
+	post(slug: AgentSlug, run: RunRef, block: string, tainted = false): RoomEvent[] {
 		const latest = this.sql
 			.exec<{ attempt: number | null }>("SELECT max(run_attempt) AS attempt FROM messages WHERE run_id = ?", run.runId)
 			.one().attempt
@@ -231,7 +231,7 @@ export class Bubbles {
 		const { text, replyTo } = replyTag(block)
 		if (!text) return events
 		const target = replyTo && this.log.message(replyTo) ? { replyTo: replyTo as MessageId } : {}
-		const { event } = this.log.addMessage({ from, text, rich: parseRichText(text), run, ...target })
+		const { event } = this.log.addMessage({ from, text, rich: parseRichText(text), run, tainted, ...target })
 		if (event) events.push(event)
 		return events
 	}
@@ -334,7 +334,7 @@ export class Mail {
 			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
 			// The addressee is part of the stored text, as a Telegram mention. ASSUMPTION: no wire field for it.
 			const shown = `@${input.to} ${text}`
-			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), ...(files.length ? { files } : {}) })
+			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), tainted: input.tainted, ...(files.length ? { files } : {}) })
 			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients, ...(files.length ? { files } : {}) }
 			this.sql.exec(
 				"INSERT INTO root_counts (root_id, deliveries) VALUES (?, ?) ON CONFLICT(root_id) DO UPDATE SET deliveries = deliveries + excluded.deliveries",

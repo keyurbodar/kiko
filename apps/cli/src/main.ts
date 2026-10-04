@@ -3,7 +3,6 @@ import { executor } from "./commands/executor"
 import { health } from "./commands/health"
 import { login, whoami } from "./commands/login"
 import { measure } from "./commands/measure"
-import { memory } from "./commands/memory"
 import { verify } from "./commands/verify"
 import { ws } from "./commands/ws"
 
@@ -24,13 +23,11 @@ export interface Context {
   fake: boolean
   runs: string
   tail?: string
-  /** `memory tidy --now`. */
-  now?: boolean
 }
 
-const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, executor, measure, memory }
+const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, executor, measure }
 
-export const usage = "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | executor <probe | discover> | measure turn [--runs <n>] [--tail <file>] | memory tidy --now | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>]"
+export const usage = "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | executor <probe | discover> | measure turn [--runs <n>] [--tail <file>] | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>]"
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -48,7 +45,6 @@ export async function main(argv: string[]): Promise<number> {
         fake: { type: "boolean", default: false },
         runs: { type: "string", default: "5" },
         tail: { type: "string" },
-        now: { type: "boolean", default: false },
       },
     })
     const [name, ...args] = positionals
@@ -56,7 +52,7 @@ export async function main(argv: string[]): Promise<number> {
     if (!run) throw new CliError(name ? `unknown command: ${name}. ${usage}` : usage)
     const idle = Number(values.idle)
     if (!Number.isFinite(idle) || idle < 0) throw new CliError(`bad --idle: ${values.idle}`)
-    await run({ url: values.url, json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"], fake: values.fake, runs: values.runs, tail: values.tail, now: values.now })
+    await run({ url: values.url, json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"], fake: values.fake, runs: values.runs, tail: values.tail })
     return 0
   } catch (e) {
     console.error(`kiko: ${e instanceof Error ? e.message : String(e)}`)

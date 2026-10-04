@@ -19,7 +19,6 @@ import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 import type { WorkDO } from "./jobs/work-do"
 import { remindersRoute } from "./user/reminders-route"
-import { tidyRoute } from "./user/tidy-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { setScriptWasm } from "./agent/script/wasm"
@@ -72,8 +71,6 @@ export default {
     if (soul) return soul
     const searched = await searchRoute(request, env)
     if (searched) return searched
-    const tidied = await tidyRoute(request, env)
-    if (tidied) return tidied
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
     const previewed = await previewRoute(request, env, ctx)

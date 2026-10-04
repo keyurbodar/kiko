@@ -9,11 +9,11 @@ import { send, ulid, until } from "./mid-run"
 // (section 7.11), so the room has four members. Each is the scripted fake
 // agent of `apps/server/src/agent/dev-fake.ts`, so the suite is deterministic and spends no
 // tokens. The fake answers `heard: <the turns it got>`, and with `[missed]` in the text it adds
-// `; missed: <the missed messages of the room's brief>`. Needs a development server.
+// `; missed: <the chat lines of its <memory> block>`. Needs a development server.
 //
 //   an untagged message reaches the lead, and the others only after the lead's run ends, as a
 //   follow-up they may answer or [skip] (the fake skips)
-//   @ada reaches only ada, and her delivery carries the messages she missed
+//   @ada reaches only ada, and her <memory> block carries the whole chat before it
 //   @all reaches everyone
 //   an agent that was not addressed ran no model call (its inbox never received anything)
 
@@ -111,12 +111,12 @@ const suite: Suite = {
     await Bun.sleep(2_500)
     expectEqual([await received("ada"), await received("cy")], [1, 1], "envelopes ada and cy received after @bob")
 
-    // @ada: only ada, and her brief carries what she missed.
+    // @ada: only ada, and her <memory> block carries the whole chat, the turns she was not sent included.
     await send(room, "@ada [missed] your turn")
     await until("ada's answer", () => bubbles(room).ada!.length === 1, 15_000)
     await Bun.sleep(2_500)
     const b = bubbles(room)
-    expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: @bob [reply] noted | @bob: noted"], "ada's answer")
+    expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: hello team | @kiko: heard: hello team | human: @bob [reply] noted | @bob: noted"], "ada's answer")
     expectEqual([b.bob!.length, b.cy!.length], [1, 0], "bob's and cy's bubbles after @ada")
     expectEqual(await received("cy"), 1, "envelopes cy received")
     console.log(`  ok @ada: ${JSON.stringify(b.ada![0])}`)
@@ -130,7 +130,7 @@ const suite: Suite = {
       {
         kiko: ["heard: hello team", "heard: @all ping"],
         bob: ["noted", "heard: @all ping"],
-        ada: ["heard: @ada [missed] your turn; missed: human: @bob [reply] noted | @bob: noted", "heard: @all ping"],
+        ada: ["heard: @ada [missed] your turn; missed: human: hello team | @kiko: heard: hello team | human: @bob [reply] noted | @bob: noted", "heard: @all ping"],
         cy: ["heard: @all ping"],
       },
       "bubbles after @all",

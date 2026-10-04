@@ -104,6 +104,11 @@ export class FakeUser extends DurableObject {
   }
   /** A run ended. The chat list's touch is not under test here. */
   async touchChat() {}
+  /** Memory summaries: a fixed line, so tests never call a model. */
+  async compress(prompt: string) {
+    return { text: `summary of ${/#\d+-\d+/.exec(prompt)?.[0] ?? "?"}` }
+  }
+  async lifeRollup() {}
   /** Who is typing, for the chat list. Not under test here. */
   async chatTyping() {}
   /** The room reads one chat row, not the whole list. */
@@ -126,6 +131,7 @@ const ALICE = "alice"
 // `/fail/<roomId>/<slug>/<n>`       the agent's next n receives throw
 // `/turns`                          the turns alice has taken
 // `POST /mail/<roomId>/<slug>`      the agent sends an agent message (AgentSend)
+// `POST /memory/<roomId>` seqs      the room's <memory> view, without the messages `seqs`
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, roomId, slug, state] = new URL(request.url).pathname.split("/")
@@ -160,6 +166,7 @@ export default {
         return Response.json({ ok: false, error: `threw: ${e instanceof Error ? e.message : String(e)}` })
       }
     }
+    if (kind === "memory") return Response.json({ view: await room.memoryView((await request.json()) as number[]) })
     if (kind === "mail") return Response.json(await room.agentMessage(slug as AgentSlug, (await request.json()) as never))
     if (kind === "calls") return Response.json(await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).calls())
     if (kind === "status") {

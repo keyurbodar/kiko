@@ -1,126 +1,112 @@
-// The memory screen's state. Every change applies here first and goes to the server
-// after, the way the chat does. When the server says no, the change is undone and the
-// reason is kept in `error`. The list holds every record, archived ones too, so search
-// and the archived group need no round trip.
+// The memory screen's state: the user's life log (architecture section 13). Every change applies
+// here first and goes to the server after, the way the chat does. When the server says no, the
+// change is undone and the reason is kept in `error`. The log is append-only: the human pins,
+// redacts, and adds lines, and never rewrites one.
 
-import type { MemoryRecord, MemoryVersion } from "@kiko/protocol"
-import { createStore, produce, reconcile } from "solid-js/store"
+import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@kiko/protocol"
+import { createStore, produce } from "solid-js/store"
 import type { MemoryClient } from "./client"
-
-export const AUTHOR = "human"
 
 export type MemoryState = {
 	loaded: boolean
 	error: string | null
-	records: MemoryRecord[]
-	/** Old bodies by record id, newest first. Absent until the history panel asks. */
-	history: Record<string, MemoryVersion[]>
+	/** Newest first. */
+	lines: LifeLine[]
+	/** The `before` of the next page, or null when the oldest line is loaded. */
+	next: number | null
+	/** What every agent reads: pinned lines, then the log with older lines compressed. */
+	view: string[]
+	/** Summary lines opened by `zoom`, by id. */
+	opened: Record<string, string[]>
+	results: LifeLine[] | null
+	model: MemoryModel
 }
 
 export type MemoryStore = ReturnType<typeof createMemoryStore>
 
-export function createMemoryStore(client: MemoryClient, now: () => number = Date.now) {
-	const [state, setState] = createStore<MemoryState>({ loaded: false, error: null, records: [], history: {} })
+const PAGE = 50
 
-	const find = (id: string) => state.records.find((r) => r.id === id)
-	const patch = (id: string, change: Partial<MemoryRecord>) =>
-		setState("records", (r) => r.id === id, produce((r) => Object.assign(r, change)))
-	const merge = (record: MemoryRecord) => {
-		if (find(record.id)) patch(record.id, record)
-		else setState("records", (list) => [...list, record])
+export function createMemoryStore(client: MemoryClient, now: () => number = Date.now) {
+	const [state, setState] = createStore<MemoryState>({ loaded: false, error: null, lines: [], next: null, view: [], opened: {}, results: null, model: null })
+
+	const ask = async (op: MemoryOp): Promise<MemoryResult | null> => {
+		const result = await client.request(op)
+		if (result.ok) return result
+		setState("error", result.error)
+		return null
 	}
-	const fail = (message: string) => setState("error", message)
+	const patch = (pos: number, change: Partial<LifeLine>) => setState("lines", (l) => l.pos === pos, produce((l) => Object.assign(l, change)))
 
 	async function load() {
-		const result = await client.request({ op: "list", includeArchived: true })
-		if (result.ok && "records" in result) {
-			setState({ loaded: true, error: null })
-			setState("records", reconcile([...result.records], { key: "id" }))
-		}
-		else {
-			setState("loaded", true)
-			fail(result.ok ? "kiko sent something unexpected" : result.error)
-		}
+		const [list, view, model] = await Promise.all([ask({ op: "list", limit: PAGE }), ask({ op: "view" }), ask({ op: "model" })])
+		setState("loaded", true)
+		if (list && "lines" in list) setState({ lines: [...list.lines], next: list.lines.length < PAGE ? null : list.next })
+		if (view && "text" in view) setState("view", [...view.text])
+		if (model && "model" in model) setState("model", model.model)
+	}
+
+	async function more() {
+		if (state.next === null) return
+		const list = await ask({ op: "list", before: state.next, limit: PAGE })
+		if (list && "lines" in list) setState({ lines: [...state.lines, ...list.lines], next: list.lines.length < PAGE ? null : list.next })
+	}
+
+	async function refreshView() {
+		const view = await ask({ op: "view" })
+		if (view && "text" in view) setState("view", [...view.text])
 	}
 
 	/** Runs one change: applies `apply` now, sends `op`, and calls `undo` when it fails. */
-	async function change(op: Parameters<MemoryClient["request"]>[0], apply: () => void, undo: () => void) {
+	async function change(op: MemoryOp, apply: () => void, undo: () => void): Promise<boolean> {
 		setState("error", null)
 		apply()
 		const result = await client.request(op)
-		if (!result.ok) {
-			undo()
-			fail(result.error)
-			return
-		}
-		if ("record" in result && result.record) merge(result.record)
-	}
-
-	function pin(id: string, pinned: boolean) {
-		const before = find(id)
-		if (!before) return
-		const was = before.pinned
-		return change({ op: "pin", id, pinned }, () => patch(id, { pinned }), () => patch(id, { pinned: was }))
-	}
-
-	function archive(id: string, archived: boolean) {
-		const before = find(id)
-		if (!before) return
-		const was = before.archived
-		return change({ op: "archive", id, archived }, () => patch(id, { archived }), () => patch(id, { archived: was }))
-	}
-
-	async function remove(id: string) {
-		const before = find(id)
-		if (!before) return
-		const index = state.records.indexOf(before)
-		const record = { ...before }
-		setState("error", null)
-		setState("records", (list) => list.filter((r) => r.id !== id))
-		const result = await client.request({ op: "remove", id })
-		if (!result.ok) {
-			setState("records", (list) => [...list.slice(0, index), record, ...list.slice(index)])
-			fail(result.error)
-		}
-	}
-
-	/** Reads the old bodies. Runs again after every save, so the panel matches the server. */
-	async function loadHistory(id: string) {
-		const result = await client.request({ op: "history", id })
-		if (result.ok && "versions" in result) setState("history", id, [...result.versions])
-	}
-
-	/** Sets the body. The old body shows in history at once. */
-	async function save(id: string, body: string) {
-		const before = find(id)
-		if (!before || before.body === body) return
-		const old = { body: before.body, version: before.version, updatedAt: before.updatedAt }
-		const entry: MemoryVersion = { recordId: id, version: old.version, body: old.body, author: AUTHOR, at: now() }
-		await change(
-			{ op: "replace", id, body, author: AUTHOR },
-			() => {
-				patch(id, { body, version: old.version + 1, updatedAt: entry.at })
-				if (state.history[id]) setState("history", id, (h) => [entry, ...h])
-			},
-			() => {
-				patch(id, old)
-				if (state.history[id]) setState("history", id, (h) => h.filter((v) => v.version !== old.version))
-			},
-		)
-		if (state.history[id]) await loadHistory(id)
+		if (result.ok) return true
+		undo()
+		setState("error", result.error)
+		return false
 	}
 
 	return {
 		state,
 		load,
-		get: find,
-		dismissError: () => setState("error", null),
-		pin,
-		archive,
-		remove,
-		save,
-		loadHistory,
-		/** Restores an old body. It is a new version, so nothing in history is lost. */
-		restore: (id: string, version: MemoryVersion) => save(id, version.body),
+		more,
+		pin(pos: number, pinned: boolean) {
+			void change({ op: "pin", pos, pinned }, () => patch(pos, { pinned }), () => patch(pos, { pinned: !pinned })).then((ok) => {
+				if (ok) void refreshView()
+			})
+		},
+		redact(pos: number) {
+			const before = state.lines.find((l) => l.pos === pos)
+			if (!before) return
+			const was = { ...before }
+			void change({ op: "redact", pos }, () => patch(pos, { text: "", redacted: true, pinned: false }), () => patch(pos, was)).then((ok) => {
+				if (ok) void refreshView()
+			})
+		},
+		async note(text: string) {
+			const line = text.replace(/\s+/g, " ").trim()
+			if (!line) return
+			const temp: LifeLine = { pos: -now(), at: now(), text: line, source: "you", tainted: false, pinned: false, redacted: false }
+			const ok = await change({ op: "note", text: line }, () => setState("lines", (l) => [temp, ...l]), () => setState("lines", (l) => l.filter((x) => x.pos !== temp.pos)))
+			if (ok) await load()
+		},
+		async search(query: string) {
+			if (!query.trim()) return setState("results", null)
+			const out = await ask({ op: "search", query })
+			if (out && "lines" in out) setState("results", [...out.lines])
+		},
+		async zoom(id: string) {
+			if (state.opened[id]) return setState("opened", id, undefined as never)
+			const out = await ask({ op: "zoom", id })
+			if (out && "text" in out) setState("opened", id, [...out.text])
+		},
+		async setModel(model: MemoryModel) {
+			const before = state.model
+			await change({ op: "set_model", model }, () => setState("model", model), () => setState("model", before))
+		},
+		dismissError() {
+			setState("error", null)
+		},
 	}
 }

@@ -1,5 +1,5 @@
 import { duplicateDm, newRoomId } from "@kiko/protocol"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -20,13 +20,13 @@ import { type FileBody, FileIndex, type FsChange, type FsEntry, type FsFail, HOM
 import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
-import { createMemory, type MemoryStore } from "./memory"
+import { Life } from "./life"
+import { cleanLine, itemLine, NAP_SYSTEM, spanOf } from "../lib/optmem"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, REMINDERS_WAKEUP, Reminders, roomDelivery } from "./reminders"
 import { migrate } from "./schema"
-import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
+import { DEFAULT_TIMEZONE, findProvider, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
-import { nextTidyAt, TIDY_WAKEUP, Tidy, type TidyReport } from "./tidy"
 import { DEFAULT_MODEL, userModels } from "../agent/factory"
 import { roomStub } from "../lib/names"
 import { type ExtensionEvent, ExtensionError, ExtensionStore } from "./extensions"
@@ -54,6 +54,14 @@ type Attachment = { ready: boolean; helloBy?: number; origin?: string }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
+/** The wakeup that makes the life log's summaries. */
+const LIFE_WAKEUP = "life_naps"
+/** Summaries per alarm, and at once per user across every room. */
+const NAPS_PER_ALARM = 4
+const MAX_NAPS = 2
+/** The `settings` key of the memory model the human chose. */
+const MEMORY_MODEL = "memory_model"
+
 /** The `settings` key of the chat the user was last in. */
 const LAST_CHAT = "last_chat"
 
@@ -62,10 +70,10 @@ const DELETING = "deleting"
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
-  // Reminders and the memory tidy register wakeups here in their own tasks.
+  // Reminders and the life log's summaries register wakeups here in their own tasks.
   // Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
   private alarms!: Alarms
-  private memory!: MemoryStore
+  private life!: Life
   private souls!: Souls
   private home!: FileIndex<UserEvent>
 
@@ -79,7 +87,9 @@ export class UserDO extends DurableObject<Env> {
     void ctx.blockConcurrencyWhile(async () => {
       migrate(this.sql)
       this.alarms = createAlarms(ctx)
-      this.memory = createMemory(this.sql, (fn) => ctx.storage.transactionSync(fn))
+      this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
+      // The records store this log replaced is read once into it, then dropped (architecture section 13).
+      if (this.life.importRecords() > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()))
@@ -104,16 +114,6 @@ export class UserDO extends DurableObject<Env> {
         },
         () => EXTENSION_CATALOG,
       )
-      this.tidy = new Tidy({
-        sql: this.sql,
-        memory: this.memory,
-        now: Date.now,
-        // A private chat is never read: nothing from it reaches memory (section 7.10).
-        chats: () => listChats(this.sql).filter((c) => !c.private),
-        readChat: (roomId, since, limit) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).humanMessagesSince(since, limit),
-        complete: (system, prompt) => this.completeDefault(system, prompt),
-        souls: this.souls,
-      })
     })
   }
 
@@ -256,9 +256,7 @@ export class UserDO extends DurableObject<Env> {
    * returns false and sends nothing.
    */
   async touchChat(roomId: RoomId, touch: Touch): Promise<boolean> {
-    const changed = this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
-    if (changed) await this.armTidy()
-    return changed
+    return this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
   }
 
   /**
@@ -385,42 +383,138 @@ export class UserDO extends DurableObject<Env> {
     return this.saveTheme(theme)
   }
 
-  /** Memory. One RPC for every operation, the same one the socket uses. Never throws on a bad id. */
-  async memoryOp(op: MemoryOp): Promise<MemoryResult> {
-    return this.memoryCall(op)
+  // Memory: the user's life log (architecture section 13). The logic is in life.ts and lib/optmem.ts.
+
+  private setting(key: string): string | null {
+    return this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
   }
 
-  // The daily memory tidy (P5-03, architecture section 13.3). The logic is in tidy.ts.
-  private tidy!: Tidy
-
-  /** Runs the tidy now. `kiko memory tidy --now` and the alarm both come here. */
-  async tidyMemory(): Promise<TidyReport> {
-    return this.tidy.run()
+  private putSetting(key: string, value: string): void {
+    this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value)
   }
 
-  /** A memory write arms the next tidy. Reads arm nothing. */
+  /** The memory screen's requests. Only the human's socket reaches it: pin, redact, and the model are theirs. */
   private async memoryCall(op: MemoryOp): Promise<MemoryResult> {
-    const result = this.memory.handle(op)
-    if (result.ok && !["list", "search", "view", "history"].includes(op.op)) await this.armTidy()
-    return result
+    const now = Date.now()
+    switch (op.op) {
+      case "list": {
+        const lines = this.life.list(op.before ?? null, op.limit ?? 50)
+        return { ok: true, lines, next: lines.length ? lines[lines.length - 1]!.pos : null }
+      }
+      case "view":
+        return { ok: true, text: this.life.view(now).split("\n").filter(Boolean) }
+      case "search":
+        return { ok: true, lines: this.life.recall(op.query, 30), next: null }
+      case "zoom": {
+        const span = spanOf(op.id)
+        return span ? { ok: true, text: this.life.zoom(span, now) } : { ok: false, error: "not a summary id" }
+      }
+      case "note": {
+        const out = this.life.append(op.text, "you", false)
+        if (out.ok) await this.armNaps()
+        return out.ok ? { ok: true } : out
+      }
+      case "pin":
+        return this.life.pin(op.pos, op.pinned)
+      case "redact":
+        if (!this.life.redact(op.pos)) return { ok: false, error: "no such memory" }
+        await this.armNaps()
+        return { ok: true }
+      case "model":
+        return { ok: true, model: this.memoryModel() }
+      case "set_model":
+        if (op.model && !findProvider(op.model.provider)?.getModels().some((m) => m.id === op.model!.modelId)) return { ok: false, error: "no such model" }
+        if (op.model) this.putSetting(MEMORY_MODEL, JSON.stringify(op.model))
+        else this.sql.exec("DELETE FROM settings WHERE key = ?", MEMORY_MODEL)
+        return { ok: true }
+    }
   }
 
-  /** Sets the tidy wakeup for the next 03:00 in the user's timezone, unless one is already set. */
-  private async armTidy(): Promise<void> {
-    if (this.sql.exec("SELECT 1 FROM wakeups WHERE key = ?", TIDY_WAKEUP).toArray().length) return
-    const tz = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'").toArray()[0]?.value
-    await this.alarms.setWakeup(TIDY_WAKEUP, nextTidyAt(tz ?? DEFAULT_TIMEZONE, Date.now()))
+  /** The model that writes summaries: the one the human chose, else the default. */
+  private memoryModel(): MemoryModel {
+    const raw = this.setting(MEMORY_MODEL)
+    return raw ? (JSON.parse(raw) as MemoryModel) : null
+  }
+
+  /** RPC for an agent's `note`. A private chat never writes (section 7.10); the agent checks that first. */
+  async lifeNote(author: string, text: string, tainted: boolean): Promise<{ ok: true; duplicate?: true } | { ok: false; error: string }> {
+    const out = this.life.append(text, `@${author}`, tainted)
+    if (!out.ok) return out
+    if (!out.duplicate) await this.armNaps()
+    return out.duplicate ? { ok: true, duplicate: true } : { ok: true }
+  }
+
+  /** RPC for a room's rollup: a settled stretch of a chat, as one line. Private chats never call it. */
+  async lifeRollup(roomId: RoomId, text: string, tainted: boolean, at: number): Promise<void> {
+    const chat = getChat(this.sql, roomId)
+    if (!chat || chat.private) return
+    const out = this.life.append(text, `chat ${chat.title}`, tainted, at)
+    if (out.ok && !out.duplicate) await this.armNaps()
+  }
+
+  /** RPC for an agent's `recall`: life lines that match. */
+  async lifeRecall(query: string): Promise<string[]> {
+    const now = Date.now()
+    return this.life.recall(query, 10).map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, now, 400))
+  }
+
+  /** RPC for an agent's `zoom` on a life id. */
+  async lifeZoom(id: string): Promise<string | null> {
+    const one = /^(\d+)$/.exec(id)
+    const span = one ? { lo: Number(one[1]), hi: Number(one[1]) + 1 } : spanOf(id)
+    if (!span) return null
+    const lines = this.life.zoom(span, Date.now())
+    return lines.length ? lines.join("\n") : null
+  }
+
+  /** The life summaries still to make, a few per alarm. */
+  private async armNaps(): Promise<void> {
+    if (this.life.pending(1).length) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now() + 2_000)
+  }
+
+  private async napLife(): Promise<void> {
+    for (const span of this.life.pending(NAPS_PER_ALARM)) {
+      const prompt = this.life.prompt(span)
+      if (!prompt) continue
+      const out = await this.compress(prompt)
+      if ("retryAt" in out) return void (await this.alarms.setWakeup(LIFE_WAKEUP, out.retryAt))
+      if ("error" in out) throw new Error(out.error)
+      this.life.settle(span, out.text)
+    }
+    await this.armNaps()
+  }
+
+  #compressing = 0
+
+  /**
+   * One memory summary with the human's memory model and their own credential. Rooms call it for their
+   * own summaries, so keys never leave this object. At most `MAX_NAPS` at once per user, so a dozen
+   * busy chats cannot spend the human's rate limit: the rest are told when to try again.
+   */
+  async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
+    if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
+    this.#compressing++
+    try {
+      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, NAP_SYSTEM, prompt)
+      if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
+      const line = cleanLine(answer)
+      return line ? { text: line } : { error: "the model wrote no line" }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    } finally {
+      this.#compressing--
+    }
   }
 
   /**
-   * One completion with the user's default model and the user's own credential, for the tidy.
-   * Null when the user has no credential for that provider. Kiko pays for no model.
+   * One completion with `model` and the user's own credential. Null when the user has no credential
+   * for that provider. Kiko pays for no model.
    */
-  private async completeDefault(system: string, prompt: string): Promise<string | null> {
-    const { provider, modelId } = DEFAULT_MODEL
+  private async complete(ref: { provider: string; modelId: string }, system: string, prompt: string): Promise<string | null> {
+    const { provider, modelId } = ref
     const auth = (await this.turnContext(provider)).auth
     if (!auth) return null
-    const { models, settings } = userModels(async () => auth, `tidy-${this.ctx.id.toString()}`)
+    const { models, settings } = userModels(async () => auth, `memory-${this.ctx.id.toString()}`)
     const model = models.getModel(provider, modelId)
     if (!model) return null
     const headers = (settings as { stream?: { headers?: Record<string, string> } }).stream?.headers
@@ -480,9 +574,7 @@ export class UserDO extends DurableObject<Env> {
     const setting = (key: string) =>
       this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
     const limits = setting("limits")
-    const body = (id: string) => this.memory.peek(id)?.body ?? ""
-    const memory = { profile: body("profile"), now: body("now"), todo: body("todo") }
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null }, memory)
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null }, this.life.view(Date.now()))
   }
 
   // pi-ai's `CredentialStore` for this user. A `#` member, so RPC can never reach it.
@@ -666,7 +758,7 @@ export class UserDO extends DurableObject<Env> {
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
-      [TIDY_WAKEUP]: () => this.tidy.run(),
+      [LIFE_WAKEUP]: () => this.napLife(),
     })
     this.#loginState?.expire(due)
   }
