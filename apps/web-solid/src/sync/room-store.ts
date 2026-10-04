@@ -350,8 +350,6 @@ export type SendOptions = {
 
 export type RoomStore = {
 	readonly state: RoomState
-	/** Development only: feeds a frame through the socket's own handler, as if the room had sent it. */
-	devFrame?: (frame: RoomToClient) => void
 	/** The window with every pending patch applied. */
 	messages(): ViewMessage[]
 	tasks(): Task[]
@@ -799,7 +797,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	return {
 		state,
-		devFrame: import.meta.env.DEV ? onFrame : undefined,
 		messages: () => overlayMessages(state.history ?? state.messages, state.history ? [] : state.patches),
 		tasks: () => overlayTasks(state.tasks, state.patches),
 		approvals: () => overlayApprovals(state.approvals, state.patches),

@@ -11,7 +11,6 @@ import { birdPickerSlug } from "../mascot/picker-state";
 import { createEffect, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
-import { runCommand, useCommands } from "../commands/registry";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
@@ -135,25 +134,6 @@ export function Shell(props: ParentProps) {
     return id && id !== "new" ? decodeURIComponent(id) : null;
   };
   useKatCommands({ toggleSidebar: toggle });
-  if (import.meta.env.DEV) {
-    useCommands([
-      {
-        id: "chat.dev-presence-demo",
-        title: "dev: play the presence demo",
-        group: "chat",
-        icon: "chat",
-        when: () => !!infoChat() || CHAT_PATH.test(location.pathname),
-        run: () => void import("../dev/presence-demo").then((m) => m.playPresenceDemo()),
-      },
-      {
-        id: "chat.dev-fake-chat",
-        title: "dev: new chat with scripted agents",
-        group: "chat",
-        icon: "plus",
-        run: () => void import("../dev/presence-demo").then((m) => m.newFakeChat(() => runCommand("chat.new"))),
-      },
-    ]);
-  }
   // The hotkey library loads right after first paint. Shortcuts are keyboard only, so nothing waits on it.
   const owner = getOwner();
   onMount(() => {
