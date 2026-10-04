@@ -294,6 +294,7 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 | Tool | Who | Effect |
 | --- | --- | --- |
 | `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
+| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. It waits up to two minutes and stops at once when a human message waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
@@ -678,7 +679,7 @@ DEVIATION from OptMem, in four places. A page is 8 items, not 2, so a chat pays 
 
 - **Lines.** An agent's `note` (`@ada: ...`), a room's rollup (`chat trip: ...`), or a line the human adds (`you: ...`). One line, at most 280 bytes. The same words twice are stored once.
 - **The human.** The memory screen lists every line, newest first. The human pins up to 10 lines, which head every view, and redacts any line: its text is gone for good and the summaries above it are rebuilt. Agents can do neither.
-- **The model.** Summaries use the model the human picks on the memory screen, else the default model, with the human's own credential. Kiko picks no cheaper model on its own. At most two summaries run at once per user, across every room, so a dozen busy chats cannot spend the human's rate limit; the rest are told when to try again.
+- **The model.** Summaries use the model the human picks on the memory screen, else the default model, with the human's own credential. Kiko picks no cheaper model on its own. At most four summaries run at once per user, across every room, so a dozen busy chats cannot spend the human's rate limit; the rest are told when to try again.
 - **Migration.** The records store of phase 5 is read once into the log, oldest first, then dropped.
 
 ### 13.4 Reading and writing

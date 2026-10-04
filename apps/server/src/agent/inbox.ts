@@ -166,6 +166,11 @@ export class Inbox {
     this.sql.exec("UPDATE inbox SET in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ? AND submitted = 0", requestId)
   }
 
+  /** True when a human envelope waits or is claimed and not yet submitted. */
+  humanWaiting(): boolean {
+    return this.sql.exec("SELECT 1 FROM inbox WHERE submitted = 0 AND priority = ? LIMIT 1", PRIORITY.human).toArray().length > 0
+  }
+
   /** True when a row waits or is claimed and not yet submitted. */
   hasOpen(): boolean {
     return this.sql.exec("SELECT 1 FROM inbox WHERE submitted = 0 LIMIT 1").toArray().length > 0

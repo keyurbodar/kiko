@@ -14,7 +14,7 @@
 
 ## Verification
 
-`bun kiko verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 6 of 8.
+`bun kiko verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 7 of 8 (measured 8 of 8).
 
 ## Task
 

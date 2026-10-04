@@ -37,6 +37,7 @@ export function describeCall(name: string, args: Record<string, unknown>): strin
     case "team":
     case "list_agents":
     case "send_message":
+    case "ask":
       return null
     default:
       return `using ${name.replace(/_/g, " ")}`

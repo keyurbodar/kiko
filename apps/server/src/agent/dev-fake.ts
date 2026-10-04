@@ -31,6 +31,8 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [echo]      in a teammate's message: the model sends `[echo]` back to that teammate, forever (P6-03)
 //   [shout]     the model calls `send_message` to all with `[shout]`, from a human or a teammate, forever (P6-03)
 //   [team]      the model calls `team` (section 7.12)
+//   [ask s] q   the model calls `ask` with teammate `s` and question `q` (section 7.5)
+//   [question]  in a teammate's message: the model answers that teammate with `[answer] 42`
 //
 // An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02).
 //
@@ -202,6 +204,9 @@ function trustResults(since: readonly Message[]): string | null {
 /** The team tool call a user turn asks for (P6-03), or null. A teammate's `[echo]` goes back to that teammate. */
 function teamCall(turn: string) {
   const agent = [...turn.matchAll(/<agent-message from="([^"]+)"[^>]*>([\s\S]*?)<\/agent-message>/g)].at(-1)
+  if (agent && agent[2]!.includes("[question]")) return fauxToolCall("send_message", { to: agent[1]!, text: "[answer] 42" })
+  const asked = /\[ask ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
+  if (asked) return fauxToolCall("ask", { to: asked[1]!, question: asked[2]! })
   if (agent && agent[2]!.includes("[echo]")) return fauxToolCall("send_message", { to: agent[1]!, text: "[echo]" })
   const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
   if (send) return fauxToolCall("send_message", { to: send[1]!, text: send[2]! })

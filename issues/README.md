@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-125 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+127 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -70,6 +70,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-06](wave-03/P1-06-build-the-agent-host.md) | Build the agent host | backend | 5 | P0-05, P0-07, P1-01 | yes |
 | [P10-07](wave-03/P10-07-build-the-extensions-settings-page.md) | Build the extensions settings page | frontend | 3 | P10-04 | yes |
 | [P11-05](wave-03/P11-05-measure-memory-with-an-eval.md) | Measure memory with an eval | backend | 3 | P11-04 | yes |
+| [P11-07](wave-03/P11-07-let-an-agent-ask-a-teammate-and.md) | Let an agent ask a teammate and wait | backend | 3 | P11-04 | yes |
+| [P11-08](wave-03/P11-08-bound-storage-the-floor-and-outside-content.md) | Bound storage, the floor, and outside content | backend | 2 | P11-04 | yes |
 | [P2-03](wave-03/P2-03-build-the-html-shell-and-split-the.md) | Build the HTML shell and split the bundle by tier | frontend | 4 | P2-02 | yes |
 | [P2-04](wave-03/P2-04-build-the-horizontal-tab-strip.md) | Build the horizontal tab strip | frontend | 3 | P2-01, P2-02 | yes |
 | [P2-06](wave-03/P2-06-build-the-sync-client-with-optimistic-patches.md) | Build the sync client with optimistic patches | frontend | 5 | P2-05 | yes |

@@ -17,11 +17,21 @@ export const MESSAGING = "messaging"
 export type MessagingPort = {
   send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
+  /** `ask`: a message to one teammate whose answer the tool waits for. */
+  ask(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
+  askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
+  closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
+  /** A human message is waiting: the human outranks a teammate's answer (section 7.8). */
+  humanWaiting(): boolean
   /** What everyone in the room is doing now and the paths they hold (section 7.12). */
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
 }
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
+
+/** How long `ask` waits for a teammate, and how often it looks. ASSUMPTION: the numbers. */
+export const ASK_WAIT_MS = 120_000
+const ASK_POLL_MS = 1_500
 
 /** `port` returns null before the room has delivered anything, when the agent has no home yet. */
 export function messagingExtension(port: () => MessagingPort | null, lead = false): Extension {
@@ -63,9 +73,38 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
     }),
   )
 
+  const ask = declareEffect(
+    "message",
+    defineTool({
+      name: "ask",
+      description:
+        "ask one teammate a question and wait for the answer, which comes back as this tool's result. use it when you need their answer to go on. it waits up to two minutes, and stops at once if the human writes.",
+      parameters: Type.Object({ to: slug("the agent's slug, without @"), question: Type.String() }),
+      replay: "safe",
+      execute: async ({ to, question }, api) => {
+        const id = `${api.conversationId}:${api.callId}`
+        const who = to.replace(/^@/, "").toLowerCase() as AgentSlug
+        const sent = await room().ask({ id, to: who, text: question, tainted: isRunTainted(api) })
+        if (!sent.ok) return { content: text(sent.error), isError: true }
+        const answered = (s: { state: string; answer: string | null } | null) => (s?.state === "answered" ? { content: text(`@${who} answered: ${s.answer}`) } : null)
+        const end = Date.now() + ASK_WAIT_MS
+        while (Date.now() < end && !room().humanWaiting()) {
+          const got = answered(await room().askState(id))
+          if (got) return got
+          await new Promise((resolve) => setTimeout(resolve, ASK_POLL_MS))
+        }
+        const last = answered(await room().closeAsk(id))
+        if (last) return last
+        const why = room().humanWaiting() ? "the human wrote, so answer them first" : `@${who} has not answered yet`
+        return { content: text(`${why}. @${who}'s answer will reach you as a message; go on with what you can.`) }
+      },
+    }),
+  )
+
   return defineExtension({
     name: MESSAGING,
     tools: [
+      ask,
       ...(lead ? [spawnTool] : []),
       declareEffect(
         "message",

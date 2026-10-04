@@ -58,7 +58,7 @@ const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 const LIFE_WAKEUP = "life_naps"
 /** Summaries per alarm, and at once per user across every room. */
 const NAPS_PER_ALARM = 4
-const MAX_NAPS = 2
+const MAX_NAPS = 4
 /** The `settings` key of the memory model the human chose. */
 const MEMORY_MODEL = "memory_model"
 

@@ -56,7 +56,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 - `note` from agents, rollups from rooms, and lines the human adds.
 - The human pins up to 10 lines and redacts any line. Agents do neither.
-- `compress` runs summaries with the model the human picks, at most two at once per user.
+- `compress` runs summaries with the model the human picks, at most four at once per user.
 - The records store is imported once, oldest first, then dropped. `tidy.ts` is deleted.
 
 ### P11-04 Start every run from memory
@@ -95,3 +95,21 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 **Goal.** The human sees what kiko knows, pins what matters, removes what should be gone, and picks the model that writes summaries.
 
 **Files.** `apps/web-solid/src/chat/info/memory/*`, `chat/info/panel.tsx`, `chat/info/state.ts`, `app/routes.tsx`.
+
+### P11-07 Let an agent ask a teammate and wait
+
+`deps: P11-04` `difficulty: 3` `area: backend`
+
+**Verify.** `bun kiko verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `test/team-routing.test.ts` covers an ask that closes before its answer.
+
+**Goal.** Team work that needs an answer to go on takes one run, not a message, an end, and a second run.
+
+**Files.** `apps/server/src/room/asks.ts`, `room/room-do.ts`, `agent/extensions/messaging.ts`, `agent/host.ts`, `agent/inbox.ts`, `apps/cli/src/verify/suites/team-ask.ts`.
+
+### P11-08 Bound storage, the floor, and outside content
+
+`deps: P11-04` `difficulty: 2` `area: backend`
+
+**Verify.** `test/agent-host.test.ts` runs 51 runs from memory and sees pi-durable's tables dropped while idle; `test/log-memory.test.ts` bounds the floor's size and taints a block with a recent outside line, not a summarized one.
+
+**Goal.** Nothing grows without bound, and recent outside content gates a run like a tool result does.

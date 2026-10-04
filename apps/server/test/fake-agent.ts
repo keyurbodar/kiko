@@ -132,6 +132,7 @@ const ALICE = "alice"
 // `/turns`                          the turns alice has taken
 // `POST /mail/<roomId>/<slug>`      the agent sends an agent message (AgentSend)
 // `POST /memory/<roomId>` seqs      the room's <memory> view, without the messages `seqs`
+// `POST /ask/<roomId>/<slug>`       the agent asks a teammate (AgentSend); `/askstate/<roomId>/<id>`, `/closeask/<roomId>/<id>`
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, roomId, slug, state] = new URL(request.url).pathname.split("/")
@@ -166,6 +167,9 @@ export default {
         return Response.json({ ok: false, error: `threw: ${e instanceof Error ? e.message : String(e)}` })
       }
     }
+    if (kind === "ask") return Response.json(await room.ask(slug as AgentSlug, (await request.json()) as never))
+    if (kind === "askstate") return Response.json(await room.askState(slug!))
+    if (kind === "closeask") return Response.json(await room.closeAsk(slug!))
     if (kind === "memory") return Response.json({ view: await room.memoryView((await request.json()) as number[]) })
     if (kind === "mail") return Response.json(await room.agentMessage(slug as AgentSlug, (await request.json()) as never))
     if (kind === "calls") return Response.json(await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).calls())

@@ -214,7 +214,15 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     if (!home) return null
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
-    return { send: (input) => room().agentMessage(home.slug, input), spawn: (input) => room().spawnAgent(home.slug, input), team: () => room().teamNow() }
+    return {
+      send: (input) => room().agentMessage(home.slug, input),
+      ask: (input) => room().ask(home.slug, input),
+      askState: (id) => room().askState(id),
+      closeAsk: (id) => room().closeAsk(id),
+      humanWaiting: () => this.host.humanWaiting(),
+      spawn: (input) => room().spawnAgent(home.slug, input),
+      team: () => room().teamNow(),
+    }
   }
 
   /** One line for the team board: what this agent's current tool call is about (section 7.12). */

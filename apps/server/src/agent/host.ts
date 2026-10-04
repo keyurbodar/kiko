@@ -370,6 +370,11 @@ export class AgentHost {
     this.ctx.storage.sql.exec("INSERT OR REPLACE INTO wakeups (key, at) VALUES (?, ?)", HUMAN_COMING, Date.now() + HUMAN_COMING_MS)
   }
 
+  /** A human message waits in the inbox or in the room's open burst. A waiting tool stops for it (section 7.8). */
+  humanWaiting(): boolean {
+    return this.inbox.humanWaiting() || this.humanComingUntil() > Date.now()
+  }
+
   private humanComingUntil(): number {
     return this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HUMAN_COMING).toArray()[0]?.at ?? 0
   }

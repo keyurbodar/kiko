@@ -245,6 +245,28 @@ test("a burst sends each agent only its own messages, in one delivery", async ()
   ws.ws.close()
 })
 
+test("an ask is delivered, its answer goes to the waiting tool and not the inbox, and a reply after it closes is delivered", async () => {
+  const { room, ws } = await team()
+  await ws.say("@ada start")
+  await delivered(room, "ada", 1)
+  expect(((await call(`/ask/${room}/ada`, { id: "q1", to: "bob", text: "what is the port?", tainted: false })) as { ok: boolean }).ok).toBe(true)
+  const [question] = await delivered(room, "bob", 1)
+  expect(question!.envelopes.map((e) => e.body)).toEqual(["what is the port?"])
+  expect(await call(`/askstate/${room}/q1`)).toEqual({ state: "open", answer: null })
+  // bob answers with send_message: the chat shows it, ada's tool reads it, and ada's inbox stays as it was.
+  await call(`/mail/${room}/bob`, { id: "a1", to: "ada", text: "8797", tainted: false })
+  expect(await call(`/askstate/${room}/q1`)).toEqual({ state: "answered", answer: "8797" })
+  await Bun.sleep(500)
+  expect((await counts(room)).ada).toBe(1)
+  // An ask that timed out is closed; a later reply is an ordinary message.
+  await call(`/ask/${room}/ada`, { id: "q2", to: "bob", text: "and the host?", tainted: false })
+  expect(await call(`/closeask/${room}/q2`)).toEqual({ state: "closed", answer: null })
+  await call(`/mail/${room}/bob`, { id: "a2", to: "ada", text: "localhost", tainted: false })
+  await delivered(room, "ada", 2)
+  expect(((await call(`/ask/${room}/ada`, { id: "q3", to: "all", text: "anyone?", tainted: false })) as { ok: boolean }).ok).toBe(false)
+  ws.ws.close()
+})
+
 test("a reply to an agent's bubble reaches that agent", async () => {
   const { room, ws } = await team()
   await call(`/post/${room}/cy`)

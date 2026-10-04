@@ -26,7 +26,7 @@
 
 - `note` from agents, rollups from rooms, and lines the human adds.
 - The human pins up to 10 lines and redacts any line. Agents do neither.
-- `compress` runs summaries with the model the human picks, at most two at once per user.
+- `compress` runs summaries with the model the human picks, at most four at once per user.
 - The records store is imported once, oldest first, then dropped. `tidy.ts` is deleted.
 
 ## Rules for this task

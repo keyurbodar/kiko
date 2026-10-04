@@ -11,6 +11,7 @@ import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprov
 import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
+import { Asks, type AskState } from "./asks"
 import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route, untagged } from "./deliver"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
@@ -54,6 +55,8 @@ const QUIET_WAKEUP = "memory_quiet"
 const QUIET_MS = 6 * 3_600_000
 /** Summaries per background pass, then it yields and the alarm comes back. */
 const NAPS_PER_PASS = 24
+/** Summaries in flight at once for this room. `UserDO` caps them per user, across rooms, at the same number. */
+const NAPS_AT_ONCE = 4
 
 /**
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
@@ -94,6 +97,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private bubbles!: Bubbles
 	private mail!: Mail
 	private memory!: RoomMemory
+	private asks!: Asks
 	members!: Members
 	files!: FileIndex<RoomEvent>
 	team!: Team
@@ -123,6 +127,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.members = new Members(ctx.storage, this.log)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.approvals = new RoomApprovals(ctx.storage, this.log)
+			this.asks = new Asks(ctx.storage.sql)
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 		})
 	}
@@ -498,6 +503,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (out.ok) this.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
 		this.publish(out.events)
 		if (!out.ok) return out
+		// The answer to a teammate's open ask is read by its waiting tool, not delivered as a new run.
+		if (send.to !== "all" && this.asks.answer(slug, send.to, send.text)) return { ok: true, to: out.send.recipients }
 		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
 		// repeat delivers the same envelope ids, which the inboxes ignore.
 		const queue = JSON.parse(this.log.meta(MAIL_KEY) ?? "[]") as HeldMail[]
@@ -505,6 +512,29 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.log.setMeta(MAIL_KEY, JSON.stringify(queue))
 		await this.drainMail()
 		return { ok: true, to: out.send.recipients }
+	}
+
+	/**
+	 * RPC for an agent's `ask` (section 7.5): a message to one teammate whose answer the asking tool
+	 * waits for. The ask opens before the delivery, so even a fast answer is matched.
+	 */
+	async ask(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
+		if (send.to === "all") return { ok: false, error: "not sent: ask one agent at a time" }
+		if (send.to === slug) return { ok: false, error: "not sent: you cannot ask yourself" }
+		this.asks.open(send.id, slug, send.to, Date.now())
+		const out = await this.agentMessage(slug, send)
+		if (!out.ok) this.asks.close(send.id)
+		return out
+	}
+
+	/** RPC for the asking tool: the ask's state and answer. */
+	async askState(id: string): Promise<AskState | null> {
+		return this.asks.get(id)
+	}
+
+	/** RPC for the asking tool when it stops waiting. A later reply is delivered as a message. */
+	async closeAsk(id: string): Promise<AskState | null> {
+		return this.asks.close(id)
 	}
 
 	#draining = false
@@ -638,9 +668,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const user = userStub(this.env.USER, home.userId)
 		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number) => user.lifeRollup(home.roomId, text, tainted, at)
 		const pass = async () => {
-			// Two at a time, the most `compress` runs at once for one user.
-			for (let done = 0; done < NAPS_PER_PASS; done += 2) {
-				const spans = this.memory.pending(2)
+			// Up to the most `compress` runs at once for one user; a refusal says when to try again.
+			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
+				const spans = this.memory.pending(NAPS_AT_ONCE)
 				if (!spans.length) return
 				const outs = await Promise.all(spans.map((span) => this.memory.nap(span, (prompt) => user.compress(prompt), rollup)))
 				const retryAt = outs.find((o) => o.retryAt)?.retryAt
