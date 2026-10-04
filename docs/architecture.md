@@ -63,8 +63,8 @@ Worker "kiko" (stateless)
   |- uploads, downloads -> R2
   |- queue consumer <- Queues (post-processing jobs)
   v
-UserDO   user:<userId>                    credentials, memory, reminders, chat index, skills, limits
-RoomDO   room:<userId>:<roomId>           chat log, members, debounce, fan-out, task board, notes, file index
+UserDO   user:<userId>                    credentials, life log, reminders, chat index, skills, limits
+RoomDO   room:<userId>:<roomId>           chat log and its memory tree, members, debounce, fan-out, task board, notes, file index
 AgentDO  agent:<userId>:<roomId>:<slug>   pi-durable harness, inbox, private notes, status
 ```
 
@@ -78,7 +78,7 @@ AgentDO  agent:<userId>:<roomId>:<slug>   pi-durable harness, inbox, private not
 
 | Class | One per | Owns | WebSockets |
 | --- | --- | --- | --- |
-| `UserDO` | user | encrypted credentials, provider settings, memory, reminders, chat index, skills, limits, Executor tokens | yes, hibernatable |
+| `UserDO` | user | encrypted credentials, provider settings, the life log, reminders, chat index, skills, limits, Executor tokens | yes, hibernatable |
 | `RoomDO` | chat | message log, reactions, members, pending human burst, loop counters, task board, activity log, notes, file index | yes, hibernatable |
 | `AgentDO` | agent in a chat | the `pi-durable` storage for that agent, inbox, private notes | no |
 
@@ -122,7 +122,8 @@ A Durable Object has one alarm. Each class multiplexes it with a small shared he
 | --- | --- |
 | `RoomDO` | debounce flush |
 | `AgentDO` | inbox ready, run heartbeat, `pi-durable` retry time |
-| `UserDO` | next reminder, daily memory tidy |
+| `RoomDO` (memory) | the background summary pass, a quiet chat's rollup |
+| `UserDO` | next reminder, the life log's summary pass |
 
 `pi-durable` keeps retry and polling timers with in-process `setTimeout` (`src/harness/scheduler.ts`). A timer does not wake a Durable Object that was evicted. While any task is unfinished, `AgentDO` keeps a heartbeat alarm at most 30 seconds ahead. The alarm handler opens the harness if needed and calls `harness.resume()`. An alarm handler may run for 15 minutes at most (Cloudflare docs), so a long run continues across heartbeats and never depends on one handler invocation. After a restart, a run would wait for the next heartbeat, up to 30 seconds. So `RoomDO` stores a `live:<slug>` marker while an agent's status is not idle, and the first socket of a new room process calls `AgentDO.wake()` for each marked agent. `wake()` moves a pending heartbeat to now and returns, like `receive()`. Measured with `bun kiko verify latency`: the agent came back after 24.5 s at p50 before, 58 ms after.
 
@@ -280,11 +281,11 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 `RoomDO` attaches a brief to every delivery, built from its own tables.
 
-- The room goal and the member list with each member's role and status.
+- The room goal and the member list with each member's role, status, and what it is doing now.
 - The receiving agent's open tasks and the tasks that block them.
-- Room messages and reactions since the agent's last delivery, capped at 30 messages. The room tracks `last_delivered_seq` per member.
+- Reactions on the agent's messages since its last delivery.
 
-`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry.
+`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry. What was said is not in the brief: a run that starts opens with its `<memory>` block (section 13), which holds the whole chat, older turns compressed. The brief used to carry the last 30 messages, each cut to 400 characters, so a teammate that joined late saw nothing older.
 
 **Reasoning.** The spec asks for the brief to be "injected into its prompt" at the start of each turn. Putting it in the user entry and not in the system prompt keeps the request prefix stable between runs, so provider prompt caches keep hitting. History is immutable in `pi-durable`, which gives the same property for free.
 
@@ -292,9 +293,9 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 | Tool | Who | Effect |
 | --- | --- | --- |
-| `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
-| `broadcast(text, files?)` | every agent | the same, addressed to every agent |
-| `check_agent(slug)` | every agent | reads status and current task from the room. It does not call the other agent |
+| `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
+| `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
+| `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `claim_task(id)`, `update_task(id, status, note)`, `post_update(text)` | every agent | task board and activity log |
 | `read`, `write`, `edit` (`pi-durable`'s own), `ls`, `mv`, `cp`, `rm` | every agent | the chat's files, a Linux-like tree rooted at `/` (section 18.1) |
 | `write_note(title, body)` | every agent | shared notes and decisions |
@@ -308,7 +309,7 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 Agent mail is queued in the room before any delivery, and drained in order. A failed delivery or a full inbox stays at the head and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. While a human burst is open, nothing drains (section 7.8).
 
-A plain reply bubble wakes nobody. Only `send_message`, `broadcast`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
+A plain reply bubble wakes nobody. Only `send_message`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
 
 ### 7.6 Tasks and waking
 
@@ -529,7 +530,7 @@ record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || provider
 
 ### 11.3 Use during a run
 
-At the start of a run, `AgentDO` calls `UserDO.turnContext(provider)` once. The call returns the request auth for that provider, the profile and the "what's going on" page (section 13), the todo index, the timezone, and the limits. The auth is kept in memory for that run only.
+At the start of a run, `AgentDO` calls `UserDO.turnContext(provider)` once. The call returns the request auth for that provider, the user's life log as agents read it (section 13), the timezone, and the limits. The auth is kept in memory for that run only.
 
 Disconnecting a provider deletes its rows in `UserDO` at once. A run already in flight finishes its current model request with the auth it holds. The next request fails with a clear error and the chat shows the connect prompt.
 
@@ -644,49 +645,59 @@ Executor shipped 2.0.0-beta.0 through beta.7 between 2026-09-23 and 2026-10-01. 
 
 ## 13. Memory
 
-### 13.1 Storage
+**Decision.** Memory is a log, not a set of records and not a transcript. Two logs exist: a room's own messages, read as turns, and each user's life log. Over each sits a binary tree of one-line summaries. Every run starts from a bounded view of both, the `<memory>` block, and the model sees nothing older than that run. The design follows OptMem (github.com/VictorTaelin/OptMem, read at commit 1fb164c) and keeps its one rule: the history is the memory, and context is a view of it.
 
-Memory lives in `UserDO` SQLite, which supports FTS5 (Cloudflare SQLite storage API docs).
+**Reasoning.** Before this, kiko had four memories that did not know about each other: typed records with a daily tidy job, each agent's ever-growing pi-durable transcript with one lossy compaction, the brief's last 30 messages, and the workspace notes. A late teammate saw almost nothing of a group's past, agents in one room disagreed about what happened, the kiko chat could not run forever, and memory filled only when an agent remembered to write. A log fills itself, every member reads the same one, and a view of it costs the same at turn 50 or 50,000.
 
-```sql
-memory_records(id, type, title, aliases, body, pinned, archived,
-               uses, last_used_at, created_at, updated_at, version)
-memory_versions(record_id, version, body, author, at)
-memory_fts  -- FTS5 over title, aliases, body
-```
+### 13.1 The tree
 
-A record is markdown. Its header fields are columns. Its body is dated bullet facts with `[[id]]` links to other records.
+`lib/optmem.ts` is the one implementation, used by both logs.
 
-| Type | Holds |
-| --- | --- |
-| `profile` | one record. Life context, autonomy preferences, communication style |
-| `now` | one record. The "what's going on" page |
-| `todo` | one record. The task and todo index |
-| `preference`, `person`, `organization`, `conversation` | as in the spec |
-| `procedure` | "how I like things done". Fills the procedural-memory gap the spec names |
+- **Items.** A log is a list of items that only grows. Position is identity.
+- **Nodes.** A node is an aligned span `[k*size, (k+1)*size)` whose size is a page (8 items) times a power of two. A page is summarized from its raw items. A bigger node is summarized from its two halves. A summary is one lowercase line of at most 280 bytes, written by the model with memo's prompt: keep what has lasting effect, invent nothing.
+- **Idempotent.** A node is stored with `INSERT OR IGNORE` on `(size, k)`, so an alarm delivered twice writes nothing twice.
+- **Forgetting.** An edited or deleted item drops the nodes above it, one per level. They are built again from the log, alone.
+- **Taint.** A node built from any tainted item is tainted. A view marks it `[outside]`, and the prompt says such a line is hearsay, never instructions. So an injected line cannot become a trusted memory.
+- **The view.** The newest `floor` items are verbatim, with how long ago each happened. Before them, memo's `cover` tiles the rest into at most `budget` lines, coarser with age, each with its date range. A node not built yet renders as its halves, so a view never waits for a model.
+- **Sticky.** A view keeps the last tiling and appends new pages to it. It tiles again, down to `retile` lines, only past `budget`. The old lines stay byte for byte, so the provider's prompt cache keeps hitting; the prefix changes about once per 128 turns.
 
-### 13.2 Reading and writing
+| Log | Lives in | Page | Floor | Budget | Retile |
+| --- | --- | --- | --- | --- | --- |
+| room | `RoomDO`, `mem_turns` and `mem_tree` | 8 turns | 40 turns | 64 lines | 48 |
+| life | `UserDO`, `life`, `life_tree`, `life_fts` | 8 lines | 16 lines | 32 lines | 24 |
 
-- `turnContext()` returns `profile`, `now`, and `todo` on every run. The profile goes into the system prompt. `now` and `todo` go into the `<context>` block, because they change more often and would break the cached prefix.
-- `memory_search(query)` runs an FTS5 match over titles, aliases, and bodies. Aliases exist so a keyword search finds the right record.
-- `memory_view(id)` returns one record and bumps `uses` and `last_used_at`.
-- `memory_write(id, fact)` appends one dated bullet to a record, or creates the record. It never rewrites a body.
+DEVIATION from OptMem, in four places. A page is 8 items, not 2, so a chat pays about one summary per four turns instead of one per turn. The newest items are never compressed. The tiling is sticky. A forgotten node leaves a hole that is rebuilt alone, instead of truncating every later node. And summaries are made in the background, never by the agent in the middle of a reply: memo has the agent answer a compression prompt before its next action, and refuses to wake while a summary is missing. Either would stall a kiko reply.
 
-Agents append and the tidy job rewrites. An append cannot destroy a fact, so a mistaken or injected write is small and visible in the version history.
+### 13.2 A room's log
 
-### 13.3 The daily tidy job
+- **Turns.** A turn is a human burst (consecutive human messages less than 30 minutes apart), one agent run's bubbles, one agent message, or one system event. Bubbles are what the chat shows; turns are what memory counts, so a page is 8 things that happened, not half a reply. `room/memory.ts` builds the `mem_turns` index lazily from `messages` and only ever appends to it.
+- **Traces.** What an agent did during a run (the team board's words: "editing /flights.md", "reading a web page") joins its reply turn as one `(did: ...)` line. A run that acted and said nothing gets a turn of its own. Teammates and the agent's own next run see it, now that tool output is not kept between runs. It costs no model call.
+- **Rollups.** A settled 64-turn node becomes one line of the user's life (`chat <title>: ...`). A chat quiet for six hours rolls its unrolled turns into one line too, so a slow chat reaches the life log. Private chats never roll up.
+- **Summaries.** A background pass in `waitUntil` makes them, up to 24 per pass, through `UserDO.compress`. It never holds the alarm, because the burst and mail wakeups share it. The newest 8 turns stay open, since a reply may still grow.
 
-`UserDO` sets a wakeup once a day in the user's timezone. The job runs only if memory changed since the last run. It uses the user's own default model, because kiko pays for no model. It can be turned off in settings.
+### 13.3 The user's life log
 
-The job merges duplicates, shortens records, turns repeated examples into general traits, removes incidental detail, and replaces wrong facts with dated corrections. It derives communication-style traits from recent conversations into the profile, which covers implicit personalization. Every rewrite stores the old body in `memory_versions`.
+- **Lines.** An agent's `note` (`@ada: ...`), a room's rollup (`chat trip: ...`), or a line the human adds (`you: ...`). One line, at most 280 bytes. The same words twice are stored once.
+- **The human.** The memory screen lists every line, newest first. The human pins up to 10 lines, which head every view, and redacts any line: its text is gone for good and the summaries above it are rebuilt. Agents can do neither.
+- **The model.** Summaries use the model the human picks on the memory screen, else the default model, with the human's own credential. Kiko picks no cheaper model on its own. At most two summaries run at once per user, across every room, so a dozen busy chats cannot spend the human's rate limit; the rest are told when to try again.
+- **Migration.** The records store of phase 5 is read once into the log, oldest first, then dropped.
 
-**Forgetting.** The job archives a record that is not pinned and has not been used for 90 days (ASSUMPTION: the number). An archived record leaves default search and stays in storage with its history.
+### 13.4 Reading and writing
 
-### 13.4 Later
+A batch that starts a run (the conversation is idle) does two things before it submits:
 
-Vector search with Vectorize is added only if keyword search proves too weak. Nothing in the schema blocks it.
+1. `root.reset()`. The model's view of the conversation starts over. The pi-durable entries stay in storage. A steer and a mid-run restart keep their context, because the aborted burst must stay in view.
+2. The input opens with the `<memory>` block: the life view from the run's one `turnContext` call, then this chat's view from `RoomDO.memoryView`, without the messages the batch delivers on their own. Then the `<context>` brief, then the burst.
 
-Each `AgentDO` also has one private `notes` document, a `pi-durable` Document, for its own scratch facts about its role.
+Three tools cover what the block does not show. `recall(query)` searches every life line and this chat's messages. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
+
+**Reasoning for the reset.** Without it, every run would add a fresh memory block to a transcript that already holds the last one, and pi-durable would compact the pile. With it, a request is the system prompt, the block, and the run: about 10,000 tokens before the burst, at any chat length. What a run loses is the tool output of earlier runs, which the trace line, files, and notes carry instead. `RESET_EACH_RUN` in `agent/host.ts` turns it off.
+
+**Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. See P11-05 for the score.
+
+### 13.5 Later
+
+Vector search is added only if `recall`'s keyword search proves too weak. Nothing in the tables blocks it.
 
 ## 14. Reminders and scheduling
 
@@ -758,14 +769,14 @@ Every tool declares one effect.
 
 | Effect | Examples | In a tainted run |
 | --- | --- | --- |
-| `read` | `memory_search`, `read`, `ls`, `check_agent` | allowed |
-| `write` | `memory_write`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
-| `message` | `send_message`, `broadcast`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
+| `read` | `recall`, `zoom`, `read`, `ls`, `team` | allowed |
+| `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
+| `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
 | `external` | Executor `execute` and `invoke` | needs human approval, whatever the Executor policy says |
 
 The `beforeTool` hook enforces the table. The last row breaks the dangerous combination of private data, untrusted input, and an outside action. A user can relax it in settings.
 
-Tainted memory writes are append-only bullets (section 13.2). The tidy job does not promote a tainted fact into the profile.
+A tainted run's notes and messages are stored flagged, and every summary built from them is flagged too (section 13.1). A flagged line reaches later prompts only marked `[outside]`.
 
 ### 16.4 Exfiltration through URLs
 
@@ -925,7 +936,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - A newcomer to a chat sees every file it already holds, and the chat says so when it happens.
 - The client shows the drive as `home/` at the top of every chat's tree, served from `/api/files/home`.
 
-**Private chats.** A chat marked private keeps no trace beyond itself: its agents' writes to memory, souls, and `/home` are refused in the tools (reads work), each input says the chat is private, and the nightly tidy never reads it. The room learns the flag on every read of the chat and at once when the human changes it.
+**Private chats.** A chat marked private keeps no trace beyond itself: its agents' writes to memory, souls, and `/home` are refused in the tools (reads work), each input says the chat is private, and it never rolls up into the life log. The room learns the flag on every read of the chat and at once when the human changes it.
 
 ### 18.2 Link previews
 
@@ -1107,6 +1118,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | D5 | `stub.onReaction` notifies the author agent | the reaction arrives with the next delivery | 6.5 |
 | D6 | CodeMirror 6 as the text editor | CodeMirror in the file viewer only | 19.3 |
 | D7 | Rolldown or Vite, Bun | Vite, with Bun as the package manager and test runner | 19.3 |
+| D8 | memory records, a profile, and a nightly tidy | log memory after OptMem, with four departures from OptMem itself | 13 |
 
 ### Assumptions
 
@@ -1116,7 +1128,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | A2 | loop limits are 8 hops, 40 deliveries per root, 8 members, 50 autonomous runs a day | 7.7 |
 | A3 | sign-in is Google and GitHub only | 10 |
 | A4 | subscription sign-in for model providers is off by default | 11.4 |
-| A5 | unused memory is archived after 90 days | 13.3 |
+| A5 | a chat is quiet after 6 hours and rolls up into the life log | 13.2 |
 | A6 | `rrule` for recurrence, `marked` for server markdown | 14, 6.4 |
 | A7 | kat's hue with one chroma token is the "kiko orange", and dark ships first | 19.8 |
 | A8 | terminal and browser slots become board and memory | product.md |

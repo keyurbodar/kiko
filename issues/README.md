@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-119 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+125 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -11,6 +11,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P0-01](wave-00/P0-01-scaffold-the-server-worker-and-the-workspace.md) | Scaffold the server Worker and the workspace | infra | 2 | none | no |
 | [P0-02](wave-00/P0-02-clean-the-frontend-baseline.md) | Clean the frontend baseline | frontend | 2 | none | yes |
 | [P10-01](wave-00/P10-01-prove-quickjs-runs-in-a-durable-object.md) | Prove QuickJS runs in a Durable Object | backend | 2 | none | no |
+| [P11-01](wave-00/P11-01-build-the-log-memory-core.md) | Build the log memory core | backend | 3 | none | no |
 
 ## Wave 1
 
@@ -28,6 +29,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-01](wave-01/P1-01-build-the-alarm-multiplexer.md) | Build the alarm multiplexer | backend | 2 | P0-01 | yes |
 | [P1-02](wave-01/P1-02-add-accounts-with-better-auth-and-d1.md) | Add accounts with Better Auth and D1 | backend | 3 | P0-01 | yes |
 | [P10-02](wave-01/P10-02-define-the-extension-format.md) | Define the extension format | docs | 2 | P10-01 | yes |
+| [P11-02](wave-01/P11-02-read-a-room-as-turns-and-keep.md) | Read a room as turns and keep its tree | backend | 4 | P11-01 | yes |
+| [P11-03](wave-01/P11-03-give-each-user-a-life-log.md) | Give each user a life log | backend | 3 | P11-01 | yes |
 | [P2-01](wave-01/P2-01-rewrite-the-theme-to-the-kat-values.md) | Rewrite the theme to the kat values | frontend | 3 | P0-02 | yes |
 | [P3-02](wave-01/P3-02-reverse-swipe-to-reply.md) | Reverse swipe to reply | frontend | 2 | P0-02 | yes |
 | [P8-01](wave-01/P8-01-build-the-safe-fetcher.md) | Build the safe fetcher | backend | 4 | P0-01 | yes |
@@ -44,6 +47,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-08](wave-02/P1-08-parse-agent-markdown-into-the-rich-text.md) | Parse agent markdown into the rich text tree | backend | 3 | P0-03 | yes |
 | [P1-09](wave-02/P1-09-add-the-verify-suite-runner-to-the.md) | Add the verify suite runner to the CLI | backend | 3 | P0-04, P1-02, P0-03 | yes |
 | [P10-04](wave-02/P10-04-store-extensions-in-userdo.md) | Store extensions in UserDO | backend | 3 | P10-02 | yes |
+| [P11-04](wave-02/P11-04-start-every-run-from-memory.md) | Start every run from memory | backend | 4 | P11-02, P11-03 | yes |
+| [P11-06](wave-02/P11-06-show-the-life-log.md) | Show the life log | frontend | 3 | P11-03 | yes |
 | [P2-02](wave-02/P2-02-build-the-app-shell-and-the-routes.md) | Build the app shell and the routes | frontend | 3 | P0-02, P0-14 | yes |
 | [P2-05](wave-02/P2-05-build-the-indexeddb-warm-tier.md) | Build the IndexedDB warm tier | frontend | 4 | P0-02, P0-03 | yes |
 | [P3-01](wave-02/P3-01-port-the-typing-indicator.md) | Port the typing indicator | frontend | 3 | P2-01 | yes |
@@ -64,6 +69,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P1-05](wave-03/P1-05-build-the-user-object-the-chat-index.md) | Build the user object, the chat index, and the user socket | backend | 3 | P1-03 | yes |
 | [P1-06](wave-03/P1-06-build-the-agent-host.md) | Build the agent host | backend | 5 | P0-05, P0-07, P1-01 | yes |
 | [P10-07](wave-03/P10-07-build-the-extensions-settings-page.md) | Build the extensions settings page | frontend | 3 | P10-04 | yes |
+| [P11-05](wave-03/P11-05-measure-memory-with-an-eval.md) | Measure memory with an eval | backend | 3 | P11-04 | yes |
 | [P2-03](wave-03/P2-03-build-the-html-shell-and-split-the.md) | Build the HTML shell and split the bundle by tier | frontend | 4 | P2-02 | yes |
 | [P2-04](wave-03/P2-04-build-the-horizontal-tab-strip.md) | Build the horizontal tab strip | frontend | 3 | P2-01, P2-02 | yes |
 | [P2-06](wave-03/P2-06-build-the-sync-client-with-optimistic-patches.md) | Build the sync client with optimistic patches | frontend | 5 | P2-05 | yes |

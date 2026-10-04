@@ -1,5 +1,5 @@
 import { isAgentSlug, tagline } from "@kiko/protocol"
-import type { AgentSlug, AgentState, Chat, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, TaskOp } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, Sender, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
@@ -59,8 +59,6 @@ const NAPS_PER_PASS = 24
  * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
  * back. `role` and `lead` are the member row at that delivery; the agent builds its prompt from them.
  */
-/** What `check_agent` shows of a member. */
-export type AgentCheck = Pick<MemberRow, "slug" | "name" | "role" | "lead" | "status" | "currentTask"> & { doing: string | null; holds: string[] }
 
 /** What an agent learns about itself on every delivery. `private` is the chat's flag (section 7.10). */
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
@@ -215,9 +213,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** RPC for kiko's create tool. Makes what was proposed, once the human has answered. */
+	/** The id of the newest stored proposal, or null. */
+	private newestProposal(): string | null {
+		const rows = this.ctx.storage.sql.exec<{ value: string }>("SELECT value FROM meta WHERE key LIKE 'proposal:%'").toArray()
+		const newest = rows.map((r) => JSON.parse(r.value) as Proposal).sort((a, b) => b.seq - a.seq)[0]
+		return newest?.id ?? null
+	}
+
 	async createProposal(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
 		const home = this.home()
 		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
+		// A run starts from memory, not from the last run's tool results (section 13), so kiko may not
+		// have the id. No id means the newest proposal.
+		id ||= this.newestProposal() ?? ""
 		const done = this.log.meta(`created:${id}`)
 		if (done) return { ok: true, text: done }
 		const raw = this.log.meta(`proposal:${id}`)
@@ -474,7 +482,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * RPC for an agent's `send_message` or `broadcast` (sections 7.5 and 7.7). Stores the message with
+	 * RPC for an agent's `send_message`, to one agent or to all (sections 7.5 and 7.7). Stores the message with
 	 * its addressee, then hands each recipient its envelope. `receive()` only stores, so this wait is
 	 * short and cannot deadlock. A repeated `send.id` stores nothing and delivers the same envelope ids,
 	 * which the inboxes ignore. A tripped limit returns the error the tool shows the agent.
@@ -630,11 +638,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const user = userStub(this.env.USER, home.userId)
 		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number) => user.lifeRollup(home.roomId, text, tainted, at)
 		const pass = async () => {
-			for (let i = 0; i < NAPS_PER_PASS; i++) {
-				const [span] = this.memory.pending(1)
-				if (!span) return
-				const out = await this.memory.nap(span, (prompt) => user.compress(prompt), rollup)
-				if (out.retryAt) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, out.retryAt))
+			// Two at a time, the most `compress` runs at once for one user.
+			for (let done = 0; done < NAPS_PER_PASS; done += 2) {
+				const spans = this.memory.pending(2)
+				if (!spans.length) return
+				const outs = await Promise.all(spans.map((span) => this.memory.nap(span, (prompt) => user.compress(prompt), rollup)))
+				const retryAt = outs.find((o) => o.retryAt)?.retryAt
+				if (retryAt) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, retryAt))
 			}
 			await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 1_000)
 		}
@@ -657,12 +667,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const user = userStub(this.env.USER, home.userId)
 		const out = await this.memory.rollupQuiet((prompt) => user.compress(prompt), (text, tainted, at) => user.lifeRollup(home.roomId, text, tainted, at))
 		if (out.retryAt) await this.alarms.setWakeup(QUIET_WAKEUP, out.retryAt)
-	}
-
-	/** RPC for an agent's `check_agent` (section 7.5). Reads the member row and calls no agent. */
-	async checkAgent(slug: AgentSlug): Promise<AgentCheck | null> {
-		const m = this.members.list().find((x) => x.slug === slug)
-		return m ? { slug: m.slug, name: m.name, role: m.role, lead: m.lead, status: m.status, currentTask: m.currentTask, doing: this.team.now(m.slug), holds: this.team.held(m.slug, Date.now()) } : null
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -1288,6 +1292,27 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	async storedRows(): Promise<number> {
 		return this.#wiped ? 0 : storedRows(this.ctx.storage)
+	}
+
+	/** Development only. Writes `turns` into the log with no burst and no run (`verify memory-eval`). Returns the turn count. */
+	async devSeed(turns: { from: string; text: string }[]): Promise<number> {
+		if (process.env.NODE_ENV !== "development") throw new Error("not found")
+		for (const [i, t] of turns.entries()) {
+			const from: Sender = t.from === "human" ? { kind: "human" } : { kind: "agent", slug: t.from as AgentSlug }
+			this.log.addMessage({ from, text: t.text, ...(from.kind === "agent" ? { run: { runId: `seed:${i}`, attempt: 0, index: 0 } } : {}) })
+		}
+		const count = this.memory.sync()
+		await this.armMemory()
+		return count
+	}
+
+	/** Development only. The room's log memory: turns, summaries still to make, and the view. */
+	async devMemory(): Promise<{ turns: number; pending: number; view: string }> {
+		if (process.env.NODE_ENV !== "development") throw new Error("not found")
+		const view = this.memory.view(Date.now())
+		const pending = this.memory.pending(1_000).length
+		if (pending) await this.armMemory()
+		return { turns: this.memory.count(), pending, view }
 	}
 
 	/** Development only. Makes `slug` a member and stores one message from it, for the deletion check. */

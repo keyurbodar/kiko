@@ -48,7 +48,7 @@ export function chiefExtension(port: ChiefPort): Extension {
   })
 
   const proposed = (out: { ok: true; id: string } | { ok: false; error: string }) =>
-    out.ok ? { content: text(`proposal ${out.id} saved. show it to the human in two or three lines and ask if you should make it. after their yes, create ${out.id}.`) } : fail(out.error)
+    out.ok ? { content: text(`proposal ${out.id} saved. show it to the human in two or three lines and ask if you should make it. after their yes, call create.`) } : fail(out.error)
 
   const proposeAgent = defineTool({
     name: "propose_agent",
@@ -73,11 +73,11 @@ export function chiefExtension(port: ChiefPort): Extension {
 
   const create = defineTool({
     name: "create",
-    description: "make what a proposal describes, after the human said yes to it. refused until they have answered.",
-    parameters: Type.Object({ proposal: Type.String({ description: "the proposal id" }) }),
+    description: "make what your newest proposal describes, after the human said yes to it. refused until they have answered.",
+    parameters: Type.Object({ proposal: Type.Optional(Type.String({ description: "a proposal id; leave it out for the newest" })) }),
     replay: "safe",
     execute: async ({ proposal }) => {
-      const out = await port.create(proposal.trim())
+      const out = await port.create((proposal ?? "").trim())
       return out.ok ? { content: text(out.text) } : fail(out.error)
     },
   })

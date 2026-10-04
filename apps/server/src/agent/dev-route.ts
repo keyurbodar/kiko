@@ -1,7 +1,7 @@
 import { type Envelope, isAgentSlug, isRoomId } from "@kiko/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
-import { agentStub, userStub } from "../lib/names"
+import { agentStub, roomStub, userStub } from "../lib/names"
 import { DEFAULT_AGENT } from "../room/room-do"
 import { MAX_MEMBERS } from "../room/members"
 
@@ -13,6 +13,11 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/limits  { limits }  -> { limits }   the session user's plan record (P9-01)
 //   GET  /api/dev/agent/children?roomId=        -> { children: [{ id, taskId }] }   (P6-05, `verify subagent`)
 //   POST /api/dev/agent/deliver { roomId, from, body, tainted }  -> { ok: true }
+//   POST /api/dev/agent/seed    { roomId, turns: [{ from, text }] }  -> { turns }   (section 13, `verify memory-eval`)
+//   POST /api/dev/agent/memory  { roomId }  -> { turns, pending, view }
+//
+// `seed` writes messages straight into the room's log, with no burst and no run, so a long chat costs
+// no tokens to set up. `from` is "human" or an agent slug. `memory` reports the room's log memory.
 //
 // `deliver` hands the room's agent one envelope from teammate `from`, as the room will once agents
 // message each other. The suite `injection` (P7-01) uses it for a tainted agent message.
@@ -27,7 +32,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (action !== "fake" && action !== "status" && action !== "children" && action !== "deliver" && action !== "limits") return null
+  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -46,9 +51,17 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (request.method !== "POST") return Response.json({ error: "method not allowed" }, { status: 405 })
   const user = await getSessionUser(request, env)
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-  const body = (await request.json().catch(() => null)) as { roomId?: unknown; slugs?: unknown; slug?: unknown; from?: unknown; body?: unknown; tainted?: unknown } | null
+  const body = (await request.json().catch(() => null)) as { roomId?: unknown; slugs?: unknown; slug?: unknown; from?: unknown; body?: unknown; tainted?: unknown; turns?: unknown } | null
   if (typeof body?.roomId !== "string" || !isRoomId(body.roomId)) return Response.json({ error: "bad room id" }, { status: 400 })
   const roomId = body.roomId
+  if (action === "seed") {
+    const turns = Array.isArray(body.turns) ? (body.turns as { from?: unknown; text?: unknown }[]) : []
+    if (!turns.length || turns.length > 5_000 || !turns.every((t) => typeof t.text === "string" && (t.from === "human" || (typeof t.from === "string" && isAgentSlug(t.from))))) {
+      return Response.json({ error: "bad turns" }, { status: 400 })
+    }
+    return Response.json({ turns: await roomStub(env.ROOM, user.id, roomId).devSeed(turns as { from: string; text: string }[]) })
+  }
+  if (action === "memory") return Response.json(await roomStub(env.ROOM, user.id, roomId).devMemory())
   if (action === "deliver") {
     if (typeof body.from !== "string" || !isAgentSlug(body.from) || typeof body.body !== "string") {
       return Response.json({ error: "bad envelope" }, { status: 400 })

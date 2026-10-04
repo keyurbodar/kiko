@@ -5,13 +5,13 @@ import type { Suite } from "../runner"
 import { send, ulid, until } from "./mid-run"
 
 // P6-03, architecture sections 7.5 and 7.7. Fake agents (apps/server/src/agent/dev-fake.ts) that
-// always answer each other, through the room's `send_message` and `broadcast` tools. No tokens.
+// always answer each other, through the room's `send_message` tool, to one agent or to all. No tokens.
 // Needs a development server.
 //
 //   two agents that echo each other forever stop at hop 8, with one system event in the chat
 //   five agents that broadcast to each other forever cause at most 40 agent deliveries for one root
 //   the agent whose send was refused answers the human with a bubble, which wakes nobody
-//   check_agent reads a member row and wakes nobody
+//   team reads what everyone is doing and wakes nobody
 
 const agentOf = (slug: string): Agent => ({ id: `team-loops-${slug}`, name: slug, slug: slug as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
 const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
@@ -27,7 +27,7 @@ type Status = { inbox: { waiting: number; claimed: number; submitted: number } }
 const events = (room: RoomHandle): RoomEvent[] =>
   room.raw.log.flatMap((e) => (e.dir === "in" && (e.frame as RoomToClient).t === "events" ? [...(e.frame as Extract<RoomToClient, { t: "events" }>).events] : []))
 export const messages = (room: RoomHandle): Message[] => events(room).flatMap((e) => (e.t === "message" ? [e as Message] : []))
-/** Messages agents sent with `send_message` or `broadcast`: an agent message that is not a run's bubble. */
+/** Messages agents sent with `send_message`: an agent message that is not a run's bubble. */
 export const agentSends = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && !m.run)
 export const bubbles = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && m.run)
 export const notices = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "system" && m.from.reason === "run_budget")
@@ -94,14 +94,12 @@ const suite: Suite = {
       expectEqual(await received(), 9, "envelopes the two inboxes stored")
       console.log(`  ok echo: 8 hops sent, hop 9 refused; notice: ${JSON.stringify(notices(room)[0]!.text)}`)
 
-      // check_agent reads the room and wakes nobody.
-      await send(room, "@ana [check ben]")
-      await until("ana's check", () => bubbles(room).some((m) => m.text.includes("status:")), 15_000)
+      // team reads the room and wakes nobody.
+      await send(room, "@ana [team]")
+      await until("ana's look at the team", () => bubbles(room).some((m) => m.text.includes("tool: @ben:")), 15_000)
       await Bun.sleep(1_500)
-      const check = bubbles(room).find((m) => m.text.includes("status:"))!
-      if (!check.text.includes("@ben (ben)")) throw new VerifyError(`check_agent answered ${JSON.stringify(check.text)}`)
-      expectEqual(await received(), 10, "envelopes after check_agent (only the human's)")
-      console.log("  ok check_agent: read ben's row, woke nobody")
+      expectEqual(await received(), 10, "envelopes after team (only the human's)")
+      console.log("  ok team: read what ben is doing, woke nobody")
       room.raw.close()
     }
 

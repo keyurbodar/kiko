@@ -194,10 +194,13 @@ export class RoomApprovals {
  * The decision as the agent reads it. Tainted, so the run it starts stays gated: an accepted card
  * lets exactly the approved call through, and nothing else outside kiko.
  */
-export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state">, seq: number): Envelope {
+export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state" | "args_key">, seq: number): Envelope {
+	// A run starts from memory, not from the last run's tool calls (section 13), so the arguments travel
+	// here. They are the stored key, so the call matches its card exactly.
+	const args = r.args_key.slice(r.tool.length + 1)
 	const body =
 		r.state === "accepted"
-			? `the human accepted ${r.tool} (approval ${r.id}, ${r.summary}). call ${r.tool} again with the same arguments now.`
+			? `the human accepted ${r.tool} (approval ${r.id}, ${r.summary}). call ${r.tool} again now with exactly these arguments: ${args}`
 			: r.state === "declined"
 				? `error: the human declined ${r.tool} (approval ${r.id}, ${r.summary}). do not call it again. tell the human you did not do it.`
 				: `error: approval ${r.id} for ${r.tool} expired before the human answered. ask the human again if it still matters.`

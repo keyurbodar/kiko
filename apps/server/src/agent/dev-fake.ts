@@ -29,8 +29,8 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [ws t {json}] the model calls workspace tool `t` with the JSON arguments (P6-02)
 //   [send s] x  the model calls `send_message` to `s` with `x` (P6-03)
 //   [echo]      in a teammate's message: the model sends `[echo]` back to that teammate, forever (P6-03)
-//   [shout]     the model calls `broadcast` with `[shout]`, from a human or a teammate, forever (P6-03)
-//   [check s]   the model calls `check_agent` on `s` (P6-03)
+//   [shout]     the model calls `send_message` to all with `[shout]`, from a human or a teammate, forever (P6-03)
+//   [team]      the model calls `team` (section 7.12)
 //
 // An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02).
 //
@@ -205,9 +205,8 @@ function teamCall(turn: string) {
   if (agent && agent[2]!.includes("[echo]")) return fauxToolCall("send_message", { to: agent[1]!, text: "[echo]" })
   const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
   if (send) return fauxToolCall("send_message", { to: send[1]!, text: send[2]! })
-  if (turn.includes("[shout]")) return fauxToolCall("broadcast", { text: "[shout]" })
-  const check = /\[check ([a-z0-9-]+)\]/.exec(turn)
-  return check ? fauxToolCall("check_agent", { slug: check[1]! }) : null
+  if (turn.includes("[shout]")) return fauxToolCall("send_message", { to: "all", text: "[shout]" })
+  return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
 export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals, scripts?: BuildAgentInput["scripts"]) {

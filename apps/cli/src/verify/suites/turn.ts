@@ -129,8 +129,9 @@ const suite: Suite = {
         await reconnect(user)
         reconnectedAt = Date.now()
       }
-      const n =touches(user, roomId).length
-      if (n > 0 && !touchedAt) touchedAt = Date.now()
+      // The human's own messages touch the chat list too, so the wait starts at the run's touch: after a bubble.
+      const n = touches(user, roomId).length
+      if (n > 0 && now.live.size > 0 && !touchedAt) touchedAt = Date.now()
       if (touchedAt && Date.now() - touchedAt > QUIET_MS) break
       await Bun.sleep(250)
       // A socket the restart closed reads nothing, so reconnect now and then. Each one replays from seq 0.
@@ -152,7 +153,8 @@ const suite: Suite = {
       live.map((_, i) => i),
       "the bubble indexes",
     )
-    expectEqual(touches(user, roomId).length, 1, "the touches of the chat list")
+    // The chat list is touched by every message now, the human's included; the run's own touch covers its last bubble.
+    expectEqual(Math.max(...touches(user, roomId)) >= live.at(-1)!.seq, true, "the chat list was touched after the last bubble")
     const chat = user.log
       .flatMap((e) => (e.dir === "in" && (e.frame as UserToClient).t === "events" ? (e.frame as Extract<UserToClient, { t: "events" }>).events : []))
       .filter((e) => e.t === "chat" && e.chat.roomId === roomId)

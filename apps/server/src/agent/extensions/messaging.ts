@@ -2,11 +2,11 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { AgentSlug } from "@kiko/protocol"
 import type { AgentSend } from "../../room/deliver"
-import type { AgentCheck, SpawnInput } from "../../room/room-do"
+import type { SpawnInput } from "../../room/room-do"
 import { declareEffect } from "../effects"
 import { isRunTainted } from "./trust"
 
-// Architecture sections 7.5 and 7.7. The team tools. Every agent message goes through `RoomDO`,
+// Architecture sections 7.5 and 7.7. The team tools: send_message, team, and for the lead spawn_agent. Every agent message goes through `RoomDO`,
 // which stores it in the log, delivers it, and enforces the loop limits. A plain reply bubble
 // wakes nobody, so an agent that answers a teammate must call `send_message`. The room sets the
 // sender, the hop, and the root; the tool only says who and what, and whether the run is tainted.
@@ -16,7 +16,6 @@ export const MESSAGING = "messaging"
 /** The room's side of the tools, bound to the calling agent. */
 export type MessagingPort = {
   send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
-  check(slug: AgentSlug): Promise<AgentCheck | null>
   spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
   /** What everyone in the room is doing now and the paths they hold (section 7.12). */
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
@@ -73,20 +72,13 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
         defineTool({
           name: "send_message",
           description:
-            "send a message to one agent in this room. it shows in the chat and wakes that agent. a plain reply wakes nobody, so use this to answer a teammate.",
-          parameters: Type.Object({ to: slug("the agent's slug, without @"), text: Type.String({ description: "the message" }), files }),
+            "send a message to one agent in this room, or to every other agent with to: all. it shows in the chat and wakes them. a plain reply wakes nobody, so use this to answer a teammate.",
+          parameters: Type.Object({ to: slug("the agent's slug, without @, or all"), text: Type.String({ description: "the message" }), files }),
           replay: "safe",
-          execute: async ({ to, text: body, files: paths }, api) => send(to.replace(/^@/, "") as AgentSlug, body, paths, api),
-        }),
-      ),
-      declareEffect(
-        "message",
-        defineTool({
-          name: "broadcast",
-          description: "send one message to every other agent in this room. it shows in the chat and wakes each of them.",
-          parameters: Type.Object({ text: Type.String({ description: "the message" }), files }),
-          replay: "safe",
-          execute: async ({ text: body, files: paths }, api) => send("all", body, paths, api),
+          execute: async ({ to, text: body, files: paths }, api) => {
+            const who = to.replace(/^@/, "").toLowerCase()
+            return send(who === "all" ? "all" : (who as AgentSlug), body, paths, api)
+          },
         }),
       ),
       declareEffect(
@@ -102,27 +94,6 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
             const line = (m: (typeof rows)[number]) =>
               `@${m.slug}: ${m.doing ?? m.status}${m.holds.length ? `, holding ${m.holds.map((p) => `/${p}`).join(", ")}` : ""}`
             return { content: text(rows.map(line).join("\n")) }
-          },
-        }),
-      ),
-      declareEffect(
-        "read",
-        defineTool({
-          name: "check_agent",
-          description: "read another agent's role, status, and current task from the room. it does not message or wake the agent.",
-          parameters: Type.Object({ slug: slug("the agent's slug, without @") }),
-          replay: "safe",
-          execute: async ({ slug: who }) => {
-            const m = await room().check(who.replace(/^@/, "") as AgentSlug)
-            if (!m) return { content: text(`no agent @${who} in this room`), isError: true }
-            const lines = [
-              `@${m.slug} (${m.name})${m.lead ? ", the lead" : ""}`,
-              `status: ${m.status}${m.doing ? `, now ${m.doing}` : ""}`,
-              ...(m.holds.length ? [`holding: ${m.holds.map((p) => `/${p}`).join(", ")}`] : []),
-              `current task: ${m.currentTask ?? "none"}`,
-              ...(m.role ? [`role: ${m.role}`] : []),
-            ]
-            return { content: text(lines.join("\n")) }
           },
         }),
       ),

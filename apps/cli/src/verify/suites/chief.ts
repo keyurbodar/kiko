@@ -82,7 +82,9 @@ const suite: Suite = {
     from = last(draft)
     t0 = Date.now()
     draft.send("yes, make it")
-    await until("the made line", () => messages(draft).some((m) => m.seq > from && m.goto), 90_000)
+    await until("the made line", () => messages(draft).some((m) => m.seq > from && m.goto), 90_000).catch((e) => {
+      throw new VerifyError(`${e instanceof Error ? e.message : e}. kiko said: ${JSON.stringify(kiko(draft, from).map((m) => m.text))}`)
+    })
     const made = messages(draft).find((m) => m.seq > from && m.goto)!
     const agent = agents()[0]
     if (!agent) throw new VerifyError("no agent was made")
@@ -105,8 +107,11 @@ const suite: Suite = {
     await until("kiko's group proposal", () => kiko(group, from).length > 0, 90_000)
     await quiet(group, 6_000, 90_000)
     console.log(`  group proposal: ${JSON.stringify(kiko(group, from).map((m) => m.text))}`)
+    from = last(group)
     group.send("yes")
-    await until("the temporary chat to become the group", () => chats().get(groupId) !== undefined && chats().get(groupId)?.temp === undefined, 120_000)
+    await until("the temporary chat to become the group", () => chats().get(groupId) !== undefined && chats().get(groupId)?.temp === undefined, 120_000).catch((e) => {
+      throw new VerifyError(`${e instanceof Error ? e.message : e}. kiko said: ${JSON.stringify(kiko(group, from).map((m) => m.text))}`)
+    })
     const members = new Set<string>()
     for (const entry of group.raw.log) {
       const f = entry.frame as RoomToClient

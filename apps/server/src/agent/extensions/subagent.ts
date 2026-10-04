@@ -1,6 +1,7 @@
 import { Type, type AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "../effects"
+import { MEMORY } from "./memory"
 import { MESSAGING } from "./messaging"
 
 // Architecture section 8. A private child conversation inside this agent's own object, from
@@ -25,8 +26,9 @@ export const Subagent: Extension = defineExtension({
 					const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items[0]
 					if (existing !== undefined) return existing.id
 					const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } })
-					// The child is private, so it gets no team tools either (P6-03). Removal is by name.
-					await configure(tx, created.id, { extensions: { remove: [Subagent, defineExtension({ name: MESSAGING })] } })
+					// The child is private, so it gets no team tools either (P6-03). It never writes memory: it
+					// cannot judge what is already known (OptMem's rule, section 13). Removal is by name.
+					await configure(tx, created.id, { extensions: { remove: [Subagent, defineExtension({ name: MESSAGING }), defineExtension({ name: MEMORY })] } })
 					return created.id
 				}, ctx)
 				await api.details({ conversationId: child }, ctx)

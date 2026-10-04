@@ -253,7 +253,7 @@ export class Bubbles {
 // a message sent during a run inherits that run's root, and the agent cannot set either number.
 // A plain reply bubble (`Bubbles.post`) goes through none of this, so it wakes nobody.
 
-/** One `send_message` or `broadcast` call. `id` is stable per tool call, so a repeat stores nothing. */
+/** One `send_message` call, to one agent or to all. `id` is stable per tool call, so a repeat stores nothing. */
 /** `files` are room paths, files or folders, handed over with the message. */
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean; files?: readonly string[] }
 
