@@ -43,7 +43,10 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
   // The id is the tool call, so a replayed call stores and delivers nothing new.
   const send = async (to: AgentSlug | "all", body: string, files: readonly string[] | undefined, api: Pick<ToolExecutionApi, "registry" | "conversationId" | "callId">) => {
     const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body, tainted: isRunTainted(api), ...(files?.length ? { files } : {}) })
-    return out.ok ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}`) } : { content: text(out.error), isError: true }
+    // The chat already shows the message, so a bubble saying it was sent is noise: [skip] posts nothing.
+    return out.ok
+      ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat. if that was all you had to say, reply with just [skip].`) }
+      : { content: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })
   const files = Type.Optional(

@@ -100,7 +100,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P11-04` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `test/team-routing.test.ts` covers an ask that closes before its answer.
+**Verify.** `bun kiko verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `bun kiko verify team-model` passes with the test model: kiko gets one fact each from ada and bob with `ask`, writes /walk.md with both, and every agent is woken once. `test/team-routing.test.ts` covers an ask that closes before its answer.
 
 **Goal.** Team work that needs an answer to go on takes one run, not a message, an end, and a second run.
 
