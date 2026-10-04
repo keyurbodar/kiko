@@ -1,8 +1,8 @@
 {
   "kiko": 1,
   "name": "decision-log",
-  "version": "1.0.0",
-  "description": "agents log each decision with its reason as a shared note, and always know the last five.",
+  "version": "1.1.0",
+  "description": "agents log each decision with its reason in /decisions.md, and always know the last five.",
   "tools": {
     "log_decision": {
       "description": "record a decision the human made or agreed to, with why",
@@ -17,10 +17,10 @@
       }
     }
   },
-  "calls": ["write_note"],
+  "calls": ["write"],
   "state": "room",
   "sections": { "recent": {} },
   "tests": [
-    { "tool": "log_decision", "args": { "decision": "ship friday", "why": "qa is done" }, "calls": { "write_note": "saved" }, "expect": "logged decision 1" }
+    { "tool": "log_decision", "args": { "decision": "ship friday", "why": "qa is done" }, "calls": { "write": "saved" }, "expect": "logged decision 1" }
   ]
 }

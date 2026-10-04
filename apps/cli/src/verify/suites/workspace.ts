@@ -10,7 +10,7 @@ import { send, ulid, until } from "./mid-run"
 // Needs a development server.
 //
 //   the human creates task A for ada, and the lead's create_task adds B for cy after A
-//   cy's claim of A fails and names the owner
+//   cy taking A fails and names the owner
 //   cy is not woken while A is open
 //   ada marks A done with update_task, and cy gets exactly one task_unblocked envelope
 //   finishing A again wakes nobody
@@ -70,13 +70,13 @@ const suite: Suite = {
 		await until("kiko's answer", () => bubbles(room, "kiko").length === 1, 15_000)
 		console.log(`  ok board: task-a for ada, ${b.id} for cy after task-a (kiko: ${JSON.stringify(bubbles(room, "kiko")[0])})`)
 
-		// 2. cy's claim of A fails and names the owner.
-		await send(room, `@cy [ws claim_task {"id":"task-a"}]`)
+		// 2. cy taking A fails and names the owner.
+		await send(room, `@cy [ws update_task {"id":"task-a","status":"doing"}]`)
 		await until("cy's answer", () => bubbles(room, "cy").length === 1, 15_000)
 		const refusal = bubbles(room, "cy")[0]!
-		if (!refusal.includes("owned by @ada")) throw new VerifyError(`cy's claim answer does not name the owner: ${refusal}`)
-		expectEqual(tasks(room).get("task-a")?.owner, "ada", "task a's owner after cy's claim")
-		console.log(`  ok claim refused: ${JSON.stringify(refusal)}`)
+		if (!refusal.includes("owned by @ada")) throw new VerifyError(`cy's answer does not name the owner: ${refusal}`)
+		expectEqual(tasks(room).get("task-a")?.owner, "ada", "task a's owner after cy tried to take it")
+		console.log(`  ok taking refused: ${JSON.stringify(refusal)}`)
 
 		// 3. cy is not woken while A is open.
 		await Bun.sleep(2_000)

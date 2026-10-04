@@ -26,12 +26,12 @@ extension.json (every key except kiko, name, version, description is optional)
   "sections": { "standup": { "text": "static instructions for the agent" }, "live": {} },
   "hooks": ["beforeTool", "afterTool", "onYield", "afterResponse"],
   "wraps": { "tools": ["write"], "sections": ["soul"] },
-  "calls": ["write_note"],                 // tools the script may call
+  "calls": ["update_task"],                // tools the script may call
   "egress": ["hooks.slack.com", "*.example.com"],
   "secrets": { "SLACK_PATH": { "hosts": ["hooks.slack.com"], "description": "where the human finds it" } },
   "state": "room",                         // user | room | agent
   "triggers": [{ "id": "morning", "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0", "send": "time for standup." }],
-  "tests": [{ "tool": "standup_post", "args": {}, "calls": { "write_note": "saved" }, "fetch": { "status": 200, "body": "ok" }, "expect": "posted" }]
+  "tests": [{ "tool": "standup_post", "args": {}, "calls": { "update_task": "updated" }, "fetch": { "status": 200, "body": "ok" }, "expect": "posted" }]
 }
 
 effects decide what the trust gate allows. read: only reads. write: changes kiko data. message: talks to agents. external: acts outside kiko. any tool may kiko.fetch a GET with no body (so a lookup like weather is "read"); sending anything (POST, PUT, a body) needs "external". a tool may kiko.call only tools its effect covers (read calls read; write calls read and write; message calls read and message; external calls anything). pick the smallest effect that works.
@@ -39,7 +39,7 @@ effects decide what the trust gate allows. read: only reads. write: changes kiko
 main.js (an es module; export only what the manifest lists)
 export const tools = {
   async standup_post({ extra }, kiko) {
-    const done = await kiko.call("write_note", { title: "standup", body: extra ?? "" })   // returns the tool's text
+    const done = await kiko.call("update_task", { id: "t1a2b3c", status: "done", note: extra ?? "" })   // returns the tool's text
     const res = await kiko.fetch("https://hooks.slack.com/services/{{secret.SLACK_PATH}}", { json: { text: "hi" } })
     // res: { status, headers, text, json? }. method defaults to GET, or POST with body/json. headers allowed.
     await kiko.state.set("last", kiko.now())  // get, set, delete, list(prefix). json values, 64 kb each

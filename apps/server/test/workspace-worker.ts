@@ -29,7 +29,7 @@ export class WorkspaceDO extends DurableObject {
 		return this.ws.pendingWakes()
 	}
 	async state() {
-		return { tasks: this.ws.tasks(), activity: this.ws.activity(50), notes: this.ws.notes(), brief: this.ws.briefTasks("cy" as AgentSlug) }
+		return { tasks: this.ws.tasks(), brief: this.ws.briefTasks("cy" as AgentSlug) }
 	}
 }
 

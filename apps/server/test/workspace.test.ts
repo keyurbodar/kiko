@@ -47,15 +47,15 @@ test("only the lead creates tasks, and a task needs known dependencies and membe
 	expect((await call(r, "bob", true, { op: "create_task", id: "a", title: "write it", owner: "ada" })).events).toEqual([])
 })
 
-test("claim_task on a task another agent owns fails and names the owner", async () => {
+test("taking a task another agent owns fails and names the owner; doing takes a free one", async () => {
 	const r = room()
 	await call(r, "bob", true, { op: "create_task", id: "a", title: "write it", owner: "ada" })
-	const refused = await call(r, "cy", false, { op: "claim_task", id: "a" })
+	const refused = await call(r, "cy", false, { op: "update_task", id: "a", status: "doing" })
 	expect(refused.answer.ok).toBe(false)
 	expect(refused.answer.error).toContain("owned by @ada")
 	expect(refused.events).toEqual([])
 	await call(r, "bob", true, { op: "create_task", id: "free", title: "anyone" })
-	const claimed = await call(r, "cy", false, { op: "claim_task", id: "free" })
+	const claimed = await call(r, "cy", false, { op: "update_task", id: "free", status: "doing" })
 	expect(claimed.events.map((e: any) => [e.task.owner, e.task.status])).toEqual([["cy", "doing"]])
 })
 
@@ -105,13 +105,3 @@ test("finishing the last dependency unblocks a task once, and a task cannot fini
 	expect((await call(r, "bob", true, { op: "update_task", id: "a2", status: "done" })).wakes).toEqual([])
 })
 
-test("updates and notes are stored, and a repeated update id stores one row", async () => {
-	const r = room()
-	await call(r, "ada", false, { op: "post_update", id: "u1", text: "halfway" })
-	await call(r, "ada", false, { op: "post_update", id: "u1", text: "halfway" })
-	await call(r, "ada", false, { op: "write_note", title: "plan", body: "one" })
-	await call(r, "cy", false, { op: "write_note", title: "plan", body: "two" })
-	const s = await state(r)
-	expect(s.activity.map((a: any) => [a.actor, a.text])).toEqual([["agent:ada", "halfway"]])
-	expect(s.notes.map((x: any) => [x.title, x.body, x.author])).toEqual([["plan", "two", "agent:cy"]])
-})

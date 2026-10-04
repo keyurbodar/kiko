@@ -144,6 +144,12 @@ const MIGRATIONS: readonly string[] = [
 	-- A message written by a run that read outside content (section 16). Log memory marks what is built from it.
 	ALTER TABLE messages ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0;
 	`,
+	`
+	-- The activity log and shared notes were written by agents and read by nobody. A run's trace line in
+	-- memory (section 13) says what an agent did, and /chat.md holds decisions.
+	DROP TABLE IF EXISTS ws_activity;
+	DROP TABLE IF EXISTS ws_notes;
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

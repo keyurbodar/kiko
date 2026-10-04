@@ -30,14 +30,14 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
   },
   {
     "name": "decision-log",
-    "version": "1.0.0",
-    "description": "agents log each decision with its reason as a shared note, and always know the last five.",
+    "version": "1.1.0",
+    "description": "agents log each decision with its reason in /decisions.md, and always know the last five.",
     "bundle": {
       "manifest": {
         "kiko": 1,
         "name": "decision-log",
-        "version": "1.0.0",
-        "description": "agents log each decision with its reason as a shared note, and always know the last five.",
+        "version": "1.1.0",
+        "description": "agents log each decision with its reason in /decisions.md, and always know the last five.",
         "tools": {
           "log_decision": {
             "description": "record a decision the human made or agreed to, with why",
@@ -60,7 +60,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
           }
         },
         "calls": [
-          "write_note"
+          "write"
         ],
         "state": "room",
         "sections": {
@@ -74,14 +74,14 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
               "why": "qa is done"
             },
             "calls": {
-              "write_note": "saved"
+              "write": "saved"
             },
             "expect": "logged decision 1"
           }
         ]
       },
       "files": {
-        "main.js": "const KEY = \"decisions\"\n\nexport const tools = {\n  async log_decision({ decision, why }, kiko) {\n    const all = (await kiko.state.get(KEY)) ?? []\n    const day = new Date(kiko.now()).toISOString().slice(0, 10)\n    all.push({ decision, why, day })\n    await kiko.state.set(KEY, all.slice(-200))\n    const body = all.map((d, i) => `${i + 1}. ${d.day}: ${d.decision} (because ${d.why})`).join(\"\\n\")\n    await kiko.call(\"write_note\", { title: \"decisions\", body })\n    return `logged decision ${all.length}`\n  },\n}\n\nexport const sections = {\n  async recent(kiko) {\n    const all = (await kiko.state.get(KEY)) ?? []\n    if (!all.length) return undefined\n    const last = all.slice(-5).map((d) => `- ${d.day}: ${d.decision} (because ${d.why})`)\n    return `the latest decisions in this chat, oldest first. call log_decision when a new one is made.\\n${last.join(\"\\n\")}`\n  },\n}\n"
+        "main.js": "const KEY = \"decisions\"\n\nexport const tools = {\n  async log_decision({ decision, why }, kiko) {\n    const all = (await kiko.state.get(KEY)) ?? []\n    const day = new Date(kiko.now()).toISOString().slice(0, 10)\n    all.push({ decision, why, day })\n    await kiko.state.set(KEY, all.slice(-200))\n    const body = all.map((d, i) => `${i + 1}. ${d.day}: ${d.decision} (because ${d.why})`).join(\"\\n\")\n    await kiko.call(\"write\", { path: \"/decisions.md\", content: `# decisions\\n\\n${body}\\n` })\n    return `logged decision ${all.length}`\n  },\n}\n\nexport const sections = {\n  async recent(kiko) {\n    const all = (await kiko.state.get(KEY)) ?? []\n    if (!all.length) return undefined\n    const last = all.slice(-5).map((d) => `- ${d.day}: ${d.decision} (because ${d.why})`)\n    return `the latest decisions in this chat, oldest first. call log_decision when a new one is made.\\n${last.join(\"\\n\")}`\n  },\n}\n"
       }
     }
   },

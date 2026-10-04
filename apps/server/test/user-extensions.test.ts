@@ -216,7 +216,6 @@ describe("the catalog", () => {
 
   test("every catalog extension passes extension_check with its own tests", async () => {
     const tools = new Map([
-      ["write_note", "write" as const],
       ["write", "write" as const],
     ])
     for (const entry of EXTENSION_CATALOG) {

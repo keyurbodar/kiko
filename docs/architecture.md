@@ -64,7 +64,7 @@ Worker "kiko" (stateless)
   |- queue consumer <- Queues (post-processing jobs)
   v
 UserDO   user:<userId>                    credentials, life log, reminders, chat index, skills, limits
-RoomDO   room:<userId>:<roomId>           chat log and its memory tree, members, debounce, fan-out, task board, notes, file index
+RoomDO   room:<userId>:<roomId>           chat log and its memory tree, members, debounce, fan-out, task board, file index
 AgentDO  agent:<userId>:<roomId>:<slug>   pi-durable harness, inbox, private notes, status
 ```
 
@@ -79,7 +79,7 @@ AgentDO  agent:<userId>:<roomId>:<slug>   pi-durable harness, inbox, private not
 | Class | One per | Owns | WebSockets |
 | --- | --- | --- | --- |
 | `UserDO` | user | encrypted credentials, provider settings, the life log, reminders, chat index, skills, limits, Executor tokens | yes, hibernatable |
-| `RoomDO` | chat | message log, reactions, members, pending human burst, loop counters, task board, activity log, notes, file index | yes, hibernatable |
+| `RoomDO` | chat | message log, reactions, members, pending human burst, loop counters, task board, the memory tree, file index | yes, hibernatable |
 | `AgentDO` | agent in a chat | the `pi-durable` storage for that agent, inbox, private notes | no |
 
 Every chat is a room. A chat with one agent is a room with one member. There is no separate code path for a direct chat. This follows the principle of redesigning from first principles: the team requirement is treated as the base case, and the single-agent chat is the smallest team.
@@ -296,9 +296,8 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 | `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
-| `claim_task(id)`, `update_task(id, status, note)`, `post_update(text)` | every agent | task board and activity log |
+| `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
 | `read`, `write`, `edit` (`pi-durable`'s own), `ls`, `mv`, `cp`, `rm` | every agent | the chat's files, a Linux-like tree rooted at `/` (section 18.1) |
-| `write_note(title, body)` | every agent | shared notes and decisions |
 | `create_task(title, owner, depends_on)` | lead | task board |
 | `spawn_agent(slug, role, task)` | lead | adds a member, creates its first task, delivers the task |
 | `spawn_subagent(task)` | every agent | section 8 |

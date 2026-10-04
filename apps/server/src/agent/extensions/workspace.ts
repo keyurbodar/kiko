@@ -6,13 +6,14 @@ import type { AgentHome } from "../../room/room-do"
 import { TASK_STATUSES, type WorkspaceAnswer, type WorkspaceCall } from "../../room/workspace"
 import { declareEffect } from "../effects"
 
-// Architecture sections 7.5 and 7.6. The task board, activity log, and notes as agent tools. Every
+// Architecture sections 7.5 and 7.6. The task board as agent tools. Every
 // tool calls the room's `Workspace` through a `WorkspacePort`, which `AgentDO` binds to its own room
 // and slug, so a tool can never act as another agent or in another room. The room reads the caller's
 // lead flag from its member row; `create_task` is offered only to the lead and refused for anyone else.
 //
-// A replayed call is harmless: `create_task` and `post_update` draw their id once per call with
-// `api.memo`, and the room stores nothing for a repeated id. Claims and updates are idempotent.
+// A replayed call is harmless: `create_task` draws its id once per call with `api.memo`, and the room
+// stores nothing for a repeated id. Updates are idempotent. Decisions go in /chat.md, and what an agent
+// did is its run's trace line in memory (section 13), so neither needs a tool here.
 
 export const WORKSPACE = "workspace"
 
@@ -27,18 +28,10 @@ const answer = (a: WorkspaceAnswer) => (a.ok ? { content: text(a.text) } : { con
 const newTaskId = () => `t${crypto.randomUUID().replaceAll("-", "").slice(0, 6)}`
 
 export function workspaceExtension(port: WorkspacePort, lead: boolean): Extension {
-  const claimTask = defineTool({
-    name: "claim_task",
-    description: "take a task on the board as yours. it fails if another agent owns it.",
-    parameters: Type.Object({ id: Type.String({ description: "the task id, such as t1a2b3c" }) }),
-    replay: "safe",
-    execute: async (args) => answer(await port.call({ op: "claim_task", id: args.id })),
-  })
-
   const updateTask = defineTool({
     name: "update_task",
     description:
-      "change the status of a task you own, with an optional short note. use review when your part is ready for the lead, done when it is finished.",
+      "take a task nobody owns by setting it to doing, or change the status of a task you own, with an optional short note. use review when your part is ready for the lead, done when it is finished.",
     parameters: Type.Object({
       id: Type.String(),
       status: Type.Union(TASK_STATUSES.map((s) => Type.Literal(s))),
@@ -46,25 +39,6 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
     }),
     replay: "safe",
     execute: async (args) => answer(await port.call({ op: "update_task", id: args.id, status: args.status, ...(args.note ? { note: args.note } : {}) })),
-  })
-
-  const postUpdate = defineTool({
-    name: "post_update",
-    description: "add one line to the team's activity log, such as progress on a task. it wakes nobody.",
-    parameters: Type.Object({ text: Type.String(), task_id: Type.Optional(Type.String()) }),
-    replay: "safe",
-    execute: async (args, api, context) => {
-      const id = await api.memo("activity-id", crypto.randomUUID(), context)
-      return answer(await port.call({ op: "post_update", id, text: args.text, ...(args.task_id ? { taskId: args.task_id } : {}) }))
-    },
-  })
-
-  const writeNote = defineTool({
-    name: "write_note",
-    description: "save a shared note or decision under a title. writing the same title again replaces it.",
-    parameters: Type.Object({ title: Type.String(), body: Type.String() }),
-    replay: "safe",
-    execute: async (args) => answer(await port.call({ op: "write_note", title: args.title, body: args.body })),
   })
 
   const createTask = defineTool({
@@ -84,10 +58,7 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
   })
 
   const tools = [
-    declareEffect("write", claimTask),
     declareEffect("write", updateTask),
-    declareEffect("write", postUpdate),
-    declareEffect("write", writeNote),
     ...(lead ? [declareEffect("write", createTask)] : []),
   ]
   return defineExtension({ name: WORKSPACE, tools })

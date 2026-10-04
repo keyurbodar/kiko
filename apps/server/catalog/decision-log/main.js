@@ -7,7 +7,7 @@ export const tools = {
     all.push({ decision, why, day })
     await kiko.state.set(KEY, all.slice(-200))
     const body = all.map((d, i) => `${i + 1}. ${d.day}: ${d.decision} (because ${d.why})`).join("\n")
-    await kiko.call("write_note", { title: "decisions", body })
+    await kiko.call("write", { path: "/decisions.md", content: `# decisions\n\n${body}\n` })
     return `logged decision ${all.length}`
   },
 }

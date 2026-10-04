@@ -1,11 +1,11 @@
 import type { Actor, AgentSlug, Envelope, RoomEvent, RoomId, Task, TaskOp, TaskStatus } from "@kiko/protocol"
 import { actorKey, type RoomLog } from "./log"
 
-// Architecture sections 4.3, 7.5, and 7.6. The team's task board, activity log, and shared notes.
+// Architecture sections 4.3, 7.5, and 7.6. The team's task board.
 // The tables carry a `ws_` prefix and every caller goes through `Workspace`, so the workspace can move
 // to its own class later with no change to tool code. Each write runs in one transaction with the room
 // events it causes and returns them; the caller publishes. Every board change is a `task` or
-// `task_removed` event, so the client stays live. Activity and notes are not on the wire yet.
+// `task_removed` event, so the client stays live.
 //
 // A task that becomes `done` marks each task whose dependencies are now all done as unblocked. The room
 // delivers one `task_unblocked` envelope with the id `unblocked:<taskId>` to its owner and records the
@@ -18,14 +18,10 @@ const CLOSED: ReadonlySet<TaskStatus> = new Set(["done", "cancelled"])
 export const MAX_TASKS = 200
 const MAX_TITLE = 200
 const MAX_NOTE = 2_000
-const MAX_NOTE_BODY = 16_000
 const MAX_DEPS = 20
 
 export type WorkspaceCall =
-	| { op: "claim_task"; id: string }
 	| { op: "update_task"; id: string; status?: string; note?: string }
-	| { op: "post_update"; id: string; text: string; taskId?: string }
-	| { op: "write_note"; title: string; body: string }
 	| { op: "create_task"; id: string; title: string; owner?: string; dependsOn?: readonly string[] }
 
 /** What a tool gets back. `text` and `error` are for a model to read. */
@@ -33,8 +29,6 @@ export type WorkspaceAnswer = { ok: true; text: string } | { ok: false; error: s
 
 type Result<T> = { ok: true; value: T; events: RoomEvent[] } | { ok: false; error: string }
 
-export type Note = { title: string; body: string; author: string; at: number }
-export type Activity = { id: string; at: number; actor: string; taskId: string | null; text: string }
 export type Wake = { taskId: string; owner: AgentSlug; title: string; seq: number }
 
 type TaskRow = { id: string; title: string; status: string; owner: string | null; note: string | null }
@@ -52,10 +46,6 @@ export interface Workspace {
 	update(by: Actor, id: string, patch: { title?: string; status?: string; owner?: string | null; note?: string }, members: readonly AgentSlug[], lead: boolean): Result<Task>
 	claim(slug: AgentSlug, id: string): Result<Task>
 	remove(id: string): Result<null>
-	postUpdate(by: Actor, id: string, text: string, taskId?: string): Result<Activity>
-	writeNote(by: Actor, title: string, body: string): Result<Note>
-	notes(): Note[]
-	activity(limit: number): Activity[]
 	pendingWakes(): Wake[]
 	markWoken(taskId: string): void
 }
@@ -176,12 +166,6 @@ export class RoomWorkspace implements Workspace {
 		return this.log.append(actorKey(by), { t: "task", task })
 	}
 
-	private activityRow(by: Actor, id: string, text: string, taskId: string | null): Activity {
-		const row = { id, at: this.now(), actor: actorKey(by), taskId, text }
-		this.sql.exec("INSERT OR IGNORE INTO ws_activity (id, at, actor, task_id, text) VALUES (?, ?, ?, ?, ?)", row.id, row.at, row.actor, taskId, text)
-		return row
-	}
-
 	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[]): Result<Task> {
 		return this.storage.transactionSync(() => {
 			const title = clip(input.title, MAX_TITLE)
@@ -211,7 +195,6 @@ export class RoomWorkspace implements Workspace {
 				this.now(),
 			)
 			for (const d of deps) this.sql.exec("INSERT INTO ws_task_deps (task_id, depends_on) VALUES (?, ?)", input.id, d)
-			this.activityRow(by, `create:${input.id}`, `created ${input.id}: ${title}`, input.id)
 			const task = this.task(input.id)!
 			return { ok: true as const, value: task, events: [this.emit(by, task)] }
 		})
@@ -229,7 +212,7 @@ export class RoomWorkspace implements Workspace {
 			if (!current) return fail(`no task ${id}`)
 			// Section 7.6: an agent changes its own tasks. The lead reviews anyone's, and the human outranks both.
 			if (by.kind === "agent" && !lead && current.owner !== by.slug) {
-				return fail(current.owner ? `task ${id} is owned by @${current.owner}` : `task ${id} has no owner. claim it first`)
+				return fail(current.owner ? `task ${id} is owned by @${current.owner}` : `task ${id} has no owner. set it to doing to take it`)
 			}
 			if (patch.status !== undefined && !isStatus(patch.status)) return fail(`status must be one of ${TASK_STATUSES.join(", ")}`)
 			const status = (patch.status as TaskStatus | undefined) ?? current.status
@@ -247,9 +230,6 @@ export class RoomWorkspace implements Workspace {
 			if (JSON.stringify(next) === JSON.stringify(current)) return { ok: true as const, value: current, events: [] }
 			this.sql.exec("UPDATE ws_tasks SET title = ?, status = ?, owner = ?, note = ?, updated_at = ? WHERE id = ?", title, status, owner, note, this.now(), id)
 			const events = [this.emit(by, next)]
-			if (status !== current.status) {
-				this.activityRow(by, `status:${id}:${events[0]!.seq}`, `${id} is ${status}${note && note !== current.note ? `: ${note}` : ""}`, id)
-			}
 			if (status === "done" && current.status !== "done") this.markUnblocked(id, events[0]!.seq)
 			return { ok: true as const, value: next, events }
 		})
@@ -278,7 +258,6 @@ export class RoomWorkspace implements Workspace {
 			this.sql.exec("UPDATE ws_tasks SET owner = ?, status = ?, updated_at = ? WHERE id = ?", slug, status, this.now(), id)
 			const next: Task = { ...current, owner: slug, status }
 			const event = this.emit({ kind: "agent", slug }, next)
-			this.activityRow({ kind: "agent", slug }, `claim:${id}:${event.seq}`, `claimed ${id}`, id)
 			return { ok: true as const, value: next, events: [event] }
 		})
 	}
@@ -290,40 +269,6 @@ export class RoomWorkspace implements Workspace {
 			this.sql.exec("DELETE FROM ws_task_deps WHERE task_id = ? OR depends_on = ?", id, id)
 			return { ok: true as const, value: null, events: [this.log.append("human", { t: "task_removed", id })] }
 		})
-	}
-
-	postUpdate(by: Actor, id: string, text: string, taskId?: string): Result<Activity> {
-		const body = clip(text, MAX_NOTE)
-		if (!body) return fail("an update needs text")
-		if (taskId && !this.task(taskId)) return fail(`no task ${taskId}`)
-		return { ok: true, value: this.activityRow(by, id, body, taskId ?? null), events: [] }
-	}
-
-	writeNote(by: Actor, title: string, body: string): Result<Note> {
-		const t = clip(title, MAX_TITLE)
-		if (!t) return fail("a note needs a title")
-		const note = { title: t, body: (body ?? "").slice(0, MAX_NOTE_BODY), author: actorKey(by), at: this.now() }
-		// ASSUMPTION: a note is identified by its title, and writing it again replaces the body.
-		this.sql.exec(
-			"INSERT INTO ws_notes (title, body, author, at) VALUES (?, ?, ?, ?) ON CONFLICT(title) DO UPDATE SET body = excluded.body, author = excluded.author, at = excluded.at",
-			note.title,
-			note.body,
-			note.author,
-			note.at,
-		)
-		return { ok: true, value: note, events: [] }
-	}
-
-	notes(): Note[] {
-		return this.sql.exec<Note>("SELECT title, body, author, at FROM ws_notes ORDER BY at, title").toArray()
-	}
-
-	activity(limit: number): Activity[] {
-		return this.sql
-			.exec<{ id: string; at: number; actor: string; task_id: string | null; text: string }>("SELECT * FROM ws_activity ORDER BY at DESC, rowid DESC LIMIT ?", limit)
-			.toArray()
-			.reverse()
-			.map((r) => ({ id: r.id, at: r.at, actor: r.actor, taskId: r.task_id, text: r.text }))
 	}
 
 	pendingWakes(): Wake[] {
@@ -365,14 +310,15 @@ export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: Wor
 	const done = <T>(r: Result<T>, text: (v: T) => string) =>
 		r.ok ? { answer: { ok: true as const, text: text(r.value) }, events: r.events } : { answer: fail(r.error), events: [] }
 	switch (call.op) {
-		case "claim_task":
-			return done(ws.claim(slug, call.id), (t) => `claimed ${line(t)}`)
-		case "update_task":
+		case "update_task": {
+			// Taking a task nobody owns is moving it to doing: one tool, not a claim and an update.
+			const current = ws.task(call.id)
+			if (current && !current.owner && !lead && (call.status === undefined || call.status === "doing")) {
+				const claimed = ws.claim(slug, call.id)
+				if (!claimed.ok || call.note === undefined) return done(claimed, (t) => `took ${line(t)}`)
+			}
 			return done(ws.update(by, call.id, { status: call.status, note: call.note }, members, lead), (t) => `updated ${line(t)}`)
-		case "post_update":
-			return done(ws.postUpdate(by, call.id, call.text, call.taskId), () => "posted")
-		case "write_note":
-			return done(ws.writeNote(by, call.title, call.body), (n) => `saved note "${n.title}"`)
+		}
 		case "create_task":
 			if (!lead) return { answer: fail("only the lead creates tasks"), events: [] }
 			return done(ws.create(by, call, members), (t) => `created ${line(t)}`)
