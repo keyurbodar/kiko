@@ -51,6 +51,13 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         const id = activeId()
         if (id) closeChat(id, id, navigate)
       },
+      goToChat: (n) => {
+        // The sidebar's order: pinned tiles first, then the list.
+        const rows = useApp.bots()
+        const row = [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)][n - 1]
+        if (row) navigate(`/chat/${row.id}`)
+      },
+      chatCount: () => useApp.bots().length,
       reopenClosed: () => {
         const id = openTabs.takeClosed((id) => !!useApp.chat(id))
         if (id) navigate(`/chat/${id}`)

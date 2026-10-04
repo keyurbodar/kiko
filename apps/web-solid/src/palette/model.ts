@@ -2,7 +2,7 @@ import { commands, isEnabled, type Command } from "../commands/registry"
 
 /** The palette's rows: enabled commands in registry order. The palette hides itself. */
 export function paletteRows(list: readonly Command[] = commands()): Command[] {
-  return list.filter((c) => c.group !== "palette" && isEnabled(c))
+  return list.filter((c) => c.group !== "palette" && !c.unlisted && isEnabled(c))
 }
 
 /** Registry icon names to names in the ui icon set. */

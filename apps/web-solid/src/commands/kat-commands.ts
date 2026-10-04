@@ -22,6 +22,10 @@ export function katCommands(deps: {
   rename: () => void
   togglePin: () => void
   deleteChat: () => void
+  /** Opens the nth chat (from 1) in the sidebar's order. */
+  goToChat: (n: number) => void
+  /** How many chats the sidebar lists. */
+  chatCount: () => number
   /** The open chat may be pinned, unpinned, or deleted: it is not the kiko chat. */
   canMove: () => boolean
 }): Command[] {
@@ -38,6 +42,18 @@ export function katCommands(deps: {
     { id: "chat.close", title: "chat: close", group: "chat", icon: "close", shortcut: "Mod+W", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "chat: delete", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
     { id: "chats.go", title: "chats: go to chat...", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },
+    // ⌘1 to ⌘9 open the sidebar's chats in order, pinned first, as kat does.
+    ...Array.from({ length: 9 }, (_, i): Command => ({
+      id: `chats.go-${i + 1}`,
+      title: "chats: go to chat",
+      group: "chats",
+      icon: "chat",
+      shortcut: `Mod+${i + 1}`,
+      global: true,
+      unlisted: true,
+      when: () => deps.chatCount() > i,
+      run: () => deps.goToChat(i + 1),
+    })),
     { id: "palette.open", title: "palette: open", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
   ]
 }

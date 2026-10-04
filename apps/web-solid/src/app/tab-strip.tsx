@@ -138,6 +138,8 @@ export function TabStrip() {
               <span
                 class="flex min-w-0 flex-1 items-center gap-[6px]"
                 data-component="tab-identity"
+                data-hint={active() ? "chat.info" : undefined}
+                data-hint-label="chat info"
                 data-info-toggle={active() ? "" : undefined}
                 aria-expanded={active() ? infoOpen() : undefined}
                 title={active() ? "chat info" : undefined}

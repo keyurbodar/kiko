@@ -26,6 +26,8 @@ export interface Command {
   global?: boolean
   /** The key is not consumed: a dialog above still gets it. For Escape, which every layer uses. */
   passive?: boolean
+  /** Left out of the palette; the key and its on-screen hint still work. For numbered jumps. */
+  unlisted?: boolean
   /** Enabled while this returns true. Absent means always enabled. */
   when?: () => boolean
   run: () => void

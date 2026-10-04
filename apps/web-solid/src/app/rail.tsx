@@ -26,6 +26,9 @@ export function Rail(props: { collapsed: boolean; onToggleSidebar: () => void })
         ref={intentRef(() => preloadRoute(href))}
         data-component="sidebar-rail-tab"
         data-panel={id}
+        data-hint={id === "settings" ? "settings.open" : undefined}
+        data-hint-label="settings"
+        data-hint-side="right"
         data-active={active() === id ? "" : undefined}
         aria-label={label}
         aria-current={active() === id ? "page" : undefined}
@@ -47,6 +50,8 @@ export function Rail(props: { collapsed: boolean; onToggleSidebar: () => void })
           class="rail-tab"
           data-component="sidebar-toggle"
           aria-label="toggle sidebar"
+          data-hint="view.toggle-sidebar"
+          data-hint-side="right"
           aria-expanded={!props.collapsed}
           aria-keyshortcuts="Control+S Meta+S"
           onClick={() => props.onToggleSidebar()}

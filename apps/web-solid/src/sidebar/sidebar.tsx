@@ -227,7 +227,7 @@ function HeaderAction(props: { action: PanelAction }) {
     >
       {(items) => (
         <MenuV2 gutter={6} placement="bottom-end">
-          <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label}>
+          <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="new chat">
             <PlusIcon />
           </MenuV2.Trigger>
           <MenuV2.Portal>

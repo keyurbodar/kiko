@@ -151,6 +151,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
           <button
             type="button"
             class="composer-attach"
+            data-hint="chat.attach"
+            data-hint-side="left"
             disabled={state.mode === "shell"}
             title={i18n.t("ui.promptInput.add")}
             onClick={() => props.controller.attach()}

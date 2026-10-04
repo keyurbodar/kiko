@@ -13,6 +13,9 @@ import { infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
+import { hintsShown, watchHold } from "../commands/hints";
+// The shortcut pills load on the first modifier press, with the palette, so the hold shows them at once.
+const HintLayer = lazy(() => import("../commands/HintLayer"));
 import { Sidebar } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
 import { Rail } from "./rail";
@@ -140,11 +143,13 @@ export function Shell(props: ParentProps) {
     if (infoOpen()) void loadInfoPanel();
     else if (idle) idle(() => void loadInfoPanel());
   });
+  onMount(() => onCleanup(watchHold()));
   // Preload tier 3 on the first modifier key so the palette opens in one frame.
   onMount(() => {
     const on = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
       preloadPalette();
+      void HintLayer.preload();
       window.removeEventListener("keydown", on, true);
     };
     window.addEventListener("keydown", on, true);
@@ -192,6 +197,11 @@ export function Shell(props: ParentProps) {
           </div>
         </main>
         <Palette />
+        <Show when={hintsShown()}>
+          <Suspense>
+            <HintLayer />
+          </Suspense>
+        </Show>
         <ToastV2.Region />
         <Suspense>
           <FirstLook />

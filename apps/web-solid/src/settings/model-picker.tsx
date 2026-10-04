@@ -107,6 +107,8 @@ export function ModelPickerButton(props: { chatId: string | null }) {
           type="button"
           class="flex h-7 max-w-[200px] shrink-0 items-center gap-1 rounded-[9px] px-2 text-xs text-muted outline-none hover:bg-[var(--tab-bg-hover)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           data-component="model-picker-button"
+          data-hint="chat.model"
+          data-hint-label="model"
           aria-label="choose model"
           title="choose model"
           onClick={() => setPickerOpen(true)}

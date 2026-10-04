@@ -88,13 +88,13 @@ function ChatMenuItems(props: { id: string }) {
 }
 
 /** The pinned block: a circle, a dot when unread, a name clamped to two lines. */
-function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void }) {
+function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void; hint?: string }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = createSignal(false)
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   return (
     <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
-      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id}>
+      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id} data-hint={props.hint} data-hint-label="chat" data-hint-side="right">
         <HoverCardV2
           open={previewOpen() && !menuOpen()}
           onOpenChange={setPreviewOpen}
@@ -224,7 +224,7 @@ function RowTitle(props: { id: string; title: string }) {
  * The hover preview hangs off an overlay, because an element can only be one
  * primitive's trigger.
  */
-function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number }) {
+function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number; hint?: string }) {
   /*
    * The preview is nested inside the menu's trigger, so left alone both are
    * open at once, the preview swallows the Escape that would dismiss the menu,
@@ -262,6 +262,9 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
         ref={intentRef(() => void useApp.preloadChat(props.bot.id))}
         data-component="sidebar-row"
         data-chat-id={props.bot.id}
+        data-hint={props.hint}
+        data-hint-label="chat"
+        data-hint-side="right"
         data-active={props.active ? "" : undefined}
         data-unread={unread() ? "" : undefined}
         data-draft={draft() ? "" : undefined}
@@ -352,7 +355,7 @@ function SearchRow(props: {
   onUnreadOnly: (on: boolean) => void
 }): JSX.Element {
   return (
-    <div class="chat-search" data-component="sidebar-search">
+    <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="search" data-hint-side="top">
       <label class="chat-search-field">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
         <input
@@ -406,6 +409,11 @@ export function ChatPanel() {
     filterRows(all(), { query: query(), unreadOnly: unreadOnly() }, (row) => row.unread > 0 || markedUnread(row.id)),
   )
   const pinned = createMemo(() => shown().filter((bot) => bot.pinned))
+  /** ⌘1 to ⌘9 go to the chats in the order drawn here, pinned first, counted before any filter. */
+  const jumpHint = createMemo(() => {
+    const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
+    return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))
+  })
   const rowIds = createMemo(() => shown().filter((bot) => !bot.pinned).map((bot) => bot.id))
   // Rows are looked up by id so a roster change does not remount the rows that did not change.
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
@@ -421,6 +429,7 @@ export function ChatPanel() {
             {(bot) => (
               <PinTile
                 bot={bot}
+                hint={jumpHint().get(bot.id)}
                 active={active() === bot.id}
                 onSelect={() => {
                   clearUnreadMark(bot.id)
@@ -437,7 +446,7 @@ export function ChatPanel() {
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
           <Show when={byId().get(id)}>
-            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now} />}
+            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now} hint={jumpHint().get(id)} />}
           </Show>
         )}
       </VList>
