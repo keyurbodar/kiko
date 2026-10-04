@@ -39,6 +39,7 @@ declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
+const DEV_CLASSIC_KEY = "dev-classic"
 /** One outside request as it crosses to `egress`. */
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 /** Extension bundles this agent fetched, by content hash (section 24.5). */
@@ -321,7 +322,9 @@ export class AgentDO extends DurableObject<Env> {
         const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
         return [clock, down, quiet, extensions].filter(Boolean).join("\n\n")
       },
-      inputMemory: (batch) => this.inputMemory(batch, this.#run?.life ?? ""),
+      // Development only: `classic` keeps the old transcript (no reset, no memory block), so `verify
+      // token-cost` can measure both designs on the same model.
+      ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch) => this.inputMemory(batch, this.#run?.life ?? "") }),
     }
   }
 
@@ -596,6 +599,40 @@ export class AgentDO extends DurableObject<Env> {
    * Development only. Makes this agent the scripted fake of `agent/dev-fake.ts` (P1-12), which spends
    * no tokens. It takes effect when the harness next opens, so call it before the first message.
    */
+  /** Development only. Makes this agent keep the old transcript, for `verify token-cost`. Call before the first message. */
+  async devClassic(): Promise<void> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    await this.ctx.storage.put(DEV_CLASSIC_KEY, true)
+  }
+
+  /** Development only. The tokens this agent's model requests spent, summed over every model. */
+  async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    const { harness } = await this.host.open()
+    const usage = await harness.usage(BACKGROUND_CONTEXT)
+    const sum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    for (const u of Object.values(usage.models) as unknown as { input: number; output: number; cacheRead: number; cacheWrite: number }[]) {
+      sum.input += u.input
+      sum.output += u.output
+      sum.cacheRead += u.cacheRead
+      sum.cacheWrite += u.cacheWrite
+    }
+    return sum
+  }
+
+  /** Development only. Each run's requests: the tools it called and how long its text was, for `verify token-cost`. */
+  async devTrace(): Promise<{ kind: string; tool?: string; chars: number }[]> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    const { root } = await this.host.open()
+    const view = await root.context(BACKGROUND_CONTEXT)
+    return view.entries.map((e) => {
+      const m = e.model?.[0] as { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] } | undefined
+      const parts = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
+      const tool = parts.find((p) => p.type === "toolCall")?.name
+      return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0) }
+    })
+  }
+
   async devFake(): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     await this.ctx.storage.put(DEV_FAKE_KEY, true)

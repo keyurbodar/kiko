@@ -178,13 +178,15 @@ test("the records store this log replaced is imported once, oldest first, then d
   expect(l.importRecords()).toBe(0)
 })
 
-test("the verbatim floor has a size: the newest 12 turns keep 500 characters, the rest 200", () => {
+test("a new turn only adds lines at the end of the view, so the provider keeps the rest cached", () => {
   const { memory, say, now } = room()
-  for (let i = 0; i < 40; i++) say(i % 2 ? agent("ada") : human, `${i} ${"word ".repeat(400)}`, i % 2 ? `r${i}` : undefined)
-  const view = memory.view(now())
-  expect(view.length).toBeLessThan(12 * 520 + 28 * 220)
-  expect(view.split("\n").at(-1)!.length).toBeGreaterThan(400)
-  expect(view.split("\n")[0]!.length).toBeLessThan(240)
+  for (let i = 0; i < 20; i++) say(i % 2 ? agent("ada") : human, `${i} ${"word ".repeat(400)}`, i % 2 ? `r${i}` : undefined)
+  const before = memory.view(now())
+  say(human, "one more")
+  const after = memory.view(now())
+  expect(after.startsWith(before)).toBe(true)
+  // Every verbatim line has one cut, so the floor has a size: about 300 characters a turn.
+  expect(Math.max(...before.split("\n").map((l) => l.length))).toBeLessThan(330)
 })
 
 test("memory marks outside lines but never taints a run, and cannot forge a tag", async () => {
@@ -208,7 +210,7 @@ test("recall falls back to any word when no message has them all", () => {
 
 test("a node the model keeps failing on gets a model-free line after three tries, and the log moves on", async () => {
   const { memory, say } = room()
-  for (let i = 0; i < 16; i++) say(i % 2 ? agent("ada") : human, `turn ${i}`, i % 2 ? `r${i}` : undefined)
+  for (let i = 0; i < 48; i++) say(i % 2 ? agent("ada") : human, `turn ${i}`, i % 2 ? `r${i}` : undefined)
   const failing = async () => ({ error: "refused" })
   const [span] = memory.pending(1)
   for (let i = 0; i < 2; i++) await expect(memory.nap(span!, failing, null)).rejects.toThrow("refused")

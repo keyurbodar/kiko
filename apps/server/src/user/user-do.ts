@@ -61,6 +61,8 @@ const NAPS_PER_ALARM = 4
 const MAX_NAPS = 4
 /** ASSUMPTION: the longest one summary call may take. */
 const COMPRESS_TIMEOUT_MS = 60_000
+/** The `settings` key of what memory summaries have spent: input, output, cacheRead, calls. */
+const MEMORY_USAGE = "memory_usage"
 /** The `settings` key of the memory model the human chose. */
 const MEMORY_MODEL = "memory_model"
 
@@ -456,8 +458,7 @@ export class UserDO extends DurableObject<Env> {
 
   /** RPC for an agent's `recall`: life lines that match. */
   async lifeRecall(query: string): Promise<string[]> {
-    const now = Date.now()
-    return this.life.recall(query, 10).map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, now, 400))
+    return this.life.recall(query, 10).map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, 400))
   }
 
   /** RPC for an agent's `zoom` on a life id. */
@@ -467,6 +468,11 @@ export class UserDO extends DurableObject<Env> {
     if (!span) return null
     const lines = this.life.zoom(span, Date.now())
     return lines.length ? lines.join("\n") : null
+  }
+
+  /** What memory summaries have spent so far, for `verify token-cost`. */
+  async memoryUsage(): Promise<Record<string, number>> {
+    return JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
   }
 
   /** The life summaries still to make, a few per alarm. */
@@ -527,6 +533,11 @@ export class UserDO extends DurableObject<Env> {
       { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS) },
     )
     // The provider's own words, cut short: they name the cause (a timeout, a refusal) and carry no key.
+    // What memory costs, for the memory screen and `verify token-cost`: one row, summed.
+    const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
+    for (const k of ["input", "output", "cacheRead"] as const) spent[k] = (spent[k] ?? 0) + (reply.usage?.[k] ?? 0)
+    spent.calls = (spent.calls ?? 0) + 1
+    this.putSetting(MEMORY_USAGE, JSON.stringify(spent))
     if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }

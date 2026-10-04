@@ -1,4 +1,4 @@
-import { capBytes, type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, oneLine, type Span, Tree } from "../lib/optmem"
+import { capBytes, type Item, LIFE_SHAPE, region, LINE_BYTES, napPrompt, oneLine, type Span, Tree } from "../lib/optmem"
 
 // Architecture section 13. The user's life log: what kiko knows about this human, across every chat.
 // One line per memory, append-only, at most 280 bytes. Lines come from an agent's `note` and from
@@ -133,9 +133,9 @@ export class Life {
     })
   }
 
-  /** Summaries that can be made now. The newest lines stay out of the tree until a page fills. */
+  /** Summaries that are needed now: a page is summarized only once it leaves the verbatim floor. */
   pending(limit: number): Span[] {
-    return this.tree.pending(this.count(), limit)
+    return this.tree.pending(region(this.count(), LIFE_SHAPE), limit)
   }
 
   /** The prompt for one summary, or null when its input went missing. */

@@ -1,5 +1,5 @@
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { age, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree } from "../lib/optmem"
+import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree } from "../lib/optmem"
 import { searchMessages } from "./search"
 
 // Architecture section 13. A room's log memory. The log is the room's own messages, read as turns:
@@ -13,8 +13,6 @@ import { searchMessages } from "./search"
 
 /** A human's messages more than this apart are two turns. */
 const HUMAN_GAP_MS = 30 * 60_000
-/** Items whose turns are this close to the end stay open: a reply can still grow. */
-const OPEN_TURNS = 8
 /** At most this many past turns go into one quiet-chat rollup. */
 const ROLLUP_MAX = 64
 /** A rollup of a quiet chat needs at least this many new turns. */
@@ -174,7 +172,7 @@ export class RoomMemory {
     const one = /^t?(\d+)$/.exec(id)
     if (one) {
       const pos = Number(one[1])
-      return pos < count ? this.items(pos, pos + 1).map((i) => itemLine(i, now, 4_000)).join("\n") : null
+      return pos < count ? this.items(pos, pos + 1).map((i) => itemLine(i, 4_000)).join("\n") : null
     }
     const span = spanOf(id)
     if (!span) return null
@@ -199,7 +197,7 @@ export class RoomMemory {
     return hits.map((hit) => {
       const pos = this.posOfMessage(hit.id)
       const text = hit.snippet.replace(/[\u0002\u0003]/g, "")
-      return `${pos === null ? "" : `#${pos} `}${age(hit.at, now)} ${who(hit.from)}: ${oneLine(text, 300)}`
+      return `${pos === null ? "" : `#${pos} `}${dayOf(hit.at, now)} ${who(hit.from)}: ${oneLine(text, 300)}`
     })
   }
 
@@ -227,10 +225,13 @@ export class RoomMemory {
     this.sql.exec("INSERT OR IGNORE INTO mem_turns (pos, key, first_seq, last_seq, at, at_last, trace) VALUES (?, ?, NULL, NULL, ?, ?, ?)", count, `trace:${slug}:${runId}`, now, now, trace)
   }
 
-  /** Summaries that can be made now. Turns near the end stay open: a reply may still grow. */
+  /**
+   * Summaries that are needed now: a page is summarized only once it leaves the verbatim floor, so a
+   * chat shorter than the floor makes no summary calls at all, and a reply that is still growing is
+   * never summarized half done.
+   */
   pending(limit: number): Span[] {
-    const count = this.sync()
-    return this.tree.pending(Math.max(0, count - OPEN_TURNS), limit)
+    return this.tree.pending(region(this.sync(), ROOM_SHAPE), limit)
   }
 
   /**

@@ -15,6 +15,8 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/deliver { roomId, from, body, tainted }  -> { ok: true }
 //   POST /api/dev/agent/seed    { roomId, turns: [{ from, text }] }  -> { turns }   (section 13, `verify memory-eval`)
 //   POST /api/dev/agent/memory  { roomId }  -> { turns, pending, view }
+//   POST /api/dev/agent/classic { roomId }  -> { ok: true }   the room's agent keeps the old transcript (`verify token-cost`)
+//   POST /api/dev/agent/usage   { roomId, slug? }  -> { agent, memory }   tokens the agent and memory summaries spent
 //
 // `seed` writes messages straight into the room's log, with no burst and no run, so a long chat costs
 // no tokens to set up. `from` is "human" or an agent slug. `memory` reports the room's log memory.
@@ -32,7 +34,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory"].includes(action ?? "")) return null
+  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -62,6 +64,15 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     return Response.json({ turns: await roomStub(env.ROOM, user.id, roomId).devSeed(turns as { from: string; text: string }[]) })
   }
   if (action === "memory") return Response.json(await roomStub(env.ROOM, user.id, roomId).devMemory())
+  if (action === "usage") {
+    const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
+    return Response.json({ agent: await agentStub(env.AGENT, user.id, roomId, slug).devUsage(), memory: await userStub(env.USER, user.id).memoryUsage() })
+  }
+  if (action === "trace") return Response.json(await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devTrace())
+  if (action === "classic") {
+    await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devClassic()
+    return Response.json({ ok: true })
+  }
   if (action === "deliver") {
     if (typeof body.from !== "string" || !isAgentSlug(body.from) || typeof body.body !== "string") {
       return Response.json({ error: "bad envelope" }, { status: 400 })

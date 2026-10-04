@@ -293,10 +293,15 @@ export class Tree {
     const tiling = tile(prev, end, this.shape)
     const lines: string[] = []
     for (const span of tiling) this.render(span, now, lines)
-    // The newest items keep the most words; older verbatim items are cut shorter, so the floor has a
-    // size as well as a count: at most 12 * 500 + the rest * 200 characters.
-    const items = tail(end, count)
-    items.forEach((item, i) => lines.push(itemLine(item, now, items.length - i <= TAIL_FULL ? TAIL_CUT : TAIL_SHORT)))
+    // A line never changes once written: a fixed time, the date on the first line of a day, and one cut
+    // for all. So the next run's view only adds lines at the end, and the provider caches the rest, as it
+    // cached the old ever-growing transcript.
+    let day = ""
+    for (const item of tail(end, count)) {
+      const d = dayOf(item.at, now)
+      lines.push(itemLine(item, TAIL_CUT, d !== day))
+      day = d
+    }
     return { lines, tiling }
   }
 
@@ -304,7 +309,7 @@ export class Tree {
   render(span: Span, now: number, out: string[] = []): string[] {
     const node = this.node(span)
     if (node) out.push(nodeLine(span, node, now))
-    else if (span.hi - span.lo <= this.shape.page) for (const item of this.items(span.lo, span.hi)) out.push(itemLine(item, now, PAGE_CUT))
+    else if (span.hi - span.lo <= this.shape.page) for (const item of this.items(span.lo, span.hi)) out.push(itemLine(item, PAGE_CUT))
     else {
       const mid = (span.lo + span.hi) / 2
       this.render({ lo: span.lo, hi: mid }, now, out)
@@ -316,7 +321,7 @@ export class Tree {
   /** memo's `zoom`: a node opened into its two halves, or a page into its items. */
   zoom(span: Span, count: number, now: number): string[] {
     if (span.lo >= count) return []
-    if (span.hi - span.lo <= this.shape.page) return this.items(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, now, ZOOM_CUT))
+    if (span.hi - span.lo <= this.shape.page) return this.items(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, ZOOM_CUT))
     const mid = (span.lo + span.hi) / 2
     const out: string[] = []
     for (const half of [{ lo: span.lo, hi: mid }, { lo: mid, hi: span.hi }]) {
@@ -331,19 +336,19 @@ export class Tree {
 
 // ---------------------------------------------------------------- text
 
-/** A verbatim item in a view is cut here; `zoom` shows more. */
-const TAIL_CUT = 500
-/** The newest verbatim items that get `TAIL_CUT`. The rest get `TAIL_SHORT`. */
-const TAIL_FULL = 12
-const TAIL_SHORT = 200
+/** A verbatim item in a view is cut here, so the floor has a size as well as a count; `zoom` shows more. */
+const TAIL_CUT = 300
 /** An item that stands in for a page not summarized yet. */
 const PAGE_CUT = 160
 const ZOOM_CUT = 4_000
 
 const OUTSIDE = "[outside] "
 
-export function itemLine(item: Item, now: number, cut: number): string {
-  return `#${item.pos} ${age(item.at, now)} ${item.tainted ? OUTSIDE : ""}${oneLine(item.shown ?? item.text, cut)}`
+/** One item: `#12 oct 4 14:05 human: ...`, or without the date when the line above has it. Times are UTC. */
+export function itemLine(item: Item, cut: number, withDay = true): string {
+  const d = new Date(item.at)
+  const time = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
+  return `#${item.pos} ${withDay ? `${dayOf(item.at, item.at)} ` : ""}${time} ${item.tainted ? OUTSIDE : ""}${oneLine(item.shown ?? item.text, cut)}`
 }
 
 export function nodeLine(span: Span, node: Node, now: number): string {
@@ -355,21 +360,13 @@ export function oneLine(text: string, cut: number): string {
   return flat.length > cut ? `${flat.slice(0, cut)}…` : flat
 }
 
-/** How long ago, in the fewest characters: now, 5m, 3h, 2d, 3w, 4mo, 2y. */
-export function age(at: number, now: number): string {
-  const m = Math.max(0, now - at) / 60_000
-  if (m < 1) return "now"
-  if (m < 60) return `${Math.floor(m)}m`
-  const h = m / 60
-  if (h < 24) return `${Math.floor(h)}h`
-  const d = h / 24
-  if (d < 14) return `${Math.floor(d)}d`
-  if (d < 70) return `${Math.floor(d / 7)}w`
-  if (d < 730) return `${Math.floor(d / 30)}mo`
-  return `${Math.floor(d / 365)}y`
-}
-
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+
+/** One day: `oct 4`, with the year when it is not `now`'s. */
+export function dayOf(at: number, now: number): string {
+  const d = new Date(at)
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}${d.getUTCFullYear() === new Date(now).getUTCFullYear() ? "" : ` ${d.getUTCFullYear()}`}`
+}
 
 /** A node's dates: `sep 20`, `sep 20–28`, `sep 20–oct 2`, with the year when it is not this year's. */
 export function range(from: number, to: number, now: number): string {
@@ -392,7 +389,7 @@ export function napPrompt(input: NapInput, what: "turns" | "memories"): string {
   const { span } = input
   const body =
     "items" in input
-      ? input.items.map((i) => `  #${i.pos} ${i.tainted ? OUTSIDE : ""}${oneLine(i.text, 1_200)}`).join("\n")
+      ? input.items.map((i) => `  #${i.pos} ${i.tainted ? OUTSIDE : ""}${oneLine(i.text, 600)}`).join("\n")
       : input.halves.map((h, n) => `  #${n === 0 ? span.lo : (span.lo + span.hi) / 2}-${n === 0 ? (span.lo + span.hi) / 2 - 1 : span.hi - 1} ${h.text}`).join("\n")
   return [
     `compress ${what} #${span.lo}-${span.hi - 1} into one line of at most ${LINE_BYTES} bytes.`,
