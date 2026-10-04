@@ -1,0 +1,33 @@
+/* The empty chat's pixel field. The edges fade into the pane, so the board has no border. */
+.bird-grid {
+  position: relative;
+  width: min(560px, 100%);
+  -webkit-mask-image: radial-gradient(58% 70% at 50% 60%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(58% 70% at 50% 60%, #000 35%, transparent 100%);
+}
+
+.bird-grid-canvas {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.bird-grid-says {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* A speech bubble in the board's own pixel voice. */
+.bird-grid-say {
+  position: absolute;
+  padding: 2px 6px;
+  color: var(--text-muted);
+  font: 600 10px/1.4 var(--font-family-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: var(--panel);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px oklch(from var(--text) l c h / 0.14);
+  transform: translate(-50%, -100%);
+}
