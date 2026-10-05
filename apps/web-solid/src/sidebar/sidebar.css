@@ -773,17 +773,6 @@
 
 /* ===== Main panes ----------------------------------------------------- */
 
-/* In frost on a wide screen the shell is a window floating over the scene, so the glass
- * has an outside to sit over. On a phone it stays edge to edge. */
-@media (width >= 768px) {
-  :root[data-material="frost"] .sidebar-shell {
-    margin: 12px;
-    height: calc(100dvh - 24px);
-    border-radius: 14px;
-    box-shadow: var(--window-edge);
-  }
-}
-
 /* The chat pane, and the info pane beside it when it is open: rounded panes under the top bar,
  * 8px apart, with no border. In frost each is the denser glass; in solid each is the panel
  * colour against the darker shell. */

@@ -768,16 +768,11 @@
 /* -----------------------------------------------------------------------------
    4d. Frost
 
-   A glass window over a still scene, as in design-options/themes.html. On a
-   wide screen the shell floats inset from the edges with a rim and a shadow
-   (`--window-edge`, sidebar.css), so there is an outside for the glass to sit
-   over. The scene is light, not colour: brighter at the top corners, deep
-   below, all in one near-grey hue. Mixing hues behind glass reads as a muddy
-   gradient theme. The shell is that glass at 55%, so the light shows through
-   softly. The panels are the same glass raised by a breath of white and a
-   hairline, never a second tinted layer. Menus are the one live blur. `--bg`
-   stays the opaque colour the eye sees, because fades, cut-outs and rings
-   paint with it.
+   One smooth, flat surface that fills the screen, and panes of glass on it.
+   No wash, no light spots and no grain behind them: on a real screen each
+   shows as a blotch. The panes read as glass by a breath of white and a
+   hairline rim. Menus are the one live blur. `--bg` stays the opaque colour
+   the eye sees, because fades, cut-outs and rings paint with it.
    -------------------------------------------------------------------------- */
 
 :root {
@@ -789,34 +784,21 @@
   --popover-bg: var(--menu-bg);
   --popover-blur: none;
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.08);
-  /* The rim of a glass pane, and the rim and shadow of the floating window. Solid has none. */
+  /* The rim of a glass pane. Solid panes have none. */
   --glass-edge: none;
-  --window-edge: none;
   /* The transcript's scroll fades. */
   --fade-bg: var(--bg);
 }
 
 :root[data-material="frost"] {
-  --scene-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.05 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  /* The scene's light. Its chroma is the tint's, so at most a hint of the theme's hue. Each
-     light spans most of the window, so no edge or shape shows, and the grain, under 5%
-     white, dithers them so they never band. */
   --scene-c: calc(0.01 * var(--tinge) * var(--cm));
-  --scene-hi: oklch(0.36 var(--scene-c) var(--hue));
-  --scene-hi-2: oklch(0.3 var(--scene-c) var(--hue));
-  --scene-floor: oklch(0.15 var(--scene-c) var(--hue));
-  --scene:
-    var(--scene-grain) 0 0 / 180px 180px repeat,
-    radial-gradient(60% 70% at 88% 0%, var(--scene-hi), transparent 75%),
-    radial-gradient(55% 60% at 8% 12%, var(--scene-hi-2), transparent 75%),
-    var(--scene-floor);
+  --scene: oklch(0.19 var(--scene-c) var(--hue));
   --dock-bg: transparent;
   --popover-bg: oklch(0.24 calc(0.016 * var(--tinge) * var(--cm)) var(--hue) / 0.8);
   --popover-blur: blur(24px) saturate(1.4);
-  --bg-sidebar: oklch(0.2 var(--scene-c) var(--hue) / 0.55);
+  --bg-sidebar: transparent;
   --panel: oklch(100% 0 none / 0.03);
   --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.06);
-  --window-edge: 0 0 0 1px oklch(100% 0 none / 0.1), 0 30px 80px oklch(0% 0 none / 0.5);
   --fade-bg: transparent;
   --hover-bg: oklch(100% 0 none / 0.05);
   --selected-bg: oklch(100% 0 none / 0.1);
@@ -846,13 +828,9 @@
 }
 
 :root[data-material="frost"][data-appearance="light"] {
-  --scene-hi: oklch(0.98 var(--scene-c) var(--hue));
-  --scene-hi-2: oklch(0.95 var(--scene-c) var(--hue));
-  --scene-floor: oklch(0.82 var(--scene-c) var(--hue));
-  --bg-sidebar: oklch(0.97 var(--scene-c) var(--hue) / 0.6);
+  --scene: oklch(0.95 var(--scene-c) var(--hue));
   --panel: oklch(100% 0 none / 0.5);
   --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06);
-  --window-edge: 0 0 0 1px oklch(0% 0 none / 0.08), 0 24px 60px oklch(0% 0 none / 0.18);
   --popover-bg: oklch(0.995 calc(0.004 * var(--tinge) * var(--cm)) var(--hue) / 0.82);
   --popover-blur: blur(24px) saturate(1.4);
   --hover-bg: oklch(0% 0 none / 0.04);
