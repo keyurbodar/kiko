@@ -768,11 +768,14 @@
 /* -----------------------------------------------------------------------------
    4d. Frost
 
-   One smooth, flat surface that fills the screen, and panes of glass on it.
-   No wash, no light spots and no grain behind them: on a real screen each
-   shows as a blotch. The panes read as glass by a breath of white and a
-   hairline rim. Menus are the one live blur. `--bg` stays the opaque colour
-   the eye sees, because fades, cut-outs and rings paint with it.
+   Panes of glass over a still light that fills the screen. Glass only reads
+   as glass with something behind it, so the scene is one wide fall of light,
+   brightest at the top right, in one near-grey hue. It is a single linear
+   gradient, so it has no circles or edges to see, and a fine grain dithers it
+   so it never bands. The shell and the panes are translucent with a rim, so
+   the light shows through both. Menus are the one live blur. `--bg` stays
+   the opaque colour the eye sees, because fades, cut-outs and rings paint
+   with it.
    -------------------------------------------------------------------------- */
 
 :root {
@@ -791,14 +794,22 @@
 }
 
 :root[data-material="frost"] {
+  /* The grain is a 64px tile of fine noise at 3.5% white: dense enough to dither the light
+     and too fine to show as blotches. */
+  --scene-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.2' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.035 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --scene-c: calc(0.01 * var(--tinge) * var(--cm));
-  --scene: oklch(0.19 var(--scene-c) var(--hue));
+  --scene-hi: oklch(0.33 var(--scene-c) var(--hue));
+  --scene-mid: oklch(0.25 var(--scene-c) var(--hue));
+  --scene-lo: oklch(0.17 var(--scene-c) var(--hue));
+  --scene:
+    var(--scene-grain) 0 0 / 64px 64px repeat,
+    linear-gradient(200deg, var(--scene-hi) 0%, var(--scene-mid) 40%, var(--scene-lo) 100%);
   --dock-bg: transparent;
   --popover-bg: oklch(0.24 calc(0.016 * var(--tinge) * var(--cm)) var(--hue) / 0.8);
   --popover-blur: blur(24px) saturate(1.4);
-  --bg-sidebar: transparent;
-  --panel: oklch(100% 0 none / 0.03);
-  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.06);
+  --bg-sidebar: oklch(0.17 var(--scene-c) var(--hue) / 0.45);
+  --panel: oklch(0.2 var(--scene-c) var(--hue) / 0.4);
+  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.07), inset 0 1px 0 oklch(100% 0 none / 0.06);
   --fade-bg: transparent;
   --hover-bg: oklch(100% 0 none / 0.05);
   --selected-bg: oklch(100% 0 none / 0.1);
@@ -828,9 +839,12 @@
 }
 
 :root[data-material="frost"][data-appearance="light"] {
-  --scene: oklch(0.95 var(--scene-c) var(--hue));
-  --panel: oklch(100% 0 none / 0.5);
-  --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06);
+  --scene-hi: oklch(0.99 var(--scene-c) var(--hue));
+  --scene-mid: oklch(0.94 var(--scene-c) var(--hue));
+  --scene-lo: oklch(0.86 var(--scene-c) var(--hue));
+  --bg-sidebar: oklch(0.97 var(--scene-c) var(--hue) / 0.45);
+  --panel: oklch(100% 0 none / 0.45);
+  --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06), inset 0 1px 0 oklch(100% 0 none / 0.8);
   --popover-bg: oklch(0.995 calc(0.004 * var(--tinge) * var(--cm)) var(--hue) / 0.82);
   --popover-blur: blur(24px) saturate(1.4);
   --hover-bg: oklch(0% 0 none / 0.04);
