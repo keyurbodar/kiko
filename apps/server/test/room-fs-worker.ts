@@ -137,15 +137,17 @@ export default {
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }
     const tool = (filesExtension({ fs, acceptsImages: () => slug === "seer" }).tools ?? []).find((t) => t.name === name)
     if (!tool) return Response.json({ error: `no tool ${name}` }, { status: 404 })
-    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID() } as unknown as ToolExecutionApi
+    // What a tool streams (bash) reaches `output`, as the harness keeps it.
+    let streamed = ""
+    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {} } as unknown as ToolExecutionApi
     const started = performance.now()
     try {
       const result = await tool.execute(args as never, api, BACKGROUND_CONTEXT)
-      const text = (result.content ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("")
+      const text = (result.content ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("") || streamed
       const notes = (result.diagnostics ?? []).map((d) => d.message).join("\n")
       return Response.json({ ok: !result.isError, text, notes, ms: performance.now() - started })
     } catch (error) {
-      return Response.json({ ok: false, text: error instanceof Error ? error.message : String(error), ms: performance.now() - started })
+      return Response.json({ ok: false, text: streamed + (error instanceof Error ? error.message : String(error)), ms: performance.now() - started })
     }
   },
 }

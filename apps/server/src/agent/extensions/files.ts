@@ -2,9 +2,10 @@ import { Type } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ModelRef, type ToolRegistration } from "@earendil-works/pi-durable"
 import { getOrThrow } from "@earendil-works/pi-durable/env"
-import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
+import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import type { FsEntry } from "../../room/files"
 import { baseName } from "../../room/files"
+import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
 import type { RoomFs } from "../../files/room-fs"
 import { declareEffect } from "../effects"
 
@@ -12,7 +13,8 @@ import { declareEffect } from "../effects"
 // `write` and `edit` are `pi-durable`'s own tools, unchanged, running on `RoomFs` through the
 // harness's `env`. `read` is pi's too for text, with offset and limit; pdfs and images are read
 // here first, since pi's `read` does neither. `ls`, `mkdir`, `rm`, `mv`, and `cp` are kiko's, with the
-// shell's meaning. Every agent in the room sees the same files; the human sees them in the panel.
+// shell's meaning. `bash` is pi's too, on just-bash over the same files (files/bash.ts). Every agent in
+// the room sees the same files; the human sees them in the panel.
 
 export const FILES = "files"
 /** ASSUMPTION: how many bytes `read` takes from R2 for a pdf or an image. */
@@ -211,6 +213,13 @@ export function filesExtension({ fs, acceptsImages }: FilesOptions): Extension {
   const piEdit = createEditTool()
   const edit = defineTool({ ...piEdit, execute: (args, api, context) => fs.within(() => piEdit.execute(args, api, context)) })
 
+  const bash = defineTool({
+    ...createBashTool(),
+    description: `run a bash command over the chat's files, as on linux: pipes, redirects, loops, globs, and grep, sed, awk, jq, sort, uniq, cut, tr, wc, head, tail, find, xargs, diff and the rest. /tmp is scratch for the one command and is not saved. / is the chat's files, /home the human's drive, /me your soul. no network, no python, no programs to install. one command is one transaction: it sees the files as they were when it started, and a write to a file someone changed since then fails, so run it again. calls in one turn run at once. output is cut to the last lines. timeout in seconds, default ${DEFAULT_TIMEOUT_S}, at most ${MAX_TIMEOUT_S}.`,
+    // `>>` twice appends twice: after a crash the call is not run again.
+    replay: "unsafe",
+  })
+
   // A file can hold anything an agent or a fetched page put there, so reading one taints the run.
   const tools: ToolRegistration[] = [
     declareEffect("read", read, { outside: "file" }) as ToolRegistration,
@@ -221,6 +230,7 @@ export function filesExtension({ fs, acceptsImages }: FilesOptions): Extension {
     declareEffect("write", mv) as ToolRegistration,
     declareEffect("write", cp) as ToolRegistration,
     declareEffect("write", mkdir) as ToolRegistration,
+    declareEffect("write", bash, { outside: "file" }) as ToolRegistration,
   ]
   return defineExtension({ name: FILES, tools })
 }

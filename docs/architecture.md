@@ -914,11 +914,11 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - Upload goes from the client through the Worker to R2 as a stream. Large files use R2 multipart upload.
 - Download is a Worker route that checks the session, supports `Range`, and sets an immutable cache header keyed by content hash. Video seeks with `Range`, so no service worker is needed for streaming.
 - A picture the human attaches gets a small still at upload. The client already holds the bytes, so it scales them to 840 px on the long edge (WebP, JPEG where WebP cannot be written) and computes the thumbhash. The still is stored beside the file at `<key>/thumb` with `PUT /api/files/<room>/<id>/thumb` and served by `GET` on the same path. `FileRef.thumb` says it exists. The transcript, reply quotes, and the info grid draw the still over the thumbhash; only the media viewer loads the original. A decoded 12 MP photo is about 48 MB, its still about 1 MB. A file without a still (older files, agent files) draws the original, and a video without one draws its thumbhash, never `<img src=video>`. A delete removes the still with the file.
-- The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, and `edit` run unchanged. There is no shell. Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
+- The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
 - `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
 - R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again. A write carries the hash of the bytes the agent last read at that path, and the room refuses it if the file changed since, so a whole-file `write` never drops a teammate's edit. `edit` reads the file itself, so it lands on top.
 
-`pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Kiko does not use them. Its file tools are ordinary tools over R2.
+`pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Kiko's `exec` is just-bash (section 18.4), so pi's `bash` tool runs on the same files as the rest.
 
 ### 18.3 File spaces
 
@@ -944,6 +944,23 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - The client shows the drive as `home/` at the top of every chat's tree, served from `/api/files/home`.
 
 **Private chats.** A chat marked private keeps no trace beyond itself: its agents' writes to memory, souls, and `/home` are refused in the tools (reads work), each input says the chat is private, and it never rolls up into the life log. The room learns the flag on every read of the chat and at once when the human changes it.
+
+### 18.4 The shell
+
+**Decision.** Agents get pi's `bash` tool. `RoomFs.exec` runs the command in just-bash (`files/bash.ts`), a bash interpreter written in TypeScript, over the three file spaces of section 18.3. There is no process, no network, no Python or JavaScript runtime, and nothing to install. The tool's effect is `write`, and its output is untrusted file content.
+
+A command is a transaction.
+
+1. **Snapshot.** It starts from one listing of every file (`list("/", true)`, mounts included) and works on its own copy of that tree. A teammate's write after that does not show up halfway through a pipeline.
+2. **Work in memory.** Every write, append, move, copy, and delete changes the copy, and the rest of the command sees it. File bytes are read from R2 on first use, through the agent's byte cache. Reading a file in a folder the command listed (a `grep -r`, a glob) fetches up to 32 of the folder's other files at once.
+3. **Commit.** When the command ends, a pure diff (`plan`) of the snapshot and the copy gives the changes: moves (a file that kept its bytes and changed path, so no copy is made and an attachment keeps its place), writes, new empty folders, and deletions. Moves go first, then writes and folders, then deletions, each group in parallel. Every change is conditional on the file still being what the snapshot said, or still absent: a write carries the snapshot's hash or `none`, and a move or delete checks the hash first. The room's leases (section 7.12) apply as to any write.
+4. **Refusals.** A change that does not land is named in the output (`bash: /x: not saved: ...`), and the exit code is nonzero. The rest of the command's changes stand.
+
+`/tmp` is the command's own scratch space and is never saved, and `/dev/null` discards. A command that times out (30 seconds by default, 120 at most) or is aborted saves nothing. One command holds at most 16 MB of changed files.
+
+**Reasoning.** just-bash calls a redirect "open empty, then append each chunk". Sent to the room one call at a time, `echo x > f` would be two R2 writes, and a teammate could read the empty file between them. A loop of `>>` would be a room call per line. Working in memory makes a command as fast as its reads and lets teammates see only finished commands. The conditional commit is what makes parallel work safe. pi runs the tool calls of one turn at the same time, each agent has its own object, and a subagent shares its parent's object. Each command checks against its own snapshot, never against a hash another command read, so two commands that read the same file cannot both write it unseen. First writer wins and the other is told. This is the same guarantee as the hash on a single write (section 18.1), stretched over a command.
+
+**Limits.** Commit is not atomic across files: when one change is refused, the others in the same command still land, and the output lists what did not. A room folder named `tmp` or `dev` is hidden from the shell. just-bash adds about 2 MB to the uncompressed Worker (11.7 MB to 13.7 MB, 2.37 MB to 2.80 MB gzipped, measured with `wrangler deploy --dry-run`). The limit is 64 MiB uncompressed on both plans, with no compressed limit (Cloudflare's Workers limits page, read 2026-10-05). A bigger bundle can start slower.
 
 ### 18.2 Link previews
 
