@@ -793,6 +793,7 @@
 .sidebar-shell .info-pane {
   background: var(--panel);
   border-radius: 12px;
+  box-shadow: var(--glass-edge);
 }
 
 /* Where the info pane covers the chat instead of sitting beside it, it is opaque, so the
