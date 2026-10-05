@@ -768,11 +768,14 @@
 /* -----------------------------------------------------------------------------
    4d. Frost
 
-   Translucent panels over a still scene. The scene is one soft wash painted on
-   `body`, so nothing needs a live blur: the glass is the panels' alpha over a
-   picture that is already soft. `--panel` is the main panel's own fill and
-   `--bg-sidebar` the shell's. `--bg` stays the opaque colour the eye sees
-   there, because fades, cut-outs and rings paint with it.
+   One neutral glass over a still scene, the way a native window's material
+   sits over a blurred wallpaper. The scene stands in for that wallpaper: a few
+   soft lights in their own colours, not the theme's, painted on `body`, so
+   nothing needs a live blur. The shell is that glass at 86%, so the scene only
+   bleeds through faintly. The panels are the same glass, raised by a breath of
+   white and a hairline, never a second translucent layer, which would read as
+   a gradient. `--bg` stays the opaque colour the eye sees there, because
+   fades, cut-outs and rings paint with it.
    -------------------------------------------------------------------------- */
 
 :root {
@@ -784,34 +787,31 @@
   --popover-bg: var(--menu-bg);
   --popover-blur: none;
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.08);
-  /* The rim of a glass pane: a hairline and a lit top edge. Solid panes have none. */
+  /* The hairline around a glass pane. Solid panes have none. */
   --glass-edge: none;
 }
 
 :root[data-material="frost"] {
   --scene-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.05 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --scene-l: 0.24;
-  /* The scene keeps some of the theme's hue even at a low tint. A grey scene under grey
-     glass reads as a flat panel, so the glass needs colour behind it to show. */
-  --scene-c: calc((0.03 + 0.03 * var(--tinge)) * var(--cm));
-  --scene-hi: oklch(0.42 calc(var(--scene-c) * 1.6) calc(var(--hue) - 30));
-  --scene-hi-2: oklch(0.46 calc(var(--scene-c) * 1.8) calc(var(--hue) + 20));
-  --scene-lo: oklch(0.15 calc(var(--scene-c) * 0.8) calc(var(--hue) + 8));
-  /* Light from two corners, the top right brightest as in the frost mockup, and a deep
-     floor. Each gradient spans most of the window, so no edge or shape ever shows. The
-     grain is under 5% white, enough to dither the gradients so they never band. */
+  /* A dusk wallpaper: cool sky at the top right, a warm floor at the bottom left, violet
+     between. Each light spans most of the window, so no edge or shape ever shows. The grain
+     is under 5% white, enough to dither the gradients so they never band. */
+  --scene-sky: oklch(0.55 0.09 245);
+  --scene-floor: oklch(0.5 0.1 45);
+  --scene-side: oklch(0.45 0.06 300);
+  --scene-base: oklch(0.35 0.03 260);
   --scene:
     var(--scene-grain) 0 0 / 180px 180px repeat,
-    radial-gradient(90% 80% at 92% 4%, var(--scene-hi-2), transparent 75%),
-    radial-gradient(110% 90% at 4% 10%, var(--scene-hi), transparent 72%),
-    radial-gradient(120% 90% at 60% 105%, var(--scene-lo), transparent 72%),
-    oklch(var(--scene-l) var(--scene-c) var(--hue));
+    radial-gradient(70% 60% at 85% 0%, var(--scene-sky), transparent 70%),
+    radial-gradient(80% 70% at 10% 100%, var(--scene-floor), transparent 70%),
+    radial-gradient(60% 60% at 0% 20%, var(--scene-side), transparent 70%),
+    var(--scene-base);
   --dock-bg: transparent;
   --popover-bg: oklch(0.24 calc(0.016 * var(--tinge) * var(--cm)) var(--hue) / 0.8);
   --popover-blur: blur(24px) saturate(1.4);
-  --bg-sidebar: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
-  --panel: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.55);
-  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.06), inset 0 1px 0 oklch(100% 0 none / 0.06);
+  --bg-sidebar: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.86);
+  --panel: oklch(100% 0 none / 0.025);
+  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.07);
   --hover-bg: oklch(100% 0 none / 0.05);
   --selected-bg: oklch(100% 0 none / 0.1);
   --nav-hover-bg: oklch(100% 0 none / 0.05);
@@ -840,13 +840,13 @@
 }
 
 :root[data-material="frost"][data-appearance="light"] {
-  --scene-l: 0.9;
-  --scene-hi: oklch(0.97 calc(var(--scene-c) * 0.8) calc(var(--hue) - 12));
-  --scene-hi-2: oklch(0.98 calc(var(--scene-c) * 0.6) var(--hue));
-  --scene-lo: oklch(0.82 calc(var(--scene-c) * 1.4) calc(var(--hue) + 8));
-  --bg-sidebar: oklch(0.98 calc(0.01 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
-  --panel: oklch(0.99 calc(0.006 * var(--tinge) * var(--cm)) var(--hue) / 0.62);
-  --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.05), inset 0 1px 0 oklch(100% 0 none / 0.7);
+  --scene-sky: oklch(0.85 0.08 245);
+  --scene-floor: oklch(0.85 0.08 45);
+  --scene-side: oklch(0.85 0.06 300);
+  --scene-base: oklch(0.9 0.02 260);
+  --bg-sidebar: oklch(0.97 calc(0.01 * var(--tinge) * var(--cm)) var(--hue) / 0.86);
+  --panel: oklch(100% 0 none / 0.4);
+  --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06);
   --popover-bg: oklch(0.995 calc(0.004 * var(--tinge) * var(--cm)) var(--hue) / 0.82);
   --popover-blur: blur(24px) saturate(1.4);
   --hover-bg: oklch(0% 0 none / 0.04);
