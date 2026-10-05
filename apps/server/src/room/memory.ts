@@ -1,5 +1,5 @@
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree } from "../lib/optmem"
+import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "../lib/optmem"
 import { searchMessages } from "./search"
 
 // Architecture section 13. A room's log memory. The log is the room's own messages, read as turns:
@@ -145,7 +145,7 @@ export class RoomMemory {
       const files = r.files ? ` (files: ${(JSON.parse(r.files) as { name: string }[]).map((f) => `/${f.name}`).join(", ")})` : ""
       g.parts.push(`${r.text}${files}`)
       // A human message keeps its id in a view, so `[react:..:id]` and `[reply:id]` can name it.
-      g.shown.push(from.kind === "human" ? `[${r.id}] ${oneLine(r.text, 400)}${files}` : `${oneLine(r.text, 400)}${files}`)
+      g.shown.push(from.kind === "human" ? `[${r.id}] ${r.text}${files}` : `${r.text}${files}`)
     }
     return groups.map(({ item, who: name, parts, shown, trace }) => {
       const did = trace ? ` (did: ${trace})` : ""
@@ -192,7 +192,7 @@ export class RoomMemory {
     const one = /^t?(\d+)$/.exec(id)
     if (one) {
       const pos = Number(one[1])
-      return pos < count ? this.items(pos, pos + 1).map((i) => itemLine(i, 4_000)).join("\n") : null
+      return pos < count ? this.items(pos, pos + 1).map((i) => itemLine(i, ZOOM_CUT)).join("\n") : null
     }
     const span = spanOf(id)
     if (!span) return null
@@ -224,7 +224,7 @@ export class RoomMemory {
   /** Something an agent did during its run, for the run's trace (section 7.12's board, kept). */
   did(slug: AgentSlug, doing: string, now: number): void {
     if (doing === "writing a reply") return
-    this.sql.exec("INSERT OR IGNORE INTO mem_did (slug, doing, at) VALUES (?, ?, ?)", slug, doing.slice(0, 80), now)
+    this.sql.exec("INSERT OR IGNORE INTO mem_did (slug, doing, at) VALUES (?, ?, ?)", slug, doing.slice(0, 160), now)
   }
 
   /**
@@ -261,7 +261,8 @@ export class RoomMemory {
   async nap(span: Span, compress: Compress, rollup: Rollup | null): Promise<{ retryAt?: number }> {
     const input = this.tree.input(span)
     if (!input) return {}
-    const out = await compress(napPrompt(input, "turns"))
+    const free = this.tree.free(input)
+    const out = free !== null ? { text: free } : await compress(napPrompt(input, "turns"))
     if ("retryAt" in out) return { retryAt: out.retryAt }
     if ("error" in out && this.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
     const node = this.tree.nodeFor(input, "text" in out ? out.text : this.tree.fallback(input))

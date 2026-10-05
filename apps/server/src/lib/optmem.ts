@@ -40,6 +40,8 @@ export const LIFE_SHAPE: Shape = { page: 8, floor: 16, budget: 32, retile: 24 }
 
 /** The longest summary, in UTF-8 bytes. memo's 280. */
 export const LINE_BYTES = 280
+/** What a summary call asks for: about `LINE_BYTES` of plain words. */
+const LINE_WORDS = 40
 /** After this many failed model calls, a node gets `Tree.fallback` and the log moves on. */
 export const MAX_NAP_FAILS = 3
 
@@ -171,8 +173,8 @@ export type Node = { text: string; tainted: boolean; from: number; to: number }
 export type NapInput = { span: Span; items: Item[] } | { span: Span; halves: [Node, Node] }
 
 /**
- * The summaries of one log, in table `<name>` (`size, k` names node `[k*size, (k+1)*size)`), and the
- * nodes forgotten below the frontier in `<name>_holes`. Writes are idempotent: a node is stored once,
+ * The summaries of one log, in table `<name>` (`size, k` names node `[k*size, (k+1)*size)`). Writes
+ * are idempotent: a node is stored once,
  * so a repeated alarm writes nothing twice. Reading the items is the caller's: `items(lo, hi)`.
  */
 export class Tree {
@@ -183,7 +185,6 @@ export class Tree {
     private readonly items: (lo: number, hi: number) => Item[],
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS ${name} (size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, tainted INTEGER NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
-    sql.exec(`CREATE TABLE IF NOT EXISTS ${name}_holes (size INTEGER NOT NULL, k INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
   }
 
   node(span: Span): Node | null {
@@ -198,7 +199,6 @@ export class Tree {
   put(span: Span, node: Node): boolean {
     const size = span.hi - span.lo
     const k = span.lo / size
-    this.sql.exec(`DELETE FROM ${this.name}_holes WHERE size = ? AND k = ?`, size, k)
     return (
       this.sql.exec(`INSERT OR IGNORE INTO ${this.name} (size, k, text, tainted, at_from, at_to) VALUES (?, ?, ?, ?, ?, ?)`, size, k, node.text, node.tainted ? 1 : 0, node.from, node.to)
         .rowsWritten > 0
@@ -210,12 +210,8 @@ export class Tree {
     let gone = 0
     for (let size = this.shape.page; ; size *= 2) {
       const k = Math.floor(pos / size)
-      const frontier = this.sql.exec<{ k: number | null }>(`SELECT max(k) AS k FROM ${this.name} WHERE size = ?`, size).one().k
-      if (frontier === null) break
-      if (this.sql.exec(`DELETE FROM ${this.name} WHERE size = ? AND k = ?`, size, k).rowsWritten > 0) {
-        gone++
-        if (k < frontier) this.sql.exec(`INSERT OR IGNORE INTO ${this.name}_holes (size, k) VALUES (?, ?)`, size, k)
-      }
+      if (this.sql.exec<{ k: number | null }>(`SELECT max(k) AS k FROM ${this.name} WHERE size = ?`, size).one().k === null) break
+      if (this.sql.exec(`DELETE FROM ${this.name} WHERE size = ? AND k = ?`, size, k).rowsWritten > 0) gone++
     }
     return gone
   }
@@ -226,24 +222,28 @@ export class Tree {
    */
   pending(settled: number, limit: number): Span[] {
     const out: Span[] = []
-    const holes = this.sql.exec<{ size: number; k: number }>(`SELECT size, k FROM ${this.name}_holes ORDER BY size, k LIMIT ?`, limit).toArray()
     const ready = (span: Span) => {
       if (span.hi > settled) return false
       if (span.hi - span.lo === this.shape.page) return true
       const mid = (span.lo + span.hi) / 2
       return this.node({ lo: span.lo, hi: mid }) !== null && this.node({ lo: mid, hi: span.hi }) !== null
     }
-    for (const h of holes) {
-      const span = { lo: h.k * h.size, hi: (h.k + 1) * h.size }
-      if (ready(span)) out.push(span)
-    }
     for (let size = this.shape.page; size <= settled && out.length < limit; size *= 2) {
-      const frontier = this.sql.exec<{ k: number | null }>(`SELECT max(k) AS k FROM ${this.name} WHERE size = ?`, size).one().k ?? -1
-      for (let k = frontier + 1; (k + 1) * size <= settled && out.length < limit; k++) {
+      const { n, k: frontier } = this.sql.exec<{ n: number; k: number | null }>(`SELECT count(*) AS n, max(k) AS k FROM ${this.name} WHERE size = ?`, size).one()
+      // A gap below the frontier: a node forgotten after an edit, or one whose call failed or was told to
+      // wait while later nodes of its level were built. Rare, so the level is listed only then.
+      if (frontier !== null && n < frontier + 1) {
+        const built = new Set(this.sql.exec<{ k: number }>(`SELECT k FROM ${this.name} WHERE size = ?`, size).toArray().map((r) => r.k))
+        for (let k = 0; k < frontier && out.length < limit; k++) {
+          const span = { lo: k * size, hi: (k + 1) * size }
+          if (!built.has(k) && ready(span)) out.push(span)
+        }
+      }
+      for (let k = (frontier ?? -1) + 1; (k + 1) * size <= settled && out.length < limit; k++) {
         const span = { lo: k * size, hi: (k + 1) * size }
         // A level is built left to right: a node whose halves are missing stops the level.
         if (!ready(span)) break
-        if (!out.some((s) => s.lo === span.lo && s.hi === span.hi)) out.push(span)
+        out.push(span)
       }
     }
     return out.slice(0, limit)
@@ -265,6 +265,16 @@ export class Tree {
   fallback(input: NapInput): string {
     const parts = "items" in input ? input.items.map((i) => oneLine(i.text, 60)) : input.halves.map((h) => h.text)
     return capBytes(parts.join("; "), LINE_BYTES)
+  }
+
+  /**
+   * OptChat's free node: when the input already fits in a summary, it is the summary, word for word,
+   * and no model is asked. Short turns stay verbatim until they are merged with longer ones.
+   */
+  free(input: NapInput): string | null {
+    const parts = "items" in input ? input.items.map((i) => `${i.tainted ? OUTSIDE : ""}${i.text.replace(/\s+/g, " ").trim()}`) : input.halves.map((h) => h.text)
+    const text = parts.join("; ")
+    return encoder.encode(text).byteLength <= LINE_BYTES ? text : null
   }
 
   /** Counts one failed summary of `span`. Returns the failures so far. */
@@ -336,11 +346,11 @@ export class Tree {
 
 // ---------------------------------------------------------------- text
 
-/** A verbatim item in a view is cut here, so the floor has a size as well as a count; `zoom` shows more. */
+/** A verbatim item in a view is cut here, with a note to zoom, so the floor has a size as well as a count. */
 const TAIL_CUT = 300
 /** An item that stands in for a page not summarized yet. */
 const PAGE_CUT = 160
-const ZOOM_CUT = 4_000
+export const ZOOM_CUT = 4_000
 
 const OUTSIDE = "[outside] "
 
@@ -348,7 +358,10 @@ const OUTSIDE = "[outside] "
 export function itemLine(item: Item, cut: number, withDay = true): string {
   const d = new Date(item.at)
   const time = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
-  return `#${item.pos} ${withDay ? `${dayOf(item.at, item.at)} ` : ""}${time} ${item.tainted ? OUTSIDE : ""}${oneLine(item.shown ?? item.text, cut)}`
+  const text = oneLine(item.shown ?? item.text, cut)
+  // OptChat: never show cut text as if it were whole, or the agent acts on half a message.
+  const rest = text.endsWith("…") ? ` (cut, zoom ${item.pos})` : ""
+  return `#${item.pos} ${withDay ? `${dayOf(item.at, item.at)} ` : ""}${time} ${item.tainted ? OUTSIDE : ""}${text}${rest}`
 }
 
 export function nodeLine(span: Span, node: Node, now: number): string {
@@ -380,26 +393,32 @@ export function range(from: number, to: number, now: number): string {
   return `${day(a)}–${day(b)}${year(a)}`
 }
 
+
 /** The system prompt of every summary call. */
 export const NAP_SYSTEM =
   "you keep a long-term memory by compressing logs into single lines. you answer with exactly one line of plain lowercase text and nothing else."
 
-/** memo's nap prompt, for a chat (`what: "turns"`) or a life (`what: "memories"`). */
+/** The most of one item a summary call reads. Bigger items are rare: a long paste. memo cut at 600. */
+const NAP_ITEM_CUT = 8_000
+
+/**
+ * memo's nap prompt, for a chat (`what: "turns"`) or a life (`what: "memories"`), with three changes,
+ * each measured on `verify memory-hard`. Items go whole: memo's cut at 600 characters lost a fact deep in
+ * a long paste. No ids: a model copies them into its line (OptChat). And a limit in words, which the
+ * model keeps without counting: asked for bytes, deepseek-v4.1-flash spent about twice the thinking.
+ * `LINE_BYTES` still bounds the stored line (`cleanLine`).
+ */
 export function napPrompt(input: NapInput, what: "turns" | "memories"): string {
-  const { span } = input
-  const body =
-    "items" in input
-      ? input.items.map((i) => `  #${i.pos} ${i.tainted ? OUTSIDE : ""}${oneLine(i.text, 600)}`).join("\n")
-      : input.halves.map((h, n) => `  #${n === 0 ? span.lo : (span.lo + span.hi) / 2}-${n === 0 ? (span.lo + span.hi) / 2 - 1 : span.hi - 1} ${h.text}`).join("\n")
+  const body = "items" in input ? input.items.map((i) => `${i.tainted ? OUTSIDE : ""}${i.text.length > NAP_ITEM_CUT ? `${i.text.slice(0, NAP_ITEM_CUT)}…` : i.text}`) : input.halves.map((h) => h.text)
   return [
-    `compress ${what} #${span.lo}-${span.hi - 1} into one line of at most ${LINE_BYTES} bytes.`,
+    "items" in input ? `compress these ${what} into one line of at most ${LINE_WORDS} words.` : `merge these two lines into one line of at most ${LINE_WORDS} words.`,
     "keep what has lasting effect: facts about people, decisions, plans, results, open questions, who did what. copy exactly every name, number, amount, date, time, place, and code (like a flight or booking number): a later reader needs them word for word. drop small talk, greetings, and repeats. invent nothing. name people and agents as they are named below.",
     "",
-    body,
+    ...body,
   ].join("\n")
 }
 
-/** The model's answer as one summary line: the first non-empty line, unquoted, at most `LINE_BYTES` bytes. Null when empty. */
+/** The model's answer as one summary line: the first non-empty line, unquoted. Null when empty. */
 export function cleanLine(answer: string): string | null {
   const first = answer
     .split("\n")
@@ -412,13 +431,20 @@ export function cleanLine(answer: string): string | null {
 
 const encoder = new TextEncoder()
 
+/** The first `max` UTF-8 bytes of `text`, cut at a character. */
+function cutBytes(text: string, max: number): string {
+  let out = ""
+  let size = 0
+  for (const ch of text) {
+    size += encoder.encode(ch).byteLength
+    if (size > max) break
+    out += ch
+  }
+  return out
+}
+
 /** At most `max` UTF-8 bytes, cut at a character, ending with `…` when cut. */
 export function capBytes(text: string, max: number): string {
   if (encoder.encode(text).byteLength <= max) return text
-  let out = ""
-  for (const ch of text) {
-    if (encoder.encode(`${out}${ch}…`).byteLength > max) break
-    out += ch
-  }
-  return `${out}…`
+  return `${cutBytes(text, max - 3)}…`
 }

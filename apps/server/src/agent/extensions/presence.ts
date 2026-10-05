@@ -56,6 +56,15 @@ export function describeCall(name: string, args: Record<string, unknown>): strin
   }
 }
 
+/** ASSUMPTION: how much of a tool's error the trace keeps. */
+const ERROR_CHARS = 60
+
+/** `failed: reading /x.md (no such file)`. */
+export function failed(doing: string, content: readonly { type: string; text?: string }[] | undefined): string {
+  const error = (content ?? []).flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join(" ").replace(/\s+/g, " ").trim()
+  return `failed: ${doing}${error ? ` (${error.length > ERROR_CHARS ? `${error.slice(0, ERROR_CHARS - 1)}…` : error})` : ""}`
+}
+
 export function presenceExtension(report: (doing: string) => Promise<unknown>): Extension {
   return defineExtension({
     name: PRESENCE,
@@ -65,6 +74,12 @@ export function presenceExtension(report: (doing: string) => Promise<unknown>): 
           const doing = describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>)
           // Fire and forget: the board is a picture, never a gate.
           if (doing) void report(doing).catch(() => undefined)
+          return undefined
+        },
+        // What failed and why is what memory keeps longest (OptChat), so a failed call joins the run's trace.
+        afterTool: async (call, result) => {
+          const doing = result.isError ? describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>) : null
+          if (doing) void report(failed(doing, result.content)).catch(() => undefined)
           return undefined
         },
       }),

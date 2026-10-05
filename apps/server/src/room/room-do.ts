@@ -1129,7 +1129,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** RPC from an agent's presence hook: what its current tool call is about. Holds nothing. */
 	async reportDoing(slug: AgentSlug, doing: string): Promise<void> {
-		if (this.members.list().some((m) => m.slug === slug)) this.working(slug, [], doing.slice(0, 120))
+		if (this.members.list().some((m) => m.slug === slug)) this.working(slug, [], doing.slice(0, 160))
 	}
 
 	/** RPC for an agent's `team` tool: what everyone is doing now, and what they hold. */

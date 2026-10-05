@@ -698,7 +698,10 @@ export class UserDO extends DurableObject<Env> {
   private async napLife(): Promise<void> {
     for (const span of this.life.pending(NAPS_PER_ALARM)) {
       const prompt = this.life.prompt(span)
-      if (!prompt) continue
+      if (!prompt) {
+        this.life.settle(span, null)
+        continue
+      }
       const out = await this.compress(prompt)
       if ("retryAt" in out) return void (await this.alarms.setWakeup(LIFE_WAKEUP, out.retryAt))
       if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
@@ -753,8 +756,10 @@ export class UserDO extends DurableObject<Env> {
     const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
     for (const k of ["input", "output", "cacheRead"] as const) spent[k] = (spent[k] ?? 0) + (reply.usage?.[k] ?? 0)
     spent.calls = (spent.calls ?? 0) + 1
+    const failed = reply.stopReason === "error" || reply.stopReason === "aborted"
+    if (failed) spent.failed = (spent.failed ?? 0) + 1
     this.putSetting(MEMORY_USAGE, JSON.stringify(spent))
-    if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
+    if (failed) throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }
 

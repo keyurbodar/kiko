@@ -674,6 +674,7 @@ export class AgentDO extends DurableObject<Env> {
   /** Development only. The tokens this agent's model requests spent, summed over every model. */
   async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    if (!this.home()) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
     const { harness } = await this.host.open()
     const now = await this.usageOf(harness)
     const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
@@ -683,6 +684,7 @@ export class AgentDO extends DurableObject<Env> {
   /** Development only. Each run's requests: the tools it called and how long its text was, for `verify token-cost`. */
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    if (!this.home()) return []
     const { root } = await this.host.open()
     const view = await root.context(BACKGROUND_CONTEXT)
     return view.entries.map((e) => {
@@ -708,6 +710,9 @@ export class AgentDO extends DurableObject<Env> {
   /** Development only. The agent's subagent conversations, so `verify subagent` can count them. */
   async devChildren(): Promise<{ id: string; taskId: string }[]> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    // Opening the harness builds the agent once per process; built before its first delivery, it would
+    // have no home, so no memory tools and no role. A dev route never does that.
+    if (!this.home()) return []
     return this.host.children()
   }
 
