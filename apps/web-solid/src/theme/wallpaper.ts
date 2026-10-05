@@ -1,10 +1,10 @@
-// A wallpaper behind frost, and the theme it generates. The glass is monocode's: neutral grey
-// at 85% over the picture blurred 24px, so the picture's own colour bleeds through everything.
+// A wallpaper behind frost, and the theme it generates. The glass is dark and neutral over the
+// blurred picture, so the picture's own colour and soft shapes come through everything.
 // The accent comes from the picture too: its strongest vivid hue becomes a custom theme, so
 // no preset is involved.
 //
-// The picture is stored in the look record, so it syncs with it. It is compressed hard: it is
-// only ever seen blurred 24px, so 320 px on the long edge loses nothing the eye can find.
+// The picture is stored in the look record, so it syncs with it. It is blurred at window size
+// first and then compressed hard: blurred, 320 px on the long edge loses nothing.
 
 import type { Theme } from "./schema"
 
@@ -94,6 +94,47 @@ export const themeFrom = (p: Palette): Theme => ({ version: 1, name: "wallpaper"
 
 export type Prepared = { wallpaper: string; palette: Palette }
 
+/** The picture is blurred at this size, about a window's width, before it is shrunk. */
+const WORK_EDGE = 1280
+/** The blur at that size, in px: soft shapes stay, edges and detail go, as under macOS glass. */
+export const PREBLUR = 40
+
+const canvas2d = (w: number, h: number) => {
+  const c = document.createElement("canvas")
+  c.width = Math.max(1, Math.round(w))
+  c.height = Math.max(1, Math.round(h))
+  const ctx = c.getContext("2d")
+  if (!ctx) throw new Error("no canvas")
+  ctx.imageSmoothingQuality = "high"
+  return [c, ctx] as const
+}
+
+/**
+ * The picture at about a window's width, blurred. Blurring before shrinking is what keeps the
+ * stored copy smooth: a blurred picture has no detail left to lose, so 320 px of it stretches
+ * back to the window with no blocks, where blurring a stretched 320 px copy smears its pixels
+ * into wavy contours. The picture is drawn past the edges so the blur never fades there. A
+ * browser without canvas filters gets a blur from shrinking hard and stretching back.
+ */
+function blurred(bitmap: ImageBitmap): HTMLCanvasElement {
+  const scale = Math.min(1, WORK_EDGE / Math.max(bitmap.width, bitmap.height))
+  const w = bitmap.width * scale
+  const h = bitmap.height * scale
+  const [c, ctx] = canvas2d(w, h)
+  // Older Safari has no canvas `filter`, and TypeScript's types say every browser does.
+  if ((ctx as { filter?: unknown }).filter !== undefined) {
+    const pad = PREBLUR * 2
+    ctx.filter = `blur(${PREBLUR}px)`
+    ctx.drawImage(bitmap, -pad, -pad, c.width + pad * 2, c.height + pad * 2)
+    ctx.filter = "none"
+    return c
+  }
+  const [tiny, tctx] = canvas2d(w / PREBLUR, h / PREBLUR)
+  tctx.drawImage(bitmap, 0, 0, tiny.width, tiny.height)
+  ctx.drawImage(tiny, 0, 0, c.width, c.height)
+  return c
+}
+
 /**
  * Shrinks a picked image to a small data URL and reads its palette. It tries smaller sizes and
  * lower quality until the result fits. WebP where the browser can write it, JPEG otherwise.
@@ -101,32 +142,22 @@ export type Prepared = { wallpaper: string; palette: Palette }
 export async function prepareWallpaper(file: Blob): Promise<Prepared> {
   const bitmap = await createImageBitmap(file)
   try {
-    const canvas = document.createElement("canvas")
-    const ctx = canvas.getContext("2d")
-    if (!ctx) throw new Error("no canvas")
+    const soft = blurred(bitmap)
     let wallpaper = ""
-    // High quality first: block artefacts in a dark picture survive the blur as contours.
-    for (const [edge, quality] of [[320, 0.85], [320, 0.7], [320, 0.55], [240, 0.5], [160, 0.4]] as const) {
-      const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height))
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-      ctx.imageSmoothingQuality = "high"
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-      wallpaper = canvas.toDataURL("image/webp", quality)
-      if (!wallpaper.startsWith("data:image/webp")) wallpaper = canvas.toDataURL("image/jpeg", quality)
+    for (const [edge, quality] of [[320, 0.85], [320, 0.7], [240, 0.6], [160, 0.5]] as const) {
+      const scale = edge / Math.max(soft.width, soft.height)
+      const [c, ctx] = canvas2d(soft.width * scale, soft.height * scale)
+      ctx.drawImage(soft, 0, 0, c.width, c.height)
+      wallpaper = c.toDataURL("image/webp", quality)
+      if (!wallpaper.startsWith("data:image/webp")) wallpaper = c.toDataURL("image/jpeg", quality)
       if (isWallpaper(wallpaper)) break
     }
     if (!isWallpaper(wallpaper)) throw new Error("too large")
-    // The palette reads a 32 px copy: enough to vote on hue, and quick.
-    const w = Math.max(1, Math.round((canvas.width / Math.max(canvas.width, canvas.height)) * 32))
-    const h = Math.max(1, Math.round((canvas.height / Math.max(canvas.width, canvas.height)) * 32))
-    const small = document.createElement("canvas")
-    small.width = w
-    small.height = h
-    const sctx = small.getContext("2d")
-    if (!sctx) throw new Error("no canvas")
-    sctx.drawImage(canvas, 0, 0, w, h)
-    return { wallpaper, palette: paletteOf(sctx.getImageData(0, 0, w, h).data) }
+    // The palette reads a sharp 32 px copy, so a small vivid patch still gets its vote.
+    const k = 32 / Math.max(bitmap.width, bitmap.height)
+    const [small, sctx] = canvas2d(bitmap.width * k, bitmap.height * k)
+    sctx.drawImage(bitmap, 0, 0, small.width, small.height)
+    return { wallpaper, palette: paletteOf(sctx.getImageData(0, 0, small.width, small.height).data) }
   } finally {
     bitmap.close()
   }

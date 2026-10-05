@@ -868,22 +868,24 @@
   background-attachment: fixed;
 }
 
-/* Frost over a wallpaper, like macOS glass. The picture (`--wallpaper`, a small data URL set by
-   apply.ts) is blurred 120px, saturated and dimmed a little on one fixed layer, drawn once, and
-   nothing moves behind it, so no live blur is needed. The shell is neutral dark glass at
-   `--glass` (0.6 by default), so the picture's soft shapes and colour show through it, which
-   is what reads as frost; a denser glass only reads as a tint. The blur is that wide because
-   the stored picture is about 320px and stretched to the window: 48px left a figure or a rock
-   readable through the glass. The layer overhangs the window by 300px so the blur never fades
-   at the edges. */
+/* Frost over a wallpaper, like macOS dark glass. The picture (`--wallpaper`, a small data URL
+   set by apply.ts) is already blurred at window size by `theme/wallpaper.ts`, so here it only
+   needs a light blur to smooth the stretch. It is saturated and dimmed on one fixed layer,
+   drawn once, and nothing moves behind it, so no live blur is needed. The glass is neutral and
+   dark. `--glass` (0.15 to 1) maps onto 47% to 85% opacity, and the picture is dimmed to 75%,
+   so the thinnest glass still reads as dark glass with colour in it, never as the picture
+   itself. The layer overhangs the window so the blur never fades at the edges. */
 :root[data-material="frost"][data-wallpaper] {
-  --bg-sidebar: oklch(0.16 0 0 / var(--glass));
+  --glass-alpha: calc(0.4 + 0.45 * var(--glass));
+  --wallpaper-tone: brightness(0.75);
+  --bg-sidebar: oklch(0.16 0 0 / var(--glass-alpha));
   --panel: oklch(100% 0 none / 0.025);
   --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.06);
 }
 
 :root[data-material="frost"][data-wallpaper][data-appearance="light"] {
-  --bg-sidebar: oklch(0.97 0 0 / var(--glass));
+  --wallpaper-tone: brightness(1.1);
+  --bg-sidebar: oklch(0.97 0 0 / var(--glass-alpha));
   --panel: oklch(100% 0 none / 0.35);
   --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06);
 }
@@ -895,10 +897,10 @@
 :root[data-material="frost"][data-wallpaper] body::before {
   content: "";
   position: fixed;
-  inset: -300px;
+  inset: -64px;
   z-index: -1;
   background: var(--wallpaper) center / cover no-repeat;
-  filter: blur(120px) saturate(1.6) brightness(0.85);
+  filter: blur(16px) saturate(1.5) var(--wallpaper-tone);
   pointer-events: none;
 }
 
