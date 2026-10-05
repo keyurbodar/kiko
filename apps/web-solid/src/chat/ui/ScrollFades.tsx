@@ -9,6 +9,9 @@ import { cn } from "../../lib/cn"
  * Each edge is only painted when there is genuinely something in that
  * direction. A gradient at the very top of a thread whose first row is on
  * screen would be a lie — it would dim a row that has nothing above it.
+ *
+ * They paint `--fade-bg`, which frost clears: no flat colour matches glass whose
+ * light changes across the window, so there it would show as a band.
  */
 export function ScrollFades(props: {
   /** False at the top of the range, where the first row is already on screen. */
@@ -27,7 +30,7 @@ export function ScrollFades(props: {
         <div
           class={cn(
             "chat-fades__top absolute inset-x-0 top-0 h-6",
-            "bg-[linear-gradient(to_bottom,var(--bg),transparent)]",
+            "bg-[linear-gradient(to_bottom,var(--fade-bg),transparent)]",
           )}
           data-component="chat-fade-top"
         />
@@ -36,7 +39,7 @@ export function ScrollFades(props: {
         <div
           class={cn(
             "chat-fades__bottom absolute inset-x-0 bottom-0 h-6",
-            "bg-[linear-gradient(to_top,var(--bg),transparent)]",
+            "bg-[linear-gradient(to_top,var(--fade-bg),transparent)]",
           )}
           data-component="chat-fade-bottom"
         />
