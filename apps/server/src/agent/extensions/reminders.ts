@@ -31,6 +31,10 @@ export type RemindersPort = {
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
+/** What a call waiting for the human's card says, so the model cannot read it as done. */
+const NOT_YET = (card?: string) =>
+  `not done yet: this needs the human's ok first${card ? ` (${card})` : ", and no card could be posted"}. tell the human in one line that it waits for them to accept the card. do not say it is set.`
+
 /** The most instruction characters a routine's card shows in full. */
 const CARD_INSTRUCTIONS = 240
 
@@ -110,13 +114,14 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
             const grant = args.may ?? []
             let tainted = isRunTainted(api)
-            // Section 25.3. A human asking in this run is the ok. Anything else, or a standing permission
-            // outside kiko, waits for the human's card.
-            if (tainted || runAuthority(api).origin !== "human" || grant.length) {
+            // Section 25.3. A human asking in this run is the ok, even when the run read outside content:
+            // such a routine is stored tainted, so its runs still cannot act outside kiko without a card.
+            // A routine nobody asked for, or a standing permission outside kiko, waits for the human's card.
+            if (runAuthority(api).origin !== "human" || grant.length) {
               const shown = args.instructions.length <= CARD_INSTRUCTIONS
               const summary = `routine "${args.name}": ${shown ? args.instructions : `${args.instructions.slice(0, CARD_INSTRUCTIONS)}…`} | ${JSON.stringify(trigger)}${grant.length ? ` | may use: ${grant.join(", ")}` : ""}`
               const answer = await user().ask(`${api.conversationId}:${api.callId}`, "create_routine", args as Record<string, unknown>, summary)
-              if (answer === null || typeof answer === "object") return { content: text(answer?.refused ?? "not set: the human's ok is needed and no card could be posted.") }
+              if (answer === null || typeof answer === "object") return { content: text(NOT_YET(answer?.refused)) }
               // The human read and accepted these instructions, so the routine is theirs, not the outside
               // content's: its runs start clean and its grant works. Instructions longer than the card shows
               // keep the run's taint: the human did not see all of them.
@@ -151,10 +156,10 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             if (!current) return { content: text("no such routine in this chat"), isError: true }
             const widens = (args.may ?? []).some((t) => !current.grant.includes(t))
             const changes = args.name !== undefined || args.instructions !== undefined || trigger !== undefined || args.may !== undefined || args.status === "active"
-            if (changes && (isRunTainted(api) || runAuthority(api).origin !== "human" || widens)) {
+            if (changes && (runAuthority(api).origin !== "human" || widens)) {
               const summary = `change routine "${current.name}": ${JSON.stringify({ ...args, id: undefined })}`
               const answer = await user().ask(`${api.conversationId}:${api.callId}`, "update_routine", args as Record<string, unknown>, summary)
-              if (answer === null || typeof answer === "object") return { content: text(answer?.refused ?? "not changed: the human's ok is needed and no card could be posted.") }
+              if (answer === null || typeof answer === "object") return { content: text(NOT_YET(answer?.refused)) }
             }
             let routine = current
             if (changes || args.status) {

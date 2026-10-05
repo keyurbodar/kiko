@@ -681,7 +681,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /** Development only. Each run's requests: the tools it called and how long its text was, for `verify token-cost`. */
-  async devTrace(): Promise<{ kind: string; tool?: string; chars: number }[]> {
+  async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     const { root } = await this.host.open()
     const view = await root.context(BACKGROUND_CONTEXT)
@@ -689,7 +689,8 @@ export class AgentDO extends DurableObject<Env> {
       const m = e.model?.[0] as { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] } | undefined
       const parts = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
       const tool = parts.find((p) => p.type === "toolCall")?.name
-      return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0) }
+      const text = parts.map((p) => p.text ?? "").join("").slice(0, 300)
+      return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0), ...(text ? { text } : {}) }
     })
   }
 

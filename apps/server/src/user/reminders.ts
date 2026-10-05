@@ -800,6 +800,8 @@ export function routineBody(routine: Reminder, why: string, last: RoutineRun | n
     last ? `last run: ${last.status}, ${localTime(last.startedAt, routine.tz)}.` : "this is its first run.",
     "instructions:",
     routine.text,
+    "",
+    "if the instructions ask you to send or report something, send it now, even when it is the same as last time. answer [skip] only when they say to stay quiet when nothing is new, or ask for nothing.",
   ]
   if (extra) lines.push("", extra)
   return lines.join("\n")

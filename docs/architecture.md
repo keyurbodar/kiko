@@ -1345,7 +1345,7 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 | Tool | Effect | Does |
 | --- | --- | --- |
 | `create_reminder` | write | unchanged |
-| `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok; otherwise, in a tainted run, or with a grant, it posts an approval card that waits a day and makes the routine when the human accepts. A routine the human accepted is stored clean, so its grant works, unless its instructions were longer than the card shows |
+| `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok, even in a tainted run (the routine is then stored tainted); a routine nobody asked for, or one with a grant, posts an approval card that waits a day and makes the routine when the human accepts. A routine the human accepted is stored clean, so its grant works, unless its instructions were longer than the card shows |
 | `update_routine(id, ..., status?, run_now?)` | write | pausing and running now need nobody; any other change follows the same rule as create |
 | `list_reminders` | read | reminders and routines, with each routine's last run |
 | `cancel_reminder(id)` | write | cancels either |
