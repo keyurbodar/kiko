@@ -165,6 +165,7 @@ export const Trigger = Schema.Union([
 		url: Short(2000),
 		everyMinutes: Schema.Int.check(Schema.isGreaterThanOrEqualTo(15), Schema.isLessThanOrEqualTo(10_080)),
 		extension: Schema.optionalKey(Short(64)),
+		headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 	}),
 ])
 

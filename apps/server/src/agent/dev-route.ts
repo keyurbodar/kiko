@@ -17,6 +17,10 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/memory  { roomId }  -> { turns, pending, view }
 //   POST /api/dev/agent/classic { roomId }  -> { ok: true }   the room's agent keeps the old transcript (`verify token-cost`)
 //   POST /api/dev/agent/usage   { roomId, slug? }  -> { agent, memory }   tokens the agent and memory summaries spent
+//   POST /api/dev/agent/budget  { roomId, slug?, ms }  -> the agent's budget for runs nobody asked for (section 25.2)
+//   POST /api/dev/agent/age     { roomId, ms }  -> { open }   ages open tasks and runs the stall sweep (section 25.6)
+//   POST /api/dev/agent/seen    { ago }  -> the human was last seen `ago` ms back (section 25.5)
+//   POST /api/dev/agent/due     { id }   -> routine `id` is due now (section 25)
 //
 // `seed` writes messages straight into the room's log, with no burst and no run, so a long chat costs
 // no tokens to set up. `from` is "human" or an agent slug. `memory` reports the room's log memory.
@@ -34,7 +38,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace"].includes(action ?? "")) return null
+  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -42,6 +46,22 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { limits?: Record<string, unknown> } | null
     return Response.json({ limits: await userStub(env.USER, user.id).setLimits(body?.limits ?? {}) })
+  }
+  // Section 25: make a routine due now.
+  if (action === "due") {
+    const user = await getSessionUser(request, env)
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+    const body = (await request.json().catch(() => null)) as { id?: unknown } | null
+    await userStub(env.USER, user.id).devDue(String(body?.id ?? ""))
+    return Response.json({ ok: true })
+  }
+  // Section 25: move the human's last visit back `ago` ms.
+  if (action === "seen") {
+    const user = await getSessionUser(request, env)
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+    const body = (await request.json().catch(() => null)) as { ago?: unknown } | null
+    await userStub(env.USER, user.id).devSeen(Number(body?.ago ?? 0))
+    return Response.json({ ok: true })
   }
   if (action === "children") {
     const user = await getSessionUser(request, env)
@@ -64,6 +84,12 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     return Response.json({ turns: await roomStub(env.ROOM, user.id, roomId).devSeed(turns as { from: string; text: string }[]) })
   }
   if (action === "memory") return Response.json(await roomStub(env.ROOM, user.id, roomId).devMemory())
+  if (action === "age") return Response.json({ open: await roomStub(env.ROOM, user.id, roomId).devAge(Number((body as { ms?: unknown }).ms ?? 0)) })
+  if (action === "budget") {
+    const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
+    await agentStub(env.AGENT, user.id, roomId, slug).devBudget(Number((body as { ms?: unknown }).ms ?? 0))
+    return Response.json({ ok: true })
+  }
   if (action === "usage") {
     const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
     return Response.json({ agent: await agentStub(env.AGENT, user.id, roomId, slug).devUsage(), memory: await userStub(env.USER, user.id).memoryUsage() })

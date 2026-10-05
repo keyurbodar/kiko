@@ -14,6 +14,8 @@ export type ChiefPort = {
   agents(): Promise<Agent[]>
   propose(input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }>
   create(id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }>
+  /** Section 25.7. What is open across the human's chats, in a few lines. */
+  overview(): Promise<string>
 }
 
 const CHIEF_RULES = `you're the chief: you make the human's agents and groups, and only you can. they never fill in a form.
@@ -82,9 +84,17 @@ export function chiefExtension(port: ChiefPort): Extension {
     },
   })
 
+  const overview = defineTool({
+    name: "overview",
+    description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines and their last runs, reminders due soon. for check-ins.",
+    parameters: Type.Object({}),
+    replay: "safe",
+    execute: async () => ({ content: text(await port.overview()) }),
+  })
+
   return defineExtension({
     name: CHIEF_EXT,
     sections: [section("chief", () => CHIEF_RULES)],
-    tools: [declareEffect("read", list), declareEffect("write", proposeAgent), declareEffect("write", proposeGroup), declareEffect("write", create)],
+    tools: [declareEffect("read", list), declareEffect("write", proposeAgent), declareEffect("write", proposeGroup), declareEffect("write", create), declareEffect("read", overview)],
   })
 }

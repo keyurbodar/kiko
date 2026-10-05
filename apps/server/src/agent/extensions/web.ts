@@ -1,6 +1,9 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "../effects"
+import { htmlToText } from "../../lib/html-text"
+
+export { htmlToText }
 import { type Fetcher, safeFetch } from "../../lib/safe-fetch"
 import { devFixtureFetcher } from "../../previews/resolve"
 import type { Effect as ToolEffect } from "../effects"
@@ -20,38 +23,6 @@ export const WEB_TOOL_EFFECTS = { web_fetch: "read" } as const satisfies Record<
 export const WEB_TOOLS_UNTRUSTED: readonly string[] = ["web_fetch"]
 
 export const WEB = "web"
-
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }
-
-function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, name: string) => {
-    if (name[0] === "#") {
-      const code = name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10)
-      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole
-    }
-    return ENTITIES[name.toLowerCase()] ?? whole
-  })
-}
-
-const BLOCK = /<\/?(?:p|div|br|li|ul|ol|h[1-6]|tr|table|section|article|header|footer|nav|main|aside|blockquote|pre|hr|title|dd|dt)\b[^>]*>/gi
-
-/** The readable text of an HTML page: no scripts, styles, or tags, one line per block. Pure. */
-export function htmlToText(html: string): string {
-  const body = html
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<(script|style|noscript|template|svg|head)\b[\s\S]*?<\/\1\s*>/gi, (whole, tag: string) =>
-      // The title is the one part of the head worth reading.
-      tag.toLowerCase() === "head" ? (/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(whole)?.[1] ?? "") + "\n" : " ",
-    )
-    .replace(BLOCK, "\n")
-    .replace(/<[^>]*>/g, "")
-  return decodeEntities(body)
-    .split("\n")
-    .map((line) => line.replace(/[ \t\f\v\r]+/g, " ").trim())
-    .filter((line, i, lines) => line !== "" || (i > 0 && lines[i - 1] !== ""))
-    .join("\n")
-    .trim()
-}
 
 const TEXT_TYPES = /^(text\/|application\/(json|xml|xhtml\+xml|javascript|ld\+json|rss\+xml|atom\+xml)\b)/
 

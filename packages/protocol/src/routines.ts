@@ -19,9 +19,10 @@ export type Trigger =
 	| { on: "webhook"; match?: readonly WebhookMatch[] }
 	/**
 	 * A page checked every `everyMinutes` without a model. The agent wakes only when it changed. With
-	 * `extension`, the request goes through that installed extension, so its secrets and egress apply.
+	 * `extension`, the request goes through that installed extension, so its egress applies and `headers`
+	 * may name its secrets as `{{secret.NAME}}`.
 	 */
-	| { on: "watch"; url: string; everyMinutes: number; extension?: string }
+	| { on: "watch"; url: string; everyMinutes: number; extension?: string; headers?: Readonly<Record<string, string>> }
 
 export type TriggerKind = Trigger["on"]
 

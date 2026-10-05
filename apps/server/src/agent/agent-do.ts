@@ -40,6 +40,8 @@ import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
 const DEV_CLASSIC_KEY = "dev-classic"
+/** Read by the host (`host.ts`). Only `devBudget` writes it. */
+const DEV_BUDGET_KEY = "dev:auto-budget-ms"
 /** The room's turn count when this agent last read it: where the next run's delta starts (section 13). */
 const MEMORY_POS_KEY = "memory:pos"
 /** Missed more turns than this, and the run starts over from the whole block instead of a long delta. */
@@ -91,6 +93,10 @@ export class AgentDO extends DurableObject<Env> {
         await this.hostOptions.onOpen?.(opened)
         // Before resume, so the outbox sees a resumed run from its first event.
         await this.outbox.attach(opened.harness, opened.root.id)
+      },
+      onTimeout: async () => {
+        const home = this.home()
+        if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runTimedOut(home.slug)
       },
       onGiveUp: async () => {
         await this.hostOptions.onGiveUp?.()
@@ -185,13 +191,26 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     if (!home) return null
     const user = () => userStub(this.env.USER, home.userId)
+    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const tz = () => this.#run?.timezone ?? "UTC"
+    // An agent reaches only the reminders and routines of its own chat, whatever id it passes.
+    const mine = async (id: string) => (await user().listReminders()).some((r) => r.id === id && r.roomId === home.roomId)
+    const notHere = { ok: false as const, error: "no such reminder in this chat" }
     return {
       create: (input) => user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug }),
       list: async () => (await user().listReminders()).filter((r) => r.roomId === home.roomId),
       cancel: async (id) => {
+        if (!(await mine(id))) return notHere
         const out = await user().cancelReminder(id)
         return out.ok ? { ok: true } : { ok: false, error: out.error }
       },
+      createRoutine: (input) =>
+        user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug }),
+      updateRoutine: async (id, patch) => ((await mine(id)) ? user().updateRoutine(id, patch) : notHere),
+      runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
+      runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
+      ask: (callKey, tool, args, summary) => room().requestApproval(home.slug, { callKey, tool, args, summary, ttlMs: 86_400_000 }),
+      origin: () => user().publicOrigin(),
     }
   }
 
@@ -249,6 +268,7 @@ export class AgentDO extends DurableObject<Env> {
       agents: () => userStub(this.env.USER, home.userId).listAgents(),
       propose: (input) => room().propose(home.slug, input),
       create: (id) => room().createProposal(home.slug, id),
+      overview: () => userStub(this.env.USER, home.userId).overview(),
     }
   }
 
@@ -286,6 +306,7 @@ export class AgentDO extends DurableObject<Env> {
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort(), this.scriptPorts(), {
         authority: () => this.host.authority(),
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
+        chief: this.chiefPort(),
       })
       return {
         ...fake,
@@ -669,6 +690,12 @@ export class AgentDO extends DurableObject<Env> {
       const tool = parts.find((p) => p.type === "toolCall")?.name
       return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0) }
     })
+  }
+
+  /** Development only. A shorter budget for runs nobody asked for, so `verify routines` sees a timeout (section 25.2). */
+  async devBudget(ms: number): Promise<void> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    await this.ctx.storage.put(DEV_BUDGET_KEY, ms)
   }
 
   async devFake(): Promise<void> {

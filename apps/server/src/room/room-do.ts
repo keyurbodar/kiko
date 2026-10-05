@@ -6,6 +6,10 @@ import type { Env } from "../index"
 import { type Alarms, createAlarms, runDue } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
 import { utcDay } from "./limits"
+import { type Inflight, RoomRoutines, ROUTINES_WAKEUP } from "./routines"
+import { chatTasks, LOOPS_WAKEUP, MAX_NUDGES, nudgeBody, openTasks, stalled, SWEEP_MS } from "./stalls"
+import type { RoomRoutine } from "../user/routines"
+import type { RunDelivery } from "../user/reminders"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
@@ -101,6 +105,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	team!: Team
 	workspace!: RoomWorkspace
 	approvals!: RoomApprovals
+	private routines!: RoomRoutines
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -126,6 +131,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.approvals = new RoomApprovals(ctx.storage, this.log)
 			this.asks = new Asks(ctx.storage.sql)
+			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 		})
 	}
@@ -378,12 +384,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[MAIL_WAKEUP]: () => this.drainMail(),
 			[MEMORY_WAKEUP]: () => this.naps(),
 			[QUIET_WAKEUP]: () => this.rollupQuiet(),
+			[ROUTINES_WAKEUP]: () => this.flushRoutineEvents(),
+			[LOOPS_WAKEUP]: () => this.sweepStalls(),
 			[APPROVALS_WAKEUP]: async () => {
 				this.publish(this.approvals.expire())
 				await this.deliverApprovals()
 				await this.armApprovals()
 			},
-		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000 } })
+		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [ROUTINES_WAKEUP]: 5_000 } })
 	}
 
 	private async flush(): Promise<void> {
@@ -770,6 +778,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!events.length) return
 		this.broadcast({ t: "events", events })
 		if (events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
+		this.matchRoutines(events)
+		if (events.some((e) => e.t === "task" || e.t === "task_removed")) this.ctx.waitUntil(this.tasksChanged())
 		// Every stored human message passes here once, so this is where a burst grows.
 		for (const e of events) if (e.t === "message" && e.from.kind === "human") this.ctx.waitUntil(this.burst.add(e))
 		// Section 7.8: a busy agent learns at once that a human message is coming, so it keeps holding
@@ -829,6 +839,125 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			await this.deliverAuto(home, reminder.target as AgentSlug, envelope)
 		}
 		return event !== null
+	}
+
+	// Routines (architecture section 25). UserDO owns them; the room delivers their runs, matches its
+	// events against its event routines, and reports how each run it delivered ended.
+
+	/** RPC from UserDO: this chat's event routines, after any change to one. */
+	async setRoutines(list: RoomRoutine[]): Promise<void> {
+		this.routines.set(list)
+	}
+
+	/**
+	 * RPC from UserDO: one routine run. A repeat of `deliveryId` delivers nothing. The envelope carries
+	 * the routine's grant, and the run counts against the day's budget like every run nobody asked for.
+	 */
+	async deliverRoutine(deliveryId: string, input: { target: string; body: string; tainted: boolean; grant: readonly string[] }): Promise<RunDelivery> {
+		const home = this.home()
+		// A room nobody opened yet has no members to run anything; the run fails and the routine stays.
+		if (!home) return "refused"
+		if (this.deliveries.seen(deliveryId)) return "duplicate"
+		const chat = await this.chat(home)
+		if (!chat) return "gone"
+		await this.seedMembers(home, chat)
+		const slug = input.target as AgentSlug
+		if (!this.members.get(slug)) return "gone"
+		const id = `routine:${deliveryId}`
+		const seq = this.log.lastSeq()
+		const envelope: Envelope = { id, roomId: home.roomId, from: { kind: "system", reason: "routine" }, body: input.body, hop: 0, rootId: id, tainted: input.tainted, seq, origin: "routine", grant: input.grant }
+		const out = await this.deliverAuto(home, slug, envelope)
+		if (out === "delivered") {
+			const cut = deliveryId.indexOf(":")
+			this.routines.follow({ routineId: deliveryId.slice(0, cut), occurrence: deliveryId.slice(cut + 1), slug, seq })
+		}
+		if (out === "delivered" || out === "held") this.deliveries.mark(deliveryId)
+		return out
+	}
+
+	/** Adds this step's events to the windows of the routines that look at them, and arms the flush. */
+	private matchRoutines(events: readonly RoomEvent[]): void {
+		const seqs = events.map((e) => e.seq)
+		let actors: Map<number, string> | null = null
+		const actorOf = (seq: number) => {
+			actors ??= new Map(this.ctx.storage.sql.exec<{ seq: number; actor: string }>("SELECT seq, actor FROM events WHERE seq IN (SELECT value FROM json_each(?))", JSON.stringify(seqs)).toArray().map((r) => [r.seq, r.actor]))
+			return actors.get(seq) ?? null
+		}
+		const eventRun = (slug: AgentSlug) => /^routine:[^:]+:(event|hook|watch):/.test(this.mail.chainRoot(slug) ?? "")
+		const nameOf = (slug: AgentSlug) => this.members.get(slug)?.name ?? slug
+		const closes = this.routines.add(events, actorOf, eventRun, nameOf, Date.now())
+		if (closes !== null) this.ctx.waitUntil(this.alarms.setWakeup(ROUTINES_WAKEUP, closes))
+	}
+
+	/** Runs every routine whose event window closed. A failure leaves the window for the retry. */
+	private async flushRoutineEvents(): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		const user = userStub(this.env.USER, home.userId)
+		for (const w of this.routines.due(Date.now())) {
+			const lines = [...w.lines, ...(w.more ? [`and ${w.more} more`] : [])].map((l) => `- ${l}`).join("\n")
+			await user.routineEvent(w.routineId, `event:${w.openedAt}`, "events in this chat", `what happened:\n${lines}`)
+			this.routines.closed(w.routineId)
+		}
+		const next = this.routines.nextClose()
+		if (next !== null) await this.alarms.setWakeup(ROUTINES_WAKEUP, next)
+	}
+
+	/** Reports to UserDO how routine runs ended. A run that posted nothing was quiet. */
+	private reportRuns(runs: readonly Inflight[], status: "ended" | "failed" | "timeout"): void {
+		const home = this.home()
+		if (!home || !runs.length) return
+		const user = userStub(this.env.USER, home.userId)
+		for (const r of runs) {
+			const posted = status === "ended" ? this.log.lastAgentSeq(r.slug, r.seq) : null
+			const outcome = status === "ended" ? (posted !== null ? "ok" : "quiet") : status
+			this.ctx.waitUntil(user.routineRunDone(r.routineId, r.occurrence, outcome, posted).catch((e: unknown) => console.error(`routine report failed: ${e instanceof Error ? e.message : String(e)}`)))
+		}
+	}
+
+	/** Tells UserDO this chat's open tasks, and keeps the hourly stall sweep armed while any are open. */
+	private async tasksChanged(): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		const rows = openTasks(this.ctx.storage.sql)
+		if (rows.length && this.log.meta("loops_armed") === null) {
+			this.log.setMeta("loops_armed", "1")
+			await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + SWEEP_MS)
+		}
+		await userStub(this.env.USER, home.userId).chatTasks(home.roomId, chatTasks(rows)).catch(() => {})
+	}
+
+	/**
+	 * Section 25.6. Nudges each task untouched for a day, once a day per task, at most `MAX_NUDGES` a
+	 * day per room, through the budget like any run nobody asked for.
+	 */
+	private async sweepStalls(): Promise<void> {
+		const home = this.home()
+		const rows = openTasks(this.ctx.storage.sql)
+		if (!home || !rows.length) {
+			this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = 'loops_armed'")
+			return
+		}
+		await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + SWEEP_MS)
+		const now = Date.now()
+		const day = utcDay(now)
+		const lead = this.members.list().find((m) => m.lead)?.slug ?? null
+		let sent = Number(this.log.meta(`nudges:${day}`) ?? 0)
+		for (const n of stalled(rows, lead, now)) {
+			if (sent >= MAX_NUDGES) break
+			const id = `stalled:${n.taskId}:${day}`
+			if (this.deliveries.seen(id) || !this.members.get(n.to)) continue
+			const envelope: Envelope = { id, roomId: home.roomId, from: { kind: "system", reason: "stalled" }, body: nudgeBody(n), hop: 0, rootId: id, tainted: false, seq: this.log.lastSeq(), origin: "auto" }
+			const out = await this.deliverAuto(home, n.to, envelope)
+			this.deliveries.mark(id)
+			if (out === "held") break
+			this.log.setMeta(`nudges:${day}`, String(++sent))
+		}
+	}
+
+	/** RPC for an agent: its run passed twice its budget and is being aborted (section 25.2). */
+	async runTimedOut(slug: AgentSlug): Promise<void> {
+		this.reportRuns(this.routines.dropped(slug), "timeout")
 	}
 
 	/**
@@ -1258,6 +1387,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			return this.log.append(`agent:${slug}`, { t: "no_provider", slug, provider })
 		})
 		if (event) this.publish([event])
+		// No credential, no run: the routine runs handed to this agent failed.
+		this.reportRuns(this.routines.dropped(slug), "failed")
 		return event !== null
 	}
 
@@ -1266,6 +1397,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * human sees why the agent went quiet, and the agent shows idle.
 	 */
 	async runDropped(slug: AgentSlug): Promise<void> {
+		this.reportRuns(this.routines.dropped(slug), "failed")
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text: `@${slug} stopped: its reply kept crashing, so it was dropped. send a message to try again.` })
 		if (event) this.publish([event])
 		await this.setStatus(slug, "idle")
@@ -1283,6 +1415,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
 		// A run that ended lets go of everything it held (section 7.12), whatever the member row says.
 		if (state === "idle") this.team.clear(slug)
+		// A run began: the routine runs handed to this agent are in it (section 25.2).
+		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug)
 		if (!this.members.setStatus(slug, state)) return
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now())
 		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
@@ -1301,6 +1435,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (home && !this.bubbles.ended(runId)) this.memory.trace(slug, runId, Date.now())
 		await this.setStatus(slug, "idle")
+		this.reportRuns(this.routines.ended(slug), "ended")
 		if (!home || this.bubbles.ended(runId)) return
 		await this.armMemory()
 		await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
@@ -1382,6 +1517,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** Development only. Makes `slug` a member and stores one message from it, for the deletion check. */
+	/** Development only. Ages every open task by `ms` and runs the stall sweep now (`verify stalls`). */
+	async devAge(ms: number): Promise<number> {
+		if (process.env.NODE_ENV !== "development") throw new Error("not found")
+		this.ctx.storage.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)
+		await this.sweepStalls()
+		return openTasks(this.ctx.storage.sql).length
+	}
+
 	async devAgentMessage(slug: AgentSlug, text: string): Promise<void> {
 		if (process.env.NODE_ENV !== "development") throw new Error("not found")
 		const added = this.members.apply({ op: "add", slug, name: slug })

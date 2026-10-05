@@ -58,6 +58,8 @@ type TrustState = {
   marked: Map<string, string>
   /** Every `external` decision of this process, newest last. Kept short. */
   externals: ExternalDecision[]
+  /** The authority of the run in flight (section 25.3). */
+  authority: () => Authority
 }
 
 const STATES = new WeakMap<Extension, TrustState>()
@@ -177,9 +179,9 @@ async function wrapResult(result: ToolExecutionResult, source: string, api: Hook
 
 /** Built by the factory only, once per agent process. */
 export function trustExtension(options: TrustOptions): Extension {
-  const state: TrustState = { taint: new Map(), marked: new Map(), externals: [] }
-  const approvals: Approvals = options.approvals ?? (async () => null)
   const authority = options.authority ?? (() => HUMAN)
+  const state: TrustState = { taint: new Map(), marked: new Map(), externals: [], authority }
+  const approvals: Approvals = options.approvals ?? (async () => null)
   const declared = (name: string): EffectDeclaration => options.effects.get(name) ?? { effect: "external" }
 
   const extension = defineExtension({
@@ -252,6 +254,11 @@ export function markRunTainted(api: Pick<ToolExecutionApi, "registry" | "convers
  */
 export function isRunTainted(api: Pick<ToolExecutionApi, "registry" | "conversationId">): boolean {
   return stateOf(api).taint.get(api.conversationId) ?? true
+}
+
+/** The authority of the calling tool's run (section 25.3). A tool that asks the human itself reads it. */
+export function runAuthority(api: Pick<ToolExecutionApi, "registry">): Authority {
+  return stateOf(api).authority()
 }
 
 /** Every `external` decision this process made, oldest first. For tests and the dev fake agent. */

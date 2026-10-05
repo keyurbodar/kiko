@@ -54,6 +54,11 @@ export class Deliveries {
 		return this.storage.sql.exec("SELECT 1 FROM deliveries WHERE id = ?", id).toArray().length > 0
 	}
 
+	/** Remembers a delivery id, so a repeat delivers nothing. */
+	mark(id: string): void {
+		this.storage.sql.exec("INSERT OR IGNORE INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
+	}
+
 	/**
 	 * Stores a reminder as a message from `system:reminder`. Returns the event to
 	 * publish, or null when the id was delivered before.
@@ -309,6 +314,11 @@ export class Mail {
 			JSON.stringify(authorityOfAll(envelopes)),
 		)
 		if (envelopes.some((e) => e.from.kind === "human")) this.sql.exec("DELETE FROM autonomous_runs")
+	}
+
+	/** The root of the chain `slug` is on now, or null. */
+	chainRoot(slug: AgentSlug): string | null {
+		return this.sql.exec<{ root_id: string }>("SELECT root_id FROM agent_chains WHERE slug = ?", slug).toArray()[0]?.root_id ?? null
 	}
 
 	/** True once the human pressed stop on `rootId`. */

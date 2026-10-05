@@ -412,12 +412,14 @@ export class AgentHost {
     const row = this.ctx.storage.sql.exec<{ authority: string; started_at: number; steered: number }>("SELECT authority, started_at, steered FROM run_authority WHERE id = 1").toArray()[0]
     if (!row || (JSON.parse(row.authority) as Authority).origin === "human") return
     const age = Date.now() - row.started_at
-    if (age < AUTO_RUN_BUDGET_MS) return
+    const budget = (await this.ctx.storage.get<number>("dev:auto-budget-ms")) ?? AUTO_RUN_BUDGET_MS
+    if (age < budget) return
     if (!(await this.runState(harness, root))) return
-    if (age >= 2 * AUTO_RUN_BUDGET_MS) {
+    if (age >= 2 * budget) {
+      // Told first, so the run's end is reported as a timeout, not as an answer.
+      await this.options.onTimeout?.()
       await root.abort(context)
       this.ctx.storage.sql.exec("DELETE FROM run_authority")
-      await this.options.onTimeout?.()
       return
     }
     if (row.steered) return
