@@ -20,7 +20,8 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 // Envelope
 
-export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files", "created"])
+export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files", "created", "routine", "stalled"])
+export const Origin = Schema.Literals(["human", "routine", "auto"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -39,6 +40,8 @@ export const Envelope = Schema.Struct({
 	rootId: Id,
 	tainted: Schema.Boolean,
 	seq: Count,
+	origin: Schema.optionalKey(Origin),
+	grant: Schema.optionalKey(Schema.Array(Schema.String)),
 })
 
 // Rich text
@@ -140,6 +143,30 @@ export const MemberOp = Schema.Union([
 ])
 
 export const TaskStatus = Schema.Literals(["todo", "doing", "blocked", "review", "done", "cancelled"])
+
+// Routines (architecture section 25). Decoded where a trigger enters: the routine tools and the HTTP API.
+
+const Short = (max: number) => Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(max))
+
+export const WebhookMatch = Schema.Struct({
+	path: Short(200),
+	equals: Schema.optionalKey(Schema.Union([Schema.String, Schema.Number, Schema.Boolean])),
+	contains: Schema.optionalKey(Short(200)),
+})
+
+export const Trigger = Schema.Union([
+	Schema.Struct({ on: Schema.Literal("time"), at: Short(64), rrule: Schema.optionalKey(Short(300)) }),
+	Schema.Struct({ on: Schema.Literal("task"), status: Schema.optionalKey(Schema.Array(TaskStatus)) }),
+	Schema.Struct({ on: Schema.Literal("message"), from: Schema.Literals(["human", "agent", "any"]), contains: Schema.optionalKey(Short(200)) }),
+	Schema.Struct({ on: Schema.Literal("file"), path: Short(300) }),
+	Schema.Struct({ on: Schema.Literal("webhook"), match: Schema.optionalKey(Schema.Array(WebhookMatch).check(Schema.isMaxLength(8))) }),
+	Schema.Struct({
+		on: Schema.Literal("watch"),
+		url: Short(2000),
+		everyMinutes: Schema.Int.check(Schema.isGreaterThanOrEqualTo(15), Schema.isLessThanOrEqualTo(10_080)),
+		extension: Schema.optionalKey(Short(64)),
+	}),
+])
 
 export const Task = Schema.Struct({
 	id: Id,
@@ -587,6 +614,7 @@ export type InSync = Assert<
 	| Same<typeof Sender.Type, P.Sender>
 	| Same<typeof Actor.Type, P.Actor>
 	| Same<typeof Envelope.Type, P.Envelope>
+	| Same<typeof Trigger.Type, P.Trigger>
 	| Same<typeof RichText.Type, P.RichText>
 	| Same<typeof Message.Type, P.Message>
 	| Same<typeof TaskOp.Type, P.TaskOp>

@@ -5,6 +5,7 @@ import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
 import { type Alarms, createAlarms, runDue } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
+import { utcDay } from "./limits"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
@@ -823,24 +824,60 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// A reminder for an agent also wakes it (P5-06): a system envelope, reason `reminder`, hop 0. The
 		// envelope id is the delivery id, so a repeat is ignored by the inbox.
 		const home = this.home()
-		const member = this.members.list().find((m) => m.slug === reminder.target)
-		if (event && home && member && event.t === "message") {
-			const envelope: Envelope = {
-				id: `reminder:${id}`,
-				roomId: home.roomId,
-				from: { kind: "system", reason: "reminder" },
-				body: `reminder: ${reminder.text}`,
-				hop: 0,
-				rootId: `reminder:${id}`,
-				tainted: false,
-				seq: event.seq,
-			}
-			const goal = (await this.chat(home))?.title ?? ""
-			const d = this.delivery(member, this.members.list(), goal, [envelope])
-			const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).receive(d.envelopes, d.brief, this.agentHome(home, member.slug, member))
-			if (!refused) this.members.markDelivered(member.slug, event.seq)
+		if (event && home && event.t === "message" && this.members.get(reminder.target as AgentSlug)) {
+			const envelope: Envelope = { id: `reminder:${id}`, roomId: home.roomId, from: { kind: "system", reason: "reminder" }, body: `reminder: ${reminder.text}`, hop: 0, rootId: `reminder:${id}`, tainted: false, seq: event.seq, origin: "auto" }
+			await this.deliverAuto(home, reminder.target as AgentSlug, envelope)
 		}
 		return event !== null
+	}
+
+	/**
+	 * RPC. One system line nobody's reply answers, such as the away notice of section 25.5. `id` makes a
+	 * repeat store nothing.
+	 */
+	async systemNotice(id: string, text: string): Promise<void> {
+		const event = this.deliveries.notice(id, text)
+		if (event) this.publish([event])
+	}
+
+	/**
+	 * Architecture section 25.5. Every wake that no human message started comes through here: a routine,
+	 * an agent's reminder, a task wake, a stall nudge. It takes one of the room's runs for the day and one
+	 * of the user's, then hands the agent its envelope and records the chain, so a message the agent sends
+	 * inherits the envelope's authority. A retry of the same envelope pays once. `receive()` only stores,
+	 * so this cannot deadlock.
+	 */
+	private async deliverAuto(home: { userId: string; roomId: RoomId }, slug: AgentSlug, envelope: Envelope): Promise<"delivered" | "held" | "refused" | "gone"> {
+		const members = this.members.list()
+		const member = members.find((m) => m.slug === slug)
+		if (!member) return "gone"
+		const now = Date.now()
+		if (!this.mail.autonomousTaken(envelope.id)) {
+			if (!this.mail.autonomousLeft(now)) return this.budgetHeld(now, "this chat")
+			const user = await userStub(this.env.USER, home.userId).takeAutonomous()
+			if (!user.ok) return user.reason === "away" ? "held" : this.budgetHeld(now, "your account")
+			this.mail.takeAutonomousRun(now, envelope.id)
+		}
+		const goal = (await this.chat(home))?.title ?? ""
+		const seq = this.log.lastSeq()
+		const d = this.delivery(member, members, goal, [envelope])
+		const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
+		if (refused === "full") throw new Error(`${slug}'s inbox is full`)
+		if (refused) {
+			console.error(`${envelope.from.kind === "system" ? envelope.from.reason : "auto"} delivery to ${slug} refused: ${refused}`)
+			return "refused"
+		}
+		this.members.markDelivered(slug, seq)
+		this.mail.delivered(slug, d.envelopes)
+		markReactionsBriefed(this.log, slug, d.reactionsUpTo)
+		return "delivered"
+	}
+
+	/** A wake held by the day's budget. The chat says so once a day; the human's next message frees the room's count. */
+	private budgetHeld(now: number, whose: string): "held" {
+		const event = this.deliveries.notice(`budget:${utcDay(now)}`, `agents paused their own work for today: ${whose} used its runs that start without you. send a message to go on.`)
+		if (event) this.publish([event])
+		return "held"
 	}
 
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
@@ -1106,19 +1143,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const wakes = this.workspace.pendingWakes()
 		if (!home || !wakes.length) return
 		try {
-			const chat = await this.chat(home)
-			if (!chat) return
+			if (!(await this.chat(home))) return
 			for (const wake of wakes) {
-				const members = this.members.list()
-				const member = members.find((m) => m.slug === wake.owner)
-				if (!member) continue
-				const seq = this.log.lastSeq()
-				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat.title, null))
-				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
-				const { refused } = await agent.receive([wakeEnvelope(home.roomId, wake)], brief, this.agentHome(home, member.slug, member))
-				if (refused === "full") throw new Error("inbox full")
-				if (refused) console.error(`task_unblocked delivery to ${member.slug} refused: ${refused}`)
-				this.members.markDelivered(member.slug, seq)
+				// A held or refused wake is not retried: the task stays unblocked on the board and its owner sees it in the next brief.
+				await this.deliverAuto(home, wake.owner, { ...wakeEnvelope(home.roomId, wake), origin: "auto" })
 				this.workspace.markWoken(wake.taskId)
 			}
 		} catch (error) {

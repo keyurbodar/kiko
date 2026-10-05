@@ -12,6 +12,7 @@ import {
   ToolTask,
 } from "@earendil-works/pi-durable"
 import type { Effect, EffectDeclaration } from "../effects"
+import { type Authority, HUMAN } from "../../lib/origin"
 
 // Architecture section 16. `Trust` limits what an injected instruction can do, in code. The model
 // can be fooled; the gate below sets the limit on the damage.
@@ -46,6 +47,8 @@ export type TrustOptions = {
   effects: ReadonlyMap<string, EffectDeclaration>
   /** Default: no approval ever exists, so a tainted run never acts outside kiko. */
   approvals?: Approvals
+  /** Section 25.3. The authority of the run in flight. Default: a human's, as before origins existed. */
+  authority?: () => Authority
 }
 
 type TrustState = {
@@ -68,25 +71,37 @@ export type Gate =
   | { allow: false; reason: string }
 
 export const NEEDS_APPROVAL = "needs human approval: this run read outside content, so it cannot act outside kiko without the human's ok."
+export const NEEDS_HUMAN = "needs human approval: no human asked for this run, so it cannot act outside kiko without the human's ok. if it matters, ask the human in one short message."
 
 /**
- * | effect   | clean run | tainted run                                     |
- * | -------- | --------- | ----------------------------------------------- |
- * | read     | allow     | allow                                           |
- * | write    | allow     | allow, the stored item is flagged tainted       |
- * | message  | allow     | allow, the envelope carries `tainted: true`     |
- * | external | allow     | allow only with a human approval record         |
+ * Whether an `external` call needs a human approval record. A tainted run always does (section 16.3).
+ * Otherwise a run a human started does not, a routine does not for the tools the human granted it,
+ * and every other run does (section 25.3).
  */
-export function gate(effect: Effect, tainted: boolean, approval: string | null): Gate {
-  if (!tainted) return { allow: true, flagTainted: false }
+export function needsApproval(tainted: boolean, authority: Authority, tool: string): boolean {
+  if (tainted) return true
+  if (authority.origin === "human") return false
+  return !(authority.origin === "routine" && authority.grant.includes(tool))
+}
+
+/**
+ * | effect   | clean run, human or granted | clean run, otherwise   | tainted run                          |
+ * | -------- | --------------------------- | ---------------------- | ------------------------------------ |
+ * | read     | allow                       | allow                  | allow                                |
+ * | write    | allow                       | allow                  | allow, the stored item is flagged    |
+ * | message  | allow                       | allow                  | allow, the envelope carries taint    |
+ * | external | allow                       | only with an approval  | only with an approval                |
+ */
+export function gate(effect: Effect, tainted: boolean, approval: string | null, authority: Authority = HUMAN, tool = ""): Gate {
   switch (effect) {
     case "read":
       return { allow: true, flagTainted: false }
     case "write":
     case "message":
-      return { allow: true, flagTainted: true }
+      return { allow: true, flagTainted: tainted }
     case "external":
-      return approval ? { allow: true, flagTainted: true } : { allow: false, reason: NEEDS_APPROVAL }
+      if (!needsApproval(tainted, authority, tool)) return { allow: true, flagTainted: false }
+      return approval ? { allow: true, flagTainted: tainted } : { allow: false, reason: tainted ? NEEDS_APPROVAL : NEEDS_HUMAN }
   }
 }
 
@@ -164,6 +179,7 @@ async function wrapResult(result: ToolExecutionResult, source: string, api: Hook
 export function trustExtension(options: TrustOptions): Extension {
   const state: TrustState = { taint: new Map(), marked: new Map(), externals: [] }
   const approvals: Approvals = options.approvals ?? (async () => null)
+  const authority = options.authority ?? (() => HUMAN)
   const declared = (name: string): EffectDeclaration => options.effects.get(name) ?? { effect: "external" }
 
   const extension = defineExtension({
@@ -181,12 +197,13 @@ export function trustExtension(options: TrustOptions): Extension {
           const { effect } = declared(call.name)
           // Unknown after a restart between the request and this call: fail closed.
           const tainted = state.taint.get(api.conversationId) ?? true
+          const run = authority()
           const answer =
-            effect === "external" && tainted
+            effect === "external" && needsApproval(tainted, run, call.name)
               ? await approvals({ conversationId: api.conversationId, callId: call.id, tool: call.name, arguments: call.arguments }, context)
               : null
           const approval = typeof answer === "string" ? answer : null
-          const gated = gate(effect, tainted, approval)
+          const gated = gate(effect, tainted, approval, run, call.name)
           // A pending card ends the call with the room's text. The decision comes back as an `approval_result` envelope.
           const decision = !gated.allow && answer && typeof answer === "object" ? { allow: false as const, reason: answer.refused } : gated
           if (effect === "external") {

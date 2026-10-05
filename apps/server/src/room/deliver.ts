@@ -4,6 +4,7 @@ import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, u
 import type { RoomLog } from "./log"
 import { type RecipientMember, resolveRecipients, tags } from "./recipients"
 import { parseRichText } from "./rich-text"
+import { AUTO, type Authority, authorityOfAll, stamp } from "../lib/origin"
 
 /** How an envelope names the files a message carries. Paths are as the agent's file tools take them. */
 export function attachedLine(files: readonly FileRef[]): string {
@@ -60,6 +61,16 @@ export class Deliveries {
 	 * ASSUMPTION: an agent-target reminder is also a room message for now, addressed
 	 * to the agent by name. The envelope to the agent's inbox comes with the delivery task.
 	 */
+	/** Stores a system line once per id. Returns the event, or null for an id seen before. */
+	notice(id: string, text: string): RoomEvent | null {
+		return this.storage.transactionSync(() => {
+			if (this.seen(id)) return null
+			const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text })
+			this.storage.sql.exec("INSERT INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
+			return event
+		})
+	}
+
 	reminder(id: string, reminder: ReminderDelivery): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			if (this.seen(id)) return null
@@ -250,7 +261,7 @@ export class Bubbles {
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean; files?: readonly string[] }
 
 /** A stored agent message and who it goes to. */
-export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[]; files?: readonly FileRef[] }
+export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[]; files?: readonly FileRef[]; authority?: Authority }
 
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[] } | { ok: false; error: string; events: RoomEvent[] }
 
@@ -267,6 +278,11 @@ export class Mail {
 		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS autonomous_runs (id INTEGER PRIMARY KEY CHECK (id = 1), day TEXT NOT NULL, runs INTEGER NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS stopped_roots (root_id TEXT PRIMARY KEY)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS auto_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)")
+		// Section 25.3: a chain carries its authority, so a message sent during a run inherits it.
+		if (!this.sql.exec<{ name: string }>("PRAGMA table_info(agent_chains)").toArray().some((c) => c.name === "authority")) {
+			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN authority TEXT")
+		}
 	}
 
 	/**
@@ -286,10 +302,11 @@ export class Mail {
 		const last = envelopes.at(-1)
 		if (!last) return
 		this.sql.exec(
-			"INSERT INTO agent_chains (slug, root_id, hop) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop",
+			"INSERT INTO agent_chains (slug, root_id, hop, authority) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop, authority = excluded.authority",
 			slug,
 			last.rootId,
 			last.hop,
+			JSON.stringify(authorityOfAll(envelopes)),
 		)
 		if (envelopes.some((e) => e.from.kind === "human")) this.sql.exec("DELETE FROM autonomous_runs")
 	}
@@ -318,7 +335,9 @@ export class Mail {
 			}
 			const recipients = input.to === "all" ? others : [input.to]
 			if (!recipients.length) return { ok: false, error: "not sent: you are the only agent in this room.", events: [] }
-			const chain = this.sql.exec<{ root_id: string; hop: number }>("SELECT root_id, hop FROM agent_chains WHERE slug = ?", from).toArray()[0]
+			const chain = this.sql.exec<{ root_id: string; hop: number; authority: string | null }>("SELECT root_id, hop, authority FROM agent_chains WHERE slug = ?", from).toArray()[0]
+			// A send with no recorded chain (the agent was never handed anything) has no human behind it.
+			const authority: Authority = chain?.authority ? (JSON.parse(chain.authority) as Authority) : AUTO
 			const rootId = chain?.root_id ?? `agent:${from}`
 			if (this.stopped(rootId)) return { ok: false, error: "not sent: the human pressed stop.", events: [] }
 			const hop = (chain?.hop ?? 0) + 1
@@ -327,7 +346,7 @@ export class Mail {
 			// The addressee is part of the stored text, as a Telegram mention. ASSUMPTION: no wire field for it.
 			const shown = `@${input.to} ${text}`
 			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), tainted: input.tainted, ...(files.length ? { files } : {}) })
-			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients, ...(files.length ? { files } : {}) }
+			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients, authority, ...(files.length ? { files } : {}) }
 			this.sql.exec(
 				"INSERT INTO root_counts (root_id, deliveries) VALUES (?, ?) ON CONFLICT(root_id) DO UPDATE SET deliveries = deliveries + excluded.deliveries",
 				rootId,
@@ -349,6 +368,7 @@ export class Mail {
 			rootId: send.rootId,
 			tainted: send.tainted,
 			seq: send.seq,
+			...stamp(send.authority ?? AUTO),
 		}
 	}
 
@@ -365,13 +385,30 @@ export class Mail {
 	 * Takes one of the day's autonomous runs (a scheduled or task-triggered wake, section 7.7). False
 	 * means the wake is held until the next UTC day or the next human message.
 	 */
-	takeAutonomousRun(now: number): boolean {
+	/** True when `id` already took its run (a retried delivery). */
+	autonomousTaken(id: string): boolean {
+		return this.sql.exec("SELECT 1 FROM auto_taken WHERE id = ?", id).toArray().length > 0
+	}
+
+	/** True when the room has a run left today without taking it. */
+	autonomousLeft(now: number): boolean {
+		const counter = this.sql.exec<{ day: string; runs: number }>("SELECT day, runs FROM autonomous_runs WHERE id = 1").toArray()[0] ?? null
+		return autonomousRunAllowed(counter, utcDay(now))
+	}
+
+	takeAutonomousRun(now: number, id?: string): boolean {
 		return this.storage.transactionSync(() => {
 			const day = utcDay(now)
+			// A delivery retried after a failure already paid for its run.
+			if (id && this.sql.exec("SELECT 1 FROM auto_taken WHERE id = ?", id).toArray().length) return true
 			const counter = this.sql.exec<{ day: string; runs: number }>("SELECT day, runs FROM autonomous_runs WHERE id = 1").toArray()[0] ?? null
 			if (!autonomousRunAllowed(counter, day)) return false
 			const runs = counter?.day === day ? counter.runs + 1 : 1
 			this.sql.exec("INSERT INTO autonomous_runs (id, day, runs) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET day = excluded.day, runs = excluded.runs", day, runs)
+			if (id) {
+				this.sql.exec("DELETE FROM auto_taken WHERE day != ?", day)
+				this.sql.exec("INSERT INTO auto_taken (id, day) VALUES (?, ?)", id, day)
+			}
 			return true
 		})
 	}

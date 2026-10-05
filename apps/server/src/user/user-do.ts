@@ -7,7 +7,7 @@ import { Schema } from "effect"
 import type { Env } from "../index"
 import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
-import { type Limits, resolveLimits, takeTurn, type TurnAnswer, utcDay } from "./limits"
+import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import type { ExecutorTool } from "../integrations/executor/tools"
 import { type Alarms, createAlarms, runDue } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
@@ -65,6 +65,9 @@ const COMPRESS_TIMEOUT_MS = 120_000
 const MEMORY_USAGE = "memory_usage"
 /** The `settings` key of the memory model the human chose. */
 const MEMORY_MODEL = "memory_model"
+/** Section 25.5. When the human last opened kiko, and whether the away line was posted. */
+const LAST_SEEN = "last_seen"
+const AWAY_NOTICE = "away_notice"
 
 /** The `settings` key of the chat the user was last in. */
 const LAST_CHAT = "last_chat"
@@ -592,6 +595,40 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** The room asks once per human burst (P9-01). Counts the turn when it is allowed. */
+  /**
+   * Section 25.5. A room asks before it starts a run nobody asked for in the moment. Held while the
+   * human has been away `awayDays`, and past the day's `autonomousRunsPerDay` across every chat.
+   */
+  takeAutonomous(): AutonomousAnswer {
+    const now = Date.now()
+    const key = `autonomous:${utcDay(now)}`
+    const used = Number(this.setting(key) ?? 0)
+    const lastSeen = this.setting(LAST_SEEN)
+    const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
+    if (answer.ok) this.putSetting(key, String(answer.used))
+    else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
+    return answer
+  }
+
+  /** Stamps the last time the human opened kiko, at most once an hour, so a long session costs no writes. */
+  private seen(): void {
+    const now = Date.now()
+    const last = Number(this.setting(LAST_SEEN) ?? 0)
+    const wasAway = last > 0 && now - last > this.limits().awayDays * 86_400_000
+    if (now - last < 3_600_000) return
+    this.putSetting(LAST_SEEN, String(now))
+    if (wasAway) this.sql.exec("DELETE FROM settings WHERE key = ?", AWAY_NOTICE)
+  }
+
+  /** One line in the kiko chat per time away, so the human knows why nothing ran. */
+  private async awayNotice(now: number): Promise<void> {
+    if (this.setting(AWAY_NOTICE) !== null) return
+    this.putSetting(AWAY_NOTICE, String(now))
+    const roomId = kikoChatRoom(this.sql)
+    const owner = userIdFromObjectName(this.ctx.id.name)
+    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open kiko.")
+  }
+
   takeTurn(): TurnAnswer {
     const now = Date.now()
     const key = `turns:${utcDay(now)}`
@@ -725,6 +762,7 @@ export class UserDO extends DurableObject<Env> {
       return // A frame that breaks the protocol is dropped. Its content is never logged.
     }
     if (frame.t === "hello") {
+      this.seen()
       send(ws, this.resume(frame.lastSeq))
       const before = ws.deserializeAttachment() as Attachment | null
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)

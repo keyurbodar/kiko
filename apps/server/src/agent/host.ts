@@ -10,6 +10,7 @@ import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
 import { type Arrival, decide, FRESH_RUN, type RunState } from "./mid-run"
 import type { RunProgress } from "./outbox"
 import { openDurableObjectSqlite } from "./sqlite"
+import { AUTO, type Authority, authorityOfAll, combine } from "../lib/origin"
 
 // Architecture sections 4.4 and 7.3. The host owns one agent's `pi-durable` harness inside its
 // `AgentDO`. `receive()` only stores. The alarm does the work: it opens the harness, resumes what a
@@ -83,6 +84,8 @@ export type HostOptions = {
   progress?: () => RunProgress | null
   /** The harness went idle: no task and no submission. The agent frees what only a run needs. */
   onIdle?: () => void
+  /** A run that no human started passed twice its budget and was aborted (section 25.2). */
+  onTimeout?: () => void | Promise<void>
 }
 
 export type Opened = {
@@ -106,6 +109,12 @@ export type HostStatus = {
 const HUMAN_COMING = "human-coming"
 /** The longest a burst stays open (MAX_BURST_MS) plus a margin. */
 const HUMAN_COMING_MS = 10_000
+
+/**
+ * Architecture section 25.2. A run no human message started gets this long. Past it the run is told
+ * once to post what it has and stop; at twice it is aborted. A human message joining the run lifts it.
+ */
+export const AUTO_RUN_BUDGET_MS = 10 * 60_000
 
 /** Consecutive failures of one kind before the harness state is rebuilt. */
 const RESET_AFTER = 3
@@ -138,6 +147,8 @@ export class AgentHost {
     private readonly options: HostOptions,
   ) {
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)")
+    // Section 25.3: the authority of the run chain in flight, kept until the harness goes idle.
+    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_authority (id INTEGER PRIMARY KEY CHECK (id = 1), authority TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
     this.inbox = new Inbox(ctx.storage)
     this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
@@ -179,6 +190,7 @@ export class AgentHost {
       await this.compactIfDue()
       const opened = await this.open()
       await this.drain(opened)
+      await this.enforceBudget(opened)
       await this.pulse(opened.harness)
       this.failures = 0
     } catch (error) {
@@ -260,6 +272,7 @@ export class AgentHost {
 
   /** The harness went idle: the run chain finished, so the resume count starts over. */
   private async idle(): Promise<void> {
+    this.ctx.storage.sql.exec("DELETE FROM run_authority")
     if (this.resumed) {
       this.resumed = false
       await this.ctx.storage.delete(RESUMES_KEY)
@@ -358,11 +371,59 @@ export class AgentHost {
         await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
         memory = out.text
       }
+      this.joinAuthority(batch, !run)
       const extra = await inputContext?.()
       const content = renderInput(extra ? { ...batch, briefs: [...batch.briefs, extra] } : batch, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
     }
+  }
+
+  /**
+   * Section 25.3. The run chain's authority. A batch that starts a run sets it; a batch that joins a
+   * live run combines with it, so a human message gives the run the human's authority and anything else
+   * can only narrow it.
+   */
+  private joinAuthority(batch: Batch, fresh: boolean): void {
+    const incoming = authorityOfAll(batch.envelopes) ?? AUTO
+    const row = this.ctx.storage.sql.exec<{ authority: string }>("SELECT authority FROM run_authority WHERE id = 1").toArray()[0]
+    if (fresh || !row) {
+      this.ctx.storage.sql.exec(
+        "INSERT INTO run_authority (id, authority, started_at, steered) VALUES (1, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET authority = excluded.authority, started_at = excluded.started_at, steered = 0",
+        JSON.stringify(incoming),
+        Date.now(),
+      )
+      return
+    }
+    this.ctx.storage.sql.exec("UPDATE run_authority SET authority = ? WHERE id = 1", JSON.stringify(combine(JSON.parse(row.authority) as Authority, incoming)))
+  }
+
+  /** The authority of the run in flight. With no record, as after a crash before one was written, `auto`: fail closed. */
+  authority(): Authority {
+    const row = this.ctx.storage.sql.exec<{ authority: string }>("SELECT authority FROM run_authority WHERE id = 1").toArray()[0]
+    return row ? (JSON.parse(row.authority) as Authority) : AUTO
+  }
+
+  /**
+   * Section 25.2. A run that no human started and that passed its budget is told once to wrap up, as a
+   * steer after its current tool round. Past twice the budget it is aborted. Checked on every heartbeat.
+   */
+  private async enforceBudget({ harness, root }: Opened): Promise<void> {
+    const row = this.ctx.storage.sql.exec<{ authority: string; started_at: number; steered: number }>("SELECT authority, started_at, steered FROM run_authority WHERE id = 1").toArray()[0]
+    if (!row || (JSON.parse(row.authority) as Authority).origin === "human") return
+    const age = Date.now() - row.started_at
+    if (age < AUTO_RUN_BUDGET_MS) return
+    if (!(await this.runState(harness, root))) return
+    if (age >= 2 * AUTO_RUN_BUDGET_MS) {
+      await root.abort(context)
+      this.ctx.storage.sql.exec("DELETE FROM run_authority")
+      await this.options.onTimeout?.()
+      return
+    }
+    if (row.steered) return
+    this.ctx.storage.sql.exec("UPDATE run_authority SET steered = 1 WHERE id = 1")
+    const content = '<system-event reason="run_budget">\ntime is up for this run. post what you have now in one short message, and stop.\n</system-event>'
+    await root.submit({ type: "input", content, requestId: `budget:${row.started_at}`, whenBusy: "steer" }, context)
   }
 
   /** True when the model's view holds no input yet, or more than `CONTEXT_BUDGET_CHARS` of text. */

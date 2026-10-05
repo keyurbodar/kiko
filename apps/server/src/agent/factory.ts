@@ -5,6 +5,7 @@ import { type AgentChange, createRegistry, defineExtension, type Extension, type
 import { Subagent } from "./extensions/subagent"
 import { type EffectDeclaration, effectTable } from "./effects"
 import { type Approvals, trustExtension } from "./extensions/trust"
+import type { Authority } from "../lib/origin"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
 import type { Fetcher } from "../lib/safe-fetch"
@@ -51,6 +52,8 @@ export type BuildAgentInput = RoleInput & {
   testExtensions?: readonly Extension[]
   /** Human approval records for `external` tools in a tainted run (P7-02). Default: none. */
   approvals?: Approvals
+  /** The authority of the run in flight (section 25.3). Default: a human's. */
+  authority?: () => Authority
   /** What user extensions reach (section 24). Without it the agent runs no user extension. */
   scripts?: ScriptPorts
   /** `extension_check` and `extension_propose` (section 24.6). Without it the agent cannot write extensions. */
@@ -105,7 +108,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const builtins = extensionsFor(input)
   const effects = new Map(effectTable(builtins))
-  const trust = trustExtension({ effects, approvals: input.approvals })
+  const trust = trustExtension({ effects, approvals: input.approvals, ...(input.authority ? { authority: input.authority } : {}) })
   const registry = createRegistry()
   for (const extension of [...builtins, trust]) registry.install(extension)
   const extensions = new UserExtensions(registry, builtins, trust, effects, input.scripts)
