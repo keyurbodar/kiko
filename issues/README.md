@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-127 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+138 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -12,6 +12,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P0-02](wave-00/P0-02-clean-the-frontend-baseline.md) | Clean the frontend baseline | frontend | 2 | none | yes |
 | [P10-01](wave-00/P10-01-prove-quickjs-runs-in-a-durable-object.md) | Prove QuickJS runs in a Durable Object | backend | 2 | none | no |
 | [P11-01](wave-00/P11-01-build-the-log-memory-core.md) | Build the log memory core | backend | 3 | none | no |
+| [P12-01](wave-00/P12-01-gate-every-autonomous-wake-through-the-budget.md) | Gate every autonomous wake through the budget | backend | 2 | none | no |
 
 ## Wave 1
 
@@ -31,6 +32,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P10-02](wave-01/P10-02-define-the-extension-format.md) | Define the extension format | docs | 2 | P10-01 | yes |
 | [P11-02](wave-01/P11-02-read-a-room-as-turns-and-keep.md) | Read a room as turns and keep its tree | backend | 4 | P11-01 | yes |
 | [P11-03](wave-01/P11-03-give-each-user-a-life-log.md) | Give each user a life log | backend | 3 | P11-01 | yes |
+| [P12-02](wave-01/P12-02-carry-origin-and-grants-on-every-envelope.md) | Carry origin and grants on every envelope | backend | 4 | P12-01 | no |
+| [P12-09](wave-01/P12-09-pause-wakes-while-the-human-is-away.md) | Pause wakes while the human is away | backend | 2 | P12-01 | yes |
 | [P2-01](wave-01/P2-01-rewrite-the-theme-to-the-kat-values.md) | Rewrite the theme to the kat values | frontend | 3 | P0-02 | yes |
 | [P3-02](wave-01/P3-02-reverse-swipe-to-reply.md) | Reverse swipe to reply | frontend | 2 | P0-02 | yes |
 | [P8-01](wave-01/P8-01-build-the-safe-fetcher.md) | Build the safe fetcher | backend | 4 | P0-01 | yes |
@@ -49,6 +52,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P10-04](wave-02/P10-04-store-extensions-in-userdo.md) | Store extensions in UserDO | backend | 3 | P10-02 | yes |
 | [P11-04](wave-02/P11-04-start-every-run-from-memory.md) | Start every run from memory | backend | 4 | P11-02, P11-03 | yes |
 | [P11-06](wave-02/P11-06-show-the-life-log.md) | Show the life log | frontend | 3 | P11-03 | yes |
+| [P12-03](wave-02/P12-03-grow-reminders-into-routines.md) | Grow reminders into routines | backend | 4 | P12-01, P12-02 | yes |
+| [P12-08](wave-02/P12-08-nudge-stalled-tasks.md) | Nudge stalled tasks | backend | 2 | P12-02 | yes |
 | [P2-02](wave-02/P2-02-build-the-app-shell-and-the-routes.md) | Build the app shell and the routes | frontend | 3 | P0-02, P0-14 | yes |
 | [P2-05](wave-02/P2-05-build-the-indexeddb-warm-tier.md) | Build the IndexedDB warm tier | frontend | 4 | P0-02, P0-03 | yes |
 | [P3-01](wave-02/P3-01-port-the-typing-indicator.md) | Port the typing indicator | frontend | 3 | P2-01 | yes |
@@ -72,6 +77,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P11-05](wave-03/P11-05-measure-memory-with-an-eval.md) | Measure memory with an eval | backend | 3 | P11-04 | yes |
 | [P11-07](wave-03/P11-07-let-an-agent-ask-a-teammate-and.md) | Let an agent ask a teammate and wait | backend | 3 | P11-04 | yes |
 | [P11-08](wave-03/P11-08-bound-storage-the-floor-and-outside-content.md) | Bound storage, the floor, and outside content | backend | 2 | P11-04 | yes |
+| [P12-04](wave-03/P12-04-let-agents-propose-routines-and-the-human.md) | Let agents propose routines and the human turn them on | backend | 3 | P12-03 | yes |
 | [P2-03](wave-03/P2-03-build-the-html-shell-and-split-the.md) | Build the HTML shell and split the bundle by tier | frontend | 4 | P2-02 | yes |
 | [P2-04](wave-03/P2-04-build-the-horizontal-tab-strip.md) | Build the horizontal tab strip | frontend | 3 | P2-01, P2-02 | yes |
 | [P2-06](wave-03/P2-06-build-the-sync-client-with-optimistic-patches.md) | Build the sync client with optimistic patches | frontend | 5 | P2-05 | yes |
@@ -87,6 +93,10 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P1-10](wave-04/P1-10-build-the-agent-factory-and-the-base.md) | Build the agent factory and the base prompt | backend | 3 | P1-06 | yes |
+| [P12-05](wave-04/P12-05-fire-routines-on-room-events.md) | Fire routines on room events | backend | 3 | P12-04 | yes |
+| [P12-06](wave-04/P12-06-fire-routines-on-webhooks.md) | Fire routines on webhooks | backend | 4 | P12-04 | yes |
+| [P12-07](wave-04/P12-07-watch-a-source-without-a-model.md) | Watch a source without a model | backend | 4 | P12-04 | yes |
+| [P12-10](wave-04/P12-10-kiko-checks-in-each-morning.md) | Kiko checks in each morning | backend | 5 | P12-04, P12-08, P12-09 | yes |
 | [P2-07](wave-04/P2-07-replace-the-fixture-store-with-the-sync.md) | Replace the fixture store with the sync client | frontend | 4 | P2-06, P2-02 | yes |
 | [P2-11](wave-04/P2-11-throttle-work-in-background-tabs.md) | Throttle work in background tabs | frontend | 2 | P2-06 | yes |
 | [P2-16](wave-04/P2-16-add-the-command-registry-and-keyboard-shortcuts.md) | Add the command registry and keyboard shortcuts | frontend | 3 | P2-15 | yes |
@@ -169,6 +179,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P10-05](wave-09/P10-05-sync-extensions-into-each-run.md) | Sync extensions into each run | backend | 3 | P10-03, P10-04 | yes |
+| [P12-11](wave-09/P12-11-show-routines-suggestions-and-what-needs-the.md) | Show routines, suggestions, and what needs the human | frontend | 4 | P12-04, P12-10, P5-07 | yes |
 | [P5-03](wave-09/P5-03-build-the-daily-tidy-job.md) | Build the daily tidy job | backend | 4 | P5-02 | yes |
 | [P6-04](wave-09/P6-04-add-spawn-agent-for-the-lead.md) | Add spawn_agent for the lead | backend | 3 | P6-02, P6-03 | yes |
 | [P6-06](wave-09/P6-06-enforce-human-priority-and-stop-across-a.md) | Enforce human priority and stop across a team | backend | 3 | P6-03 | yes |
