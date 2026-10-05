@@ -7,6 +7,7 @@ import { fragmentText, oembedFor } from "../src/previews/oembed"
 import { parsePreview } from "../src/previews/parse"
 import { headWatcher, PREVIEW_USER_AGENT, resolvePreview } from "../src/previews/resolve"
 import { previewTarget, previewUrl } from "../src/room/link-preview"
+import { bundleWorker } from "./bundle"
 
 // Architecture section 18.2: link previews, from the page's head to the card on the message.
 
@@ -249,16 +250,9 @@ describe("room", () => {
   let origin: string
 
   beforeAll(async () => {
-    const built = await Bun.build({
-      entrypoints: [new URL("./room-worker.ts", import.meta.url).pathname],
-      target: "browser",
-      format: "esm",
-      external: ["cloudflare:workers"],
-    })
-    if (!built.success) throw new Error(built.logs.join("\n"))
     mf = new Miniflare({
       modules: true,
-      script: await built.outputs[0]!.text(),
+      script: await bundleWorker(new URL("./room-worker.ts", import.meta.url)),
       compatibilityDate: "2026-07-01",
       compatibilityFlags: ["nodejs_compat"],
       durableObjects: { ROOM: { className: "RoomDO", useSQLite: true } },

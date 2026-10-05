@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
 import { extractLinks } from "../src/room/catalog"
+import { bundleWorker } from "./bundle"
 
 // The links and media lists in the real RoomDO in workerd: newest first, paged by message,
 // and a deleted message leaves both.
@@ -9,16 +10,9 @@ let mf: Miniflare
 let origin: string
 
 beforeAll(async () => {
-	const built = await Bun.build({
-		entrypoints: [new URL("./room-worker.ts", import.meta.url).pathname],
-		target: "browser",
-		format: "esm",
-		external: ["cloudflare:workers"],
-	})
-	if (!built.success) throw new Error(built.logs.join("\n"))
 	mf = new Miniflare({
 		modules: true,
-		script: await built.outputs[0]!.text(),
+		script: await bundleWorker(new URL("./room-worker.ts", import.meta.url)),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
 		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true } },
