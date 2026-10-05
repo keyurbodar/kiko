@@ -2,7 +2,7 @@ import type { Context } from "@earendil-works/chord"
 import { err, ExecutionError, ok, type Result, type ShellExecOptions, type ShellExecResult } from "@earendil-works/pi-durable/env"
 import { Bash, type BufferEncoding, type CpOptions, type CreateExclusiveOptions, type FileContent, type FsStat, type IFileSystem, type MkdirOptions, type RmOptions } from "just-bash"
 import type { FsEntry } from "../room/files"
-import { FileConflict, type RoomFs } from "./room-fs"
+import { type BatchChange, HOME_PATH, type RoomFs, typeForPath } from "./room-fs"
 
 // Architecture section 18.4. The shell behind pi's `bash` tool: just-bash, a bash interpreter in
 // TypeScript, over the chat's files. No process, no network, no Python. It runs in the agent's object.
@@ -18,7 +18,8 @@ import { FileConflict, type RoomFs } from "./room-fs"
 // - Teammates never see half a command: no empty file between `>` and its output.
 // - Parallel commands of one agent, its subagents, and other agents each check against what they
 //   saw. Nothing one command read decides another command's write.
-// - /tmp is the command's own scratch space and is never saved.
+// - /tmp is the command's own scratch space and is never saved. A command that times out or hits
+//   the interpreter's limits saves nothing.
 //
 // Reads and the commit fan out. Reading a file in a folder the command listed (grep -r, a glob)
 // fetches the folder's other files at once, and the commit sends its changes together.
@@ -30,6 +31,11 @@ export const MAX_TIMEOUT_S = 120
 const PREFETCH_FILES = 32
 const PREFETCH_MAX_FILE = 256 * 1024
 const PREFETCH_BYTES = 8 * 1024 * 1024
+/**
+ * ASSUMPTION: stored files one command may read. A Free invocation may make 1,000 calls to Cloudflare
+ * services (docs/research/cloudflare.md), and a run makes other calls too.
+ */
+export const MAX_READS = 400
 /** ASSUMPTION: bytes one command may hold in files it made or changed, /tmp included. */
 const DIRTY_BYTES = 16 * 1024 * 1024
 
@@ -96,21 +102,24 @@ const encodingOf = (options: { encoding?: BufferEncoding | null } | BufferEncodi
 /** One change the commit makes. Built by `plan`, a pure diff of the snapshot and the command's tree. */
 export type Change =
   | { op: "write"; path: string; node: FileNode; expect: string }
-  | { op: "move"; from: string; to: string; sha: string }
-  | { op: "remove"; path: string; sha: string }
-  | { op: "rmdir"; path: string; files: ReadonlyMap<string, string> }
+  | { op: "move"; from: string; to: string; sha256: string }
+  | { op: "remove"; path: string; sha256: string }
+  | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
   | { op: "mkdir"; path: string }
 
-/** A change that did not land, and why. */
-export type Refusal = { path: string; message: string }
+/** The file space a path is in: the chat's files, the drive, or the soul. A move never crosses one. */
+export const spaceOf = (path: string) => (path === `/${HOME_PATH}` || path.startsWith(`/${HOME_PATH}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : "chat")
 
 /**
- * What the commit must do to turn `start` into `tree`. A file that kept its stored bytes and only
- * changed path is a move (no copy, and an attachment keeps its place in the chat); anything else
- * changed is a write. Scratch paths are never saved.
+ * What the commit must do to turn `start` into `tree`, in the order it applies: moves, then writes
+ * and folders, then deletions. A file that kept its stored bytes and only changed path inside one
+ * space is a move (no copy, and an attachment keeps its place in the chat); anything else changed is
+ * a write. Scratch paths are never saved.
  */
 export function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>): Change[] {
-  const changes: Change[] = []
+  const moves: Change[] = []
+  const writes: Change[] = []
+  const deletions: Change[] = []
   const movedFrom = new Set<string>()
   const startFile = (p: string) => {
     const n = start.get(p)
@@ -123,32 +132,35 @@ export function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string,
     if (origin === path && before?.sha256 === node.base!.sha256) continue
     const stays = origin ? tree.get(origin) : undefined
     const originGone = origin !== null && origin !== path && !(stays?.kind === "file" && stays.base === node.base && !stays.bytes)
-    if (originGone && !before && !movedFrom.has(origin!) && startFile(origin!)?.sha256 === node.base!.sha256) {
+    if (originGone && !before && !movedFrom.has(origin!) && spaceOf(origin!) === spaceOf(path) && startFile(origin!)?.sha256 === node.base!.sha256) {
       movedFrom.add(origin!)
-      changes.push({ op: "move", from: origin!, to: path, sha: node.base!.sha256 })
+      moves.push({ op: "move", from: origin!, to: path, sha256: node.base!.sha256 })
     } else {
-      changes.push({ op: "write", path, node, expect: "" })
+      writes.push({ op: "write", path, node, expect: "" })
     }
   }
-  for (const c of changes) if (c.op === "write") c.expect = movedFrom.has(c.path) ? "none" : (startFile(c.path)?.sha256 ?? "none")
-  // Deletions: the topmost folder that is gone goes in one call; files elsewhere one by one.
+  for (const c of writes) if (c.op === "write") c.expect = movedFrom.has(c.path) ? "none" : (startFile(c.path)?.sha256 ?? "none")
+  for (const [path, node] of tree) {
+    if (node.kind !== "directory" || scratch(path) || start.has(path)) continue
+    if (![...tree.keys()].some((p) => under(path, p))) writes.push({ op: "mkdir", path })
+  }
+  // The topmost folder that is gone goes in one change; files elsewhere one by one.
   const goneDirs = [...start].filter(([p, n]) => n.kind === "directory" && p !== "/" && !scratch(p) && !tree.has(p)).map(([p]) => p)
   const topDirs = goneDirs.filter((d) => !goneDirs.some((o) => o !== d && under(o, d)))
   for (const dir of topDirs) {
-    const files = new Map<string, string>()
-    for (const [p, n] of start) if (under(dir, p) && n.kind === "file" && !movedFrom.has(p)) files.set(p, n.base!.sha256)
-    changes.push({ op: "rmdir", path: dir, files })
+    const files: Record<string, string> = {}
+    for (const [p, n] of start) if (under(dir, p) && n.kind === "file" && !movedFrom.has(p)) files[p] = n.base!.sha256
+    deletions.push({ op: "rmdir", path: dir, files })
   }
   for (const [path, node] of start) {
     if (node.kind !== "file" || scratch(path) || tree.has(path) || movedFrom.has(path) || topDirs.some((d) => under(d, path))) continue
-    changes.push({ op: "remove", path, sha: node.base!.sha256 })
+    deletions.push({ op: "remove", path, sha256: node.base!.sha256 })
   }
-  for (const [path, node] of tree) {
-    if (node.kind !== "directory" || scratch(path) || start.has(path)) continue
-    if (![...tree.keys()].some((p) => under(path, p))) changes.push({ op: "mkdir", path })
-  }
-  return changes
+  return [...moves, ...writes, ...deletions]
 }
+
+/** Why a command's changes were not saved. */
+export type Refusal = { path: string; message: string }
 
 /** One command's file system: its own tree over a snapshot of the index, committed when it ends. */
 export class CommandFs implements IFileSystem {
@@ -159,6 +171,8 @@ export class CommandFs implements IFileSystem {
   private readonly ahead = new Map<string, Promise<Uint8Array | null>>()
   private aheadBytes = 0
   private dirty = 0
+  /** Aborted when the command passes `MAX_READS`. */
+  readonly overRead = new AbortController()
 
   private constructor(private readonly files: RoomFs) {}
 
@@ -209,6 +223,11 @@ export class CommandFs implements IFileSystem {
   private fetch(base: Base): Promise<Uint8Array | null> {
     const pending = this.ahead.get(base.r2Key)
     if (pending) return pending
+    if (this.ahead.size >= MAX_READS) {
+      // Commands report a failed read in their own words, so the whole command stops instead.
+      this.overRead.abort()
+      throw failure("EMFILE", `one command reads at most ${MAX_READS} files`)
+    }
     const out = this.files.bytesOf(base)
     this.ahead.set(base.r2Key, out)
     return out
@@ -222,7 +241,8 @@ export class CommandFs implements IFileSystem {
       if (started >= PREFETCH_FILES) break
       const n = this.tree.get(dir === "/" ? `/${name}` : `${dir}/${name}`)
       if (n?.kind !== "file" || !n.base || n.bytes || n.base.size > PREFETCH_MAX_FILE || this.ahead.has(n.base.r2Key)) continue
-      if (this.aheadBytes + n.base.size > PREFETCH_BYTES) break
+      // Read-ahead leaves half the read budget to what the command asks for itself.
+      if (this.aheadBytes + n.base.size > PREFETCH_BYTES || this.ahead.size >= MAX_READS / 2) break
       this.aheadBytes += n.base.size
       started++
       void this.fetch(n.base).catch(() => null)
@@ -388,73 +408,55 @@ export class CommandFs implements IFileSystem {
     return path
   }
 
-  /** Saves what the command changed. Independent changes go out together; each is conditional. */
-  async commit(): Promise<Refusal[]> {
+  /** Saves what the command changed: within each file space, every change or none. */
+  async commit(): Promise<Refusal | null> {
     const changes = plan(this.start, this.tree)
-    const refused: Refusal[] = []
-    const changedSince = (path: string) => `${path} changed after this command started (a teammate or the human wrote it), so this command's change to it was not saved. look at it again, then run the command again`
-    const run = async (c: Change) => {
-      switch (c.op) {
-        case "move": {
-          const now = await this.files.stat(c.from)
-          if (!now.ok || now.value.kind !== "file" || now.value.sha256 !== c.sha) return refused.push({ path: c.from, message: changedSince(c.from) })
-          const out = await this.files.move(c.from, c.to)
-          return out.ok || refused.push({ path: c.to, message: out.error.message })
-        }
-        case "write": {
-          const out = await this.files.write(c.path, await this.content(c.path, c.node), undefined, c.expect)
-          return out.ok || refused.push({ path: c.path, message: out.error instanceof FileConflict ? changedSince(c.path) : out.error.message })
-        }
-        case "remove": {
-          // The index deletes by path, so the check comes first: a file changed since the snapshot stays.
-          const now = await this.files.stat(c.path)
-          if (!now.ok) return
-          if (now.value.kind !== "file" || now.value.sha256 !== c.sha) return refused.push({ path: c.path, message: changedSince(c.path) })
-          const out = await this.files.removeAll([c.path], false)
-          return out.ok || refused.push({ path: c.path, message: out.error.message })
-        }
-        case "rmdir": {
-          const now = await this.files.list(c.path, true)
-          if (!now.ok) return
-          const same = now.value.filter((e) => e.kind === "file").every((e) => c.files.get(`/${e.path}`) === e.sha256)
-          if (!same) return refused.push({ path: c.path, message: changedSince(c.path) })
-          const out = await this.files.removeAll([c.path], true)
-          return out.ok || refused.push({ path: c.path, message: out.error.message })
-        }
-        case "mkdir": {
-          const out = await this.files.mkdir(c.path)
-          return out.ok || refused.push({ path: c.path, message: out.error.message })
-        }
-      }
-    }
-    // Moves first, so a write to a path a file moved away from finds it empty; deletions last.
-    const order: Change["op"][][] = [["move"], ["write", "mkdir"], ["remove", "rmdir"]]
-    for (const ops of order) await Promise.all(changes.filter((c) => ops.includes(c.op)).map(run))
-    return refused
+    if (!changes.length) return null
+    const batch = await Promise.all(
+      changes.map(async (c): Promise<BatchChange> => {
+        if (c.op !== "write") return c
+        const type = !c.node.bytes && c.node.base ? c.node.base.type : typeForPath(c.path)
+        return { op: "write", path: c.path, bytes: await this.content(c.path, c.node), type, expect: c.expect }
+      }),
+    )
+    const out = await this.files.commit(batch)
+    if (out.ok) return null
+    const space = { home: "the drive (/home)", me: "/me", chat: "the chat's files" }[spaceOf(out.path)]
+    const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
+    return { path: out.path, message: `${why}. nothing this command changed in ${space} was saved. look again, then run it again` }
   }
 }
 
+/** The exit code just-bash gives a command its execution limits stopped (`ExecutionLimitError.EXIT_CODE`). */
+const LIMIT_EXIT = 126
+
 const stopped = (timer: AbortSignal, seconds: number) =>
   timer.aborted ? new ExecutionError("timeout", `the command ran past ${seconds} seconds, and none of its changes were saved`) : new ExecutionError("aborted", "the command was stopped, and none of its changes were saved")
+
+const OVER_READ = `bash: the command read more than ${MAX_READS} files and was stopped, and none of its changes were saved. narrow it to a folder or a pattern, or split it\n`
 
 /** Runs one command and commits its changes. Output reaches `onOutput` when the command ends. */
 export async function runCommand(files: RoomFs, command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<ShellExecResult, ExecutionError>> {
   const seconds = Math.min(options?.timeout ?? DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S)
   const timer = AbortSignal.timeout(seconds * 1000)
-  const signal = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
+  const outside = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
+  const say = (text: string) => void (text && options?.onOutput?.(text, context))
+  let fs: CommandFs | undefined
   try {
-    const fs = await CommandFs.open(files)
+    fs = await CommandFs.open(files)
     const cwd = options?.cwd && (await fs.exists(options.cwd)) ? options.cwd : "/"
     const bash = new Bash({ fs, cwd, env: { HOME: "/", USER: "agent", TMPDIR: "/tmp", ...options?.env } })
-    const out = await bash.exec(command, { cwd, signal })
-    if (signal.aborted) return err(stopped(timer, seconds))
+    const out = await bash.exec(command, { cwd, signal: AbortSignal.any([outside, fs.overRead.signal]) })
+    if (outside.aborted) return err(stopped(timer, seconds))
+    if (fs.overRead.signal.aborted) return say(OVER_READ), ok({ exitCode: LIMIT_EXIT })
+    // just-bash's ExecutionLimitError: the command was stopped partway, like a timeout.
+    if (out.exitCode === LIMIT_EXIT) return say(`${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`), ok({ exitCode: LIMIT_EXIT })
     const refused = await fs.commit()
-    const notes = refused.map((r) => `bash: ${r.path}: not saved: ${r.message}\n`).join("")
-    const text = out.stdout + out.stderr + notes
-    if (text) options?.onOutput?.(text, context)
-    return ok({ exitCode: refused.length && !out.exitCode ? 1 : out.exitCode })
+    say(out.stdout + out.stderr + (refused ? `bash: ${refused.path}: not saved: ${refused.message}\n` : ""))
+    return ok({ exitCode: refused && !out.exitCode ? 1 : out.exitCode })
   } catch (e) {
-    if (signal.aborted) return err(stopped(timer, seconds))
+    if (outside.aborted) return err(stopped(timer, seconds))
+    if (fs?.overRead.signal.aborted) return say(OVER_READ), ok({ exitCode: LIMIT_EXIT })
     return err(new ExecutionError("unknown", e instanceof Error ? e.message : String(e)))
   }
 }

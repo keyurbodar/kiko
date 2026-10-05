@@ -16,7 +16,7 @@ import { keyringFromEnv } from "../lib/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
-import { type FileBody, FileIndex, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
+import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
@@ -80,6 +80,8 @@ export class UserDO extends DurableObject<Env> {
   private life!: Life
   private souls!: Souls
   private home!: FileIndex<UserEvent>
+  /** Events of a batch still in its transaction (`homeCommit`), broadcast once it commits. */
+  private holding: UserEvent[] | null = null
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -332,6 +334,23 @@ export class UserDO extends DurableObject<Env> {
 
   async homeMkdir(by: Actor, path: string): Promise<FsChange | FsFail> {
     return this.home.mkdir(path, by)
+  }
+
+  /** RPC for a bash command's changes to the drive (section 18.4): all in one transaction, or none. */
+  async homeCommit(by: Actor, changes: readonly IndexChange[]): Promise<CommitResult> {
+    // A refused batch rolls its events back, so nothing is broadcast until it holds.
+    const held: UserEvent[] = []
+    this.holding = held
+    let out: CommitResult<UserEvent>
+    try {
+      out = this.home.commit(changes, by)
+    } finally {
+      this.holding = null
+    }
+    if (!out.ok) return out
+    if (held.length) this.broadcast({ t: "events", events: held })
+    this.dropAfter({ ok: true, events: [], drop: out.drop, changed: changes.length })
+    return { ok: true, events: [], drop: [] }
   }
 
   /** A human's `home` frame. The refusal for the socket, or null. */
@@ -887,7 +906,8 @@ export class UserDO extends DurableObject<Env> {
     const event = { ...change, seq, at } as UserEvent
     this.sql.exec("INSERT INTO user_events (seq, at, body) VALUES (?, ?, ?)", seq, at, JSON.stringify(event))
     this.sql.exec("DELETE FROM user_events WHERE seq <= ?", seq - REPLAY_LIMIT)
-    this.broadcast({ t: "events", events: [event] })
+    if (this.holding) this.holding.push(event)
+    else this.broadcast({ t: "events", events: [event] })
     return event
   }
 

@@ -71,6 +71,31 @@ export type PutResult<E = unknown> = {
 
 export const fail = (code: FsFail["code"], message: string): FsFail => ({ ok: false, code, message })
 
+/**
+ * One change of a batch (`FileIndex.commit`), with the state it expects. A put carries its
+ * `expectSha256`; a move, a remove, and an rmdir name the bytes they saw, an rmdir every file below.
+ */
+export type IndexChange =
+  | { op: "put"; file: NewFile }
+  | { op: "move"; from: string; to: string; sha256: string }
+  | { op: "remove"; path: string; sha256: string }
+  | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
+  | { op: "mkdir"; path: string }
+
+/** A batch applied whole, or refused whole: `conflict` when a path no longer held what the batch saw. */
+export type CommitResult<E = unknown> = { ok: true; events: E[]; drop: string[] } | { ok: false; path: string; message: string; conflict: boolean }
+
+/** The paths a change touches, for leases. */
+export const changePaths = (c: IndexChange): string[] => (c.op === "put" ? [c.file.path] : c.op === "move" ? [c.from, c.to] : [c.path])
+
+class Refused {
+  constructor(
+    readonly path: string,
+    readonly message: string,
+    readonly conflict: boolean,
+  ) {}
+}
+
 /** The name after the last slash. */
 export const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
@@ -384,6 +409,65 @@ export class FileIndex<E> {
       if (dirs.size) events.push(this.foldersEvent(author))
       return { ok: true, events, drop: [...rows.values()].map((r) => r.r2_key), changed: rows.size, folders: dirs.size }
     })
+  }
+
+  /**
+   * Applies a batch in one transaction: every change, or none. Each change is checked against the
+   * state it expects first, so a batch built from an old snapshot never overwrites a newer write.
+   */
+  commit(changes: readonly IndexChange[], by: Actor, keep?: (ids: readonly string[]) => string | null): CommitResult<E> {
+    const changed = (path: string) => new Refused(path, "changed", true)
+    try {
+      return this.storage.transactionSync(() => {
+        const events: E[] = []
+        const drop: string[] = []
+        const take = (out: FsChange<E> | FsFail, path: string) => {
+          if (!out.ok) throw new Refused(path, out.message, false)
+          events.push(...out.events)
+          drop.push(...out.drop)
+        }
+        for (const c of changes) {
+          switch (c.op) {
+            case "put": {
+              const out = this.put(c.file)
+              if (out.conflict) throw changed(c.file.path)
+              if (out.refused) throw new Refused(c.file.path, out.refused.message, false)
+              events.push(...out.events)
+              if (out.drop && out.drop !== c.file.r2Key) drop.push(out.drop)
+              break
+            }
+            case "move": {
+              const src = this.stat(c.from)
+              if (src?.kind !== "file" || src.sha256 !== c.sha256) throw changed(c.from)
+              if (this.stat(c.to)) throw changed(c.to)
+              take(this.move(c.from, c.to, by), c.to)
+              break
+            }
+            case "remove": {
+              const now = this.stat(c.path)
+              if (now?.kind !== "file" || now.sha256 !== c.sha256) throw changed(c.path)
+              take(this.remove([c.path], false, by, keep), c.path)
+              break
+            }
+            case "rmdir": {
+              const now = this.list(c.path, true)
+              if (!Array.isArray(now)) throw changed(c.path)
+              const files = now.filter((e) => e.kind === "file")
+              if (files.length !== Object.keys(c.files).length || files.some((e) => c.files[e.path] !== e.sha256)) throw changed(c.path)
+              take(this.remove([c.path], true, by, keep), c.path)
+              break
+            }
+            case "mkdir":
+              take(this.mkdir(c.path, by), c.path)
+              break
+          }
+        }
+        return { ok: true as const, events, drop }
+      })
+    } catch (e) {
+      if (e instanceof Refused) return { ok: false, path: e.path, message: e.message, conflict: e.conflict }
+      throw e
+    }
   }
 
   /** The files at `paths`, a folder giving everything in it. At most `max`, so one message stays small. */

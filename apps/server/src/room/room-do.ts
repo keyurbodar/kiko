@@ -14,7 +14,7 @@ import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
 import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route } from "./deliver"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
-import type { FileIndex } from "../files/file-index"
+import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, type Proposal, type ProposalInput } from "./chief"
@@ -889,6 +889,21 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange<RoomEvent> | FsFail> {
 		// A file on a message stays: the bubble would point at nothing. The human can still delete it.
 		return this.guarded(slug, paths, `deleting /${paths[0]}`, () => this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
+	}
+
+	/**
+	 * RPC for a bash command's changes (section 18.4): all of them in one transaction, or none.
+	 * Every path is checked against the leases first, and each change against the state it saw.
+	 */
+	async fsCommit(slug: AgentSlug, changes: readonly IndexChange[]): Promise<CommitResult<RoomEvent>> {
+		const paths = changes.flatMap(changePaths)
+		const held = this.held(slug, paths)
+		if (held) return { ok: false, path: paths[0] ?? "", message: held.message, conflict: false }
+		const out = this.files.commit(changes, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids))
+		if (!out.ok) return out
+		this.applyFs({ ok: true, events: out.events, drop: out.drop, changed: changes.length })
+		if (paths.length) this.working(slug, paths, `editing /${paths[0]}${paths.length > 1 ? ` and ${paths.length - 1} more` : ""}`)
+		return { ok: true, events: [], drop: [] }
 	}
 
 	/** RPC for an agent that changed the user's drive (section 18.3): one line in the chat says what. */

@@ -274,3 +274,48 @@ test("many files written in a loop are saved in one commit", async () => {
   expect(out.text).toBe("30\n")
   expect((await a.bash("cat /n/*.txt | awk '{s += $1} END {print s}'")).text).toBe("465\n")
 })
+
+test("a command's changes save together: one refused file means none of them land", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  await ada.write("b.txt", "1\n")
+  await idle(room, "ada")
+  const slow = ada.bash("echo new > /a.txt; mkdir /made; mv /b.txt /moved.txt 2>/dev/null; v=$(cat /moved.txt); sleep 1; echo $v-ada > /moved.txt")
+  await sleep(300)
+  await bo.write("b.txt", "2\n")
+  await idle(room, "bo")
+  const out = await slow
+  expect(out.ok).toBe(false)
+  // The conflict is on the delete, applied last: the writes before it in the batch were rolled back.
+  expect(out.text).toContain("/b.txt changed after this command started")
+  expect(out.text).toContain("nothing this command changed in the chat's files was saved")
+  expect(await ada.ls()).not.toMatch(/a\.txt|made|moved/)
+  expect(await ada.read("b.txt")).toBe("2\n")
+})
+
+test("changes to the chat's files and the drive in one command both save", async () => {
+  const a = agent(fresh())
+  expect((await a.bash("echo chat > /c.txt; echo drive > /home/both.txt")).ok).toBe(true)
+  expect((await a.bash("cat /c.txt /home/both.txt")).text).toBe("chat\ndrive\n")
+})
+
+test("a runaway loop stops at the interpreter's limits and saves nothing", async () => {
+  const a = agent(fresh())
+  const out = await a.bash("echo partial > /p.txt; while true; do :; done")
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("too many commands")
+  expect(out.text).toContain("none of its changes were saved")
+  expect(out.ms).toBeLessThan(10_000)
+  expect(await a.ls()).not.toContain("p.txt")
+})
+
+test("one command reads a bounded number of files, and says how to narrow it", async () => {
+  const a = agent(fresh())
+  expect((await a.bash("mkdir /big; for i in $(seq 1 450); do echo $i > /big/$i.txt; done")).ok).toBe(true)
+  const out = await a.bash("cat /big/*.txt > /dev/null")
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("read more than 400 files and was stopped")
+  expect(out.text).not.toContain("No such file")
+  expect((await a.bash("cat /big/1*.txt | wc -l")).text).toBe("111\n")
+}, 30_000)
