@@ -210,7 +210,7 @@ describe("the look record", () => {
   })
 
   test("a look survives the round trip, and bad bird entries are dropped", () => {
-    const look: Look = { mode: "light", material: "solid", tint: 0.25, theme: { preset: "sage" }, birds: { scout: "cardinal.2.leaf" } }
+    const look: Look = { mode: "light", material: "solid", tint: 0.25, theme: { preset: "sage" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: { scout: "cardinal.2.leaf" } }
     expect(parseLook(formatLook(look))).toEqual(look)
     const raw = JSON.parse(formatLook(look))
     raw.birds = { scout: "cardinal.2.leaf", "Bad Slug": "x", other: "<script>" }
@@ -269,17 +269,59 @@ describe("applying", () => {
   test("sets the variables and the appearance, previews, reverts, and clears what a reset leaves", () => {
     const { root, style, classes, dataset } = fakeRoot()
     g.document = { documentElement: root }
-    const custom: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "c", colors: { accent: "#c00" } } }, birds: {} }
+    const custom: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "c", colors: { accent: "#c00" } } }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }
     applyCommitted(custom)
     expect([style["--accent"], dataset.appearance, classes.has("dark")]).toEqual(["#c00", "dark", true])
-    preview({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, birds: {} })
+    preview({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} })
     expect([style["--accent"] ?? "", style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["", "0.22", "light", false])
     endPreview()
     expect([style["--accent"], "--l-brand-user" in style, dataset.appearance]).toEqual(["#c00", false, "dark"])
     expect([dataset.material, style["--tinge"]]).toEqual(["solid", "0.5"])
     applyCommitted({ ...DEFAULT_LOOK, mode: "dark" })
-    expect(Object.keys(style).filter((k) => k.startsWith("--") && k !== "--boot-bg" && k !== "--tinge")).toEqual([])
+    expect(Object.keys(style).filter((k) => k.startsWith("--") && !["--boot-bg", "--tinge", "--glass", "--frost", "--grain"].includes(k))).toEqual([])
     expect([dataset.material, style["--tinge"]]).toEqual(["frost", String(DEFAULT_TINT)])
+  })
+})
+
+describe("a wallpaper", () => {
+  const g = globalThis as { document?: unknown }
+  afterEach(() => {
+    delete g.document
+  })
+  const pic = "data:image/webp;base64,UklGRg=="
+
+  test("round-trips with the glass, and the glass is clamped", () => {
+    const look: Look = { ...DEFAULT_LOOK, wallpaper: pic, glass: 0.6 }
+    expect(parseLook(formatLook(look))).toEqual(look)
+    const raw = JSON.parse(formatLook(look))
+    expect(parseLook(JSON.stringify({ ...raw, glass: 0.01 })).glass).toBe(0.15)
+    expect(parseLook(JSON.stringify({ ...raw, glass: 9 })).glass).toBe(1)
+    expect(parseLook(JSON.stringify({ ...raw, wallpaper: "javascript:x" })).wallpaper).toBe(null)
+  })
+
+  test("its frost, where, and grain round-trip and are clamped", () => {
+    const look: Look = { ...DEFAULT_LOOK, wallpaper: pic, frost: 30, frostWhere: "bottom", grain: 0.8 }
+    expect(parseLook(formatLook(look))).toEqual(look)
+    const raw = JSON.parse(formatLook(look))
+    const again = (patch: object) => parseLook(JSON.stringify({ ...raw, ...patch }))
+    expect([again({ frost: 999 }).frost, again({ frost: -3 }).frost, again({ frost: 7.6 }).frost]).toEqual([48, 0, 8])
+    expect([again({ grain: 5 }).grain, again({ frostWhere: "top" }).frostWhere]).toEqual([1, "everywhere"])
+  })
+
+  test("sets the frost, its place, and the grain on the root", () => {
+    const { root, style, dataset } = fakeRoot()
+    g.document = { documentElement: root }
+    applyCommitted({ ...DEFAULT_LOOK, mode: "dark", wallpaper: pic, frost: 0, frostWhere: "bottom", grain: 0 })
+    expect([style["--frost"], style["--grain"], dataset.frostWhere]).toEqual(["0px", "0", "bottom"])
+  })
+
+  test("paints under frost and not under solid", () => {
+    const { root, style, dataset } = fakeRoot()
+    g.document = { documentElement: root }
+    applyCommitted({ ...DEFAULT_LOOK, mode: "dark", wallpaper: pic, glass: 0.7 })
+    expect(["wallpaper" in dataset, style["--wallpaper"], style["--glass"]]).toEqual([true, `url("${pic}")`, "0.7"])
+    applyCommitted({ ...DEFAULT_LOOK, mode: "dark", material: "solid", wallpaper: pic })
+    expect(["wallpaper" in dataset, "--wallpaper" in style]).toEqual([false, false])
   })
 })
 
@@ -296,18 +338,18 @@ describe("the pre-paint script", () => {
   const cacheOf = (look: Look) => JSON.stringify({ v: 2, text: "x", mode: look.mode, material: look.material, tint: look.tint, vars: resolveLook(look) })
 
   test("paints the cached variables for the saved appearance", () => {
-    const { style, dataset, classes } = boot(cacheOf({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, birds: {} }))
+    const { style, dataset, classes } = boot(cacheOf({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }))
     expect([style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["0.22", "light", false])
   })
 
   test("system follows the system", () => {
-    const cache = cacheOf({ mode: "system", material: "solid", tint: 0.5, theme: { preset: "mono" }, birds: {} })
+    const cache = cacheOf({ mode: "system", material: "solid", tint: 0.5, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} })
     expect(boot(cache, true).dataset.appearance).toBe("light")
     expect(boot(cache, false).style["--l-brand-user"]).toBe("0.9")
   })
 
   test("paints the material and tint before first paint, and frost without a cache", () => {
-    const { style, dataset } = boot(cacheOf({ mode: "dark", material: "solid", tint: 0.2, theme: { preset: "mono" }, birds: {} }))
+    const { style, dataset } = boot(cacheOf({ mode: "dark", material: "solid", tint: 0.2, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }))
     expect([dataset.material, style["--tinge"]]).toEqual(["solid", "0.2"])
     expect([boot(null).dataset.material, boot(null).style["--tinge"]]).toEqual(["frost", "0.5"])
   })
@@ -324,9 +366,12 @@ describe("the pre-paint script", () => {
       setItem: (k: string, v: string) => void (store[k] = v),
       removeItem: (k: string) => void delete store[k],
     }
-    const look: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "g", colors: { accent: "#0a0" } } }, birds: {} }
+    const look: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "g", colors: { accent: "#0a0" } } }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }
     writeCache("text", look)
     expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe("#0a0")
+    writeCache("text", { ...look, material: "frost", wallpaper: "data:image/webp;base64,UklGRg==", glass: 0.6 })
+    const booted = boot(store[CACHE_KEY]!)
+    expect(["wallpaper" in booted.dataset, booted.style["--wallpaper"], booted.style["--glass"]]).toEqual([true, 'url("data:image/webp;base64,UklGRg==")', "0.6"])
     delete (globalThis as { localStorage?: unknown }).localStorage
   })
 })

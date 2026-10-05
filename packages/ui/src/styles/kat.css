@@ -768,11 +768,14 @@
 /* -----------------------------------------------------------------------------
    4d. Frost
 
-   Translucent panels over a still scene. The scene is one soft wash painted on
-   `body`, so nothing needs a live blur: the glass is the panels' alpha over a
-   picture that is already soft. `--panel` is the main panel's own fill and
-   `--bg-sidebar` the shell's. `--bg` stays the opaque colour the eye sees
-   there, because fades, cut-outs and rings paint with it.
+   Panes of glass over a still light that fills the screen. Glass only reads
+   as glass with something behind it, so the scene is one wide fall of light,
+   brightest at the top right, in one near-grey hue. It is a single linear
+   gradient, so it has no circles or edges to see, and a fine grain dithers it
+   so it never bands. The shell and the panes are translucent with a rim, so
+   the light shows through both. Menus are the one live blur. `--bg` stays
+   the opaque colour the eye sees, because fades, cut-outs and rings paint
+   with it.
    -------------------------------------------------------------------------- */
 
 :root {
@@ -784,29 +787,35 @@
   --popover-bg: var(--menu-bg);
   --popover-blur: none;
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.08);
+  /* The rim of a glass pane. Solid panes have none. */
+  --glass-edge: none;
+  /* The transcript's scroll fades. */
+  --fade-bg: var(--bg);
+  /* Frost's wallpaper and how opaque its glass is. apply.ts sets both from the look. */
+  --wallpaper: none;
+  --glass: 0.6;
+  --frost: 14px;
+  --grain: 0.3;
 }
 
 :root[data-material="frost"] {
-  --scene-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.05 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --scene-l: 0.24;
-  --scene-c: calc(0.02 * var(--tinge) * var(--cm));
-  --scene-hi: oklch(0.36 calc(var(--scene-c) * 1.5) calc(var(--hue) - 12));
-  --scene-hi-2: oklch(0.4 calc(var(--scene-c) * 1.7) var(--hue));
-  --scene-lo: oklch(0.17 calc(var(--scene-c) * 0.9) calc(var(--hue) + 8));
-  /* Light from two corners, the top right brightest as in the frost mockup, and a deep
-     floor. Each gradient spans most of the window, so no edge or shape ever shows. The
-     grain is under 5% white, enough to dither the gradients so they never band. */
+  /* The grain is a 64px tile of fine noise at 3.5% white: dense enough to dither the light
+     and too fine to show as blotches. */
+  --scene-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.2' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.035 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --scene-c: calc(0.01 * var(--tinge) * var(--cm));
+  --scene-hi: oklch(0.33 var(--scene-c) var(--hue));
+  --scene-mid: oklch(0.25 var(--scene-c) var(--hue));
+  --scene-lo: oklch(0.17 var(--scene-c) var(--hue));
   --scene:
-    var(--scene-grain) 0 0 / 180px 180px repeat,
-    radial-gradient(90% 80% at 92% 4%, var(--scene-hi-2), transparent 75%),
-    radial-gradient(110% 90% at 4% 10%, var(--scene-hi), transparent 72%),
-    radial-gradient(120% 90% at 60% 105%, var(--scene-lo), transparent 72%),
-    oklch(var(--scene-l) var(--scene-c) var(--hue));
+    var(--scene-grain) 0 0 / 64px 64px repeat,
+    linear-gradient(200deg, var(--scene-hi) 0%, var(--scene-mid) 40%, var(--scene-lo) 100%);
   --dock-bg: transparent;
   --popover-bg: oklch(0.24 calc(0.016 * var(--tinge) * var(--cm)) var(--hue) / 0.8);
   --popover-blur: blur(24px) saturate(1.4);
-  --bg-sidebar: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
-  --panel: oklch(0.2 calc(0.018 * var(--tinge) * var(--cm)) var(--hue) / 0.62);
+  --bg-sidebar: oklch(0.17 var(--scene-c) var(--hue) / 0.45);
+  --panel: oklch(0.2 var(--scene-c) var(--hue) / 0.4);
+  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.07), inset 0 1px 0 oklch(100% 0 none / 0.06);
+  --fade-bg: transparent;
   --hover-bg: oklch(100% 0 none / 0.05);
   --selected-bg: oklch(100% 0 none / 0.1);
   --nav-hover-bg: oklch(100% 0 none / 0.05);
@@ -835,12 +844,12 @@
 }
 
 :root[data-material="frost"][data-appearance="light"] {
-  --scene-l: 0.9;
-  --scene-hi: oklch(0.97 calc(var(--scene-c) * 0.8) calc(var(--hue) - 12));
-  --scene-hi-2: oklch(0.98 calc(var(--scene-c) * 0.6) var(--hue));
-  --scene-lo: oklch(0.82 calc(var(--scene-c) * 1.4) calc(var(--hue) + 8));
-  --bg-sidebar: oklch(0.98 calc(0.01 * var(--tinge) * var(--cm)) var(--hue) / 0.5);
-  --panel: oklch(0.99 calc(0.006 * var(--tinge) * var(--cm)) var(--hue) / 0.7);
+  --scene-hi: oklch(0.99 var(--scene-c) var(--hue));
+  --scene-mid: oklch(0.94 var(--scene-c) var(--hue));
+  --scene-lo: oklch(0.86 var(--scene-c) var(--hue));
+  --bg-sidebar: oklch(0.97 var(--scene-c) var(--hue) / 0.45);
+  --panel: oklch(100% 0 none / 0.45);
+  --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06), inset 0 1px 0 oklch(100% 0 none / 0.8);
   --popover-bg: oklch(0.995 calc(0.004 * var(--tinge) * var(--cm)) var(--hue) / 0.82);
   --popover-blur: blur(24px) saturate(1.4);
   --hover-bg: oklch(0% 0 none / 0.04);
@@ -859,6 +868,89 @@
 :root[data-material="frost"] body {
   background: var(--scene);
   background-attachment: fixed;
+}
+
+/* Frost over a wallpaper. The picture itself shows and the app floats on it: the shell is
+   clear and the panes are a light tint with a hairline. Every part is the person's setting, set
+   by apply.ts from the look:
+
+   - `--frost`, a blur from 0 (sharp) to 48px, over the whole picture or, with
+     `data-frost-where="bottom"`, fading in toward the bottom over a sharp copy;
+   - `--grain`, a frosted grain from none to clearly visible, which also dithers smooth blur so
+     it never bands;
+   - `--glass`, the dim: 0.15 to 1 maps onto a 28% to 75% black overlay, so the picture always
+     stays dark enough to read on. The lower part darkens a little more.
+
+   The layers are static, so each is drawn once and again only when a setting changes. In paint
+   order: the sharp base (`:root::before`, bottom only), the frosted picture (`body::before`),
+   the grain (`body::after`), the dim (`:root::after`).
+
+   `--wallpaper-sharp` is this device's copy from IndexedDB. Until it is there, or on a device
+   without it, the tiny blurred copy the look carries (`--wallpaper`) stands in, blurred at
+   least 16px to smooth its stretch, and over the whole picture. */
+:root[data-material="frost"][data-wallpaper] {
+  --wallpaper-dim: calc(0.2 + 0.55 * var(--glass));
+  --wallpaper-scrim: oklch(0% 0 none / var(--wallpaper-dim));
+  --wallpaper-floor: oklch(0% 0 none / 0.35);
+  --wallpaper-fade: linear-gradient(to bottom, transparent 15%, #000 70%);
+  --bg-sidebar: transparent;
+  --panel: oklch(0.16 0 0 / 0.22);
+  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.07);
+}
+
+:root[data-material="frost"][data-wallpaper][data-appearance="light"] {
+  --wallpaper-scrim: oklch(100% 0 none / var(--wallpaper-dim));
+  --wallpaper-floor: oklch(100% 0 none / 0.3);
+  --panel: oklch(0.98 0 0 / 0.3);
+  --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06);
+}
+
+:root[data-material="frost"][data-wallpaper] body {
+  background: transparent;
+}
+
+:root[data-material="frost"][data-wallpaper] body::before,
+:root[data-material="frost"][data-wallpaper][data-wallpaper-sharp][data-frost-where="bottom"]::before,
+:root[data-material="frost"][data-wallpaper] body::after,
+:root[data-material="frost"][data-wallpaper]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+:root[data-material="frost"][data-wallpaper][data-wallpaper-sharp][data-frost-where="bottom"]::before {
+  background: var(--wallpaper-sharp) center / cover no-repeat;
+}
+
+/* The overhang keeps the blur from fading at the window's edges. */
+:root[data-material="frost"][data-wallpaper] body::before {
+  inset: calc(var(--frost) * -2);
+  background: var(--wallpaper-sharp, var(--wallpaper)) center / cover no-repeat;
+  filter: blur(var(--frost));
+}
+
+:root[data-material="frost"][data-wallpaper][data-wallpaper-sharp][data-frost-where="bottom"] body::before {
+  -webkit-mask-image: var(--wallpaper-fade);
+  mask-image: var(--wallpaper-fade);
+}
+
+:root[data-material="frost"][data-wallpaper]:not([data-wallpaper-sharp]) body::before {
+  inset: -64px;
+  filter: blur(max(16px, var(--frost)));
+}
+
+/* Grey noise, one pixel fine. At 0 it is gone; at 1 it is a clear frosted grain. */
+:root[data-material="frost"][data-wallpaper] body::after {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E") 0 0 / 128px 128px repeat;
+  opacity: calc(var(--grain) * 0.14);
+}
+
+:root[data-material="frost"][data-wallpaper]::after {
+  background:
+    linear-gradient(to bottom, transparent 40%, var(--wallpaper-floor) 100%),
+    linear-gradient(var(--wallpaper-scrim), var(--wallpaper-scrim));
 }
 
 /* -----------------------------------------------------------------------------

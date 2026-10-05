@@ -392,6 +392,12 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--popover-bg` | color | `var(--menu-bg)` |
 | `--popover-blur` | any | `none` |
 | `--popover-edge` | any | `0 0 0 1px oklch(from var(--text) l c h / 0.08)` |
+| `--glass-edge` | any | `none` |
+| `--fade-bg` | color | `var(--bg)` |
+| `--wallpaper` | any | `none` |
+| `--glass` | number | `0.6` |
+| `--frost` | length | `14px` |
+| `--grain` | number | `0.3` |
 | `--v2-background-bg-base` | color | `var(--input-bg)` |
 | `--v2-background-bg-deep` | color | `var(--bg)` |
 | `--v2-background-bg-layer-01` | color | `var(--bg-subtle)` |
