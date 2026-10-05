@@ -14,7 +14,7 @@
 
 ## Verification
 
-`bun kiko verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `test/team-routing.test.ts` covers an ask that closes before its answer.
+`bun kiko verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `bun kiko verify team-model` passes with the test model: kiko gets one fact each from ada and bob with `ask`, writes /walk.md with both, and every agent is woken once. `test/team-routing.test.ts` covers an ask that closes before its answer.
 
 ## Task
 

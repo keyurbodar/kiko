@@ -14,11 +14,11 @@
 
 ## Verification
 
-`test/agent-host.test.ts` runs 51 runs from memory and sees pi-durable's tables dropped while idle; `test/log-memory.test.ts` bounds the floor's size and taints a block with a recent outside line, not a summarized one.
+`test/agent-host.test.ts` runs 51 runs from memory and sees pi-durable's tables dropped while idle; `test/log-memory.test.ts` bounds the floor's size and marks outside lines without tainting the run.
 
 ## Task
 
-**Goal.** Nothing grows without bound, and recent outside content gates a run like a tool result does.
+**Goal.** Nothing grows without bound.
 
 ## Rules for this task
 
