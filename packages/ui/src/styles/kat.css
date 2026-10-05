@@ -869,15 +869,15 @@
 }
 
 /* Frost over a wallpaper. The picture itself shows, dimmed, and the app floats on it: the shell
-   is clear and the panes are a light tint with a hairline. `theme/wallpaper.ts` bakes the haze
-   into the picture: sharp at the top, softer and softer toward the bottom. So the screen draws
-   one plain picture with no live filter. The dim is one black overlay whose strength is the
-   glass setting: `--glass` (0.15 to 1) maps onto 28% to 75%, so the picture always stays dark
-   enough to read on. The lower part darkens a little more, as in monocode's haze.
+   is clear and the panes are a light tint with a hairline. `theme/wallpaper.ts` bakes an even
+   frost into the whole picture once, so the screen draws one plain picture with no live filter.
+   The dim is one black overlay whose strength is the glass setting: `--glass` (0.15 to 1) maps
+   onto 28% to 75%, so the picture always stays dark enough to read on. The lower part darkens
+   a little more.
 
    `--wallpaper-sharp` is this device's sharp copy from IndexedDB, set by apply.ts. Until it is
    there, or on a device without it, the blurred copy the look carries (`--wallpaper`) shows
-   instead, blurred a little more to smooth its stretch, with a dither so it never bands. */
+   instead, blurred a little more to smooth its stretch. Both get a dither so they never band. */
 :root[data-material="frost"][data-wallpaper] {
   --wallpaper-dim: calc(0.2 + 0.55 * var(--glass));
   --wallpaper-scrim: oklch(0% 0 none / var(--wallpaper-dim));
@@ -915,10 +915,9 @@
   filter: blur(16px);
 }
 
-/* Dither over the blurred stand-in. A smooth dark gradient has too few 8-bit steps, so it shows
-   contour lines. Grey noise, one pixel fine and 4% strong, breaks the steps up. The sharp
-   picture has detail of its own and needs none. */
-:root[data-material="frost"][data-wallpaper]:not([data-wallpaper-sharp]) body::after {
+/* Dither over the frosted picture. A smooth dark gradient has too few 8-bit steps, so it shows
+   contour lines. Grey noise, one pixel fine and 4% strong, breaks the steps up. */
+:root[data-material="frost"][data-wallpaper] body::after {
   content: "";
   position: fixed;
   inset: 0;

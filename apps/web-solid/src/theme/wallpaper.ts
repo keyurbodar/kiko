@@ -98,16 +98,12 @@ export type Prepared = { wallpaper: string; sharp: Blob; palette: Palette }
 const WORK_EDGE = 1280
 /** That blur, in px: soft shapes stay, edges and detail go. */
 export const PREBLUR = 40
-/** The sharp picture's long edge. About a window, so it is never stretched much. */
-const SHARP_EDGE = 1600
-/**
- * The haze baked into the sharp picture, after monocode's: a soft blur that fades in from 18%
- * to 60% of the height, and a strong one from 28% to 76%. Radii are at `SHARP_EDGE`.
- */
-const HAZE = [
-  { radius: 8, from: 0.18, to: 0.6 },
-  { radius: 24, from: 0.28, to: 0.76 },
-] as const
+/** The frost is blurred at this size, about a window's width. */
+const FROST_EDGE = 1600
+/** The frost, in px at `FROST_EDGE`, the same over the whole picture: shapes stay, detail goes. */
+export const FROST = 14
+/** The frosted copy's stored long edge. Blurred, it has no detail that needs more. */
+const STORED_EDGE = 960
 
 const canvas2d = (w: number, h: number) => {
   const c = document.createElement("canvas")
@@ -151,25 +147,11 @@ function blurred(source: CanvasImageSource & { width: number; height: number }, 
 }
 
 /**
- * The sharp picture with the haze baked in: sharp at the top, softer and softer toward the
- * bottom. Baking it once means the screen draws one plain picture, with no live filter and no
- * stack of full-window blurred layers in memory.
+ * The picture frosted evenly, baked once: the screen then draws one plain picture with no live
+ * filter. It is blurred at window size and only then shrunk, so it stretches back smoothly.
  */
-function hazed(bitmap: ImageBitmap): HTMLCanvasElement {
-  const base = blurred(bitmap, SHARP_EDGE, 0)
-  const ctx = base.getContext("2d")!
-  for (const { radius, from, to } of HAZE) {
-    const layer = blurred(bitmap, SHARP_EDGE, radius)
-    const lctx = layer.getContext("2d")!
-    const fade = lctx.createLinearGradient(0, 0, 0, layer.height)
-    fade.addColorStop(from, "rgba(0,0,0,0)")
-    fade.addColorStop(to, "rgba(0,0,0,1)")
-    lctx.globalCompositeOperation = "destination-in"
-    lctx.fillStyle = fade
-    lctx.fillRect(0, 0, layer.width, layer.height)
-    ctx.drawImage(layer, 0, 0)
-  }
-  return base
+function frosted(bitmap: ImageBitmap): HTMLCanvasElement {
+  return blurred(blurred(bitmap, FROST_EDGE, FROST), STORED_EDGE, 0)
 }
 
 /**
@@ -191,9 +173,9 @@ export async function prepareWallpaper(file: Blob): Promise<Prepared> {
       if (isWallpaper(wallpaper)) break
     }
     if (!isWallpaper(wallpaper)) throw new Error("too large")
-    const haze = hazed(bitmap)
-    let sharp = await toBlob(haze, "image/webp", 0.8)
-    if (sharp.type !== "image/webp") sharp = await toBlob(haze, "image/jpeg", 0.8)
+    const frost = frosted(bitmap)
+    let sharp = await toBlob(frost, "image/webp", 0.82)
+    if (sharp.type !== "image/webp") sharp = await toBlob(frost, "image/jpeg", 0.82)
     // The palette reads a sharp 32 px copy, so a small vivid patch still gets its vote.
     const small = blurred(bitmap, 32, 0)
     return { wallpaper, sharp, palette: paletteOf(small.getContext("2d")!.getImageData(0, 0, small.width, small.height).data) }
