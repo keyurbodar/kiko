@@ -391,7 +391,8 @@ export class Reminders {
         } catch {
           throw new ReminderError("watch url is not a url")
         }
-        if (url.protocol !== "https:") throw new ReminderError("a watch reaches https urls only")
+        if (url.protocol !== "https:" && url.protocol !== "http:") throw new ReminderError("a watch reaches http and https urls only")
+        if (t.extension && url.protocol !== "https:") throw new ReminderError("a watch through an extension reaches https urls only")
         if (t.headers && !t.extension) throw new ReminderError("headers need an extension, whose secrets they may use")
         // The first check records the page as it is now. Only a later change wakes the agent.
         return { name, text, grant, due: now + 1000, rrule: null }
