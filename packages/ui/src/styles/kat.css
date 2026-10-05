@@ -872,19 +872,20 @@
    set by apply.ts) is already blurred at window size by `theme/wallpaper.ts`, so here it only
    needs a light blur to smooth the stretch. It is saturated and dimmed on one fixed layer,
    drawn once, and nothing moves behind it, so no live blur is needed. The glass is neutral and
-   dark. `--glass` (0.15 to 1) maps onto 47% to 85% opacity, and the picture is dimmed to 75%,
-   so the thinnest glass still reads as dark glass with colour in it, never as the picture
-   itself. The layer overhangs the window so the blur never fades at the edges. */
+   dark. Every picture first gets a black scrim (`--wallpaper-scrim`, 45%), whatever the
+   glass, so a bright sky is pulled as dark as a night scene. `--glass` (0.15 to 1) then maps
+   onto 47% to 85% opacity, so the thinnest glass still reads as dark glass with colour in it,
+   never as the picture itself. The layer overhangs the window so the blur never fades at the edges. */
 :root[data-material="frost"][data-wallpaper] {
   --glass-alpha: calc(0.4 + 0.45 * var(--glass));
-  --wallpaper-tone: brightness(0.75);
+  --wallpaper-scrim: oklch(0% 0 none / 0.45);
   --bg-sidebar: oklch(0.16 0 0 / var(--glass-alpha));
   --panel: oklch(100% 0 none / 0.025);
   --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.06);
 }
 
 :root[data-material="frost"][data-wallpaper][data-appearance="light"] {
-  --wallpaper-tone: brightness(1.1);
+  --wallpaper-scrim: oklch(100% 0 none / 0.35);
   --bg-sidebar: oklch(0.97 0 0 / var(--glass-alpha));
   --panel: oklch(100% 0 none / 0.35);
   --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06);
@@ -899,8 +900,10 @@
   position: fixed;
   inset: -64px;
   z-index: -1;
-  background: var(--wallpaper) center / cover no-repeat;
-  filter: blur(16px) saturate(1.5) var(--wallpaper-tone);
+  background:
+    linear-gradient(var(--wallpaper-scrim), var(--wallpaper-scrim)),
+    var(--wallpaper) center / cover no-repeat;
+  filter: blur(16px) saturate(1.5);
   pointer-events: none;
 }
 
