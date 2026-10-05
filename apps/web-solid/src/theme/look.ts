@@ -4,6 +4,7 @@
 
 import { DEFAULT_PRESET, PRESETS } from "./presets"
 import { parseTheme, type Theme } from "./schema"
+import { isWallpaper } from "./wallpaper"
 
 export type Mode = "system" | "light" | "dark"
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
@@ -18,16 +19,24 @@ export const MATERIALS: readonly Material[] = ["frost", "solid"]
 export const DEFAULT_TINT = 0.5
 const clampTint = (n: number) => Math.min(1, Math.max(0, Math.round(n * 100) / 100))
 
+/** How opaque frost's glass is over a wallpaper. Monocode's sidebar opacity: 0.15 to 1, 0.85 by default. */
+export const DEFAULT_GLASS = 0.85
+export const MIN_GLASS = 0.15
+const clampGlass = (n: number) => Math.min(1, Math.max(MIN_GLASS, Math.round(n * 100) / 100))
+
 export type Look = {
   mode: Mode
   material: Material
   tint: number
   theme: ThemeChoice
+  /** A small data URL from `wallpaper.ts`, shown blurred behind frost. Null for none. */
+  wallpaper: string | null
+  glass: number
   /** An agent slug to the bird it wears. A slug without an entry gets the bird its slug seeds. */
   birds: Readonly<Record<string, string>>
 }
 
-export const DEFAULT_LOOK: Look = { mode: "system", material: "frost", tint: DEFAULT_TINT, theme: { preset: DEFAULT_PRESET }, birds: {} }
+export const DEFAULT_LOOK: Look = { mode: "system", material: "frost", tint: DEFAULT_TINT, theme: { preset: DEFAULT_PRESET }, wallpaper: null, glass: DEFAULT_GLASS, birds: {} }
 
 const MAX_BIRDS = 200
 const BIRD_ID = /^[a-z0-9.-]{1,48}$/
@@ -65,12 +74,14 @@ export function parseLook(text: string | null): Look {
       if (SLUG.test(slug) && typeof id === "string" && BIRD_ID.test(id)) birds[slug] = id
     }
   }
-  return { mode, material, tint, theme, birds }
+  const wallpaper = isWallpaper(raw.wallpaper) ? raw.wallpaper : null
+  const glass = typeof raw.glass === "number" && Number.isFinite(raw.glass) ? clampGlass(raw.glass) : DEFAULT_GLASS
+  return { mode, material, tint, theme, wallpaper, glass, birds }
 }
 
 export function formatLook(look: Look): string {
   const theme = "preset" in look.theme ? { preset: look.theme.preset } : { custom: look.theme.custom }
-  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, material: look.material, tint: look.tint, ...theme, birds: look.birds })
+  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, material: look.material, tint: look.tint, ...theme, wallpaper: look.wallpaper, glass: look.glass, birds: look.birds })
 }
 
 export const presetOf = (look: Look): string | null => ("preset" in look.theme ? look.theme.preset : null)

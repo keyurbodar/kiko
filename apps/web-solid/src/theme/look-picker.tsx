@@ -1,14 +1,15 @@
-import { For } from "solid-js"
+import { createSignal, For, Show } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { type Glyph, MonitorIcon, MoonIcon, SunIcon } from "@kiko/ui/icons"
 import { appearanceOf } from "./apply"
 import type { Look, Mode, Style } from "./look"
-import { MODES, presetOf, STYLES, styleOf, withStyle } from "./look"
+import { MIN_GLASS, MODES, presetOf, STYLES, styleOf, withStyle } from "./look"
 import { SWATCHES, swatchColor } from "./presets"
+import { prepareWallpaper, themeFrom } from "./wallpaper"
 
 /*
- * The look controls: a style, an appearance, a colour, and how much that colour tints the
- * greys. Settings and the first-run screen both use it. A click saves at once: the look is
+ * The look controls: a style, an appearance, a wallpaper, a colour, and how much that colour
+ * tints the greys, or with a wallpaper how opaque the glass is. Settings and the first-run screen both use it. A click saves at once: the look is
  * instant, so there is nothing to confirm.
  */
 
@@ -59,6 +60,71 @@ function StyleCard(props: { style: Style; on: boolean; onPick: () => void }) {
   )
 }
 
+function Slider(props: { label: string; min: number; value: number; onInput: (v: number) => void }) {
+  return (
+    <label class="flex items-center gap-3 text-[13px] text-muted" data-component={props.label}>
+      <span class="w-10 shrink-0">{props.label}</span>
+      <input
+        type="range"
+        min={props.min}
+        max="100"
+        step="1"
+        class="h-1 min-w-0 flex-1 accent-[var(--accent-fill)]"
+        aria-label={props.label}
+        value={Math.round(props.value * 100)}
+        onInput={(e) => props.onInput(Number(e.currentTarget.value) / 100)}
+      />
+      <span class="w-9 shrink-0 text-right text-[11px] tabular-nums text-faint">{Math.round(props.value * 100)}%</span>
+    </label>
+  )
+}
+
+/*
+ * Choosing a picture shrinks it, reads its palette, and saves a look with the picture, frost,
+ * and a theme generated from the palette, all at once.
+ */
+function WallpaperRow(props: { look: Look; onChange: (next: Look) => void }) {
+  let input: HTMLInputElement | undefined
+  const [busy, setBusy] = createSignal(false)
+  const [error, setError] = createSignal("")
+  const pick = async (file: File | undefined) => {
+    if (!file) return
+    setBusy(true)
+    setError("")
+    try {
+      const { wallpaper, palette } = await prepareWallpaper(file)
+      props.onChange({ ...props.look, wallpaper, material: "frost", theme: { custom: themeFrom(palette) } })
+    } catch {
+      setError("that picture couldn't be used")
+    } finally {
+      setBusy(false)
+      if (input) input.value = ""
+    }
+  }
+  const button = "flex h-8 items-center rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+  return (
+    <div class="flex flex-col gap-1.5" data-component="wallpaper">
+      <div class="flex items-center gap-2">
+        <Show when={props.look.wallpaper}>
+          {(src) => <span class="h-8 w-12 shrink-0 rounded-md bg-cover bg-center" style={{ "background-image": `url("${src()}")`, "box-shadow": "inset 0 0 0 1px var(--hairline)" }} aria-hidden="true" />}
+        </Show>
+        <button type="button" class={button} disabled={busy()} onClick={() => input?.click()}>
+          {busy() ? "reading picture…" : props.look.wallpaper ? "change wallpaper" : "choose wallpaper"}
+        </button>
+        <Show when={props.look.wallpaper}>
+          <button type="button" class={button} onClick={() => props.onChange({ ...props.look, wallpaper: null })}>
+            remove
+          </button>
+        </Show>
+        <input ref={input} type="file" accept="image/*" class="hidden" onChange={(e) => void pick(e.currentTarget.files?.[0])} />
+      </div>
+      <Show when={error()}>
+        <span class="text-[12px] text-[var(--danger)]">{error()}</span>
+      </Show>
+    </div>
+  )
+}
+
 export function LookPicker(props: { look: Look; onChange: (next: Look) => void; size?: "md" | "lg" }) {
   const big = () => props.size === "lg"
   const style = () => styleOf(props.look, appearanceOf(props.look.mode))
@@ -84,6 +150,7 @@ export function LookPicker(props: { look: Look; onChange: (next: Look) => void; 
           )}
         </For>
       </div>
+      <WallpaperRow look={props.look} onChange={props.onChange} />
       <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="colour">
         <For each={SWATCHES}>
           {(s) => {
@@ -113,20 +180,12 @@ export function LookPicker(props: { look: Look; onChange: (next: Look) => void; 
           }}
         </For>
       </div>
-      <label class="flex items-center gap-3 text-[13px] text-muted" data-component="tint">
-        <span class="w-10 shrink-0">tint</span>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          class="h-1 min-w-0 flex-1 accent-[var(--accent-fill)]"
-          aria-label="tint"
-          value={Math.round(props.look.tint * 100)}
-          onInput={(e) => props.onChange({ ...props.look, tint: Number(e.currentTarget.value) / 100 })}
-        />
-        <span class="w-9 shrink-0 text-right text-[11px] tabular-nums text-faint">{Math.round(props.look.tint * 100)}%</span>
-      </label>
+      <Show
+        when={props.look.wallpaper && props.look.material === "frost"}
+        fallback={<Slider label="tint" min={0} value={props.look.tint} onInput={(tint) => props.onChange({ ...props.look, tint })} />}
+      >
+        <Slider label="glass" min={MIN_GLASS * 100} value={props.look.glass} onInput={(glass) => props.onChange({ ...props.look, glass })} />
+      </Show>
     </div>
   )
 }

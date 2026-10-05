@@ -13,7 +13,7 @@ import { parseTheme, resolveTheme, type ResolvedTheme, type Theme } from "./sche
 export const CACHE_KEY = "kiko:look"
 
 export type Appearance = "dark" | "light"
-export type Cache = { v: 2; text: string; mode: Mode; material?: Material; tint?: number; vars: ResolvedTheme }
+export type Cache = { v: 2; text: string; mode: Mode; material?: Material; tint?: number; wallpaper?: string | null; glass?: number; vars: ResolvedTheme }
 
 export type Compiled = { ok: true; theme: Theme; notes: string[] } | { ok: false; errors: string[] }
 
@@ -55,6 +55,16 @@ function paint(look: Look): void {
   root.dataset.appearance = appearance
   root.dataset.material = look.material
   root.style.setProperty("--tinge", String(look.tint))
+  // The wallpaper only shows under frost. kat.css turns the glass on when it is set.
+  const wallpaper = look.material === "frost" ? look.wallpaper : null
+  if (wallpaper) {
+    root.dataset.wallpaper = ""
+    root.style.setProperty("--wallpaper", `url("${wallpaper}")`)
+  } else {
+    delete root.dataset.wallpaper
+    root.style.removeProperty("--wallpaper")
+  }
+  root.style.setProperty("--glass", String(look.glass))
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
   // The boot screen and the overscroll area read this, so it follows the panel colour.
@@ -105,7 +115,7 @@ export function readCache(): Cache | null {
 export function writeCache(text: string | null, look: Look): void {
   try {
     if (text === null) localStorage.removeItem(CACHE_KEY)
-    else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 2, text, mode: look.mode, material: look.material, tint: look.tint, vars: resolveLook(look) } satisfies Cache))
+    else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 2, text, mode: look.mode, material: look.material, tint: look.tint, wallpaper: look.wallpaper, glass: look.glass, vars: resolveLook(look) } satisfies Cache))
   } catch {
     // storage can be blocked. the look still applies for this page load.
   }

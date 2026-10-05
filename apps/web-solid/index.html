@@ -11,13 +11,15 @@
       /* the look before first paint: the appearance, then the theme's variables for it.
          src/theme/apply.ts writes this cache under the same key. */
       (function () {
-        var d = document.documentElement, mode = "system", vars = null, material = "frost", tint = 0.5;
+        var d = document.documentElement, mode = "system", vars = null, material = "frost", tint = 0.5, wallpaper = null, glass = 0.85;
         try {
           var c = JSON.parse(localStorage.getItem("kiko:look"));
-          if (c && c.v === 2) { mode = c.mode; vars = c.vars; if (c.material) material = c.material; if (typeof c.tint === "number") tint = c.tint; }
+          if (c && c.v === 2) { mode = c.mode; vars = c.vars; if (c.material) material = c.material; if (typeof c.tint === "number") tint = c.tint; if (typeof c.wallpaper === "string") wallpaper = c.wallpaper; if (typeof c.glass === "number") glass = c.glass; }
         } catch (e) {}
         d.dataset.material = material;
         d.style.setProperty("--tinge", String(tint));
+        d.style.setProperty("--glass", String(glass));
+        if (wallpaper && material === "frost") { d.dataset.wallpaper = ""; d.style.setProperty("--wallpaper", 'url("' + wallpaper + '")'); }
         var a = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
         d.dataset.appearance = a;
         d.classList.toggle("dark", a === "dark");
