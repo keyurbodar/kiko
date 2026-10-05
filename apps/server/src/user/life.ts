@@ -1,4 +1,4 @@
-import { capBytes, type Item, LIFE_SHAPE, region, LINE_BYTES, napPrompt, oneLine, type Span, Tree } from "../lib/optmem"
+import { capBytes, type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, oneLine, region, type Span, Tree } from "../lib/optmem"
 
 // Architecture section 13. The user's life log: what kiko knows about this human, across every chat.
 // One line per memory, append-only, at most 280 bytes. Lines come from an agent's `note` and from
@@ -140,16 +140,16 @@ export class Life {
     return this.tree.pending(region(this.count(), LIFE_SHAPE), limit)
   }
 
-  /** The prompt for one summary, or null when its input went missing. */
+  /** The prompt for one summary, or null when its input went missing or needs no model. */
   prompt(span: Span): string | null {
     const input = this.tree.input(span)
-    return input ? napPrompt(input, "memories") : null
+    return input && this.tree.free(input) === null ? napPrompt(input, "memories") : null
   }
 
-  /** Stores a summary the model wrote for `span`, or the model-free one when `text` is null. */
+  /** Stores a summary the model wrote for `span`, or the free one, or the model-free fallback when `text` is null. */
   settle(span: Span, text: string | null): void {
     const input = this.tree.input(span)
-    if (input) this.tree.put(span, this.tree.nodeFor(input, text ?? this.tree.fallback(input)))
+    if (input) this.tree.put(span, this.tree.nodeFor(input, text ?? this.tree.free(input) ?? this.tree.fallback(input)))
   }
 
   /**

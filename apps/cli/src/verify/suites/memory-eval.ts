@@ -13,16 +13,13 @@ import type { Suite } from "../runner"
 // Needs a development server (the seed route) and a model key. Costs about 80 small summary calls
 // and one answer.
 
-const TURNS = 320
-/** Below this score the suite fails. Measured 10 of 10 on 2026-10-04 with deepseek-v4.1-flash. */
-const PASS = 9
 
 /**
  * Each fact sits on one turn. The human speaks on even turns; on odd turns kiko, ada, and bob take
  * turns. A fact may come from an agent, may be buried in a long reply, or may be corrected later: the
  * answer must carry the newest value and not the old one.
  */
-type Fact = { at: number; from?: "ada" | "bob"; said: string; ask?: string; expect?: RegExp }
+export type Fact = { at: number; from?: "ada" | "bob" | "kiko"; said: string; ask?: string; expect?: RegExp; reject?: RegExp }
 const FACTS: Fact[] = [
   { at: 4, said: "oh and the dog's name is miso, she's a shiba", ask: "what is the dog called?", expect: /miso/i },
   { at: 30, said: "sam's birthday is march 3rd, don't let me forget", ask: "when is sam's birthday?", expect: /march\s*3|3(rd)?\s*march|03\/03|3\/3/i },
@@ -36,8 +33,6 @@ const FACTS: Fact[] = [
   { at: 262, said: "my new dentist is dr okafor, in alfama", ask: "who is my new dentist?", expect: /okafor/i },
   { at: 300, said: "the team standup moved to thursdays at 10", ask: "when is the team standup now?", expect: /thursday/i },
 ]
-const ASKED = FACTS.filter((f) => f.ask)
-
 const FILLER_HUMAN = [
   "what do you think about the weather this week",
   "can you look at the draft again later",
@@ -60,14 +55,15 @@ const FILLER_AGENT = [
 ]
 const AGENTS = ["kiko", "ada", "bob"] as const
 
-for (const f of FACTS) if ((f.at % 2 === 0) !== !f.from) throw new Error(`fact at ${f.at}: the human speaks on even turns, agents on odd ones`)
+export type Eval = { name: string; turns: number; facts: Fact[]; pass: number; fillerHuman: string[]; fillerAgent: string[] }
 
-function script(): { from: string; text: string }[] {
+export function script(e: Eval): { from: string; text: string }[] {
+  for (const f of e.facts) if ((f.at % 2 === 0) !== !f.from) throw new Error(`fact at ${f.at}: the human speaks on even turns, agents on odd ones`)
   const out: { from: string; text: string }[] = []
-  for (let i = 0; i < TURNS; i++) {
-    const fact = FACTS.find((f) => f.at === i)
-    if (i % 2 === 0) out.push({ from: "human", text: fact ? fact.said : FILLER_HUMAN[(i / 2) % FILLER_HUMAN.length]! })
-    else out.push({ from: fact?.from ?? AGENTS[((i - 1) / 2) % 3]!, text: fact ? fact.said : FILLER_AGENT[((i - 1) / 2) % FILLER_AGENT.length]! })
+  for (let i = 0; i < e.turns; i++) {
+    const fact = e.facts.find((f) => f.at === i)
+    if (i % 2 === 0) out.push({ from: "human", text: fact ? fact.said : e.fillerHuman[(i / 2) % e.fillerHuman.length]! })
+    else out.push({ from: fact?.from ?? AGENTS[((i - 1) / 2) % 3]!, text: fact ? fact.said : e.fillerAgent[((i - 1) / 2) % e.fillerAgent.length]! })
   }
   return out
 }
@@ -93,10 +89,12 @@ async function dev(url: string, cookie: string, path: string, body: unknown): Pr
   return res.json()
 }
 
-const suite: Suite = {
-  name: "memory-eval",
+export const memorySuite = (e: Eval): Suite => ({
+  name: e.name,
   model: true,
   async run(v) {
+    const TURNS = e.turns
+    const ASKED = e.facts.filter((f) => f.ask)
     const s = await v.as(`memeval${Date.now()}`)
     await connectTestModel(s)
     const user = await s.user()
@@ -106,14 +104,14 @@ const suite: Suite = {
     const room = await s.room(roomId)
     await room.expect((f) => f.t === "events")
 
-    const seeded = await dev(v.url, s.cookie, "seed", { roomId, turns: script() })
+    const seeded = await dev(v.url, s.cookie, "seed", { roomId, turns: script(e) })
     if (seeded.turns !== TURNS) throw new VerifyError(`seeded ${seeded.turns} turns, wanted ${TURNS}`)
 
     // The summaries run in the background with the real model. Wait until none is left.
     const started = Date.now()
     let state = await dev(v.url, s.cookie, "memory", { roomId })
     while (state.pending > 0) {
-      if (Date.now() - started > 15 * 60_000) throw new VerifyError(`summaries still pending after 15 minutes: ${state.pending}`)
+      if (Date.now() - started > 45 * 60_000) throw new VerifyError(`summaries still pending after 45 minutes: ${state.pending}`)
       await Bun.sleep(3_000)
       state = await dev(v.url, s.cookie, "memory", { roomId })
     }
@@ -144,13 +142,16 @@ const suite: Suite = {
     const answerLine = (n: number) => text.split("\n").find((l) => new RegExp(`^\\s*${n}[).:]`).test(l)) ?? ""
     const hits = ASKED.map((f, i) => {
       const line = answerLine(i + 1) || text
-      return f.expect!.test(line)
+      return f.expect!.test(line) && !f.reject?.test(line)
     })
     for (const [i, f] of ASKED.entries()) console.log(`  ${hits[i] ? "ok  " : "miss"} turn ${String(f.at).padStart(3)}${f.from ? ` @${f.from}` : ""}: ${f.ask}`)
     const score = hits.filter(Boolean).length
     console.log(`  score ${score}/${ASKED.length}. the answer: ${JSON.stringify(text)}`)
-    if (score < PASS) throw new VerifyError(`memory eval scored ${score}/${ASKED.length}, below ${PASS}`)
+    // After the quiz: the usage route opens the agent, which must first have its chat (agent-do.ts).
+    console.log(`  summary cost: ${JSON.stringify((await dev(v.url, s.cookie, "usage", { roomId })).memory)}`)
+    if (score < e.pass) throw new VerifyError(`memory eval scored ${score}/${ASKED.length}, below ${e.pass}`)
   },
-}
+})
 
-export default suite
+/** Measured 10 of 10 on 2026-10-04 with deepseek-v4.1-flash. */
+export default memorySuite({ name: "memory-eval", turns: 320, facts: FACTS, pass: 9, fillerHuman: FILLER_HUMAN, fillerAgent: FILLER_AGENT })

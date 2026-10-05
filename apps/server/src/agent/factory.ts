@@ -9,7 +9,7 @@ import type { Authority } from "../lib/origin"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
 import type { Fetcher } from "../lib/safe-fetch"
-import { type MemoryPort, memoryExtension } from "./extensions/memory"
+import { type MemoryPort, memoryExtensions } from "./extensions/memory"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
@@ -83,7 +83,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
   return [
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul)] : []),
-    ...(input.memory ? [memoryExtension(input.memory)] : []),
+    ...(input.memory ? memoryExtensions(input.memory) : []),
     ...(input.files ? [filesExtension(input.files)] : []),
     skillsExtension(input.files?.fs),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),

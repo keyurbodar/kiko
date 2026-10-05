@@ -1,16 +1,21 @@
 import { Type, type AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "../effects"
-import { MEMORY } from "./memory"
+import { MEMORY_NOTE } from "./memory"
 import { MESSAGING } from "./messaging"
 
 // Architecture section 8. A private child conversation inside this agent's own object, from
 // pi-durable's foreground subagent pattern. The child starts as a copy of this agent without
 // this extension, so depth is 1. It is not a room member and posts nothing to the room.
+// The child can recall and zoom the chat's memory, but writes none: it cannot judge what is already
+// known (OptMem's rule, section 13).
 // Effect: `read`. The child is built with the same trust extension, so its own tools keep their
 // effects and the gate.
 
 export const SUBAGENT = "subagent"
+
+/** Removal is by name: a child never gets these. */
+const NOT_FOR_HELPERS = [SUBAGENT, MESSAGING, MEMORY_NOTE].map((name) => defineExtension({ name }))
 
 export const Subagent: Extension = defineExtension({
 	name: SUBAGENT,
@@ -26,9 +31,8 @@ export const Subagent: Extension = defineExtension({
 					const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items[0]
 					if (existing !== undefined) return existing.id
 					const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } })
-					// The child is private, so it gets no team tools either (P6-03). It never writes memory: it
-					// cannot judge what is already known (OptMem's rule, section 13). Removal is by name.
-					await configure(tx, created.id, { extensions: { remove: [Subagent, defineExtension({ name: MESSAGING }), defineExtension({ name: MEMORY })] } })
+					// The child is private, so it gets no team tools either (P6-03).
+					await configure(tx, created.id, { extensions: { remove: NOT_FOR_HELPERS } })
 					return created.id
 				}, ctx)
 				await api.details({ conversationId: child }, ctx)

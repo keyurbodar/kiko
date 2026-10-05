@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-136 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+141 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -13,6 +13,10 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P10-01](wave-00/P10-01-prove-quickjs-runs-in-a-durable-object.md) | Prove QuickJS runs in a Durable Object | backend | 2 | none | no |
 | [P11-01](wave-00/P11-01-build-the-log-memory-core.md) | Build the log memory core | backend | 3 | none | no |
 | [P12-01](wave-00/P12-01-gate-every-run-nobody-asked-for-through.md) | Gate every run nobody asked for through one budget | backend | 3 | none | no |
+| [P13-01](wave-00/P13-01-summarize-long-items-whole-without-ids-for.md) | Summarize long items whole, without ids, for half the thinking | backend | 3 | none | no |
+| [P13-03](wave-00/P13-03-keep-what-failed-in-a-run-s.md) | Keep what failed in a run's trace | backend | 1 | none | yes |
+| [P13-04](wave-00/P13-04-give-helpers-the-chat-s-memory.md) | Give helpers the chat's memory | backend | 2 | none | yes |
+| [P13-05](wave-00/P13-05-retry-a-summary-whose-call-failed.md) | Retry a summary whose call failed | backend | 2 | none | yes |
 
 ## Wave 1
 
@@ -34,6 +38,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P11-03](wave-01/P11-03-give-each-user-a-life-log.md) | Give each user a life log | backend | 3 | P11-01 | yes |
 | [P12-02](wave-01/P12-02-carry-a-run-s-authority.md) | Carry a run's authority | backend | 4 | P12-01 | no |
 | [P12-06](wave-01/P12-06-nudge-stalled-tasks.md) | Nudge stalled tasks | backend | 2 | P12-01 | yes |
+| [P13-02](wave-01/P13-02-never-show-cut-text-as-if-whole.md) | Never show cut text as if whole | backend | 2 | P13-01 | yes |
 | [P2-01](wave-01/P2-01-rewrite-the-theme-to-the-kat-values.md) | Rewrite the theme to the kat values | frontend | 3 | P0-02 | yes |
 | [P3-02](wave-01/P3-02-reverse-swipe-to-reply.md) | Reverse swipe to reply | frontend | 2 | P0-02 | yes |
 | [P8-01](wave-01/P8-01-build-the-safe-fetcher.md) | Build the safe fetcher | backend | 4 | P0-01 | yes |

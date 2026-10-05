@@ -22,7 +22,8 @@ function room() {
   const prompts: string[] = []
   const compress = async (prompt: string) => {
     prompts.push(prompt)
-    return { text: `summary ${/#(\d+-\d+)/.exec(prompt)![1]}` }
+    // Long enough that two summaries do not fit one line, so every merge asks the model too.
+    return { text: `summary ${prompts.length} ${"of what happened ".repeat(16)}`.trim() }
   }
   const napAll = async (rollups: string[] = []) => {
     for (;;) {
@@ -35,6 +36,8 @@ function room() {
 }
 
 const human: Sender = { kind: "human" }
+/** Enough words that a page of turns does not fit one line, so it needs a summary call. */
+const LONG = "and some more words about it ".repeat(3)
 const agent = (slug: string): Sender => ({ kind: "agent", slug: slug as AgentSlug })
 
 test("a human burst and an agent's whole reply are one turn each, bubbles are not", () => {
@@ -61,7 +64,7 @@ test("a view stays bounded at any length, keeps the newest turns verbatim, and r
   expect(view.length).toBeLessThanOrEqual(ROOM_SHAPE.budget + ROOM_SHAPE.floor + ROOM_SHAPE.page)
   expect(view.at(-1)).toContain("answer 599")
   expect(view.filter((l) => /^#\d+ /.test(l)).length).toBeGreaterThanOrEqual(ROOM_SHAPE.floor)
-  expect(view[0]).toMatch(/^#0-\d+ sep \d+.* summary 0-\d+$/)
+  expect(view[0]).toMatch(/^#0-\d+ sep \d+.* summary \d+ /)
   // Eight more turns later, the old lines are byte for byte the same: the prompt cache holds.
   for (let i = 600; i < 604; i++) {
     say(human, `question ${i}`)
@@ -75,7 +78,7 @@ test("a view stays bounded at any length, keeps the newest turns verbatim, and r
 
 test("summaries are made once: a repeated pass writes nothing", async () => {
   const { memory, say, napAll, prompts } = room()
-  for (let i = 0; i < 200; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
+  for (let i = 0; i < 200; i++) say(i % 2 ? agent("ada") : human, `t${i} ${LONG}`, i % 2 ? `r${i}` : undefined)
   await napAll()
   const made = prompts.length
   expect(made).toBeGreaterThan(5)
@@ -86,7 +89,7 @@ test("summaries are made once: a repeated pass writes nothing", async () => {
 test("deleting an old message rebuilds only the summaries above its turn", async () => {
   const { log, memory, say, napAll, prompts } = room()
   const first = say(human, "my passport number is in /docs")
-  for (let i = 0; i < 99; i++) say(i % 2 ? human : agent("ada"), `t${i}`, i % 2 ? undefined : `r${i}`)
+  for (let i = 0; i < 99; i++) say(i % 2 ? human : agent("ada"), `t${i} ${LONG}`, i % 2 ? undefined : `r${i}`)
   await napAll()
   const before = prompts.length
   log.deleteMessages([first.id], human)
@@ -131,12 +134,12 @@ test("a run's trace joins its reply, and a run that only acted gets a turn of it
 })
 
 test("a settled stretch of eight pages rolls up into the user's life once", async () => {
-  const { say, napAll } = room()
+  const { memory, say, napAll } = room()
   const size = ROOM_SHAPE.page * 8
   for (let i = 0; i < ROOM_SHAPE.floor + 2 * size + 8; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
   const rollups: string[] = []
   await napAll(rollups)
-  expect(rollups).toEqual([`summary 0-${size - 1}`, `summary ${size}-${2 * size - 1}`])
+  expect(rollups).toEqual([memory.node({ lo: 0, hi: size })!.text, memory.node({ lo: size, hi: 2 * size })!.text])
   await napAll(rollups)
   expect(rollups.length).toBe(2)
 })
@@ -189,8 +192,10 @@ test("a new turn only adds lines at the end of the view, so the provider keeps t
   say(human, "one more")
   const after = memory.view(now())
   expect(after.startsWith(before)).toBe(true)
-  // Every verbatim line has one cut, so the floor has a size: about 300 characters a turn.
-  expect(Math.max(...before.split("\n").map((l) => l.length))).toBeLessThan(330)
+  // Every verbatim line has one cut, so the floor has a size, and a cut line says how to see the rest.
+  const lines = before.split("\n")
+  expect(Math.max(...lines.map((l) => l.length))).toBeLessThan(360)
+  expect(lines.every((l) => l.includes("(cut, zoom "))).toBe(true)
 })
 
 test("memory marks outside lines but never taints a run, and cannot forge a tag", async () => {
@@ -214,12 +219,12 @@ test("recall falls back to any word when no message has them all", () => {
 
 test("a node the model keeps failing on gets a model-free line after three tries, and the log moves on", async () => {
   const { memory, say } = room()
-  for (let i = 0; i < 48; i++) say(i % 2 ? agent("ada") : human, `turn ${i}`, i % 2 ? `r${i}` : undefined)
+  for (let i = 0; i < 48; i++) say(i % 2 ? agent("ada") : human, `turn ${i} ${LONG}`, i % 2 ? `r${i}` : undefined)
   const failing = async () => ({ error: "refused" })
   const [span] = memory.pending(1)
   for (let i = 0; i < 2; i++) await expect(memory.nap(span!, failing, null)).rejects.toThrow("refused")
   await memory.nap(span!, failing, null)
-  expect(memory.node(span!)!.text).toStartWith("human: turn 0; @ada: turn 1")
+  expect(memory.node(span!)!.text).toStartWith("human: turn 0 and some")
 })
 
 test("the delta since an agent's last turn leaves out its own turns and the burst it is answering", () => {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { ancestors, capBytes, cleanLine, cover, type Item, isNode, napPrompt, range, region, type Shape, type Span, tile, Tree } from "../src/lib/optmem"
+import { ancestors, capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree } from "../src/lib/optmem"
 import { sqlStorage } from "./sql-shim"
 
 // Architecture section 13. memo's invariants (OptMem test.py), ported, plus kiko's departures. The
@@ -146,10 +146,42 @@ test("zoom opens a node into its halves, down to items", () => {
 
 test("the nap prompt and the answer cleaner", () => {
   const { tree } = fakeLog(16)
-  expect(napPrompt(tree.input({ lo: 0, hi: 8 })!, "turns")).toContain("compress turns #0-7")
+  const prompt = napPrompt(tree.input({ lo: 8, hi: 16 })!, "turns")
+  // The stretch whole, a limit in words, and no ids anywhere: a model copies them into its line.
+  expect(prompt).toStartWith("compress these turns into one line of at most 40 words.")
+  expect(prompt).toEndWith(`\n\n${Array.from({ length: 8 }, (_, i) => `item ${i + 8}`).join("\n")}`)
+  expect(prompt).not.toMatch(/#\d/)
+  const long = "x".repeat(2_000)
+  expect(napPrompt({ span: { lo: 0, hi: 8 }, items: [{ pos: 0, at: 0, text: long, tainted: false }] }, "turns")).toContain(long)
   expect(cleanLine('\n"#0-7 ada booked the flight"\nmore')).toBe("ada booked the flight")
   expect(cleanLine("   ")).toBeNull()
   expect(new TextEncoder().encode(capBytes("é".repeat(400), 280)).byteLength).toBeLessThanOrEqual(280)
   expect(range(Date.UTC(2026, 8, 20), Date.UTC(2026, 8, 28), Date.UTC(2026, 9, 4))).toBe("sep 20–28")
   expect(range(Date.UTC(2026, 8, 20), Date.UTC(2026, 9, 2), Date.UTC(2026, 9, 4))).toBe("sep 20–oct 2")
+})
+
+test("a stretch that already fits a line is its own summary, word for word, with no model", () => {
+  const { tree } = fakeLog(16)
+  const input = tree.input({ lo: 0, hi: 8 })!
+  expect(tree.free(input)).toBe("item 0; item 1; item 2; item 3; item 4; item 5; item 6; item 7")
+  const long: Item[] = [{ pos: 0, at: 0, text: "x".repeat(LINE_BYTES + 1), tainted: false }]
+  expect(tree.free({ span: { lo: 0, hi: 8 }, items: long })).toBeNull()
+  expect(tree.free({ span: { lo: 0, hi: 16 }, halves: [{ text: "a", tainted: false, from: 0, to: 0 }, { text: "b", tainted: false, from: 0, to: 0 }] })).toBe("a; b")
+})
+
+test("a cut verbatim line says it was cut and how to see the rest", async () => {
+  const { itemLine } = await import("../src/lib/optmem")
+  expect(itemLine({ pos: 12, at: 0, text: "short", tainted: false }, 100)).not.toContain("cut")
+  expect(itemLine({ pos: 12, at: 0, text: "long ".repeat(50), tainted: false }, 100)).toEndWith("… (cut, zoom 12)")
+})
+
+test("a node whose call failed while later ones were built is still built, and so are the nodes above it", () => {
+  const { tree, napAll } = fakeLog(64)
+  // Four pages run at once; the second one's call fails, the others are stored.
+  for (const span of tree.pending(64, 4)) if (span.lo !== 8) tree.put(span, tree.nodeFor(tree.input(span)!, `page ${span.lo}`))
+  expect(tree.node({ lo: 8, hi: 16 })).toBeNull()
+  expect(tree.pending(64, 10)).toContainEqual({ lo: 8, hi: 16 })
+  napAll()
+  expect(tree.node({ lo: 8, hi: 16 })).not.toBeNull()
+  expect(tree.node({ lo: 0, hi: 64 })).not.toBeNull()
 })

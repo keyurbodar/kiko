@@ -61,6 +61,21 @@ const suite: Suite = {
       step(`the helper's answer came back and the agent replied: ${JSON.stringify(text.slice(0, 80))}`)
       expectEqual((await children(v.url, s, roomId)).length, 1, "child conversations")
       step("exactly one child conversation")
+
+      // A helper can recall the chat's memory, so it finds what was said before it existed.
+      const before = seen(room).live.length
+      await send(room, "the code word for this chat is marigold-42. just say ok.")
+      await until("an ok", () => seen(room).live.length > before && statuses(room).at(-1) === "idle", 120_000)
+      const after = seen(room).live.length
+      await send(room, "call spawn_subagent once with exactly this task, word for word: \"find the code word that was said earlier in this chat and answer with only the code word.\" then reply with only what the helper answered.")
+      await until("the helper's code word", () => seen(room).live.length > after && statuses(room).at(-1) === "idle", 180_000)
+      // The helper's own answer, the tool result, not the agent's reply: the agent knows the word itself.
+      const trace = (await (await fetch(new URL("api/dev/agent/trace", v.url.endsWith("/") ? v.url : `${v.url}/`), { method: "POST", headers: { "content-type": "application/json", cookie: s.cookie }, body: JSON.stringify({ roomId }) })).json()) as { tool?: string; text?: string }[]
+      const call = trace.map((e) => e.tool).lastIndexOf("spawn_subagent")
+      const word = trace[call + 1]?.text ?? ""
+      if (!/marigold-?42/i.test(word)) throw new VerifyError(`the helper did not know the chat's code word: ${JSON.stringify(word)}`)
+      expectEqual((await children(v.url, s, roomId)).length, 2, "child conversations")
+      step("a helper reads the chat's memory: it knew the code word")
     } finally {
       room.raw.close()
     }
