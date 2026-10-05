@@ -3,7 +3,7 @@ import type { Env } from "../index"
 import type { Alarms } from "../lib/alarm"
 import { roomStub } from "../lib/names"
 import { RRule } from "rrule"
-import { nextOccurrence } from "./recurrence"
+import { nextOccurrence, ruleProblem } from "./recurrence"
 
 // Architecture section 14. One scheduling mechanism: a `reminders` table in `UserDO`
 // and one wakeup, `reminders`, that always points at the earliest due row.
@@ -22,8 +22,8 @@ export const REMINDERS_WAKEUP = "reminders"
 /** Section 25.2. The most routines one agent owns in one chat, and the runs kept per routine. */
 export const MAX_ROUTINES = 50
 export const RUNS_KEPT = 20
-/** A schedule runs no more often than this. */
-const MIN_REPEAT_MS = 15 * 60_000
+/** A schedule runs no more often than this, since every occurrence is a model run. A watch checks every 15 minutes without one. */
+const MIN_REPEAT_MS = 30 * 60_000
 /** A routine's missed occurrence still runs when it is this late, once. Older ones are skipped. */
 const LATE_MS = 60 * 60_000
 /** Failed or timed-out runs in a row that pause a routine. */
@@ -190,6 +190,8 @@ function parseTime(time: string): number {
  * ASSUMPTION: missed occurrences (the object was down) are skipped, not delivered late.
  */
 export function nextAfter(rrule: string, tz: string, due: number, now: number): number | null {
+  // A rule stored before `ruleProblem` existed that it refuses ends the row instead of looping.
+  if (ruleProblem(rrule)) return null
   let at = due
   for (let i = 0; i < MAX_SKIPS; i++) {
     const next = nextOccurrence(rrule, tz, at)
@@ -298,6 +300,8 @@ export class Reminders {
     const due = parseTime(input.time)
     const rrule = input.rrule?.trim() || null
     if (rrule) {
+      const problem = ruleProblem(rrule)
+      if (problem) throw new ReminderError(problem)
       try {
         nextOccurrence(rrule, input.tz, due)
       } catch {
@@ -740,8 +744,10 @@ export async function sha256(text: string): Promise<string> {
   return hexOf(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))))
 }
 
-/** Refuses a rule that repeats faster than every 15 minutes: each occurrence starts a run. */
+/** Refuses a rule that repeats faster than every 30 minutes: each occurrence starts a run. */
 function checkRepeat(rrule: string, tz: string, from: number): void {
+  const problem = ruleProblem(rrule)
+  if (problem) throw new ReminderError(problem)
   let first: Date | null
   try {
     first = nextOccurrence(rrule, tz, from - 1000)
@@ -749,7 +755,7 @@ function checkRepeat(rrule: string, tz: string, from: number): void {
     throw new ReminderError("rrule does not parse")
   }
   const second = first ? nextOccurrence(rrule, tz, first) : null
-  if (first && second && second.getTime() - first.getTime() < MIN_REPEAT_MS) throw new ReminderError("a routine repeats at most every 15 minutes")
+  if (first && second && second.getTime() - first.getTime() < MIN_REPEAT_MS) throw new ReminderError("a schedule repeats at most every 30 minutes. to notice changes on a page, use a watch trigger instead: it checks every 15 minutes without a model run.")
 }
 
 /** The step after `due` that is later than `now`, keeping the steps anchored to `due`. */

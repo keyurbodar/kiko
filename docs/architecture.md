@@ -1164,7 +1164,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | A7 | kat's hue with one chroma token is the "kiko orange", and dark ships first | 19.8 |
 | A8 | terminal and browser slots become board and memory | product.md |
 | A9 | a 24/7 user has 30 turns a day | 17.1 |
-| A10 | routines: 15-minute minimum schedule, a 10 minute run budget, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 100 runs a day per user without a human, 7 days away holds them, the check-in daily at 08:30, a task stale after 24 hours | 25 |
+| A10 | routines: a 30-minute minimum schedule (15 for a watch), a 10 minute run budget, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 100 runs a day per user without a human, 7 days away holds them, the check-in daily at 08:30, a task stale after 24 hours | 25 |
 
 ### Spec claims corrected by the source
 
@@ -1338,7 +1338,7 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 - **Time budget.** A run whose origin is not `human` gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice the budget the host aborts it and the run is `timeout`.
 - **Breaker.** Three `failed` or `timeout` runs in a row pause the routine, and its chat says so.
 - **Missed times.** A routine runs its newest missed occurrence once when it is less than an hour late, and skips older ones.
-- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 15 minutes (agent-target reminders too), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
+- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (agent-target reminders too; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
 
 **Tools** (`agent/extensions/reminders.ts`).
 

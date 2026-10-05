@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { nextOccurrence } from "../src/user/recurrence";
+import { nextOccurrence, ruleProblem } from "../src/user/recurrence";
 
 const DAILY = "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0";
 const MONDAY = "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0";
@@ -78,3 +78,23 @@ describe("exact instants", () => {
     expect(nextOccurrence("DTSTART:20260101T090000\nRRULE:FREQ=DAILY;COUNT=1", "Europe/Berlin", new Date("2026-06-01T00:00:00Z"))).toBeNull();
   });
 });
+
+describe("ruleProblem: rules rrule could loop on for minutes are refused (architecture section 25.2)", () => {
+  test("rules that always reach a date pass", () => {
+    for (const r of ["FREQ=DAILY", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0", "FREQ=MONTHLY;BYMONTHDAY=1", "FREQ=MONTHLY;BYDAY=-1FR", "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29", "FREQ=HOURLY;INTERVAL=2;BYMINUTE=0", "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO", "FREQ=HOURLY;BYDAY=MO,TU,WE,TH,FR", "FREQ=MONTHLY;BYMONTHDAY=31"]) {
+      expect([r, ruleProblem(r)]).toEqual([r, null])
+    }
+  })
+
+  test("a day no chosen month has, or a filter an interval can step over, is refused before rrule runs", () => {
+    for (const r of ["FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", "FREQ=MONTHLY;BYMONTH=4;BYMONTHDAY=31", "FREQ=HOURLY;INTERVAL=2;BYHOUR=9,11,13", "FREQ=DAILY;INTERVAL=7;BYDAY=MO", "FREQ=MINUTELY;INTERVAL=1440;BYHOUR=9", "FREQ=MONTHLY;INTERVAL=2;BYMONTH=3", "FREQ=DAILY;BYSETPOS=1", "FREQ=SECONDLY", "FREQ=DAILY;BYHOUR=25", "FREQ=DAILY;INTERVAL=0", "nonsense"]) {
+      expect([r, ruleProblem(r) === null]).toEqual([r, false])
+    }
+  })
+
+  test("a refused rule never reaches rrule, so it fails in microseconds", () => {
+    const t0 = performance.now()
+    expect(() => nextOccurrence("FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", "UTC", Date.now())).toThrow()
+    expect(performance.now() - t0).toBeLessThan(50)
+  })
+})
