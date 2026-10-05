@@ -23,6 +23,10 @@ export type ApprovalRequest = {
 	callKey: string
 	tool: string
 	args: Record<string, unknown>
+	/** What the card says, when the arguments alone read badly. At most 400 characters. */
+	summary?: string
+	/** How long the card waits, at most a day. Default `APPROVAL_TTL_MS`. */
+	ttlMs?: number
 }
 
 /** What the trust gate gets back: the accepted record's id, or the text that ends the call. */
@@ -129,7 +133,7 @@ export class RoomApprovals {
 			if (open) return { answer: pending(open.id, open.tool), event: null }
 			const id = `ap_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`
 			const runId = req.callKey.slice(0, req.callKey.lastIndexOf(":"))
-			const summary = summarize(req.args)
+			const summary = req.summary ? req.summary.replace(/\s+/g, " ").slice(0, 400) : summarize(req.args)
 			this.sql.exec(
 				"INSERT INTO ws_approvals (id, slug, run_id, call_key, tool, args_key, summary, state, expires_at, at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
 				id,
@@ -139,7 +143,7 @@ export class RoomApprovals {
 				req.tool,
 				key,
 				summary,
-				now + APPROVAL_TTL_MS,
+				now + Math.min(req.ttlMs ?? APPROVAL_TTL_MS, 86_400_000),
 				now,
 			)
 			const event = this.log.append(`agent:${slug}`, { t: "approval", approval: toApproval(this.row("id = ?", id)!) })

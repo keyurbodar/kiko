@@ -57,7 +57,8 @@ export function createAlarms(ctx: DurableObjectState): Alarms {
         if (!exists && sql.exec<{ n: number }>("SELECT count(*) AS n FROM wakeups").one().n >= MAX_WAKEUPS) {
           throw new WakeupLimitError()
         }
-        sql.exec("INSERT INTO wakeups (key, at) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET at = excluded.at", key, at)
+        // Setting a wakeup to the time it already has writes nothing: rows written are billed.
+        sql.exec("INSERT INTO wakeups (key, at) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET at = excluded.at WHERE at != excluded.at", key, at)
       })
       await arm()
     },

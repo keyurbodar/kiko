@@ -127,6 +127,7 @@ export class Burst {
 				rootId: r.id,
 				tainted: false,
 				seq: r.seq,
+				origin: "human",
 			}))
 	}
 

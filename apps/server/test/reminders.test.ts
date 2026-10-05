@@ -129,7 +129,7 @@ test("create refuses bad input at the edge", async () => {
     "unknown chat",
     "unknown time zone",
     "time must include an offset or z",
-    "rrule does not parse",
+    "rrule needs FREQ: MINUTELY, HOURLY, DAILY, WEEKLY, MONTHLY, or YEARLY",
     "text is empty",
   ])
   expect((await rpc(user, "createReminder", "someone-else", base)).error).toBe("wrong owner")

@@ -94,6 +94,8 @@ async function deleteObjects(bucket: R2Bucket, prefix: string, keys: string[]): 
 
 async function deleteAuthRows(db: D1Database, userId: string): Promise<number> {
 	const results = await db.batch([
+		// A deleted user's webhook urls stop resolving (architecture section 25.4).
+		db.prepare(`DELETE FROM "hooks" WHERE "user_id" = ?`).bind(userId),
 		db.prepare(`DELETE FROM "session" WHERE "userId" = ?`).bind(userId),
 		db.prepare(`DELETE FROM "account" WHERE "userId" = ?`).bind(userId),
 		db.prepare(`DELETE FROM "user" WHERE "id" = ?`).bind(userId),

@@ -6,8 +6,10 @@ export type Limits = {
   plan: string
   /** Human bursts answered per UTC day. */
   turnsPerDay: number
-  /** Runs started without a human message (reminders, task wakes) per UTC day. */
+  /** Runs started without a human message (routines, reminders, task wakes, nudges) per UTC day, across chats. */
   autonomousRunsPerDay: number
+  /** Days without opening kiko after which those runs are held (architecture section 25.5). */
+  awayDays: number
   storageBytes: number
   membersPerRoom: number
   hops: number
@@ -18,7 +20,8 @@ export type Limits = {
 export const DEFAULT_LIMITS: Limits = {
   plan: "free",
   turnsPerDay: 500,
-  autonomousRunsPerDay: 50,
+  autonomousRunsPerDay: 100,
+  awayDays: 7,
   storageBytes: 1024 * 1024 * 1024,
   membersPerRoom: 8,
   hops: 8,
@@ -46,5 +49,14 @@ export type TurnAnswer = { ok: true; used: number } | { ok: false; limit: number
 /** One more turn today, if the record allows it. Pure over the count, so a test drives it. */
 export function takeTurn(used: number, limits: Limits, now: number): TurnAnswer {
   if (used >= limits.turnsPerDay) return { ok: false, limit: limits.turnsPerDay, resetAt: nextReset(now) }
+  return { ok: true, used: used + 1 }
+}
+
+export type AutonomousAnswer = { ok: true; used: number } | { ok: false; reason: "limit" | "away" }
+
+/** One more run without a human today (section 25.5). Pure over the count and the last time the human was seen. */
+export function takeAutonomous(used: number, lastSeen: number | null, limits: Limits, now: number): AutonomousAnswer {
+  if (lastSeen !== null && now - lastSeen > limits.awayDays * 86_400_000) return { ok: false, reason: "away" }
+  if (used >= limits.autonomousRunsPerDay) return { ok: false, reason: "limit" }
   return { ok: true, used: used + 1 }
 }

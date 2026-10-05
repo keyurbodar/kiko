@@ -12,7 +12,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 2. **Optimistic.** Every user action applies locally before the server answers.
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
 4. **The human outranks every agent.** A human message is handled first and can interrupt work.
-5. **Users never cross.** Only the Worker builds a Durable Object name, always from the session's user id.
+5. **Users never cross.** Only the Worker builds a Durable Object name, always from the session's user id. The one exception is a routine's webhook, which has no session: the Worker uses the user id its D1 row names (architecture D9).
 6. **Keys stay on the server.** A credential is encrypted in `UserDO`, never logged, and never sent to the client.
 7. **Lowercase voice.** Every interface string is lowercase.
 

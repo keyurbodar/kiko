@@ -30,6 +30,8 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS rooms (room_id TEXT PRIMARY KEY)`,
   // Small user preferences, one JSON value per key.
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  // Section 25.7: each room's open tasks, as the room last reported them.
+  `CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)`,
   // Usage counters, one row per key and window.
   `CREATE TABLE IF NOT EXISTS limits (
     key TEXT PRIMARY KEY,

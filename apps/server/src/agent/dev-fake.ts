@@ -32,8 +32,11 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [team]      the model calls `team` (section 7.12)
 //   [ask s] q   the model calls `ask` with teammate `s` and question `q` (section 7.5)
 //   [question]  in a teammate's message: the model answers that teammate with `[answer] 42`
+//   [tool name {json}] the model calls any tool `name` with the JSON arguments, once (section 25)
+//   [quiet]     the answer is `[skip]`, which posts nothing (section 25.2)
 //
-// An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02).
+// An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02),
+// or any other tool `t` with the arguments the result names (section 25.3).
 //
 // After trust tools ran, the answer is `tools: <name> ran|ran tainted|blocked, ...` (P7-01).
 //
@@ -82,6 +85,8 @@ export function fakeReply(transcript: readonly Message[]) {
   const last = messages.at(-1)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
+  const any = last?.role === "user" ? anyToolCall(rawOf(last)) : null
+  if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
@@ -103,18 +108,32 @@ export function fakeReply(transcript: readonly Message[]) {
     const lines = raw.split("\n").filter((l) => l.startsWith("- ") && l.includes(" reacted "))
     return fauxAssistantMessage(lines.length ? `brief: ${lines.map((l) => l.slice(2)).join(" | ")}` : "brief: none")
   }
+  if (newest.includes("[quiet]") && !results.length) return fauxAssistantMessage("[skip]")
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
   if (newest.includes("[two-part]")) return fauxAssistantMessage(`part one.\n\n${LONG} ${heard}`)
   return fauxAssistantMessage(heard)
+}
+
+/**
+ * `[tool name {json}]` in a user turn, or an approval result that names a tool other than a trust tool
+ * and its arguments. The JSON runs to the end of its line, so it may hold brackets. The system event's
+ * escaping (`&quot;` is not used, only `&lt;`/`&gt;`/`&amp;`) is undone first.
+ */
+function anyToolCall(raw: string) {
+  const text = raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
+  const accepted = /the human accepted (\w+) \(approval [^)]*\)\. call \1 again now with exactly these arguments: (\{.*\})\s*$/m.exec(text)
+  if (accepted && !isTrustTool(accepted[1]!)) return fauxToolCall(accepted[1]!, JSON.parse(accepted[2]!))
+  const direct = /\[tool (\w+) (\{.*\})\]\s*$/m.exec(text)
+  return direct ? fauxToolCall(direct[1]!, JSON.parse(direct[2]!)) : null
 }
 
 /** Sleeps, and stops sleeping when the run is aborted. Effect: read (it touches nothing). */
 const slowTool = defineTool({
   name: SLOW_TOOL,
   description: "waits a few seconds, then says slept.",
-  parameters: Type.Object({}),
-  execute: async (_args, _api, context) => {
-    await awaitWithContext(new Promise((resolve) => setTimeout(resolve, SLOW_TOOL_MS)), context)
+  parameters: Type.Object({ ms: Type.Optional(Type.Number()) }),
+  execute: async (args, _api, context) => {
+    await awaitWithContext(new Promise((resolve) => setTimeout(resolve, Math.min(args.ms ?? SLOW_TOOL_MS, 300_000))), context)
     return { content: [{ type: "text", text: "slept" }] }
   },
 })
@@ -210,11 +229,11 @@ function teamCall(turn: string) {
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals, scripts?: BuildAgentInput["scripts"]) {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals, scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "authority" | "reminders" | "chief"> = {}) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ ...role, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(approvals ? { approvals } : {}), ...(scripts ? { scripts } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) } satisfies AgentSetup
+  return { models, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(approvals ? { approvals } : {}), ...(scripts ? { scripts } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) } satisfies AgentSetup
 }
