@@ -869,11 +869,13 @@
 }
 
 /* Frost over a wallpaper, like macOS glass. The picture (`--wallpaper`, a small data URL set by
-   apply.ts) is blurred 48px, saturated and dimmed a little on one fixed layer, drawn once, and
+   apply.ts) is blurred 120px, saturated and dimmed a little on one fixed layer, drawn once, and
    nothing moves behind it, so no live blur is needed. The shell is neutral dark glass at
    `--glass` (0.6 by default), so the picture's soft shapes and colour show through it, which
-   is what reads as frost; a denser glass only reads as a tint. The layer overhangs the window
-   by 120px so the blur never fades at the edges. */
+   is what reads as frost; a denser glass only reads as a tint. The blur is that wide because
+   the stored picture is about 320px and stretched to the window: 48px left a figure or a rock
+   readable through the glass. The layer overhangs the window by 300px so the blur never fades
+   at the edges. */
 :root[data-material="frost"][data-wallpaper] {
   --bg-sidebar: oklch(0.16 0 0 / var(--glass));
   --panel: oklch(100% 0 none / 0.025);
@@ -893,10 +895,10 @@
 :root[data-material="frost"][data-wallpaper] body::before {
   content: "";
   position: fixed;
-  inset: -120px;
+  inset: -300px;
   z-index: -1;
   background: var(--wallpaper) center / cover no-repeat;
-  filter: blur(48px) saturate(1.6) brightness(0.85);
+  filter: blur(120px) saturate(1.6) brightness(0.85);
   pointer-events: none;
 }
 
