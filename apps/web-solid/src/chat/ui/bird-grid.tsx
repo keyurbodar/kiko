@@ -33,7 +33,7 @@ export default function BirdGrid(props: { faces: readonly string[] }) {
       return GROUND - b.pixels.h + 1 - lift + (b.peck > 0 ? 1 : 0)
     }
 
-    const stop = runStage(canvas!, { cell: 6, gap: 1, rows: ROWS }, {
+    const stop = runStage(canvas!, { cell: 6, gap: 1, rows: ROWS, board: 0.055 }, {
       setup(stage) {
         if (birds.length) return
         birds = faces.map((slug, i) => ({
