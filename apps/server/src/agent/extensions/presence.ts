@@ -9,6 +9,16 @@ export const PRESENCE = "presence"
 
 const path = (args: Record<string, unknown>) => (typeof args.path === "string" ? ` ${args.path.startsWith("/") ? "" : "/"}${args.path}` : "")
 
+/** ASSUMPTION: how much of a bash command the board shows. */
+const COMMAND_CHARS = 80
+
+/** The command itself, on one line, so a teammate sees which files it is about before it saves. */
+function command(args: Record<string, unknown>): string {
+  const line = typeof args.command === "string" ? args.command.replace(/\s+/g, " ").trim() : ""
+  if (!line) return "running a command on the files"
+  return `running ${line.length > COMMAND_CHARS ? `${line.slice(0, COMMAND_CHARS - 1)}…` : line}`
+}
+
 /** What a call is about, or null when it says nothing a teammate needs. */
 export function describeCall(name: string, args: Record<string, unknown>): string | null {
   if (name.startsWith("memory_") || name === "read_skill") return null
@@ -23,7 +33,7 @@ export function describeCall(name: string, args: Record<string, unknown>): strin
     case "edit":
       return `editing${path(args)}`
     case "bash":
-      return "running a command on the files"
+      return command(args)
     case "web_fetch":
       return "reading a web page"
     case "spawn_subagent":
