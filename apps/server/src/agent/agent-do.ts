@@ -30,7 +30,7 @@ import { checkExtension } from "./script/check"
 import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@kiko/protocol"
 import { createAlarms } from "../lib/alarm"
-import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
+import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
 import type { Batch } from "./inbox"
 import { storedRows, wipeStorage } from "../lib/wipe"
 import { instrument } from "../lib/dev-stats"
@@ -40,7 +40,7 @@ import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
 const DEV_CLASSIC_KEY = "dev-classic"
-/** Read by the host (`host.ts`). Only `devBudget` writes it. */
+/** Development only: the budget `devBudget` sets for runs no human started. */
 const DEV_BUDGET_KEY = "dev:auto-budget-ms"
 /** The room's turn count when this agent last read it: where the next run's delta starts (section 13). */
 const MEMORY_POS_KEY = "memory:pos"
@@ -94,6 +94,7 @@ export class AgentDO extends DurableObject<Env> {
         // Before resume, so the outbox sees a resumed run from its first event.
         await this.outbox.attach(opened.harness, opened.root.id)
       },
+      ...(process.env.NODE_ENV === "development" ? { autoBudgetMs: async () => (await this.ctx.storage.get<number>(DEV_BUDGET_KEY)) ?? AUTO_RUN_BUDGET_MS } : {}),
       onTimeout: async () => {
         const home = this.home()
         if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runTimedOut(home.slug)

@@ -248,11 +248,11 @@ type Envelope = {
 	rootId: string            // the human message or schedule that started this chain
 	tainted: boolean          // section 16
 	seq: number               // room sequence of the stored message
-	origin: Origin            // section 25.3. what the chain may do
-	grant?: Grant             // section 25.3. the tools a routine may use outside kiko
+	origin?: Origin           // section 25.3. what the chain may do
+	grant?: readonly string[] // section 25.3. the tools a routine may use outside kiko
 }
 type SystemReason = "task_unblocked" | "reminder" | "approval_result" | "run_budget"
-	| "routine" | "event" | "webhook" | "watch" | "watch_check" | "stalled"   // section 25
+	| "limit" | "files" | "created" | "routine" | "stalled"   // section 25
 ```
 
 `from` is set by the room from the authenticated WebSocket or from the calling agent's own Durable Object name. Message text cannot change it.
@@ -1149,14 +1149,14 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | D6 | CodeMirror 6 as the text editor | CodeMirror in the file viewer only | 19.3 |
 | D7 | Rolldown or Vite, Bun | Vite, with Bun as the package manager and test runner | 19.3 |
 | D8 | memory records, a profile, and a nightly tidy | log memory after OptMem, with four departures from OptMem itself | 13 |
-| D9 | the Worker builds an object name only from the session's user id (AGENTS.md rule 5) | a webhook builds it from a user id in a D1 row that an authenticated session wrote | 25.4 |
+| D9 | the Worker builds an object name only from the session's user id (AGENTS.md rule 5) | a webhook builds it from the user id in a D1 row that UserDO wrote when the routine was made | 25.4 |
 
 ### Assumptions
 
 | # | Assumption | Section |
 | --- | --- | --- |
 | A1 | debounce is 1000 ms, 2500 ms while typing, 8000 ms cap (lowered from 1500 ms so a reply starts sooner) | 6.1 |
-| A2 | loop limits are 8 hops, 40 deliveries per root, 8 members, 50 autonomous runs a day | 7.7 |
+| A2 | loop limits are 8 hops, 40 deliveries per root, 8 members, 50 autonomous runs a day per room (100 per user, section 25.5) | 7.7 |
 | A3 | sign-in is Google and GitHub only | 10 |
 | A4 | subscription sign-in for model providers is off by default | 11.4 |
 | A5 | a chat is quiet after 6 hours and rolls up into the life log | 13.2 |
@@ -1164,7 +1164,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | A7 | kat's hue with one chroma token is the "kiko orange", and dark ships first | 19.8 |
 | A8 | terminal and browser slots become board and memory | product.md |
 | A9 | a 24/7 user has 30 turns a day | 17.1 |
-| A10 | routines: 15-minute minimum schedule, 600 s run budget, 3 failures pause, a missed run within an hour still runs, 60 s event window, 100 autonomous runs per user a day, 7 days away pauses wakes, check-in daily at 08:30, stall after 24 hours | 25 |
+| A10 | routines: 15-minute minimum schedule, a 10 minute run budget, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 100 runs a day per user without a human, 7 days away holds them, the check-in daily at 08:30, a task stale after 24 hours | 25 |
 
 ### Spec claims corrected by the source
 
@@ -1299,224 +1299,155 @@ A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to t
 
 ## 25. Routines and proactivity
 
-Work that starts without a human message: routines on a schedule or an event, nudges on stalled work, and kiko's daily check-in. The behavior follows Grok Bot and OpenAI dots, read from their own pages in [research/routines-and-proactivity.md](research/routines-and-proactivity.md). The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model. Phase 12 builds it.
+Work that starts without a human message: routines on a schedule or an event, nudges on stalled tasks, and kiko's daily check-in. The behavior follows Grok Bot and OpenAI dots, read from their own pages in [research/routines-and-proactivity.md](research/routines-and-proactivity.md). The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model.
 
 ### 25.1 Decision
 
-- **No model runs in a loop.** Every autonomous run starts from a wake, and every wake is a system envelope on the agent's existing inbox (section 7.3). There is no second queue.
-- **One scheduler.** Routines grow the `reminders` table and its alarm (section 14). A plain reminder is a routine for the human with no instructions. Extension triggers, watches, and the check-in are routine rows.
-- **A model call only when something changed.** Every trigger passes a gate that costs no model call: a filter, a fingerprint, a cooldown, the away pause, then the budget. A run that finds nothing for the human answers `[skip]` and posts nothing.
-- **Authority comes from the human and is enforced in code.** A routine may reach outside kiko only through the tools the human confirmed when it turned the routine on. Background research may only read. Everything else becomes a suggestion card or a question.
+- **No model runs on a timer.** Every autonomous run starts from a wake, and every wake is a system envelope on the agent's existing inbox (section 7.3).
+- **One scheduler.** A routine is a row of the `reminders` table (section 14) with instructions for an agent and a trigger. The same alarm fires it.
+- **A model call only when something changed.** Event filters, a watch's fingerprint, the event window, the away pause, and the day's budget all cost no model call. A run with nothing to report answers `[skip]` and posts nothing.
+- **Authority comes from the human, in code.** Every envelope carries an origin. A run that no human started may reach outside kiko only through the tools a routine was granted; everything else waits for the human's card.
 
-**Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. Neither publishes a model that runs continuously, and on the Free plan a model run writes about 135 rows (section 17.2), so an idle wake that calls the model is the most expensive mistake available. Dots keeps research read-only "in code", and kiko already has the place to do that: the effect table of section 16.3.
+**Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Dots keeps its background research read-only "in code"; kiko gets the same from the effect table of section 16.3 plus the run's origin, without a second research model.
 
 | Wake | `SystemReason` | Starts in | `rootId` | `origin` |
 | --- | --- | --- | --- | --- |
-| routine on a schedule, and the check-in | `routine` | `UserDO` alarm | `routine:<id>:<due_utc>` | `routine` |
-| routine on a room event | `event` | `RoomDO`, where the event is written | `event:<routineId>:<windowStart>` | `routine` |
-| routine on a webhook | `webhook` | the Worker, then `UserDO` | `hook:<routineId>:<deliveryId>` | `outside` |
-| routine on a watch | `watch` | `AgentDO`, after a model-free check | `watch:<routineId>:<fingerprint>` | `outside` |
-| stalled task | `stalled` | `RoomDO` `loops` wakeup | `stalled:<taskId>:<utcDay>` | `auto` |
-| task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | unchanged | `auto` |
-| reminder for an agent (section 14) | `reminder` | `UserDO` alarm | unchanged | `auto` |
+| a routine's time, its "run now", a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine`, with the grant |
+| a stalled task | `stalled` | `RoomDO` `loops` wakeup | `stalled:<taskId>:<utcDay>` | `auto` |
+| a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | unchanged | `auto` |
+| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | unchanged | `auto` |
+
+Every one of these goes through `RoomDO.deliverAuto`, which takes the budget (25.5), hands the agent its envelope, and records the chain.
 
 ### 25.2 Routines
 
-**Data.** `reminders` gains columns. Existing rows keep working: a row with `trigger = 'time'` and target `human` is today's reminder.
+**Data.** `reminders` gained columns in place; a row with no `trigger` is a plain reminder, unchanged.
 
 ```sql
-reminders(
-  id, room_id, target,       -- 'human' or an agent slug
-  name,                      -- short, lowercase, shown on cards. null for a plain reminder
-  text,                      -- the reminder text, or the routine's instructions
-  trigger,                   -- 'time' | 'event' | 'webhook' | 'watch'
-  due_utc, tz, rrule,        -- for 'time' and 'watch'
-  spec,                      -- JSON: the event filter, the webhook match, or the watch's check
-  may,                       -- JSON list of tool names the human confirmed
-  deadline_s,                -- the run's time budget, default 600
-  status,                    -- 'proposed' | 'active' | 'paused' | 'done' | 'cancelled'
-  fails,                     -- failed or timed-out runs in a row
-  created_by, tainted, last_fired, created_at)
-
-routine_runs(routine_id, occurrence, started_at, ended_at, status, seq, tokens)
--- status: 'running' | 'ok' | 'quiet' | 'needs_you' | 'failed' | 'timeout' | 'held'
--- the newest 20 per routine are kept
+reminders(..., name, trigger, "grant", fails, watch_state, hook_hash, tainted)
+routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- newest 20 per routine
+-- status: running | ok | quiet | failed | held | timeout
 ```
 
-**A run.** When a routine fires, its source takes the budget (25.5), writes a `routine_runs` row, and the room delivers one envelope. The body is the routine's card in words, then its instructions:
+`trigger` is the protocol's `Trigger` (`packages/protocol/src/routines.ts`): `time` (`at` plus an RRULE), `task`, `message`, `file`, `webhook`, or `watch`. A `time` or `watch` routine has a due time; an event or webhook routine has `due_utc` 0 and is fired by the room or the hook route.
 
-```text
-<routine name="morning brief" at="mon 6 oct 08:00 europe/berlin" last="ok, sun 5 oct">
-look at today's calendar and unread mail. tell me what needs me today.
-</routine>
-```
+**A run.** `Reminders.run` renders the body, `RoomDO.deliverRoutine` delivers it once per `<id>:<occurrence>`, and the room follows it in `routine_inflight` until the agent's run ends. The body is plain text, since the room escapes system envelopes: the routine's name and id, why it ran, when it runs in words, its grant, its last run, its instructions, and what happened (the events, the webhook's post, or the changed page).
 
-- The run starts from memory like any run (section 13.4). It is not a fresh context. The last run's result is in the chat, so the agent sees what it said yesterday.
-- The answer posts in the room as ordinary bubbles. `[skip]` records the run as `quiet`.
-- When the run chain goes idle, `AgentDO` reports the outcome for each routine root it handled: `ok` with the last bubble's `seq`, `quiet`, `needs_you` when an approval card is pending, `failed` on an error, and the token usage from pi-durable's `pi.usage`. The room forwards it to `UserDO.routineRunDone`.
-- **Time budget**, after dots. Past `deadline_s` the heartbeat steers once with "time is up. post what you have and stop." At twice the budget it aborts, and the run is `timeout`.
-- **Breaker**, after Codex auto-review and Grok's hang rule. Three runs in a row that end `failed` or `timeout` pause the routine, and the room posts one line saying why.
-- **Missed occurrences.** A plain reminder still skips them (section 14). A routine runs the newest missed occurrence once when it is less than an hour late, and skips the rest.
-- **Test run.** "run now" delivers occurrence `test:<n>`. It does real work, as Grok's does, takes the budget, and is recorded.
-- **Limits.** 50 routines per agent, 20 runs kept, a schedule no more often than every 15 minutes, instructions at most 2,000 characters.
+- The run starts from memory like any run (section 13.4). The answer posts as ordinary bubbles.
+- The room follows a run before handing it over, and marks it started when the agent next goes from idle to busy. When that run ends (`RoomDO.endRun`), it reports `ok` when the agent posted after the delivery, else `quiet`. A run that never started because the agent has no credential, or was dropped by the crash breaker, is `failed`. One the human stopped is `quiet`. A run whose report never arrives counts as `failed` after two hours.
+- **Time budget.** A run whose origin is not `human` gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice the budget the host aborts it and the run is `timeout`.
+- **Breaker.** Three `failed` or `timeout` runs in a row pause the routine, and its chat says so.
+- **Missed times.** A routine runs its newest missed occurrence once when it is less than an hour late, and skips older ones.
+- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 15 minutes (agent-target reminders too), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
 
-**Tools**, in `agent/extensions/reminders.ts`.
+**Tools** (`agent/extensions/reminders.ts`).
 
 | Tool | Effect | Does |
 | --- | --- | --- |
-| `create_reminder` | write | unchanged. No confirmation. An agent's promise to come back is a reminder for itself |
-| `create_routine(name, instructions, trigger, may?, target?)` | write | stores a `proposed` row and posts a routine card. It runs only after the human turns it on |
-| `update_routine(id, ...)` | write | a new time applies at once. New instructions, a new trigger, or a longer `may` make a new proposal |
-| `list_reminders` | read | lists routines too, with the last run's status |
-| `pause_routine(id)`, `cancel_reminder(id)` | write | an agent may pause or cancel; only the human resumes |
+| `create_reminder` | write | unchanged |
+| `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok; otherwise, in a tainted run, or with a grant, it posts an approval card that waits a day and makes the routine when the human accepts. A routine the human accepted is stored clean, so its grant works, unless its instructions were longer than the card shows |
+| `update_routine(id, ..., status?, run_now?)` | write | pausing and running now need nobody; any other change follows the same rule as create |
+| `list_reminders` | read | reminders and routines, with each routine's last run |
+| `cancel_reminder(id)` | write | cancels either |
 
-The routine card shows the name, when in words with the timezone, the next run, the instructions, a "may" line, an "asks first" line, and two buttons, turn on and dismiss. Only the human's socket turns a routine on, as with extension installs (section 24.1). A proposal from a tainted run is marked on its card. Kiko makes nothing through forms (section 7.11), so chat creates and the card confirms.
+An agent reaches only its own chat's reminders and routines, whatever id it passes. The human has the same through `GET` and `POST /api/routines`, `POST /api/routines/<id>`, and `POST /api/routines/<id>/run`; a routine the human makes there is active at once and may carry a grant.
+
+**Reasoning for the card.** Dots: "Pre-approved means you explicitly requested the action in your prompt." A human asking for a routine is that request, so it is made at once. A routine an agent proposes on its own, from a run that read outside content, or with a standing permission outside kiko, is the human's call. The card reuses the approval cards of section 12.3, with a readable summary and a day to answer.
 
 ### 25.3 Origin and grants
 
-**Decision.** An envelope carries `origin`, set by the room. A message an agent sends inherits the origin of its chain, the same way it inherits `rootId` and `hop` (section 7.7), so delegating work never widens what it may do. Dots says authorization "stays tied to your instructions for the task; continuing later or delegating work does not expand it."
-
 ```ts
-type Origin = "human" | "routine" | "auto" | "outside" | "research"
-type Grant = { id: string; routineId: string; may: string[]; deadlineS: number }
-// Envelope gains: origin: Origin; grant?: Grant
+type Origin = "human" | "routine" | "auto"
+// Envelope gains: origin?: Origin; grant?: readonly string[]
 ```
 
-- `AgentDO` stores each grant it receives in a `grants` table and renders the envelope as `<system-event origin="routine" grant="<id>">`. The trust extension finds the run's origins and grants by reading these tags since the last final answer, exactly as it finds taint today (section 16.2). Look-alike tags inside outside content are already escaped, so content cannot forge one.
-- A run's origin is `human` when any human envelope is in it. Otherwise it is the most restrictive origin present, in the order `research`, `outside`, `auto`, `routine`. Grants combine by intersection. `combineOrigins` is a pure function with a table of cases.
-- An envelope stored before this change has no origin. It counts as `human` when `from.kind` is `human`, else as `auto`.
+- The room stamps every envelope: `human` on a burst, `routine` with its grant on a routine run, `auto` on everything else. `agent_chains` keeps the authority of each member's chain, so a message an agent sends inherits it. Delegation never widens it: dots says authorization "stays tied to your instructions for the task; continuing later or delegating work does not expand it."
+- The agent host keeps the authority of the run in flight in `run_authority`. A batch that starts a run sets it; a batch that joins combines with it (`combine` in `lib/origin.ts`): a human anywhere gives the human's authority, otherwise the stricter wins and grants intersect. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
+- An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
 
-`gate()` in `trust.ts` takes the origin as a new input. Taint keeps its own rule; the stricter answer wins.
+`needsApproval` and `gate` in `trust.ts`:
 
-| Origin | read | write | message | external |
+| Run | read | write | message | external |
 | --- | --- | --- | --- | --- |
-| `human` | yes | yes | yes | yes (a card when tainted, section 16.3) |
-| `routine` | yes | yes | yes | only tools in the grant's `may`; others raise a card |
+| tainted (section 16.3) | yes | flagged | flagged | a card |
+| `human` | yes | yes | yes | yes |
+| `routine` | yes | yes | yes | granted tools; others a card |
 | `auto` | yes | yes | yes | a card |
-| `outside` | yes | yes, flagged | yes, flagged | a card |
-| `research` | yes | no | no | no |
 
-An approval card approves one call and never adds to `may`. Only a routine the human turned on, or an update the human accepted, grows it.
+An approval card approves one call. It never adds to a grant.
 
 ### 25.4 Triggers
 
-**Room events.** A routine whose trigger is `event` names one room and one filter. `UserDO` pushes the room's active event routines to `RoomDO.setRoutines` on every change, so the room matches without a call. The filter is checked where the room writes the event, by a pure function.
+**Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` matches each stored event with `eventLine` and `matches` (`room/routines.ts`, pure): a task changing to a status, a human or agent message with optional text, or a file under a path.
 
-```ts
-type EventFilter =
-  | { on: "task"; status?: TaskStatus[]; owner?: AgentSlug }
-  | { on: "file"; path: string }                      // a prefix under /
-  | { on: "message"; from: "human" | "agent" | "any"; contains?: string }
-  | { on: "run_done"; agent?: AgentSlug }
-```
+- Events for one routine within 60 seconds of the first become one run, like the human burst. The window lives in `routine_windows` and flushes on the `routine_events` wakeup, ten windows a pass. A run lists at most 20 events; a full window stops writing.
+- A window is tainted when an agent's act opened or joined it, unless that act is a message stored clean (section 16), so an injected instruction an agent relayed cannot reach a routine's grant.
+- An agent's own acts never fire its own routines (the event's actor, from the `events` table). Acts of a run that an event, a webhook, or a watch started fire no event routine at all, so one event starts at most one level of work and two routines cannot feed each other.
 
-- Events for one routine within 60 seconds of the first become one run, the same idea as the human burst (section 6.1). The room keeps the open window in `routine_windows` and flushes it on a wakeup. The envelope lists at most 20 events.
-- An event caused by an agent's act carries that run's `rootId` and `hop + 1`, so the hop and per-root limits of section 7.7 stop a routine from feeding itself.
-- An agent's own `run_done` never triggers its own routine.
+**Webhooks.** `POST /api/hooks/<token>`, at most 64 KB.
 
-**Webhooks.** For services that can POST. Executor sends no events (research/executor.md), so this is kiko's only push from outside.
+- The Worker hashes the token and reads one D1 row, `hooks(token_hash -> user_id, routine_id)`, then calls `UserDO.routineHook`, which checks the token against the routine's own hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
+- **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker builds the object name from a user id in a D1 row that `UserDO` wrote when the human's routine was made. The request never supplies an id.
+- A sender's own delivery id (`x-github-delivery`, `idempotency-key`, `x-request-id`), or else the body's hash within the same minute, makes a retried post run once. The body is read with a 64 KB cap, so a chunked post cannot grow past it.
+- The run is tainted and its post is labeled outside content, so a granted tool still waits for the human.
+- The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
 
-```text
-POST /api/hooks/<token>                     at most 64 KB
-  Worker   sha256(token), one D1 read of hooks(token_hash -> user_id, routine_id)
-  Worker   UserDO(user:<user_id>).hook(routine_id, headers, body)
-  UserDO   dedupe, match, budget, then the room delivers an outside envelope
-```
+**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`lib/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content, and the new fingerprint is saved only once the room has the run. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
 
-- **DEVIATION** from AGENTS.md rule 5, which says the Worker builds an object name "always from the session's user id". A webhook has no session. The Worker still builds the name, from a user id that a D1 row holds. Only an authenticated session writes that row, when the human turns on a webhook routine. The request never supplies an id.
-- The Worker does one hash and one D1 read and parses nothing, well inside the Free plan's CPU (section 17.3).
-- The token is shown once on the routine card, can be rotated, and dies with the routine.
-- Dedupe uses `x-github-delivery`, `idempotency-key`, or `x-request-id`, else the body's SHA-256, in `hook_seen` for 7 days.
-- `match` is a list of at most 8 conditions on the JSON body, `{ path, equals? , contains? }`, all of which must hold.
-- The payload arrives inside `<untrusted>` and the run's origin is `outside`, so a webhook can never cause an outside action on its own.
+DEVIATION from the first plan: watches do not run extension code from an alarm. Fetching in `UserDO` reuses the extension's egress and secrets with no new `kiko.*` power and no VM outside a run.
 
-**Watches.** For sources that cannot POST, such as a pull request's checks or a price. A watch is a routine with a schedule and a check from an extension.
+### 25.5 The budget and the away pause
 
-- An extension declares `checks` in its manifest and exports each one. A new `kiko.*` power follows AGENTS.md: a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
-- When a watch is due, `UserDO` delivers a `watch_check` envelope. `AgentDO` handles it without a model: it runs the check in the QuickJS VM with only `kiko.fetch` (GET through `egress`) and `kiko.state`, and decodes the result.
-- The result is `{ fingerprint, summary }`. When the fingerprint equals the stored one, nothing more happens. When it changed, `AgentDO` asks the room for the budget and submits a `watch` input with the summary as outside content.
-- A schedule is at most every 15 minutes, the same as section 24.8's limit of one extension trigger an hour, relaxed for checks because a check costs no model call.
-- UNVERIFIED: the bridge in `agent/script/compile.ts` runs inside a run's tool, hook, or section. Running a check with no run open is the spike at the start of P12-07.
+`RoomDO.deliverAuto`, for every wake in the table of 25.1:
 
-### 25.5 The gate and the budget
-
-Every wake whose origin is not `human` passes, in order:
-
-1. **The filter.** Event, webhook, and watch triggers only. No model.
-2. **The away pause.** `UserDO` stamps `last_seen` on each socket hello, at most once an hour. When it is more than 7 days old, wakes are held and the kiko chat gets one line: "i paused your routines and check-ins while you were away. they start again when you open kiko." The next hello resumes them. Grok pauses routines after a long absence the same way.
-3. **The budget.** `RoomDO.takeAutonomousRun` (section 7.7), which exists and has never been called, now gates every one of these wakes. It takes one of the room's 50 runs for the UTC day, then one of the user's 100 from `UserDO.takeRun`. A held wake is recorded as a `held` run, and the room posts one line per day when its budget runs out.
-
-A human message still resets the room's held wakes, as section 7.7 says.
+1. **The room's budget.** 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per envelope id (`auto_taken`).
+2. **The user's budget.** `UserDO.takeAutonomous`: `limits.autonomousRunsPerDay` (100) across every chat, and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When the user's budget refuses, the room's run is refunded. A routine's run is counted by `UserDO` before it calls the room, so a held run costs no call.
+3. A held wake is recorded as a `held` run. The chat says so once a day, and the kiko chat says once per absence: "i paused your routines and check-ins while you were away. they start again when you open kiko." While the human is away, scheduled routines and watches are skipped without a call.
 
 ### 25.6 The stall sweep
 
-Grok's "nudge a stalled handoff", without a model. A `loops` wakeup in `RoomDO` runs hourly while the board has an open task.
-
-| Task | Untouched for | Nudges |
-| --- | --- | --- |
-| `doing` or `blocked` | 24 hours | its owner |
-| `review` | 24 hours | the lead |
-
-- The envelope id is `stalled:<taskId>:<utcDay>`, so a task is nudged at most once a day. At most 5 nudges per room per day.
-- Each room also adds its open-task count and its three oldest open tasks to the `touchChat` it already sends `UserDO` (section 9.2.1). That gives kiko a picture across chats without breaking section 4.2: an agent still reaches only its own room and user.
-- Promises to come back are reminders an agent sets for itself. The core prompt says so (25.8). The sweep does not guess at unanswered questions.
+A task in `doing` or `blocked` untouched for 24 hours nudges its owner; one in `review` nudges the lead (`room/stalls.ts`). The `loops` wakeup is set to the moment the first such task goes stale, never sooner than an hour away, and is cleared when there is none, so a board of todo items or of work already nudged costs no wakeup. A nudge's id names the task's last change, so one stretch of staleness is nudged once: an answer that does not move the task is not asked again until someone touches it. At most five a day per room, through the budget. Each room reports its open tasks to `UserDO.chatTasks` when they change. Promises to come back are reminders an agent sets for itself, which the core prompt asks for.
 
 ### 25.7 Kiko checks in
 
-Kiko is the chief and the first pinned tile (section 7.11), the role Grok gives its Main Bot.
+Kiko is the chief (section 7.11), the role Grok gives its Main Bot.
 
-- Every user gets one built-in routine for kiko in the kiko chat: `check-in`, daily at 08:30 in the user's timezone, active, with an empty `may`. The human pauses or moves it like any routine.
-- **Research.** The run first calls `research()`, a tool that runs a child conversation, like `spawn_subagent` (section 8). `AgentDO` records the child in `research_conversations`. Its envelope origin is `research`, so trust refuses every effect but `read` in it (25.3), and the child also has no write, message, or external tools selected. It reads the life log view, `overview()` from `UserDO` (open tasks per chat, routines and their last runs, reminders due in a day, chats that need the human), and Executor tools that are read-only and that the human ticked in settings. The child uses the model chosen for memory summaries (section 13.3).
-- **Notes.** The child returns at most ten notes. `AgentDO` keeps them in `research_notes` with a source and a 7-day expiry. `research` is declared with an outside source, so its result is wrapped as untrusted and taints the run. A note reaches the life log only if kiko writes it with `note`.
-- **Decide.** Kiko answers `[skip]`, or posts one short message with at most three cards from `suggest(text, action, kind)`, a `message` tool. Accept sends a human message from the human's own socket ("yes: <action>"), so the work that follows has human origin. Dismiss stores feedback.
-- **Learn.** Three dismissals of one `kind` within 30 days make `suggest` refuse that kind for 14 days, with a line the model can read. "Stop suggesting x" from the human goes into kiko's soul (section 7.10), which is where "when to ping and when to keep going" belongs.
-- MCP's `readOnlyHint` is a hint from the server, not a guarantee. That is why research uses only the read-only Executor tools the human ticks. None are ticked by default.
+- `UserDO.ensureHome` gives every user one routine for kiko in the kiko chat, `check-in`, daily at 08:30 in the user's zone. The human can pause, move, or cancel it; a cancelled one is never made again.
+- Its instructions: call `overview`, decide whether anything needs the human today, and either send one short message with at most three things kiko could take off their plate, or answer `[skip]` when nothing is new or the same offer was ignored before.
+- `overview` (kiko only, read) asks `UserDO.overview`: the newest chats with unread counts and open tasks, stale tasks, routines and their last runs, and reminders due in a day, in a few hundred characters.
+- The run's origin is `routine` with no grant, so the check-in reads freely (read-only Executor tools included, section 12) and asks before anything outside kiko. `overview`'s result counts as outside content, since its previews quote other chats.
+- **No change, no model call.** Before a scheduled check-in, `UserDO` compares a fingerprint of what it reads (each chat's sequence and unread count, the open tasks, each routine's status and last run, the reminders, leaving out the kiko chat and the check-in itself) with the one from its last delivered run. Equal means the run is recorded `quiet` without a delivery. "Run now" always runs.
+
+DEVIATION from the first plan: no separate research subagent, no private notes table, and no suggestion cards. One run of kiko with the overview does what dots' background research does for kiko's own data, at half the model calls, and the human answers a suggestion by replying. Learning when to ping lives in kiko's soul (section 7.10) and in the "ignored before" rule.
 
 ### 25.8 What the agent is told
 
 Four lines in the core prompt (`prompt.ts`), so the cached prefix holds:
 
 ```text
-when you wake without a human message, check the current source before you act on memory.
-do only what the routine or task allows. anything else becomes a suggestion or a question.
-if nothing needs the human, answer [skip].
-if you will need to come back, set a reminder for yourself.
+work you start on your own
+- a <system-event> (a routine, a reminder, a task wake, a nudge) means no human is asking right now. check the current source before acting on what you remember.
+- do what the routine or task says, and only that. anything more, especially outside kiko, becomes one short suggestion or question for the human.
+- when it says to send or report something, always send it, even if little changed. otherwise, if nothing needs the human, reply with only [skip].
+- to come back to something later, set yourself a reminder. when the human wants something done regularly or when something happens, make a routine.
 ```
+
+The third line was measured: before it named reports, the real model skipped a daily summary the human had asked for when little changed.
 
 ### 25.9 What the human sees
 
-Kiko sends no notifications (product.md).
-
-- A routine card when one is proposed, and the run's bubbles when it runs.
-- The schedule section of the chat info panel (P5-07): reminders and routines with the next run, the last run's status, pause and resume, run now, cancel, and the last 20 runs, each linking to its message. Every action is optimistic.
-- The chat row gets a needs-you state, separate from unread: a pending approval (already shown), an open suggestion, a routine proposal, or a run that ended `needs_you`.
-- Presence adds waiting and blocked from the team board (section 7.12).
+Kiko sends no notifications. A routine's run answers in its chat as bubbles; a card asks when an agent wants a routine on its own; the budget, the away pause, and a paused routine each post one line. The client's schedule section (P5-07, P12-11) is not built yet; until then the human manages routines by asking any agent and through `/api/routines`.
 
 ### 25.10 Effect v4 at the edges
 
-As section 20 says, Effect's `Schema` validates every edge and stays out of the client.
+`packages/protocol/src/schema.ts` has `Origin`, `Trigger`, and `WebhookMatch`, checked against their types. `create_routine`, `update_routine`, and `/api/routines` decode the trigger with `Schema.decodeUnknownSync(Trigger)`, so a bad trigger is one line the model or the client can fix. pi-durable validates tool arguments with TypeBox, so the tools keep a loose TypeBox shape and decode the trigger themselves. Inside the objects, kiko keeps pure functions over SQL, as before; no Effect runtime runs in an alarm.
 
-- `packages/protocol/src/schema.ts` gains `Origin`, `Grant`, `Trigger` and its four specs, `EventFilter`, `WebhookMatch`, `Routine`, `RoutineRun`, `Suggestion`, the new `SystemReason` values, and the socket frames and events for routines and suggestions. The type-agreement block at its end covers each one.
-- Decoded with `Schema.decodeUnknownSync` at the edge: the webhook route (headers and the JSON body, after the size cap), the room and user socket frames, a watch check's result from the VM, and `create_routine`'s trigger. pi-durable validates tool arguments with TypeBox, so the tool keeps a loose TypeBox shape and decodes the trigger with the shared `Trigger` schema, which gives the model one exact error line.
-- Inside the objects, kiko keeps pure functions over SQL with results as data, as reminders do now. Phase 12 adds no Effect runtime (`Effect.gen`, layers) to an alarm or a hot path.
+### 25.11 Verification
 
-### 25.11 Not built
-
-Push notifications, voice, Slack and Teams, a computer or browser per agent, a reviewer model, a form to make routines, and any model call that runs on a timer without a gate. A reviewer model would sit behind `gate()` if it is ever added.
-
-### 25.12 Verification
-
-Fake agents first, so every suite is deterministic and free.
-
-| Suite | Proves |
+| Check | Proves |
 | --- | --- |
-| `bun kiko verify budget` | the 51st autonomous wake in a room is held and recorded, and a human message resets it |
-| `bun kiko verify routines` | one run per occurrence across a killed alarm, `[skip]` records `quiet`, three failures pause, a test run, a missed run within the hour |
-| `bun kiko verify routine-bounds` | a proposal never runs before turn on, an external call outside `may` raises a card, inside `may` it runs, a delegated message keeps the origin |
-| `bun kiko verify routine-events` | three task changes in 10 seconds make one run, an agent-caused chain stops at hop 8 |
-| `bun kiko verify routine-webhook` | a repeated POST runs once, a body that does not match runs nothing, the run's external call raises a card |
-| `bun kiko verify watches` | a source that changes once in ten checks wakes the agent once, and no unchanged check calls the model |
-| `bun kiko verify stalls` | a stale task nudges its owner once a day |
-| `bun kiko verify check-in` | research's write, message, and external attempts are refused; accept starts a human-origin run; three dismissals silence a kind |
-| `bun kiko verify away` | with the clock moved 8 days, wakes are held, one line is posted, a hello resumes |
-| `verify-kiko` schedule feature | turn on from a card, pause, run now, history shows `quiet` |
+| `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and event matching, the watch grid, the budget and away rules, stale-task nudges |
+| `bun kiko verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for gets a card and accept makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
+| `bun kiko verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its injected payload cannot use a granted tool; a watch wakes only on change |
+| `bun kiko verify proactive` | a stale task nudges its owner once a day; away 8 days holds runs with one line and a hello resumes; every user has one check-in; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |
+| `bun kiko verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder with no card; runs answer in two bubbles at a steady cost; a sweep with nothing to report stays quiet 3 of 3; an event run answers once; a webhook's injected instructions make no routine; the check-in offers help with stale work and is quiet the second time; a nudge gets one short answer |

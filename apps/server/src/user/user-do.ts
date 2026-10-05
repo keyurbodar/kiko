@@ -24,7 +24,8 @@ import { Life } from "./life"
 import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "../lib/optmem"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, sha256 } from "./reminders"
-import { type ChatTasks, overview } from "./overview"
+import { type ChatTasks, overview, overviewFingerprint } from "./overview"
+import { BUDGET_LINE } from "../room/limits"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
 import type { Trigger } from "@kiko/protocol"
 import { safeFetch } from "../lib/safe-fetch"
@@ -79,6 +80,8 @@ const AWAY_NOTICE = "away_notice"
 const PUBLIC_ORIGIN = "public_origin"
 /** Section 25.7. kiko's daily check-in: the routine's id once made, its time, and what it does. */
 const CHECK_IN = "check_in"
+/** What the check-in last read, as `checkInFingerprint` makes it. */
+const CHECK_IN_SEEN = "check_in_seen"
 const CHECK_IN_RULE = "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0"
 const CHECK_IN_INSTRUCTIONS = `call overview, then decide if anything needs the human today: a task stuck for days, a routine that failed or was paused, something due soon, a chat they left mid-thread. if something does, send one short message: at most three things you could take off their plate, one line each, and ask which to do. if nothing is new since your last check-in, or they ignored the same offer before, reply [skip].`
 
@@ -115,10 +118,29 @@ export class UserDO extends DurableObject<Env> {
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
-        deliverRun: ({ deliveryId, routine, body, tainted }) =>
-          roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: routine.grant }),
+        // The user's run is taken here, before the room is called, so a held run costs no call (section 25.5).
+        deliverRun: async ({ deliveryId, routine, body, tainted }) => {
+          const paid = this.takeAutonomous()
+          if (!paid.ok) {
+            if (paid.reason === "limit") await this.budgetNotice(routine.roomId)
+            return "held"
+          }
+          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: routine.grant })
+          if (out === "delivered" && routine.id === this.setting(CHECK_IN)) this.putSetting(CHECK_IN_SEEN, this.checkInFingerprint())
+          return out
+        },
         watch: (trigger) => this.watchPage(trigger),
-        notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text),
+        notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
+        gate: {
+          away: () => {
+            const last = this.setting(LAST_SEEN)
+            const away = last !== null && Date.now() - Number(last) > this.limits().awayDays * 86_400_000
+            if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
+            return away
+          },
+          // kiko's check-in calls the model only when what it reads changed since its last run (section 25.7).
+          unchanged: async (routine) => routine.id === this.setting(CHECK_IN) && this.setting(CHECK_IN_SEEN) === this.checkInFingerprint(),
+        },
       })
       this.extensions = new ExtensionStore(
         this.sql,
@@ -242,8 +264,9 @@ export class UserDO extends DurableObject<Env> {
   async listReminders() { return this.reminders.list() }
   async cancelReminder(id: string) {
     return asResult(async () => {
+      const before = this.reminders.get(id)
       const out = await this.reminders.cancel(id)
-      if (out?.trigger) await this.routineChanged(out)
+      if (out?.trigger) await this.routineChanged(out, undefined, before)
       return out
     })
   }
@@ -265,7 +288,7 @@ export class UserDO extends DurableObject<Env> {
       const out = await this.reminders.updateRoutine(id, patch)
       if (!out) return null
       if (before?.trigger?.on === "webhook" && out.routine.trigger?.on !== "webhook") await this.dropHook(id)
-      await this.routineChanged(out.routine, out.token)
+      await this.routineChanged(out.routine, out.token, before)
       return out
     })
   }
@@ -274,6 +297,11 @@ export class UserDO extends DurableObject<Env> {
   async overview(): Promise<string> {
     const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
     return overview(this.sql, { reminders: this.reminders.list(), runs: this.reminders.runs(), tz, now: Date.now() })
+  }
+
+  /** What the check-in reads, without the parts that move by themselves (how long ago). */
+  private checkInFingerprint(): string {
+    return overviewFingerprint(this.sql, this.reminders.list(), this.reminders.runs(), { routineId: this.setting(CHECK_IN), roomId: kikoChatRoom(this.sql) })
   }
 
   /** RPC from a room after its tasks changed: its open tasks, for the overview. */
@@ -316,8 +344,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** RPC from a room: an event matched one of its routines (section 25.4). */
-  async routineEvent(routineId: string, occurrence: string, what: string, events: string): Promise<RunDelivery | null> {
-    return this.reminders.fireEvent(routineId, occurrence, what, events, false)
+  async routineEvent(routineId: string, occurrence: string, what: string, events: string, tainted: boolean): Promise<RunDelivery | null> {
+    return this.reminders.fireEvent(routineId, occurrence, what, events, tainted)
   }
 
   /** RPC from a room on its first start: the event routines it matches against. */
@@ -349,18 +377,21 @@ export class UserDO extends DurableObject<Env> {
    * Keeps what lives outside this table in step with a routine: the room's copy of its event
    * routines, and the D1 row a webhook's URL is found by.
    */
-  private async routineChanged(routine: Reminder, token?: string): Promise<void> {
+  private async routineChanged(routine: Reminder, token?: string, before?: Reminder | null): Promise<void> {
     const owner = this.reminders.owner()
     if (!owner) return
-    if (routine.trigger?.on === "task" || routine.trigger?.on === "message" || routine.trigger?.on === "file" || routine.status !== "active") {
-      await roomStub(this.env.ROOM, owner, routine.roomId).setRoutines(this.reminders.roomRoutines(routine.roomId).map(roomRoutine))
-    }
+    const event = (r?: Reminder | null) => r?.trigger?.on === "task" || r?.trigger?.on === "message" || r?.trigger?.on === "file"
+    if (event(routine) || event(before)) await roomStub(this.env.ROOM, owner, routine.roomId).setRoutines(this.reminders.roomRoutines(routine.roomId).map(roomRoutine))
     if (routine.trigger?.on !== "webhook") return
     if (routine.status === "cancelled") return this.dropHook(routine.id)
-    if (token) {
+    if (!token) return
+    try {
       await this.env.AUTH_DB.prepare('insert into "hooks" ("token_hash", "user_id", "routine_id", "created_at") values (?, ?, ?, ?)')
         .bind(await sha256(token), owner, routine.id, Date.now())
         .run()
+    } catch (e) {
+      // The routine stands; its url answers 404 until the agent or the human changes its trigger again.
+      console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 
@@ -756,10 +787,9 @@ export class UserDO extends DurableObject<Env> {
     return this.limits()
   }
 
-  /** The room asks once per human burst (P9-01). Counts the turn when it is allowed. */
   /**
-   * Section 25.5. A room asks before it starts a run nobody asked for in the moment. Held while the
-   * human has been away `awayDays`, and past the day's `autonomousRunsPerDay` across every chat.
+   * Section 25.5. Asked before a run nobody asked for in the moment starts. Held while the human has
+   * been away `awayDays`, and past the day's `autonomousRunsPerDay` across every chat.
    */
   takeAutonomous(): AutonomousAnswer {
     const now = Date.now()
@@ -782,15 +812,27 @@ export class UserDO extends DurableObject<Env> {
     if (wasAway) this.sql.exec("DELETE FROM settings WHERE key = ?", AWAY_NOTICE)
   }
 
+  /** The day's budget held a routine: its chat says so once a day, as the room does for its own (section 25.5). */
+  private async budgetNotice(roomId: RoomId): Promise<void> {
+    const day = utcDay(Date.now())
+    const key = `budget_notice:${roomId}`
+    if (this.setting(key) === day) return
+    this.putSetting(key, day)
+    await roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId)
+      .systemNotice(`budget:${day}`, BUDGET_LINE("your account"))
+      .catch(() => {})
+  }
+
   /** One line in the kiko chat per time away, so the human knows why nothing ran. */
   private async awayNotice(now: number): Promise<void> {
     if (this.setting(AWAY_NOTICE) !== null) return
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = kikoChatRoom(this.sql)
     const owner = userIdFromObjectName(this.ctx.id.name)
-    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open kiko.")
+    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open kiko.", "limit")
   }
 
+  /** The room asks once per human burst (P9-01). Counts the turn when it is allowed. */
   takeTurn(): TurnAnswer {
     const now = Date.now()
     const key = `turns:${utcDay(now)}`

@@ -86,6 +86,7 @@ export function chiefExtension(port: ChiefPort): Extension {
 
   const overview = defineTool({
     name: "overview",
+    // Its previews quote other chats, which may hold outside content, so its result is outside content too.
     description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines and their last runs, reminders due soon. for check-ins.",
     parameters: Type.Object({}),
     replay: "safe",
@@ -95,6 +96,6 @@ export function chiefExtension(port: ChiefPort): Extension {
   return defineExtension({
     name: CHIEF_EXT,
     sections: [section("chief", () => CHIEF_RULES)],
-    tools: [declareEffect("read", list), declareEffect("write", proposeAgent), declareEffect("write", proposeGroup), declareEffect("write", create), declareEffect("read", overview)],
+    tools: [declareEffect("read", list), declareEffect("write", proposeAgent), declareEffect("write", proposeGroup), declareEffect("write", create), declareEffect("read", overview, { outside: "chats" })],
   })
 }

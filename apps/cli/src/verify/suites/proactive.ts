@@ -41,9 +41,10 @@ const suite: Suite = {
       await eventually("the nudged agent's answer", () => agentTexts(room).length > before, 30_000)
       const answer = agentTexts(room).at(-1)!
       if (!answer.includes("write the launch post")) throw new VerifyError(`the nudge did not reach the owner: ${JSON.stringify(answer)}`)
-      await dev(url, s, "age", { roomId, ms: 1_000 })
+      // The sweep again, with the task untouched: the same stretch of staleness is not nudged twice.
+      await dev(url, s, "age", { roomId, ms: 0 })
       await Bun.sleep(4_000)
-      if (agentTexts(room).length !== before + 1) throw new VerifyError(`a task was nudged twice in a day: ${JSON.stringify(agentTexts(room).slice(before))}`)
+      if (agentTexts(room).length !== before + 1) throw new VerifyError(`a task was nudged twice for one stretch of staleness: ${JSON.stringify(agentTexts(room).slice(before))}`)
       console.log(`  ok a task untouched for 25h nudged its owner once: ${JSON.stringify(answer.slice(0, 80))}`)
       room.raw.close()
     }
@@ -106,6 +107,19 @@ const suite: Suite = {
       if (!text.includes("proactive: overview") || !text.includes("open task") || !text.includes("check-in")) throw new VerifyError(`the overview missed something: ${text.slice(0, 600)}`)
       console.log(`  ok every user has kiko's check-in (${checkIn.id}, once), and overview lists chats, open tasks, and routines (${text.length} chars)`)
       room.raw.close()
+
+      // A scheduled check-in with nothing changed since its last run calls no model. The client opens
+      // the kiko chat, which gives its room a home.
+      const kroom = await s.room(checkIn.roomId)
+      await ok(url, s, "dev/agent/fake", { roomId: checkIn.roomId })
+      await dev(url, s, "due", { id: checkIn.id })
+      await waitRuns(url, s, checkIn.id, "the first scheduled check-in", (rs) => rs.some((x) => x.status !== "running"), 40_000)
+      await dev(url, s, "due", { id: checkIn.id })
+      const runs = await waitRuns(url, s, checkIn.id, "the second scheduled check-in", (rs) => rs.filter((x) => x.status !== "running").length >= 2, 40_000)
+      if (runs[0]!.status !== "quiet" || runs[0]!.seq !== null) throw new VerifyError(`an unchanged check-in still ran: ${JSON.stringify(runs.slice(0, 2))}`)
+      if (runs[1]!.status !== "ok") throw new VerifyError(`the first check-in did not run: ${JSON.stringify(runs[1])}`)
+      console.log(`  ok a check-in with nothing new was recorded quiet with no delivery (first ${runs[1]!.status}, then ${runs[0]!.status})`)
+      kroom.raw.close()
     }
 
     // 4. Authority survives a hand-off. A routine's run hands work to @ada: ada cannot act outside kiko

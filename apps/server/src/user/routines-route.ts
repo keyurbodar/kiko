@@ -4,6 +4,7 @@ import { Schema } from "effect"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
+import { originAllowed } from "../router"
 import type { RoutineResult } from "./routines"
 
 // Architecture section 25. The human's routine routes. The Worker checks the session and reaches only
@@ -38,6 +39,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   const { pathname } = new URL(request.url)
   const action = ACTION.exec(pathname)
   if (pathname !== "/api/routines" && !action) return null
+  if (!originAllowed(request, new URL(request.url), env)) return error(403, "forbidden origin")
   const user = await getSessionUser(request, env)
   if (!user) return error(401, "unauthorized")
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) return error(415, "expected json")

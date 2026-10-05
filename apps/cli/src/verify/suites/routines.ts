@@ -70,6 +70,19 @@ const suite: Suite = {
       const child = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "child"), "the accepted routine", 30_000)
       console.log(`  ok a run nobody asked for posted card ${card.id} ("${card.summary.slice(0, 60)}..."); accept made ${child.id}`)
       await waitRuns(url, s, routine.id, "the parent's run to end", (rs) => rs.some((x) => x.status !== "running"), 30_000)
+
+      // A grant the human accepted on a card works: the accepted routine is the human's, not tainted.
+      const granted = { name: "granted child", instructions: "[call fake_send]", may: ["fake_send"], trigger: { on: "time", at: inSeconds(3600) } }
+      await send(room, toolLine("create_routine", granted))
+      await eventually("a card for the granted routine", () => cards(room).some((c) => c.tool === "create_routine" && c.state === "pending" && c.summary.includes("granted child")), 30_000)
+      room.raw.send({ t: "approve", approvalId: cards(room).find((c) => c.summary.includes("granted child") && c.state === "pending")!.id, action: "accept" })
+      const g = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "granted child"), "the granted routine", 30_000)
+      const before = agentTexts(room).filter((t) => t.startsWith("tools:")).length
+      await ok(url, s, `routines/${g.id}/run`, {})
+      await eventually("the granted child's answer", () => agentTexts(room).filter((t) => t.startsWith("tools:")).length > before, 30_000)
+      const said = agentTexts(room).filter((t) => t.startsWith("tools:")).at(-1)
+      if (said !== "tools: fake_send ran") throw new VerifyError(`a grant the human accepted on a card did not work: ${JSON.stringify(said)}`)
+      console.log("  ok a grant accepted on a card works: the routine's run used fake_send without another card")
       room.raw.close()
     }
 

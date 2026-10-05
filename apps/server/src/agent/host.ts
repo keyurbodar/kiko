@@ -86,6 +86,8 @@ export type HostOptions = {
   onIdle?: () => void
   /** A run that no human started passed twice its budget and was aborted (section 25.2). */
   onTimeout?: () => void | Promise<void>
+  /** The budget of a run no human started. Default `AUTO_RUN_BUDGET_MS`; the dev route shortens it. */
+  autoBudgetMs?: () => Promise<number>
 }
 
 export type Opened = {
@@ -371,7 +373,9 @@ export class AgentHost {
         await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
         memory = out.text
       }
-      this.joinAuthority(batch, !run)
+      // A batch the root is not answering starts a new turn, so it starts its own authority, even while a
+      // background task (a subagent) of an earlier run is still live (section 25.3).
+      this.joinAuthority(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
       const extra = await inputContext?.()
       const content = renderInput(extra ? { ...batch, briefs: [...batch.briefs, extra] } : batch, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
@@ -380,9 +384,9 @@ export class AgentHost {
   }
 
   /**
-   * Section 25.3. The run chain's authority. A batch that starts a run sets it; a batch that joins a
-   * live run combines with it, so a human message gives the run the human's authority and anything else
-   * can only narrow it.
+   * Section 25.3. The run's authority. A batch that starts a root turn sets it; a batch that joins a
+   * turn in progress (a steer, a queued follow-up) combines with it, so a human message gives the turn
+   * the human's authority and anything else can only narrow it.
    */
   private joinAuthority(batch: Batch, fresh: boolean): void {
     const incoming = authorityOfAll(batch.envelopes) ?? AUTO
@@ -412,7 +416,7 @@ export class AgentHost {
     const row = this.ctx.storage.sql.exec<{ authority: string; started_at: number; steered: number }>("SELECT authority, started_at, steered FROM run_authority WHERE id = 1").toArray()[0]
     if (!row || (JSON.parse(row.authority) as Authority).origin === "human") return
     const age = Date.now() - row.started_at
-    const budget = (await this.ctx.storage.get<number>("dev:auto-budget-ms")) ?? AUTO_RUN_BUDGET_MS
+    const budget = (await this.options.autoBudgetMs?.()) ?? AUTO_RUN_BUDGET_MS
     if (age < budget) return
     if (!(await this.runState(harness, root))) return
     if (age >= 2 * budget) {

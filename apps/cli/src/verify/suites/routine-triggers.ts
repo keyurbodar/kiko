@@ -1,8 +1,8 @@
-import type { Approval, RoomToClient } from "@kiko/protocol"
+import type { Agent, AgentSlug, Approval, RoomId, RoomToClient } from "@kiko/protocol"
 import { type RoomHandle, VerifyError } from "../client"
-import { agentTexts, api, dev, eventually, ok, type Routine, runsOf, waitRuns } from "../routine-kit"
+import { agentTexts, dev, eventually, messages, ok, type Routine, runsOf, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
-import { fake, newRoom, send } from "./mid-run"
+import { fake, newRoom, send, ulid } from "./mid-run"
 
 // Architecture section 25.4, with the scripted fake agent: no tokens. Chat events within a minute
 // make one run, and an agent's own acts never fire its own routine. A webhook runs its routine once
@@ -114,7 +114,37 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 5. Watches: the first check records the page; the same page wakes nobody; a change runs once.
+    // 5. Taint crosses an event: a teammate's message written after reading a web page fires a routine
+    //    whose run starts tainted, so even its granted tool waits for the human. A clean message does not.
+    {
+      const user = await s.user()
+      const agentOf = (name: string): Agent => ({ id: `triggers-${name}-${s.userId}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
+      for (const name of ["ada", "bob"]) user.send({ t: "agent", op: { op: "create", agent: agentOf(name) } })
+      const roomId = ulid() as RoomId
+      user.send({ t: "chat", op: { op: "create", roomId, title: "triggers: taint", agents: [agentOf("ada").id, agentOf("bob").id] } })
+      await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
+      const room = await s.room(roomId)
+      await ok(url, s, "dev/agent/fake", { roomId, slugs: ["kiko", "ada", "bob"] })
+      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "relay", agent: "kiko", instructions: "[call fake_send]", may: ["fake_send"], trigger: { on: "message", from: "agent", contains: "fake_fetch" } })
+      const kikoTools = () => messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "kiko" && m.text.startsWith("tools:")).map((m) => m.text)
+      // ada reads a page, which taints her run, and her reply names the tool she used.
+      await send(room, "[fetch] mango season is here @ada")
+      await waitRuns(url, s, routine.id, "the tainted event run", (rs) => rs.some((x) => x.status !== "running"), 100_000)
+      await eventually("kiko's answer to the tainted event", () => kikoTools().some((t) => t.includes("fake_send")), 20_000)
+      const tainted = kikoTools().find((t) => t.includes("fake_send"))
+      if (tainted !== "tools: fake_send blocked") throw new VerifyError(`a tainted message fired a routine that used its grant: ${JSON.stringify(tainted)}`)
+      // bob's clean reply names it too: the run starts clean and the grant works.
+      await Bun.sleep(61_000)
+      await send(room, "@bob [reply] fake_fetch is fine")
+      await waitRuns(url, s, routine.id, "the clean event run", (rs) => rs.filter((x) => x.status !== "running").length >= 2, 100_000)
+      await eventually("kiko's answer to the clean event", () => kikoTools().filter((t) => t.includes("fake_send")).length >= 2, 20_000)
+      const clean = kikoTools().filter((t) => t.includes("fake_send"))[1]
+      if (clean !== "tools: fake_send ran") throw new VerifyError(`a clean message's routine could not use its grant: ${JSON.stringify(clean)}`)
+      console.log("  ok a message written after reading a web page fired a tainted run (grant blocked); a clean one ran the grant")
+      room.raw.close()
+    }
+
+    // 6. Watches: the first check records the page; the same page wakes nobody; a change runs once.
     {
       const { roomId, room } = await newRoom(s, "triggers: watch")
       await fake(v, s, roomId)
@@ -138,7 +168,6 @@ const suite: Suite = {
       }
       room.raw.close()
     }
-    void api
   },
 }
 

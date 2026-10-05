@@ -49,3 +49,6 @@ export function limitNotice(limit: Limit): string {
 		? `agents paused: their exchange reached ${MAX_HOP} hops. send a message to continue.`
 		: `agents paused: this request reached ${MAX_DELIVERIES_PER_ROOT} messages between agents. send a message to continue.`
 }
+
+/** The line a chat gets once a day when runs nobody asked for are held by `whose` budget (section 25.5). */
+export const BUDGET_LINE = (whose: string) => `agents paused their own work for today: ${whose} used its runs that start without you. send a message to go on.`

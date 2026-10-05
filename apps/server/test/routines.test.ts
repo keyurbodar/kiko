@@ -5,7 +5,7 @@ import { Schema } from "effect"
 import { gate, NEEDS_APPROVAL, NEEDS_HUMAN, needsApproval } from "../src/agent/extensions/trust"
 import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "../src/lib/origin"
 import { eventLine, matches } from "../src/room/routines"
-import { stalled, STALE_MS } from "../src/room/stalls"
+import { nextSweep, stalled, STALE_MS, SWEEP_MS } from "../src/room/stalls"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
 import { describeTrigger, nextEvery } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
@@ -130,9 +130,22 @@ describe("proactivity (sections 25.5 and 25.6)", () => {
       { id: "d", title: "d", status: "todo", owner: "ada", updated_at: old },
       { id: "e", title: "e", status: "blocked", owner: null, updated_at: old },
     ]
-    expect(stalled(rows, "kiko" as AgentSlug, now).map((n) => [n.taskId, n.to])).toEqual([
+    expect(stalled(rows, "kiko" as AgentSlug, now, () => false).map((n) => [n.taskId, n.to])).toEqual([
       ["a", "ada"],
       ["b", "kiko"],
     ])
+    // Nudged once for this stretch: not again until the task changes.
+    expect(stalled(rows, "kiko" as AgentSlug, now, (id) => id === `stalled:a:${old}`).map((n) => n.taskId)).toEqual(["b"])
   })
+})
+
+test("the stall sweep sleeps until the first unnudged task goes stale, and not at all for todo work or work already nudged", () => {
+  const now = Date.UTC(2026, 9, 5, 12)
+  const row = (updated_at: number, status = "doing") => ({ id: "a", title: "a", status, owner: "ada", updated_at })
+  const never = () => false
+  expect(nextSweep([], now, never)).toBeNull()
+  expect(nextSweep([row(now - 1000, "todo")], now, never)).toBeNull()
+  expect(nextSweep([row(now - 1000)], now, never)).toBe(now - 1000 + STALE_MS)
+  expect(nextSweep([row(now - STALE_MS + 60_000)], now, never)).toBe(now + SWEEP_MS)
+  expect(nextSweep([row(now - STALE_MS - 1)], now, () => true)).toBeNull()
 })

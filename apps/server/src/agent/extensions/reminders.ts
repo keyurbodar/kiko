@@ -31,6 +31,8 @@ export type RemindersPort = {
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
+/** The most instruction characters a routine's card shows in full. */
+const CARD_INSTRUCTIONS = 240
 
 /** The trigger, or one line the model can fix. */
 function parseTrigger(value: unknown): Trigger | string {
@@ -107,13 +109,18 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             const trigger = parseTrigger(args.trigger)
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
             const grant = args.may ?? []
-            const tainted = isRunTainted(api)
+            let tainted = isRunTainted(api)
             // Section 25.3. A human asking in this run is the ok. Anything else, or a standing permission
             // outside kiko, waits for the human's card.
             if (tainted || runAuthority(api).origin !== "human" || grant.length) {
-              const summary = `routine "${args.name}": ${args.instructions.slice(0, 160)} | ${JSON.stringify(trigger)}${grant.length ? ` | may use: ${grant.join(", ")}` : ""}`
+              const shown = args.instructions.length <= CARD_INSTRUCTIONS
+              const summary = `routine "${args.name}": ${shown ? args.instructions : `${args.instructions.slice(0, CARD_INSTRUCTIONS)}…`} | ${JSON.stringify(trigger)}${grant.length ? ` | may use: ${grant.join(", ")}` : ""}`
               const answer = await user().ask(`${api.conversationId}:${api.callId}`, "create_routine", args as Record<string, unknown>, summary)
               if (answer === null || typeof answer === "object") return { content: text(answer?.refused ?? "not set: the human's ok is needed and no card could be posted.") }
+              // The human read and accepted these instructions, so the routine is theirs, not the outside
+              // content's: its runs start clean and its grant works. Instructions longer than the card shows
+              // keep the run's taint: the human did not see all of them.
+              if (shown) tainted = false
             }
             const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, grant, ...(args.agent ? { target: args.agent.replace(/^@/, "") } : {}), tainted })
             if (!out.ok) return { content: text(`not set: ${out.error}`), isError: true }

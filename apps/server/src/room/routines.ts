@@ -10,6 +10,8 @@ export const ROUTINES_WAKEUP = "routine_events"
 export const WINDOW_MS = 60_000
 /** The most events one run lists. The rest are counted. */
 const MAX_LINES = 20
+/** Windows run per alarm pass. Each costs subrequests, and an invocation has 50 (section 17.3). */
+const FLUSH_PER_PASS = 10
 const ROUTINES_KEY = "routines"
 
 /** What happened, as the agent reads it. Null for an event no routine looks at. */
@@ -48,7 +50,8 @@ export function matches(routine: RoomRoutine, e: NonNullable<ReturnType<typeof e
 	}
 }
 
-export type Window = { routineId: string; openedAt: number; lines: string[]; more: number }
+/** `tainted`: a line came from an agent's act that may carry outside content (section 16), so the run starts tainted. */
+export type Window = { routineId: string; openedAt: number; lines: string[]; more: number; tainted: boolean }
 
 /** One routine run the room delivered and is following. */
 export type Inflight = { routineId: string; occurrence: string; slug: AgentSlug; seq: number; started: boolean }
@@ -58,7 +61,8 @@ export class RoomRoutines {
 		private readonly sql: SqlStorage,
 		private readonly meta: { get(key: string): string | null; set(key: string, value: string): void },
 	) {
-		sql.exec("CREATE TABLE IF NOT EXISTS routine_windows (routine_id TEXT PRIMARY KEY, opened_at INTEGER NOT NULL, lines TEXT NOT NULL, more INTEGER NOT NULL DEFAULT 0)")
+		sql.exec("CREATE TABLE IF NOT EXISTS routine_windows (routine_id TEXT PRIMARY KEY, opened_at INTEGER NOT NULL, lines TEXT NOT NULL, more INTEGER NOT NULL DEFAULT 0, tainted INTEGER NOT NULL DEFAULT 0)")
+		if (!sql.exec<{ name: string }>("PRAGMA table_info(routine_windows)").toArray().some((c) => c.name === "tainted")) sql.exec("ALTER TABLE routine_windows ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0")
 		sql.exec("CREATE TABLE IF NOT EXISTS routine_inflight (routine_id TEXT NOT NULL, occurrence TEXT NOT NULL, slug TEXT NOT NULL, seq INTEGER NOT NULL, started INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (routine_id, occurrence))")
 	}
 
@@ -75,7 +79,12 @@ export class RoomRoutines {
 	 * routines, and acts of a run that an event started fire none: one event starts at most one level
 	 * of work, so two routines cannot feed each other. Returns the earliest time a window closes.
 	 */
-	add(events: readonly RoomEvent[], actorOf: (seq: number) => string | null, eventRun: (slug: AgentSlug) => boolean, nameOf: (slug: AgentSlug) => string, now: number): number | null {
+	add(
+		events: readonly RoomEvent[],
+		who: { actorOf: (seq: number) => string | null; eventRun: (slug: AgentSlug) => boolean; nameOf: (slug: AgentSlug) => string; cleanMessage: (id: string) => boolean },
+		now: number,
+	): number | null {
+		const { actorOf, eventRun, nameOf, cleanMessage } = who
 		const routines = this.list()
 		if (!routines.length) return null
 		let closes: number | null = null
@@ -85,17 +94,20 @@ export class RoomRoutines {
 			const actor = actorOf(event.seq)
 			const agent = actor?.startsWith("agent:") ? (actor.slice(6) as AgentSlug) : null
 			if (agent && eventRun(agent)) continue
+			// What an agent wrote may carry outside content. Only its message, stored clean, does not.
+			const tainted = agent !== null && !(event.t === "message" && cleanMessage(event.id))
 			for (const r of routines) {
 				if (agent === r.target || !matches(r, e)) continue
-				const open = this.sql.exec<{ opened_at: number; lines: string; more: number }>("SELECT opened_at, lines, more FROM routine_windows WHERE routine_id = ?", r.id).toArray()[0]
+				const open = this.sql.exec<{ lines: string; more: number }>("SELECT lines, more FROM routine_windows WHERE routine_id = ?", r.id).toArray()[0]
 				if (!open) {
-					this.sql.exec("INSERT INTO routine_windows (routine_id, opened_at, lines) VALUES (?, ?, ?)", r.id, now, JSON.stringify([e.line]))
+					this.sql.exec("INSERT INTO routine_windows (routine_id, opened_at, lines, tainted) VALUES (?, ?, ?, ?)", r.id, now, JSON.stringify([e.line]), tainted ? 1 : 0)
 					closes = Math.min(closes ?? Infinity, now + WINDOW_MS)
 					continue
 				}
 				const lines = JSON.parse(open.lines) as string[]
-				if (lines.length < MAX_LINES) this.sql.exec("UPDATE routine_windows SET lines = ? WHERE routine_id = ?", JSON.stringify([...lines, e.line]), r.id)
-				else this.sql.exec("UPDATE routine_windows SET more = more + 1 WHERE routine_id = ?", r.id)
+				// A full window stops writing: "and more" says enough, and a busy chat costs no write per bubble.
+				if (lines.length < MAX_LINES) this.sql.exec("UPDATE routine_windows SET lines = ?, tainted = max(tainted, ?) WHERE routine_id = ?", JSON.stringify([...lines, e.line]), tainted ? 1 : 0, r.id)
+				else if (!open.more) this.sql.exec("UPDATE routine_windows SET more = 1, tainted = max(tainted, ?) WHERE routine_id = ?", tainted ? 1 : 0, r.id)
 			}
 		}
 		return closes
@@ -104,9 +116,9 @@ export class RoomRoutines {
 	/** Windows that closed by `now`. They stay until `closed` removes them, so a crash retries them. */
 	due(now: number): Window[] {
 		return this.sql
-			.exec<{ routine_id: string; opened_at: number; lines: string; more: number }>("SELECT * FROM routine_windows WHERE opened_at <= ? ORDER BY opened_at", now - WINDOW_MS)
+			.exec<{ routine_id: string; opened_at: number; lines: string; more: number; tainted: number }>("SELECT * FROM routine_windows WHERE opened_at <= ? ORDER BY opened_at LIMIT ?", now - WINDOW_MS, FLUSH_PER_PASS)
 			.toArray()
-			.map((r) => ({ routineId: r.routine_id, openedAt: r.opened_at, lines: JSON.parse(r.lines) as string[], more: r.more }))
+			.map((r) => ({ routineId: r.routine_id, openedAt: r.opened_at, lines: JSON.parse(r.lines) as string[], more: r.more, tainted: r.tainted === 1 }))
 	}
 
 	closed(routineId: string): void {
@@ -121,6 +133,10 @@ export class RoomRoutines {
 	/** A routine run handed to `slug`. It joins the agent's next run, which `started` marks. */
 	follow(run: Omit<Inflight, "started">): void {
 		this.sql.exec("INSERT OR IGNORE INTO routine_inflight (routine_id, occurrence, slug, seq, started) VALUES (?, ?, ?, ?, 0)", run.routineId, run.occurrence, run.slug, run.seq)
+	}
+
+	unfollow(run: Omit<Inflight, "started">): void {
+		this.sql.exec("DELETE FROM routine_inflight WHERE routine_id = ? AND occurrence = ?", run.routineId, run.occurrence)
 	}
 
 	/** The agent began a run: every routine run waiting for it is in it. */

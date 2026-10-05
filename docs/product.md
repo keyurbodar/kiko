@@ -67,7 +67,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - A due reminder arrives as a message in the chat it was created in.
 - Recurring reminders follow RRULE.
 - Agents schedule their own follow-up work and wake other agents the same way.
-- Ask an agent to do something on a schedule or when something happens ("every weekday at 8, tell me what needs me today"). It proposes a routine as a card, and it runs only after you turn it on. Each run answers in the chat, or stays quiet when nothing needs you.
+- Ask an agent to do something on a schedule or when something happens ("every weekday at 8, tell me what needs me today"). It sets up a routine at once. When an agent wants a routine nobody asked for, you get a card to accept first. Each run answers in the chat, or stays quiet when nothing needs you.
 - kiko checks in once a day. It reads what is open across your chats, then stays quiet or offers up to three things it could take off your plate.
 - Agents nudge work that has stalled for a day.
 

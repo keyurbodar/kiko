@@ -1,5 +1,5 @@
 import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@kiko/protocol"
-import type { AgentSlug, Envelope, FileRef, MessageId, RoomEvent, RoomId, RunRef, Sender } from "@kiko/protocol"
+import type { AgentSlug, Envelope, FileRef, MessageId, RoomEvent, RoomId, RunRef, Sender, SystemReason } from "@kiko/protocol"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
 import { type RecipientMember, resolveRecipients, tags } from "./recipients"
@@ -54,9 +54,11 @@ export class Deliveries {
 		return this.storage.sql.exec("SELECT 1 FROM deliveries WHERE id = ?", id).toArray().length > 0
 	}
 
-	/** Remembers a delivery id, so a repeat delivers nothing. */
+	/** Remembers a delivery id, so a repeat delivers nothing. Ids older than a month are let go now and then. */
 	mark(id: string): void {
-		this.storage.sql.exec("INSERT OR IGNORE INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
+		const now = Date.now()
+		this.storage.sql.exec("INSERT OR IGNORE INTO deliveries (id, at) VALUES (?, ?)", id, now)
+		if (Math.random() < 0.02) this.storage.sql.exec("DELETE FROM deliveries WHERE at < ?", now - 30 * 86_400_000)
 	}
 
 	/**
@@ -67,10 +69,10 @@ export class Deliveries {
 	 * to the agent by name. The envelope to the agent's inbox comes with the delivery task.
 	 */
 	/** Stores a system line once per id. Returns the event, or null for an id seen before. */
-	notice(id: string, text: string): RoomEvent | null {
+	notice(id: string, text: string, reason: SystemReason = "run_budget"): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			if (this.seen(id)) return null
-			const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text })
+			const { event } = this.log.addMessage({ from: { kind: "system", reason }, text })
 			this.storage.sql.exec("INSERT INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
 			return event
 		})
@@ -395,31 +397,29 @@ export class Mail {
 	 * Takes one of the day's autonomous runs (a scheduled or task-triggered wake, section 7.7). False
 	 * means the wake is held until the next UTC day or the next human message.
 	 */
-	/** True when `id` already took its run (a retried delivery). */
-	autonomousTaken(id: string): boolean {
-		return this.sql.exec("SELECT 1 FROM auto_taken WHERE id = ?", id).toArray().length > 0
-	}
-
-	/** True when the room has a run left today without taking it. */
-	autonomousLeft(now: number): boolean {
-		const counter = this.sql.exec<{ day: string; runs: number }>("SELECT day, runs FROM autonomous_runs WHERE id = 1").toArray()[0] ?? null
-		return autonomousRunAllowed(counter, utcDay(now))
-	}
-
-	takeAutonomousRun(now: number, id?: string): boolean {
+	/**
+	 * Takes one of the room's runs for the day for envelope `id`, in one transaction. "paid": `id` took
+	 * its run before (a retried delivery). "full": none left. `refund` gives a run back when the user's
+	 * own budget refused it after the room's was taken.
+	 */
+	reserve(now: number, id: string): "ok" | "paid" | "full" {
 		return this.storage.transactionSync(() => {
 			const day = utcDay(now)
-			// A delivery retried after a failure already paid for its run.
-			if (id && this.sql.exec("SELECT 1 FROM auto_taken WHERE id = ?", id).toArray().length) return true
+			if (this.sql.exec("SELECT 1 FROM auto_taken WHERE id = ?", id).toArray().length) return "paid"
 			const counter = this.sql.exec<{ day: string; runs: number }>("SELECT day, runs FROM autonomous_runs WHERE id = 1").toArray()[0] ?? null
-			if (!autonomousRunAllowed(counter, day)) return false
+			if (!autonomousRunAllowed(counter, day)) return "full"
 			const runs = counter?.day === day ? counter.runs + 1 : 1
 			this.sql.exec("INSERT INTO autonomous_runs (id, day, runs) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET day = excluded.day, runs = excluded.runs", day, runs)
-			if (id) {
-				this.sql.exec("DELETE FROM auto_taken WHERE day != ?", day)
-				this.sql.exec("INSERT INTO auto_taken (id, day) VALUES (?, ?)", id, day)
-			}
-			return true
+			this.sql.exec("DELETE FROM auto_taken WHERE day != ?", day)
+			this.sql.exec("INSERT INTO auto_taken (id, day) VALUES (?, ?)", id, day)
+			return "ok"
+		})
+	}
+
+	refund(id: string): void {
+		this.storage.transactionSync(() => {
+			if (!this.sql.exec("DELETE FROM auto_taken WHERE id = ?", id).rowsWritten) return
+			this.sql.exec("UPDATE autonomous_runs SET runs = max(0, runs - 1) WHERE id = 1")
 		})
 	}
 }

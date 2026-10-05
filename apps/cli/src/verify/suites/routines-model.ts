@@ -1,6 +1,6 @@
 import type { Approval, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, type RoomHandle, type Session, VerifyError } from "../client"
-import { agentTexts, dev, eventually, inSeconds, ok, type Routine, routines, runsOf, waitRuns } from "../routine-kit"
+import { agentTexts, dev, eventually, inSeconds, ok, type Routine, routines, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
 import { newRoom, send } from "./mid-run"
 
@@ -209,7 +209,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    void runsOf
     if (failures.length) throw new VerifyError(`${failures.length} miss(es):\n${failures.map((f) => `- ${f}`).join("\n")}`)
   },
 }
