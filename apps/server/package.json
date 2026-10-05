@@ -27,6 +27,7 @@
     "effect": "4.0.0",
     "fast-png": "^8.0.0",
     "jpeg-js": "^0.4.4",
+    "just-bash": "3.6.0",
     "marked": "18.0.14",
     "quickjs-wasi": "3.6.2",
     "rrule": "2.8.1",

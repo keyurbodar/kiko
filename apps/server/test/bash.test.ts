@@ -1,0 +1,276 @@
+import { afterAll, beforeAll, expect, test } from "bun:test"
+import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
+
+// The bash tool as agents use it: just-bash over the chat's files, against the real RoomDO and real
+// R2 in workerd (room-fs-worker.ts). Several agents, and several calls of one agent, run at once.
+let mf: Miniflare
+let origin: string
+
+beforeAll(async () => {
+  mf = new Miniflare({
+    modules: true,
+    script: await bundleWorker(new URL("./room-fs-worker.ts", import.meta.url)),
+    compatibilityDate: "2026-07-01",
+    compatibilityFlags: ["nodejs_compat"],
+    durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true } },
+    r2Buckets: ["FILES"],
+  })
+  origin = (await mf.ready).origin
+}, 60_000)
+
+afterAll(async () => {
+  await mf?.dispose()
+})
+
+let n = 0
+const fresh = () => `01JZ8Q4T7B${String(++n).padStart(16, "0")}`
+type Out = { ok: boolean; text: string; ms: number }
+
+function agent(room: string, slug = "ada") {
+  const run = async (name: string, args: Record<string, unknown>): Promise<Out> => {
+    const res = await fetch(`${origin}/tool/${room}/${slug}`, { method: "POST", body: JSON.stringify({ name, args }) })
+    return (await res.json()) as Out
+  }
+  return {
+    bash: (command: string) => run("bash", { command }),
+    write: (path: string, content: string) => run("write", { path, content }),
+    read: async (path: string) => (await run("read", { path })).text,
+    ls: async (path = "/") => (await run("ls", { path })).text,
+  }
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/** The agent's run ended: the room lets go of the paths it held (section 7.12). */
+const idle = (room: string, slug: string) => fetch(`${origin}/idle/${room}/${slug}`)
+
+test("pipes, redirects, and in-place edits work on the chat's real files", async () => {
+  const a = agent(fresh())
+  await a.write("notes/a.md", "todo: book flights\ndone: pack\n")
+  await a.write("notes/b.md", "todo: call mom\n")
+  await a.write("data.json", '{"trips":[{"city":"rome","days":3},{"city":"oslo","days":2}]}')
+
+  const grep = await a.bash("grep -rh todo /notes | sort | wc -l")
+  expect(grep).toMatchObject({ ok: true, text: "2\n" })
+  expect((await a.bash("jq '[.trips[].days] | add' /data.json")).text).toBe("5\n")
+  // Every tool the description names.
+  const named = await a.bash("printf 'b\\na\\na\\n' > /tmp/x; sort /tmp/x | uniq | cut -c1 | tr a-z A-Z | head -2 | tail -1; find /notes -type f | xargs cat | wc -l; diff /notes/a.md /notes/a.md && echo same")
+  expect(named).toMatchObject({ ok: true, text: "B\n3\nsame\n" })
+
+  expect((await a.bash("grep -rh todo /notes > /todos.txt && sed -i 's/todo: //' /todos.txt")).ok).toBe(true)
+  // What bash wrote is an ordinary file: the read tool and the listing see it.
+  expect(await a.read("todos.txt")).toBe("book flights\ncall mom\n")
+  expect(await a.ls()).toContain("/todos.txt")
+})
+
+test("a failing command reports its error and exit code", async () => {
+  const a = agent(fresh())
+  const out = await a.bash("cat /missing.txt")
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("No such file")
+  expect(out.text).toContain("exited with code 1")
+})
+
+test("a command that touches nothing leaves the files as they were", async () => {
+  const a = agent(fresh())
+  await a.write("keep.md", "x")
+  const before = await a.ls()
+  expect((await a.bash("true; echo $HOME; pwd")).text).toBe("/\n/\n")
+  expect(await a.ls()).toBe(before)
+})
+
+test("a teammate's write between a command's read and its write is never lost", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  await ada.write("count.txt", "1\n")
+  await idle(room, "ada")
+  // ada reads, waits, then writes. bo writes in the middle.
+  const slow = ada.bash("v=$(cat /count.txt); sleep 1; echo $((v + 10)) > /count.txt")
+  await sleep(300)
+  expect((await bo.write("count.txt", "2\n")).ok).toBe(true)
+  const out = await slow
+  expect(out.ok).toBe(false)
+  // bo now holds the file (section 7.12), and ada's write is refused before it lands.
+  expect(out.text).toContain("@bo is working on /count.txt")
+  expect(await ada.read("count.txt")).toBe("2\n")
+})
+
+test("a write after the holder finished, over a file the command read before, is refused by its hash", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  await ada.write("count.txt", "1\n")
+  await idle(room, "ada")
+  const slow = ada.bash("v=$(cat /count.txt); sleep 1; echo $((v + 10)) > /count.txt")
+  await sleep(300)
+  expect((await bo.write("count.txt", "2\n")).ok).toBe(true)
+  await idle(room, "bo")
+  const out = await slow
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("/count.txt changed after this command started")
+  expect(await ada.read("count.txt")).toBe("2\n")
+})
+
+test("one agent's parallel commands each check their own view, so neither overwrites the other", async () => {
+  const a = agent(fresh())
+  await a.write("n.txt", "0\n")
+  const bump = () => a.bash("v=$(cat /n.txt); sleep 0.5; echo $((v + 1)) > /n.txt")
+  const [x, y] = await Promise.all([bump(), bump()])
+  // Both read 0. One writes 1; the other is refused instead of writing 1 over it unseen.
+  expect([x.ok, y.ok].sort()).toEqual([false, true])
+  expect(await a.read("n.txt")).toBe("1\n")
+})
+
+test("a command reads one snapshot: a write made while it runs does not show up halfway", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  await ada.write("s.txt", "old\n")
+  await idle(room, "ada")
+  const slow = ada.bash("cat /s.txt; sleep 1; cat /s.txt")
+  await sleep(300)
+  await bo.write("s.txt", "new\n")
+  expect((await slow).text).toBe("old\nold\n")
+  expect((await ada.bash("cat /s.txt")).text).toBe("new\n")
+})
+
+test("commands on different files run at the same time, from one agent or several", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  const started = performance.now()
+  const outs = await Promise.all([
+    ada.bash("sleep 1; echo one > /one.txt"),
+    ada.bash("sleep 1; echo two > /two.txt"),
+    bo.bash("sleep 1; echo three > /three.txt"),
+  ])
+  expect(outs.every((o) => o.ok)).toBe(true)
+  expect(performance.now() - started).toBeLessThan(2500)
+  expect((await bo.bash("cat /one.txt /two.txt /three.txt")).text).toBe("one\ntwo\nthree\n")
+})
+
+test("two agents creating the same new file: the first wins and the second is told", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  const [x, y] = await Promise.all([ada.bash("sleep 0.3; echo ada > /report.md"), bo.bash("sleep 0.3; echo bo > /report.md")])
+  expect([x.ok, y.ok].sort()).toEqual([false, true])
+  expect(await ada.read("report.md")).toBe(x.ok ? "ada\n" : "bo\n")
+  expect((x.ok ? y : x).text).toMatch(/is working on \/report\.md|report\.md changed after this command started/)
+})
+
+test("handing work over through files: one agent's output is the next one's input", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  expect((await ada.bash("mkdir -p /handoff && printf 'rome,3\\noslo,2\\nlima,4\\n' > /handoff/trips.csv")).ok).toBe(true)
+  // While ada's run holds what she made, bo reads it but cannot write there.
+  const held = await bo.bash("cat /handoff/trips.csv | wc -l; echo late >> /handoff/trips.csv")
+  expect(held.ok).toBe(false)
+  expect(held.text).toContain("3\n")
+  expect(held.text).toContain("@ada is working on")
+  await idle(room, "ada")
+  const out = await bo.bash("sort -t, -k2 -n /handoff/trips.csv | awk -F, '{print $1}' | tee /handoff/order.txt")
+  expect(out.text).toBe("oslo\nrome\nlima\n")
+  expect(await ada.read("handoff/order.txt")).toBe("oslo\nrome\nlima\n")
+})
+
+test("the write-to-temp-then-mv pattern replaces the file conditionally and leaves no temp file", async () => {
+  const room = fresh()
+  const a = agent(room)
+  await a.write("list.txt", "b\na\n")
+  expect((await a.bash("sort /list.txt > /list.tmp && mv /list.tmp /list.txt")).ok).toBe(true)
+  expect(await a.read("list.txt")).toBe("a\nb\n")
+  expect(await a.ls()).not.toContain("list.tmp")
+})
+
+test("the chat's rules still hold: /chat.md stays short and a private chat's drive is read-only", async () => {
+  const room = fresh()
+  const a = agent(room)
+  const long = await a.bash("seq 1 2000 > /chat.md")
+  expect(long.ok).toBe(false)
+  expect(long.text).toContain("/chat.md would be")
+  const quiet = await agent(room, "quiet").bash("echo hi > /home/x.txt")
+  expect(quiet.ok).toBe(false)
+  expect(quiet.text).toContain("private")
+  expect((await a.bash("echo hi > /home/bash-note.txt && cat /home/bash-note.txt")).text).toBe("hi\n")
+})
+
+test("a recursive walk reads every file once", async () => {
+  const room = fresh()
+  const a = agent(room)
+  await Promise.all(Array.from({ length: 24 }, (_, i) => a.write(`many/f${String(i).padStart(2, "0")}.txt`, i % 3 ? "x\n" : "hit\n")))
+  await fetch(`${origin}/counts/${room}/ada`)
+  const out = await a.bash("grep -rl hit /many | wc -l")
+  expect(out.text).toBe("8\n")
+  const counts = (await (await fetch(`${origin}/counts/${room}/ada`)).json()) as { stat: number }
+  // One listing for the snapshot, no stat per file.
+  expect(counts.stat).toBe(0)
+})
+
+test("teammates never see half a command: its changes land together when it ends", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  const slow = ada.bash("echo part one > /draft.md; sleep 1; echo part two >> /draft.md")
+  await sleep(400)
+  expect(await bo.ls()).not.toContain("draft.md")
+  expect((await slow).ok).toBe(true)
+  expect(await bo.read("draft.md")).toBe("part one\npart two\n")
+})
+
+test("/tmp is the command's own scratch space and is never saved", async () => {
+  const a = agent(fresh())
+  const out = await a.bash("echo b > /tmp/x; echo a >> /tmp/x; sort /tmp/x > /sorted.txt; f=$(mktemp); echo hi > $f; cat $f")
+  expect(out).toMatchObject({ ok: true, text: "hi\n" })
+  expect(await a.read("sorted.txt")).toBe("a\nb\n")
+  expect(await a.ls()).not.toContain("tmp")
+  expect((await a.bash("ls /tmp | wc -l")).text).toBe("0\n")
+})
+
+test("a command that runs out of time saves nothing", async () => {
+  const room = fresh()
+  const a = agent(room)
+  const res = await fetch(`${origin}/tool/${room}/ada`, { method: "POST", body: JSON.stringify({ name: "bash", args: { command: "echo x > /late.txt; sleep 3", timeout: 1 } }) })
+  const out = (await res.json()) as Out
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("timed out")
+  expect(await a.ls()).not.toContain("late.txt")
+})
+
+test("mv moves the stored file instead of copying it, folders included", async () => {
+  const room = fresh()
+  const a = agent(room)
+  await a.write("in/a.md", "a")
+  await a.write("in/b.md", "b")
+  const before = (await (await fetch(`${origin}/keys/${room}`)).json()) as string[]
+  expect((await a.bash("mv /in /out && mv /out/a.md /out/first.md")).ok).toBe(true)
+  const after = (await (await fetch(`${origin}/keys/${room}`)).json()) as string[]
+  expect(after.sort()).toEqual(before.sort())
+  expect((await a.bash("find / -path '/out/*' -type f | sort; test -e /in && echo in || echo gone")).text).toBe("/out/b.md\n/out/first.md\ngone\n")
+})
+
+test("rm keeps a file a teammate changed after the command started", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  await ada.write("old/notes.md", "v1")
+  await ada.write("old/keep.md", "v1")
+  await idle(room, "ada")
+  const slow = ada.bash("sleep 1; rm -r /old")
+  await sleep(300)
+  await bo.write("old/notes.md", "v2")
+  await idle(room, "bo")
+  const out = await slow
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("/old changed after this command started")
+  expect(await ada.read("old/notes.md")).toBe("v2")
+  expect(await ada.read("old/keep.md")).toBe("v1")
+})
+
+test("many files written in a loop are saved in one commit", async () => {
+  const a = agent(fresh())
+  const out = await a.bash("mkdir -p /n; for i in $(seq 1 30); do echo $i > /n/$i.txt; done; ls /n | wc -l")
+  expect(out.text).toBe("30\n")
+  expect((await a.bash("cat /n/*.txt | awk '{s += $1} END {print s}'")).text).toBe("465\n")
+})

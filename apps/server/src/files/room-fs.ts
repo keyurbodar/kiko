@@ -1,13 +1,14 @@
 import type { Context } from "@earendil-works/chord"
 import {
   err,
-  ExecutionError,
+  type ExecutionError,
   type ExecutionEnv,
   FileError,
   type FileErrorCode,
   type FileInfo,
   ok,
   type Result,
+  type ShellExecOptions,
   type ShellExecResult,
   type TextLineReader,
 } from "@earendil-works/pi-durable/env"
@@ -16,12 +17,14 @@ import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
+import { runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey } from "./upload"
 import type { NewFile } from "./file-index"
 
 // The room's files as `pi-durable`'s `ExecutionEnv` (architecture section 18.1). Every agent in a
 // room sees one file space, rooted at `/`. `pi-durable`'s own `read`, `write`, and `edit` run on it
-// unchanged, and kiko's `ls`, `rm`, `mv`, and `cp` use the same object. There is no shell.
+// unchanged, and kiko's `ls`, `rm`, `mv`, and `cp` use the same object. Its shell is just-bash,
+// an interpreter over these same files (files/bash.ts).
 //
 // Folders are real, as on Linux: mkdir makes one, writing `a/b/c.md` makes `a` and `a/b`, and an
 // emptied folder stays. The R2 key comes from the agent's home, never from the model.
@@ -52,6 +55,13 @@ export interface FilesBackend {
   remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
   /** `mkdir -p`. */
   mkdir(path: string): Promise<FsChange | FsFail>
+}
+
+/** A write refused because the file changed after the writer last saw it. */
+export class FileConflict extends FileError {
+  constructor(message: string, path?: string) {
+    super("unknown", message, path)
+  }
 }
 
 const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
@@ -183,8 +193,12 @@ export class RoomFs implements ExecutionEnv {
     })
   }
 
-  /** Bytes at a path. Refused when another writer changed the file since this agent last saw it. */
-  async write(path: string, bytes: Uint8Array, type = typeForPath(path)): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
+  /**
+   * Bytes at a path. Refused when another writer changed the file since this agent last saw it.
+   * `expect` replaces what this agent saw: the hash the caller read, or "none" for a path that must
+   * be empty. A shell command passes its own, so one command's view never leaks into another's.
+   */
+  async write(path: string, bytes: Uint8Array, type = typeForPath(path), expect?: string): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
     if (rel.value === "") return err(new FileError("is_directory", "/ is a folder", path))
@@ -192,14 +206,15 @@ export class RoomFs implements ExecutionEnv {
       return err(new FileError("invalid", `/chat.md would be ${bytes.length} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path))
     }
     if (bytes.length > MAX_WRITE_BYTES) return err(new FileError("invalid", `${path} would be ${bytes.length} bytes, over the ${MAX_WRITE_BYTES} byte limit`, path))
-    const out = await this.backend.write(rel.value, bytes, type, this.seen.get(rel.value))
+    const own = expect === undefined
+    const out = await this.backend.write(rel.value, bytes, type, own ? this.seen.get(rel.value) : expect)
     // A new file changes its folders too.
     this.stats.clear()
     if (!out.ok) {
-      if (out.code === "conflict") this.seen.delete(rel.value)
-      return err(out.code === "conflict" ? new FileError("unknown", out.message, path) : this.fail(out, path))
+      if (out.code === "conflict" && own) this.seen.delete(rel.value)
+      return err(out.code === "conflict" ? new FileConflict(out.message, path) : this.fail(out, path))
     }
-    this.seen.set(rel.value, out.entry.sha256)
+    if (own) this.seen.set(rel.value, out.entry.sha256)
     return ok(out.entry)
   }
 
@@ -331,8 +346,9 @@ export class RoomFs implements ExecutionEnv {
     return err(new FileError("not_supported", "the chat's files have no temporary files"))
   }
 
-  async exec(): Promise<Result<ShellExecResult, ExecutionError>> {
-    return err(new ExecutionError("shell_unavailable", "there is no shell. use the file tools."))
+  /** A bash command over these files, in just-bash (files/bash.ts). */
+  async exec(command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<ShellExecResult, ExecutionError>> {
+    return runCommand(this, command, options, context)
   }
 
   async cleanup(_context?: Context): Promise<void> {}

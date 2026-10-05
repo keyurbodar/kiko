@@ -22,6 +22,8 @@ export function describeCall(name: string, args: Record<string, unknown>): strin
     case "write":
     case "edit":
       return `editing${path(args)}`
+    case "bash":
+      return "running a command on the files"
     case "web_fetch":
       return "reading a web page"
     case "spawn_subagent":
