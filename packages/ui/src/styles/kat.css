@@ -900,6 +900,19 @@
   pointer-events: none;
 }
 
+/* Dither over the blurred picture. A smooth dark gradient has too few 8-bit steps, so it shows
+   contour lines. Grey noise, one pixel fine and 4% strong, breaks the steps up and is too fine
+   to see as grain. It is static, so it costs one raster. */
+:root[data-material="frost"][data-wallpaper] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E") 0 0 / 128px 128px repeat;
+  opacity: 0.04;
+  pointer-events: none;
+}
+
 /* -----------------------------------------------------------------------------
    5. Tailwind bridge
 

@@ -105,7 +105,8 @@ export async function prepareWallpaper(file: Blob): Promise<Prepared> {
     const ctx = canvas.getContext("2d")
     if (!ctx) throw new Error("no canvas")
     let wallpaper = ""
-    for (const [edge, quality] of [[320, 0.6], [320, 0.45], [240, 0.45], [160, 0.4]] as const) {
+    // High quality first: block artefacts in a dark picture survive the blur as contours.
+    for (const [edge, quality] of [[320, 0.85], [320, 0.7], [320, 0.55], [240, 0.5], [160, 0.4]] as const) {
       const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height))
       canvas.width = Math.max(1, Math.round(bitmap.width * scale))
       canvas.height = Math.max(1, Math.round(bitmap.height * scale))
