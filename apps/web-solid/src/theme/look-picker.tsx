@@ -3,14 +3,14 @@ import { HugeIcon } from "@kiko/ui/huge-icon"
 import { type Glyph, MonitorIcon, MoonIcon, SunIcon } from "@kiko/ui/icons"
 import { appearanceOf } from "./apply"
 import type { Look, Mode, Style } from "./look"
-import { MIN_GLASS, MODES, presetOf, STYLES, styleOf, withStyle } from "./look"
+import { FROST_WHERE, MAX_FROST, MIN_GLASS, MODES, presetOf, STYLES, styleOf, withStyle } from "./look"
 import { SWATCHES, swatchColor } from "./presets"
 import { prepareWallpaper, themeFrom } from "./wallpaper"
 import { saveSharp } from "./wallpaper-store"
 
 /*
  * The look controls: a style, an appearance, a wallpaper, a colour, and how much that colour
- * tints the greys, or with a wallpaper how opaque the glass is. Settings and the first-run screen both use it. A click saves at once: the look is
+ * tints the greys, or with a wallpaper its frost, dim and grain. Settings and the first-run screen both use it. A click saves at once: the look is
  * instant, so there is nothing to confirm.
  */
 
@@ -61,22 +61,60 @@ function StyleCard(props: { style: Style; on: boolean; onPick: () => void }) {
   )
 }
 
-function Slider(props: { label: string; min: number; value: number; onInput: (v: number) => void }) {
+/** A labelled range. A share (0 to 1) shows as a percent; `unit` shows the raw value instead. */
+function Slider(props: { label: string; min?: number; max?: number; value: number; unit?: string; onInput: (v: number) => void }) {
+  const share = () => props.unit === undefined
+  const shown = () => (share() ? Math.round(props.value * 100) : props.value)
   return (
     <label class="flex items-center gap-3 text-[13px] text-muted" data-component={props.label}>
       <span class="w-10 shrink-0">{props.label}</span>
       <input
         type="range"
-        min={props.min}
-        max="100"
+        min={share() ? (props.min ?? 0) * 100 : (props.min ?? 0)}
+        max={share() ? (props.max ?? 1) * 100 : (props.max ?? 100)}
         step="1"
         class="h-1 min-w-0 flex-1 accent-[var(--accent-fill)]"
         aria-label={props.label}
-        value={Math.round(props.value * 100)}
-        onInput={(e) => props.onInput(Number(e.currentTarget.value) / 100)}
+        value={shown()}
+        onInput={(e) => props.onInput(Number(e.currentTarget.value) / (share() ? 100 : 1))}
       />
-      <span class="w-9 shrink-0 text-right text-[11px] tabular-nums text-faint">{Math.round(props.value * 100)}%</span>
+      <span class="w-9 shrink-0 text-right text-[11px] tabular-nums text-faint">
+        {shown()}
+        {share() ? "%" : props.unit}
+      </span>
     </label>
+  )
+}
+
+/*
+ * The wallpaper's own settings, all live: how frosted it is and where, how dark the overlay is,
+ * and how much grain. Each one is a CSS variable, so nothing is re-read or re-encoded.
+ */
+function WallpaperControls(props: { look: Look; onChange: (next: Look) => void }) {
+  const set = (patch: Partial<Look>) => props.onChange({ ...props.look, ...patch })
+  return (
+    <div class="flex flex-col gap-3" data-component="wallpaper-controls">
+      <Slider label="frost" max={MAX_FROST} unit="px" value={props.look.frost} onInput={(frost) => set({ frost })} />
+      <div class="flex items-center gap-3 text-[13px] text-muted" role="radiogroup" aria-label="where the frost is">
+        <span class="w-10 shrink-0">where</span>
+        <For each={FROST_WHERE}>
+          {(where) => (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={props.look.frostWhere === where}
+              data-frost-where={where}
+              class="flex h-7 items-center rounded-lg px-2.5 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:bg-[var(--selected-bg)] aria-checked:text-text"
+              onClick={() => set({ frostWhere: where })}
+            >
+              {where === "everywhere" ? "everywhere" : "toward bottom"}
+            </button>
+          )}
+        </For>
+      </div>
+      <Slider label="dim" min={MIN_GLASS} value={props.look.glass} onInput={(glass) => set({ glass })} />
+      <Slider label="grain" value={props.look.grain} onInput={(grain) => set({ grain })} />
+    </div>
   )
 }
 
@@ -186,9 +224,9 @@ export function LookPicker(props: { look: Look; onChange: (next: Look) => void; 
       </div>
       <Show
         when={props.look.wallpaper && props.look.material === "frost"}
-        fallback={<Slider label="tint" min={0} value={props.look.tint} onInput={(tint) => props.onChange({ ...props.look, tint })} />}
+        fallback={<Slider label="tint" value={props.look.tint} onInput={(tint) => props.onChange({ ...props.look, tint })} />}
       >
-        <Slider label="glass" min={MIN_GLASS * 100} value={props.look.glass} onInput={(glass) => props.onChange({ ...props.look, glass })} />
+        <WallpaperControls look={props.look} onChange={props.onChange} />
       </Show>
     </div>
   )

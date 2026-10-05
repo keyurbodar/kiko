@@ -794,6 +794,8 @@
   /* Frost's wallpaper and how opaque its glass is. apply.ts sets both from the look. */
   --wallpaper: none;
   --glass: 0.6;
+  --frost: 14px;
+  --grain: 0.3;
 }
 
 :root[data-material="frost"] {
@@ -868,20 +870,29 @@
   background-attachment: fixed;
 }
 
-/* Frost over a wallpaper. The picture itself shows, dimmed, and the app floats on it: the shell
-   is clear and the panes are a light tint with a hairline. `theme/wallpaper.ts` bakes an even
-   frost into the whole picture once, so the screen draws one plain picture with no live filter.
-   The dim is one black overlay whose strength is the glass setting: `--glass` (0.15 to 1) maps
-   onto 28% to 75%, so the picture always stays dark enough to read on. The lower part darkens
-   a little more.
+/* Frost over a wallpaper. The picture itself shows and the app floats on it: the shell is
+   clear and the panes are a light tint with a hairline. Every part is the person's setting, set
+   by apply.ts from the look:
 
-   `--wallpaper-sharp` is this device's sharp copy from IndexedDB, set by apply.ts. Until it is
-   there, or on a device without it, the blurred copy the look carries (`--wallpaper`) shows
-   instead, blurred a little more to smooth its stretch. Both get a dither so they never band. */
+   - `--frost`, a blur from 0 (sharp) to 48px, over the whole picture or, with
+     `data-frost-where="bottom"`, fading in toward the bottom over a sharp copy;
+   - `--grain`, a frosted grain from none to clearly visible, which also dithers smooth blur so
+     it never bands;
+   - `--glass`, the dim: 0.15 to 1 maps onto a 28% to 75% black overlay, so the picture always
+     stays dark enough to read on. The lower part darkens a little more.
+
+   The layers are static, so each is drawn once and again only when a setting changes. In paint
+   order: the sharp base (`:root::before`, bottom only), the frosted picture (`body::before`),
+   the grain (`body::after`), the dim (`:root::after`).
+
+   `--wallpaper-sharp` is this device's copy from IndexedDB. Until it is there, or on a device
+   without it, the tiny blurred copy the look carries (`--wallpaper`) stands in, blurred at
+   least 16px to smooth its stretch, and over the whole picture. */
 :root[data-material="frost"][data-wallpaper] {
   --wallpaper-dim: calc(0.2 + 0.55 * var(--glass));
   --wallpaper-scrim: oklch(0% 0 none / var(--wallpaper-dim));
   --wallpaper-floor: oklch(0% 0 none / 0.35);
+  --wallpaper-fade: linear-gradient(to bottom, transparent 15%, #000 70%);
   --bg-sidebar: transparent;
   --panel: oklch(0.16 0 0 / 0.22);
   --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.07);
@@ -898,33 +909,48 @@
   background: transparent;
 }
 
-:root[data-material="frost"][data-wallpaper] body::before {
+:root[data-material="frost"][data-wallpaper] body::before,
+:root[data-material="frost"][data-wallpaper][data-wallpaper-sharp][data-frost-where="bottom"]::before,
+:root[data-material="frost"][data-wallpaper] body::after,
+:root[data-material="frost"][data-wallpaper]::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(to bottom, transparent 40%, var(--wallpaper-floor) 100%),
-    linear-gradient(var(--wallpaper-scrim), var(--wallpaper-scrim)),
-    var(--wallpaper-sharp, var(--wallpaper)) center / cover no-repeat;
   pointer-events: none;
+}
+
+:root[data-material="frost"][data-wallpaper][data-wallpaper-sharp][data-frost-where="bottom"]::before {
+  background: var(--wallpaper-sharp) center / cover no-repeat;
+}
+
+/* The overhang keeps the blur from fading at the window's edges. */
+:root[data-material="frost"][data-wallpaper] body::before {
+  inset: calc(var(--frost) * -2);
+  background: var(--wallpaper-sharp, var(--wallpaper)) center / cover no-repeat;
+  filter: blur(var(--frost));
+}
+
+:root[data-material="frost"][data-wallpaper][data-wallpaper-sharp][data-frost-where="bottom"] body::before {
+  -webkit-mask-image: var(--wallpaper-fade);
+  mask-image: var(--wallpaper-fade);
 }
 
 :root[data-material="frost"][data-wallpaper]:not([data-wallpaper-sharp]) body::before {
   inset: -64px;
-  filter: blur(16px);
+  filter: blur(max(16px, var(--frost)));
 }
 
-/* Dither over the frosted picture. A smooth dark gradient has too few 8-bit steps, so it shows
-   contour lines. Grey noise, one pixel fine and 4% strong, breaks the steps up. */
+/* Grey noise, one pixel fine. At 0 it is gone; at 1 it is a clear frosted grain. */
 :root[data-material="frost"][data-wallpaper] body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E") 0 0 / 128px 128px repeat;
-  opacity: 0.04;
-  pointer-events: none;
+  opacity: calc(var(--grain) * 0.14);
+}
+
+:root[data-material="frost"][data-wallpaper]::after {
+  background:
+    linear-gradient(to bottom, transparent 40%, var(--wallpaper-floor) 100%),
+    linear-gradient(var(--wallpaper-scrim), var(--wallpaper-scrim));
 }
 
 /* -----------------------------------------------------------------------------

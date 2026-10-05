@@ -98,12 +98,11 @@ export type Prepared = { wallpaper: string; sharp: Blob; palette: Palette }
 const WORK_EDGE = 1280
 /** That blur, in px: soft shapes stay, edges and detail go. */
 export const PREBLUR = 40
-/** The frost is blurred at this size, about a window's width. */
-const FROST_EDGE = 1600
-/** The frost, in px at `FROST_EDGE`, the same over the whole picture: shapes stay, detail goes. */
-export const FROST = 14
-/** The frosted copy's stored long edge. Blurred, it has no detail that needs more. */
-const STORED_EDGE = 960
+/**
+ * The sharp copy's long edge, about a window, so it is never stretched much. It stays sharp:
+ * the frost is the person's setting and kat.css draws it, so it can change without a re-pick.
+ */
+const SHARP_EDGE = 1600
 
 const canvas2d = (w: number, h: number) => {
   const c = document.createElement("canvas")
@@ -147,14 +146,6 @@ function blurred(source: CanvasImageSource & { width: number; height: number }, 
 }
 
 /**
- * The picture frosted evenly, baked once: the screen then draws one plain picture with no live
- * filter. It is blurred at window size and only then shrunk, so it stretches back smoothly.
- */
-function frosted(bitmap: ImageBitmap): HTMLCanvasElement {
-  return blurred(blurred(bitmap, FROST_EDGE, FROST), STORED_EDGE, 0)
-}
-
-/**
  * Reads a picked image into the two copies and its palette. The synced copy is blurred at
  * window size and only then shrunk, so it stretches back smoothly; it tries smaller sizes and
  * lower quality until it fits. WebP where the browser can write it, JPEG otherwise.
@@ -173,9 +164,9 @@ export async function prepareWallpaper(file: Blob): Promise<Prepared> {
       if (isWallpaper(wallpaper)) break
     }
     if (!isWallpaper(wallpaper)) throw new Error("too large")
-    const frost = frosted(bitmap)
-    let sharp = await toBlob(frost, "image/webp", 0.82)
-    if (sharp.type !== "image/webp") sharp = await toBlob(frost, "image/jpeg", 0.82)
+    const full = blurred(bitmap, SHARP_EDGE, 0)
+    let sharp = await toBlob(full, "image/webp", 0.8)
+    if (sharp.type !== "image/webp") sharp = await toBlob(full, "image/jpeg", 0.8)
     // The palette reads a sharp 32 px copy, so a small vivid patch still gets its vote.
     const small = blurred(bitmap, 32, 0)
     return { wallpaper, sharp, palette: paletteOf(small.getContext("2d")!.getImageData(0, 0, small.width, small.height).data) }

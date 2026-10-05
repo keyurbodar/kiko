@@ -89,6 +89,9 @@ function paint(look: Look): void {
   }
   syncSharp(root, wallpaper ?? null)
   root.style.setProperty("--glass", String(look.glass))
+  root.style.setProperty("--frost", `${look.frost}px`)
+  root.style.setProperty("--grain", String(look.grain))
+  root.dataset.frostWhere = look.frostWhere
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
   // The boot screen and the overscroll area read this, so it follows the panel colour.

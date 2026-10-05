@@ -260,6 +260,8 @@ export const KNOWN_TOKENS: Record<string, TokenKind> = {
   "--fade-bg": "color",
   "--wallpaper": "any",
   "--glass": "number",
+  "--frost": "length",
+  "--grain": "number",
   "--v2-background-bg-base": "color",
   "--v2-background-bg-deep": "color",
   "--v2-background-bg-layer-01": "color",
