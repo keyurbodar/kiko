@@ -868,32 +868,29 @@
   background-attachment: fixed;
 }
 
-/* Frost over a wallpaper, like macOS dark glass. The picture (`--wallpaper`, a small data URL
-   set by apply.ts) is already blurred at window size by `theme/wallpaper.ts`, so here it only
-   needs a light blur to smooth the stretch. It is saturated and dimmed on one fixed layer,
-   drawn once, and nothing moves behind it, so no live blur is needed. The glass is neutral and
-   dark. Every picture first gets a black scrim (`--wallpaper-scrim`, 45%), whatever the
-   glass, so a bright sky is pulled as dark as a night scene. `--glass` (0.15 to 1) then maps
-   onto 47% to 85% opacity, so the thinnest glass still reads as dark glass with colour in it,
-   never as the picture itself. The layer overhangs the window so the blur never fades at the edges. */
+/* Frost over a wallpaper. The picture itself shows, dimmed, and the app floats on it: the shell
+   is clear and the panes are a light tint with a hairline. `theme/wallpaper.ts` bakes the haze
+   into the picture: sharp at the top, softer and softer toward the bottom. So the screen draws
+   one plain picture with no live filter. The dim is one black overlay whose strength is the
+   glass setting: `--glass` (0.15 to 1) maps onto 28% to 75%, so the picture always stays dark
+   enough to read on. The lower part darkens a little more, as in monocode's haze.
+
+   `--wallpaper-sharp` is this device's sharp copy from IndexedDB, set by apply.ts. Until it is
+   there, or on a device without it, the blurred copy the look carries (`--wallpaper`) shows
+   instead, blurred a little more to smooth its stretch, with a dither so it never bands. */
 :root[data-material="frost"][data-wallpaper] {
-  --glass-alpha: calc(0.4 + 0.45 * var(--glass));
-  --wallpaper-scrim: oklch(0% 0 none / 0.45);
-  /* The haze: the lower part of the picture darkens, and fine scanlines fade in toward the
-     bottom, after monocode's haze effect, so the glass has texture and never reads as flat. */
-  --wallpaper-haze: oklch(0% 0 none / 0.35);
-  --wallpaper-lines: oklch(0% 0 none / 0.32);
-  --bg-sidebar: oklch(0.16 0 0 / var(--glass-alpha));
-  --panel: oklch(100% 0 none / 0.025);
-  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.06);
+  --wallpaper-dim: calc(0.2 + 0.55 * var(--glass));
+  --wallpaper-scrim: oklch(0% 0 none / var(--wallpaper-dim));
+  --wallpaper-floor: oklch(0% 0 none / 0.35);
+  --bg-sidebar: transparent;
+  --panel: oklch(0.16 0 0 / 0.22);
+  --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.07);
 }
 
 :root[data-material="frost"][data-wallpaper][data-appearance="light"] {
-  --wallpaper-scrim: oklch(100% 0 none / 0.35);
-  --wallpaper-haze: oklch(100% 0 none / 0.3);
-  --wallpaper-lines: oklch(100% 0 none / 0.4);
-  --bg-sidebar: oklch(0.97 0 0 / var(--glass-alpha));
-  --panel: oklch(100% 0 none / 0.35);
+  --wallpaper-scrim: oklch(100% 0 none / var(--wallpaper-dim));
+  --wallpaper-floor: oklch(100% 0 none / 0.3);
+  --panel: oklch(0.98 0 0 / 0.3);
   --glass-edge: inset 0 0 0 1px oklch(0% 0 none / 0.06);
 }
 
@@ -904,40 +901,30 @@
 :root[data-material="frost"][data-wallpaper] body::before {
   content: "";
   position: fixed;
-  inset: -64px;
+  inset: 0;
   z-index: -1;
   background:
-    linear-gradient(to bottom, transparent 35%, var(--wallpaper-haze) 100%),
+    linear-gradient(to bottom, transparent 40%, var(--wallpaper-floor) 100%),
     linear-gradient(var(--wallpaper-scrim), var(--wallpaper-scrim)),
-    var(--wallpaper) center / cover no-repeat;
-  filter: blur(16px) saturate(1.5);
+    var(--wallpaper-sharp, var(--wallpaper)) center / cover no-repeat;
   pointer-events: none;
 }
 
-/* Dither over the blurred picture. A smooth dark gradient has too few 8-bit steps, so it shows
-   contour lines. Grey noise, one pixel fine and 4% strong, breaks the steps up and is too fine
-   to see as grain. It is static, so it costs one raster. */
-:root[data-material="frost"][data-wallpaper] body::after {
+:root[data-material="frost"][data-wallpaper]:not([data-wallpaper-sharp]) body::before {
+  inset: -64px;
+  filter: blur(16px);
+}
+
+/* Dither over the blurred stand-in. A smooth dark gradient has too few 8-bit steps, so it shows
+   contour lines. Grey noise, one pixel fine and 4% strong, breaks the steps up. The sharp
+   picture has detail of its own and needs none. */
+:root[data-material="frost"][data-wallpaper]:not([data-wallpaper-sharp]) body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E") 0 0 / 128px 128px repeat;
   opacity: 0.04;
-  pointer-events: none;
-}
-
-/* The scanlines: a 1px line every 3px, faded in from the middle of the window to the bottom.
-   It sits on the root's own pseudo-element, so it is above the picture and the dither and still
-   under the glass. Static, one raster. */
-:root[data-material="frost"][data-wallpaper]::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: repeating-linear-gradient(to bottom, var(--wallpaper-lines) 0 1px, transparent 1px 3px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 30%, #000 90%);
-  mask-image: linear-gradient(to bottom, transparent 30%, #000 90%);
   pointer-events: none;
 }
 

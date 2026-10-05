@@ -92,12 +92,22 @@ export function paletteOf(rgba: ArrayLike<number>): Palette {
 /** The custom theme a palette makes. Every derived colour in `kat.css` follows these three. */
 export const themeFrom = (p: Palette): Theme => ({ version: 1, name: "wallpaper", colors: { hue: p.hue, userHue: p.hue, chroma: p.chroma } })
 
-export type Prepared = { wallpaper: string; palette: Palette }
+export type Prepared = { wallpaper: string; sharp: Blob; palette: Palette }
 
-/** The picture is blurred at this size, about a window's width, before it is shrunk. */
+/** The synced copy is blurred at this size, about a window's width, before it is shrunk. */
 const WORK_EDGE = 1280
-/** The blur at that size, in px: soft shapes stay, edges and detail go, as under macOS glass. */
+/** That blur, in px: soft shapes stay, edges and detail go. */
 export const PREBLUR = 40
+/** The sharp picture's long edge. About a window, so it is never stretched much. */
+const SHARP_EDGE = 1600
+/**
+ * The haze baked into the sharp picture, after monocode's: a soft blur that fades in from 18%
+ * to 60% of the height, and a strong one from 28% to 76%. Radii are at `SHARP_EDGE`.
+ */
+const HAZE = [
+  { radius: 8, from: 0.18, to: 0.6 },
+  { radius: 24, from: 0.28, to: 0.76 },
+] as const
 
 const canvas2d = (w: number, h: number) => {
   const c = document.createElement("canvas")
@@ -109,40 +119,68 @@ const canvas2d = (w: number, h: number) => {
   return [c, ctx] as const
 }
 
+const toBlob = (c: HTMLCanvasElement, type: string, quality: number) =>
+  new Promise<Blob>((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("encode"))), type, quality))
+
 /**
- * The picture at about a window's width, blurred. Blurring before shrinking is what keeps the
- * stored copy smooth: a blurred picture has no detail left to lose, so 320 px of it stretches
- * back to the window with no blocks, where blurring a stretched 320 px copy smears its pixels
- * into wavy contours. The picture is drawn past the edges so the blur never fades there. A
- * browser without canvas filters gets a blur from shrinking hard and stretching back.
+ * The picture fitted to `edge` on its long side and blurred by `radius`. It is drawn past the
+ * edges so the blur never fades there. Older Safari has no canvas `filter`, and TypeScript's
+ * types say every browser does, so that case is checked at run time: it gets a blur from
+ * shrinking hard and stretching back.
  */
-function blurred(bitmap: ImageBitmap): HTMLCanvasElement {
-  const scale = Math.min(1, WORK_EDGE / Math.max(bitmap.width, bitmap.height))
-  const w = bitmap.width * scale
-  const h = bitmap.height * scale
+function blurred(source: CanvasImageSource & { width: number; height: number }, edge: number, radius: number): HTMLCanvasElement {
+  const scale = Math.min(1, edge / Math.max(source.width, source.height))
+  const w = source.width * scale
+  const h = source.height * scale
   const [c, ctx] = canvas2d(w, h)
-  // Older Safari has no canvas `filter`, and TypeScript's types say every browser does.
+  if (radius <= 0) {
+    ctx.drawImage(source, 0, 0, c.width, c.height)
+    return c
+  }
   if ((ctx as { filter?: unknown }).filter !== undefined) {
-    const pad = PREBLUR * 2
-    ctx.filter = `blur(${PREBLUR}px)`
-    ctx.drawImage(bitmap, -pad, -pad, c.width + pad * 2, c.height + pad * 2)
+    const pad = radius * 2
+    ctx.filter = `blur(${radius}px)`
+    ctx.drawImage(source, -pad, -pad, c.width + pad * 2, c.height + pad * 2)
     ctx.filter = "none"
     return c
   }
-  const [tiny, tctx] = canvas2d(w / PREBLUR, h / PREBLUR)
-  tctx.drawImage(bitmap, 0, 0, tiny.width, tiny.height)
+  const [tiny, tctx] = canvas2d(w / radius, h / radius)
+  tctx.drawImage(source, 0, 0, tiny.width, tiny.height)
   ctx.drawImage(tiny, 0, 0, c.width, c.height)
   return c
 }
 
 /**
- * Shrinks a picked image to a small data URL and reads its palette. It tries smaller sizes and
- * lower quality until the result fits. WebP where the browser can write it, JPEG otherwise.
+ * The sharp picture with the haze baked in: sharp at the top, softer and softer toward the
+ * bottom. Baking it once means the screen draws one plain picture, with no live filter and no
+ * stack of full-window blurred layers in memory.
+ */
+function hazed(bitmap: ImageBitmap): HTMLCanvasElement {
+  const base = blurred(bitmap, SHARP_EDGE, 0)
+  const ctx = base.getContext("2d")!
+  for (const { radius, from, to } of HAZE) {
+    const layer = blurred(bitmap, SHARP_EDGE, radius)
+    const lctx = layer.getContext("2d")!
+    const fade = lctx.createLinearGradient(0, 0, 0, layer.height)
+    fade.addColorStop(from, "rgba(0,0,0,0)")
+    fade.addColorStop(to, "rgba(0,0,0,1)")
+    lctx.globalCompositeOperation = "destination-in"
+    lctx.fillStyle = fade
+    lctx.fillRect(0, 0, layer.width, layer.height)
+    ctx.drawImage(layer, 0, 0)
+  }
+  return base
+}
+
+/**
+ * Reads a picked image into the two copies and its palette. The synced copy is blurred at
+ * window size and only then shrunk, so it stretches back smoothly; it tries smaller sizes and
+ * lower quality until it fits. WebP where the browser can write it, JPEG otherwise.
  */
 export async function prepareWallpaper(file: Blob): Promise<Prepared> {
   const bitmap = await createImageBitmap(file)
   try {
-    const soft = blurred(bitmap)
+    const soft = blurred(bitmap, WORK_EDGE, PREBLUR)
     let wallpaper = ""
     for (const [edge, quality] of [[320, 0.85], [320, 0.7], [240, 0.6], [160, 0.5]] as const) {
       const scale = edge / Math.max(soft.width, soft.height)
@@ -153,11 +191,12 @@ export async function prepareWallpaper(file: Blob): Promise<Prepared> {
       if (isWallpaper(wallpaper)) break
     }
     if (!isWallpaper(wallpaper)) throw new Error("too large")
+    const haze = hazed(bitmap)
+    let sharp = await toBlob(haze, "image/webp", 0.8)
+    if (sharp.type !== "image/webp") sharp = await toBlob(haze, "image/jpeg", 0.8)
     // The palette reads a sharp 32 px copy, so a small vivid patch still gets its vote.
-    const k = 32 / Math.max(bitmap.width, bitmap.height)
-    const [small, sctx] = canvas2d(bitmap.width * k, bitmap.height * k)
-    sctx.drawImage(bitmap, 0, 0, small.width, small.height)
-    return { wallpaper, palette: paletteOf(sctx.getImageData(0, 0, small.width, small.height).data) }
+    const small = blurred(bitmap, 32, 0)
+    return { wallpaper, sharp, palette: paletteOf(small.getContext("2d")!.getImageData(0, 0, small.width, small.height).data) }
   } finally {
     bitmap.close()
   }

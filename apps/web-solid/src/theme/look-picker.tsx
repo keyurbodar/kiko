@@ -6,6 +6,7 @@ import type { Look, Mode, Style } from "./look"
 import { MIN_GLASS, MODES, presetOf, STYLES, styleOf, withStyle } from "./look"
 import { SWATCHES, swatchColor } from "./presets"
 import { prepareWallpaper, themeFrom } from "./wallpaper"
+import { saveSharp } from "./wallpaper-store"
 
 /*
  * The look controls: a style, an appearance, a wallpaper, a colour, and how much that colour
@@ -80,8 +81,9 @@ function Slider(props: { label: string; min: number; value: number; onInput: (v:
 }
 
 /*
- * Choosing a picture shrinks it, reads its palette, and saves a look with the picture, frost,
- * and a theme generated from the palette, all at once.
+ * Choosing a picture keeps a sharp copy on this device, shrinks a blurred one into the look,
+ * reads its palette, and saves a look with the picture, frost, and a theme generated from the
+ * palette, all at once.
  */
 function WallpaperRow(props: { look: Look; onChange: (next: Look) => void }) {
   let input: HTMLInputElement | undefined
@@ -92,7 +94,9 @@ function WallpaperRow(props: { look: Look; onChange: (next: Look) => void }) {
     setBusy(true)
     setError("")
     try {
-      const { wallpaper, palette } = await prepareWallpaper(file)
+      const { wallpaper, sharp, palette } = await prepareWallpaper(file)
+      // Stored first, so the look that follows finds its sharp copy at once.
+      await saveSharp(wallpaper, sharp)
       props.onChange({ ...props.look, wallpaper, material: "frost", theme: { custom: themeFrom(palette) } })
     } catch {
       setError("that picture couldn't be used")

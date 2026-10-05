@@ -8,6 +8,7 @@ import { setFavicon } from "../mascot/logo"
 import { DEFAULT_LOOK, type Look, type Material, type Mode } from "./look"
 import { DEFAULT_PRESET, presetFor } from "./presets"
 import { parseTheme, resolveTheme, type ResolvedTheme, type Theme } from "./schema"
+import { loadSharp } from "./wallpaper-store"
 
 /** The key the inline script in `index.html` reads. Keep the two in step. */
 export const CACHE_KEY = "kiko:look"
@@ -41,6 +42,28 @@ const systemLight = () => typeof matchMedia === "function" && matchMedia("(prefe
 export const appearanceOf = (mode: Mode): Appearance => (mode === "system" ? (systemLight() ? "light" : "dark") : mode)
 
 let applied = new Set<string>()
+let sharpFor: string | null = null
+let sharpUrl: string | null = null
+
+/**
+ * Swaps in this device's sharp copy of the wallpaper once IndexedDB has it. Until then, and on
+ * a device without it, kat.css shows the blurred copy the look carries.
+ */
+function syncSharp(root: HTMLElement, wallpaper: string | null): void {
+  if (wallpaper === sharpFor) return
+  sharpFor = wallpaper
+  delete root.dataset.wallpaperSharp
+  root.style.removeProperty("--wallpaper-sharp")
+  if (sharpUrl) URL.revokeObjectURL(sharpUrl)
+  sharpUrl = null
+  if (!wallpaper || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return
+  void loadSharp(wallpaper).then((blob) => {
+    if (!blob || sharpFor !== wallpaper) return
+    sharpUrl = URL.createObjectURL(blob)
+    root.style.setProperty("--wallpaper-sharp", `url("${sharpUrl}")`)
+    root.dataset.wallpaperSharp = ""
+  })
+}
 let committed: Look = DEFAULT_LOOK
 let watching = false
 
@@ -64,6 +87,7 @@ function paint(look: Look): void {
     delete root.dataset.wallpaper
     root.style.removeProperty("--wallpaper")
   }
+  syncSharp(root, wallpaper ?? null)
   root.style.setProperty("--glass", String(look.glass))
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance

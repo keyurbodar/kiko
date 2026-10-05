@@ -56,3 +56,12 @@ describe("a stored wallpaper", () => {
     expect(isWallpaper(`data:image/webp;base64,${"A".repeat(MAX_WALLPAPER_CHARS)}`)).toBe(false)
   })
 })
+
+describe("the sharp copy's key", () => {
+  test("names one synced copy, so another picture never finds this one's sharp copy", async () => {
+    const { keyOf } = await import("./wallpaper-store")
+    const a = "data:image/webp;base64,UklGRg=="
+    expect(keyOf(a)).toBe(keyOf(a))
+    expect(keyOf(a)).not.toBe(keyOf("data:image/webp;base64,UklGRh=="))
+  })
+})
