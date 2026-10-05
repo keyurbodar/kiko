@@ -5,7 +5,7 @@ import type { FileOp } from "@kiko/protocol"
 import "../src/agent/effects"
 import { filesExtension } from "../src/agent/extensions/files"
 import { type FilesBackend, HOME_PATH, homeBackend, RoomFs, roomBackend, withMount, withSoul } from "../src/files/room-fs"
-import { FileIndex, HOME_TABLES, type NewFile } from "../src/files/file-index"
+import { FileIndex, HOME_TABLES, type IndexChange, type NewFile } from "../src/files/file-index"
 import { actorKey } from "../src/room/log"
 import type { Actor } from "@kiko/protocol"
 import { migrate } from "../src/user/schema"
@@ -49,6 +49,9 @@ export class UserDO extends DurableObject {
   }
   homeMkdir(by: Actor, path: string) {
     return this.home.mkdir(path, by)
+  }
+  homeCommit(by: Actor, changes: IndexChange[]) {
+    return this.home.commit(changes, by)
   }
   async recordRoom() {
     return true

@@ -19,7 +19,7 @@ import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
 import { runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey } from "./upload"
-import type { NewFile } from "./file-index"
+import type { CommitResult, IndexChange, NewFile } from "./file-index"
 
 // The room's files as `pi-durable`'s `ExecutionEnv` (architecture section 18.1). Every agent in a
 // room sees one file space, rooted at `/`. `pi-durable`'s own `read`, `write`, and `edit` run on it
@@ -55,14 +55,22 @@ export interface FilesBackend {
   remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
   /** `mkdir -p`. */
   mkdir(path: string): Promise<FsChange | FsFail>
+  /** A bash command's changes (section 18.4): within one file space, all of them or none. */
+  commit(changes: readonly BatchChange[]): Promise<BatchResult>
 }
 
-/** A write refused because the file changed after the writer last saw it. */
-export class FileConflict extends FileError {
-  constructor(message: string, path?: string) {
-    super("unknown", message, path)
-  }
-}
+/** One change of a command's commit, in backend paths, with the state it saw. A write carries its bytes. */
+export type BatchChange =
+  | { op: "write"; path: string; bytes: Uint8Array; type: string; expect: string }
+  | { op: "move"; from: string; to: string; sha256: string }
+  | { op: "remove"; path: string; sha256: string }
+  | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
+  | { op: "mkdir"; path: string }
+
+/** `conflict` when a path no longer held what the command saw. */
+export type BatchResult = { ok: true } | { ok: false; path: string; message: string; conflict: boolean }
+
+const batchPaths = (c: BatchChange) => (c.op === "move" ? [c.from, c.to] : [c.path])
 
 const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
 
@@ -193,29 +201,67 @@ export class RoomFs implements ExecutionEnv {
     })
   }
 
-  /**
-   * Bytes at a path. Refused when another writer changed the file since this agent last saw it.
-   * `expect` replaces what this agent saw: the hash the caller read, or "none" for a path that must
-   * be empty. A shell command passes its own, so one command's view never leaks into another's.
-   */
-  async write(path: string, bytes: Uint8Array, type = typeForPath(path), expect?: string): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
+  /** Bytes at a path. Refused when another writer changed the file since this agent last saw it. */
+  async write(path: string, bytes: Uint8Array, type = typeForPath(path)): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
-    if (rel.value === "") return err(new FileError("is_directory", "/ is a folder", path))
-    if (rel.value === CHAT_PATH && bytes.length > MAX_CHAT) {
-      return err(new FileError("invalid", `/chat.md would be ${bytes.length} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path))
-    }
-    if (bytes.length > MAX_WRITE_BYTES) return err(new FileError("invalid", `${path} would be ${bytes.length} bytes, over the ${MAX_WRITE_BYTES} byte limit`, path))
-    const own = expect === undefined
-    const out = await this.backend.write(rel.value, bytes, type, own ? this.seen.get(rel.value) : expect)
+    const refused = this.unwritable(rel.value, bytes.length, path)
+    if (refused) return err(refused)
+    const out = await this.backend.write(rel.value, bytes, type, this.seen.get(rel.value))
     // A new file changes its folders too.
     this.stats.clear()
     if (!out.ok) {
-      if (out.code === "conflict" && own) this.seen.delete(rel.value)
-      return err(out.code === "conflict" ? new FileConflict(out.message, path) : this.fail(out, path))
+      if (out.code === "conflict") this.seen.delete(rel.value)
+      return err(out.code === "conflict" ? new FileError("unknown", out.message, path) : this.fail(out, path))
     }
-    if (own) this.seen.set(rel.value, out.entry.sha256)
+    this.seen.set(rel.value, out.entry.sha256)
     return ok(out.entry)
+  }
+
+  /** Why `bytes` bytes cannot go at a room path, or null. */
+  private unwritable(rel: string, bytes: number, path: string): FileError | null {
+    if (rel === "") return new FileError("is_directory", "/ is a folder", path)
+    if (rel === CHAT_PATH && bytes > MAX_CHAT) {
+      return new FileError("invalid", `/chat.md would be ${bytes} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path)
+    }
+    if (bytes > MAX_WRITE_BYTES) return new FileError("invalid", `${path} would be ${bytes} bytes, over the ${MAX_WRITE_BYTES} byte limit`, path)
+    return null
+  }
+
+  /**
+   * A bash command's changes, in tool paths (section 18.4). Within each file space, all of them land
+   * or none do. Every path and size is checked before anything is sent.
+   */
+  async commit(changes: readonly BatchChange[]): Promise<BatchResult> {
+    const rel = (path: string) => {
+      const out = this.roomPath(path)
+      if (!out.ok) throw out.error
+      return out.value
+    }
+    try {
+      const mapped = changes.map((c): BatchChange => {
+        switch (c.op) {
+          case "write": {
+            const path = rel(c.path)
+            const refused = this.unwritable(path, c.bytes.length, c.path)
+            if (refused) throw refused
+            return { ...c, path }
+          }
+          case "move":
+            return { ...c, from: rel(c.from), to: rel(c.to) }
+          case "rmdir":
+            return { ...c, path: rel(c.path), files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [rel(p), sha])) }
+          default:
+            return { ...c, path: rel(c.path) }
+        }
+      })
+      const out = await this.backend.commit(mapped)
+      this.stats.clear()
+      return out.ok ? out : { ...out, path: `/${out.path}` }
+    } catch (e) {
+      if (e instanceof FileError) return { ok: false, path: e.path ?? "", message: e.message, conflict: false }
+      throw e
+    }
   }
 
   async writeFile(path: string, content: string | Uint8Array): Promise<Result<void, FileError>> {
@@ -390,6 +436,7 @@ type SpaceIndex = {
   move(from: string, to: string): Promise<FsChange | FsFail>
   remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
   mkdir(path: string): Promise<FsChange | FsFail>
+  commit(changes: readonly IndexChange[]): Promise<CommitResult>
 }
 
 /** A backend over one space's index and R2, with the shared byte cache. */
@@ -425,6 +472,30 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
     move: (from, to) => index().move(from, to),
     mkdir: (path) => index().mkdir(path),
     remove: (paths, recursive) => index().remove(paths, recursive),
+    async commit(changes) {
+      const h = home()
+      const at = index()
+      // The bytes go to R2 first, under new keys; the index then takes the whole batch or none of it.
+      const stored: { key: string; bytes: Uint8Array }[] = []
+      const indexed = await Promise.all(
+        changes.map(async (c): Promise<IndexChange> => {
+          if (c.op !== "write") return c.op === "move" ? { op: "move", from: c.from, to: c.to, sha256: c.sha256 } : c
+          const id = crypto.randomUUID()
+          const r2Key = fileKey(h.userId, at.space, id)
+          const sha256 = hex(await crypto.subtle.digest("SHA-256", c.bytes))
+          await env.FILES.put(r2Key, c.bytes, { httpMetadata: { contentType: c.type } })
+          stored.push({ key: r2Key, bytes: c.bytes })
+          return { op: "put", file: { id, path: c.path, r2Key, size: c.bytes.length, type: c.type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256: c.expect } }
+        }),
+      )
+      const out = await at.commit(indexed)
+      if (!out.ok) {
+        await deleteFiles(env.FILES, stored.map((s) => s.key))
+        return out
+      }
+      for (const s of stored) cache.set(s.key, s.bytes)
+      return { ok: true }
+    },
   }
 }
 
@@ -450,6 +521,7 @@ export function roomBackend(env: Env, home: () => AgentHome | null, cache = new 
       move: (a, b) => room.fsMove(me, a, b),
       remove: (p, r) => room.fsRemove(me, p, r),
       mkdir: (p) => room.fsMkdir(me, p),
+      commit: (c) => room.fsCommit(me, c),
     }
   }, cache)
 }
@@ -483,6 +555,7 @@ export function homeBackend(
       move: (a, b) => user.homeMove(me, a, b),
       remove: (p, r) => user.homeRemove(me, p, r),
       mkdir: (p) => user.homeMkdir(me, p),
+      commit: (c) => user.homeCommit(me, c),
     }
   }, cache)
   const refuse = (message: string): FsFail => ({ ok: false, code: "invalid", message })
@@ -503,6 +576,15 @@ export function homeBackend(
     mkdir: async (path) => {
       const why = locked()
       return why ? refuse(why) : base.mkdir(path)
+    },
+    commit: async (changes) => {
+      const why = locked()
+      if (why) return { ok: false, path: changes.flatMap(batchPaths)[0] ?? "", message: why, conflict: false }
+      const out = await base.commit(changes)
+      const said = changes.flatMap((c) =>
+        c.op === "write" ? [`saved /home/${c.path}`] : c.op === "move" ? [`moved /home/${c.from} to /home/${c.to}`] : c.op === "mkdir" ? [] : [`deleted /home/${c.path}`],
+      )
+      return said.length ? told(out, said.join(", ")) : out
     },
   }
 }
@@ -558,6 +640,23 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
     },
     async mkdir(path) {
       return inside(path) ? (path === at ? { ok: true, events: [], drop: [], changed: 0 } : mounted.mkdir(strip(path))) : base.mkdir(path)
+    },
+    async commit(changes) {
+      // Each side is its own batch: the chat's files first, then the mount.
+      const mine = (c: BatchChange) => batchPaths(c).every(inside)
+      const crossing = changes.find((c) => !mine(c) && batchPaths(c).some(inside))
+      if (crossing) return { ok: false, path: batchPaths(crossing)[0]!, message: across.message, conflict: false }
+      const outside = changes.filter((c) => !mine(c))
+      if (changes.some((c) => mine(c) && batchPaths(c).includes(at))) return { ok: false, path: at, message: `/${at} stays where it is`, conflict: false }
+      const there = changes.filter(mine).map((c): BatchChange => {
+        if (c.op === "move") return { ...c, from: strip(c.from), to: strip(c.to) }
+        if (c.op === "rmdir") return { ...c, path: strip(c.path), files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [strip(p), sha])) }
+        return { ...c, path: strip(c.path) }
+      })
+      const first = outside.length ? await base.commit(outside) : ({ ok: true } as const)
+      if (!first.ok || !there.length) return first
+      const second = await mounted.commit(there)
+      return second.ok ? second : { ...second, path: `${at}/${second.path}` }
     },
   }
 }
@@ -620,6 +719,16 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
     },
     async mkdir(path) {
       return mine(path) ? refuse("only /me/soul.md lives in /me") : base.mkdir(path)
+    },
+    async commit(changes) {
+      const other = changes.find((c) => batchPaths(c).some(mine) && !(c.op === "write" && c.path === SOUL_PATH))
+      if (other) return { ok: false, path: batchPaths(other).find(mine)!, message: "/me/soul.md stays where it is, and only it lives in /me. edit it instead", conflict: false }
+      const rest = changes.filter((c) => !batchPaths(c).some(mine))
+      const first = rest.length ? await base.commit(rest) : ({ ok: true } as const)
+      const write = changes.find((c) => c.op === "write" && c.path === SOUL_PATH)
+      if (!first.ok || write?.op !== "write") return first
+      const out = await soul.set(new TextDecoder().decode(write.bytes), write.expect)
+      return out.ok ? { ok: true } : { ok: false, path: SOUL_PATH, message: out.message, conflict: out.code === "conflict" }
     },
   }
 }
