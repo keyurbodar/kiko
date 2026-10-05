@@ -395,7 +395,7 @@ Every variable below may be set under `tokens` with its own name. The kind says 
 | `--glass-edge` | any | `none` |
 | `--fade-bg` | color | `var(--bg)` |
 | `--wallpaper` | any | `none` |
-| `--glass` | number | `0.85` |
+| `--glass` | number | `0.6` |
 | `--v2-background-bg-base` | color | `var(--input-bg)` |
 | `--v2-background-bg-deep` | color | `var(--bg)` |
 | `--v2-background-bg-layer-01` | color | `var(--bg-subtle)` |

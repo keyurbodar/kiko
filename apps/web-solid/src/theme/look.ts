@@ -19,8 +19,8 @@ export const MATERIALS: readonly Material[] = ["frost", "solid"]
 export const DEFAULT_TINT = 0.5
 const clampTint = (n: number) => Math.min(1, Math.max(0, Math.round(n * 100) / 100))
 
-/** How opaque frost's glass is over a wallpaper. Monocode's sidebar opacity: 0.15 to 1, 0.85 by default. */
-export const DEFAULT_GLASS = 0.85
+/** How opaque frost's glass is over a wallpaper, 0.15 to 1 as monocode's sidebar opacity. 0.6 lets the frost show. */
+export const DEFAULT_GLASS = 0.6
 export const MIN_GLASS = 0.15
 const clampGlass = (n: number) => Math.min(1, Math.max(MIN_GLASS, Math.round(n * 100) / 100))
 

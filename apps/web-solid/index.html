@@ -11,7 +11,7 @@
       /* the look before first paint: the appearance, then the theme's variables for it.
          src/theme/apply.ts writes this cache under the same key. */
       (function () {
-        var d = document.documentElement, mode = "system", vars = null, material = "frost", tint = 0.5, wallpaper = null, glass = 0.85;
+        var d = document.documentElement, mode = "system", vars = null, material = "frost", tint = 0.5, wallpaper = null, glass = 0.6;
         try {
           var c = JSON.parse(localStorage.getItem("kiko:look"));
           if (c && c.v === 2) { mode = c.mode; vars = c.vars; if (c.material) material = c.material; if (typeof c.tint === "number") tint = c.tint; if (typeof c.wallpaper === "string") wallpaper = c.wallpaper; if (typeof c.glass === "number") glass = c.glass; }

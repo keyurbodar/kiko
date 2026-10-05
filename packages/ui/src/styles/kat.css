@@ -793,7 +793,7 @@
   --fade-bg: var(--bg);
   /* Frost's wallpaper and how opaque its glass is. apply.ts sets both from the look. */
   --wallpaper: none;
-  --glass: 0.85;
+  --glass: 0.6;
 }
 
 :root[data-material="frost"] {
@@ -868,13 +868,14 @@
   background-attachment: fixed;
 }
 
-/* Frost over a wallpaper, monocode's glass. The picture (`--wallpaper`, a small data URL set by
-   apply.ts) is blurred 24px on one fixed layer, drawn once, and nothing moves behind it, so no
-   live blur is needed. The shell is neutral grey, monocode's `hsl(0 0% 9%)`, at `--glass`
-   (0.85 by default), so about 15% of the picture's colour reaches everything. The layer
-   overhangs the window by 48px so the blur never fades at the edges. */
+/* Frost over a wallpaper, like macOS glass. The picture (`--wallpaper`, a small data URL set by
+   apply.ts) is blurred 48px, saturated and dimmed a little on one fixed layer, drawn once, and
+   nothing moves behind it, so no live blur is needed. The shell is neutral dark glass at
+   `--glass` (0.6 by default), so the picture's soft shapes and colour show through it, which
+   is what reads as frost; a denser glass only reads as a tint. The layer overhangs the window
+   by 120px so the blur never fades at the edges. */
 :root[data-material="frost"][data-wallpaper] {
-  --bg-sidebar: oklch(0.2 0 0 / var(--glass));
+  --bg-sidebar: oklch(0.16 0 0 / var(--glass));
   --panel: oklch(100% 0 none / 0.025);
   --glass-edge: inset 0 0 0 1px oklch(100% 0 none / 0.06);
 }
@@ -892,10 +893,10 @@
 :root[data-material="frost"][data-wallpaper] body::before {
   content: "";
   position: fixed;
-  inset: -48px;
+  inset: -120px;
   z-index: -1;
   background: var(--wallpaper) center / cover no-repeat;
-  filter: blur(24px);
+  filter: blur(48px) saturate(1.6) brightness(0.85);
   pointer-events: none;
 }
 
