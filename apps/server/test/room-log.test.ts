@@ -1,22 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { RoomEvent, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // The real RoomDO in workerd. Each test uses its own room.
 let mf: Miniflare
 let origin: string
 
 beforeAll(async () => {
-	const built = await Bun.build({
-		entrypoints: [new URL("./room-worker.ts", import.meta.url).pathname],
-		target: "browser",
-		format: "esm",
-		external: ["cloudflare:workers"],
-	})
-	if (!built.success) throw new Error(built.logs.join("\n"))
 	mf = new Miniflare({
 		modules: true,
-		script: await built.outputs[0]!.text(),
+		script: await bundleWorker(new URL("./room-worker.ts", import.meta.url)),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
 		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true } },
