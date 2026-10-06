@@ -92,7 +92,8 @@ export class FakeUser extends DurableObject {
   }
   async openChat(title: string, agents: readonly string[]) {
     const state = await this.state()
-    const roomId = `01JZ8Q4T6P${String(state.chats.length).padStart(16, "0")}`
+    // Unique across tests: the room objects outlive the state each test sets.
+    const roomId = `01JZ8Q4T6P${Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => "0123456789ABCDEFGHJKMNPQRSTVWXYZ"[b % 32]).join("")}`
     await this.set({ ...state, chats: [...state.chats, { roomId, title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: 0, agents } as Chat] })
     return roomId
   }

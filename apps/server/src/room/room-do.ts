@@ -214,7 +214,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const checked = checkProposal(input, await userStub(this.env.USER, home.userId).listAgents())
 		if ("error" in checked) return { ok: false, error: checked.error }
 		const id = crypto.randomUUID().slice(0, 8)
-		const proposal: Proposal = { ...checked, id, seq: this.log.lastSeq() }
+		// The human's answer is any message after the run that proposes began: one sent while kiko was still
+		// writing the proposal ("do fast") is their go, not a message kiko has to ask past.
+		const runStart = Number(this.log.meta(`live:${slug}`) ?? Number.NaN)
+		const proposal: Proposal = { ...checked, id, seq: Number.isFinite(runStart) ? Math.min(runStart, this.log.lastSeq()) : this.log.lastSeq() }
 		this.log.setMeta(`proposal:${id}`, JSON.stringify(proposal))
 		return { ok: true, id }
 	}
@@ -1420,9 +1423,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
 		await this.setTyping(slug, state === "typing")
 		// A marker that outlives the process, so a room that starts after a restart knows a run was live.
-		// Written once per run, not on every typing and working change.
+		// Written once per run, not on every typing and working change. It holds the log's sequence when
+		// the run began, so a human message sent during the run counts as an answer to it (`propose`).
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
-		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, "1")
+		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, String(this.log.lastSeq()))
 	}
 
 	/**

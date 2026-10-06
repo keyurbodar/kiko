@@ -438,6 +438,23 @@ test("a private chat's agents are told so on every delivery", async () => {
 
 const soul = (name: string) => `# ${name}\n\ni plan meals around what's in the fridge.\n\n## what i've learned about working with them\n`
 
+test("a yes the human sends while kiko is still writing the proposal counts, and the request itself does not", async () => {
+  const room = fresh()
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), temp: true }], agents: AGENTS })
+  const ws = await Socket.open(room)
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "kiko"))
+  await ws.say("make me a cooking agent")
+  await call(`/status/${room}/kiko/working`)
+  const first = (await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "baker", handle: "baker", description: "plans your meal prep", soul: soul("baker") } })) as { id: string }
+  // The request that started the run is not a yes to what the run then proposed.
+  expect(((await call(`/create/${room}/kiko/${first.id}`)) as { error: string }).error).toContain("wait for their yes")
+  // The human writes while the next proposal is still being written; it is saved after their message.
+  await ws.say("do fast")
+  const second = (await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "grill", handle: "grill", description: "plans your meal prep", soul: soul("grill") } })) as { id: string }
+  expect(((await call(`/create/${room}/kiko/${second.id}`)) as { ok: boolean }).ok).toBe(true)
+  ws.ws.close()
+})
+
 test("in a temporary chat kiko makes an agent only after the human answers", async () => {
   const room = fresh()
   await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), temp: true }], agents: AGENTS })
