@@ -3,6 +3,7 @@ import type { Env } from "../index"
 import type { Alarms } from "../lib/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
+import type { Authority } from "../lib/origin"
 import { RRule } from "rrule"
 import { nextOccurrence, ruleProblem } from "./recurrence"
 
@@ -209,6 +210,12 @@ export function nextAfter(rrule: string, tz: string, due: number, now: number): 
   return null
 }
 
+/**
+ * The grant a routine's run carries (section 25.3). A routine a run that read outside content made,
+ * without the human seeing all of it on a card, keeps no grant: its outside tools ask the human.
+ */
+export const runGrant = (r: Pick<Reminder, "tainted" | "grant">): readonly string[] => (r.tainted ? [] : r.grant)
+
 /** What the RPC returns, since an error class does not survive the trip. */
 export type ReminderResult = { ok: true; reminder: Reminder } | { ok: false; error: string }
 
@@ -222,12 +229,18 @@ export async function asResult(run: () => Promise<Reminder | null>): Promise<Rem
   }
 }
 
-/** The real delivery: the room of the owning user, through `names.ts`. */
-export function roomDelivery(env: Env, owner: () => string | null): Deliver {
+/**
+ * The real delivery: the room of the owning user, through `names.ts`. `authority` gives the run a
+ * reminder wakes its authority from who made it; null leaves it `auto`.
+ */
+export function roomDelivery(env: Env, owner: () => string | null, authority: (createdBy: string) => Authority | null = () => null): Deliver {
   return async (id, reminder) => {
     const userId = owner()
     if (!userId) throw new ReminderError("no owner")
-    await roomStub(env.ROOM, userId, reminder.roomId).deliverReminder(id, { text: reminder.text, target: reminder.target, createdBy: reminder.createdBy, chain: reminder.chain, recurring: reminder.rrule !== null })
+    // An extension's trigger takes its authority from the extension (lane A); any other reminder from
+    // the chain that set it (section 25.3), which also gives its root and hop.
+    const by = authority(reminder.createdBy) ?? reminder.chain?.authority ?? null
+    await roomStub(env.ROOM, userId, reminder.roomId).deliverReminder(id, { text: reminder.text, target: reminder.target, createdBy: reminder.createdBy, chain: reminder.chain, recurring: reminder.rrule !== null, ...(by ? { authority: by } : {}) })
   }
 }
 

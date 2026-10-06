@@ -1,8 +1,12 @@
 import { Type, type AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "../effects"
+import { CHIEF_EXT } from "./chief"
 import { MEMORY_NOTE } from "./memory"
 import { MESSAGING } from "./messaging"
+import { REMINDERS } from "./reminders"
+import { isRunTainted, markRunTainted } from "./trust"
+import { WORKSPACE } from "./workspace"
 
 // Architecture section 8. A private child conversation inside this agent's own object, from
 // pi-durable's foreground subagent pattern. The child starts as a copy of this agent without
@@ -10,12 +14,17 @@ import { MESSAGING } from "./messaging"
 // The child can recall and zoom the chat's memory, but writes none: it cannot judge what is already
 // known (OptMem's rule, section 13).
 // Effect: `read`. The child is built with the same trust extension, so its own tools keep their
-// effects and the gate.
+// effects and the gate. When the helper's run read outside content, its answer is outside content
+// too: the parent's run is tainted and the answer comes back wrapped.
 
 export const SUBAGENT = "subagent"
 
-/** Removal is by name: a child never gets these. */
-const NOT_FOR_HELPERS = [SUBAGENT, MESSAGING, MEMORY_NOTE].map((name) => defineExtension({ name }))
+/**
+ * Removal is by name: a child never gets these. A helper is private, so it gets no team, board,
+ * chief, reminder, or routine tools: anything that outlives its answer or reaches others is the
+ * parent's to do (audit row 10).
+ */
+export const NOT_FOR_HELPERS = [SUBAGENT, MESSAGING, MEMORY_NOTE, CHIEF_EXT, REMINDERS, WORKSPACE].map((name) => defineExtension({ name }))
 
 export const Subagent: Extension = defineExtension({
 	name: SUBAGENT,
@@ -43,6 +52,8 @@ export const Subagent: Extension = defineExtension({
 				const entry = await api.commit((tx) => tx.entry(AssistantEntry, settled.answer), ctx)
 				const message = entry?.model?.[0] as AssistantMessage | undefined
 				const text = (message?.content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
+				// Unknown after a restart counts as tainted, the safe side.
+				if (isRunTainted({ registry: api.registry, conversationId: child })) markRunTainted(api, "helper")
 				return { content: [{ type: "text", text }], details: { conversationId: child } }
 			},
 		})),

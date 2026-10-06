@@ -5,6 +5,7 @@ import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
 import { type Alarms, createAlarms, runDue } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
+import { HUMAN, stamp } from "../lib/origin"
 import { BUDGET_LINE, utcDay } from "./limits"
 import { type Inflight, RoomRoutines, ROUTINES_WAKEUP } from "./routines"
 import { chatTasks, LOOPS_WAKEUP, MAX_NUDGES, nextSweep, nudgeBody, openTasks, stalled } from "./stalls"
@@ -21,7 +22,6 @@ import { Bubbles, replyTag } from "./bubbles"
 import { chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
 import { Deliveries, type ReminderDelivery, route, withContext } from "./deliver"
 import { resolveRecipients } from "./recipients"
-import { HUMAN, stamp } from "../lib/origin"
 import { type AgentSend, type Chain, Mail, messageIdOf, type QueuedMail, type StoredSend } from "./mail"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
@@ -574,9 +574,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// The answer to a teammate's open ask goes to its waiting tool, not to a new run. Only a send_message
 		// answers, never a question sent with `ask`, and only the first time: a replayed send finds the ask
 		// it answered and pushes again. A lost push costs only time: the tool reads the stored answer when its wait ends.
-		const asked = askId || send.to === "all" ? null : out.fresh ? this.asks.answer(slug, send.to, send.text, send.id) : this.asks.answeredBy(send.id)
+		const asked = askId || send.to === "all" ? null : out.fresh ? this.asks.answer(slug, send.to, send.text, send.id, send.tainted) : this.asks.answeredBy(send.id)
 		if (asked) {
-			this.pushAnswer(home, send.to as AgentSlug, asked, out.send.text)
+			this.pushAnswer(home, send.to as AgentSlug, asked, out.send.text, out.send.tainted)
 			return { ok: true, to: out.send.recipients }
 		}
 		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
@@ -586,10 +586,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, to: out.send.recipients }
 	}
 
-	private pushAnswer(home: { userId: string; roomId: RoomId }, asker: AgentSlug, askId: string, text: string): void {
+	private pushAnswer(home: { userId: string; roomId: RoomId }, asker: AgentSlug, askId: string, text: string, tainted: boolean): void {
 		this.ctx.waitUntil(
 			agentStub(this.env.AGENT, home.userId, home.roomId, asker)
-				.askAnswered(askId, text)
+				.askAnswered(askId, text, tainted)
 				.catch((e: unknown) => console.error(`ask answer push failed: ${e instanceof Error ? e.message : String(e)}`)),
 		)
 	}
@@ -636,14 +636,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const text = bubbles.map((b) => b.text).join("\n\n").trim()
 		if (!text) return
 		const last = bubbles.at(-1)!
+		const tainted = bubbles.some((b) => b.tainted === 1)
 		let relayed = false
 		for (const ask of asks) {
-			if (!this.asks.settle(ask.id, text)) continue
+			if (!this.asks.settle(ask.id, text, tainted)) continue
 			if (ask.state === "open") {
-				this.pushAnswer(home, ask.asker, ask.id, text)
+				this.pushAnswer(home, ask.asker, ask.id, text, tainted)
 				continue
 			}
-			const send = this.mail.relay(`answer:${ask.id}`, slug, ask.asker, { id: last.id, seq: last.seq, text, tainted: bubbles.some((b) => b.tainted === 1) })
+			const send = this.mail.relay(`answer:${ask.id}`, slug, ask.asker, { id: last.id, seq: last.seq, text, tainted })
 			if (send) {
 				this.mail.queue(slug, send)
 				relayed = true
@@ -935,8 +936,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (event && home && event.t === "message" && this.members.get(reminder.target as AgentSlug)) {
 			const own = `reminder:${id}`
+			// The authority comes from who made it: an extension's trigger is a routine granted its own tools
+			// (lane A), any other reminder keeps the chain that set it, and the human's own reminder is the human's.
 			const made = reminder.chain ?? (reminder.createdBy === "human" ? { rootId: own, hop: 0, authority: HUMAN } : null)
-			const chain = made && reminder.recurring ? { ...made, rootId: own, hop: 0 } : made
+			const kept = made && reminder.recurring ? { ...made, rootId: own, hop: 0 } : made
+			const chain = reminder.authority ? { rootId: kept?.rootId ?? own, hop: kept?.hop ?? 0, authority: reminder.authority } : kept
 			const envelope: Envelope = { id: own, roomId: home.roomId, from: { kind: "system", reason: "reminder" }, body: `reminder: ${reminder.text}`, tainted: false, seq: event.seq, ...this.chained(chain, own) }
 			await this.deliverAuto(home, reminder.target as AgentSlug, envelope)
 		}
@@ -1421,9 +1425,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * RPC for an agent's trust gate (P7-02, section 16.3). A tainted run wants to call `external` tool
-	 * `req.tool`. Returns the accepted approval's id, or the text that ends the call while a card waits
-	 * for the human. It never decides a card: only the human's socket does.
+	 * RPC for an agent's cards (sections 12.3, 16.3, 25.3): the trust gate, a routine tool, or Executor's
+	 * pause. Returns the accepted card's id, or the text that ends the call while a card waits for the
+	 * human. It never decides a card: only the human's socket does.
 	 */
 	async requestApproval(slug: AgentSlug, req: ApprovalRequest): Promise<ApprovalAnswer> {
 		if (!this.members.list().some((m) => m.slug === slug)) return { refused: "not run: you are not a member of this room." }
@@ -1473,6 +1477,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const { refused } = await agent.receive([envelope], brief, this.agentHome(home, slug, member))
 				if (refused === "full") throw new Error("inbox full")
 				if (refused) console.error(`approval_result delivery to ${slug} refused: ${refused}`)
+				// The human's answer carries the human's authority into the run it starts, like any delivery.
+				else this.mail.delivered(slug, [envelope])
 				this.approvals.markDelivered(id)
 			}
 		} catch (error) {
@@ -1529,7 +1535,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
 			for (const ask of this.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
-				if (this.asks.settle(ask.id, why) && ask.state === "open") this.pushAnswer(home, ask.asker, ask.id, why)
+				if (this.asks.settle(ask.id, why, false) && ask.state === "open") this.pushAnswer(home, ask.asker, ask.id, why, false)
 			}
 		}
 		// No credential, no run: the routine runs handed to this agent failed.

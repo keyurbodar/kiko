@@ -145,7 +145,7 @@ export type Approval = {
 	state: ApprovalState
 	/** Epoch milliseconds. */
 	expiresAt: number
-	/** Set when an ok lets the agent use the tool freely for this long, not just once. */
+	/** Set on a card whose ok lets the agent act outside kiko for this long (section 25.3). */
 	grantMs?: number
 }
 

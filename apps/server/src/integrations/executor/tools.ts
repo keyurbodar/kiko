@@ -7,7 +7,7 @@ import { acceptResponse, type ApprovalGate, pendingInteraction, RESUME_TOOL } fr
 // Architecture section 12.2, P7-04. Every tool Executor lists becomes an agent tool named
 // `executor_<name>`, with Executor's own description and input schema. Nothing about a tool is
 // written here: adding an integration in the Executor console changes the next run's tools.
-// Every Executor tool is `external` (the trust gate holds it in a tainted run) unless the server
+// Every Executor tool is `external` (the trust gate holds it in a run nobody asked for) unless the server
 // marks it read-only, and every result is outside content, so it is wrapped as untrusted.
 
 export const EXECUTOR = "executor"
@@ -22,16 +22,6 @@ export type ExecutorTool = {
 
 export type ExecutorResultBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string }
 export type ExecutorCall = (name: string, args: Record<string, unknown>) => Promise<{ content: ExecutorResultBlock[]; isError?: boolean }>
-
-/** How long one ok to an Executor card covers that agent's Executor calls (section 12.3). */
-export const EXECUTOR_GRANT_MS = 15 * 60_000
-
-/**
- * The grant a trust card for `tool` asks for, if it is an Executor tool. A task in code mode is many
- * `execute` calls with new code each time, so a card per exact call would ask the human at every step.
- */
-export const executorGrant = (tool: string): number | undefined =>
-  tool.startsWith("executor_") && tool !== toolName(RESUME_TOOL) ? EXECUTOR_GRANT_MS : undefined
 
 /** `executor_` plus the name, with anything a model's tool name cannot hold turned into `_`. */
 export const toolName = (name: string) => `executor_${name.replace(/[^a-zA-Z0-9_-]/g, "_")}`.slice(0, 64)
@@ -54,12 +44,11 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
           replay: t.readOnly ? "safe" : "unsafe",
           execute: async (args, api) => {
             const input = (args ?? {}) as Record<string, unknown>
-            const key = `${api.conversationId}:${api.callId}`
             try {
               // P7-05: resume runs only against a card the human accepted, and kiko writes the answer.
               if (t.name === RESUME_TOOL) {
                 const requestId = String(input.requestId ?? "")
-                const ok = gate ? await gate(key, toolName(RESUME_TOOL), { requestId }) : null
+                const ok = gate ? await gate({ kind: "resume", requestId }) : null
                 if (typeof ok !== "string") {
                   const why = ok?.refused ?? "resuming needs the human's approval in the chat."
                   return { content: [{ type: "text" as const, text: `not resumed: ${why} you cannot approve it yourself.` }], isError: true }
@@ -72,7 +61,7 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
               if (pending && gate) {
                 // Post the card now, so the human sees it while the agent tells them what it needs.
                 const summary = pending.message.replace(/\s+/g, " ").slice(0, 400) || undefined
-                await gate(`pause:${pending.requestId}`, toolName(RESUME_TOOL), { requestId: pending.requestId }, { summary, ttlMs: pending.expiresAt - Date.now() })
+                await gate({ kind: "pause", requestId: pending.requestId, tool: toolName(RESUME_TOOL), summary, ttlMs: pending.expiresAt - Date.now() })
                 const ask = pending.kind === "input" ? " ask the human for what it needs in the chat, and pass their answer as response.content." : ""
                 return {
                   content: [{ type: "text" as const, text: `${text}\n\nthis is paused for the human; a card is in the chat. tell the human what it does and wait.${ask} once the approval result says accepted, call ${toolName(RESUME_TOOL)} with requestId ${pending.requestId}. never run the program again to continue it.` }],

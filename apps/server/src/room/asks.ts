@@ -9,7 +9,8 @@ import type { AgentSlug } from "@kiko/protocol"
 // times out is closed, and a later reply is delivered like any other message. `answer` is set once
 // anything answered the ask, so nothing answers it twice.
 
-export type AskState = { state: "open" | "answered" | "closed"; answer: string | null }
+/** `tainted`: the answer came from a run that read outside content, so it taints the asker's run. */
+export type AskState = { state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean }
 
 /** An ask still waiting for its first answer: open, or closed by a wait that ran out. */
 export type Unanswered = { id: string; asker: AgentSlug; state: "open" | "closed" }
@@ -31,6 +32,9 @@ export class Asks {
     const columns = new Set(sql.exec<{ name: string }>("PRAGMA table_info(agent_asks)").toArray().map((c) => c.name))
     if (!columns.has("message_id")) sql.exec("ALTER TABLE agent_asks ADD COLUMN message_id TEXT")
     if (!columns.has("answer_send")) sql.exec("ALTER TABLE agent_asks ADD COLUMN answer_send TEXT")
+    if (!sql.exec<{ name: string }>("PRAGMA table_info(agent_asks)").toArray().some((c) => c.name === "tainted")) {
+      sql.exec("ALTER TABLE agent_asks ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0")
+    }
   }
 
   /** Opens the ask. A repeat of the same id (a replayed tool call) changes nothing. */
@@ -54,11 +58,11 @@ export class Asks {
    * id, or null. An ask whose wait ran out takes the message as its answer too, so a plain reply later
    * never answers it a second time; the message is then delivered as ordinary mail.
    */
-  answer(from: AgentSlug, to: AgentSlug, text: string, sendId: string): string | null {
+  answer(from: AgentSlug, to: AgentSlug, text: string, sendId: string, tainted: boolean): string | null {
     const open = this.sql.exec<{ id: string }>("SELECT id FROM agent_asks WHERE asker = ? AND askee = ? AND state = 'open' ORDER BY at LIMIT 1", to, from).toArray()[0]
     this.sql.exec("UPDATE agent_asks SET answer = ? WHERE asker = ? AND askee = ? AND state = 'closed' AND answer IS NULL", text, to, from)
     if (!open) return null
-    this.sql.exec("UPDATE agent_asks SET state = 'answered', answer = ?, answer_send = ? WHERE id = ?", text, sendId, open.id)
+    this.sql.exec("UPDATE agent_asks SET state = 'answered', answer = ?, answer_send = ?, tainted = ? WHERE id = ?", text, sendId, tainted ? 1 : 0, open.id)
     return open.id
   }
 
@@ -80,15 +84,15 @@ export class Asks {
   }
 
   /** Answers ask `id` with `text`. An open ask becomes answered; a closed one keeps its state. False when it had an answer. */
-  settle(id: string, text: string): boolean {
+  settle(id: string, text: string, tainted: boolean): boolean {
     return (
-      this.sql.exec("UPDATE agent_asks SET state = CASE state WHEN 'open' THEN 'answered' ELSE state END, answer = ? WHERE id = ? AND answer IS NULL", text, id).rowsWritten > 0
+      this.sql.exec("UPDATE agent_asks SET state = CASE state WHEN 'open' THEN 'answered' ELSE state END, answer = ?, tainted = ? WHERE id = ? AND answer IS NULL", text, tainted ? 1 : 0, id).rowsWritten > 0
     )
   }
 
   get(id: string): AskState | null {
-    const row = this.sql.exec<{ state: AskState["state"]; answer: string | null }>("SELECT state, answer FROM agent_asks WHERE id = ?", id).toArray()[0]
-    return row ? { state: row.state, answer: row.answer } : null
+    const row = this.sql.exec<{ state: AskState["state"]; answer: string | null; tainted: number }>("SELECT state, answer, tainted FROM agent_asks WHERE id = ?", id).toArray()[0]
+    return row ? { state: row.state, answer: row.answer, tainted: row.tainted === 1 } : null
   }
 
   /** The asker stopped waiting. An answer that already arrived is kept and returned. */

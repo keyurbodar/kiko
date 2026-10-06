@@ -244,20 +244,26 @@ test("an ask is delivered, its answer is pushed to the waiting tool and not the 
   expect(((await call(`/ask/${room}/ada`, { id: "q1", to: "bob", text: "what is the port?", tainted: false })) as { ok: boolean }).ok).toBe(true)
   const [question] = await delivered(room, "bob", 1)
   expect(question!.envelopes.map((e) => e.body)).toEqual(["what is the port?"])
-  expect(await call(`/askstate/${room}/q1`)).toEqual({ state: "open", answer: null })
+  expect(await call(`/askstate/${room}/q1`)).toEqual({ state: "open", answer: null, tainted: false })
   // bob answers with send_message: the chat shows it, ada's tool reads it, and ada's inbox stays as it was.
   await call(`/mail/${room}/bob`, { id: "a1", to: "ada", text: "8797", tainted: false })
-  expect(await call(`/askstate/${room}/q1`)).toEqual({ state: "answered", answer: "8797" })
+  expect(await call(`/askstate/${room}/q1`)).toEqual({ state: "answered", answer: "8797", tainted: false })
   await Bun.sleep(500)
   expect((await counts(room)).ada).toBe(1)
-  expect((await received(room, "ada")).answers).toEqual([{ id: "q1", answer: "8797" }])
+  expect((await received(room, "ada")).answers).toEqual([{ id: "q1", answer: "8797", tainted: false }])
   // An ask that timed out is closed; a later reply is an ordinary message.
   await call(`/ask/${room}/ada`, { id: "q2", to: "bob", text: "and the host?", tainted: false })
-  expect(await call(`/closeask/${room}/q2`)).toEqual({ state: "closed", answer: null })
+  expect(await call(`/closeask/${room}/q2`)).toEqual({ state: "closed", answer: null, tainted: false })
   await call(`/mail/${room}/bob`, { id: "a2", to: "ada", text: "localhost", tainted: false })
   await delivered(room, "ada", 2)
-  expect((await received(room, "ada")).answers).toEqual([{ id: "q1", answer: "8797" }])
+  expect((await received(room, "ada")).answers).toEqual([{ id: "q1", answer: "8797", tainted: false }])
   expect(((await call(`/ask/${room}/ada`, { id: "q3", to: "all", text: "anyone?", tainted: false })) as { ok: boolean }).ok).toBe(false)
+  // An answer from a run that read outside content keeps its taint, stored and pushed, so it taints ada's run.
+  await call(`/ask/${room}/ada`, { id: "q4", to: "bob", text: "what does the page say?", tainted: false })
+  await call(`/mail/${room}/bob`, { id: "a4", to: "ada", text: "it says hi", tainted: true })
+  expect(await call(`/askstate/${room}/q4`)).toEqual({ state: "answered", answer: "it says hi", tainted: true })
+  await Bun.sleep(300)
+  expect((await received(room, "ada")).answers.at(-1)).toEqual({ id: "q4", answer: "it says hi", tainted: true })
   ws.ws.close()
 })
 
@@ -528,7 +534,10 @@ test("a quote tells the agent exactly which words the human answers", async () =
 
 // The endgame pass on the agent-to-agent loop (docs/research/endgame-audit.md, lane B).
 
-const askOf = async (room: RoomId, id: string) => (await call(`/askstate/${room}/${id}`)) as { state: string; answer: string | null }
+const askOf = async (room: RoomId, id: string) => {
+  const { state, answer } = (await call(`/askstate/${room}/${id}`)) as { state: string; answer: string | null }
+  return { state, answer }
+}
 const until = async (what: string, test: () => Promise<boolean>, ms = 6000) => {
   const end = Date.now() + ms
   while (!(await test())) {
@@ -572,7 +581,8 @@ test("a run that read a question and answered in a plain reply answers the ask; 
   await call(`/end/${room}/bob/bob:p1`, heard)
   expect(await askOf(room, "p1")).toEqual({ state: "answered", answer: "ship friday\n\nthen rest" })
   await until("the pushed answer", async () => (await received(room, "ada")).answers.length === 1)
-  expect((await received(room, "ada")).answers).toEqual([{ id: "p1", answer: "ship friday\n\nthen rest" }])
+  // A clean run's reply leaves the asker's run clean.
+  expect((await received(room, "ada")).answers).toEqual([{ id: "p1", answer: "ship friday\n\nthen rest", tainted: false }])
   // A repeat of the run's end answers nothing twice.
   await call(`/end/${room}/bob/bob:p1`, heard)
   expect((await received(room, "ada")).answers).toHaveLength(1)
@@ -580,7 +590,7 @@ test("a run that read a question and answered in a plain reply answers the ask; 
   // ada stopped waiting on her second question. bob's plain reply reaches her as mail.
   await call(`/ask/${room}/ada`, { id: "p2", to: "bob", text: "and the date?", tainted: false })
   const second = (await delivered(room, "bob", 2))[1]!
-  expect(await call(`/closeask/${room}/p2`)).toEqual({ state: "closed", answer: null })
+  expect(await call(`/closeask/${room}/p2`)).toMatchObject({ state: "closed", answer: null })
   await call(`/post/${room}/bob/bob:p2`, { text: "the 9th" })
   await call(`/end/${room}/bob/bob:p2`, second.envelopes.map((e) => e.id))
   const mail = await delivered(room, "ada", 1)

@@ -96,8 +96,9 @@ export default {
     }
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
-    if (url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
-    if (url.pathname === "/api/experiments/coalescing") return experimentCoalescingRoute(request, env)
+    // They name an AgentDO from a query parameter, so only a development server answers them.
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/coalescing") return experimentCoalescingRoute(request, env)
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
   },

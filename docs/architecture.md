@@ -624,7 +624,7 @@ The URL carries no query options. v2's default `elicitation_mode` is `model`, wh
 
 v2 pauses a program for the human and returns JSON: `{status: "approval-required" | "input-required", requestId, elicitation, expiresAt}`. The model could answer with `resume` itself. Kiko stops that.
 
-1. The Executor extension sees the pause in a tool result and asks `RoomDO` to post an approval card. The card shows the elicitation's message and lasts until `expiresAt`, 15 minutes in v2.
+1. The Executor extension sees the pause in a tool result and asks `RoomDO` to post a pause card. The card shows the elicitation's message and lasts until `expiresAt`, 15 minutes in v2.
 2. A model call to `executor_resume` runs only against a card the human accepted.
 3. Kiko writes the `response` itself. Consent to a call (`apr_` ids) is sent with empty content, so a model cannot change approved arguments through it. A form question (`elc_` ids) passes the fields the human gave in the chat. ASSUMPTION: the agent relays those fields; the card has no form.
 4. A pause that comes back from `resume` posts a new card.
@@ -633,9 +633,9 @@ v2 keeps a paused program in memory, in the MCP session that ran it, and resumes
 
 A human who declines does not call `resume`, so the program waits until Executor lets it go.
 
-**One ok per task, not per step.** In code mode a task is many `execute` calls, each with new code, and every result after the first is outside content. Section 16's one-shot cards asked the human at every step and kept asking after an ok, because the approved call never came back with the same code. An ok to an Executor card is a grant instead: that agent may call that Executor tool with any arguments for 15 minutes from the ok (`grantMs` on the card, `room/approvals.ts`). Executor's own approvals still stop every action an app marks for a person, and `resume` answers only to those pause cards, never to a grant. DEVIATION from section 16.3, whose cards each let exactly one call through: that rule stays for every other tool.
+**One ok per task, not per step.** In code mode a task is many `execute` calls, each with new code. kiko's own card (section 25.3) is a 30-minute grant for that agent over every `external` tool, so one ok covers the task. A run the human started needs no kiko card at all. Executor's own approvals still stop every action an app marks for a person, and `resume` answers only to its own pause card, bound to the `requestId`, never to a grant (`room/approvals.ts`).
 
-The card above the composer shows only while it waits, as one line: "kiko wants to use your connected apps for 15 minutes", with the raw call behind "details".
+The card above the composer shows only while it waits, as one line: "kiko wants to use your connected apps for 30 minutes", with the raw call behind "details".
 
 This gate is the only Executor-specific code in kiko. It keys on the tool name `resume` and on the paused result shape (`integrations/executor/approval.ts`).
 
@@ -797,7 +797,7 @@ The design assumes that a model can be fooled. Marking content lowers the odds. 
 
 ### 16.3 Taint and gating
 
-A run becomes tainted when it reads untrusted content. Taint is a flag on the run, set by code.
+A run becomes tainted when it reads untrusted content. Taint is a flag on the run, set by code. Reading a chat file taints a run, except the agent's own `/me/soul.md`, which only a clean run or the human writes.
 
 Every tool declares one effect.
 
@@ -806,11 +806,20 @@ Every tool declares one effect.
 | `read` | `recall`, `zoom`, `read`, `ls`, `team` | allowed |
 | `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
-| `external` | Executor `execute` and `invoke` | needs human approval, whatever the Executor policy says |
+| `external` | Executor `execute` and `invoke` | decided by who started the run, not by taint (section 25.3) |
 
-The `beforeTool` hook enforces the table. The last row breaks the dangerous combination of private data, untrusted input, and an outside action. A user can relax it in settings.
+The `beforeTool` hook enforces the table.
 
-A tainted run's notes and messages are stored flagged, and every summary built from them is flagged too (section 13.1). A flagged line reaches later prompts only marked `[outside]`.
+DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Executor results are outside content, so the second step of any task asked the human, and reading the agent's own files did too. kiko now asks only when it matters: a run the human started acts outside kiko without a kiko card, tainted or not. The risk: an injected page could steer a send that Executor does not pause for. What still holds:
+
+- Executor's own pause stops every action an app marks for a person (section 12.3).
+- Taint still flags what the run stores and sends, and a flagged line reaches later prompts only marked `[outside]`.
+- Section 16.4 still blocks preview exfiltration.
+- A tainted run cannot write `/me/soul.md`, `skills/`, or `extensions/`, which reach every later system prompt. `RoomFs` refuses it with one line that says the human can ask for the change.
+- A routine a tainted run made keeps no grant (section 25.3).
+- A helper's answer (`spawn_subagent`) and a teammate's answer to `ask` carry their taint back to the run that asked.
+
+A tainted run's notes and messages are stored flagged, and every summary built from them is flagged too (section 13.1).
 
 ### 16.4 Exfiltration through URLs
 
@@ -822,7 +831,7 @@ Credentials and tokens. Tools use them on the server.
 
 ### 16.6 Verification
 
-The gating layer is code, so its tests are deterministic. The verification CLI runs a set of canned attacks through fake tools and asserts that no `external` tool ran without an approval record. It does not assert what the model wrote.
+The gating layer is code, so its tests are deterministic. The verification CLI runs a set of canned attacks through fake tools and asserts that no injected text clears a run's taint, and that no `external` tool ran in a run nobody asked for without a card. It does not assert what the model wrote.
 
 ## 17. Scale and cost
 
@@ -1279,7 +1288,7 @@ The effect of a manifest tool goes into `effectTable` like a built-in tool's, so
 
 DEVIATION from the earlier plan: effects are declared in the manifest and enforced at run time, not computed from the code. A script's calls are dynamic, so they cannot be read ahead of time.
 
-**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run raised an approval card. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so a later outside action still waits for the human.
+**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run raised an approval card. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so what the run stores is flagged, and in a run nobody asked for a later outside action still waits for the human.
 
 ### 24.5 Selection and sync
 
@@ -1391,16 +1400,21 @@ type Origin = "human" | "routine" | "auto"
 - The agent host keeps the authority of the run in flight in `run_authority`. A batch that starts a run sets it; a batch that joins combines with it (`combine` in `lib/origin.ts`): a human anywhere gives the human's authority, otherwise the stricter wins and grants intersect. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
 - An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
 
-`needsApproval` and `gate` in `trust.ts`:
+`needsApproval` and `gate` in `trust.ts`. Taint does not decide an `external` call; it flags writes and messages (section 16.3).
 
-| Run | read | write | message | external |
-| --- | --- | --- | --- | --- |
-| tainted (section 16.3) | yes | flagged | flagged | a card |
-| `human` | yes | yes | yes | yes |
-| `routine` | yes | yes | yes | granted tools; others a card |
-| `auto` | yes | yes | yes | a card |
+| Run | external tool |
+| --- | --- |
+| started by the human (`human`), tainted or not | runs. Executor's own pause still stops every action an app marks for a person |
+| a routine (`routine`) | granted tools run, tainted or not, when the routine was made by a clean run. Others post a card |
+| nobody asked (`auto`) | a card, unless the human accepted one for this agent in the last 30 minutes |
 
-An approval card approves one call. It never adds to a grant.
+- There is one kind of card. An accepted card is a 30-minute grant for that agent over every `external` tool. The one-shot card that matched exact arguments is gone.
+- A card waits 30 minutes. One that expires closes quietly and wakes nobody. An agent has one open card at a time.
+- The human's answer reaches the agent as an `approval_result` envelope with `origin: "human"`, and the room records it as the agent's chain like any delivery.
+- A routine a tainted run made is stored `tainted`, and its runs carry no grant (`runGrant` in `user/reminders.ts`). One the human made, or accepted on a card that showed all of it, keeps its grant.
+- An extension's trigger runs as a routine granted that extension's own tools. The human reviewed and installed it.
+- `create_routine` and `update_routine` post a card only for a run the human did not start, or a tainted run that grants tools (for `update_routine`, a change to a routine that holds a grant).
+- DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Section 16.3 says why and what still holds.
 
 ### 25.4 Triggers
 

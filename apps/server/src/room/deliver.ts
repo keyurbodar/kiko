@@ -1,4 +1,5 @@
 import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@kiko/protocol"
+import type { Authority } from "../lib/origin"
 import type { RoomLog } from "./log"
 import type { Chain } from "./mail"
 import { type RecipientMember, resolveRecipients } from "./recipients"
@@ -68,6 +69,8 @@ export type ReminderDelivery = {
 	chain?: Chain | null
 	/** A recurring reminder: each occurrence starts its own root. */
 	recurring?: boolean
+	/** The authority of the run it wakes. Absent: `auto`. An extension's trigger is a routine granted its tools. */
+	authority?: Authority
 }
 
 export class Deliveries {
