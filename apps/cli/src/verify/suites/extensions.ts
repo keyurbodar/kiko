@@ -15,6 +15,7 @@ import { fake, newRoom, seen, send, until } from "./mid-run"
 // - an update replaces the running code at the next run
 // - a bundle with problems is refused with every problem named
 // - uninstall removes it and its state
+// - a trigger runs as a routine granted the extension's own tools, so its outside tool needs no card
 
 const MANIFEST = (version: string) => ({
   kiko: 1,
@@ -132,6 +133,28 @@ const suite: Suite = {
     const fresh = await answer("[ws verify_bump {}]", 7)
     if (!fresh.includes("tool: tally 1")) throw new VerifyError(`uninstall kept the old state: ${fresh}`)
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
+
+    // A trigger runs as a routine granted the extension's own tools: its outside tool runs with no card.
+    const sender = { kiko: 1, name: "verify-sender", version: "1.0.0", description: "sends, for kiko verify", tools: { verify_send: { description: "sends a ping outside kiko", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
+    // Triggers post in the kiko chat, which the first visit makes.
+    await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
+    const sent = ok(await op({ op: "propose", bundle: { manifest: sender as never, files: { "main.js": 'export const tools = { async verify_send() { return "sent" } }' } } }), "propose the sender")
+    ok(await op({ op: "install", id: sent.proposal!.id }), "install the sender")
+    const reminders = await fetch(new URL("api/reminders", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
+    const trigger = ((await reminders.json()) as { id: string; roomId: string; createdBy: string; status: string }[]).find((r) => r.createdBy === "ext:verify-sender" && r.status === "active")
+    if (!trigger) throw new VerifyError("installing an extension with a trigger scheduled nothing")
+    const home = await s.room(trigger.roomId)
+    await fake(v, s, trigger.roomId)
+    const due = await fetch(new URL("api/dev/agent/due", v.url.endsWith("/") ? v.url : `${v.url}/`), { method: "POST", headers: { "content-type": "application/json", cookie: s.cookie }, body: JSON.stringify({ id: trigger.id }) })
+    if (!due.ok) throw new VerifyError(`the due route answered ${due.status}`)
+    await until("the trigger's run", () => seen(home).live.some((m) => m.text.includes("tool: ")), 30_000)
+    const said = seen(home).live.find((m) => m.text.includes("tool: "))!.text
+    if (!said.includes("tool: sent")) throw new VerifyError(`the trigger's run could not use its own extension's outside tool: ${said}`)
+    const asked = home.raw.log.some((e) => e.dir === "in" && (e.frame as { t: string; events?: { t: string }[] }).t === "events" && (e.frame as { events: { t: string }[] }).events.some((ev) => ev.t === "approval"))
+    if (asked) throw new VerifyError("the trigger's run posted a card for its own extension's tool")
+    console.log(`  ok an extension's trigger ran its own outside tool with no card: ${JSON.stringify(said.slice(0, 80))}`)
+    ok(await op({ op: "uninstall", name: "verify-sender" }), "clean up the sender")
+    home.raw.close()
   },
 }
 

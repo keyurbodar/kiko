@@ -5,6 +5,7 @@ import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
 import { type Alarms, createAlarms, runDue } from "../lib/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
+import { AUTO, stamp } from "../lib/origin"
 import { BUDGET_LINE, utcDay } from "./limits"
 import { type Inflight, RoomRoutines, ROUTINES_WAKEUP } from "./routines"
 import { chatTasks, LOOPS_WAKEUP, MAX_NUDGES, nextSweep, nudgeBody, openTasks, stalled } from "./stalls"
@@ -518,11 +519,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!out.ok) return out
 		// The answer to a teammate's open ask goes to its waiting tool, not to a new run. A lost push costs
 		// only time: the tool reads the stored answer when its wait ends.
-		const asked = send.to === "all" ? null : this.asks.answer(slug, send.to, send.text)
+		const asked = send.to === "all" ? null : this.asks.answer(slug, send.to, send.text, send.tainted)
 		if (asked) {
 			this.ctx.waitUntil(
 				agentStub(this.env.AGENT, home.userId, home.roomId, send.to)
-					.askAnswered(asked, send.text)
+					.askAnswered(asked, send.text, send.tainted)
 					.catch((e: unknown) => console.error(`ask answer push failed: ${e instanceof Error ? e.message : String(e)}`)),
 			)
 			return { ok: true, to: out.send.recipients }
@@ -816,7 +817,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// envelope id is the delivery id, so a repeat is ignored by the inbox.
 		const home = this.home()
 		if (event && home && event.t === "message" && this.members.get(reminder.target as AgentSlug)) {
-			const envelope: Envelope = { id: `reminder:${id}`, roomId: home.roomId, from: { kind: "system", reason: "reminder" }, body: `reminder: ${reminder.text}`, hop: 0, rootId: `reminder:${id}`, tainted: false, seq: event.seq, origin: "auto" }
+			// The run gets the authority of who made the reminder: an extension's trigger is a routine
+			// granted that extension's own tools (section 25.3). Absent: `auto`.
+			const authority = stamp(reminder.authority ?? AUTO)
+			const envelope: Envelope = { id: `reminder:${id}`, roomId: home.roomId, from: { kind: "system", reason: "reminder" }, body: `reminder: ${reminder.text}`, hop: 0, rootId: `reminder:${id}`, tainted: false, seq: event.seq, ...authority }
 			await this.deliverAuto(home, reminder.target as AgentSlug, envelope)
 		}
 		return event !== null
@@ -1286,9 +1290,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * RPC for an agent's trust gate (P7-02, section 16.3). A tainted run wants to call `external` tool
-	 * `req.tool`. Returns the accepted approval's id, or the text that ends the call while a card waits
-	 * for the human. It never decides a card: only the human's socket does.
+	 * RPC for an agent's cards (sections 12.3, 16.3, 25.3): the trust gate, a routine tool, or Executor's
+	 * pause. Returns the accepted card's id, or the text that ends the call while a card waits for the
+	 * human. It never decides a card: only the human's socket does.
 	 */
 	async requestApproval(slug: AgentSlug, req: ApprovalRequest): Promise<ApprovalAnswer> {
 		if (!this.members.list().some((m) => m.slug === slug)) return { refused: "not run: you are not a member of this room." }
@@ -1338,6 +1342,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const { refused } = await agent.receive([envelope], brief, this.agentHome(home, slug, member))
 				if (refused === "full") throw new Error("inbox full")
 				if (refused) console.error(`approval_result delivery to ${slug} refused: ${refused}`)
+				// The human's answer carries the human's authority into the run it starts, like any delivery.
+				else this.mail.delivered(slug, [envelope])
 				this.approvals.markDelivered(id)
 			}
 		} catch (error) {

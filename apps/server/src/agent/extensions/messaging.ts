@@ -4,7 +4,8 @@ import type { AgentSlug } from "@kiko/protocol"
 import type { AgentSend } from "../../room/mail"
 import type { SpawnInput } from "../../room/room-do"
 import { declareEffect } from "../effects"
-import { isRunTainted } from "./trust"
+import type { Answer } from "../answers"
+import { isRunTainted, markRunTainted } from "./trust"
 
 // Architecture sections 7.5 and 7.7. The team tools: send_message, team, and for the lead spawn_agent. Every agent message goes through `RoomDO`,
 // which stores it in the log, delivers it, and enforces the loop limits. A plain reply bubble
@@ -19,10 +20,10 @@ export type MessagingPort = {
   spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
   /** `ask`: a message to one teammate whose answer the tool waits for. */
   ask(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
-  askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
+  askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean } | null>
   /** The answer the room pushes for ask `id`, or null when `ms` passes or the human writes. */
-  waitAnswer(id: string, ms: number): Promise<string | null>
-  closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
+  waitAnswer(id: string, ms: number): Promise<Answer | null>
+  closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean } | null>
   /** A human message is waiting: the human outranks a teammate's answer (section 7.8). */
   humanWaiting(): boolean
   /** What everyone in the room is doing now and the paths they hold (section 7.12). */
@@ -90,12 +91,17 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
         const who = to.replace(/^@/, "").toLowerCase() as AgentSlug
         const sent = await room().ask({ id, to: who, text: question, tainted: isRunTainted(api) })
         if (!sent.ok) return { content: text(sent.error), isError: true }
-        const answered = (s: { state: string; answer: string | null } | null) => (s?.state === "answered" ? { content: text(`@${who} answered: ${s.answer}`) } : null)
+        // An answer from a run that read outside content taints this run, like the envelope would.
+        const reply = (answer: Answer) => {
+          if (answer.tainted) markRunTainted(api, "agent")
+          return { content: text(`@${who} answered: ${answer.text}`) }
+        }
+        const answered = (s: { state: string; answer: string | null; tainted: boolean } | null) => (s?.state === "answered" ? reply({ text: s.answer ?? "", tainted: s.tainted }) : null)
         // A replayed call finds an answer that arrived while this object was gone.
         const stored = answered(await room().askState(id))
         if (stored) return stored
         const pushed = room().humanWaiting() ? null : await room().waitAnswer(id, ASK_WAIT_MS)
-        if (pushed !== null) return { content: text(`@${who} answered: ${pushed}`) }
+        if (pushed !== null) return reply(pushed)
         const last = answered(await room().closeAsk(id))
         if (last) return last
         const why = room().humanWaiting() ? "the human wrote, so answer them first" : `@${who} has not answered yet`

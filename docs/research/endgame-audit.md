@@ -41,9 +41,9 @@ Taint holes closed at the same time, because `auto` and `routine` runs still dep
 | 5 | a2a | Mail held in an inbox rewrites the chain (root, hop, authority) of the run in progress | B | |
 | 6 | a2a | Task wakes start a new `auto` chain, so a project the human asked for loses its authority and its loop limits | B | |
 | 7 | a2a | Mail queued during a burst the room refused waits until some later event | B | |
-| 8 | a2a | An approval result has no origin and does not update the chain | A | |
+| 8 | a2a | An approval result has no origin and does not update the chain | A | fixed |
 | 9 | a2a | A batch dropped for a missing credential leaves a teammate's ask hanging | B | |
-| 10 | a2a | Helpers keep the chief, reminder, routine, and task-board tools | A | |
+| 10 | a2a | Helpers keep the chief, reminder, routine, and task-board tools | A | fixed |
 | 11 | cost | Each batch carries every distinct brief, and every input repeats an unchanged brief | C | |
 | 12 | cost | The memory delta repeats messages that joined the last run as steers or queued inputs | C | |
 | 13 | a2a | `beginRun` and its RPCs run before the hold checks, again for every held batch | B | |
