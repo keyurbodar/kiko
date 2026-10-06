@@ -11,12 +11,13 @@ import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import type { ApprovalAnswer, ApprovalRequest } from "../room/approvals"
 import { findProvider } from "../user/turn-context"
+import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { ChiefPort } from "./extensions/chief"
 import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
-import { type MemoryPort, memoryBlock, memoryDelta } from "./extensions/memory"
+import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { Approvals } from "./extensions/trust"
 import type { MessagingPort } from "./extensions/messaging"
@@ -317,10 +318,14 @@ export class AgentDO extends DurableObject<Env> {
         const { stub, slug } = user()
         return stub.soul(slug)
       },
+      // The prompt's copy: the one the run's `turnContext` brought, so no request waits on UserDO for it.
+      forPrompt: async () => this.#run?.soul ?? (await user().stub.soul(user().slug)),
       set: async (body, expectSha) => {
         if (this.home()?.private) return { ok: false, code: "invalid", message: PRIVATE_REFUSAL }
         const { stub, slug } = user()
-        return stub.setSoul(slug, body, expectSha)
+        const out = await stub.setSoul(slug, body, expectSha)
+        if (out.ok && this.#run) this.#run.soul = out.soul
+        return out
       },
     }
   }
@@ -348,7 +353,7 @@ export class AgentDO extends DurableObject<Env> {
           return true
         },
         // The fake reads memory like a real agent, so the suites prove the <memory> block, not a stand-in.
-        inputMemory: (batch, fresh) => this.inputMemory(batch, fresh, ""),
+        inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.carryUsage(harness),
       }
     }
@@ -370,14 +375,18 @@ export class AgentDO extends DurableObject<Env> {
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts(fs) } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts(fs) } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
       env: fs,
+      // One call to UserDO loads the auth, the extension versions, and the soul, while the room
+      // computes the memory delta beside it (section 13.4).
       beginRun: async (batch, root) => {
-        await this.syncExtensions(built.extensions, root)
-        return this.beginRun(batch.requestId, root)
+        this.prefetchDelta(batch)
+        if (!(await this.beginRun(batch.requestId, root))) return false
+        await this.syncExtensions(built.extensions, root, this.#run?.extensions)
+        return true
       },
       // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
       inputContext: async () => {
@@ -390,33 +399,55 @@ export class AgentDO extends DurableObject<Env> {
       },
       // Development only: `classic` keeps the old transcript (no reset, no memory block), so `verify
       // token-cost` can measure both designs on the same model.
-      ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean) => this.inputMemory(batch, fresh, this.#run?.life ?? "") }),
+      ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
       beforeCompact: (harness) => this.carryUsage(harness),
     }
   }
 
   /**
-   * Section 13. The <memory> block a new run opens with: the user's life log, from the run's one
-   * `turnContext` call, and this chat as of now, without the messages the batch itself delivers.
+   * Section 13. The <memory> block a new run opens with: the user's life log and this chat as of now,
+   * without the messages the batch delivers and those that joined the last run (`joined`), which the
+   * transcript holds. The life log is read only here, when the run starts fresh.
    */
-  private async inputMemory(batch: Batch, fresh: boolean, life: string): Promise<{ text?: string; fresh: boolean }> {
+  private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean }> {
+    const ahead = this.#delta?.requestId === batch.requestId ? this.#delta.since : null
+    this.#delta = undefined
     const home = this.home()
     if (!home) return { fresh }
     const room = roomStub(this.env.ROOM, home.userId, home.roomId)
-    const seqs = batch.envelopes.map((e) => e.seq)
+    const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
     const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
     // Going on: only the turns since this agent's last run, without its own, which its transcript holds.
     if (!fresh && seen !== undefined) {
-      const delta = await room.memorySince(home.slug, seen, seqs)
+      const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
         await this.ctx.storage.put(MEMORY_POS_KEY, delta.count)
         return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
       }
     }
     // Starting over: the whole block, as OptMem's wake.
-    const view = await room.memoryView(seqs)
+    const [view, life] = await Promise.all([room.memoryView(seqs), withLife ? userStub(this.env.USER, home.userId).lifeView() : ""])
     await this.ctx.storage.put(MEMORY_POS_KEY, view.count)
     return { fresh: true, text: memoryBlock(life, view.text) }
+  }
+
+  /**
+   * Section 13.4. The delta a run that goes on will read, asked for while `beginRun` loads the run's
+   * auth, so the two calls overlap. `inputMemory` uses it when the run does go on; a run that starts
+   * fresh drops it.
+   */
+  #delta?: { requestId: string; since: Promise<{ text: string; count: number } | null> }
+
+  private prefetchDelta(batch: Batch): void {
+    const home = this.home()
+    if (!home) return
+    const since = (async () => {
+      const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
+      if (seen === undefined) return null
+      const seqs = [...batch.envelopes.map((e) => e.seq), ...(await this.host.joinedSeqs())]
+      return roomStub(this.env.ROOM, home.userId, home.roomId).memorySince(home.slug, seen, seqs)
+    })().catch(() => null)
+    this.#delta = { requestId: batch.requestId, since }
   }
 
   /** Keeps the token count across a drop of pi-durable's tables, so `devUsage` still adds up. */
@@ -443,13 +474,17 @@ export class AgentDO extends DurableObject<Env> {
    * bundles it has not seen, install them in the registry, and give the root conversation the new
    * selection when it changed. A failure keeps what the agent had: an extension never stops a run.
    */
-  private async syncExtensions(extensions: UserExtensions, root: Conversation): Promise<void> {
+  private async syncExtensions(extensions: UserExtensions, root: Conversation, versions?: { name: string; hash: string }[]): Promise<void> {
     this.#userExtensions = extensions
     const home = this.home()
     if (!home) return
     const user = userStub(this.env.USER, home.userId)
     try {
-      const list = await user.extensionsFor(home.slug)
+      const list = versions ?? (await user.extensionsFor(home.slug))
+      // The same versions this process synced last: the registry and the conversation already have them.
+      const key = JSON.stringify(list)
+      if (this.#extensionsSynced?.on === extensions && this.#extensionsSynced.key === key) return
+      this.#extensionsSynced = undefined
       const installed: Installed[] = []
       const missing: string[] = []
       for (const item of list) {
@@ -478,6 +513,8 @@ export class AgentDO extends DurableObject<Env> {
       const want = extensions.selection()
       const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
       if (want.map((e) => e.name).join("\n") !== have.join("\n")) await root.configure({ extensions: want }, BACKGROUND_CONTEXT)
+      // A version that failed to compile is tried again next run.
+      if (!problems.length) this.#extensionsSynced = { on: extensions, key }
     } catch (error) {
       console.error(`extensions not synced: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -518,6 +555,9 @@ export class AgentDO extends DurableObject<Env> {
 
   /** This process's user extensions, so going idle can free their VMs. */
   #userExtensions?: UserExtensions
+
+  /** The extension versions this process synced last, as `syncExtensions` compares them. */
+  #extensionsSynced?: { on: UserExtensions; key: string }
 
   /** The installed extensions, as one line for the run's context. Empty when there are none. */
   #extensionsNote = ""
@@ -605,21 +645,24 @@ export class AgentDO extends DurableObject<Env> {
         const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query)])
         return [life.length ? `life:\n${life.join("\n")}` : "", chat.length ? `chat:\n${chat.join("\n")}` : ""].filter(Boolean).join("\n\n")
       },
-      zoom: async (id) => {
-        const m = /^(life|chat|room):(.+)$/.exec(id)
-        if (!m) return null
-        return m[1] === "life" ? user().lifeZoom(m[2]!) : room().memoryZoom(m[2]!)
+      zoom: async (raw) => {
+        const id = parseZoomId(raw)
+        if (!id) return null
+        return id.log === "life" ? user().lifeZoom(id.id) : room().memoryZoom(id.id)
       },
     }
   }
 
   // Per-run credentials (P4-02). The auth lives in this process's memory only, never in storage.
-  #run: { provider: string; auth: AuthResult | null; life: string; timezone: string } | null = null
+  #run: { provider: string; auth: AuthResult | null; timezone: string; extensions?: { name: string; hash: string }[]; soul?: Soul } | null = null
+  /** Moves on at every run start, so the prompt reads the soul, /chat.md, and the skills once per run, not per request. */
+  #runStamp = 0
 
   /** Before a run: applies a newly chosen model, then loads the user's auth for its provider. */
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
     const home = this.home()
     if (!home) return false
+    this.#runStamp++
     const chosen = await this.ctx.storage.get<ModelRef>(MODEL_KEY)
     if (chosen && JSON.stringify(chosen) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
       await root.configure({ model: chosen }, BACKGROUND_CONTEXT)
@@ -642,8 +685,8 @@ export class AgentDO extends DurableObject<Env> {
 
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
-    const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider) : null
-    this.#run = { provider, auth: context?.auth ?? null, life: context?.life ?? "", timezone: context?.timezone ?? "UTC" }
+    const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider, home.slug) : null
+    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", ...(context?.agent ? { extensions: context.agent.extensions, soul: context.agent.soul } : {}) }
     return this.#run.auth
   }
 

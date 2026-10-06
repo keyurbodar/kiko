@@ -101,7 +101,7 @@ export const memorySuite = (e: Eval): Suite => ({
     const roomId = ulid() as RoomId
     user.send({ t: "chat", op: { op: "create", roomId, title: "japan trip" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
-    const room = await s.room(roomId)
+    let room = await s.room(roomId)
     await room.expect((f) => f.t === "events")
 
     const seeded = await dev(v.url, s.cookie, "seed", { roomId, turns: script(e) })
@@ -109,16 +109,29 @@ export const memorySuite = (e: Eval): Suite => ({
 
     // The summaries run in the background with the real model. Wait until none is left.
     const started = Date.now()
-    let state = await dev(v.url, s.cookie, "memory", { roomId })
+    let state: any = { pending: 1 }
+    let lost = 0
     while (state.pending > 0) {
       if (Date.now() - started > 45 * 60_000) throw new VerifyError(`summaries still pending after 45 minutes: ${state.pending}`)
-      await Bun.sleep(3_000)
-      state = await dev(v.url, s.cookie, "memory", { roomId })
+      if (state.view !== undefined || lost) await Bun.sleep(3_000)
+      // A busy machine's wrangler dev sometimes drops a request to the room ("Network connection lost");
+      // the next poll reaches it again. Five failures in a row are real.
+      try {
+        state = await dev(v.url, s.cookie, "memory", { roomId })
+        lost = 0
+      } catch (error) {
+        if (++lost >= 5) throw error
+        console.log(`  poll failed (${lost}), trying again: ${error instanceof Error ? error.message : String(error)}`)
+      }
     }
     const view: string = state.view
     for (const line of view.split("\n").filter((l) => /^#\d+-\d+ /.test(l))) console.log(`  summary ${line}`)
     console.log(`  summaries done in ${Math.round((Date.now() - started) / 1000)} s; the chat block is ${view.split("\n").length} lines, ${view.length} characters, for ${TURNS} turns`)
 
+    // On a busy machine the summaries take long enough for the idle socket to drop: ask on a fresh one.
+    room.raw.close()
+    room = await s.room(roomId)
+    await room.expect((f) => f.t === "events")
     const quiz = ["quick quiz from everything we talked about. answer each in a few words, numbered, all in one bubble:", ...ASKED.map((f, i) => `${i + 1}) ${f.ask}`)].join("\n")
     const before = room.raw.log.length
     room.send(quiz)

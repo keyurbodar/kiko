@@ -33,17 +33,26 @@ const oneLine = (text: string) => {
 	return flat.length > MAX_LINE ? `${flat.slice(0, MAX_LINE)}...` : flat
 }
 
+/** The long half of the line naming the human. Only a run that starts fresh reads it (`shortBrief`). */
+const HUMAN_HINT = (handle: string) => ` write @${handle} only when you need them, such as a question only they can answer.`
+
+/** A brief without `HUMAN_HINT`, for a run whose transcript already has it. */
+export function shortBrief(brief: string): string {
+	return brief.replace(/^(the human is @(\S+)\.) write @\2 only when you need them, such as a question only they can answer\.$/m, "$1")
+}
+
 /** The brief for `member`. Pure: the room gathers the view from its tables. */
 export function buildBrief(member: MemberRow, view: BriefView): string {
 	const lines = [`room goal: ${oneLine(view.goal) || "none yet"}`, `you are @${member.slug}${member.lead ? ", the lead" : ""}.`]
-	if (view.human) lines.push(`the human is @${view.human}. write @${view.human} only when you need them, such as a question only they can answer.`)
+	if (view.human) lines.push(`the human is @${view.human}.${HUMAN_HINT(view.human)}`)
 	lines.push("members:")
 	for (const m of view.members) {
-		const now = view.team?.[m.slug]
+		// What the agent itself is doing would only make each of its briefs differ from the last (section 7.4).
+		const now = m.slug === member.slug ? { doing: null, holds: [] } : view.team?.[m.slug]
 		const parts = [
 			m.lead ? "lead" : null,
 			m.role ? oneLine(m.role) : null,
-			now?.doing ? `now ${now.doing}` : m.status,
+			now?.doing ? `now ${now.doing}` : m.slug === member.slug ? null : m.status,
 			now?.holds.length ? `holding ${now.holds.map((p) => `/${p}`).join(", ")}` : null,
 		]
 		lines.push(`- @${m.slug} (${m.name}): ${parts.filter(Boolean).join(", ")}`)

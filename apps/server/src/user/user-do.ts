@@ -681,7 +681,7 @@ export class UserDO extends DurableObject<Env> {
 
   /** RPC for an agent's `recall`: life lines that match. */
   async lifeRecall(query: string): Promise<string[]> {
-    return this.life.recall(query, 10).map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, 400))
+    return this.life.recall(query, 10).map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, 400, true, "life"))
   }
 
   /** RPC for an agent's `zoom` on a life id. */
@@ -859,11 +859,17 @@ export class UserDO extends DurableObject<Env> {
    * Architecture section 11.3. Only an `AgentDO` of this user calls it, once at the start of a run.
    * The answer holds the request auth, so the Worker's HTTP layer never calls it.
    */
-  async turnContext(provider: string): Promise<TurnContext> {
+  async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
     const limits = setting("limits")
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null }, this.life.view(Date.now()))
+    const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null }, agent)
+  }
+
+  /** RPC for a run that starts fresh: the user's life log as every agent reads it (section 13.4). */
+  async lifeView(): Promise<string> {
+    return this.life.view(Date.now())
   }
 
   // pi-ai's `CredentialStore` for this user. A `#` member, so RPC can never reach it.
