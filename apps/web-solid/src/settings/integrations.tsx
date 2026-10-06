@@ -9,27 +9,9 @@ import { createExecutorClient, createMockExecutor, type ExecutorClient } from ".
  * The empty state explains the service in two lines. Connect opens the sign-in at the
  * address the server returns. The paste-key form is the fallback; its field is cleared
  * before the request leaves, so a key never outlives the click.
- *
- * ASSUMPTION: the mode option (architecture section 12.4) is a per-browser preference for
- * now, kept in localStorage. The server has no frame to store it per user yet.
  */
 
-export const EXECUTOR_HOME = "https://executor.sh"
-export const MODE_KEY = "kiko.executor.mode"
-export const MODES = [
-	{ id: "default", label: "code mode" },
-	{ id: "passthrough", label: "passthrough" },
-] as const
-type Mode = (typeof MODES)[number]["id"]
-
-function readMode(): Mode {
-	try {
-		const v = localStorage.getItem(MODE_KEY)
-		return MODES.some((m) => m.id === v) ? (v as Mode) : "default"
-	} catch {
-		return "default"
-	}
-}
+export const EXECUTOR_HOME = "https://v2.executor.sh"
 
 async function openClient(): Promise<ExecutorClient> {
 	// The dev mock, same rule as the chat data layer. A production build drops this branch.
@@ -45,7 +27,6 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 	const [error, setError] = createSignal<string | null>(null)
 	const [busy, setBusy] = createSignal(false)
 	const [confirming, setConfirming] = createSignal(false)
-	const [mode, setMode] = createSignal<Mode>(readMode())
 	let client: ExecutorClient | undefined
 	let key: HTMLInputElement | undefined
 	let closed = false
@@ -116,13 +97,6 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 		void run(async () => client?.request({ t: "disconnectExecutor" }))
 	}
 
-	function pickMode(next: Mode) {
-		setMode(next)
-		try {
-			localStorage.setItem(MODE_KEY, next)
-		} catch {}
-	}
-
 	const status = () => view().status
 
 	return (
@@ -185,7 +159,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 										autocomplete="off"
 										autocapitalize="off"
 										spellcheck={false}
-										placeholder="exec_..."
+										placeholder="exp_..."
 										autofocus
 										class="h-9 min-w-0 flex-1 rounded-xl bg-[var(--input-bg)] px-3 text-sm text-text outline-none placeholder:text-weak focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 										data-component="integrations-key"
@@ -226,17 +200,6 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 								disconnect
 							</button>
 						</div>
-						<label class="flex items-center justify-between gap-3 text-xs text-weak">
-							mode
-							<select
-								class="h-10 rounded-[10px] bg-[var(--input-bg)] px-2 text-sm md:h-8 text-[var(--tab-text-active)]"
-								data-component="integrations-mode"
-								value={mode()}
-								onChange={(e) => pickMode(e.currentTarget.value as Mode)}
-							>
-								<For each={MODES}>{(m) => <option value={m.id}>{m.label}</option>}</For>
-							</select>
-						</label>
 						<ul class="flex min-h-0 flex-col overflow-y-auto rounded-2xl bg-[var(--surface-raised)] p-1" data-component="tool-list">
 							<For each={view().tools ?? []}>
 								{(name) => (

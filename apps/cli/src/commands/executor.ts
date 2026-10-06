@@ -1,7 +1,7 @@
 import { CliError, type Context } from "../main"
 
-const issuer = "https://signin.executor.sh"
-const mcp = "https://executor.sh/mcp"
+const issuer = "https://v2.executor.sh/api/auth"
+const mcp = "https://v2.executor.sh/mcp"
 
 async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
@@ -11,7 +11,7 @@ async function getJson(url: string): Promise<unknown> {
 
 // kiko executor discover: public metadata only, needs no account.
 async function discover(ctx: Context) {
-  const resource = (await getJson("https://executor.sh/.well-known/oauth-protected-resource/mcp")) as { authorization_servers?: string[] }
+  const resource = (await getJson("https://v2.executor.sh/.well-known/oauth-protected-resource/mcp")) as { authorization_servers?: string[] }
   const meta = (await getJson(`${issuer}/.well-known/oauth-authorization-server`)) as Record<string, unknown>
   const out = {
     resource: mcp,

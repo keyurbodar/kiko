@@ -1,5 +1,6 @@
 import type { ExecutorStatus } from "@kiko/protocol"
 import { McpClient, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
+import { pendingInteraction } from "./approval"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
@@ -8,7 +9,7 @@ import type { SessionLookup } from "../../router"
 import { checkApiKey, CredentialError } from "../../user/credentials"
 import type { ExecutorTokenStore } from "./token-store"
 
-// Architecture section 12.1. Connects one user's Executor Cloud account. `UserDO` owns the
+// Architecture section 12.1. Connects one user's Executor Cloud (v2) account. `UserDO` owns the
 // one `ExecutorConnection` for its user, so every token exchange and refresh runs inside it.
 //
 //   start(origin)   registers kiko with Executor's sign-in server (once), and returns the
@@ -20,9 +21,11 @@ import type { ExecutorTokenStore } from "./token-store"
 //
 // The fallback is a pasted API key. UNVERIFIED: that Executor accepts it as a bearer token.
 
-export const EXECUTOR_MCP_URL = "https://executor.sh/mcp"
+export const EXECUTOR_MCP_URL = "https://v2.executor.sh/mcp"
 export const EXECUTOR_CALLBACK_PATH = "/api/integrations/executor/callback"
-const SCOPE = "openid profile email offline_access"
+const SCOPE = "mcp offline_access"
+/** The most paused programs one user keeps a session open for. */
+const MAX_HELD = 20
 /** A token this close to expiry is refreshed before it is used. */
 const REFRESH_EARLY_MS = 60_000
 
@@ -47,6 +50,12 @@ export function errorText(e: unknown): string {
 
 export class ExecutorConnection {
   private refreshing: Promise<void> | undefined
+  /**
+   * Executor v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only
+   * from that session. So the session stays open until its program is resumed or Executor lets it go.
+   * Lost with this object; a resume after that gets Executor's "unavailable", which the agent reports.
+   */
+  private readonly held = new Map<string, { client: McpClient; expiresAt: number }>()
 
   constructor(
     private readonly store: ExecutorTokenStore,
@@ -111,6 +120,8 @@ export class ExecutorConnection {
   /** Deletes every Executor row for the user. Returns how many there were. */
   disconnect(): number {
     this.refreshing = undefined
+    for (const h of this.held.values()) void h.client.close().catch(() => {})
+    this.held.clear()
     return this.store.clear()
   }
 
@@ -152,15 +163,42 @@ export class ExecutorConnection {
     )
   }
 
-  /** Calls one tool and returns its result in the shape a model reads: text and images. */
-  async call(name: string, args: Record<string, unknown>): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
-    return this.withClient(async (client) => {
+  /**
+   * Calls one tool and returns its result in the shape a model reads: text and images. A resume runs
+   * in the session that paused its program, and a call that pauses keeps its session open.
+   */
+  async call(name: string, args: Record<string, unknown>, now = Date.now()): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
+    await this.dropExpired(now)
+    const requestId = typeof args.requestId === "string" ? args.requestId : ""
+    const resumed = this.held.get(requestId)
+    this.held.delete(requestId)
+    const client = resumed?.client ?? (await this.open())
+    let keep = false
+    try {
       const result = await client.callTool(name, args)
-      return { content: toLlmContent(result) as ExecutorResultBlock[], ...(result.isError ? { isError: true } : {}) }
-    })
+      const content = toLlmContent(result) as ExecutorResultBlock[]
+      const pending = pendingInteraction(content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n"))
+      if (pending) {
+        this.held.set(pending.requestId, { client, expiresAt: pending.expiresAt })
+        keep = true
+        await this.dropOldest()
+      }
+      return { content, ...(result.isError ? { isError: true } : {}) }
+    } finally {
+      if (!keep) await client.close().catch(() => {})
+    }
   }
 
   private async withClient<T>(run: (client: McpClient) => Promise<T>): Promise<T> {
+    const client = await this.open()
+    try {
+      return await run(client)
+    } finally {
+      await client.close().catch(() => {})
+    }
+  }
+
+  private async open(): Promise<McpClient> {
     if (!(await this.bearer())) throw new ExecutorError("executor is not connected")
     const client = new McpClient({ name: "kiko", version: "0.0.0" })
     const transport = new StreamableHttpTransport({
@@ -169,11 +207,23 @@ export class ExecutorConnection {
       openGetStream: false,
       authProvider: { token: async () => (await this.bearer()) ?? undefined },
     })
-    try {
-      await client.connect(transport)
-      return await run(client)
-    } finally {
-      await client.close().catch(() => {})
+    await client.connect(transport)
+    return client
+  }
+
+  private async dropExpired(now: number): Promise<void> {
+    for (const [id, h] of this.held) {
+      if (h.expiresAt > now) continue
+      this.held.delete(id)
+      await h.client.close().catch(() => {})
+    }
+  }
+
+  private async dropOldest(): Promise<void> {
+    for (const [id, h] of this.held) {
+      if (this.held.size <= MAX_HELD) return
+      this.held.delete(id)
+      await h.client.close().catch(() => {})
     }
   }
 
