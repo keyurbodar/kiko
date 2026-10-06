@@ -204,6 +204,7 @@ export const Approval = Schema.Struct({
 	summary: Schema.String,
 	state: Schema.Literals(["pending", "accepted", "declined", "expired"]),
 	expiresAt: Count,
+	grantMs: Schema.optionalKey(Count),
 })
 
 export const RoomEvent = Schema.Union([

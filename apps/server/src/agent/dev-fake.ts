@@ -32,11 +32,12 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [team]      the model calls `team` (section 7.12)
 //   [ask s] q   the model calls `ask` with teammate `s` and question `q` (section 7.5)
 //   [question]  in a teammate's message: the model answers that teammate with `[answer] 42`
-//   [tool name {json}] the model calls any tool `name` with the JSON arguments, once (section 25)
+//   [tool name {json}] the model calls any tool `name` with the JSON arguments, once, also from a fetched page (section 25)
 //   [quiet]     the answer is `[skip]`, which posts nothing (section 25.2)
 //
 // An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02),
-// or any other tool `t` with the arguments the result names (section 25.3).
+// or any other tool `t` again with the arguments of its last call of `t` (section 25.3), as a real model
+// picks up the task the card paused.
 //
 // After trust tools ran, the answer is `tools: <name> ran|ran tainted|blocked, ...` (P7-01).
 //
@@ -85,7 +86,11 @@ export function fakeReply(transcript: readonly Message[]) {
   const last = messages.at(-1)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
-  const any = last?.role === "user" ? anyToolCall(rawOf(last)) : null
+  // A fooled model also obeys `[tool name {json}]` inside a fetched page. A `[fetch]` turn fetches
+  // first, so the line it carries is read from the page.
+  const fetchFirst = last?.role === "user" && /^\[(fetch|mark)\]/.test(textOf(last))
+  const page = last?.role === "toolResult" && (last.toolName === "fake_fetch" || last.toolName === "fake_mark")
+  const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!), messages) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
@@ -115,14 +120,19 @@ export function fakeReply(transcript: readonly Message[]) {
 }
 
 /**
- * `[tool name {json}]` in a user turn, or an approval result that names a tool other than a trust tool
- * and its arguments. The JSON runs to the end of its line, so it may hold brackets. The system event's
- * escaping (`&quot;` is not used, only `&lt;`/`&gt;`/`&amp;`) is undone first.
+ * `[tool name {json}]` in a user turn, or an approval result that accepts a tool other than a trust
+ * tool: that tool again, with the arguments of its last call in the transcript. The JSON runs to the
+ * end of its line, so it may hold brackets. The system event's escaping (`&lt;`/`&gt;`/`&amp;`) is
+ * undone first.
  */
-function anyToolCall(raw: string) {
+function anyToolCall(raw: string, messages: readonly Message[]) {
   const text = raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
-  const accepted = /the human accepted (\w+) \(approval [^)]*\)\. call \1 again now with exactly these arguments: (\{.*\})\s*$/m.exec(text)
-  if (accepted && !isTrustTool(accepted[1]!)) return fauxToolCall(accepted[1]!, JSON.parse(accepted[2]!))
+  const accepted = /reason="approval_result"[^>]*>\s*the human accepted (\w+) \(card /.exec(text)
+  if (accepted && !isTrustTool(accepted[1]!)) {
+    const calls = messages.flatMap((m) => (m.role === "assistant" && typeof m.content !== "string" ? (m.content ?? []) : [])) as { type: string; name?: string; arguments?: Record<string, unknown> }[]
+    const before = calls.findLast((p) => p.type === "toolCall" && p.name === accepted[1])
+    if (before) return fauxToolCall(accepted[1]!, (before.arguments ?? {}) as Parameters<typeof fauxToolCall>[1])
+  }
   const direct = /\[tool (\w+) (\{.*\})\]\s*$/m.exec(text)
   return direct ? fauxToolCall(direct[1]!, JSON.parse(direct[2]!)) : null
 }
@@ -141,7 +151,7 @@ const slowTool = defineTool({
 export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [declareEffect("read", slowTool)] })
 
 // P7-01, architecture section 16. Fake tools, one per effect, for `bun kiko verify injection`.
-// `fake_send` stands for any action outside kiko. The trust gate must stop it in a tainted run.
+// `fake_send` stands for any action outside kiko. The trust gate stops it in a run nobody asked for.
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] })
 /** `x`, or `x (tainted)` when the trust extension says the run is tainted. */

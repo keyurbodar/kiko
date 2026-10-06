@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { effectOf } from "../src/agent/effects"
-import { EXECUTOR_GRANT_MS, executorExtension, executorGrant, toolName } from "../src/integrations/executor/tools"
+import type { ApprovalGate } from "../src/integrations/executor/approval"
+import { executorExtension, toolName } from "../src/integrations/executor/tools"
 
 describe("executor tools (P7-04)", () => {
   const listed = [
@@ -35,9 +36,6 @@ describe("executor tools (P7-04)", () => {
   test("resume answers only to its pause card, so the trust gate does not post a second one", () => {
     const ext = executorExtension([{ name: "resume", inputSchema: { type: "object" } }], async () => ({ content: [] }))
     expect(effectOf((ext.tools ?? [])[0]!)).toEqual({ effect: "write", outside: "executor" })
-    expect(executorGrant("executor_execute")).toBe(EXECUTOR_GRANT_MS)
-    expect(executorGrant("executor_resume")).toBeUndefined()
-    expect(executorGrant("web_fetch")).toBeUndefined()
   })
 
   test("a name a model cannot hold is cleaned", () => {
@@ -52,13 +50,13 @@ describe("executor tools (P7-04)", () => {
   ]
   type Run = (t: unknown, args: unknown) => Promise<{ content: { text?: string }[]; isError?: boolean }>
   const runner = (call: string): Run => (t, args) => (t as { execute: (a: unknown, api: unknown) => Promise<never> }).execute(args, { conversationId: "c", callId: call })
-  /** A room whose cards the test decides, keyed as the room keys them: by tool and arguments. */
+  /** A room whose pause cards the test decides, keyed as the room keys them: by tool and request id. */
   const room = () => {
     const cards = new Map<string, { state: "pending" | "accepted"; summary?: string; ttlMs?: number }>()
-    const gate = async (_key: string, tool: string, args: Record<string, unknown>, card?: { summary?: string; ttlMs?: number }) => {
-      const k = `${tool}:${args.requestId}`
-      if (cards.get(k)?.state === "accepted") return "approval-1"
-      cards.set(k, { state: "pending", ...card })
+    const gate: ApprovalGate = async (req) => {
+      const k = `executor_resume:${req.requestId}`
+      if (req.kind === "resume") return cards.get(k)?.state === "accepted" ? "approval-1" : { refused: "waiting for the human's approval." }
+      cards.set(k, { state: "pending", summary: req.summary, ttlMs: req.ttlMs })
       return { refused: "waiting for the human's approval." }
     }
     return { cards, gate }

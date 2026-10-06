@@ -114,10 +114,10 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
             const grant = args.may ?? []
             let tainted = isRunTainted(api)
-            // Section 25.3. A human asking in this run is the ok, even when the run read outside content:
-            // such a routine is stored tainted, so its runs still cannot act outside kiko without a card.
-            // A routine nobody asked for, or a standing permission outside kiko, waits for the human's card.
-            if (runAuthority(api).origin !== "human" || grant.length) {
+            // Section 25.3. A human asking in this run is the ok. A routine nobody asked for waits for the
+            // human's card, and so does a standing permission outside kiko asked for by a run that read
+            // outside content. A tainted routine made without a card is stored tainted: it keeps no grant.
+            if (runAuthority(api).origin !== "human" || (tainted && grant.length)) {
               const shown = args.instructions.length <= CARD_INSTRUCTIONS
               const summary = `routine "${args.name}": ${shown ? args.instructions : `${args.instructions.slice(0, CARD_INSTRUCTIONS)}…`} | ${JSON.stringify(trigger)}${grant.length ? ` | may use: ${grant.join(", ")}` : ""}`
               const answer = await user().ask(`${api.conversationId}:${api.callId}`, "create_routine", args as Record<string, unknown>, summary)
@@ -138,7 +138,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
         "write",
         defineTool({
           name: "update_routine",
-          description: "change, pause, resume, or run now a routine by its id from list_reminders. pausing and running now never need the human; other changes do unless the human asked in this run.",
+          description: "change, pause, resume, or run now a routine by its id from list_reminders. pausing and running now never need the human; other changes need the human's card unless the human asked in this run.",
           parameters: Type.Object({
             id: Type.String(),
             name: Type.Optional(Type.String()),
@@ -154,9 +154,11 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
             const current = (await user().list()).find((r) => r.id === args.id && r.trigger)
             if (!current) return { content: text("no such routine in this chat"), isError: true }
-            const widens = (args.may ?? []).some((t) => !current.grant.includes(t))
+            // A tainted run that changes a routine holding a grant could steer what the grant does, so it
+            // needs the card too.
+            const grants = (args.may ?? current.grant).length > 0
             const changes = args.name !== undefined || args.instructions !== undefined || trigger !== undefined || args.may !== undefined || args.status === "active"
-            if (changes && (runAuthority(api).origin !== "human" || widens)) {
+            if (changes && (runAuthority(api).origin !== "human" || (isRunTainted(api) && grants))) {
               const summary = `change routine "${current.name}": ${JSON.stringify({ ...args, id: undefined })}`
               const answer = await user().ask(`${api.conversationId}:${api.callId}`, "update_routine", args as Record<string, unknown>, summary)
               if (answer === null || typeof answer === "object") return { content: text(NOT_YET(answer?.refused)) }

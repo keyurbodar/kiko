@@ -7,9 +7,9 @@ import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
 import { AnswerWaiters } from "./answers"
-import { executorGrant } from "../integrations/executor/tools"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
+import type { ApprovalAnswer, ApprovalRequest } from "../room/approvals"
 import { findProvider } from "../user/turn-context"
 import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
@@ -215,7 +215,7 @@ export class AgentDO extends DurableObject<Env> {
       updateRoutine: async (id, patch) => ((await mine(id)) ? user().updateRoutine(id, patch) : notHere),
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
-      ask: (callKey, tool, args, summary) => room().requestApproval(home.slug, { callKey, tool, args, summary, ttlMs: 86_400_000 }),
+      ask: (callKey, tool, args, summary) => this.ask({ kind: "grant", callKey, tool, args, summary, external: false }),
       origin: () => user().publicOrigin(),
     }
   }
@@ -246,8 +246,8 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /** RPC from the room: a teammate answered this agent's open ask `id` (section 7.5). Only hands it over. */
-  async askAnswered(id: string, answer: string): Promise<void> {
-    this.answers.answer(id, answer)
+  async askAnswered(id: string, answer: string, tainted = true): Promise<void> {
+    this.answers.answer(id, { text: answer, tainted })
   }
 
   private messagingPort(): MessagingPort | null {
@@ -354,7 +354,7 @@ export class AgentDO extends DurableObject<Env> {
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (callKey, tool, args, card) => roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, { callKey, tool, args, ...card }) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts(fs) } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts(fs) } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -595,18 +595,18 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /**
-   * The trust gate's approvals (P7-02). The room posts a card for a tainted run's `external` call, or
-   * hands back the human's accepted record. The agent can ask; it can never decide.
+   * The one way this agent asks the human (sections 12.3, 16.3, 25.3): the trust gate, a routine
+   * tool, and Executor's pause all post the room's card through here. The agent can ask; it can never
+   * decide. Null when the agent has no room yet.
    */
+  private async ask(req: ApprovalRequest): Promise<ApprovalAnswer | null> {
+    const home = this.home()
+    return home ? roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, req) : null
+  }
+
+  /** The trust gate's side of `ask`: an `external` call in a run nobody asked for. */
   private approvalsPort(): Approvals {
-    return async (call) => {
-      const home = this.home()
-      if (!home) return null
-      const room = roomStub(this.env.ROOM, home.userId, home.roomId)
-      const grantMs = executorGrant(call.tool)
-      const grant = grantMs ? { grantMs, ttlMs: grantMs } : {}
-      return room.requestApproval(home.slug, { callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments, ...grant })
-    }
+    return (call) => this.ask({ kind: "grant", callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments, external: true })
   }
 
   /**

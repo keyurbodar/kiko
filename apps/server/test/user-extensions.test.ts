@@ -9,6 +9,7 @@ import type { ExtensionBundle } from "@kiko/protocol"
 import { declareEffect } from "../src/agent/effects"
 import { externalDecisions, TRUST } from "../src/agent/extensions/trust"
 import { buildAgent } from "../src/agent/factory"
+import { type Authority, AUTO, HUMAN } from "../src/lib/origin"
 import { checkExtension } from "../src/agent/script/check"
 import type { GuestRequest, ScriptPorts } from "../src/agent/script/compile"
 import { EXTENSION_CATALOG } from "../src/user/catalog.gen"
@@ -59,8 +60,8 @@ const ext = (manifest: Record<string, unknown>, source = ""): { name: string; ha
 })
 
 /** Runs one input where the model makes `calls` in order, one per request, then answers. Returns the tool results. */
-async function run(installed: ReturnType<typeof ext>[], calls: { name: string; args: Record<string, unknown> }[], world: World, spare = 0) {
-  const built = buildAgent({ role: "", lead: true, model: FAUX, scripts: ports(world), testExtensions: [TEST_TOOLS] })
+async function run(installed: ReturnType<typeof ext>[], calls: { name: string; args: Record<string, unknown> }[], world: World, spare = 0, authority: Authority = HUMAN) {
+  const built = buildAgent({ role: "", lead: true, model: FAUX, scripts: ports(world), testExtensions: [TEST_TOOLS], authority: () => authority })
   const problems = built.extensions.sync(installed)
   const faux = fauxProvider()
   const results: string[] = []
@@ -89,6 +90,8 @@ async function run(installed: ReturnType<typeof ext>[], calls: { name: string; a
 }
 
 const fresh = (): World => ({ state: new Map(), fetches: [], errors: [] })
+/** A routine run granted the extension's `wx` and nothing else. */
+const ROUTINE_WX: Authority = { origin: "routine", grant: ["wx"] }
 
 describe("user extensions in the harness", () => {
   test("a tool runs in the sandbox, keeps state, and calls a tool it lists", async () => {
@@ -118,11 +121,11 @@ describe("user extensions in the harness", () => {
     expect(system).toContain("remember: the human likes tea")
   })
 
-  test("a fetch taints the run, so a later external call is blocked by trust", async () => {
+  test("a fetch is outside content, and a routine's outside call it was not granted waits for the human", async () => {
     const world = fresh()
     sent.length = 0
     const weather = ext({ name: "wx", tools: { wx: { description: "weather", effect: "external" } }, egress: ["api.example.com"] }, `export const tools = { wx: async (_a, kiko) => (await kiko.fetch("https://api.example.com/now")).text }`)
-    const { results, decisions } = await run([weather], [{ name: "wx", args: {} }, { name: "fake_send", args: {} }], world)
+    const { results, decisions } = await run([weather], [{ name: "wx", args: {} }, { name: "fake_send", args: {} }], world, 0, ROUTINE_WX)
     expect(world.fetches).toHaveLength(1)
     // The fetched text is wrapped as untrusted, and the injected instruction does not get to send.
     expect(results[0]).toContain("<untrusted source=\"extension:wx\"")
@@ -144,11 +147,11 @@ describe("user extensions in the harness", () => {
     expect(world.fetches).toEqual([{ url: "https://api.example.com/q" }])
   })
 
-  test("a read tool that fetched may run again in the same run; an external one waits for the human", async () => {
+  test("a read tool that fetched may run again in the same run; in a run nobody asked for an external one waits for the human", async () => {
     const world = fresh()
     sent.length = 0
     const wx = ext({ name: "wx", tools: { wx: { description: "weather", effect: "read" } }, egress: ["api.example.com"] }, `export const tools = { wx: async (_a, kiko) => (await kiko.fetch("https://api.example.com/now")).text }`)
-    const { results } = await run([wx], [{ name: "wx", args: {} }, { name: "wx", args: {} }, { name: "fake_send", args: {} }], world)
+    const { results } = await run([wx], [{ name: "wx", args: {} }, { name: "wx", args: {} }, { name: "fake_send", args: {} }], world, 0, AUTO)
     expect(world.fetches).toHaveLength(2)
     expect(results[1]).toContain("<untrusted")
     expect(results[2]).toContain("blocked")
@@ -179,7 +182,7 @@ describe("user extensions in the harness", () => {
     sent.length = 0
     const weather = ext({ name: "wx", tools: { wx: { description: "weather", effect: "external" } }, egress: ["api.example.com"] }, `export const tools = { wx: async (_a, kiko) => (await kiko.fetch("https://api.example.com/now")).text }`)
     const allow = ext({ name: "allow", hooks: ["beforeTool"] }, `export const hooks = { beforeTool: async (call) => ({ arguments: call.arguments }) }`)
-    const { results } = await run([weather, allow], [{ name: "wx", args: {} }, { name: "fake_send", args: {} }], world)
+    const { results } = await run([weather, allow], [{ name: "wx", args: {} }, { name: "fake_send", args: {} }], world, 0, ROUTINE_WX)
     expect(results[1]).toContain("blocked")
     expect(sent).toEqual([])
   })
