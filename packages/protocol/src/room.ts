@@ -145,6 +145,8 @@ export type Approval = {
 	state: ApprovalState
 	/** Epoch milliseconds. */
 	expiresAt: number
+	/** Set when an ok lets the agent use the tool freely for this long, not just once. */
+	grantMs?: number
 }
 
 type Stored = {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { effectOf } from "../src/agent/effects"
-import { executorExtension, toolName } from "../src/integrations/executor/tools"
+import { EXECUTOR_GRANT_MS, executorExtension, executorGrant, toolName } from "../src/integrations/executor/tools"
 
 describe("executor tools (P7-04)", () => {
   const listed = [
@@ -30,6 +30,14 @@ describe("executor tools (P7-04)", () => {
     expect(failed.isError).toBe(true)
     expect(failed.content[0]!.text).toContain("offline")
     expect(calls).toEqual([["execute", { code: "1+1" }], ["list-artifacts", {}]])
+  })
+
+  test("resume answers only to its pause card, so the trust gate does not post a second one", () => {
+    const ext = executorExtension([{ name: "resume", inputSchema: { type: "object" } }], async () => ({ content: [] }))
+    expect(effectOf((ext.tools ?? [])[0]!)).toEqual({ effect: "write", outside: "executor" })
+    expect(executorGrant("executor_execute")).toBe(EXECUTOR_GRANT_MS)
+    expect(executorGrant("executor_resume")).toBeUndefined()
+    expect(executorGrant("web_fetch")).toBeUndefined()
   })
 
   test("a name a model cannot hold is cleaned", () => {

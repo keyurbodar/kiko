@@ -1,95 +1,80 @@
-import { For, Show, createSignal, onCleanup, type JSX } from "solid-js"
-import type { Approval, ApprovalState } from "@kiko/protocol"
+import { For, createSignal, onCleanup, type JSX } from "solid-js"
+import type { Approval } from "@kiko/protocol"
 
 /*
- * Approval cards (P7-02, architecture sections 12.3 and 16.3). A tainted run asked to act outside
- * kiko and only the human can say yes. The card sits like an incoming bubble above the composer:
- * who asks, the tool, a plain summary of the arguments, why it needs an ok, and two buttons.
+ * Approval cards (P7-02, architecture sections 12.3 and 16.3). An agent asked to act outside kiko
+ * and only the human can say yes. A card sits above the composer only while it waits: one line that
+ * says what the agent wants, two buttons, and the raw call behind "details". Once the human answers
+ * it leaves at once; the agent's reply is the confirmation. A card past its time leaves too.
  *
  * Loaded lazily by the chat route, and only when the room has a card, so the transcript chunk
  * does not carry it. Deciding is optimistic: the store overlays the new state at once and the
  * room's `approval` event confirms it.
  */
 
-const LABEL: Record<Exclude<ApprovalState, "pending">, string> = {
-  accepted: "approved",
-  declined: "declined",
-  expired: "expired, ask again if it still matters",
+/** What the agent wants, in one plain line. Executor tools read as the human's connected apps. */
+function title(a: Approval): string {
+  const apps = a.tool.startsWith("executor_")
+  if (a.grantMs) return `${a.slug} wants to use ${apps ? "your connected apps" : a.tool.replace(/_/g, " ")} for ${Math.round(a.grantMs / 60_000)} minutes`
+  if (apps) return `${a.slug} wants to go ahead with an action in your connected apps`
+  return `${a.slug} wants to use ${a.tool.replace(/_/g, " ")}`
 }
-
-/** The state to show. A pending card past its time reads as expired before the room says so. */
-const shownState = (a: Approval, now: number): ApprovalState => (a.state === "pending" && a.expiresAt <= now ? "expired" : a.state)
 
 export default function ApprovalCards(props: {
   approvals: readonly Approval[]
   onDecide: (id: string, action: "accept" | "decline") => void
 }): JSX.Element {
-  /*
-   * Pending cards show, and a card stays after it is decided while this chat is open, so the human
-   * sees what their tap did. An old decided card from an earlier visit stays out of the way.
-   */
-  const seen = new Set<string>()
-  const visible = () =>
-    props.approvals.filter((a) => {
-      if (a.state === "pending") seen.add(a.id)
-      return seen.has(a.id)
-    })
-
   const [now, setNow] = createSignal(Date.now())
-  // One tick a second only while a card is pending, so an expired card flips without a server event.
+  // One tick a second only while a card waits, so an expired card leaves without a server event.
   const timer = setInterval(() => {
     if (props.approvals.some((a) => a.state === "pending")) setNow(Date.now())
   }, 1_000)
   onCleanup(() => clearInterval(timer))
+  const waiting = () => props.approvals.filter((a) => a.state === "pending" && a.expiresAt > now())
 
   return (
-    <div class="mx-auto mb-2 flex w-full max-w-[720px] flex-col items-start gap-2" data-component="approval-cards">
-      <For each={visible()}>
-        {(a) => {
-          const state = () => shownState(a, now())
-          return (
-            <div
-              class="flex w-full max-w-[420px] flex-col gap-1 rounded-bubble bg-message-assistant px-(--bubble-pad-x) py-(--bubble-pad-y) text-message-assistant-text"
-              role="group"
-              aria-label={`approval for ${a.tool}`}
-              data-component="approval-card"
-              data-approval-id={a.id}
-              data-state={state()}
-            >
-              <span class="text-sm text-[var(--accent)]">{a.slug} wants to act outside kiko</span>
-              <span class="font-medium break-all">{a.tool}</span>
-              <span class="text-base wrap-break-word">{a.summary}</span>
-              <span class="text-sm text-text-muted">this run read outside content, so it needs your ok first.</span>
-              <Show
-                when={state() === "pending"}
-                fallback={
-                  <span class="pt-1 text-sm text-text-muted" role="status" data-component="approval-state">
-                    {LABEL[state() as Exclude<ApprovalState, "pending">]}
-                  </span>
-                }
+    <div class="mx-auto mb-2 flex w-full max-w-[720px] flex-col gap-2" data-component="approval-cards">
+      <For each={waiting()}>
+        {(a) => (
+          <div
+            class="flex w-full flex-col gap-1.5 rounded-2xl bg-message-assistant px-4 py-2.5 text-message-assistant-text"
+            role="group"
+            aria-label={`approval for ${a.tool}`}
+            data-component="approval-card"
+            data-approval-id={a.id}
+            data-state={a.state}
+          >
+            <div class="flex items-center gap-3">
+              <p class="min-w-0 flex-1 text-sm" data-component="approval-title">
+                {title(a)}
+              </p>
+              <button
+                type="button"
+                class="h-8 shrink-0 rounded-[10px] bg-bg-subtle px-3 text-sm text-text"
+                data-component="approval-decline"
+                onClick={() => props.onDecide(a.id, "decline")}
               >
-                <div class="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    class="flex-1 rounded-xl bg-bg-subtle px-3 py-1.5 text-sm text-text"
-                    data-component="approval-decline"
-                    onClick={() => props.onDecide(a.id, "decline")}
-                  >
-                    decline
-                  </button>
-                  <button
-                    type="button"
-                    class="flex-1 rounded-xl bg-[var(--accent-fill)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
-                    data-component="approval-accept"
-                    onClick={() => props.onDecide(a.id, "accept")}
-                  >
-                    approve
-                  </button>
-                </div>
-              </Show>
+                decline
+              </button>
+              <button
+                type="button"
+                class="h-8 shrink-0 rounded-[10px] bg-[var(--accent-fill)] px-3 text-sm text-[var(--on-accent)]"
+                data-component="approval-accept"
+                onClick={() => props.onDecide(a.id, "accept")}
+              >
+                approve
+              </button>
             </div>
-          )
-        }}
+            <details class="text-xs text-text-muted" data-component="approval-details">
+              <summary class="w-fit cursor-default select-none">details</summary>
+              <pre class="mt-1 max-h-40 overflow-auto whitespace-pre-wrap wrap-break-word font-mono text-xs">
+                {a.tool}
+                {"\n"}
+                {a.summary}
+              </pre>
+            </details>
+          </div>
+        )}
       </For>
     </div>
   )

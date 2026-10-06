@@ -616,6 +616,10 @@ v2 keeps a paused program in memory, in the MCP session that ran it, and resumes
 
 A human who declines does not call `resume`, so the program waits until Executor lets it go.
 
+**One ok per task, not per step.** In code mode a task is many `execute` calls, each with new code, and every result after the first is outside content. Section 16's one-shot cards asked the human at every step and kept asking after an ok, because the approved call never came back with the same code. An ok to an Executor card is a grant instead: that agent may call that Executor tool with any arguments for 15 minutes from the ok (`grantMs` on the card, `room/approvals.ts`). Executor's own approvals still stop every action an app marks for a person, and `resume` answers only to those pause cards, never to a grant. DEVIATION from section 16.3, whose cards each let exactly one call through: that rule stays for every other tool.
+
+The card above the composer shows only while it waits, as one line: "kiko wants to use your connected apps for 15 minutes", with the raw call behind "details".
+
 This gate is the only Executor-specific code in kiko. It keys on the tool name `resume` and on the paused result shape (`integrations/executor/approval.ts`).
 
 ### 12.4 Code mode

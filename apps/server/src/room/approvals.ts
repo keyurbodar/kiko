@@ -5,7 +5,9 @@ import type { RoomLog } from "./log"
 // human's ok. The trust gate asks the room through `request`: the room posts a card and the call
 // ends as pending. Only the human's socket decides a card (`decide`); the decision goes back to the
 // agent as an `approval_result` envelope. The agent's next call of the same tool with the same
-// arguments finds the accepted record and runs, once.
+// arguments finds the accepted record and runs, once. A card asked with `grantMs` is a grant instead:
+// once accepted, it lets the same agent call the same tool with any arguments until it ends. Executor's
+// `execute` asks that way, because each step of a task is new code (section 12.3).
 //
 // No method an agent can reach changes a card's state. `request` only adds a pending card or uses an
 // accepted one. `decide` is called from the human's socket, and `expire` from the room's alarm.
@@ -27,6 +29,8 @@ export type ApprovalRequest = {
 	summary?: string
 	/** How long the card waits, at most a day. Default `APPROVAL_TTL_MS`. */
 	ttlMs?: number
+	/** Accepting lets this agent call this tool with any arguments for this long, counted from the human's ok. */
+	grantMs?: number
 }
 
 /** What the trust gate gets back: the accepted record's id, or the text that ends the call. */
@@ -43,9 +47,11 @@ type Row = {
 	expires_at: number
 	used_by: string | null
 	delivered: number
+	grant_ms: number | null
+	grant_until: number | null
 }
 
-const toApproval = (r: Row): Approval => ({ id: r.id, slug: r.slug as AgentSlug, tool: r.tool, summary: r.summary, state: r.state, expiresAt: r.expires_at })
+const toApproval = (r: Row): Approval => ({ id: r.id, slug: r.slug as AgentSlug, tool: r.tool, summary: r.summary, state: r.state, expiresAt: r.expires_at, ...(r.grant_ms ? { grantMs: r.grant_ms } : {}) })
 
 /** A plain one-line summary of a tool call's arguments. */
 export function summarize(args: Record<string, unknown>): string {
@@ -94,6 +100,10 @@ function ensureTable(sql: SqlStorage): void {
 		);
 		CREATE INDEX IF NOT EXISTS ws_approvals_match ON ws_approvals (slug, args_key, state);
 	`)
+	if (!sql.exec<{ name: string }>("PRAGMA table_info(ws_approvals)").toArray().some((c) => c.name === "grant_ms")) {
+		sql.exec("ALTER TABLE ws_approvals ADD COLUMN grant_ms INTEGER")
+		sql.exec("ALTER TABLE ws_approvals ADD COLUMN grant_until INTEGER")
+	}
 }
 
 export class RoomApprovals {
@@ -122,20 +132,22 @@ export class RoomApprovals {
 			if (used) return { answer: used.id, event: null }
 			const asked = this.row("call_key = ?", req.callKey)
 			if (asked) return { answer: asked.state === "pending" ? pending(asked.id, asked.tool) : { refused: `approval ${asked.id} is ${asked.state}.` }, event: null }
+			const now = this.now()
+			const granted = this.row("slug = ? AND tool = ? AND state = 'accepted' AND grant_until > ? ORDER BY at DESC", slug, req.tool, now)
+			if (granted) return { answer: granted.id, event: null }
 			const key = argsKey(req.tool, req.args)
 			const accepted = this.row("slug = ? AND args_key = ? AND state = 'accepted' AND used_by IS NULL ORDER BY at", slug, key)
 			if (accepted) {
 				this.sql.exec("UPDATE ws_approvals SET used_by = ? WHERE id = ?", req.callKey, accepted.id)
 				return { answer: accepted.id, event: null }
 			}
-			const now = this.now()
 			const open = this.row("slug = ? AND args_key = ? AND state = 'pending' AND expires_at > ?", slug, key, now)
 			if (open) return { answer: pending(open.id, open.tool), event: null }
 			const id = `ap_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`
 			const runId = req.callKey.slice(0, req.callKey.lastIndexOf(":"))
 			const summary = req.summary ? req.summary.replace(/\s+/g, " ").slice(0, 400) : summarize(req.args)
 			this.sql.exec(
-				"INSERT INTO ws_approvals (id, slug, run_id, call_key, tool, args_key, summary, state, expires_at, at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
+				"INSERT INTO ws_approvals (id, slug, run_id, call_key, tool, args_key, summary, state, expires_at, at, grant_ms) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)",
 				id,
 				slug,
 				runId,
@@ -145,6 +157,7 @@ export class RoomApprovals {
 				summary,
 				now + Math.min(req.ttlMs ?? APPROVAL_TTL_MS, 86_400_000),
 				now,
+				req.grantMs ?? null,
 			)
 			const event = this.log.append(`agent:${slug}`, { t: "approval", approval: toApproval(this.row("id = ?", id)!) })
 			return { answer: pending(id, req.tool), event }
@@ -156,7 +169,9 @@ export class RoomApprovals {
 		return this.storage.transactionSync(() => {
 			const row = this.row("id = ? AND state = 'pending'", id)
 			if (!row) return null
-			const state: ApprovalState = row.expires_at <= this.now() ? "expired" : action === "accept" ? "accepted" : "declined"
+			const now = this.now()
+			const state: ApprovalState = row.expires_at <= now ? "expired" : action === "accept" ? "accepted" : "declined"
+			if (state === "accepted" && row.grant_ms) this.sql.exec("UPDATE ws_approvals SET grant_until = ? WHERE id = ?", now + row.grant_ms, row.id)
 			return this.settle(row, state, "human")
 		})
 	}
@@ -198,12 +213,14 @@ export class RoomApprovals {
  * The decision as the agent reads it. Tainted, so the run it starts stays gated: an accepted card
  * lets exactly the approved call through, and nothing else outside kiko.
  */
-export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state" | "args_key">, seq: number): Envelope {
+export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state" | "args_key" | "grant_ms">, seq: number): Envelope {
 	// A run starts from memory, not from the last run's tool calls (section 13), so the arguments travel
 	// here. They are the stored key, so the call matches its card exactly.
 	const args = r.args_key.slice(r.tool.length + 1)
 	const body =
-		r.state === "accepted"
+		r.state === "accepted" && r.grant_ms
+			? `the human allowed ${r.tool} for the next ${Math.round(r.grant_ms / 60_000)} minutes (approval ${r.id}, ${r.summary}). go on with the task now: call ${r.tool} as you need, with any arguments, and tell the human what you did.`
+			: r.state === "accepted"
 			? `the human accepted ${r.tool} (approval ${r.id}, ${r.summary}). call ${r.tool} again now with exactly these arguments: ${args}`
 			: r.state === "declined"
 				? `error: the human declined ${r.tool} (approval ${r.id}, ${r.summary}). do not call it again. tell the human you did not do it.`
