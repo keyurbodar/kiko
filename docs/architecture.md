@@ -169,10 +169,13 @@ The debounce window uses the human's typing signal, which the room already recei
 | Event | Wakeup is set to |
 | --- | --- |
 | message arrives | now + 1000 ms |
+| a fragment arrives: the message ends with a comma, an ellipsis, or a connective, preposition, or article ("and", "with", "the") | now + 2500 ms |
 | typing ping arrives while a burst is pending | now + 2500 ms |
 | burst has been pending for 8000 ms | now |
 
-ASSUMPTION: these three numbers. They are constants in one file and a per-user "reply speed" setting can override them later.
+ASSUMPTION: these numbers, and the word list of `isFragment` in `room/burst.ts`. They are constants in one file and a per-user "reply speed" setting can override them later. A short complete reply ("yes", "do it", "sounds good") is not a fragment, so it waits the plain 1000 ms. Fragment detection used to treat any message of three words or fewer as unfinished, so a quick "yes" waited 2.5 s.
+
+The room gets both things a flush needs from `UserDO` (the chat row and the day's turn) in one parallel step, and keeps the chat's title in its own meta, so agent mail and wakes never read the chat row again. A flush ends with a mail drain whatever happened to the burst: delivered, refused by the day's limit, or dropped. Mail held behind a refused burst used to wait for some later event.
 
 **DEVIATION in placement.** The spec puts the pending queue "in the DO". Kiko puts the human burst in `RoomDO`, not in each `AgentDO`. The room is the only object that sees typing pings, one alarm serves every recipient, and a burst of four messages costs one delivery per agent, not four. Each `AgentDO` still has the inbox and alarm from spec section 4.4 for everything that reaches it.
 
@@ -209,6 +212,7 @@ Human messages always outrank agent messages. The inbox sorts by priority first,
 
 - The tuple `(runId, attempt, index)` is unique in the room. A retried call stores nothing twice.
 - If a run restarts after a crash, `pi-durable` sends the request again and the model may write different text. The attempt number goes up, and the room deletes the bubbles of the earlier attempt for that run.
+- The agent's status follows its run: `typing` while it writes, `working` while a tool runs. The typing set that the client and the chat list show covers the whole run, so only a run's start and end change it, and a tool round costs no `UserDO` call. The chat list row is touched once per run, when the run ends, not once per bubble.
 - A block longer than about 400 characters that is still growing is sent as a `draft` frame. Draft updates are batched to one every 300 ms and are not stored. The client shows no draft text: kiko never streams, so a reply appears only as whole bubbles, and while a long block grows its agent shows as typing.
 
 **DEVIATION in pacing.** The spec asks the server to send each part "with a small typing delay". Kiko paces in the client. The server posts a block when the model finishes it. The client holds a bubble from a live run until a minimum gap has passed since the previous bubble (350 ms plus 12 ms per character, capped at 1200 ms) and shows the typing indicator in the gap. History loads and reduced-motion users get no delay.
@@ -278,6 +282,10 @@ Agents that were not addressed are not woken, not even after the lead answers. T
 
 The alarm handler drains the inbox in priority order (human, then system, then agent), applies the table in section 6.2 if a run is active, and submits one input whose `requestId` is a hash of the envelope ids. `pi-durable` returns the existing submission for a repeated `requestId`, so a crashed and repeated alarm submits nothing twice.
 
+Agent and system mail that arrives while a run works is held (section 7.8). A held batch goes back to waiting, so the next claim puts it and whatever arrived meanwhile into one input: three teammates who answer a busy lead cost the lead one run, not three. Only a batch `pi-durable` never admitted may go back. The drain first asks `pi-durable` for the batch's `requestId`, and a batch a dead process had already submitted is marked done instead. Every check that holds a batch runs before `beginRun`, so a held batch loads no credential and syncs no extension.
+
+The inbox keeps submitted rows for dedupe for seven days, far past any retry of an alarm or a queue (minutes), and then prunes them. An arrival counter replaces the `max(arrival)` scan.
+
 `receive()` never waits for a model. Two agents that message each other both return at once, so they cannot deadlock. An admission receipt means "stored", not "done". An agent that needs an answer gets it later as a new envelope.
 
 ### 7.4 The workspace brief
@@ -288,7 +296,7 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 - The receiving agent's open tasks and the tasks that block them.
 - Reactions on the agent's messages since its last delivery.
 
-`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry. What was said is not in the brief: a run that starts opens with its `<memory>` block (section 13), which holds the whole chat, older turns compressed. The brief used to carry the last 30 messages, each cut to 400 characters, so a teammate that joined late saw nothing older.
+`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry. Only the newest brief of a batch is shown, and only when it differs from the last one the transcript holds (`briefToShow` in `agent/host.ts` keeps a hash of it). A run that starts fresh always shows it. The agent's own line in the member list leaves out what it is doing and holding, since that alone made every brief differ from the last. The long sentence about when to @-mention the human goes only into a fresh run's brief. Before this, each batch carried every distinct brief, and every input repeated an unchanged one. What was said is not in the brief: a run that starts opens with its `<memory>` block (section 13), which holds the whole chat, older turns compressed. The brief used to carry the last 30 messages, each cut to 400 characters, so a teammate that joined late saw nothing older.
 
 **Reasoning.** The spec asks for the brief to be "injected into its prompt" at the start of each turn. Putting it in the user entry and not in the system prompt keeps the request prefix stable between runs, so provider prompt caches keep hitting. History is immutable in `pi-durable`, which gives the same property for free.
 
@@ -297,7 +305,7 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 | Tool | Who | Effect |
 | --- | --- | --- |
 | `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
-| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
+| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
@@ -310,15 +318,19 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 **Reasoning.** One place enforces the hop limit and the budgets. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
 
-Agent mail is queued in the room's `mail_queue` table before any delivery, and drained in order (`room/mail.ts`). A failed delivery or a full inbox stays at the head and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. While a human burst is open, nothing drains (section 7.8).
+Agent mail is queued in the room's `mail_queue` table before any delivery, one row per recipient, and drained in order for each recipient (`room/mail.ts`). The sender's `send_message` returns once the mail is stored; it never waits for another agent's inbox. A broadcast reaches every recipient at once. A failed delivery or a full inbox stays queued and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. Mail to a member the open human burst addresses waits for that burst. Mail to anyone else goes at once (section 7.8).
 
 A plain reply bubble wakes nobody. Only `send_message`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
+
+The one exception is an open `ask`. When a run that read a teammate's question ends without a `send_message` back to the asker, its reply bubbles are the answer: the agent tells the room which agent envelopes the run read (`endRun`), and the room pushes the bubbles to the waiting tool. If the asker's wait already ran out, the bubbles go to it as mail on the answering agent's chain, under the same limits. A question sent with `ask` never answers the recipient's own open ask, and an agent whose teammate waits on its answer may not ask that teammate back, because the two waits would hold each other until both ran out. A replayed `send_message` answers no second ask. A batch dropped for a missing credential answers the asks it carried with the reason, so no asker waits for nothing.
 
 ### 7.6 Tasks and waking
 
 Task status is one of `todo`, `doing`, `blocked`, `review`, `done`, `cancelled`. A task has an owner and a `depends_on` list.
 
 When a task becomes `done`, `RoomDO` finds each task whose dependencies are now all `done` and delivers a `task_unblocked` system envelope to its owner. The delivery id is `unblocked:<taskId>`, so the wake happens once.
+
+A task keeps the chain it was made on: the root, the hop, and the authority of the work its maker was doing (section 25.3). A task the human makes carries the human's authority. Its wake and its stall nudges carry that chain, so a project the human asked for keeps the human's authority and its loop limits, instead of starting a new `auto` chain. A reminder an agent sets keeps its chain the same way. A one-off reminder keeps the root and hop; a recurring one starts its own root at each occurrence, so occurrences never add up against one root's limit. A root the human stopped starts over.
 
 The lead reviews work by moving a task from `review` to `done` or back to `doing` with a note.
 
@@ -333,12 +345,15 @@ Four limits apply, all enforced in `RoomDO`. ASSUMPTION: the default numbers.
 | Members per room | 8 | `spawn_agent` fails |
 | Autonomous runs per room per UTC day | 50 | scheduled and task-triggered wakes are held until the next day or the next human message |
 
-An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. Reactions never start a run. The lifetime count per root and the daily budget are borrowed from the Lightspeed project (`smartcomputer-ai/lightspeed`, `docs/documentation/using-lightspeed/subagents-and-federation.md`), which bounds its delegation tree the same way. The rest of Lightspeed (Rust, Temporal, Postgres, attached VMs) does not transfer to Workers.
+An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. The room records each member's chain from what it delivers. Agent or system mail delivered to a busy member waits in its inbox for the next run, so its chain waits too and takes over when the run ends: held mail never rewrites the root, hop, or authority of the run in flight. A human message sets the chain at once, since it joins the run or starts the next one.
+
+`agent_sends`, `root_counts`, and `stopped_roots` are pruned once a row is a week old. A replayed send comes within minutes. Reactions never start a run. The lifetime count per root and the daily budget are borrowed from the Lightspeed project (`smartcomputer-ai/lightspeed`, `docs/documentation/using-lightspeed/subagents-and-federation.md`), which bounds its delegation tree the same way. The rest of Lightspeed (Rust, Temporal, Postgres, attached VMs) does not transfer to Workers.
 
 ### 7.8 Human priority and interruption
 
 - A human burst is placed before any waiting agent message.
 - A human burst applies section 6.2 to a run that another agent started.
+- When a human message is stored, each busy agent it is for, by the table of section 7.2, is told one is coming. Until it arrives, that agent holds agent and system mail, and a waiting `ask` stops so the run answers the human first. Agents the message is not for keep working. When the burst closes without reaching a warned agent (refused, or routed elsewhere), the room tells it so and its held mail goes at once. Every human message used to warn every busy agent and cancel every open `ask`.
 - The stop button aborts every run in the room and clears agent messages still waiting in inboxes for that `rootId`.
 
 ### 7.9 Where Queues are used
@@ -349,6 +364,8 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 | --- | --- |
 | attachment post-processing (dimensions, thumbhash, text extraction) | CPU work that should not hold a room awake |
 | account deletion fan-out | must reach every Durable Object of a user and survive partial failure |
+
+An agent deleted in the middle of a run aborts the run and closes its harness before its storage goes. A harness left running on deleted tables kept the whole isolate busy, so the local server answered nothing more.
 
 **Reasoning.** A turn is latency-sensitive and a queue adds batching delay. A Durable Object alarm already retries with backoff and survives eviction, and `pi-durable` already checkpoints. The Free plan allows 10,000 queue operations a day, and one message costs about three operations, so queues are kept for jobs that need them.
 
@@ -534,7 +551,7 @@ record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || provider
 
 ### 11.3 Use during a run
 
-At the start of a run, `AgentDO` calls `UserDO.turnContext(provider)` once. The call returns the request auth for that provider, the user's life log as agents read it (section 13), the timezone, and the limits. The auth is kept in memory for that run only.
+At the start of a run, `AgentDO` calls `UserDO.turnContext(provider, slug)` once. The call returns the request auth for that provider, the timezone, the limits, and the agent's extension versions and soul. The life log is read only by a run that starts fresh (section 13.4). The auth is kept in memory for that run only.
 
 Disconnecting a provider deletes its rows in `UserDO` at once. A run already in flight finishes its current model request with the auth it holds. The next request fails with a clear error and the chat shows the connect prompt.
 
@@ -607,7 +624,7 @@ The URL carries no query options. v2's default `elicitation_mode` is `model`, wh
 
 v2 pauses a program for the human and returns JSON: `{status: "approval-required" | "input-required", requestId, elicitation, expiresAt}`. The model could answer with `resume` itself. Kiko stops that.
 
-1. The Executor extension sees the pause in a tool result and asks `RoomDO` to post an approval card. The card shows the elicitation's message and lasts until `expiresAt`, 15 minutes in v2.
+1. The Executor extension sees the pause in a tool result and asks `RoomDO` to post a pause card. The card shows the elicitation's message and lasts until `expiresAt`, 15 minutes in v2.
 2. A model call to `executor_resume` runs only against a card the human accepted.
 3. Kiko writes the `response` itself. Consent to a call (`apr_` ids) is sent with empty content, so a model cannot change approved arguments through it. A form question (`elc_` ids) passes the fields the human gave in the chat. ASSUMPTION: the agent relays those fields; the card has no form.
 4. A pause that comes back from `resume` posts a new card.
@@ -616,9 +633,9 @@ v2 keeps a paused program in memory, in the MCP session that ran it, and resumes
 
 A human who declines does not call `resume`, so the program waits until Executor lets it go.
 
-**One ok per task, not per step.** In code mode a task is many `execute` calls, each with new code, and every result after the first is outside content. Section 16's one-shot cards asked the human at every step and kept asking after an ok, because the approved call never came back with the same code. An ok to an Executor card is a grant instead: that agent may call that Executor tool with any arguments for 15 minutes from the ok (`grantMs` on the card, `room/approvals.ts`). Executor's own approvals still stop every action an app marks for a person, and `resume` answers only to those pause cards, never to a grant. DEVIATION from section 16.3, whose cards each let exactly one call through: that rule stays for every other tool.
+**One ok per task, not per step.** In code mode a task is many `execute` calls, each with new code. kiko's own card (section 25.3) is a 30-minute grant for that agent over every `external` tool, so one ok covers the task. A run the human started needs no kiko card at all. Executor's own approvals still stop every action an app marks for a person, and `resume` answers only to its own pause card, bound to the `requestId`, never to a grant (`room/approvals.ts`).
 
-The card above the composer shows only while it waits, as one line: "kiko wants to use your connected apps for 15 minutes", with the raw call behind "details".
+The card above the composer shows only while it waits, as one line: "kiko wants to use your connected apps for 30 minutes", with the raw call behind "details".
 
 This gate is the only Executor-specific code in kiko. It keys on the tool name `resume` and on the paused result shape (`integrations/executor/approval.ts`).
 
@@ -695,16 +712,24 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 
 Kiko follows OptMem's own loop: wake from memory once, then work in an ordinary transcript.
 
-1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `agent/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task with Executor started over at every step, because Executor's guides alone pass the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06): the life view from the run's one `turnContext` call, then this chat's view from `RoomDO.memoryView`.
-2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own. A turn there is cut at 300 characters, as before, and now says so and how to zoom for the rest.
+1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `agent/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task with Executor started over at every step, because Executor's guides alone pass the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `agent/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
+2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own. It also leaves out the messages that joined the last run while it was live, as a steer or a queued input: the host keeps their seqs (`memory:joined`) until the next run starts. Before this, they came back in the next delta, so the agent read them twice. A turn there is cut at 300 characters, as before, and now says so and how to zoom for the rest.
+
+**Before the first token.** A run makes one call to `UserDO`: `turnContext(provider, slug)` brings the auth, the agent's extension versions, and its soul. The extension sync does nothing when the versions match what the process synced last. The room computes the delta at the same time (`prefetchDelta` in `agent/agent-do.ts`); a run that turns out fresh drops it. The soul, `/chat.md`, and the skills list in the system prompt are read once per run (`perRun` in `agent/extensions/self.ts`), not before every model request, and `/chat.md` comes through the byte cache. A change to any of them reaches the next run. Built-in skills are parsed once per isolate.
+
+**Measured, 2026-10-06.** The changes above, paired against the code before them on two servers started together, with deepseek-v4.1-flash and `KIKO_TOKEN_TURNS=30`. Agent cost at a 10% cache price, new against old: 45,241 against 44,205, then 43,473 against 45,307, then 41,456 against 61,584 (that old run hit a cache miss and is left out of any average). Input went down in every pair: fresh input 7,411 against 7,738, 7,344 against 8,585, and 6,364 against 20,085, and cached input 4 to 14% lower. The one pair where new cost more did so on output, which is mostly thinking and varies by 30% or more between runs. `verify memory-eval` scored 10 of 10 on both, with a chat block of 6,629 against 6,501 characters. `verify memory-session` passed on both: no recall or zoom at turn 6, and no tool in small talk.
 
 A steer and a mid-run restart add no block. Every view line is written once and never changes (a fixed UTC time, one cut), so both the transcript and a fresh block are mostly served from the provider's cache.
 
-Three tools cover what the block does not show. `recall(query)` searches every life line and this chat's messages. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). OptChat's rule, to zoom "before you act, guess, or ask", was tried: with it in the prompt the agent's spend in `verify token-cost` ran 9 to 30% above the old design over four paired runs, and without it the spend was even again, so kiko keeps its own rule. `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
+The prompt says the conversation above is memory too: an agent looks there first, and reaches for a tool only for what is in neither the conversation nor the block. Tool output stays until the transcript is full; the prompt used to say it was gone once a task paused, so agents fetched it again. `verify memory-session` holds this: a fact told at turn 2 and asked at turn 6 of one session costs no `recall` and no `zoom`, and small talk calls no tool.
+
+Three tools cover what the block does not show. `recall(query)` searches this chat's messages, newest first, and every life line, best match first. A hit is the message itself cut at 300 characters, not a 16-word snippet, so it rarely needs a zoom after it. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). It also takes `#12` and `12`, which mean this chat, and a cut line's hint names the exact id (`(cut, zoom chat:12)`). Before this, the hint said `zoom 12`, which the tool rejected. OptChat's rule, to zoom "before you act, guess, or ask", was tried: with it in the prompt the agent's spend in `verify token-cost` ran 9 to 30% above the old design over four paired runs, and without it the spend was even again, so kiko keeps its own rule. `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
+
+Each fact has one home, so one fact costs one write. A note is a fact about the human that matters beyond this chat and that the agent did not know. `/chat.md` changes only when the chat's goal or a standing decision changes. The soul changes only when the human corrects how the agent works or talks. A note that says a stored fact again with different case, punctuation, or filler words ("the human's sister is maya." and "human's sister maya") is stored once (`norm` in `user/life.ts`). No model call decides it.
 
 **Outside content.** A memory line built from outside content is marked `[outside]`, and the memory rule calls it hearsay, never instructions. It does not taint the run: taint ends with the run that read the content (section 16.3), and outside content handed to an agent arrives as a tainted envelope, which does taint. Tainting on memory would gate every run for 32 turns after one web page.
 
-**Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started from memory, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one.
+**Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started fresh, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one. Until 2026-10-06 every run counted, so a short chat started cold every 50 runs for nothing.
 
 **Reasoning.** A first version reset the context on every run. It was bounded, but it rebuilt the block every time, lost tool output between runs, and measured about 1.8 times the tokens of the old transcript design on a 30-turn chat. Waking only when the transcript is full keeps the old design's cache behavior and adds the bound: on the same 30-turn chat the agent's requests cost about 12% less than the old design's (`bun kiko verify token-cost`), and the gap grows with the chat, because the old transcript never stopped growing. Summary calls ask for no thinking, or the least a model allows, since a one-line summary needs none.
 
@@ -780,7 +805,7 @@ The design assumes that a model can be fooled. Marking content lowers the odds. 
 
 ### 16.3 Taint and gating
 
-A run becomes tainted when it reads untrusted content. Taint is a flag on the run, set by code.
+A run becomes tainted when it reads untrusted content. Taint is a flag on the run, set by code. Reading a chat file taints a run, except the agent's own `/me/soul.md`, which only a clean run or the human writes.
 
 Every tool declares one effect.
 
@@ -789,11 +814,20 @@ Every tool declares one effect.
 | `read` | `recall`, `zoom`, `read`, `ls`, `team` | allowed |
 | `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
-| `external` | Executor `execute` and `invoke` | needs human approval, whatever the Executor policy says |
+| `external` | Executor `execute` and `invoke` | decided by who started the run, not by taint (section 25.3) |
 
-The `beforeTool` hook enforces the table. The last row breaks the dangerous combination of private data, untrusted input, and an outside action. A user can relax it in settings.
+The `beforeTool` hook enforces the table.
 
-A tainted run's notes and messages are stored flagged, and every summary built from them is flagged too (section 13.1). A flagged line reaches later prompts only marked `[outside]`.
+DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Executor results are outside content, so the second step of any task asked the human, and reading the agent's own files did too. kiko now asks only when it matters: a run the human started acts outside kiko without a kiko card, tainted or not. The risk: an injected page could steer a send that Executor does not pause for. What still holds:
+
+- Executor's own pause stops every action an app marks for a person (section 12.3).
+- Taint still flags what the run stores and sends, and a flagged line reaches later prompts only marked `[outside]`.
+- Section 16.4 still blocks preview exfiltration.
+- A tainted run cannot write `/me/soul.md`, `skills/`, or `extensions/`, which reach every later system prompt. `RoomFs` refuses it with one line that says the human can ask for the change.
+- A routine a tainted run made keeps no grant (section 25.3).
+- A helper's answer (`spawn_subagent`) and a teammate's answer to `ask` carry their taint back to the run that asked.
+
+A tainted run's notes and messages are stored flagged, and every summary built from them is flagged too (section 13.1).
 
 ### 16.4 Exfiltration through URLs
 
@@ -805,7 +839,7 @@ Credentials and tokens. Tools use them on the server.
 
 ### 16.6 Verification
 
-The gating layer is code, so its tests are deterministic. The verification CLI runs a set of canned attacks through fake tools and asserts that no `external` tool ran without an approval record. It does not assert what the model wrote.
+The gating layer is code, so its tests are deterministic. The verification CLI runs a set of canned attacks through fake tools and asserts that no injected text clears a run's taint, and that no `external` tool ran in a run nobody asked for without a card. It does not assert what the model wrote.
 
 ## 17. Scale and cost
 
@@ -1262,7 +1296,7 @@ The effect of a manifest tool goes into `effectTable` like a built-in tool's, so
 
 DEVIATION from the earlier plan: effects are declared in the manifest and enforced at run time, not computed from the code. A script's calls are dynamic, so they cannot be read ahead of time.
 
-**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run raised an approval card. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so a later outside action still waits for the human.
+**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run raised an approval card. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so what the run stores is flagged, and in a run nobody asked for a later outside action still waits for the human.
 
 ### 24.5 Selection and sync
 
@@ -1374,16 +1408,21 @@ type Origin = "human" | "routine" | "auto"
 - The agent host keeps the authority of the run in flight in `run_authority`. A batch that starts a run sets it; a batch that joins combines with it (`combine` in `lib/origin.ts`): a human anywhere gives the human's authority, otherwise the stricter wins and grants intersect. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
 - An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
 
-`needsApproval` and `gate` in `trust.ts`:
+`needsApproval` and `gate` in `trust.ts`. Taint does not decide an `external` call; it flags writes and messages (section 16.3).
 
-| Run | read | write | message | external |
-| --- | --- | --- | --- | --- |
-| tainted (section 16.3) | yes | flagged | flagged | a card |
-| `human` | yes | yes | yes | yes |
-| `routine` | yes | yes | yes | granted tools; others a card |
-| `auto` | yes | yes | yes | a card |
+| Run | external tool |
+| --- | --- |
+| started by the human (`human`), tainted or not | runs. Executor's own pause still stops every action an app marks for a person |
+| a routine (`routine`) | granted tools run, tainted or not, when the routine was made by a clean run. Others post a card |
+| nobody asked (`auto`) | a card, unless the human accepted one for this agent in the last 30 minutes |
 
-An approval card approves one call. It never adds to a grant.
+- There is one kind of card. An accepted card is a 30-minute grant for that agent over every `external` tool. The one-shot card that matched exact arguments is gone.
+- A card waits 30 minutes. One that expires closes quietly and wakes nobody. An agent has one open card at a time.
+- The human's answer reaches the agent as an `approval_result` envelope with `origin: "human"`, and the room records it as the agent's chain like any delivery.
+- A routine a tainted run made is stored `tainted`, and its runs carry no grant (`runGrant` in `user/reminders.ts`). One the human made, or accepted on a card that showed all of it, keeps its grant.
+- An extension's trigger runs as a routine granted that extension's own tools. The human reviewed and installed it.
+- `create_routine` and `update_routine` post a card only for a run the human did not start, or a tainted run that grants tools (for `update_routine`, a change to a routine that holds a grant).
+- DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Section 16.3 says why and what still holds.
 
 ### 25.4 Triggers
 

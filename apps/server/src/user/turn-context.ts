@@ -24,8 +24,12 @@ export type TurnContext = {
   auth: AuthResult | null
   timezone: string
   limits: Limits
-  /** The user's life log as every agent reads it (section 13). */
-  life: string
+  /**
+   * For an agent: the extension versions it runs (section 24.5) and its soul (section 7.10), so a run
+   * learns both from this one call. The life log is not here: only a run that starts fresh reads it,
+   * through `UserDO.lifeView` (section 13.4).
+   */
+  agent?: { extensions: { name: string; hash: string }[]; soul: { body: string; sha: string; at: number } }
 }
 
 /** Credentials come from the vault only. A run never reads the Worker's environment or files. */
@@ -52,9 +56,9 @@ export async function resolveTurnContext(
   store: CredentialStore,
   provider: string,
   settings: { timezone: string | null; limits: Partial<Limits> | null },
-  life: string,
+  agent?: TurnContext["agent"],
 ): Promise<TurnContext> {
-  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), life }
+  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), ...(agent ? { agent } : {}) }
   const found = findProvider(provider)
   if (!found) return { ...base, auth: null }
   const models = createModels({ credentials: store, authContext: NO_AMBIENT })

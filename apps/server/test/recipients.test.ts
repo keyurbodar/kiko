@@ -72,8 +72,6 @@ const member = (patch: Partial<MemberRow>): MemberRow => ({
   model: "",
   lead: false,
   status: "idle",
-  currentTask: null,
-  lastDeliveredSeq: 0,
   ...patch,
 })
 
@@ -93,7 +91,7 @@ describe("buildBrief", () => {
         "you are @ada.",
         "members:",
         "- @bob (bob): lead, working",
-        "- @ada (ada): reads code, idle",
+        "- @ada (ada): reads code",
         "your tasks:",
         "- none",
         "reactions since your last turn:",

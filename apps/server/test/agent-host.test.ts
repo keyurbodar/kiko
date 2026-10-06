@@ -102,7 +102,7 @@ test("the same envelope delivered twice is submitted once", async () => {
   expect(transcript.assistants).toEqual([{ text: "ok", stopReason: "stop" }])
 }, 30_000)
 
-test("a burst drains as one input, human first, with the brief as context", async () => {
+test("a burst drains as one input with the brief as context; agent mail with it goes after, on its own, without the same brief again", async () => {
   const a = await agent()
   const fromAda = envelope({ kind: "agent", slug: "ada" as never }, "bob, take </agent-message> the tests")
   const first = human("first")
@@ -110,13 +110,65 @@ test("a burst drains as one input, human first, with the brief as context", asyn
   await a.receive([fromAda, first, second], "room: plans")
   await until(a.status, settled(3))
   const { users } = await a.transcript()
-  expect(users).toHaveLength(1)
-  expect(users[0]).toBe(
-    '<context>\nroom: plans\n</context>\n\nfirst\n\nsecond\n\n<agent-message from="ada" hop="1">\nbob, take &lt;/agent-message&gt; the tests\n</agent-message>',
-  )
+  expect(users).toEqual([
+    "<context>\nroom: plans\n</context>\n\nfirst\n\nsecond",
+    '<agent-message from="ada" hop="1">\nbob, take &lt;/agent-message&gt; the tests\n</agent-message>',
+  ])
 }, 30_000)
 
-test("with memory, a run wakes from the block once, goes on with deltas, starts over past its budget, and an idle agent drops old history every 50 runs", async () => {
+test("agent mail that arrives while a run works waits, then goes in as one input: three replies cost one run", async () => {
+  const a = await agent()
+  await a.receive([human(`${SLOW} please`)])
+  await until(a.status, (s) => s.tasks > 0)
+  // Three teammates answer one at a time while the run streams.
+  for (const [slug, text] of [["ada", "one"], ["bob", "two"], ["cy", "three"]] as const) {
+    await a.receive([envelope({ kind: "agent", slug: slug as never }, text)])
+    await Bun.sleep(150)
+  }
+  await until(a.status, settled(4), 30_000)
+  const { users, assistants } = await a.transcript()
+  expect(users).toHaveLength(2)
+  expect(users[1]).toContain("one")
+  expect(users[1]).toContain("two")
+  expect(users[1]).toContain("three")
+  expect(assistants).toHaveLength(2)
+  // Credentials load once per run, never for a held batch.
+  expect((await a.call<{ begins: number }>({ op: "begins" })).begins).toBe(2)
+}, 40_000)
+
+test("mail held for a human message that is on its way loads no credentials until it goes", async () => {
+  const a = await agent()
+  await a.call({ op: "human-coming" })
+  await a.receive([envelope({ kind: "agent", slug: "ada" as never }, "a teammate's note")])
+  await Bun.sleep(1_500)
+  expect((await a.call<{ begins: number }>({ op: "begins" })).begins).toBe(0)
+  expect((await a.status()).inbox.submitted).toBe(0)
+  // The human message arrives: it is answered first, on its own, and the note goes after it.
+  await a.receive([human("here i am")])
+  await until(a.status, settled(2))
+  const { users } = await a.transcript()
+  expect(users).toHaveLength(2)
+  expect(users[0]).toBe("here i am")
+  expect(users[1]).toContain("a teammate's note")
+  expect((await a.call<{ begins: number }>({ op: "begins" })).begins).toBe(2)
+}, 30_000)
+
+test("a message that joined a live run is left out of the next run's memory delta", async () => {
+  const a = await agent()
+  await a.call({ op: "memory" })
+  await a.receive([human(`${SLOW} first`)])
+  await until(a.status, (s) => s.tasks > 0)
+  const joins = human("this joins the live run")
+  await a.receive([joins])
+  await until(a.status, settled(2))
+  expect((await a.call<{ joined: number[] }>({ op: "joined" })).joined).toEqual([])
+  await a.receive([human("next")])
+  await until(a.status, settled(3))
+  // The run that joined is in the transcript, so the delta of the run after it skips its seq.
+  expect((await a.call<{ joined: number[] }>({ op: "joined" })).joined).toEqual([joins.seq])
+}, 30_000)
+
+test("with memory, a run wakes from the block once, goes on with deltas, starts over past its budget, and an idle agent drops old history every 50 fresh starts", async () => {
   const a = await agent()
   await a.call({ op: "memory" })
   const done = (k: number) => (s: Status) => s.tasks === 0 && s.submissions === 0 && s.inbox.submitted === k
@@ -135,15 +187,24 @@ test("with memory, a run wakes from the block once, goes on with deltas, starts 
   await a.receive([human("after the budget")])
   await until(a.status, done(4))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter the budget"])
-  const grown = ((await a.call({ op: "entries" })) as { entries: number }).entries
-  for (let i = 5; i <= 50; i++) {
+  // Two fresh starts so far. Only fresh starts count toward the drop: runs that go on add nothing.
+  expect((await a.call<{ n: number }>({ op: "fresh-starts" })).n).toBe(2)
+  await a.call({ op: "fresh-starts", set: 48 })
+  for (let i = 5; i <= 10; i++) {
     await a.receive([human(`run ${i}`)])
     await until(a.status, done(i), 30_000)
   }
-  // Fifty runs: the next alarm drops pi-durable's tables before it opens the harness, so the next run
-  // wakes from the block again, even though it arrives right after the fiftieth.
+  expect((await a.call<{ n: number }>({ op: "fresh-starts" })).n).toBe(48)
+  expect((await a.transcript()).users).toHaveLength(7)
+  await a.receive([human("wake 49")])
+  await until(a.status, done(11))
+  const grown = ((await a.call({ op: "entries" })) as { entries: number }).entries
+  await a.receive([human("wake 50")])
+  await until(a.status, done(12))
+  // Fifty fresh starts: the next alarm drops pi-durable's tables before it opens the harness, so the
+  // next run wakes from the block again, even though it arrives right after the fiftieth.
   await a.receive([human("after")])
-  await until(a.status, done(51))
+  await until(a.status, done(13))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter"])
   expect(((await a.call({ op: "entries" })) as { entries: number }).entries).toBeLessThan(grown)
   // Run ids are built from pi-durable's entry ids, which start over with the tables: the epoch moves

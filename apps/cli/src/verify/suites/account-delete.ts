@@ -172,6 +172,12 @@ const suite: Suite = {
 			expectEqual([again.status, again.body], [200, { report: nothing }], `the second run for ${roomId ?? "the user"}`)
 		}
 		expectEqual(await residue(), gone, "what is left after the second run")
+
+		// The kiko chat's agent may still be answering "hello 0" when its storage is deleted. A harness left
+		// running on deleted tables used to keep the server so busy that it answered nothing more.
+		await new Promise((r) => setTimeout(r, 2_000))
+		const health = await fetch(new URL("api/health", base), { signal: AbortSignal.timeout(5_000) }).then((r) => r.status, () => 0)
+		expectEqual(health, 200, "the server's health after the deletion")
 	},
 }
 

@@ -4,6 +4,7 @@ import { BUILTIN_SKILLS } from "../../skills/builtin.gen"
 import { formatSkills, parseSkill, resolveSkills, type Skill } from "../../skills/registry"
 import { declareEffect } from "../effects"
 import type { RoomFs } from "../../files/room-fs"
+import { perRun } from "./self"
 
 // Architecture section 15, P5-08. Skills load on demand, as in pi's coding agent: the prompt's
 // skills slot lists each name and description, and read_skill returns the instructions. A room
@@ -13,11 +14,13 @@ export const SKILLS = "skills"
 const ROOM_PREFIX = "skills"
 const MAX_SKILL_BYTES = 64 * 1024
 
+/** The built-in skills, parsed once per isolate. */
+let parsed: Skill[] | undefined
 const builtin = (): Skill[] =>
-  BUILTIN_SKILLS.flatMap(([dir, content]) => {
+  (parsed ??= BUILTIN_SKILLS.flatMap(([dir, content]) => {
     const s = parseSkill(content, dir, "builtin")
     return "warning" in s ? (console.warn(s.warning), []) : [s]
-  })
+  }))
 
 async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
   if (!fs) return []
@@ -36,11 +39,13 @@ async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
   return out
 }
 
-export function skillsExtension(files?: RoomFs): Extension {
+export function skillsExtension(files?: RoomFs, stamp?: () => number): Extension {
   const all = async () => resolveSkills(await roomSkills(files), builtin())
+  // The list in the prompt is read once per run. `read_skill` reads afresh, so a skill written mid-run loads.
+  const listed = perRun(async () => formatSkills(await all()), stamp)
   return defineExtension({
     name: SKILLS,
-    wraps: [wrapSection("skills", (slot) => ({ ...slot, render: async () => formatSkills(await all()) }))],
+    wraps: [wrapSection("skills", (slot) => ({ ...slot, render: listed }))],
     tools: [
       declareEffect(
         "read",

@@ -7,8 +7,8 @@ const CHIEF = "kiko"
 // Architecture sections 7.2, 7.4, and 7.7. The agents of one room. A room has exactly one
 // lead while it has any member. A removed member keeps its row with `removed_at` set, so
 // account deletion still reaches its Durable Object and adding the slug again brings it back.
-// `status` is the latest state the agent reported and `last_delivered_seq` is the room's
-// sequence at its last delivery, which bounds the messages its next brief carries.
+// `status` is the latest state the agent reported. A room made before the cleanup also has the
+// columns `current_task` and `last_delivered_seq`, which nothing reads or writes any more.
 
 /** Architecture section 7.7. */
 export const MAX_MEMBERS = 8
@@ -27,8 +27,6 @@ export type MemberRow = {
 	model: string
 	lead: boolean
 	status: AgentState
-	currentTask: string | null
-	lastDeliveredSeq: number
 }
 
 export type NewMember = { slug: AgentSlug; name: string; role?: string; model?: string }
@@ -40,8 +38,6 @@ type Row = {
 	model: string
 	lead: number
 	status: string
-	current_task: string | null
-	last_delivered_seq: number
 }
 
 const toRow = (r: Row): MemberRow => ({
@@ -51,8 +47,6 @@ const toRow = (r: Row): MemberRow => ({
 	model: r.model,
 	lead: r.lead === 1,
 	status: r.status as AgentState,
-	currentTask: r.current_task,
-	lastDeliveredSeq: r.last_delivered_seq,
 })
 
 /** The wire form. `role` and `model` are left out when empty. */
@@ -79,8 +73,6 @@ export class Members {
 			model TEXT NOT NULL DEFAULT '',
 			lead INTEGER NOT NULL DEFAULT 0,
 			status TEXT NOT NULL DEFAULT 'idle',
-			current_task TEXT,
-			last_delivered_seq INTEGER NOT NULL DEFAULT 0,
 			added_seq INTEGER NOT NULL, -- the seq of the event that added it, for join order
 			removed_at INTEGER
 		)`)
@@ -154,22 +146,18 @@ export class Members {
 			model: clip(input.model, MAX_MODEL),
 			lead,
 			status: "idle",
-			currentTask: null,
-			// A new member's first brief starts at its arrival, not at the start of the room.
-			lastDeliveredSeq: this.log.lastSeq(),
 		}
 		const event = this.log.append("human", { t: "member", member: toMember(row) })
 		this.sql.exec(
-			`INSERT INTO members (slug, name, role, model, lead, status, current_task, last_delivered_seq, added_seq, removed_at)
-			 VALUES (?, ?, ?, ?, ?, 'idle', NULL, ?, ?, NULL)
+			`INSERT INTO members (slug, name, role, model, lead, status, added_seq, removed_at)
+			 VALUES (?, ?, ?, ?, ?, 'idle', ?, NULL)
 			 ON CONFLICT(slug) DO UPDATE SET name = excluded.name, role = excluded.role, model = excluded.model, lead = excluded.lead,
-			   status = 'idle', current_task = NULL, last_delivered_seq = excluded.last_delivered_seq, added_seq = excluded.added_seq, removed_at = NULL`,
+			   status = 'idle', added_seq = excluded.added_seq, removed_at = NULL`,
 			row.slug,
 			row.name,
 			row.role,
 			row.model,
 			lead ? 1 : 0,
-			row.lastDeliveredSeq,
 			event.seq,
 		)
 		return { ok: true, events: [event] }
@@ -213,10 +201,6 @@ export class Members {
 			.rowsWritten > 0
 	}
 
-	/** The room's sequence at a member's latest delivery. It only moves forward. */
-	markDelivered(slug: AgentSlug, seq: number): void {
-		this.sql.exec("UPDATE members SET last_delivered_seq = max(last_delivered_seq, ?) WHERE slug = ?", seq, slug)
-	}
 }
 
 /** The current members on the wire, for a `reset` snapshot. Reads nothing before the table exists. */

@@ -192,6 +192,16 @@ export class ExtensionStore {
       .map((r) => ({ name: r.name, hash: r.hash }))
   }
 
+  /**
+   * The tool names extension `name` adds, or null when it is not installed and enabled. Its trigger
+   * runs with exactly these granted (section 24.8): the human reviewed and installed them.
+   */
+  toolNames(name: string): string[] | null {
+    const r = this.row(name)
+    if (r?.enabled !== 1) return null
+    return Object.keys((JSON.parse(r.bundle) as ExtensionBundle).manifest.tools ?? {})
+  }
+
   /** The bundles of the given versions that are still installed. */
   bundles(hashes: readonly string[]): { name: string; hash: string; bundle: ExtensionBundle }[] {
     const want = new Set(hashes)

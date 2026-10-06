@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks"
 import type { Context } from "@earendil-works/chord"
 import {
   err,
@@ -113,6 +114,25 @@ export function typeForPath(path: string): string {
   return MIME_BY_EXTENSION[ext] ?? "text/plain"
 }
 
+/** The taint of the run whose tool call is in flight (section 16). Absent outside a tool call. */
+const RUN_TAINT = new AsyncLocalStorage<boolean>()
+
+/** Runs one tool call as part of a run that is `tainted` or not, so the writes below can check it. */
+export const asRun = <T>(tainted: boolean, fn: () => Promise<T>): Promise<T> => RUN_TAINT.run(tainted, fn)
+
+/** The soul, the chat's skills, and its extensions reach every later system prompt. */
+export const shapesPrompts = (rel: string): boolean => rel === SOUL_PATH || /^(skills|extensions)(\/|$)/.test(rel)
+
+/**
+ * A run that read outside content cannot change what shapes every later run (section 16.3). Returns
+ * the one line the agent gets, or null.
+ */
+function promptGuard(rels: readonly string[]): FileError | null {
+  if (RUN_TAINT.getStore() !== true) return null
+  const hit = rels.find(shapesPrompts)
+  return hit === undefined ? null : new FileError("invalid", `/${hit} was not changed: this run read outside content, and that file shapes every later run. the human can ask you to change it.`, `/${hit}`)
+}
+
 export class RoomFs implements ExecutionEnv {
   readonly cwd = "/"
   /** The hash this agent last read or wrote at each room path. */
@@ -221,6 +241,8 @@ export class RoomFs implements ExecutionEnv {
   /** Why `bytes` bytes cannot go at a room path, or null. */
   private unwritable(rel: string, bytes: number, path: string): FileError | null {
     if (rel === "") return new FileError("is_directory", "/ is a folder", path)
+    const guarded = promptGuard([rel])
+    if (guarded) return guarded
     if (rel === CHAT_PATH && bytes > MAX_CHAT) {
       return new FileError("invalid", `/chat.md would be ${bytes} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path)
     }
@@ -255,6 +277,8 @@ export class RoomFs implements ExecutionEnv {
             return { ...c, path: rel(c.path) }
         }
       })
+      const guarded = promptGuard(mapped.flatMap(batchPaths))
+      if (guarded) throw guarded
       const out = await this.backend.commit(mapped)
       this.stats.clear()
       return out.ok ? out : { ...out, path: `/${out.path}` }
@@ -297,6 +321,8 @@ export class RoomFs implements ExecutionEnv {
     if (!a.ok) return a
     const b = this.roomPath(to)
     if (!b.ok) return b
+    const guarded = promptGuard([a.value, b.value])
+    if (guarded) return err(guarded)
     const out = await this.backend.move(a.value, b.value)
     this.stats.clear()
     return out.ok ? ok(out) : err(this.fail(out, from))
@@ -320,6 +346,8 @@ export class RoomFs implements ExecutionEnv {
       if (!rel.ok) return rel
       rels.push(rel.value)
     }
+    const guarded = promptGuard(rels)
+    if (guarded) return err(guarded)
     const out = await this.backend.remove(rels, recursive)
     this.stats.clear()
     if (!out.ok) return err(this.fail(out))
@@ -374,6 +402,8 @@ export class RoomFs implements ExecutionEnv {
   async mkdir(path: string): Promise<Result<FsChange, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
+    const guarded = promptGuard([rel.value])
+    if (guarded) return err(guarded)
     const out = await this.backend.mkdir(rel.value)
     this.stats.clear()
     return out.ok ? ok(out) : err(this.fail(out, path))
@@ -664,6 +694,8 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
 /** The agent's own soul, as the mount at /me/soul.md reads and writes it (section 7.10). */
 export interface SoulPort {
   get(): Promise<{ body: string; sha: string; at: number }>
+  /** The soul for the system prompt, which may come from the run's start. Default `get`. */
+  forPrompt?(): Promise<{ body: string }>
   set(body: string, expectSha?: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>
 }
 

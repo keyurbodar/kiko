@@ -2,6 +2,8 @@ import type { RoomId, RoutineRunStatus, Trigger, TriggerKind } from "@kiko/proto
 import type { Env } from "../index"
 import type { Alarms } from "../lib/alarm"
 import { roomStub } from "../lib/names"
+import type { Chain } from "../room/mail"
+import type { Authority } from "../lib/origin"
 import { RRule } from "rrule"
 import { nextOccurrence, ruleProblem } from "./recurrence"
 
@@ -72,6 +74,8 @@ export type Reminder = {
   fails: number
   /** Proposed by a run that read outside content (section 16): every run of it starts tainted. */
   tainted: boolean
+  /** The chain the agent that set it was working on (section 25.3), so its wake keeps that authority. Null when a human or an older build set it. */
+  chain: Chain | null
 }
 
 export type RoutineRun = { routineId: string; occurrence: string; startedAt: number; endedAt: number | null; status: RoutineRunStatus; seq: number | null }
@@ -118,6 +122,8 @@ export type NewReminder = {
   roomId: RoomId
   target?: string
   createdBy?: string
+  /** The setting agent's chain. The room gives it; a model never does. */
+  chain?: Chain
 }
 
 /** Posts one occurrence. Returns when the room has stored it, or has seen the id before. */
@@ -141,6 +147,7 @@ type Row = {
   grant: string | null
   fails: number
   tainted: number
+  chain: string | null
 }
 
 const toReminder = (r: Row): Reminder => ({
@@ -159,6 +166,7 @@ const toReminder = (r: Row): Reminder => ({
   createdBy: r.created_by,
   status: r.status as ReminderStatus,
   lastFired: r.last_fired,
+  chain: r.chain ? (JSON.parse(r.chain) as Chain) : null,
 })
 
 export const deliveryId = (r: Pick<Reminder, "id" | "dueUtc">) => `${r.id}:${r.dueUtc}`
@@ -202,6 +210,12 @@ export function nextAfter(rrule: string, tz: string, due: number, now: number): 
   return null
 }
 
+/**
+ * The grant a routine's run carries (section 25.3). A routine a run that read outside content made,
+ * without the human seeing all of it on a card, keeps no grant: its outside tools ask the human.
+ */
+export const runGrant = (r: Pick<Reminder, "tainted" | "grant">): readonly string[] => (r.tainted ? [] : r.grant)
+
 /** What the RPC returns, since an error class does not survive the trip. */
 export type ReminderResult = { ok: true; reminder: Reminder } | { ok: false; error: string }
 
@@ -215,12 +229,18 @@ export async function asResult(run: () => Promise<Reminder | null>): Promise<Rem
   }
 }
 
-/** The real delivery: the room of the owning user, through `names.ts`. */
-export function roomDelivery(env: Env, owner: () => string | null): Deliver {
+/**
+ * The real delivery: the room of the owning user, through `names.ts`. `authority` gives the run a
+ * reminder wakes its authority from who made it; null leaves it `auto`.
+ */
+export function roomDelivery(env: Env, owner: () => string | null, authority: (createdBy: string) => Authority | null = () => null): Deliver {
   return async (id, reminder) => {
     const userId = owner()
     if (!userId) throw new ReminderError("no owner")
-    await roomStub(env.ROOM, userId, reminder.roomId).deliverReminder(id, { text: reminder.text, target: reminder.target })
+    // An extension's trigger takes its authority from the extension (lane A); any other reminder from
+    // the chain that set it (section 25.3), which also gives its root and hop.
+    const by = authority(reminder.createdBy) ?? reminder.chain?.authority ?? null
+    await roomStub(env.ROOM, userId, reminder.roomId).deliverReminder(id, { text: reminder.text, target: reminder.target, createdBy: reminder.createdBy, chain: reminder.chain, recurring: reminder.rrule !== null, ...(by ? { authority: by } : {}) })
   }
 }
 
@@ -251,7 +271,7 @@ export class Reminders {
     this.sql.exec("CREATE INDEX IF NOT EXISTS reminders_due ON reminders (status, due_utc)")
     // Section 25. Routines are rows of this table with these columns set.
     const columns = new Set(this.sql.exec<{ name: string }>("PRAGMA table_info(reminders)").toArray().map((c) => c.name))
-    for (const [name, type] of [["name", "TEXT"], ["trigger", "TEXT"], ["grant", "TEXT"], ["fails", "INTEGER NOT NULL DEFAULT 0"], ["watch_state", "TEXT"], ["hook_hash", "TEXT"], ["tainted", "INTEGER NOT NULL DEFAULT 0"]] as const) {
+    for (const [name, type] of [["name", "TEXT"], ["trigger", "TEXT"], ["grant", "TEXT"], ["fails", "INTEGER NOT NULL DEFAULT 0"], ["watch_state", "TEXT"], ["hook_hash", "TEXT"], ["tainted", "INTEGER NOT NULL DEFAULT 0"], ["chain", "TEXT"]] as const) {
       if (!columns.has(name)) this.sql.exec(`ALTER TABLE reminders ADD COLUMN "${name}" ${type}`)
     }
     this.sql.exec(`CREATE TABLE IF NOT EXISTS routine_runs (
@@ -314,8 +334,8 @@ export class Reminders {
     if (rrule && target !== "human") checkRepeat(rrule, input.tz, due)
     const id = crypto.randomUUID()
     this.sql.exec(
-      `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?)`,
+      `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, chain)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?)`,
       id,
       text,
       due,
@@ -325,6 +345,7 @@ export class Reminders {
       target,
       input.createdBy ?? "human",
       this.now(),
+      input.chain ? JSON.stringify(input.chain) : null,
     )
     await this.rearm()
     return this.get(id)!

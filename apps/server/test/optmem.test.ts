@@ -172,7 +172,7 @@ test("a stretch that already fits a line is its own summary, word for word, with
 test("a cut verbatim line says it was cut and how to see the rest", async () => {
   const { itemLine } = await import("../src/lib/optmem")
   expect(itemLine({ pos: 12, at: 0, text: "short", tainted: false }, 100)).not.toContain("cut")
-  expect(itemLine({ pos: 12, at: 0, text: "long ".repeat(50), tainted: false }, 100)).toEndWith("… (cut, zoom 12)")
+  expect(itemLine({ pos: 12, at: 0, text: "long ".repeat(50), tainted: false }, 100)).toEndWith("… (cut, zoom chat:12)")
 })
 
 test("a node whose call failed while later ones were built is still built, and so are the nodes above it", () => {

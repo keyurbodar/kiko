@@ -34,6 +34,11 @@ export type BuildAgentInput = RoleInput & {
   files?: FilesOptions
   /** The agent's soul (section 7.10). With `files`, fills the soul and chat sections. */
   soul?: SoulPort
+  /**
+   * Moves on at each run start. With it, the soul, /chat.md, and the skills list are read once per run,
+   * not before every model request. Without it, before every request.
+   */
+  runStamp?: () => number
   /** kiko only (section 7.11): making the human's agents and groups. */
   chief?: ChiefPort
   /** Tells the room what each tool call is about, for the team board (section 7.12). */
@@ -50,7 +55,7 @@ export type BuildAgentInput = RoleInput & {
   messaging?: () => MessagingPort | null
   /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
   testExtensions?: readonly Extension[]
-  /** Human approval records for `external` tools in a tainted run (P7-02). Default: none. */
+  /** The human's cards for `external` tools in a run nobody asked for (section 25.3). Default: none. */
   approvals?: Approvals
   /** The authority of the run in flight (section 25.3). Default: a human's. */
   authority?: () => Authority
@@ -82,10 +87,10 @@ export const BASE = "base"
 function extensionsFor(input: BuildAgentInput): Extension[] {
   return [
     defineExtension({ name: BASE, sections: baseSections(input) }),
-    ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul)] : []),
+    ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
     ...(input.memory ? memoryExtensions(input.memory) : []),
     ...(input.files ? [filesExtension(input.files)] : []),
-    skillsExtension(input.files?.fs),
+    skillsExtension(input.files?.fs, input.runStamp),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(input.egress, input.files?.fs),
     ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),

@@ -6,8 +6,8 @@ import { fake, newRoom, send, ulid } from "./mid-run"
 
 // Architecture section 25.4, with the scripted fake agent: no tokens. Chat events within a minute
 // make one run, and an agent's own acts never fire its own routine. A webhook runs its routine once
-// per post, only when the body matches, with the payload as outside content, so a granted tool still
-// waits for the human. A watch wakes nobody until the page changes. Needs NODE_ENV=development.
+// per post, only when the body matches, with the payload as outside content: the run is tainted, and
+// the routine's grant still holds, since a clean run made it. A watch wakes nobody until the page changes. Needs NODE_ENV=development.
 
 function cards(room: RoomHandle): Approval[] {
   return room.raw.log.flatMap((e) => {
@@ -82,7 +82,7 @@ const suite: Suite = {
       const made = await ok<{ routine: Routine; token: string }>(url, s, "routines", {
         roomId,
         name: "pr opened",
-        instructions: "[call fake_send]",
+        instructions: "[call fake_note] [call fake_send]",
         may: ["fake_send"],
         trigger: { on: "webhook", match: [{ path: "action", equals: "opened" }, { path: "pull_request.title", contains: "fix" }] },
       })
@@ -94,8 +94,9 @@ const suite: Suite = {
       await waitRuns(url, s, made.routine.id, "the webhook run", (rs) => rs.some((x) => x.status !== "running"), 40_000)
       await eventually("the answer", () => agentTexts(room).some((t) => t.startsWith("tools:")), 10_000)
       const said = agentTexts(room).find((t) => t.startsWith("tools:"))
-      if (said !== "tools: fake_send blocked") throw new VerifyError(`a webhook's outside content let a granted tool run: ${JSON.stringify(said)}`)
-      if (!cards(room).some((c) => c.tool === "fake_send")) throw new VerifyError("the blocked call posted no card")
+      // The payload is outside content, so the run is tainted; the routine was made clean, so its grant holds.
+      if (said !== "tools: fake_note ran tainted, fake_send ran") throw new VerifyError(`expected a tainted run that uses its grant, got ${JSON.stringify(said)}`)
+      if (cards(room).length) throw new VerifyError(`a granted tool posted a card: ${JSON.stringify(cards(room))}`)
       const repeat = await hook(payload, { "x-github-delivery": "d-1" })
       const other = await hook(JSON.stringify({ action: "closed", pull_request: { title: "fix" } }), { "x-github-delivery": "d-2" })
       const big = await hook(JSON.stringify({ action: "opened", pad: "x".repeat(70_000) }))
@@ -110,12 +111,13 @@ const suite: Suite = {
       await ok(url, s, `reminders/${made.routine.id}/cancel`, {})
       const gone = await hook(payload, { "x-github-delivery": "d-3" })
       if (gone.status !== 404) throw new VerifyError(`a cancelled routine's hook answered ${gone.status}`)
-      console.log(`  ok a matching post ran once with the payload as outside content (granted fake_send blocked, card posted); repeat, mismatch, 70 KB, unknown token, and a cancelled hook answered ${JSON.stringify(answers)}, 404`)
+      console.log(`  ok a matching post ran once with the payload as outside content (tainted, granted fake_send ran, no card); repeat, mismatch, 70 KB, unknown token, and a cancelled hook answered ${JSON.stringify(answers)}, 404`)
       room.raw.close()
     }
 
     // 5. Taint crosses an event: a teammate's message written after reading a web page fires a routine
-    //    whose run starts tainted, so even its granted tool waits for the human. A clean message does not.
+    //    whose run starts tainted. A clean message does not. Either way the routine, made clean, keeps
+    //    its grant (section 25.3).
     {
       const user = await s.user()
       const agentOf = (name: string): Agent => ({ id: `triggers-${name}-${s.userId}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
@@ -125,22 +127,22 @@ const suite: Suite = {
       await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
       const room = await s.room(roomId)
       await ok(url, s, "dev/agent/fake", { roomId, slugs: ["kiko", "ada", "bob"] })
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "relay", agent: "kiko", instructions: "[call fake_send]", may: ["fake_send"], trigger: { on: "message", from: "agent", contains: "fake_fetch" } })
+      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "relay", agent: "kiko", instructions: "[call fake_note] [call fake_send]", may: ["fake_send"], trigger: { on: "message", from: "agent", contains: "fake_fetch" } })
       const kikoTools = () => messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "kiko" && m.text.startsWith("tools:")).map((m) => m.text)
       // ada reads a page, which taints her run, and her reply names the tool she used.
       await send(room, "[fetch] mango season is here @ada")
       await waitRuns(url, s, routine.id, "the tainted event run", (rs) => rs.some((x) => x.status !== "running"), 100_000)
       await eventually("kiko's answer to the tainted event", () => kikoTools().some((t) => t.includes("fake_send")), 20_000)
       const tainted = kikoTools().find((t) => t.includes("fake_send"))
-      if (tainted !== "tools: fake_send blocked") throw new VerifyError(`a tainted message fired a routine that used its grant: ${JSON.stringify(tainted)}`)
-      // bob's clean reply names it too: the run starts clean and the grant works.
+      if (tainted !== "tools: fake_note ran tainted, fake_send ran") throw new VerifyError(`a tainted message should fire a tainted run that keeps its grant: ${JSON.stringify(tainted)}`)
+      // bob's clean reply names it too: the run starts clean.
       await Bun.sleep(61_000)
       await send(room, "@bob [reply] fake_fetch is fine")
       await waitRuns(url, s, routine.id, "the clean event run", (rs) => rs.filter((x) => x.status !== "running").length >= 2, 100_000)
       await eventually("kiko's answer to the clean event", () => kikoTools().filter((t) => t.includes("fake_send")).length >= 2, 20_000)
       const clean = kikoTools().filter((t) => t.includes("fake_send"))[1]
-      if (clean !== "tools: fake_send ran") throw new VerifyError(`a clean message's routine could not use its grant: ${JSON.stringify(clean)}`)
-      console.log("  ok a message written after reading a web page fired a tainted run (grant blocked); a clean one ran the grant")
+      if (clean !== "tools: fake_note ran, fake_send ran") throw new VerifyError(`a clean message should fire a clean run: ${JSON.stringify(clean)}`)
+      console.log("  ok a message written after reading a web page fired a tainted run, a clean one a clean run; both used the routine's grant")
       room.raw.close()
     }
 

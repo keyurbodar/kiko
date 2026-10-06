@@ -4,7 +4,7 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import type { Envelope } from "@kiko/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
-import type { AgentSetup, HostOptions } from "../src/agent/host"
+import { type AgentSetup, type HostOptions, RUNS_KEY } from "../src/agent/host"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 
 // Runs inside workerd. `agent-host.test.ts` drives it through Miniflare. `T` is the real `AgentDO`
@@ -27,6 +27,10 @@ type Body =
   | { op: "memory" }
   | { op: "entries" }
   | { op: "epoch" }
+  | { op: "human-coming" }
+  | { op: "begins" }
+  | { op: "joined" }
+  | { op: "fresh-starts"; set?: number }
 
 export class T extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
@@ -56,11 +60,21 @@ export class T extends AgentDO {
     // Section 13: with memory on, every run starts from a <memory> block, as a real agent's does.
     const memory = (await this.ctx.storage.get<boolean>("memory"))
       ? {
-          inputMemory: async (_batch: unknown, fresh: boolean) =>
-            fresh ? { fresh: true, text: "<memory>\nchat:\n#0 human: earlier\n</memory>" } : { fresh: false, text: "<memory>\nchat since your last turn:\n#9 human: new\n</memory>" },
+          inputMemory: async (batch: { envelopes: Envelope[] }, fresh: boolean, joined: number[]) => {
+            await this.ctx.storage.put("joined", joined)
+            // A message that starts with "wake" makes the run start over, as one that missed too much would.
+            return fresh || batch.envelopes.some((e) => e.body.startsWith("wake"))
+              ? { fresh: true, text: "<memory>\nchat:\n#0 human: earlier\n</memory>" }
+              : { fresh: false, text: "<memory>\nchat since your last turn:\n#9 human: new\n</memory>" }
+          },
         }
       : {}
-    return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }), ...memory }
+    // Counts the runs that loaded credentials, so a test sees a held batch load none.
+    const beginRun = async () => {
+      await this.ctx.storage.put("begins", ((await this.ctx.storage.get<number>("begins")) ?? 0) + 1)
+      return true
+    }
+    return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }), ...memory, beginRun }
   }
 
   override async fetch(request: Request) {
@@ -72,6 +86,16 @@ export class T extends AgentDO {
       return Response.json({ ok: true })
     }
     if (body.op === "epoch") return Response.json({ epoch: this.host.epoch() })
+    if (body.op === "human-coming") {
+      await this.humanComing()
+      return Response.json({ ok: true })
+    }
+    if (body.op === "begins") return Response.json({ begins: (await this.ctx.storage.get<number>("begins")) ?? 0 })
+    if (body.op === "joined") return Response.json({ joined: (await this.ctx.storage.get<number[]>("joined")) ?? null })
+    if (body.op === "fresh-starts") {
+      if (body.set !== undefined) await this.ctx.storage.put(RUNS_KEY, body.set)
+      return Response.json({ n: (await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0 })
+    }
     if (body.op === "entries") {
       const has = this.ctx.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'entries'").toArray().length > 0
       return Response.json({ entries: has ? this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM entries").one().n : 0 })

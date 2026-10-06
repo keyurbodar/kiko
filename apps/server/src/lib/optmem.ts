@@ -31,12 +31,16 @@ export type Shape = {
   budget: number
   /** The lines a new tiling aims for. Less than `budget`, so a tiling lasts many pages. */
   retile: number
+  /** The prefix `zoom` takes for this log's ids. Default `chat`. */
+  log?: ZoomLog
 }
 
+export type ZoomLog = "chat" | "life"
+
 /** A room: 32 turns verbatim, then at most 48 lines. A page is 16 turns, so a chat pays one summary per 8 turns. */
-export const ROOM_SHAPE: Shape = { page: 16, floor: 32, budget: 48, retile: 32 }
+export const ROOM_SHAPE: Shape = { page: 16, floor: 32, budget: 48, retile: 32, log: "chat" }
 /** A user's life: 16 lines verbatim, then at most 32 lines. */
-export const LIFE_SHAPE: Shape = { page: 8, floor: 16, budget: 32, retile: 24 }
+export const LIFE_SHAPE: Shape = { page: 8, floor: 16, budget: 32, retile: 24, log: "life" }
 
 /** The longest summary, in UTF-8 bytes. memo's 280. */
 export const LINE_BYTES = 280
@@ -309,7 +313,7 @@ export class Tree {
     let day = ""
     for (const item of tail(end, count)) {
       const d = dayOf(item.at, now)
-      lines.push(itemLine(item, TAIL_CUT, d !== day))
+      lines.push(itemLine(item, TAIL_CUT, d !== day, this.shape.log))
       day = d
     }
     return { lines, tiling }
@@ -319,7 +323,7 @@ export class Tree {
   render(span: Span, now: number, out: string[] = []): string[] {
     const node = this.node(span)
     if (node) out.push(nodeLine(span, node, now))
-    else if (span.hi - span.lo <= this.shape.page) for (const item of this.items(span.lo, span.hi)) out.push(itemLine(item, PAGE_CUT))
+    else if (span.hi - span.lo <= this.shape.page) for (const item of this.items(span.lo, span.hi)) out.push(itemLine(item, PAGE_CUT, true, this.shape.log))
     else {
       const mid = (span.lo + span.hi) / 2
       this.render({ lo: span.lo, hi: mid }, now, out)
@@ -331,7 +335,7 @@ export class Tree {
   /** memo's `zoom`: a node opened into its two halves, or a page into its items. */
   zoom(span: Span, count: number, now: number): string[] {
     if (span.lo >= count) return []
-    if (span.hi - span.lo <= this.shape.page) return this.items(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, ZOOM_CUT))
+    if (span.hi - span.lo <= this.shape.page) return this.items(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, ZOOM_CUT, true, this.shape.log))
     const mid = (span.lo + span.hi) / 2
     const out: string[] = []
     for (const half of [{ lo: span.lo, hi: mid }, { lo: mid, hi: span.hi }]) {
@@ -355,12 +359,13 @@ export const ZOOM_CUT = 4_000
 const OUTSIDE = "[outside] "
 
 /** One item: `#12 oct 4 14:05 human: ...`, or without the date when the line above has it. Times are UTC. */
-export function itemLine(item: Item, cut: number, withDay = true): string {
+export function itemLine(item: Item, cut: number, withDay = true, log: ZoomLog = "chat"): string {
   const d = new Date(item.at)
   const time = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
   const text = oneLine(item.shown ?? item.text, cut)
-  // OptChat: never show cut text as if it were whole, or the agent acts on half a message.
-  const rest = text.endsWith("…") ? ` (cut, zoom ${item.pos})` : ""
+  // OptChat: never show cut text as if it were whole, or the agent acts on half a message. The hint is
+  // the exact id `zoom` takes.
+  const rest = text.endsWith("…") ? ` (cut, zoom ${log}:${item.pos})` : ""
   return `#${item.pos} ${withDay ? `${dayOf(item.at, item.at)} ` : ""}${time} ${item.tainted ? OUTSIDE : ""}${text}${rest}`
 }
 
