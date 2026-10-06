@@ -7,6 +7,8 @@ export { htmlToText }
 import { type Fetcher, safeFetch } from "../../lib/safe-fetch"
 import { devFixtureFetcher } from "../../previews/resolve"
 import type { Effect as ToolEffect } from "../effects"
+import type { RoomFs } from "../../files/room-fs"
+import { spill } from "./spill"
 
 // Architecture section 18.2. `web_fetch` uses the same safe fetcher as link previews: http and
 // https only, no private or metadata hosts, every redirect rechecked, 3 seconds, 1 MB. The page
@@ -28,8 +30,11 @@ const TEXT_TYPES = /^(text\/|application\/(json|xml|xhtml\+xml|javascript|ld\+js
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
 
-/** `fetcher` is for tests. In development the preview fixture hosts work too (`fixture-<port>.preview.test`). */
-export function webExtension(fetcher?: Fetcher): Extension {
+/**
+ * `fetcher` is for tests. In development the preview fixture hosts work too (`fixture-<port>.preview.test`).
+ * With `fs`, a page too big to return whole is saved in the chat's files (`spill.ts`).
+ */
+export function webExtension(fetcher?: Fetcher, fs?: RoomFs): Extension {
   const fetch = fetcher ?? (process.env.NODE_ENV === "development" ? devFixtureFetcher : undefined)
   const webFetch = defineTool({
     name: "web_fetch",
@@ -47,7 +52,7 @@ export function webExtension(fetcher?: Fetcher): Extension {
       const raw = new TextDecoder().decode(page.body)
       const body = type === "text/html" || type === "application/xhtml+xml" || (!type && /<html\b/i.test(raw)) ? htmlToText(raw) : raw
       const head = `${page.url} (status ${page.status})${page.truncated ? ", cut at 1 mb" : ""}\n\n`
-      return { content: text(head + body), isError: page.status >= 400, details }
+      return { content: text(head + (await spill(fs, page.url, body))), isError: page.status >= 400, details }
     },
   })
   return defineExtension({ name: WEB, tools: [declareEffect("read", webFetch, { outside: "web" })] })
