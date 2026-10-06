@@ -75,3 +75,19 @@ Taint holes closed at the same time, because `auto` and `routine` runs still dep
 - `to: all` wakes every other agent. The prompt discourages it for anything that needs no answer.
 - Memory and summaries do not taint a run (section 13.4, measured).
 - Reading a chat file still taints the run. After the new table, taint no longer decides any card in a human or granted routine run, so a per-file taint bit would add code and remove no card.
+
+## Measured
+
+- **Tokens.** `verify token-cost`, 30 turns, old and new started together: the new code sent less fresh and cached input in all three pairs. Weighted cost was lower in two pairs and 2.3% higher in one, from model output, which swings 30% or more between runs. `memory-eval` scored 10 of 10 on both.
+- **Recall in session.** `verify memory-session`: a fact told at turn 2 and asked at turn 6 costs no `recall` or `zoom`, and small talk calls no tools.
+- **Latency** (fake agent, p50, base against new): burst close to typing 46.2 to 38.9 ms cold, stop to idle 109.9 to 73.1 ms, RPC calls per cold turn 13 to 12 (p95 19 to 12), `touchChat` per turn 3 to 2.
+- **Suites** on the merged branch: typecheck, every unit test (665 server tests), and every no-model suite. `room-search` passes at 3,000 messages. At its default 20,000, and `routines-scale` at 300 users, the dev server stopped answering while other sessions' agents loaded the machine, on old and new code alike. Both need a run on a quiet machine. `memory-session` and `team-model` pass with the real model.
+
+## Also fixed on the way
+
+- Deleting an account while an agent's run was live stopped the local server. Deletion now aborts the run and closes the harness first.
+- Two agents that ask each other at once no longer hold each other for two minutes: asking back an agent that waits on you is refused.
+
+## Left open
+
+- The client's approval card says "wants to use <tool> for 30 minutes". The grant now covers every outside tool, so the line should say so.
