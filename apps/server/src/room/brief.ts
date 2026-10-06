@@ -44,7 +44,6 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 			m.lead ? "lead" : null,
 			m.role ? oneLine(m.role) : null,
 			now?.doing ? `now ${now.doing}` : m.status,
-			m.currentTask ? `on ${m.currentTask}` : null,
 			now?.holds.length ? `holding ${now.holds.map((p) => `/${p}`).join(", ")}` : null,
 		]
 		lines.push(`- @${m.slug} (${m.name}): ${parts.filter(Boolean).join(", ")}`)

@@ -169,10 +169,13 @@ The debounce window uses the human's typing signal, which the room already recei
 | Event | Wakeup is set to |
 | --- | --- |
 | message arrives | now + 1000 ms |
+| a fragment arrives: the message ends with a comma, an ellipsis, or a connective, preposition, or article ("and", "with", "the") | now + 2500 ms |
 | typing ping arrives while a burst is pending | now + 2500 ms |
 | burst has been pending for 8000 ms | now |
 
-ASSUMPTION: these three numbers. They are constants in one file and a per-user "reply speed" setting can override them later.
+ASSUMPTION: these numbers, and the word list of `isFragment` in `room/burst.ts`. They are constants in one file and a per-user "reply speed" setting can override them later. A short complete reply ("yes", "do it", "sounds good") is not a fragment, so it waits the plain 1000 ms. Fragment detection used to treat any message of three words or fewer as unfinished, so a quick "yes" waited 2.5 s.
+
+The room gets both things a flush needs from `UserDO` (the chat row and the day's turn) in one parallel step, and keeps the chat's title in its own meta, so agent mail and wakes never read the chat row again. A flush ends with a mail drain whatever happened to the burst: delivered, refused by the day's limit, or dropped. Mail held behind a refused burst used to wait for some later event.
 
 **DEVIATION in placement.** The spec puts the pending queue "in the DO". Kiko puts the human burst in `RoomDO`, not in each `AgentDO`. The room is the only object that sees typing pings, one alarm serves every recipient, and a burst of four messages costs one delivery per agent, not four. Each `AgentDO` still has the inbox and alarm from spec section 4.4 for everything that reaches it.
 
@@ -209,6 +212,7 @@ Human messages always outrank agent messages. The inbox sorts by priority first,
 
 - The tuple `(runId, attempt, index)` is unique in the room. A retried call stores nothing twice.
 - If a run restarts after a crash, `pi-durable` sends the request again and the model may write different text. The attempt number goes up, and the room deletes the bubbles of the earlier attempt for that run.
+- The agent's status follows its run: `typing` while it writes, `working` while a tool runs. The typing set that the client and the chat list show covers the whole run, so only a run's start and end change it, and a tool round costs no `UserDO` call. The chat list row is touched once per run, when the run ends, not once per bubble.
 - A block longer than about 400 characters that is still growing is sent as a `draft` frame. Draft updates are batched to one every 300 ms and are not stored. The client shows no draft text: kiko never streams, so a reply appears only as whole bubbles, and while a long block grows its agent shows as typing.
 
 **DEVIATION in pacing.** The spec asks the server to send each part "with a small typing delay". Kiko paces in the client. The server posts a block when the model finishes it. The client holds a bubble from a live run until a minimum gap has passed since the previous bubble (350 ms plus 12 ms per character, capped at 1200 ms) and shows the typing indicator in the gap. History loads and reduced-motion users get no delay.
@@ -278,6 +282,10 @@ Agents that were not addressed are not woken, not even after the lead answers. T
 
 The alarm handler drains the inbox in priority order (human, then system, then agent), applies the table in section 6.2 if a run is active, and submits one input whose `requestId` is a hash of the envelope ids. `pi-durable` returns the existing submission for a repeated `requestId`, so a crashed and repeated alarm submits nothing twice.
 
+Agent and system mail that arrives while a run works is held (section 7.8). A held batch goes back to waiting, so the next claim puts it and whatever arrived meanwhile into one input: three teammates who answer a busy lead cost the lead one run, not three. Only a batch `pi-durable` never admitted may go back. The drain first asks `pi-durable` for the batch's `requestId`, and a batch a dead process had already submitted is marked done instead. Every check that holds a batch runs before `beginRun`, so a held batch loads no credential and syncs no extension.
+
+The inbox keeps submitted rows for dedupe for seven days, far past any retry of an alarm or a queue (minutes), and then prunes them. An arrival counter replaces the `max(arrival)` scan.
+
 `receive()` never waits for a model. Two agents that message each other both return at once, so they cannot deadlock. An admission receipt means "stored", not "done". An agent that needs an answer gets it later as a new envelope.
 
 ### 7.4 The workspace brief
@@ -297,7 +305,7 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 | Tool | Who | Effect |
 | --- | --- | --- |
 | `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
-| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
+| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
@@ -310,15 +318,19 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 **Reasoning.** One place enforces the hop limit and the budgets. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
 
-Agent mail is queued in the room's `mail_queue` table before any delivery, and drained in order (`room/mail.ts`). A failed delivery or a full inbox stays at the head and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. While a human burst is open, nothing drains (section 7.8).
+Agent mail is queued in the room's `mail_queue` table before any delivery, one row per recipient, and drained in order for each recipient (`room/mail.ts`). The sender's `send_message` returns once the mail is stored; it never waits for another agent's inbox. A broadcast reaches every recipient at once. A failed delivery or a full inbox stays queued and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. Mail to a member the open human burst addresses waits for that burst. Mail to anyone else goes at once (section 7.8).
 
 A plain reply bubble wakes nobody. Only `send_message`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
+
+The one exception is an open `ask`. When a run that read a teammate's question ends without a `send_message` back to the asker, its reply bubbles are the answer: the agent tells the room which agent envelopes the run read (`endRun`), and the room pushes the bubbles to the waiting tool. If the asker's wait already ran out, the bubbles go to it as mail on the answering agent's chain, under the same limits. A question sent with `ask` never answers the recipient's own open ask, and an agent whose teammate waits on its answer may not ask that teammate back, because the two waits would hold each other until both ran out. A replayed `send_message` answers no second ask. A batch dropped for a missing credential answers the asks it carried with the reason, so no asker waits for nothing.
 
 ### 7.6 Tasks and waking
 
 Task status is one of `todo`, `doing`, `blocked`, `review`, `done`, `cancelled`. A task has an owner and a `depends_on` list.
 
 When a task becomes `done`, `RoomDO` finds each task whose dependencies are now all `done` and delivers a `task_unblocked` system envelope to its owner. The delivery id is `unblocked:<taskId>`, so the wake happens once.
+
+A task keeps the chain it was made on: the root, the hop, and the authority of the work its maker was doing (section 25.3). A task the human makes carries the human's authority. Its wake and its stall nudges carry that chain, so a project the human asked for keeps the human's authority and its loop limits, instead of starting a new `auto` chain. A reminder an agent sets keeps its chain the same way. A one-off reminder keeps the root and hop; a recurring one starts its own root at each occurrence, so occurrences never add up against one root's limit. A root the human stopped starts over.
 
 The lead reviews work by moving a task from `review` to `done` or back to `doing` with a note.
 
@@ -333,12 +345,15 @@ Four limits apply, all enforced in `RoomDO`. ASSUMPTION: the default numbers.
 | Members per room | 8 | `spawn_agent` fails |
 | Autonomous runs per room per UTC day | 50 | scheduled and task-triggered wakes are held until the next day or the next human message |
 
-An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. Reactions never start a run. The lifetime count per root and the daily budget are borrowed from the Lightspeed project (`smartcomputer-ai/lightspeed`, `docs/documentation/using-lightspeed/subagents-and-federation.md`), which bounds its delegation tree the same way. The rest of Lightspeed (Rust, Temporal, Postgres, attached VMs) does not transfer to Workers.
+An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. The room records each member's chain from what it delivers. Agent or system mail delivered to a busy member waits in its inbox for the next run, so its chain waits too and takes over when the run ends: held mail never rewrites the root, hop, or authority of the run in flight. A human message sets the chain at once, since it joins the run or starts the next one.
+
+`agent_sends`, `root_counts`, and `stopped_roots` are pruned once a row is a week old. A replayed send comes within minutes. Reactions never start a run. The lifetime count per root and the daily budget are borrowed from the Lightspeed project (`smartcomputer-ai/lightspeed`, `docs/documentation/using-lightspeed/subagents-and-federation.md`), which bounds its delegation tree the same way. The rest of Lightspeed (Rust, Temporal, Postgres, attached VMs) does not transfer to Workers.
 
 ### 7.8 Human priority and interruption
 
 - A human burst is placed before any waiting agent message.
 - A human burst applies section 6.2 to a run that another agent started.
+- When a human message is stored, each busy agent it is for, by the table of section 7.2, is told one is coming. Until it arrives, that agent holds agent and system mail, and a waiting `ask` stops so the run answers the human first. Agents the message is not for keep working. When the burst closes without reaching a warned agent (refused, or routed elsewhere), the room tells it so and its held mail goes at once. Every human message used to warn every busy agent and cancel every open `ask`.
 - The stop button aborts every run in the room and clears agent messages still waiting in inboxes for that `rootId`.
 
 ### 7.9 Where Queues are used
@@ -349,6 +364,8 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 | --- | --- |
 | attachment post-processing (dimensions, thumbhash, text extraction) | CPU work that should not hold a room awake |
 | account deletion fan-out | must reach every Durable Object of a user and survive partial failure |
+
+An agent deleted in the middle of a run aborts the run and closes its harness before its storage goes. A harness left running on deleted tables kept the whole isolate busy, so the local server answered nothing more.
 
 **Reasoning.** A turn is latency-sensitive and a queue adds batching delay. A Durable Object alarm already retries with backoff and survives eviction, and `pi-durable` already checkpoints. The Free plan allows 10,000 queue operations a day, and one message costs about three operations, so queues are kept for jobs that need them.
 

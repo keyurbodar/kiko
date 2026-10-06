@@ -1,5 +1,7 @@
 import type { Actor, AgentSlug, Envelope, RoomEvent, RoomId, Task, TaskOp, TaskStatus } from "@kiko/protocol"
+import { HUMAN } from "../lib/origin"
 import { actorKey, type RoomLog } from "./log"
+import type { Chain } from "./mail"
 
 // Architecture sections 4.3, 7.5, and 7.6. The team's task board.
 // The tables carry a `ws_` prefix and every caller goes through `Workspace`, so the workspace can move
@@ -29,7 +31,8 @@ export type WorkspaceAnswer = { ok: true; text: string } | { ok: false; error: s
 
 type Result<T> = { ok: true; value: T; events: RoomEvent[] } | { ok: false; error: string }
 
-export type Wake = { taskId: string; owner: AgentSlug; title: string; seq: number }
+/** `chain` is what the task's maker was working for (section 25.3), so its wake keeps that authority. Null on a task made before chains. */
+export type Wake = { taskId: string; owner: AgentSlug; title: string; seq: number; chain: Chain | null }
 
 type TaskRow = { id: string; title: string; status: string; owner: string | null; note: string | null }
 
@@ -42,12 +45,15 @@ export interface Workspace {
 	task(id: string): Task | null
 	/** The member's open tasks and the tasks that block them, for the brief (section 7.4). */
 	briefTasks(slug: AgentSlug): Task[]
-	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[]): Result<Task>
+	/** `chain` is the maker's chain. A task the human makes carries the human's authority. */
+	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[], chain?: Chain): Result<Task>
 	update(by: Actor, id: string, patch: { title?: string; status?: string; owner?: string | null; note?: string }, members: readonly AgentSlug[], lead: boolean): Result<Task>
 	claim(slug: AgentSlug, id: string): Result<Task>
 	remove(id: string): Result<null>
 	pendingWakes(): Wake[]
 	markWoken(taskId: string): void
+	/** The chain task `id` was made on, or null. */
+	chainOf(id: string): Chain | null
 }
 
 /** Every task, oldest first, for a `reset` snapshot. */
@@ -166,7 +172,7 @@ export class RoomWorkspace implements Workspace {
 		return this.log.append(actorKey(by), { t: "task", task })
 	}
 
-	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[]): Result<Task> {
+	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[], chain?: Chain): Result<Task> {
 		return this.storage.transactionSync(() => {
 			const title = clip(input.title, MAX_TITLE)
 			if (!title) return fail("a task needs a title")
@@ -185,14 +191,16 @@ export class RoomWorkspace implements Workspace {
 			const cycle = deps.find((d) => this.reaches(d, input.id))
 			if (cycle) return fail(`depending on ${cycle} would make a cycle`)
 			const seq = this.log.lastSeq() + 1
+			const made = chain ?? (by.kind === "human" ? { rootId: `task:${input.id}`, hop: 0, authority: HUMAN } : null)
 			this.sql.exec(
-				"INSERT INTO ws_tasks (id, title, status, owner, note, created_by, created_seq, updated_at) VALUES (?, ?, 'todo', ?, NULL, ?, ?, ?)",
+				"INSERT INTO ws_tasks (id, title, status, owner, note, created_by, created_seq, updated_at, chain) VALUES (?, ?, 'todo', ?, NULL, ?, ?, ?, ?)",
 				input.id,
 				title,
 				owner,
 				actorKey(by),
 				seq,
 				this.now(),
+				made ? JSON.stringify(made) : null,
 			)
 			for (const d of deps) this.sql.exec("INSERT INTO ws_task_deps (task_id, depends_on) VALUES (?, ?)", input.id, d)
 			const task = this.task(input.id)!
@@ -273,13 +281,18 @@ export class RoomWorkspace implements Workspace {
 
 	pendingWakes(): Wake[] {
 		return this.sql
-			.exec<{ id: string; owner: string; title: string; seq: number }>(
-				`SELECT id, owner, title, unblocked_seq AS seq FROM ws_tasks
+			.exec<{ id: string; owner: string; title: string; seq: number; chain: string | null }>(
+				`SELECT id, owner, title, unblocked_seq AS seq, chain FROM ws_tasks
 				 WHERE unblocked_seq IS NOT NULL AND woken_at IS NULL AND owner IS NOT NULL AND status NOT IN ('done', 'cancelled')
 				 ORDER BY unblocked_seq, id`,
 			)
 			.toArray()
-			.map((r) => ({ taskId: r.id, owner: r.owner as AgentSlug, title: r.title, seq: r.seq }))
+			.map((r) => ({ taskId: r.id, owner: r.owner as AgentSlug, title: r.title, seq: r.seq, chain: r.chain ? (JSON.parse(r.chain) as Chain) : null }))
+	}
+
+	chainOf(id: string): Chain | null {
+		const raw = this.sql.exec<{ chain: string | null }>("SELECT chain FROM ws_tasks WHERE id = ?", id).toArray()[0]?.chain
+		return raw ? (JSON.parse(raw) as Chain) : null
 	}
 
 	markWoken(taskId: string): void {
@@ -305,7 +318,7 @@ const line = (t: Task) => `${t.id} [${t.status}] ${t.title}${t.owner ? ` (@${t.o
  * One agent tool call (section 7.5). `lead` is the caller's member row, read by the room, never by the
  * agent. Returns the answer for the model and the events to publish.
  */
-export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: WorkspaceCall, members: readonly AgentSlug[]): { answer: WorkspaceAnswer; events: RoomEvent[] } {
+export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: WorkspaceCall, members: readonly AgentSlug[], chain?: Chain): { answer: WorkspaceAnswer; events: RoomEvent[] } {
 	const by: Actor = { kind: "agent", slug }
 	const done = <T>(r: Result<T>, text: (v: T) => string) =>
 		r.ok ? { answer: { ok: true as const, text: text(r.value) }, events: r.events } : { answer: fail(r.error), events: [] }
@@ -321,6 +334,6 @@ export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: Wor
 		}
 		case "create_task":
 			if (!lead) return { answer: fail("only the lead creates tasks"), events: [] }
-			return done(ws.create(by, call, members), (t) => `created ${line(t)}`)
+			return done(ws.create(by, call, members, chain), (t) => `created ${line(t)}`)
 	}
 }

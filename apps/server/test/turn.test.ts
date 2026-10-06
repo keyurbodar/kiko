@@ -196,13 +196,25 @@ test("a repeated post stores one message, and a higher attempt replaces the earl
 }, 30_000)
 
 test.each([
-  ["if you", true],
-  ["like how things", true],
-  ["hi", true],
+  // A short complete reply goes after the plain pause.
+  ["yes", false],
+  ["do it", false],
+  ["sounds good", false],
+  ["ok", false],
+  ["hi", false],
   ["hi!", false],
   ["what time is it?", false],
   ["ok 👍", false],
   ["planning a weekend in lisbon with friends", false],
+  // A thought still going: a comma, an ellipsis, or a word that cannot end it.
+  ["so i was thinking,", true],
+  ["maybe...", true],
+  ["hmm…", true],
+  ["book the flight and", true],
+  ["and then the", true],
+  ["put it next to", true],
+  ["a dinner with", true],
+  ["Because", true],
 ])("isFragment(%p) is %p", (text, want) => expect(isFragment(text)).toBe(want))
 
 test("a fragment holds the burst open longer than a full message", () => {

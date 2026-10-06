@@ -12,21 +12,33 @@ export const BURST_WAKEUP = "burst"
 // ASSUMPTION: the three numbers of the table in section 6.1. A per-user reply speed may override them later.
 export const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
-/** A short message with no closing punctuation ("like how things", "if you") is a thought still going. */
+/** A message that stops mid-thought ("so i was thinking,", "and then the", "maybe...") is a thought still going. */
 export const AFTER_FRAGMENT_MS = 2_500
 export const MAX_BURST_MS = 8_000
 
 type Row = { id: string; seq: number; at: number; text: string; reply_to: string | null }
 
 /**
- * True for a message that reads unfinished: three words or fewer, with no closing punctuation or emoji.
- * People who text in bursts break one thought over several of these.
+ * Words that cannot end a thought: connectives, prepositions, and articles. A message whose last word is
+ * one of these goes on in the next. ASSUMPTION: the list, English only.
+ */
+const DANGLING = new Set(
+	"a an the and or but so because cause if then than that which who whom whose when while where though although unless until since as nor yet plus also like with without of to for from in on at by about into onto over under after before between through during against toward towards via per".split(
+		" ",
+	),
+)
+
+/**
+ * True for a message that reads unfinished: it ends with a comma, an ellipsis, or a word that cannot end a
+ * thought ("and", "the", "with"). People who text in bursts break one thought over several of these. A
+ * short complete reply ("yes", "do it", "sounds good") is not one, so it goes after the plain pause.
  */
 export function isFragment(text: string): boolean {
-	const t = text.trim()
+	const t = text.trim().toLowerCase()
 	if (!t) return false
-	if (/[.!?…)\]"']$|\p{Extended_Pictographic}$/u.test(t)) return false
-	return t.split(/\s+/).length <= 3
+	if (/(,|\.\.\.|…)$/.test(t)) return true
+	const last = /([a-z']+)$/.exec(t)?.[1]
+	return last !== undefined && DANGLING.has(last)
 }
 
 /** The wakeup for an event while a burst that began at `startedAt` is pending. A pure table. */

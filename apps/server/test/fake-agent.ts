@@ -13,13 +13,15 @@ export { RoomDO } from "../src/room/room-do"
 export type Received = { envelopes: Envelope[]; brief: string; home: AgentHome | null }
 
 export class FakeAgent extends DurableObject {
-  private log(): { received: Received[]; stops: number; answers: { id: string; answer: string }[] } {
+  private log(): { received: Received[]; stops: number; answers: { id: string; answer: string }[]; coming: number; gone: number } {
     this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS calls (n INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, body TEXT NOT NULL)")
     const rows = this.ctx.storage.sql.exec<{ kind: string; body: string }>("SELECT kind, body FROM calls ORDER BY n").toArray()
     return {
       received: rows.filter((r) => r.kind === "receive").map((r) => JSON.parse(r.body) as Received),
       stops: rows.filter((r) => r.kind === "stop").length,
       answers: rows.filter((r) => r.kind === "answer").map((r) => JSON.parse(r.body) as { id: string; answer: string }),
+      coming: rows.filter((r) => r.kind === "coming").length,
+      gone: rows.filter((r) => r.kind === "gone").length,
     }
   }
 
@@ -50,6 +52,18 @@ export class FakeAgent extends DurableObject {
     this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('answer', ?)", JSON.stringify({ id, answer, tainted }))
   }
 
+  /** The room warned that a human message for this agent is on its way (section 7.8). */
+  async humanComing() {
+    this.log()
+    this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('coming', '{}')")
+  }
+
+  /** The burst it warned of closed with nothing for this agent. */
+  async humanGone() {
+    this.log()
+    this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('gone', '{}')")
+  }
+
   async calls() {
     return this.log()
   }
@@ -73,11 +87,22 @@ export class FakeUser extends DurableObject {
   async listAgents() {
     return (await this.state()).agents
   }
-  /** Limits are not under test here: every burst gets its turn. */
+  /** Every burst gets its turn, unless a test said the day's turns are used. */
   async takeTurn() {
+    if (await this.ctx.storage.get<boolean>("refuse")) return { ok: false as const, limit: 1, resetAt: Date.now() + 3_600_000 }
     const used = ((await this.ctx.storage.get<number>("turns")) ?? 0) + 1
     await this.ctx.storage.put("turns", used)
     return { ok: true as const, used }
+  }
+  /** Runs nobody's message started: the user's budget is not under test here. */
+  async takeAutonomous() {
+    return { ok: true as const }
+  }
+  async refuseTurns(refuse: boolean) {
+    await this.ctx.storage.put("refuse", refuse)
+  }
+  async touches() {
+    return (await this.ctx.storage.get<number>("touches")) ?? 0
   }
   async turns() {
     return (await this.ctx.storage.get<number>("turns")) ?? 0
@@ -109,8 +134,10 @@ export class FakeUser extends DurableObject {
   async recordRoom() {
     return true
   }
-  /** A run ended. The chat list's touch is not under test here. */
-  async touchChat() {}
+  /** The chat list's row changed. Counted, so a test sees one touch per run. */
+  async touchChat() {
+    await this.ctx.storage.put("touches", ((await this.ctx.storage.get<number>("touches")) ?? 0) + 1)
+  }
   /** Memory summaries: a fixed line, so tests never call a model. */
   async compress(prompt: string) {
     return { text: `summary of ${/#\d+-\d+/.exec(prompt)?.[0] ?? "?"}` }
@@ -134,7 +161,11 @@ const ALICE = "alice"
 // `/status/<roomId>/<slug>/<state>` an agent reports its state
 // `/inventory/<roomId>`             the room's inventory for account deletion
 // `/post/<roomId>/<slug>`           the agent posts one bubble
-// `/end/<roomId>/<slug>/<runId>`    the agent's run ends
+// `/end/<roomId>/<slug>/<runId>`    the agent's run ends; POST the ids of the agent envelopes it read
+// `/post/<roomId>/<slug>/<runId>`   the agent posts one bubble, in run `<runId>` (default `<slug>:r1`); POST its text
+// `/noprovider/<roomId>/<slug>`     the agent's batch was dropped for a missing key; POST the agent envelope ids in it
+// `POST /task/<roomId>/<slug>`      the agent calls a workspace tool (WorkspaceCall)
+// `/refuse/<state>`                 alice's day of turns is used ("1") or not ("0"); `/touches` counts chat list touches
 // `/fail/<roomId>/<slug>/<n>`       the agent's next n receives throw
 // `/turns`                          the turns alice has taken
 // `POST /mail/<roomId>/<slug>`      the agent sends an agent message (AgentSend)
@@ -149,6 +180,11 @@ export default {
     }
     const user = env.USER.get(env.USER.idFromName(`user:${ALICE}`))
     if (kind === "turns") return Response.json({ turns: await user.turns() })
+    if (kind === "refuse") {
+      await user.refuseTurns(roomId === "1")
+      return Response.json({ ok: true })
+    }
+    if (kind === "touches") return Response.json({ touches: await user.touches() })
     if (kind === "userstate") return Response.json(await user.userState())
     const room = roomStub(env.ROOM, ALICE, roomId!)
     if (kind === "fail") {
@@ -186,10 +222,15 @@ export default {
     }
     if (kind === "inventory") return Response.json(await room.inventory())
     if (kind === "end") {
-      await room.endRun(slug as AgentSlug, state!)
+      await room.endRun(slug as AgentSlug, state!, request.method === "POST" ? ((await request.json()) as string[]) : [])
       return Response.json({ ok: true })
     }
-    if (kind === "post") return Response.json(await room.post(slug as AgentSlug, `${slug}:r1`, 0, 0, "i can help"))
+    if (kind === "post") {
+      const text = request.method === "POST" ? ((await request.json()) as { text: string; index?: number }) : { text: "i can help" }
+      return Response.json(await room.post(slug as AgentSlug, state ?? `${slug}:r1`, 0, text.index ?? 0, text.text))
+    }
+    if (kind === "noprovider") return Response.json(await room.noProvider(slug as AgentSlug, "opencode-go", "inbox:x", (await request.json()) as string[]))
+    if (kind === "task") return Response.json(await room.workspaceCall(slug as AgentSlug, (await request.json()) as never))
     const headers = new Headers(request.headers)
     headers.set(USER_ID_HEADER, ALICE)
     headers.set(ROOM_ID_HEADER, roomId!)
