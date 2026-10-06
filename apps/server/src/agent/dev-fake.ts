@@ -32,7 +32,7 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [team]      the model calls `team` (section 7.12)
 //   [ask s] q   the model calls `ask` with teammate `s` and question `q` (section 7.5)
 //   [question]  in a teammate's message: the model answers that teammate with `[answer] 42`
-//   [tool name {json}] the model calls any tool `name` with the JSON arguments, once, also from a tool result (section 25)
+//   [tool name {json}] the model calls any tool `name` with the JSON arguments, once, also from a fetched page (section 25)
 //   [quiet]     the answer is `[skip]`, which posts nothing (section 25.2)
 //
 // An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02),
@@ -86,10 +86,11 @@ export function fakeReply(transcript: readonly Message[]) {
   const last = messages.at(-1)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
-  // A fooled model also obeys `[tool name {json}]` inside a tool result, such as a fetched page. A
-  // `[fetch]` turn fetches first, so the line it carries is read from the page.
+  // A fooled model also obeys `[tool name {json}]` inside a fetched page. A `[fetch]` turn fetches
+  // first, so the line it carries is read from the page.
   const fetchFirst = last?.role === "user" && /^\[(fetch|mark)\]/.test(textOf(last))
-  const any = (last?.role === "user" && !fetchFirst) || last?.role === "toolResult" ? anyToolCall(rawOf(last), messages) : null
+  const page = last?.role === "toolResult" && (last.toolName === "fake_fetch" || last.toolName === "fake_mark")
+  const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!), messages) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
