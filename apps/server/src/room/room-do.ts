@@ -17,7 +17,10 @@ import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burs
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
-import { type AgentSend, attachedLine, Bubbles, chatTouch, Deliveries, HUMAN_HANDLE, Mail, MEMBER_ACTIVITY, type MemberActivity, type ReminderDelivery, replyTag, route } from "./deliver"
+import { Bubbles, replyTag } from "./bubbles"
+import { chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
+import { Deliveries, type ReminderDelivery, route, withContext } from "./deliver"
+import { type AgentSend, Mail, type StoredSend } from "./mail"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
@@ -50,7 +53,6 @@ const DELIVERY_RETRY_MS = 2_000
 const WAKES_WAKEUP = "ws_wakes"
 /** Agent mail that waits for delivery: held behind a human burst, or retried after a failure. */
 const MAIL_WAKEUP = "mail"
-const MAIL_KEY = "held_mail"
 /** ASSUMPTION: the most files one agent message carries. */
 const MAX_SENT_FILES = 50
 /** Log memory (section 13): the summaries still to make, and a chat gone quiet. */
@@ -85,10 +87,6 @@ const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
 	reserved: "that handle is reserved. pick another.",
 	chief: "kiko leads this room and cannot be removed.",
 }
-
-/** An agent message stored while a human burst was pending, delivered right after the burst. */
-type SentMail = Extract<ReturnType<Mail["send"]>, { ok: true }>["send"]
-type HeldMail = { from: AgentSlug; send: SentMail }
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	// Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
@@ -221,7 +219,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, id }
 	}
 
-	/** RPC for kiko's create tool. Makes what was proposed, once the human has answered. */
 	/**
 	 * kiko's newest proposal that is not made yet, as a line of its brief. A run starts from memory, not
 	 * from the tool result that saved the proposal (section 13), so the room says it is waiting.
@@ -241,6 +238,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return newest?.id ?? null
 	}
 
+	/** RPC for kiko's create tool. Makes what was proposed, once the human has answered. */
 	async createProposal(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
 		const home = this.home()
 		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
@@ -488,7 +486,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** One member's envelopes with its brief (section 7.4). Reactions on the member's own messages come from reactions.ts. */
 	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) {
-		const envelopes = raw.map((e) => this.withContext(e))
+		const envelopes = raw.map((e) => withContext(this.log, e))
 		const reactions = reactionBrief(this.log, this.ctx.storage.sql, member.slug)
 		const now = Date.now()
 		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
@@ -515,13 +513,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (out.ok) this.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
 		this.publish(out.events)
 		if (!out.ok) return out
-		// The answer to a teammate's open ask is read by its waiting tool, not delivered as a new run.
-		if (send.to !== "all" && this.asks.answer(slug, send.to, send.text)) return { ok: true, to: out.send.recipients }
+		// The answer to a teammate's open ask goes to its waiting tool, not to a new run. A lost push costs
+		// only time: the tool reads the stored answer when its wait ends.
+		const asked = send.to === "all" ? null : this.asks.answer(slug, send.to, send.text)
+		if (asked) {
+			this.ctx.waitUntil(
+				agentStub(this.env.AGENT, home.userId, home.roomId, send.to)
+					.askAnswered(asked, send.text)
+					.catch((e: unknown) => console.error(`ask answer push failed: ${e instanceof Error ? e.message : String(e)}`)),
+			)
+			return { ok: true, to: out.send.recipients }
+		}
 		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
 		// repeat delivers the same envelope ids, which the inboxes ignore.
-		const queue = JSON.parse(this.log.meta(MAIL_KEY) ?? "[]") as HeldMail[]
-		queue.push({ from: slug, send: out.send })
-		this.log.setMeta(MAIL_KEY, JSON.stringify(queue))
+		this.mail.queue(slug, out.send)
 		await this.drainMail()
 		return { ok: true, to: out.send.recipients }
 	}
@@ -563,7 +568,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.#draining = true
 		try {
 			for (;;) {
-				const head = (JSON.parse(this.log.meta(MAIL_KEY) ?? "[]") as HeldMail[])[0]
+				const head = this.mail.next()
 				if (!head) return
 				try {
 					await this.deliverMail(home, head.from, head.send)
@@ -572,9 +577,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 					await this.alarms.setWakeup(MAIL_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
 					return
 				}
-				const rest = (JSON.parse(this.log.meta(MAIL_KEY) ?? "[]") as HeldMail[]).slice(1)
-				if (rest.length) this.log.setMeta(MAIL_KEY, JSON.stringify(rest))
-				else this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", MAIL_KEY)
+				this.mail.done(head.n)
 			}
 		} finally {
 			this.#draining = false
@@ -588,41 +591,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await Promise.allSettled(busy.map((m) => agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).humanComing()))
 	}
 
-	/**
-	 * What the agent needs to read a human message the way the human sees it: the bubble it replies
-	 * to, and the files it carries (each one opens with read). Added after routing, so a quoted
-	 * "@ada" never addresses ada. The envelope id is unchanged, so a repeat is still ignored.
-	 */
-	private withContext(e: Envelope): Envelope {
-		if (e.from.kind !== "human") return e
-		const message = this.log.message(e.rootId)
-		if (!message) return e
-		const lines: string[] = []
-		const quoted = message.replyTo ? this.log.message(message.replyTo) : null
-		if (quoted) {
-			const by = quoted.from.kind === "agent" ? `@${quoted.from.slug}` : quoted.from.kind === "human" ? "the human" : "the room"
-			// A quote names the exact words the human answers; without one, the start of the whole message.
-			lines.push(
-				message.quote
-					? `(replying to ${by}, about this part: "${message.quote.replace(/\s+/g, " ").slice(0, 600)}")`
-					: `(replying to ${by}: "${quoted.text.replace(/\s+/g, " ").slice(0, 400)}")`,
-			)
-		}
-		if (e.body.trim()) lines.push(e.body)
-		if (message.files?.length) lines.push(attachedLine(message.files))
-		return lines.length ? { ...e, body: lines.join("\n") } : e
-	}
 
-	private async deliverMail(home: { userId: string; roomId: RoomId }, slug: AgentSlug, send: SentMail): Promise<void> {
+	private async deliverMail(home: { userId: string; roomId: RoomId }, slug: AgentSlug, send: StoredSend): Promise<void> {
 		const members = this.members.list()
 		const goal = (await this.chat(home))?.title ?? ""
 		const seq = this.log.lastSeq()
-		const out = { send }
-		for (const to of out.send.recipients) {
+		for (const to of send.recipients) {
 			const member = members.find((m) => m.slug === to)
 			// The human pressed stop while this send was delivering (section 7.8).
-			if (!member || this.mail.stopped(out.send.rootId)) continue
-			const d = this.delivery(member, members, goal, [this.mail.envelope(home.roomId, slug, out.send, to)])
+			if (!member || this.mail.stopped(send.rootId)) continue
+			const d = this.delivery(member, members, goal, [this.mail.envelope(home.roomId, slug, send, to)])
 			const agent = agentStub(this.env.AGENT, home.userId, home.roomId, to)
 			const { refused } = await agent.receive(d.envelopes, d.brief, this.agentHome(home, to, member))
 			// A full inbox is backpressure: the drain tries again. A message past the size cap never fits, so it

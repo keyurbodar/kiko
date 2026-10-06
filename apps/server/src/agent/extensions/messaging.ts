@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { AgentSlug } from "@kiko/protocol"
-import type { AgentSend } from "../../room/deliver"
+import type { AgentSend } from "../../room/mail"
 import type { SpawnInput } from "../../room/room-do"
 import { declareEffect } from "../effects"
 import { isRunTainted } from "./trust"
@@ -20,6 +20,8 @@ export type MessagingPort = {
   /** `ask`: a message to one teammate whose answer the tool waits for. */
   ask(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
+  /** The answer the room pushes for ask `id`, or null when `ms` passes or the human writes. */
+  waitAnswer(id: string, ms: number): Promise<string | null>
   closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
   /** A human message is waiting: the human outranks a teammate's answer (section 7.8). */
   humanWaiting(): boolean
@@ -29,9 +31,8 @@ export type MessagingPort = {
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
-/** How long `ask` waits for a teammate, and how often it looks. ASSUMPTION: the numbers. */
+/** How long `ask` waits for a teammate. ASSUMPTION: the number. */
 export const ASK_WAIT_MS = 120_000
-const ASK_POLL_MS = 1_500
 
 /** `port` returns null before the room has delivered anything, when the agent has no home yet. */
 export function messagingExtension(port: () => MessagingPort | null, lead = false): Extension {
@@ -90,12 +91,11 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
         const sent = await room().ask({ id, to: who, text: question, tainted: isRunTainted(api) })
         if (!sent.ok) return { content: text(sent.error), isError: true }
         const answered = (s: { state: string; answer: string | null } | null) => (s?.state === "answered" ? { content: text(`@${who} answered: ${s.answer}`) } : null)
-        const end = Date.now() + ASK_WAIT_MS
-        while (Date.now() < end && !room().humanWaiting()) {
-          const got = answered(await room().askState(id))
-          if (got) return got
-          await new Promise((resolve) => setTimeout(resolve, ASK_POLL_MS))
-        }
+        // A replayed call finds an answer that arrived while this object was gone.
+        const stored = answered(await room().askState(id))
+        if (stored) return stored
+        const pushed = room().humanWaiting() ? null : await room().waitAnswer(id, ASK_WAIT_MS)
+        if (pushed !== null) return { content: text(`@${who} answered: ${pushed}`) }
         const last = answered(await room().closeAsk(id))
         if (last) return last
         const why = room().humanWaiting() ? "the human wrote, so answer them first" : `@${who} has not answered yet`

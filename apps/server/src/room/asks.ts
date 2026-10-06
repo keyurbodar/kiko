@@ -3,7 +3,7 @@ import type { AgentSlug } from "@kiko/protocol"
 // Architecture section 7.5. An agent can ask a teammate and wait for the answer inside its own run,
 // instead of ending the run and waking again when the reply arrives. The question goes out like any
 // agent message. While it is open, the teammate's next `send_message` back to the asker is its answer:
-// the room stores it in the chat as usual but does not deliver it, and the asking tool reads it here.
+// the room stores it in the chat as usual but does not deliver it, and pushes it to the asking tool.
 // An ask that times out is closed, and a later reply is delivered like any other message.
 
 export type AskState = { state: "open" | "answered" | "closed"; answer: string | null }
@@ -25,12 +25,12 @@ export class Asks {
     this.sql.exec("INSERT OR IGNORE INTO agent_asks (id, asker, askee, at, state) VALUES (?, ?, ?, ?, 'open')", id, asker, askee, now)
   }
 
-  /** `from`'s message to `to` answers `to`'s oldest open ask of `from`. True when it did. */
-  answer(from: AgentSlug, to: AgentSlug, text: string): boolean {
+  /** `from`'s message to `to` answers `to`'s oldest open ask of `from`. Returns that ask's id, or null. */
+  answer(from: AgentSlug, to: AgentSlug, text: string): string | null {
     const open = this.sql.exec<{ id: string }>("SELECT id FROM agent_asks WHERE asker = ? AND askee = ? AND state = 'open' ORDER BY at LIMIT 1", to, from).toArray()[0]
-    if (!open) return false
+    if (!open) return null
     this.sql.exec("UPDATE agent_asks SET state = 'answered', answer = ? WHERE id = ?", text, open.id)
-    return true
+    return open.id
   }
 
   get(id: string): AskState | null {
