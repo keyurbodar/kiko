@@ -111,18 +111,20 @@ export class Inbox {
       const now = this.now()
       // The rows of one delivery always land in one batch, which reads each distinct brief once, so
       // only the first row keeps it. A burst of a hundred messages stores its brief once, not a hundred times.
-      let first = true
+      // A human row and the rest go in separate batches (`claim`), so each kind's first row keeps it.
+      const briefed = new Set<boolean>()
       for (const envelope of fresh.values()) {
+        const human = envelope.from.kind === "human"
         this.sql.exec(
           "INSERT INTO inbox (id, arrival, priority, envelope, brief, at) VALUES (?, ?, ?, ?, ?, ?)",
           envelope.id,
           ++arrival,
           PRIORITY[envelope.from.kind],
           JSON.stringify(envelope),
-          first ? brief : "",
+          briefed.has(human) ? "" : brief,
           now,
         )
-        first = false
+        briefed.add(human)
       }
       if (fresh.size) this.sql.exec("UPDATE inbox_state SET arrival = ? WHERE id = 1", arrival)
       if (now - state.pruned_at >= PRUNE_EVERY_MS) this.prune(now)
@@ -131,21 +133,25 @@ export class Inbox {
   }
 
   /**
-   * Puts every waiting row into one batch and records its request id, in one transaction. Then takes
-   * every claimed batch that is neither submitted nor in flight, the new one included, and marks it in
-   * flight. A batch taken by a dead process, or in flight for `RECLAIM_MS`, is taken again with the
-   * same request id, so submitting it again is a no-op in `pi-durable`.
+   * Puts the waiting rows into batches and records their request ids, in one transaction: the human's
+   * rows in one, everything else in another, so a human message is placed on its own before any waiting
+   * agent mail (section 7.8). Then takes every claimed batch that is neither submitted nor in flight, the
+   * new ones included, and marks it in flight. A batch taken by a dead process, or in flight for
+   * `RECLAIM_MS`, is taken again with the same request id, so submitting it again is a no-op in `pi-durable`.
    */
   async claim(): Promise<Batch[]> {
     const waiting = this.sql
       // `submitted = 0` is always true of a waiting row; it lets the query use `inbox_open` instead of reading every row ever kept.
-      .exec<Row>("SELECT id, envelope, brief, request_id FROM inbox WHERE submitted = 0 AND request_id IS NULL ORDER BY priority, arrival")
+      .exec<Row & { priority: number }>("SELECT id, envelope, brief, request_id, priority FROM inbox WHERE submitted = 0 AND request_id IS NULL ORDER BY priority, arrival")
       .toArray()
-    if (waiting.length > 0) {
-      const requestId = await requestIdFor(waiting.map((row) => row.id))
-      // Rows that arrived during the hash are left for the next claim. The ids are fixed above.
+    const groups = [waiting.filter((r) => r.priority === PRIORITY.human), waiting.filter((r) => r.priority !== PRIORITY.human)].filter((g) => g.length)
+    const ids = await Promise.all(groups.map((g) => requestIdFor(g.map((row) => row.id))))
+    // Rows that arrived during the hash are left for the next claim. The ids are fixed above.
+    if (groups.length) {
       this.storage.transactionSync(() => {
-        for (const row of waiting) this.sql.exec("UPDATE inbox SET request_id = ? WHERE id = ? AND request_id IS NULL", requestId, row.id)
+        groups.forEach((g, i) => {
+          for (const row of g) this.sql.exec("UPDATE inbox SET request_id = ? WHERE id = ? AND request_id IS NULL", ids[i]!, row.id)
+        })
       })
     }
     const now = this.now()
