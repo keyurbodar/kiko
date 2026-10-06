@@ -44,10 +44,10 @@ Taint holes closed at the same time, because `auto` and `routine` runs still dep
 | 8 | a2a | An approval result has no origin and does not update the chain | A | |
 | 9 | a2a | A batch dropped for a missing credential leaves a teammate's ask hanging | B | |
 | 10 | a2a | Helpers keep the chief, reminder, routine, and task-board tools | A | |
-| 11 | cost | Each batch carries every distinct brief, and every input repeats an unchanged brief | C | |
-| 12 | cost | The memory delta repeats messages that joined the last run as steers or queued inputs | C | |
+| 11 | cost | Each batch carries every distinct brief, and every input repeats an unchanged brief | C | fixed (lane C) |
+| 12 | cost | The memory delta repeats messages that joined the last run as steers or queued inputs | C | fixed (lane C) |
 | 13 | a2a | `beginRun` and its RPCs run before the hold checks, again for every held batch | B | |
-| 14 | latency | Three independent RPCs in a row before the first model token (`extensionsFor`, `turnContext`, `memorySince`) | C | |
+| 14 | latency | Three independent RPCs in a row before the first model token (`extensionsFor`, `turnContext`, `memorySince`) | C | fixed (lane C) |
 | 15 | latency | The burst flush calls UserDO twice in a row | B | |
 | 16 | latency | Every agent message reads the chat row again, and broadcasts deliver one recipient at a time | B | |
 | 17 | latency | Short replies ("yes", "do it") wait 2.5 s as fragments | B | |
@@ -55,17 +55,17 @@ Taint holes closed at the same time, because `auto` and `routine` runs still dep
 | 19 | cost | Every tool start and end flips working and typing: two RPCs each | B | |
 | 20 | cost | `touchChat` runs twice per run | B | |
 | 21 | cleanup | `members.last_delivered_seq` and `current_task` are dead. The inbox, `agent_sends`, `root_counts`, and `stopped_roots` only grow, and `max(arrival)` scans the inbox | B | |
-| 22 | memory | The prompt tells agents to recall before they look at the conversation they already have | C | |
-| 23 | memory | The prompt says tool output is gone once a task pauses. It stays until the transcript is full, so agents fetch it again | C | |
-| 24 | memory | The zoom id the block suggests (`zoom 12`) is one the tool rejects | C | |
-| 25 | memory | `recall` returns 16-token snippets, so it is usually followed by a zoom. Its description promises other chats and newest first, and gives neither | C | |
-| 26 | cost | `note`, the soul, and `/chat.md` overlap, so one fact can cost three writes. Notes dedupe only exact text | C | |
-| 27 | memory | The restart budget counts the opening memory block, so a long chat restarts mid-task | C | |
-| 28 | latency | The soul, `/chat.md` (from R2), and the skills list are read before every model request | C | |
-| 29 | cost | `turnContext` builds the life view on every run, though only a fresh start uses it. Extensions sync on every run | C | |
-| 30 | memory | Storage compaction counts every run, not fresh starts, so short chats restart cold every 50 runs | C | |
-| 31 | memory | Message ids for `[react:...]` appear only when a batch has two human messages | C | |
-| 32 | a2a | Nothing tells agents not to acknowledge each other or to retell what a teammate already posted | C | |
+| 22 | memory | The prompt tells agents to recall before they look at the conversation they already have | C | fixed (lane C) |
+| 23 | memory | The prompt says tool output is gone once a task pauses. It stays until the transcript is full, so agents fetch it again | C | fixed (lane C) |
+| 24 | memory | The zoom id the block suggests (`zoom 12`) is one the tool rejects | C | fixed (lane C) |
+| 25 | memory | `recall` returns 16-token snippets, so it is usually followed by a zoom. Its description promises other chats and newest first, and gives neither | C | fixed (lane C) |
+| 26 | cost | `note`, the soul, and `/chat.md` overlap, so one fact can cost three writes. Notes dedupe only exact text | C | fixed (lane C) |
+| 27 | memory | The restart budget counts the opening memory block, so a long chat restarts mid-task | C | fixed (lane C) |
+| 28 | latency | The soul, `/chat.md` (from R2), and the skills list are read before every model request | C | fixed (lane C) |
+| 29 | cost | `turnContext` builds the life view on every run, though only a fresh start uses it. Extensions sync on every run | C | fixed (lane C) |
+| 30 | memory | Storage compaction counts every run, not fresh starts, so short chats restart cold every 50 runs | C | fixed (lane C) |
+| 31 | memory | Message ids for `[react:...]` appear only when a batch has two human messages | C | fixed (lane C) |
+| 32 | a2a | Nothing tells agents not to acknowledge each other or to retell what a teammate already posted | C | fixed (lane C) |
 
 ## Kept on purpose
 

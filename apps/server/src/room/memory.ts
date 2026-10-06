@@ -19,6 +19,8 @@ const ROLLUP_MAX = 64
 const ROLLUP_MIN = 4
 /** A level-3 node (8 pages, 64 turns) settling becomes one line of the user's life. */
 const ROLLUP_SIZE = ROOM_SHAPE.page * 8
+/** A `recall` hit is cut here, as a view's verbatim line is. */
+const RECALL_CUT = 300
 /** The most distinct acts a run's trace keeps. */
 const TRACE_MAX = 6
 
@@ -214,10 +216,18 @@ export class RoomMemory {
       for (const w of words) for (const h of searchMessages(this.sql, w, { limit }).results) seen.set(h.id, h)
       hits = [...seen.values()].sort((a, b) => b.seq - a.seq).slice(0, limit)
     }
+    // The message itself, not FTS's 16-token snippet, so a hit is usually enough without a zoom.
+    const texts = new Map(
+      this.sql
+        .exec<{ id: string; text: string | null }>("SELECT id, text FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(hits.map((h) => h.id)))
+        .toArray()
+        .map((r) => [r.id, r.text ?? ""]),
+    )
     return hits.map((hit) => {
       const pos = this.posOfMessage(hit.id)
-      const text = hit.snippet.replace(/[\u0002\u0003]/g, "")
-      return `${pos === null ? "" : `#${pos} `}${dayOf(hit.at, now)} ${who(hit.from)}: ${oneLine(text, 300)}`
+      const text = oneLine(texts.get(hit.id) ?? hit.snippet.replace(/[\u0002\u0003]/g, ""), RECALL_CUT)
+      const rest = text.endsWith("…") && pos !== null ? ` (cut, zoom chat:${pos})` : ""
+      return `${pos === null ? "" : `#${pos} `}${dayOf(hit.at, now)} ${who(hit.from)}: ${text}${rest}`
     })
   }
 

@@ -664,6 +664,8 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
 /** The agent's own soul, as the mount at /me/soul.md reads and writes it (section 7.10). */
 export interface SoulPort {
   get(): Promise<{ body: string; sha: string; at: number }>
+  /** The soul for the system prompt, which may come from the run's start. Default `get`. */
+  forPrompt?(): Promise<{ body: string }>
   set(body: string, expectSha?: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>
 }
 

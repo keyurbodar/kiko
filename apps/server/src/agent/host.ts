@@ -8,6 +8,7 @@ import { type Alarms, createAlarms } from "../lib/alarm"
 import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
 import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
 import { type Arrival, decide, FRESH_RUN, type RunState } from "./mid-run"
+import { shortBrief } from "../room/brief"
 import type { RunProgress } from "./outbox"
 import { openDurableObjectSqlite } from "./sqlite"
 import { AUTO, type Authority, authorityOfAll, combine } from "../lib/origin"
@@ -44,6 +45,58 @@ export const TASK_IDLE_MS = 15 * 60_000
 /** The transcript a new run would go on with, measured. */
 export type Transcript = { inputs: number; chars: number; toolChars: number; idleMs: number }
 
+type ModelMessage = { role?: string; content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[] }
+
+/**
+ * Measures a transcript for `startsFresh`. The <memory> block the first input opens with is left out:
+ * it is the chat's own bounded view, so a long chat's block must not use up the budget of the work
+ * after it and restart a task halfway.
+ */
+export function measure(entries: readonly { kind: string; model?: readonly unknown[] }[], idleMs: number): Transcript {
+  const t: Transcript = { inputs: 0, chars: 0, toolChars: 0, idleMs }
+  for (const entry of entries) {
+    const first = entry.kind === "pi.user" && t.inputs === 0
+    if (entry.kind === "pi.user") t.inputs++
+    for (const m of (entry.model ?? []) as ModelMessage[]) {
+      let n = 0
+      if (typeof m.content === "string") n = m.content.length - (first ? opening(m.content) : 0)
+      else for (const p of m.content ?? []) n += (p.text?.length ?? 0) - (first ? opening(p.text ?? "") : 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+      t.chars += n
+      if (m.role === "toolResult") t.toolChars += n
+    }
+  }
+  return t
+}
+
+/** The length of the <memory> block a text opens with, or 0. */
+function opening(text: string): number {
+  if (!text.startsWith("<memory>")) return 0
+  const end = text.indexOf("</memory>")
+  return end < 0 ? 0 : end + "</memory>".length
+}
+
+/**
+ * Section 7.4. The brief a submitted input shows: only the newest of the batch, and none when it is the
+ * one the transcript already holds. A run that starts fresh always shows it, in full. Otherwise the long
+ * line about @-mentioning the human is left out, since the fresh run's brief said it. `last` is the key
+ * of the brief shown last; the result's `key` is the one to keep.
+ */
+export function briefToShow(briefs: readonly string[], fresh: boolean, last: string | undefined): { brief?: string; key?: string } {
+  const newest = briefs.at(-1)
+  if (newest === undefined) return {}
+  const short = shortBrief(newest)
+  const key = hashText(short)
+  if (!fresh && key === last) return { key }
+  return { brief: fresh ? newest : short, key }
+}
+
+/** FNV-1a, 32 bits, in hex. Enough to tell one brief from the last. */
+function hashText(text: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  return (h >>> 0).toString(16)
+}
+
 /** Whether a new run starts over from the <memory> block (section 13). */
 export function startsFresh(t: Transcript): boolean {
   if (t.inputs === 0) return true
@@ -52,17 +105,26 @@ export function startsFresh(t: Transcript): boolean {
   return !working || t.chars > TASK_BUDGET_CHARS
 }
 /**
- * A fresh start leaves old pi-durable entries in storage that are never read again. Every this many runs,
- * an idle agent drops pi-durable's tables, so storage stays bounded; its next run starts fresh.
+ * A fresh start leaves old pi-durable entries in storage that are never read again. Every this many fresh
+ * starts, an idle agent drops pi-durable's tables, so storage stays bounded; its next run starts fresh.
+ * Counting every run instead made a short chat start cold every 50 runs for nothing.
  */
 export const COMPACT_EVERY_RUNS = 50
-const RUNS_KEY = "runs:since-compact"
+/** Runs that started fresh since the last drop. A run that goes on with its transcript leaves no dead entries behind. */
+export const RUNS_KEY = "runs:since-compact"
 /** When the last run started, for `startsFresh`. */
 const LAST_RUN_KEY = "runs:last-at"
 const COMPACT_DUE_KEY = "compact:due"
 /** Storage keys of the mid-run rules (section 6.2). */
 const STOP_KEY = "mid-run:stop"
 const RESTARTS_KEY = "mid-run:restarts"
+/** The key of the brief the transcript shows last, with the harness epoch it was shown in. */
+const BRIEF_KEY = "brief:last"
+/**
+ * The seqs of messages that joined a live run (a steer, a queued input). The transcript holds them, so
+ * the next run's memory delta leaves them out.
+ */
+const JOINED_KEY = "memory:joined"
 
 /** What the agent factory (P1-10) decides. The host calls it once per process, when it opens the harness. */
 export type AgentSetup = {
@@ -85,9 +147,10 @@ export type AgentSetup = {
    * Section 13. Called when a batch starts a run, never for one that joins a live run. With `fresh`, or
    * when it decides the agent missed too much, it returns the whole <memory> block and `fresh: true`,
    * and the host starts the context over. Otherwise it returns only what is new in the chat since the
-   * agent's last run, and the transcript goes on.
+   * agent's last run, and the transcript goes on. `joined` are the seqs of messages that joined the
+   * last run while it was live: the transcript has them, so the delta leaves them out.
    */
-  inputMemory?: (batch: Batch, fresh: boolean) => Promise<{ text?: string; fresh: boolean }>
+  inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
   /** pi-durable's tables are about to be dropped: the agent keeps what it needs from them (its token count). */
   beforeCompact?: (harness: Harness) => Promise<void>
 }
@@ -303,7 +366,7 @@ export class AgentHost {
   }
 
   /**
-   * Marks the drop of pi-durable's tables as due once `COMPACT_EVERY_RUNS` runs have passed. It runs at
+   * Marks the drop of pi-durable's tables as due once `COMPACT_EVERY_RUNS` fresh starts have passed. It runs at
    * the start of the next alarm, before the harness opens, so a delivery that arrives meanwhile can
    * never open a harness on tables about to be dropped.
    */
@@ -387,20 +450,29 @@ export class AgentHost {
       // the transcript is empty or past its budget, starts over from the <memory> block. A restart and a
       // steer keep their context, since the aborted burst must stay in view.
       let memory: string | undefined
+      let fresh = false
       if (!run && inputMemory) {
-        const out = await inputMemory(batch, await this.contextFull(root))
-        if (out.fresh) await root.reset(undefined, context)
-        await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
+        const out = await inputMemory(batch, await this.contextFull(root), await this.joinedSeqs())
+        fresh = out.fresh
+        if (out.fresh) {
+          await root.reset(undefined, context)
+          await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
+        }
         await this.ctx.storage.put(LAST_RUN_KEY, Date.now())
+        await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
       }
       // A batch the root is not answering starts a new turn, so it starts its own authority, even while a
       // background task (a subagent) of an earlier run is still live (section 25.3).
       this.joinAuthority(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
-      const extra = await inputContext?.()
-      const content = renderInput(extra ? { ...batch, briefs: [...batch.briefs, extra] } : batch, memory)
+      const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
+      const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined)
+      const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : [])] }, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
+      if (shown.key) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
+      // A batch that joined a live run is in the transcript, so the next delta leaves it out.
+      if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
   }
 
@@ -456,18 +528,12 @@ export class AgentHost {
   /** Whether the next run starts over from the <memory> block: see `startsFresh`. */
   private async contextFull(root: Conversation): Promise<boolean> {
     const view = await root.context(context)
-    const t: Transcript = { inputs: 0, chars: 0, toolChars: 0, idleMs: Date.now() - ((await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0) }
-    for (const entry of view.entries) {
-      if (entry.kind === "pi.user") t.inputs++
-      for (const m of (entry.model ?? []) as unknown as { role?: string; content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[] }[]) {
-        let n = 0
-        if (typeof m.content === "string") n = m.content.length
-        else for (const p of m.content ?? []) n += (p.text?.length ?? 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
-        t.chars += n
-        if (m.role === "toolResult") t.toolChars += n
-      }
-    }
-    return startsFresh(t)
+    return startsFresh(measure(view.entries, Date.now() - ((await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0)))
+  }
+
+  /** The seqs of messages that joined a live run since the last run started (`JOINED_KEY`). */
+  async joinedSeqs(): Promise<number[]> {
+    return (await this.ctx.storage.get<number[]>(JOINED_KEY)) ?? []
   }
 
   /** The root conversation's run, or null when it is idle. */

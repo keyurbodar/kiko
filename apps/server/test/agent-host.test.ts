@@ -116,7 +116,22 @@ test("a burst drains as one input, human first, with the brief as context", asyn
   )
 }, 30_000)
 
-test("with memory, a run wakes from the block once, goes on with deltas, starts over past its budget, and an idle agent drops old history every 50 runs", async () => {
+test("a message that joined a live run is left out of the next run's memory delta", async () => {
+  const a = await agent()
+  await a.call({ op: "memory" })
+  await a.receive([human(`${SLOW} first`)])
+  await until(a.status, (s) => s.tasks > 0)
+  const joins = human("this joins the live run")
+  await a.receive([joins])
+  await until(a.status, settled(2))
+  expect((await a.call<{ joined: number[] }>({ op: "joined" })).joined).toEqual([])
+  await a.receive([human("next")])
+  await until(a.status, settled(3))
+  // The run that joined is in the transcript, so the delta of the run after it skips its seq.
+  expect((await a.call<{ joined: number[] }>({ op: "joined" })).joined).toEqual([joins.seq])
+}, 30_000)
+
+test("with memory, a run wakes from the block once, goes on with deltas, starts over past its budget, and an idle agent drops old history every 50 fresh starts", async () => {
   const a = await agent()
   await a.call({ op: "memory" })
   const done = (k: number) => (s: Status) => s.tasks === 0 && s.submissions === 0 && s.inbox.submitted === k
@@ -135,15 +150,24 @@ test("with memory, a run wakes from the block once, goes on with deltas, starts 
   await a.receive([human("after the budget")])
   await until(a.status, done(4))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter the budget"])
-  const grown = ((await a.call({ op: "entries" })) as { entries: number }).entries
-  for (let i = 5; i <= 50; i++) {
+  // Two fresh starts so far. Only fresh starts count toward the drop: runs that go on add nothing.
+  expect((await a.call<{ n: number }>({ op: "fresh-starts" })).n).toBe(2)
+  await a.call({ op: "fresh-starts", set: 48 })
+  for (let i = 5; i <= 10; i++) {
     await a.receive([human(`run ${i}`)])
     await until(a.status, done(i), 30_000)
   }
-  // Fifty runs: the next alarm drops pi-durable's tables before it opens the harness, so the next run
-  // wakes from the block again, even though it arrives right after the fiftieth.
+  expect((await a.call<{ n: number }>({ op: "fresh-starts" })).n).toBe(48)
+  expect((await a.transcript()).users).toHaveLength(7)
+  await a.receive([human("wake 49")])
+  await until(a.status, done(11))
+  const grown = ((await a.call({ op: "entries" })) as { entries: number }).entries
+  await a.receive([human("wake 50")])
+  await until(a.status, done(12))
+  // Fifty fresh starts: the next alarm drops pi-durable's tables before it opens the harness, so the
+  // next run wakes from the block again, even though it arrives right after the fiftieth.
   await a.receive([human("after")])
-  await until(a.status, done(51))
+  await until(a.status, done(13))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter"])
   expect(((await a.call({ op: "entries" })) as { entries: number }).entries).toBeLessThan(grown)
   // Run ids are built from pi-durable's entry ids, which start over with the tables: the epoch moves

@@ -17,7 +17,24 @@ export type NoteResult = { ok: true; pos: number; duplicate?: true } | { ok: fal
 
 type Row = { pos: number; at: number; text: string; source: string; tainted: number; pinned: number; redacted: number }
 
-const norm = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
+/** Words that never change what a line says. `s` is what is left of a possessive ("human's"). */
+const FILLER = new Set(["a", "an", "the", "is", "are", "was", "were", "s", "that", "now"])
+
+/**
+ * The dedupe key of a line: case, punctuation, and filler words left out, so "The human's sister is
+ * Maya." and "human's sister maya" are one fact. No model call.
+ */
+export const norm = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .split(" ")
+    .filter((w) => !FILLER.has(w))
+    .join(" ")
+
+const NORM_VERSION_KEY = "life_norm_v"
+const NORM_VERSION = "2"
 
 export class Life {
   readonly tree: Tree
@@ -40,6 +57,13 @@ export class Life {
     sql.exec("CREATE INDEX IF NOT EXISTS life_norm ON life (norm)")
     sql.exec("CREATE VIRTUAL TABLE IF NOT EXISTS life_fts USING fts5(text)")
     this.tree = new Tree(sql, "life_tree", LIFE_SHAPE, (lo, hi) => this.items(lo, hi))
+    // Lines stored before the filler words left the key get the new key once.
+    if (settings.get(NORM_VERSION_KEY) !== NORM_VERSION) {
+      transaction(() => {
+        for (const r of sql.exec<{ pos: number; text: string }>("SELECT pos, text FROM life WHERE redacted = 0").toArray()) sql.exec("UPDATE life SET norm = ? WHERE pos = ?", norm(r.text), r.pos)
+      })
+      settings.set(NORM_VERSION_KEY, NORM_VERSION)
+    }
   }
 
   count(): number {
@@ -49,7 +73,7 @@ export class Life {
 
   /**
    * One line. `source` says where it came from: `@ada` for an agent's note, `chat trip` for a rollup.
-   * A line the log already holds, word for word, is not stored twice.
+   * A line the log already holds, up to case, punctuation, and filler words (`norm`), is not stored twice.
    */
   append(text: string, source: string, tainted: boolean, at = Date.now()): NoteResult {
     const line = text.replace(/\s+/g, " ").trim()
