@@ -52,7 +52,7 @@ const call = async (path: string, body?: unknown) => {
   const res = await fetch(`${origin}${path}`, body === undefined ? {} : { method: "POST", body: JSON.stringify(body) })
   return res.json()
 }
-const received = async (room: RoomId, who: string) => ((await call(`/calls/${room}/${who}`)) as { received: Received[]; stops: number })
+const received = async (room: RoomId, who: string) => ((await call(`/calls/${room}/${who}`)) as { received: Received[]; stops: number; answers: { id: string; answer: string }[] })
 
 class Socket {
   frames: RoomToClient[] = []
@@ -237,7 +237,7 @@ test("a burst sends each agent only its own messages, in one delivery", async ()
   ws.ws.close()
 })
 
-test("an ask is delivered, its answer goes to the waiting tool and not the inbox, and a reply after it closes is delivered", async () => {
+test("an ask is delivered, its answer is pushed to the waiting tool and not the inbox, and a reply after it closes is delivered", async () => {
   const { room, ws } = await team()
   await ws.say("@ada start")
   await delivered(room, "ada", 1)
@@ -250,11 +250,13 @@ test("an ask is delivered, its answer goes to the waiting tool and not the inbox
   expect(await call(`/askstate/${room}/q1`)).toEqual({ state: "answered", answer: "8797" })
   await Bun.sleep(500)
   expect((await counts(room)).ada).toBe(1)
+  expect((await received(room, "ada")).answers).toEqual([{ id: "q1", answer: "8797" }])
   // An ask that timed out is closed; a later reply is an ordinary message.
   await call(`/ask/${room}/ada`, { id: "q2", to: "bob", text: "and the host?", tainted: false })
   expect(await call(`/closeask/${room}/q2`)).toEqual({ state: "closed", answer: null })
   await call(`/mail/${room}/bob`, { id: "a2", to: "ada", text: "localhost", tainted: false })
   await delivered(room, "ada", 2)
+  expect((await received(room, "ada")).answers).toEqual([{ id: "q1", answer: "8797" }])
   expect(((await call(`/ask/${room}/ada`, { id: "q3", to: "all", text: "anyone?", tainted: false })) as { ok: boolean }).ok).toBe(false)
   ws.ws.close()
 })

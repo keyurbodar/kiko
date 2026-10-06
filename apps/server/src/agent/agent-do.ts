@@ -6,6 +6,7 @@ import type { Envelope, RoomId } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
+import { AnswerWaiters } from "./answers"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import { findProvider } from "../user/turn-context"
@@ -64,6 +65,7 @@ export class AgentDO extends DurableObject<Env> {
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
   private experimentInstance?: TurnExperiment
+  private readonly answers = new AnswerWaiters()
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -128,6 +130,7 @@ export class AgentDO extends DurableObject<Env> {
    */
   receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     if (home) this.setHome(home)
+    if (envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return this.host.receive(envelopes, brief)
   }
 
@@ -237,6 +240,12 @@ export class AgentDO extends DurableObject<Env> {
   /** RPC from the room: a human message is in its burst window (section 7.8). Only stores. */
   async humanComing(): Promise<void> {
     this.host.humanComing()
+    this.answers.interrupt()
+  }
+
+  /** RPC from the room: a teammate answered this agent's open ask `id` (section 7.5). Only hands it over. */
+  async askAnswered(id: string, answer: string): Promise<void> {
+    this.answers.answer(id, answer)
   }
 
   private messagingPort(): MessagingPort | null {
@@ -247,6 +256,7 @@ export class AgentDO extends DurableObject<Env> {
       send: (input) => room().agentMessage(home.slug, input),
       ask: (input) => room().ask(home.slug, input),
       askState: (id) => room().askState(id),
+      waitAnswer: (id, ms) => this.answers.wait(id, ms),
       closeAsk: (id) => room().closeAsk(id),
       humanWaiting: () => this.host.humanWaiting(),
       spawn: (input) => room().spawnAgent(home.slug, input),

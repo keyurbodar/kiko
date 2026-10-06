@@ -13,12 +13,13 @@ export { RoomDO } from "../src/room/room-do"
 export type Received = { envelopes: Envelope[]; brief: string; home: AgentHome | null }
 
 export class FakeAgent extends DurableObject {
-  private log(): { received: Received[]; stops: number } {
+  private log(): { received: Received[]; stops: number; answers: { id: string; answer: string }[] } {
     this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS calls (n INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, body TEXT NOT NULL)")
     const rows = this.ctx.storage.sql.exec<{ kind: string; body: string }>("SELECT kind, body FROM calls ORDER BY n").toArray()
     return {
       received: rows.filter((r) => r.kind === "receive").map((r) => JSON.parse(r.body) as Received),
       stops: rows.filter((r) => r.kind === "stop").length,
+      answers: rows.filter((r) => r.kind === "answer").map((r) => JSON.parse(r.body) as { id: string; answer: string }),
     }
   }
 
@@ -42,6 +43,11 @@ export class FakeAgent extends DurableObject {
     this.log()
     this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('stop', '{}')")
     return { discarded: 0 }
+  }
+
+  async askAnswered(id: string, answer: string) {
+    this.log()
+    this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('answer', ?)", JSON.stringify({ id, answer }))
   }
 
   async calls() {

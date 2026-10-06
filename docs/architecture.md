@@ -297,7 +297,7 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 | Tool | Who | Effect |
 | --- | --- | --- |
 | `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
-| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. It waits up to two minutes and stops at once when a human message waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
+| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
@@ -310,7 +310,7 @@ The alarm handler drains the inbox in priority order (human, then system, then a
 
 **Reasoning.** One place enforces the hop limit and the budgets. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
 
-Agent mail is queued in the room before any delivery, and drained in order. A failed delivery or a full inbox stays at the head and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. While a human burst is open, nothing drains (section 7.8).
+Agent mail is queued in the room's `mail_queue` table before any delivery, and drained in order (`room/mail.ts`). A failed delivery or a full inbox stays at the head and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. While a human burst is open, nothing drains (section 7.8).
 
 A plain reply bubble wakes nobody. Only `send_message`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
 

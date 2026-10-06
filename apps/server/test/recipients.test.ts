@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@kiko/protocol"
 import type { MemberRow } from "../src/room/members"
 import { buildBrief } from "../src/room/brief"
-import { replyTag, route } from "../src/room/deliver"
+import { replyTag } from "../src/room/bubbles"
+import { route } from "../src/room/deliver"
 import { resolveRecipients, tags } from "../src/room/recipients"
 
 // P6-01. Every row of the table in architecture section 7.2, the burst routing on top of it, and
