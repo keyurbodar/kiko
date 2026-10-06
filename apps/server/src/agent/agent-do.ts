@@ -7,6 +7,7 @@ import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
 import { AnswerWaiters } from "./answers"
+import { executorGrant } from "../integrations/executor/tools"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import { findProvider } from "../user/turn-context"
@@ -562,7 +563,9 @@ export class AgentDO extends DurableObject<Env> {
       const home = this.home()
       if (!home) return null
       const room = roomStub(this.env.ROOM, home.userId, home.roomId)
-      return room.requestApproval(home.slug, { callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments })
+      const grantMs = executorGrant(call.tool)
+      const grant = grantMs ? { grantMs, ttlMs: grantMs } : {}
+      return room.requestApproval(home.slug, { callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments, ...grant })
     }
   }
 

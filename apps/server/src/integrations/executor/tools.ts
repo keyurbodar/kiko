@@ -21,6 +21,16 @@ export type ExecutorTool = {
 export type ExecutorResultBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string }
 export type ExecutorCall = (name: string, args: Record<string, unknown>) => Promise<{ content: ExecutorResultBlock[]; isError?: boolean }>
 
+/** How long one ok to an Executor card covers that agent's Executor calls (section 12.3). */
+export const EXECUTOR_GRANT_MS = 15 * 60_000
+
+/**
+ * The grant a trust card for `tool` asks for, if it is an Executor tool. A task in code mode is many
+ * `execute` calls with new code each time, so a card per exact call would ask the human at every step.
+ */
+export const executorGrant = (tool: string): number | undefined =>
+  tool.startsWith("executor_") && tool !== toolName(RESUME_TOOL) ? EXECUTOR_GRANT_MS : undefined
+
 /** `executor_` plus the name, with anything a model's tool name cannot hold turned into `_`. */
 export const toolName = (name: string) => `executor_${name.replace(/[^a-zA-Z0-9_-]/g, "_")}`.slice(0, 64)
 
@@ -29,7 +39,9 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
     name: EXECUTOR,
     tools: tools.map((t) =>
       declareEffect(
-        t.readOnly ? "read" : "external",
+        // Resume acts outside kiko, but only against a pause card the human accepted (below), which is
+        // stricter than the trust gate. Declaring it external would post a second card for the same act.
+        t.readOnly ? "read" : t.name === RESUME_TOOL ? "write" : "external",
         defineTool({
           name: toolName(t.name),
           description: `${t.description?.trim() || t.name} (through executor, the human's connected apps)`,
