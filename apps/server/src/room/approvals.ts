@@ -10,7 +10,7 @@ import type { RoomLog } from "./log"
 // No method an agent can reach changes a card's state. `request` only adds a pending card or uses an
 // accepted one. `decide` is called from the human's socket, and `expire` from the room's alarm.
 
-/** Executor holds a paused execution for 4 minutes (section 12.3). A card lives as long. */
+/** How long a trust card waits by default. An Executor card waits as long as Executor holds its program (section 12.3). */
 export const APPROVAL_TTL_MS = 240_000
 /** The room wakeup that expires cards and retries `approval_result` deliveries. */
 export const APPROVALS_WAKEUP = "approvals"

@@ -1,6 +1,6 @@
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "../../agent/effects"
-import { type ApprovalGate, pausedExecution, RESUME_TOOL } from "./approval"
+import { acceptResponse, type ApprovalGate, pendingInteraction, RESUME_TOOL } from "./approval"
 
 // Architecture section 12.2, P7-04. Every tool Executor lists becomes an agent tool named
 // `executor_<name>`, with Executor's own description and input schema. Nothing about a tool is
@@ -41,23 +41,26 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
             const input = (args ?? {}) as Record<string, unknown>
             const key = `${api.conversationId}:${api.callId}`
             try {
-              // P7-05: resume runs only against a card the human accepted. Without a gate it never runs.
+              // P7-05: resume runs only against a card the human accepted, and kiko writes the answer.
               if (t.name === RESUME_TOOL) {
-                const executionId = String(input.executionId ?? input.execution_id ?? "")
-                const ok = gate ? await gate(key, toolName(RESUME_TOOL), { executionId }) : null
+                const requestId = String(input.requestId ?? "")
+                const ok = gate ? await gate(key, toolName(RESUME_TOOL), { requestId }) : null
                 if (typeof ok !== "string") {
                   const why = ok?.refused ?? "resuming needs the human's approval in the chat."
                   return { content: [{ type: "text" as const, text: `not resumed: ${why} you cannot approve it yourself.` }], isError: true }
                 }
+                input.response = acceptResponse(requestId, (input.response as { content?: unknown } | undefined)?.content)
               }
               const out = await call(t.name, input)
               const text = out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n")
-              const paused = t.name === RESUME_TOOL ? null : pausedExecution(text)
-              if (paused && gate) {
+              const pending = gate ? pendingInteraction(text) : null
+              if (pending && gate) {
                 // Post the card now, so the human sees it while the agent tells them what it needs.
-                await gate(`pause:${paused}`, toolName(RESUME_TOOL), { executionId: paused })
+                const summary = pending.message.replace(/\s+/g, " ").slice(0, 400) || undefined
+                await gate(`pause:${pending.requestId}`, toolName(RESUME_TOOL), { requestId: pending.requestId }, { summary, ttlMs: pending.expiresAt - Date.now() })
+                const ask = pending.kind === "input" ? " ask the human for what it needs in the chat, and pass their answer as response.content." : ""
                 return {
-                  content: [{ type: "text" as const, text: `${text}\n\nthis action is paused for the human's approval; a card is in the chat. tell the human what it does and wait. once the approval result says accepted, call ${toolName(RESUME_TOOL)} with executionId ${paused}.` }],
+                  content: [{ type: "text" as const, text: `${text}\n\nthis is paused for the human; a card is in the chat. tell the human what it does and wait.${ask} once the approval result says accepted, call ${toolName(RESUME_TOOL)} with requestId ${pending.requestId}. never run the program again to continue it.` }],
                 }
               }
               return { content: out.content.length ? out.content : [{ type: "text" as const, text: "(no output)" }], isError: out.isError }

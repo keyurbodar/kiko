@@ -2,7 +2,7 @@ import type { ClientToUser, ExecutorResult, ExecutorStatus } from "@kiko/protoco
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P7-03. Connects a real Executor Cloud account over the user socket, lists its tools,
+// P7-03. Connects a real Executor Cloud (v2) account over the user socket, lists its tools,
 // forces a token refresh, disconnects, and sees every row gone.
 //
 // Part one needs no account: the sign-in starts, the authorize URL carries PKCE S256,
@@ -12,7 +12,7 @@ import type { Suite } from "../runner"
 
 const USER = "executor-alice"
 const CALLBACK = "api/integrations/executor/callback"
-const AUTHORIZE = "https://signin.executor.sh/oauth2/authorize"
+const AUTHORIZE = "https://v2.executor.sh/api/auth/oauth2/authorize"
 
 type Frame = Extract<ClientToUser, { t: "connectExecutor" | "disconnectExecutor" | "executorStatus" }>
 type Ask = Frame extends infer F ? (F extends Frame ? Omit<F, "reqId"> : never) : never
@@ -45,7 +45,7 @@ const suite: Suite = {
       expectEqual(`${url.origin}${url.pathname}`, AUTHORIZE, "authorize endpoint")
       expectEqual(url.searchParams.get("code_challenge_method"), "S256", "pkce method")
       expectEqual(url.searchParams.get("redirect_uri"), new URL(CALLBACK, base).href, "redirect uri")
-      expectEqual(url.searchParams.get("resource"), "https://executor.sh/mcp", "resource")
+      expectEqual(url.searchParams.get("resource"), "https://v2.executor.sh/mcp", "resource")
       if (!url.searchParams.get("scope")?.split(" ").includes("offline_access")) throw new VerifyError("scope lacks offline_access")
       expectEqual(started.status.pending, true, "a sign-in is pending")
 

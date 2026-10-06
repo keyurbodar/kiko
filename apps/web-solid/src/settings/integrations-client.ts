@@ -97,7 +97,7 @@ export function createMockExecutor(): ExecutorClient {
 				return { ok: true, status }
 			}
 			if (ask.t === "connectExecutor") {
-				if (ask.apiKey === undefined) return { ok: true, status, authorizeUrl: "https://signin.executor.sh/oauth2/authorize?mock=1" }
+				if (ask.apiKey === undefined) return { ok: true, status, authorizeUrl: "https://v2.executor.sh/api/auth/oauth2/authorize?mock=1" }
 				status = { ...EMPTY, connected: true, kind: "api_key", rows: 1 }
 				return { ok: true, status }
 			}

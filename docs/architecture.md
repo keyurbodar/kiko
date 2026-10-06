@@ -585,67 +585,61 @@ Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The k
 
 ## 12. Executor integration and code mode
 
-Facts are in [research/executor.md](research/executor.md). The Executor Cloud contract comes from its source code and from unauthenticated probes, because its docs do not publish it.
+Facts are in [research/executor-v2.md](research/executor-v2.md), and v1's in [research/executor.md](research/executor.md). Kiko uses Executor Cloud v2 at `v2.executor.sh`. Executor runs there, never inside kiko: v2's tool runner needs Worker Loader, which the Free plan lacks, its embeddable SDK is unpublished, and its storage is Postgres.
 
 ### 12.1 Connecting
 
 A user connects an Executor Cloud account in settings. `UserDO` stores the tokens with the same encryption as provider credentials.
 
-- The first choice is OAuth with PKCE against `https://signin.executor.sh`, with dynamic client registration and the `offline_access` scope. `pi-mcp` implements this flow, and kiko supplies the `McpOAuthStateStore` over `UserDO`.
-- The fallback is a personal API key that the user pastes.
-- Executor's sign-in page accepts a dynamic registration with kiko's localhost redirect URI (P7-03). UNVERIFIED: that the consent step after sign-in accepts it and returns a refresh token. Section 21 tests it, through `bun kiko verify executor-connect`.
+- The first choice is OAuth with PKCE against `https://v2.executor.sh/api/auth`, with dynamic client registration and the scopes `mcp offline_access`. `pi-mcp` implements this flow, and kiko supplies the `McpOAuthStateStore` over `UserDO`.
+- The fallback is a personal API key that the user pastes (`exp_...`).
+- v2's sign-in server accepts a dynamic registration with kiko's localhost redirect URI and sends the browser on to its sign-in page (`bun kiko verify executor-connect`, part one, 2026-10-06). UNVERIFIED: that consent returns a refresh token. Part two of the suite tests it with a signed-in human.
 - `UserDO` keeps the pi-mcp OAuth state and tokens in `executor_secrets`, one sealed row per name, and runs every exchange and refresh itself. Disconnect deletes every row in one transaction. A refresh still in flight at that moment stores nothing.
 - The callback is `/api/integrations/executor/callback`. The session names the user, and the stored `state` ties the code to the sign-in. The redirect URI is built from the origin the user socket came through.
 
 ### 12.2 Nothing hardcoded
 
-At the start of a run, `AgentDO` connects to `https://executor.sh/mcp` over streamable HTTP, calls `tools/list`, and registers every tool the server returns, each prefixed `executor_`. Kiko holds no list of Executor tools and no schema for them. A tool that Executor adds upstream appears in the next run.
+At the start of a run, `AgentDO` asks `UserDO` for the tools `https://v2.executor.sh/mcp` lists over streamable HTTP, and registers each one, prefixed `executor_`. Today v2 lists `execute`, `resume`, and `skills`. Kiko holds no schema for them, and a tool that Executor adds upstream appears in the next run.
 
-The connection URL carries three query options, stored per user.
-
-| Option | Value | Reason |
-| --- | --- | --- |
-| mode | default (code mode) | section 12.4 |
-| `artifacts` | `false` | kiko is not an MCP Apps host |
-| `elicitation_mode` | `model` | `pi-mcp` does not support MCP elicitation, so `native` cannot work |
-
-The `mcp-session-id` is stored in `AgentDO`, because a paused execution belongs to its session.
+The URL carries no query options. v2's default `elicitation_mode` is `model`, which is the one kiko needs: `pi-mcp` does not support MCP elicitation, and `browser` mode would send the human to Executor's own approval page.
 
 ### 12.3 Approvals
 
-In `model` mode, a tool that needs approval returns a normal result that says the execution is paused and carries an `executionId`. The model could call `resume` itself. Kiko stops that.
+v2 pauses a program for the human and returns JSON: `{status: "approval-required" | "input-required", requestId, elicitation, expiresAt}`. The model could answer with `resume` itself. Kiko stops that.
 
-1. An `afterTool` hook sees a paused result and asks `RoomDO` to post an approval card.
-2. A `beforeTool` hook rejects any model call to `executor_resume`.
-3. The human accepts or declines on the card. `RoomDO` delivers an `approval_result` envelope.
-4. `AgentDO` calls `resume` itself, as the host, and steers the result into the run.
+1. The Executor extension sees the pause in a tool result and asks `RoomDO` to post an approval card. The card shows the elicitation's message and lasts until `expiresAt`, 15 minutes in v2.
+2. A model call to `executor_resume` runs only against a card the human accepted.
+3. Kiko writes the `response` itself. Consent to a call (`apr_` ids) is sent with empty content, so a model cannot change approved arguments through it. A form question (`elc_` ids) passes the fields the human gave in the chat. ASSUMPTION: the agent relays those fields; the card has no form.
+4. A pause that comes back from `resume` posts a new card.
 
-Executor holds a paused execution for 4 minutes (`PAUSED_APPROVAL_TIMEOUT_MS` in its source). If the human does not answer in time, the card expires and the agent is told to ask again.
+v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only from that session (research section 4). `ExecutorConnection` keeps that session open, keyed by `requestId`, until the program is resumed or expires, at most 20 per user. Every other call opens and closes its own session. If `UserDO` is evicted or Executor restarts, the session is gone and `resume` returns `unavailable`; the agent tells the human, and never runs the program again.
 
-This gate is the only Executor-specific code in kiko. It keys on the tool name `resume` and on the paused result shape.
+A human who declines does not call `resume`, so the program waits until Executor lets it go.
+
+This gate is the only Executor-specific code in kiko. It keys on the tool name `resume` and on the paused result shape (`integrations/executor/approval.ts`).
 
 ### 12.4 Code mode
 
-**Decision.** Kiko does not build or host a code-mode runtime. It uses Executor's `execute` tool, which is code mode over all of a user's integrations.
+**Decision.** Kiko does not build or host a code-mode runtime. It uses Executor's `execute` tool, which runs model-written JavaScript over all of a user's apps in Executor's own interpreter.
 
 **Reasoning.**
 
 - `pi-codemode` runs QuickJS inside a Node `worker_threads` worker and reads the wasm file with `node:fs`. It does not run on Workers as shipped.
 - Cloudflare's Dynamic Workers would give a sandbox without containers, but the `worker_loaders` binding is on the Paid plan only. The spec targets the Free plan.
-- Executor's default MCP mode exposes `execute({code})`. The model writes TypeScript that searches, describes, and calls tools inside Executor's own sandbox. Kiko gets code mode without running any model-written code.
+- Executor's `execute` searches, describes, and calls tools inside Executor. Kiko gets code mode without running any model-written code.
 - Code mode pays off when a task chains many tool calls and the intermediate results are large. That is the integration case. Kiko's own tools (memory, reminders, tasks) take one call each and gain nothing from it.
 
-A user whose model writes poor TypeScript can switch the connection to `mode=passthrough`, which exposes `integrations`, `search`, and `invoke`.
+v2 dropped v1's `passthrough` mode, so code mode is the only mode.
 
 User extensions (section 24) do run QuickJS inside the agent's object, through `quickjs-wasi` imported as a compiled wasm module. That is a sandbox for small, declared extension functions, not a code-mode runtime for the model, so this decision stands.
 
-### 12.5 Setup steps from the spec's additions
+### 12.5 What v2 brings through `execute`
 
-The spec's additions say to discuss a form of Executor, install it, connect it over MCP, and get one tool working. The recommendation is Executor Cloud, for production and for development. Self-hosted Docker and the Cloudflare Worker build are single-organization, so they cannot serve many kiko users. The first integration task in the phase plan needs a human to create an Executor account and approve the OAuth client, and it pauses there.
+Apps (imported MCP, OpenAPI, and GraphQL servers, and apps the user writes), accounts, profiles, skills, schedules, webhooks, and workflows all live in Executor. An agent reaches them through `execute` and reads app instructions through `skills`. Connecting an account to an app happens in the user's browser at a link Executor returns; the agent passes the link on and never asks for a secret.
 
 ### 12.6 Risks
 
-Executor shipped 2.0.0-beta.0 through beta.7 between 2026-09-23 and 2026-10-01. The cloud contract is undocumented and may change. All Executor code sits in one module, and the verification CLI has a check that lists tools against a real account. The license is MIT, so self-hosting remains a fallback.
+v2 is a beta (`2.0.0-beta.8`), separate from v1: a v1 account and its integrations do not carry over. Its MCP contract is documented in `apps/docs/content/mcp.md` but may change between betas. All Executor code sits in one module, and `bun kiko verify executor-connect` checks the sign-in against the real server. The license is MIT.
 
 ## 13. Memory
 

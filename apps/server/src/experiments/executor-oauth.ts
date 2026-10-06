@@ -11,7 +11,7 @@ import {
 // forgets it. The real flow keeps this state in UserDO, encrypted (architecture section 12.1).
 // No token is ever returned or logged. The probe reports tool names, lifetime, and refresh presence.
 
-export const executorMcpUrl = "https://executor.sh/mcp"
+export const executorMcpUrl = "https://v2.executor.sh/mcp"
 export const executorOAuthPrefix = "/api/experiments/executor-oauth"
 const store = new MemoryOAuthStateStore()
 
@@ -24,7 +24,7 @@ function provider(origin: string, onRedirect: (url: URL) => void) {
       token_endpoint_auth_method: "none",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      scope: "openid profile email offline_access",
+      scope: "mcp offline_access",
     },
     store,
     onRedirect,

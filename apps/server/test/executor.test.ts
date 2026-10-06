@@ -2,15 +2,17 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// P7-03. The real `UserDO` runs in workerd. Executor Cloud is faked here, through
+// P7-03. The real `UserDO` runs in workerd. Executor Cloud v2 is faked here, through
 // Miniflare's outbound service, with the endpoints experiment 8 saw: protected resource
 // metadata, authorization server metadata, dynamic registration, a token endpoint that
 // checks PKCE and rotates refresh tokens, and an MCP endpoint that answers `tools/list`
-// only for the current access token. The browser step is the test reading the authorize
-// URL and minting a code for its challenge.
+// only for the current access token. Like v2, it keeps a paused program in the MCP session
+// that ran it. The browser step is the test reading the authorize URL and minting a code for
+// its challenge.
 
-const MCP = "https://executor.sh/mcp"
-const AS = "https://signin.executor.sh"
+const MCP = "https://v2.executor.sh/mcp"
+const AS = "https://v2.executor.sh/api/auth"
+const SCOPES = ["mcp", "offline_access"]
 const CALLBACK = "/api/integrations/executor/callback"
 
 const fake = {
@@ -24,6 +26,9 @@ const fake = {
   refreshDelayMs: 0,
   rejectRefresh: false,
   bearers: [] as string[],
+  /** Open MCP sessions, and the session each paused program waits in. */
+  sessions: new Set<string>(),
+  paused: new Map<string, string>(),
 }
 let n = 0
 
@@ -47,10 +52,10 @@ const json = (body: unknown, status = 200) => Response.json(body, { status })
 async function executor(request: Request): Promise<Response> {
   const url = new URL(request.url)
   const at = `${url.origin}${url.pathname}`
-  if (at === "https://executor.sh/.well-known/oauth-protected-resource/mcp") {
-    return json({ resource: MCP, authorization_servers: [AS], scopes_supported: ["openid", "profile", "email", "offline_access"] })
+  if (at === "https://v2.executor.sh/.well-known/oauth-protected-resource/mcp") {
+    return json({ resource: MCP, authorization_servers: [AS], scopes_supported: SCOPES })
   }
-  if (at === `${AS}/.well-known/oauth-authorization-server`) {
+  if (at === `${AS}/.well-known/oauth-authorization-server` || at === "https://v2.executor.sh/.well-known/oauth-authorization-server/api/auth") {
     return json({
       issuer: AS,
       authorization_endpoint: `${AS}/oauth2/authorize`,
@@ -60,7 +65,7 @@ async function executor(request: Request): Promise<Response> {
       token_endpoint_auth_methods_supported: ["none"],
       grant_types_supported: ["authorization_code", "refresh_token"],
       response_types_supported: ["code"],
-      scopes_supported: ["openid", "profile", "email", "offline_access"],
+      scopes_supported: SCOPES,
     })
   }
   if (at === `${AS}/oauth2/register` && request.method === "POST") {
@@ -97,21 +102,43 @@ async function executor(request: Request): Promise<Response> {
     if (!fake.access.has(bearer) && !bearer.startsWith("exk-")) {
       return new Response("unauthorized", {
         status: 401,
-        headers: { "www-authenticate": `Bearer resource_metadata="https://executor.sh/.well-known/oauth-protected-resource/mcp"` },
+        headers: { "www-authenticate": `Bearer resource_metadata="https://v2.executor.sh/.well-known/oauth-protected-resource/mcp?elicitation_mode=model", scope="mcp offline_access"` },
       })
     }
+    const session = request.headers.get("mcp-session-id") ?? ""
+    if (request.method === "DELETE") {
+      fake.sessions.delete(session)
+      for (const [id, s] of fake.paused) if (s === session) fake.paused.delete(id)
+      return new Response(null, { status: 200 })
+    }
     if (request.method !== "POST") return new Response(null, { status: 405 })
-    const msg = (await request.json()) as { id?: number; method: string; params?: { protocolVersion?: string } }
+    const msg = (await request.json()) as { id?: number; method: string; params?: { protocolVersion?: string; name?: string; arguments?: Record<string, unknown> } }
     if (msg.id === undefined) return new Response(null, { status: 202 })
     if (msg.method === "initialize") {
-      return json({
-        jsonrpc: "2.0",
-        id: msg.id,
-        result: { protocolVersion: msg.params?.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "fake", version: "1" } },
-      })
+      const id = `s-${crypto.randomUUID()}`
+      fake.sessions.add(id)
+      return Response.json(
+        { jsonrpc: "2.0", id: msg.id, result: { protocolVersion: msg.params?.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "fake", version: "1" } } },
+        { headers: { "mcp-session-id": id } },
+      )
     }
     if (msg.method === "tools/list") {
       return json({ jsonrpc: "2.0", id: msg.id, result: { tools: [{ name: "execute", inputSchema: { type: "object" } }] } })
+    }
+    if (msg.method === "tools/call") {
+      const text = (value: unknown) => json({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })
+      if (msg.params?.name === "execute") {
+        const requestId = `apr_${crypto.randomUUID().slice(0, 8)}`
+        fake.paused.set(requestId, session)
+        return text({ status: "approval-required", requestId, invocation: {}, elicitation: { mode: "form", message: "Approve send?", requestedSchema: { type: "object", properties: {} } }, expiresAt: Date.now() + 900_000 })
+      }
+      if (msg.params?.name === "resume") {
+        const requestId = String(msg.params.arguments?.requestId ?? "")
+        // A program resumes only in the session that paused it (v2's caller check).
+        if (fake.paused.get(requestId) !== session) return text({ status: "unavailable", requestId })
+        fake.paused.delete(requestId)
+        return text({ status: "completed", execution: { ok: true, result: "sent" } })
+      }
     }
     return json({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "no" } })
   }
@@ -346,4 +373,21 @@ test("no token or key reaches the log", async () => {
   expect(output.length).toBeGreaterThan(0)
   for (const secret of fake.issued) expect(output).not.toContain(secret)
   expect(output).not.toContain("exk-")
+})
+
+test("a paused program resumes in the session that paused it, which stays open until then", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  const paused = (await rpc(user, "executorCall", "execute", { code: "send it" })) as { content: { text: string }[] }
+  const pending = JSON.parse(paused.content[0]!.text) as { status: string; requestId: string }
+  expect(pending.status).toBe("approval-required")
+  const session = fake.paused.get(pending.requestId)!
+  expect(fake.sessions.has(session)).toBe(true)
+
+  const done = (await rpc(user, "executorCall", "resume", { requestId: pending.requestId, response: { action: "accept", content: {} } })) as { content: { text: string }[] }
+  expect(JSON.parse(done.content[0]!.text)).toMatchObject({ status: "completed" })
+  // The session closes once its program is done.
+  await Bun.sleep(100)
+  expect(fake.sessions.has(session)).toBe(false)
+  ws.close()
 })
