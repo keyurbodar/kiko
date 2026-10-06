@@ -23,7 +23,7 @@ import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Tou
 import { Life } from "./life"
 import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "../lib/optmem"
 import { ProviderLogins } from "./provider-login"
-import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, sha256 } from "./reminders"
+import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
 import { BUDGET_LINE } from "../room/limits"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
@@ -43,6 +43,7 @@ import { CHIEF } from "../room/chief"
 import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
 import type { GuestRequest, GuestResponse } from "../agent/script/compile"
 import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
+import type { Authority } from "../lib/origin"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }
@@ -117,7 +118,7 @@ export class UserDO extends DurableObject<Env> {
       if (this.life.importRecords() > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
-      this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
+      this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner(), (by) => this.triggerAuthority(by)), Date.now, {
         // The user's run is taken here, before the room is called, so a held run costs no call (section 25.5).
         deliverRun: async ({ deliveryId, routine, body, tainted }) => {
           const paid = this.takeAutonomous()
@@ -125,7 +126,7 @@ export class UserDO extends DurableObject<Env> {
             if (paid.reason === "limit") await this.budgetNotice(routine.roomId)
             return "held"
           }
-          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: routine.grant })
+          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: runGrant(routine) })
           if (out === "delivered" && routine.id === this.setting(CHECK_IN)) this.putSetting(CHECK_IN_SEEN, this.checkInFingerprint())
           return out
         },
@@ -169,6 +170,13 @@ export class UserDO extends DurableObject<Env> {
   // Extensions, architecture section 24. The logic is in extensions.ts. Agents reach these RPCs with
   // a stub the Worker addressed by the session's user id, so every call is this user's own.
   private extensions!: ExtensionStore
+
+  /** An extension's trigger (`ext:<name>`) runs as a routine granted that extension's own tools. */
+  private triggerAuthority(createdBy: string): Authority | null {
+    if (!createdBy.startsWith("ext:")) return null
+    const grant = this.extensions.toolNames(createdBy.slice("ext:".length))
+    return grant ? { origin: "routine", grant } : null
+  }
 
   /** The versions agent `slug` runs this run. */
   async extensionsFor(slug: string) {

@@ -1,4 +1,5 @@
 import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@kiko/protocol"
+import type { Authority } from "../lib/origin"
 import type { RoomLog } from "./log"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 
@@ -61,6 +62,8 @@ export type ReminderDelivery = {
 	text: string
 	/** `human`, or the agent slug the reminder is for. */
 	target: string
+	/** The authority of the run it wakes. Absent: `auto`. An extension's trigger is a routine granted its tools. */
+	authority?: Authority
 }
 
 export class Deliveries {

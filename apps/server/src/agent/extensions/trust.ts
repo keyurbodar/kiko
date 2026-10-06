@@ -21,31 +21,31 @@ import { type Authority, HUMAN } from "../../lib/origin"
 //   every look-alike tag inside it, and taints the run.
 // - `beforeRequest` works out the run's taint from the transcript before every model request, so a
 //   tainted agent envelope starts a tainted run and taint ends with the run's final answer.
-// - `beforeTool` applies the table of section 16.3. An `external` tool in a tainted run needs a
-//   human approval record (P7-02 provides them through `approvals`).
+// - `beforeTool` applies the table of sections 16.3 and 25.3. Who started the run decides whether an
+//   `external` tool needs the human's card; taint still flags what the run stores and sends.
 //
 // The factory always selects this extension. Tools reach it through `isRunTainted` and
 // `markRunTainted`, which find this agent's state from the tool's `api.registry`.
 
 export const TRUST = "trust"
 
-/** One `external` call a tainted run wants to make. P7-02 answers it with an approval id or null. */
+/** One `external` call a run nobody asked for wants to make. The room answers it with an approval id or a pending card. */
 export type ExternalCall = { conversationId: ConversationId; callId: string; tool: string; arguments: Record<string, unknown> }
 
 /**
- * Returns the id of the human's accepted approval record for this call. `{ refused }` ends the call
- * with that text instead: the room posted an approval card and the call waits for the human (P7-02).
- * Null means no record exists.
+ * Returns the id of the human's accepted card that covers this call (a 30-minute grant for this
+ * agent). `{ refused }` ends the call with that text instead: the room posted a card and the call
+ * waits for the human. Null means no card could be asked for.
  */
 export type Approvals = (call: ExternalCall, context: Context) => Promise<string | { refused: string } | null>
 
-/** One `external` call the gate saw. A test asserts no row has `ran` with `tainted` and no `approval`. */
+/** One `external` call the gate saw. */
 export type ExternalDecision = { tool: string; callId: string; tainted: boolean; approval: string | null; ran: boolean }
 
 export type TrustOptions = {
   /** Tool effects by name, from `effectTable`. A name not in it is treated as `external`. */
   effects: ReadonlyMap<string, EffectDeclaration>
-  /** Default: no approval ever exists, so a tainted run never acts outside kiko. */
+  /** Default: no card can be asked for, so a run nobody asked for never acts outside kiko. */
   approvals?: Approvals
   /** Section 25.3. The authority of the run in flight. Default: a human's, as before origins existed. */
   authority?: () => Authority
@@ -72,27 +72,30 @@ export type Gate =
   | { allow: true; /** Set for a write or a message from a tainted run: flag what it stores or sends. */ flagTainted: boolean }
   | { allow: false; reason: string }
 
-export const NEEDS_APPROVAL = "needs human approval: this run read outside content, so it cannot act outside kiko without the human's ok."
-export const NEEDS_HUMAN = "needs human approval: no human asked for this run, so it cannot act outside kiko without the human's ok. if it matters, ask the human in one short message."
+/** Why an `external` call did not run when no card could be posted. */
+export const NO_CARD = "not run: no human asked for this run, and kiko could not post a card for the human's ok. go on without it."
 
 /**
- * Whether an `external` call needs a human approval record. A tainted run always does (section 16.3).
- * Otherwise a run a human started does not, a routine does not for the tools the human granted it,
- * and every other run does (section 25.3).
+ * Whether an `external` call needs the human's card (sections 16.3 and 25.3). Taint does not decide
+ * it. A run the human started never does. A routine does not for the tools it was granted; the room
+ * strips the grant of a routine a tainted run made. Every other run does, unless the human accepted
+ * a card for this agent in the last 30 minutes (the room answers that).
  */
-export function needsApproval(tainted: boolean, authority: Authority, tool: string): boolean {
-  if (tainted) return true
+export function needsApproval(authority: Authority, tool: string): boolean {
   if (authority.origin === "human") return false
   return !(authority.origin === "routine" && authority.grant.includes(tool))
 }
 
 /**
- * | effect   | clean run, human or granted | clean run, otherwise   | tainted run                          |
- * | -------- | --------------------------- | ---------------------- | ------------------------------------ |
- * | read     | allow                       | allow                  | allow                                |
- * | write    | allow                       | allow                  | allow, the stored item is flagged    |
- * | message  | allow                       | allow                  | allow, the envelope carries taint    |
- * | external | allow                       | only with an approval  | only with an approval                |
+ * | effect   | human run, or a routine's granted tool | any other run          |
+ * | -------- | -------------------------------------- | ---------------------- |
+ * | read     | allow                                  | allow                  |
+ * | write    | allow, flagged when tainted            | allow, flagged when tainted |
+ * | message  | allow, the envelope carries taint      | allow, the envelope carries taint |
+ * | external | allow                                  | only with a card or a live grant |
+ *
+ * DEVIATION from the first version of section 16.3: a tainted run the human started may act outside
+ * kiko without a card. Executor's own pause still stops every action an app marks for a person.
  */
 export function gate(effect: Effect, tainted: boolean, approval: string | null, authority: Authority = HUMAN, tool = ""): Gate {
   switch (effect) {
@@ -102,8 +105,7 @@ export function gate(effect: Effect, tainted: boolean, approval: string | null, 
     case "message":
       return { allow: true, flagTainted: tainted }
     case "external":
-      if (!needsApproval(tainted, authority, tool)) return { allow: true, flagTainted: false }
-      return approval ? { allow: true, flagTainted: tainted } : { allow: false, reason: tainted ? NEEDS_APPROVAL : NEEDS_HUMAN }
+      return !needsApproval(authority, tool) || approval ? { allow: true, flagTainted: false } : { allow: false, reason: NO_CARD }
   }
 }
 
@@ -201,7 +203,7 @@ export function trustExtension(options: TrustOptions): Extension {
           const tainted = state.taint.get(api.conversationId) ?? true
           const run = authority()
           const answer =
-            effect === "external" && needsApproval(tainted, run, call.name)
+            effect === "external" && needsApproval(run, call.name)
               ? await approvals({ conversationId: api.conversationId, callId: call.id, tool: call.name, arguments: call.arguments }, context)
               : null
           const approval = typeof answer === "string" ? answer : null

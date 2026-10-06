@@ -2,12 +2,12 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Envelope, RoomEvent } from "@kiko/protocol"
 import { Trigger } from "@kiko/protocol/schema"
 import { Schema } from "effect"
-import { gate, NEEDS_APPROVAL, NEEDS_HUMAN, needsApproval } from "../src/agent/extensions/trust"
+import { gate, NO_CARD, needsApproval } from "../src/agent/extensions/trust"
 import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "../src/lib/origin"
 import { eventLine, matches } from "../src/room/routines"
 import { nextSweep, stalled, STALE_MS, SWEEP_MS } from "../src/room/stalls"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
-import { describeTrigger, nextEvery } from "../src/user/reminders"
+import { describeTrigger, nextEvery, runGrant } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
 
 // Architecture section 25. The pure rules routines and proactivity stand on.
@@ -40,23 +40,40 @@ describe("authority (section 25.3)", () => {
 })
 
 describe("the gate (sections 16.3 and 25.3)", () => {
-  test("an external call needs the human unless a human started the run or the routine was granted that tool", () => {
-    expect(needsApproval(false, HUMAN, "send")).toBe(false)
-    expect(needsApproval(false, routine(["send"]), "send")).toBe(false)
-    expect(needsApproval(false, routine(["send"]), "delete")).toBe(true)
-    expect(needsApproval(false, AUTO, "send")).toBe(true)
-    // Outside content beats every grant.
-    expect(needsApproval(true, HUMAN, "send")).toBe(true)
-    expect(needsApproval(true, routine(["send"]), "send")).toBe(true)
+  // [effect, tainted, card, authority, tool, runs]. Who started the run decides an outside call; taint
+  // only flags writes and messages. Each row fails if its rule breaks.
+  const table: [Parameters<typeof gate>[0], boolean, string | null, ReturnType<typeof combine>, string, boolean][] = [
+    ["external", false, null, HUMAN, "send", true],
+    ["external", true, null, HUMAN, "send", true], // DEVIATION: a tainted run the human started needs no card
+    ["external", false, null, routine(["send"]), "send", true],
+    ["external", true, null, routine(["send"]), "send", true], // a routine's grant holds when its run is tainted
+    ["external", false, null, routine(["send"]), "delete", false],
+    ["external", true, null, routine(["send"]), "delete", false],
+    ["external", false, null, AUTO, "send", false],
+    ["external", true, null, AUTO, "send", false],
+    ["external", true, "ap_1", AUTO, "send", true], // an accepted card, or a live grant
+    ["external", false, "ap_1", routine([]), "send", true],
+    ["read", true, null, AUTO, "x", true],
+    ["write", true, null, AUTO, "x", true],
+    ["message", true, null, AUTO, "x", true],
+  ]
+  for (const [effect, tainted, card, authority, tool, runs] of table) {
+    test(`${effect} ${tool} in a ${tainted ? "tainted" : "clean"} ${authority.origin} run${card ? " with a card" : ""} ${runs ? "runs" : "waits"}`, () => {
+      expect(gate(effect, tainted, card, authority, tool).allow).toBe(runs)
+      // The card is asked for exactly when the call would otherwise wait.
+      if (effect === "external" && !card) expect(needsApproval(authority, tool)).toBe(!runs)
+    })
+  }
+
+  test("a routine a tainted run made runs with no grant; one a clean run or the human's card made keeps it", () => {
+    expect(runGrant({ tainted: false, grant: ["send"] })).toEqual(["send"])
+    expect(runGrant({ tainted: true, grant: ["send"] })).toEqual([])
   })
 
-  test("reads, writes, and messages never wait; the reason says why an external call does", () => {
-    for (const effect of ["read", "write", "message"] as const) expect(gate(effect, false, null, AUTO, "x").allow).toBe(true)
-    expect(gate("write", true, null, AUTO, "x")).toEqual({ allow: true, flagTainted: true })
-    expect(gate("external", false, null, AUTO, "send")).toEqual({ allow: false, reason: NEEDS_HUMAN })
-    expect(gate("external", true, null, HUMAN, "send")).toEqual({ allow: false, reason: NEEDS_APPROVAL })
-    expect(gate("external", false, "ap_1", AUTO, "send")).toEqual({ allow: true, flagTainted: false })
-    expect(gate("external", false, null, HUMAN, "send")).toEqual({ allow: true, flagTainted: false })
+  test("taint flags writes and messages; a call that waits says why", () => {
+    expect(gate("write", true, null, HUMAN, "x")).toEqual({ allow: true, flagTainted: true })
+    expect(gate("message", false, null, AUTO, "x")).toEqual({ allow: true, flagTainted: false })
+    expect(gate("external", false, null, AUTO, "send")).toEqual({ allow: false, reason: NO_CARD })
   })
 })
 

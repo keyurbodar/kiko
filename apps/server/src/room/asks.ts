@@ -6,7 +6,8 @@ import type { AgentSlug } from "@kiko/protocol"
 // the room stores it in the chat as usual but does not deliver it, and pushes it to the asking tool.
 // An ask that times out is closed, and a later reply is delivered like any other message.
 
-export type AskState = { state: "open" | "answered" | "closed"; answer: string | null }
+/** `tainted`: the answer came from a run that read outside content, so it taints the asker's run. */
+export type AskState = { state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean }
 
 export class Asks {
   constructor(private readonly sql: SqlStorage) {
@@ -18,6 +19,9 @@ export class Asks {
       state TEXT NOT NULL CHECK (state IN ('open', 'answered', 'closed')),
       answer TEXT
     ) STRICT`)
+    if (!sql.exec<{ name: string }>("PRAGMA table_info(agent_asks)").toArray().some((c) => c.name === "tainted")) {
+      sql.exec("ALTER TABLE agent_asks ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0")
+    }
   }
 
   /** Opens the ask. A repeat of the same id (a replayed tool call) changes nothing. */
@@ -26,16 +30,16 @@ export class Asks {
   }
 
   /** `from`'s message to `to` answers `to`'s oldest open ask of `from`. Returns that ask's id, or null. */
-  answer(from: AgentSlug, to: AgentSlug, text: string): string | null {
+  answer(from: AgentSlug, to: AgentSlug, text: string, tainted: boolean): string | null {
     const open = this.sql.exec<{ id: string }>("SELECT id FROM agent_asks WHERE asker = ? AND askee = ? AND state = 'open' ORDER BY at LIMIT 1", to, from).toArray()[0]
     if (!open) return null
-    this.sql.exec("UPDATE agent_asks SET state = 'answered', answer = ? WHERE id = ?", text, open.id)
+    this.sql.exec("UPDATE agent_asks SET state = 'answered', answer = ?, tainted = ? WHERE id = ?", text, tainted ? 1 : 0, open.id)
     return open.id
   }
 
   get(id: string): AskState | null {
-    const row = this.sql.exec<{ state: AskState["state"]; answer: string | null }>("SELECT state, answer FROM agent_asks WHERE id = ?", id).toArray()[0]
-    return row ? { state: row.state, answer: row.answer } : null
+    const row = this.sql.exec<{ state: AskState["state"]; answer: string | null; tainted: number }>("SELECT state, answer, tainted FROM agent_asks WHERE id = ?", id).toArray()[0]
+    return row ? { state: row.state, answer: row.answer, tainted: row.tainted === 1 } : null
   }
 
   /** The asker stopped waiting. An answer that already arrived is kept and returned. */

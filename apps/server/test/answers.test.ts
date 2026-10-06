@@ -5,15 +5,15 @@ test("a pushed answer ends the wait at once", async () => {
   const w = new AnswerWaiters()
   const started = Date.now()
   const wait = w.wait("q1", 10_000)
-  w.answer("q1", "8797")
-  expect(await wait).toBe("8797")
+  w.answer("q1", { text: "8797", tainted: false })
+  expect(await wait).toEqual({ text: "8797", tainted: false })
   expect(Date.now() - started).toBeLessThan(100)
 })
 
 test("an answer pushed before the wait starts is not lost", async () => {
   const w = new AnswerWaiters()
-  w.answer("q1", "8797")
-  expect(await w.wait("q1", 10_000)).toBe("8797")
+  w.answer("q1", { text: "8797", tainted: false })
+  expect(await w.wait("q1", 10_000)).toEqual({ text: "8797", tainted: false })
 })
 
 test("the human writing ends every wait with no answer", async () => {
@@ -23,8 +23,8 @@ test("the human writing ends every wait with no answer", async () => {
   w.interrupt()
   expect(await Promise.all([a, b])).toEqual([null, null])
   // A late answer after the interrupt waits for a replayed call, and never reaches the old one.
-  w.answer("q1", "late")
-  expect(await w.wait("q1", 10)).toBe("late")
+  w.answer("q1", { text: "late", tainted: true })
+  expect(await w.wait("q1", 10)).toEqual({ text: "late", tainted: true })
 })
 
 test("no answer within the deadline ends the wait with none", async () => {

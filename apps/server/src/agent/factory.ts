@@ -50,7 +50,7 @@ export type BuildAgentInput = RoleInput & {
   messaging?: () => MessagingPort | null
   /** Tests and the dev-only fake agent only, such as the slow tool of P1-12. Selected after every standard extension. */
   testExtensions?: readonly Extension[]
-  /** Human approval records for `external` tools in a tainted run (P7-02). Default: none. */
+  /** The human's cards for `external` tools in a run nobody asked for (section 25.3). Default: none. */
   approvals?: Approvals
   /** The authority of the run in flight (section 25.3). Default: a human's. */
   authority?: () => Authority

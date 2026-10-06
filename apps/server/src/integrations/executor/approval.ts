@@ -1,3 +1,5 @@
+import type { ApprovalAnswer, ApprovalRequest } from "../../room/approvals"
+
 // Architecture section 12.3. Executor v2 pauses a program for the human and returns it as JSON:
 // `{status: "approval-required" | "input-required", requestId, elicitation, expiresAt}`. A model must
 // never answer its own pause: the resume tool runs only against an approval card the human accepted.
@@ -44,8 +46,5 @@ export function acceptResponse(requestId: string, content: unknown): { action: "
   return { action: "accept", content: fields }
 }
 
-/** What a card asks when it is posted: how it reads, and how long it waits. */
-export type CardOptions = { summary?: string; ttlMs?: number }
-
-/** The approval gate's answer: the accepted card's id, the text that ends the call, or null (no gate). */
-export type ApprovalGate = (callKey: string, tool: string, args: Record<string, unknown>, card?: CardOptions) => Promise<string | { refused: string } | null>
+/** The room's cards, as Executor uses them: post a pause card, or ask whether the human accepted it. Null: no room. */
+export type ApprovalGate = (req: Extract<ApprovalRequest, { kind: "pause" | "resume" }>) => Promise<ApprovalAnswer | null>

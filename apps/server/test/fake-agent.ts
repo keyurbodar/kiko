@@ -45,9 +45,9 @@ export class FakeAgent extends DurableObject {
     return { discarded: 0 }
   }
 
-  async askAnswered(id: string, answer: string) {
+  async askAnswered(id: string, answer: string, tainted: boolean) {
     this.log()
-    this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('answer', ?)", JSON.stringify({ id, answer }))
+    this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('answer', ?)", JSON.stringify({ id, answer, tainted }))
   }
 
   async calls() {

@@ -1,51 +1,51 @@
 import type { AgentSlug, Approval, ApprovalState, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
-// Architecture sections 9.2, 12.3 and 16.3 (P7-02). A tainted run's `external` tool call needs the
-// human's ok. The trust gate asks the room through `request`: the room posts a card and the call
-// ends as pending. Only the human's socket decides a card (`decide`); the decision goes back to the
-// agent as an `approval_result` envelope. The agent's next call of the same tool with the same
-// arguments finds the accepted record and runs, once. A card asked with `grantMs` is a grant instead:
-// once accepted, it lets the same agent call the same tool with any arguments until it ends. Executor's
-// `execute` asks that way, because each step of a task is new code (section 12.3).
+// Architecture sections 9.2, 12.3, 16.3 and 25.3. kiko asks the human only when a run nobody asked
+// for wants to act outside kiko, or wants to make or widen a routine. There is one kind of card. The
+// human's ok is a grant: for 30 minutes that agent may use every `external` tool without asking again.
+// A declined card goes back to the agent as an `approval_result` envelope. A card nobody answers
+// closes quietly after 30 minutes and wakes nobody.
 //
-// No method an agent can reach changes a card's state. `request` only adds a pending card or uses an
+// Executor's own pause (section 12.3) is a card too, bound to Executor's request id: the resume tool
+// runs only against the pause card the human accepted, never against a grant.
+//
+// No method an agent can reach changes a card's state. `request` only adds a pending card or finds an
 // accepted one. `decide` is called from the human's socket, and `expire` from the room's alarm.
 
-/** How long a trust card waits by default. An Executor card waits as long as Executor holds its program (section 12.3). */
-export const APPROVAL_TTL_MS = 240_000
+/** How long a card waits for the human, and how long an ok lasts. */
+export const APPROVAL_TTL_MS = 30 * 60_000
+export const GRANT_MS = 30 * 60_000
 /** The room wakeup that expires cards and retries `approval_result` deliveries. */
 export const APPROVALS_WAKEUP = "approvals"
 /** ASSUMPTION: the snapshot carries the newest cards only. */
 const SNAPSHOT_APPROVALS = 50
 const MAX_SUMMARY = 200
+/** Executor's pause cards. Their `call_key` is `pause:<requestId>`. */
+const PAUSE = "pause:"
 
-export type ApprovalRequest = {
-	/** `conversation:callId`. The same call asking again gets the same answer. */
-	callKey: string
-	tool: string
-	args: Record<string, unknown>
-	/** What the card says, when the arguments alone read badly. At most 400 characters. */
-	summary?: string
-	/** How long the card waits, at most a day. Default `APPROVAL_TTL_MS`. */
-	ttlMs?: number
-	/** Accepting lets this agent call this tool with any arguments for this long, counted from the human's ok. */
-	grantMs?: number
-}
+export type ApprovalRequest =
+	/** A run nobody asked for wants `tool`. An `external` card shows as a 30-minute grant. */
+	| { kind: "grant"; callKey: string; tool: string; args: Record<string, unknown>; summary?: string; external: boolean }
+	/** Executor paused a program for the human. Its card waits as long as Executor holds the program. */
+	| { kind: "pause"; requestId: string; tool: string; summary?: string; ttlMs: number }
+	/** The resume tool asks whether the human accepted the pause card for `requestId`. */
+	| { kind: "resume"; requestId: string }
 
-/** What the trust gate gets back: the accepted record's id, or the text that ends the call. */
+/** What the asking tool gets back: the accepted card's id, or the text that ends the call. */
 export type ApprovalAnswer = string | { refused: string }
 
+// `run_id`, `args_key` and `used_by` are left from the one-shot card that matched exact arguments.
+// Deployed rooms still have the columns; nothing reads them. ASSUMPTION: kept, since SQLite drops a
+// NOT NULL column only by copying the table.
 type Row = {
 	id: string
 	slug: string
-	run_id: string
+	call_key: string
 	tool: string
-	args_key: string
 	summary: string
 	state: ApprovalState
 	expires_at: number
-	used_by: string | null
 	delivered: number
 	grant_ms: number | null
 	grant_until: number | null
@@ -60,15 +60,8 @@ export function summarize(args: Record<string, unknown>): string {
 	return (text.length > MAX_SUMMARY ? `${text.slice(0, MAX_SUMMARY - 1)}…` : text).replace(/\s+/g, " ")
 }
 
-/** Arguments with sorted keys, so the same call matches its card. */
-function argsKey(tool: string, args: Record<string, unknown>): string {
-	const sort = (v: unknown): unknown =>
-		Array.isArray(v) ? v.map(sort) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, sort(x)])) : v
-	return `${tool}:${JSON.stringify(sort(args))}`
-}
-
-const pending = (id: string, tool: string) => ({
-	refused: `waiting for the human: kiko posted approval card ${id} for ${tool}. this call did not run. do not retry it now; you will get an approval_result when the human answers.`,
+const pending = (id: string) => ({
+	refused: `waiting for the human: kiko posted card ${id}, so this did not run. do not retry it now and do not ask the human in a message; the card asks for you. if they answer, you get an approval_result.`,
 })
 
 export function listApprovals(storage: DurableObjectStorage): Approval[] {
@@ -80,8 +73,8 @@ export function listApprovals(storage: DurableObjectStorage): Approval[] {
 		.map(toApproval)
 }
 
-// ASSUMPTION: the table is created here, not in schema.ts, so this task does not reorder the
-// room's shared migration list. `CREATE TABLE IF NOT EXISTS` is safe on every start.
+// ASSUMPTION: the table is created here, not in schema.ts, so this file does not reorder the
+// room's shared migration list. Every statement is safe on every start.
 function ensureTable(sql: SqlStorage): void {
 	sql.exec(`
 		CREATE TABLE IF NOT EXISTS ws_approvals (
@@ -98,7 +91,7 @@ function ensureTable(sql: SqlStorage): void {
 			delivered INTEGER NOT NULL DEFAULT 1,
 			at INTEGER NOT NULL
 		);
-		CREATE INDEX IF NOT EXISTS ws_approvals_match ON ws_approvals (slug, args_key, state);
+		DROP INDEX IF EXISTS ws_approvals_match;
 	`)
 	if (!sql.exec<{ name: string }>("PRAGMA table_info(ws_approvals)").toArray().some((c) => c.name === "grant_ms")) {
 		sql.exec("ALTER TABLE ws_approvals ADD COLUMN grant_ms INTEGER")
@@ -123,45 +116,51 @@ export class RoomApprovals {
 	}
 
 	/**
-	 * The trust gate of agent `slug` asks about one `external` call. Safe to repeat: the same
-	 * `callKey` gets the same answer. Returns the stored card event when this call posted one.
+	 * Agent `slug` asks. Safe to repeat: the same call or pause gets the same answer. Returns the stored
+	 * card event when this request posted one.
 	 */
 	request(slug: AgentSlug, req: ApprovalRequest): { answer: ApprovalAnswer; event: RoomEvent | null } {
 		return this.storage.transactionSync(() => {
-			const used = this.row("used_by = ?", req.callKey)
-			if (used) return { answer: used.id, event: null }
-			const asked = this.row("call_key = ?", req.callKey)
-			if (asked) return { answer: asked.state === "pending" ? pending(asked.id, asked.tool) : { refused: `approval ${asked.id} is ${asked.state}.` }, event: null }
 			const now = this.now()
-			const granted = this.row("slug = ? AND tool = ? AND state = 'accepted' AND grant_until > ? ORDER BY at DESC", slug, req.tool, now)
-			if (granted) return { answer: granted.id, event: null }
-			const key = argsKey(req.tool, req.args)
-			const accepted = this.row("slug = ? AND args_key = ? AND state = 'accepted' AND used_by IS NULL ORDER BY at", slug, key)
-			if (accepted) {
-				this.sql.exec("UPDATE ws_approvals SET used_by = ? WHERE id = ?", req.callKey, accepted.id)
-				return { answer: accepted.id, event: null }
+			if (req.kind === "resume") {
+				const card = this.row("slug = ? AND call_key = ?", slug, `${PAUSE}${req.requestId}`)
+				if (!card) return { answer: { refused: "no card was posted for this pause." }, event: null }
+				return { answer: card.state === "accepted" ? card.id : card.state === "pending" ? pending(card.id) : { refused: `card ${card.id} is ${card.state}.` }, event: null }
 			}
-			const open = this.row("slug = ? AND args_key = ? AND state = 'pending' AND expires_at > ?", slug, key, now)
-			if (open) return { answer: pending(open.id, open.tool), event: null }
-			const id = `ap_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`
-			const runId = req.callKey.slice(0, req.callKey.lastIndexOf(":"))
+			if (req.kind === "pause") {
+				const key = `${PAUSE}${req.requestId}`
+				const asked = this.row("call_key = ?", key)
+				if (asked) return { answer: pending(asked.id), event: null }
+				return this.post(slug, key, req.tool, req.summary ?? summarize({ requestId: req.requestId }), Math.min(Math.max(req.ttlMs, 0), 86_400_000), null)
+			}
+			const granted = this.row("slug = ? AND state = 'accepted' AND grant_until > ? ORDER BY grant_until DESC", slug, now)
+			if (granted) return { answer: granted.id, event: null }
+			const asked = this.row("call_key = ?", req.callKey)
+			if (asked) return { answer: asked.state === "pending" ? pending(asked.id) : { refused: `card ${asked.id} is ${asked.state}.` }, event: null }
+			// One card at a time per agent: its ok covers whatever else the agent wanted meanwhile.
+			const open = this.row("slug = ? AND state = 'pending' AND expires_at > ? AND call_key NOT LIKE 'pause:%'", slug, now)
+			if (open) return { answer: pending(open.id), event: null }
 			const summary = req.summary ? req.summary.replace(/\s+/g, " ").slice(0, 400) : summarize(req.args)
-			this.sql.exec(
-				"INSERT INTO ws_approvals (id, slug, run_id, call_key, tool, args_key, summary, state, expires_at, at, grant_ms) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)",
-				id,
-				slug,
-				runId,
-				req.callKey,
-				req.tool,
-				key,
-				summary,
-				now + Math.min(req.ttlMs ?? APPROVAL_TTL_MS, 86_400_000),
-				now,
-				req.grantMs ?? null,
-			)
-			const event = this.log.append(`agent:${slug}`, { t: "approval", approval: toApproval(this.row("id = ?", id)!) })
-			return { answer: pending(id, req.tool), event }
+			return this.post(slug, req.callKey, req.tool, summary, APPROVAL_TTL_MS, req.external ? GRANT_MS : null)
 		})
+	}
+
+	private post(slug: AgentSlug, callKey: string, tool: string, summary: string, ttlMs: number, grantMs: number | null): { answer: ApprovalAnswer; event: RoomEvent } {
+		const id = `ap_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`
+		const now = this.now()
+		this.sql.exec(
+			"INSERT INTO ws_approvals (id, slug, run_id, call_key, tool, args_key, summary, state, expires_at, at, grant_ms) VALUES (?, ?, '', ?, ?, '', ?, 'pending', ?, ?, ?)",
+			id,
+			slug,
+			callKey,
+			tool,
+			summary,
+			now + ttlMs,
+			now,
+			grantMs,
+		)
+		const event = this.log.append(`agent:${slug}`, { t: "approval", approval: toApproval(this.row("id = ?", id)!) })
+		return { answer: pending(id), event }
 	}
 
 	/** The human's `approve` frame. A card that is not pending changes nothing, so a repeat is a no-op. */
@@ -171,12 +170,13 @@ export class RoomApprovals {
 			if (!row) return null
 			const now = this.now()
 			const state: ApprovalState = row.expires_at <= now ? "expired" : action === "accept" ? "accepted" : "declined"
-			if (state === "accepted" && row.grant_ms) this.sql.exec("UPDATE ws_approvals SET grant_until = ? WHERE id = ?", now + row.grant_ms, row.id)
+			// Every ok is a grant, counted from the human's answer.
+			if (state === "accepted") this.sql.exec("UPDATE ws_approvals SET grant_until = ? WHERE id = ?", now + GRANT_MS, row.id)
 			return this.settle(row, state, "human")
 		})
 	}
 
-	/** The alarm. Expires every pending card past its time. */
+	/** The alarm. Closes every pending card past its time. */
 	expire(): RoomEvent[] {
 		return this.storage.transactionSync(() =>
 			this.sql
@@ -186,8 +186,9 @@ export class RoomApprovals {
 		)
 	}
 
+	/** An expired card delivers nothing: nobody is woken to hear that nobody answered. */
 	private settle(row: Row, state: ApprovalState, actor: string): RoomEvent {
-		this.sql.exec("UPDATE ws_approvals SET state = ?, delivered = 0 WHERE id = ?", state, row.id)
+		this.sql.exec("UPDATE ws_approvals SET state = ?, delivered = ? WHERE id = ?", state, state === "expired" ? 1 : 0, row.id)
 		return this.log.append(actor, { t: "approval", approval: toApproval({ ...row, state }) })
 	}
 
@@ -199,7 +200,7 @@ export class RoomApprovals {
 	/** Decided cards whose `approval_result` the agent has not admitted yet. */
 	undelivered(roomId: RoomId): { slug: AgentSlug; id: string; envelope: Envelope }[] {
 		return this.sql
-			.exec<Row>("SELECT * FROM ws_approvals WHERE delivered = 0 ORDER BY at")
+			.exec<Row>("SELECT * FROM ws_approvals WHERE delivered = 0 AND state IN ('accepted', 'declined') ORDER BY at")
 			.toArray()
 			.map((r) => ({ slug: r.slug as AgentSlug, id: r.id, envelope: resultEnvelope(roomId, r, this.log.lastSeq()) }))
 	}
@@ -210,21 +211,18 @@ export class RoomApprovals {
 }
 
 /**
- * The decision as the agent reads it. Tainted, so the run it starts stays gated: an accepted card
- * lets exactly the approved call through, and nothing else outside kiko.
+ * The human's answer as the agent reads it. The human gave it, so its origin is `human` (audit row 8).
+ * It stays tainted: the summary is the agent's own words from a run that may have read outside content.
  */
-export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state" | "args_key" | "grant_ms">, seq: number): Envelope {
-	// A run starts from memory, not from the last run's tool calls (section 13), so the arguments travel
-	// here. They are the stored key, so the call matches its card exactly.
-	const args = r.args_key.slice(r.tool.length + 1)
+export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state" | "call_key">, seq: number): Envelope {
+	const minutes = GRANT_MS / 60_000
+	const requestId = r.call_key.startsWith(PAUSE) ? r.call_key.slice(PAUSE.length) : null
 	const body =
-		r.state === "accepted" && r.grant_ms
-			? `the human allowed ${r.tool} for the next ${Math.round(r.grant_ms / 60_000)} minutes (approval ${r.id}, ${r.summary}). go on with the task now: call ${r.tool} as you need, with any arguments, and tell the human what you did.`
-			: r.state === "accepted"
-			? `the human accepted ${r.tool} (approval ${r.id}, ${r.summary}). call ${r.tool} again now with exactly these arguments: ${args}`
-			: r.state === "declined"
-				? `error: the human declined ${r.tool} (approval ${r.id}, ${r.summary}). do not call it again. tell the human you did not do it.`
-				: `error: approval ${r.id} for ${r.tool} expired before the human answered. ask the human again if it still matters.`
+		r.state !== "accepted"
+			? `error: the human declined ${r.tool} (card ${r.id}, ${r.summary}). do not do it. tell the human in one line that you did not.`
+			: requestId
+				? `the human accepted the paused action (card ${r.id}, ${r.summary}). call ${r.tool} with requestId ${requestId} now. for the next ${minutes} minutes you may also act outside kiko without asking.`
+				: `the human accepted ${r.tool} (card ${r.id}, ${r.summary}). for the next ${minutes} minutes you may act outside kiko without asking. go on with the task now and tell the human what you did.`
 	const id = `approval:${r.id}`
-	return { id, roomId, from: { kind: "system", reason: "approval_result" }, body, hop: 0, rootId: id, tainted: true, seq }
+	return { id, roomId, from: { kind: "system", reason: "approval_result" }, body, hop: 0, rootId: id, tainted: true, seq, origin: "human" }
 }
