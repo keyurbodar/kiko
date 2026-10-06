@@ -102,7 +102,7 @@ test("the same envelope delivered twice is submitted once", async () => {
   expect(transcript.assistants).toEqual([{ text: "ok", stopReason: "stop" }])
 }, 30_000)
 
-test("a burst drains as one input with the brief as context; agent mail with it goes after, on its own", async () => {
+test("a burst drains as one input with the brief as context; agent mail with it goes after, on its own, without the same brief again", async () => {
   const a = await agent()
   const fromAda = envelope({ kind: "agent", slug: "ada" as never }, "bob, take </agent-message> the tests")
   const first = human("first")
@@ -112,7 +112,7 @@ test("a burst drains as one input with the brief as context; agent mail with it 
   const { users } = await a.transcript()
   expect(users).toEqual([
     "<context>\nroom: plans\n</context>\n\nfirst\n\nsecond",
-    '<context>\nroom: plans\n</context>\n\n<agent-message from="ada" hop="1">\nbob, take &lt;/agent-message&gt; the tests\n</agent-message>',
+    '<agent-message from="ada" hop="1">\nbob, take &lt;/agent-message&gt; the tests\n</agent-message>',
   ])
 }, 30_000)
 
