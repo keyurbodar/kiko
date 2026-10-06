@@ -27,6 +27,8 @@ type Body =
   | { op: "memory" }
   | { op: "entries" }
   | { op: "epoch" }
+  | { op: "human-coming" }
+  | { op: "begins" }
 
 export class T extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
@@ -60,7 +62,12 @@ export class T extends AgentDO {
             fresh ? { fresh: true, text: "<memory>\nchat:\n#0 human: earlier\n</memory>" } : { fresh: false, text: "<memory>\nchat since your last turn:\n#9 human: new\n</memory>" },
         }
       : {}
-    return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }), ...memory }
+    // Counts the runs that loaded credentials, so a test sees a held batch load none.
+    const beginRun = async () => {
+      await this.ctx.storage.put("begins", ((await this.ctx.storage.get<number>("begins")) ?? 0) + 1)
+      return true
+    }
+    return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }), ...memory, beginRun }
   }
 
   override async fetch(request: Request) {
@@ -72,6 +79,11 @@ export class T extends AgentDO {
       return Response.json({ ok: true })
     }
     if (body.op === "epoch") return Response.json({ epoch: this.host.epoch() })
+    if (body.op === "human-coming") {
+      await this.humanComing()
+      return Response.json({ ok: true })
+    }
+    if (body.op === "begins") return Response.json({ begins: (await this.ctx.storage.get<number>("begins")) ?? 0 })
     if (body.op === "entries") {
       const has = this.ctx.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'entries'").toArray().length > 0
       return Response.json({ entries: has ? this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM entries").one().n : 0 })

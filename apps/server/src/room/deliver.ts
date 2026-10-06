@@ -1,5 +1,6 @@
 import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@kiko/protocol"
 import type { RoomLog } from "./log"
+import type { Chain } from "./mail"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 
 /** How an envelope names the files a message carries. Paths are as the agent's file tools take them. */
@@ -61,6 +62,12 @@ export type ReminderDelivery = {
 	text: string
 	/** `human`, or the agent slug the reminder is for. */
 	target: string
+	/** `human`, the agent slug that set it, or `ext:<name>` for an extension's trigger. Absent from an older sender. */
+	createdBy?: string
+	/** The chain the agent that set it was working on (section 25.3). Null or absent for one set before chains. */
+	chain?: Chain | null
+	/** A recurring reminder: each occurrence starts its own root. */
+	recurring?: boolean
 }
 
 export class Deliveries {

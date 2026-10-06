@@ -1,9 +1,10 @@
 import type { Envelope, Sender } from "@kiko/protocol"
 
-// Architecture section 7.3. The inbox stores every envelope the room delivers. Rows are never
-// deleted when they are drained, because the id is the dedupe key: a delivery repeated after its
-// run finished must still store nothing. A drained row carries the `request_id` of the input it
-// went into, and `submitted` turns 1 once `pi-durable` admitted that input.
+// Architecture section 7.3. The inbox stores every envelope the room delivers. Rows are not deleted
+// when they are drained, because the id is the dedupe key: a delivery repeated after its run finished
+// must still store nothing. A drained row carries the `request_id` of the input it went into, and
+// `submitted` turns 1 once `pi-durable` admitted that input. A submitted row is pruned after
+// `KEEP_SUBMITTED_MS`, long past any retry of the alarm or the queue (minutes), so the table stays bounded.
 //
 // Architecture section 23 (Rivet `actor/queue.rs`). A claimed batch is in flight from the moment a
 // run takes it until `submitted`. A batch in flight is not handed out again, unless the process that
@@ -21,6 +22,11 @@ export const RECLAIM_MS = 5 * 60_000
 export const MAX_OPEN = 500
 /** ASSUMPTION: the largest envelope plus brief, in UTF-8 bytes. A message is at most 16,000 characters. */
 export const MAX_ENTRY_BYTES = 128 * 1024
+
+/** How long a submitted row is kept for dedupe. Retries come within minutes; a week is far past them. */
+export const KEEP_SUBMITTED_MS = 7 * 86_400_000
+/** The least time between two prunes. */
+const PRUNE_EVERY_MS = 3_600_000
 
 /** Why a delivery stored nothing. `full`: too many open rows. `too_large`: one entry is past the size cap. */
 export type Refusal = "full" | "too_large"
@@ -71,6 +77,16 @@ export class Inbox {
       this.sql.exec("ALTER TABLE inbox ADD COLUMN in_flight_at INTEGER")
       this.sql.exec("ALTER TABLE inbox ADD COLUMN in_flight_by TEXT")
     }
+    // An inbox made before the prune has no time column. Its rows count from now.
+    if (!columns.some((c) => c.name === "at")) {
+      this.sql.exec("ALTER TABLE inbox ADD COLUMN at INTEGER")
+      this.sql.exec("UPDATE inbox SET at = ?", this.now())
+    }
+    // The arrival counter, so `admit` never scans the inbox for max(arrival). Seeded once from the rows.
+    this.sql.exec("CREATE TABLE IF NOT EXISTS inbox_state (id INTEGER PRIMARY KEY CHECK (id = 1), arrival INTEGER NOT NULL, pruned_at INTEGER NOT NULL)")
+    if (!this.sql.exec("SELECT 1 FROM inbox_state WHERE id = 1").toArray().length) {
+      this.sql.exec("INSERT INTO inbox_state (id, arrival, pruned_at) SELECT 1, coalesce(max(arrival), 0), ? FROM inbox", this.now())
+    }
   }
 
   /**
@@ -90,21 +106,26 @@ export class Inbox {
       }
       const open = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM inbox WHERE submitted = 0").one().n
       if (open + fresh.size > MAX_OPEN) return { admitted: [], inserted: 0, refused: "full" }
-      let arrival = this.sql.exec<{ n: number | null }>("SELECT max(arrival) AS n FROM inbox").one().n ?? 0
+      const state = this.sql.exec<{ arrival: number; pruned_at: number }>("SELECT arrival, pruned_at FROM inbox_state WHERE id = 1").one()
+      let arrival = state.arrival
+      const now = this.now()
       // The rows of one delivery always land in one batch, which reads each distinct brief once, so
       // only the first row keeps it. A burst of a hundred messages stores its brief once, not a hundred times.
       let first = true
       for (const envelope of fresh.values()) {
         this.sql.exec(
-          "INSERT INTO inbox (id, arrival, priority, envelope, brief) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO inbox (id, arrival, priority, envelope, brief, at) VALUES (?, ?, ?, ?, ?, ?)",
           envelope.id,
           ++arrival,
           PRIORITY[envelope.from.kind],
           JSON.stringify(envelope),
           first ? brief : "",
+          now,
         )
         first = false
       }
+      if (fresh.size) this.sql.exec("UPDATE inbox_state SET arrival = ? WHERE id = 1", arrival)
+      if (now - state.pruned_at >= PRUNE_EVERY_MS) this.prune(now)
       return { admitted: envelopes.map((e) => e.id), inserted: fresh.size }
     })
   }
@@ -161,9 +182,26 @@ export class Inbox {
     return cursor.rowsWritten > 0
   }
 
-  /** Hands one batch back without submitting it: the run is busy and the batch waits for it to answer (section 7.8). */
+  /**
+   * Hands one batch back without submitting it: the run is busy and the batch waits for it to answer
+   * (section 7.8). Its rows go back to waiting, so the next claim puts them and whatever arrived
+   * meanwhile into one batch: three teammate replies to a busy agent cost one run, not three. Only a
+   * batch `pi-durable` never admitted may be held. The host checks that first (`AgentHost.drain`), since
+   * a batch a dead process submitted keeps its request id and must be marked submitted, not re-batched.
+   */
   hold(requestId: string): void {
-    this.sql.exec("UPDATE inbox SET in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ? AND submitted = 0", requestId)
+    this.sql.exec("UPDATE inbox SET request_id = NULL, in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ? AND submitted = 0", requestId)
+  }
+
+  /** The envelope ids of one batch, in its order. */
+  envelopeIds(requestId: string): string[] {
+    return this.sql.exec<{ id: string }>("SELECT id FROM inbox WHERE request_id = ? ORDER BY priority, arrival", requestId).toArray().map((r) => r.id)
+  }
+
+  /** Drops submitted rows older than `KEEP_SUBMITTED_MS`. `admit` calls it at most once an hour. Waiting and claimed rows are never dropped. */
+  private prune(now: number): void {
+    this.sql.exec("DELETE FROM inbox WHERE submitted = 1 AND at < ?", now - KEEP_SUBMITTED_MS)
+    this.sql.exec("UPDATE inbox_state SET pruned_at = ? WHERE id = 1", now)
   }
 
   /** True when a human envelope waits or is claimed and not yet submitted. */

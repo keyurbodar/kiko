@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
-import type { Conversation, Harness, ModelRef } from "@earendil-works/pi-durable"
+import type { Conversation, Harness, ModelRef, SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope, RoomId } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
@@ -185,7 +185,7 @@ export class AgentDO extends DurableObject<Env> {
       post: (runId, attempt, index, block, tainted) => room().post(home.slug, runId, attempt, index, block, tainted),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
       status: (state) => room().setStatus(home.slug, state),
-      endRun: (runId) => room().endRun(home.slug, runId),
+      endRun: async (runId, inputs = []) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => [])),
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
     }
   }
@@ -202,7 +202,8 @@ export class AgentDO extends DurableObject<Env> {
     const mine = async (id: string) => (await user().listReminders()).some((r) => r.id === id && r.roomId === home.roomId)
     const notHere = { ok: false as const, error: "no such reminder in this chat" }
     return {
-      create: (input) => user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug }),
+      // The reminder keeps the chain this run works on, so it wakes with the authority of the work behind it (section 25.3).
+      create: async (input) => user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug, chain: await room().chainOf(home.slug) }),
       list: async () => (await user().listReminders()).filter((r) => r.roomId === home.roomId),
       cancel: async (id) => {
         if (!(await mine(id))) return notHere
@@ -242,6 +243,26 @@ export class AgentDO extends DurableObject<Env> {
   async humanComing(): Promise<void> {
     this.host.humanComing()
     this.answers.interrupt()
+  }
+
+  /** RPC from the room: the burst it warned about closed with nothing for this agent (section 7.8). Only stores. */
+  async humanGone(): Promise<void> {
+    await this.host.humanGone()
+  }
+
+  /**
+   * The ids of the agent envelopes a run read, from the `pi-durable` inputs it answered. The room uses
+   * them to let a run's plain reply answer a teammate's open ask (section 7.5).
+   */
+  private async heard(inputs: readonly SubmissionId[]): Promise<string[]> {
+    if (!inputs.length) return []
+    const { storage } = await this.host.open()
+    const out: string[] = []
+    for (const input of inputs) {
+      const submission = await storage.submission(input, BACKGROUND_CONTEXT)
+      if (submission?.requestId) out.push(...this.host.inbox.envelopeIds(submission.requestId).filter((id) => id.startsWith("agent:")))
+    }
+    return out
   }
 
   /** RPC from the room: a teammate answered this agent's open ask `id` (section 7.5). Only hands it over. */
@@ -607,7 +628,9 @@ export class AgentDO extends DurableObject<Env> {
     const model = chosen ?? DEFAULT_MODEL
     const auth = await this.loadAuth(model.provider)
     if (auth) return true
-    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId)
+    // The teammates' asks this batch carried are closed with the reason, so no asker waits for nothing.
+    const heard = this.host.inbox.envelopeIds(requestId).filter((id) => id.startsWith("agent:"))
+    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard)
     return false
   }
 
@@ -665,9 +688,10 @@ export class AgentDO extends DurableObject<Env> {
   /** Deletes all of the agent's storage. Returns the rows that held data, 0 on a repeat. */
   async deleteAll(): Promise<number> {
     if (this.#wiped) return 0
-    const rows = await wipeStorage(this.ctx)
+    // Marked first, so no alarm reopens the harness while the run stops.
     this.#wiped = true
-    return rows
+    await this.hostInstance?.shutdown()
+    return wipeStorage(this.ctx)
   }
 
   async storedRows(): Promise<number> {

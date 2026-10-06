@@ -345,32 +345,41 @@ export class AgentHost {
    * round, and a queue waits for its answer. A batch claimed before a crash is submitted again with
    * the same request id, which `pi-durable` ignores.
    */
-  private async drain({ harness, root, beginRun, inputContext, inputMemory }: Opened): Promise<void> {
+  private async drain({ harness, root, storage, beginRun, inputContext, inputMemory }: Opened): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       // Withdraws every queued input and aborts the run's tasks, then waits until the conversation is idle.
       await root.abort(context)
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
     }
     for (const batch of await this.inbox.claim()) {
-      const run = await this.runState(harness, root)
-      // A batch for an idle conversation starts a run. Without credentials it starts nothing.
-      if (!run && beginRun && !(await beginRun(batch, root))) {
+      // A batch a dead process submitted before it could mark it: `pi-durable` has it, so it is done. Only a
+      // batch `pi-durable` never saw may be held, because a hold puts its rows back into the next batch.
+      if (await storage.submissionByRequest(root.id, batch.requestId, context)) {
         this.inbox.submitted(batch.requestId)
         continue
       }
-      const action = decide(run, arrivalOf(batch))
-      // Only a running root turn holds a batch. Background tasks alone (a subagent) do not.
+      const arrival = arrivalOf(batch)
+      const run = await this.runState(harness, root)
+      const action = decide(run, arrival)
+      // Every check that holds a batch runs before `beginRun`, so a held batch loads no credential and
+      // syncs no extension, however often it is held.
       const humanSoon = this.humanComingUntil() > Date.now()
-      if (arrivalOf(batch).kind === "human") this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
+      if (arrival.kind === "human") this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
       // A human message is on its way (the room's burst is still open): agent and system mail waits for it.
-      if (humanSoon && arrivalOf(batch).kind !== "human") {
+      if (humanSoon && arrival.kind !== "human") {
         this.inbox.hold(batch.requestId)
         await this.alarms.setWakeup(INBOX_WAKEUP, this.humanComingUntil())
         continue
       }
+      // Only a running root turn holds a batch. Background tasks alone (a subagent) do not.
       if (action === "hold" && (await this.rootPlaced(harness, root))) {
         // The batch waits in the inbox. `watchIdle` sets the inbox wakeup when the run answers.
         this.inbox.hold(batch.requestId)
+        continue
+      }
+      // A batch for an idle conversation starts a run. Without credentials it starts nothing.
+      if (!run && beginRun && !(await beginRun(batch, root))) {
+        this.inbox.submitted(batch.requestId)
         continue
       }
       // The restart count belongs to the run chain. A submit to an idle conversation starts a new one.
@@ -491,6 +500,12 @@ export class AgentHost {
     this.ctx.storage.sql.exec("INSERT OR REPLACE INTO wakeups (key, at) VALUES (?, ?)", HUMAN_COMING, Date.now() + HUMAN_COMING_MS)
   }
 
+  /** The room's burst closed with no message for this agent: the mail the hint held goes now. */
+  async humanGone(): Promise<void> {
+    if (!this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING).rowsWritten) return
+    if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
+  }
+
   /** How many times pi-durable's tables were dropped. Part of every run id after the first time. */
   epoch(): number {
     return this.ctx.storage.sql.exec<{ n: number }>("SELECT n FROM harness_epoch WHERE id = 1").toArray()[0]?.n ?? 0
@@ -572,6 +587,18 @@ export class AgentHost {
       .toArray()[0]
     if (newest) sql.exec("UPDATE inbox SET submitted = 0, in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ?", newest.request_id)
     console.error("agent harness reset after repeated unrecoverable failures")
+  }
+
+  /**
+   * Account deletion. Aborts the run and closes the harness before the storage under it is deleted. A
+   * harness left running on deleted tables kept the isolate busy for good, so no other request was served.
+   */
+  async shutdown(): Promise<void> {
+    const opened = await this.opened?.catch(() => undefined)
+    this.opened = undefined
+    if (!opened) return
+    await opened.root.abort(context, { background: true }).catch(() => {})
+    await opened.harness.close(context).catch(() => {})
   }
 
   /** Forgets the harness after a failure. A fatal storage error poisons the session, so it is never reused. */

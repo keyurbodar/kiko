@@ -72,8 +72,6 @@ const member = (patch: Partial<MemberRow>): MemberRow => ({
   model: "",
   lead: false,
   status: "idle",
-  currentTask: null,
-  lastDeliveredSeq: 0,
   ...patch,
 })
 

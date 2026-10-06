@@ -525,3 +525,169 @@ test("a quote tells the agent exactly which words the human answers", async () =
   expect(got[0]!.envelopes[0]!.body).toBe('(replying to @bob, about this part: "help")\nwhy?')
   ws.ws.close()
 })
+
+// The endgame pass on the agent-to-agent loop (docs/research/endgame-audit.md, lane B).
+
+const askOf = async (room: RoomId, id: string) => (await call(`/askstate/${room}/${id}`)) as { state: string; answer: string | null }
+const until = async (what: string, test: () => Promise<boolean>, ms = 6000) => {
+  const end = Date.now() + ms
+  while (!(await test())) {
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`)
+    await Bun.sleep(100)
+  }
+}
+
+test("a question sent with ask never settles the asker's own open ask; asking back is refused; a replayed answer answers nothing new", async () => {
+  const { room, ws } = await team()
+  expect(((await call(`/ask/${room}/ada`, { id: "x1", to: "bob", text: "which port?", tainted: false })) as { ok: boolean }).ok).toBe(true)
+  // bob asks ada back while ada waits on him: refused, and ada's ask stays open.
+  const back = (await call(`/ask/${room}/bob`, { id: "x2", to: "ada", text: "which server?", tainted: false })) as { ok: boolean; error?: string }
+  expect(back.ok).toBe(false)
+  expect(back.error).toContain("@ada is waiting for your answer")
+  expect(await askOf(room, "x1")).toEqual({ state: "open", answer: null })
+  // cy's question to ada does not answer ada's ask of bob either.
+  await call(`/ask/${room}/cy`, { id: "x3", to: "ada", text: "are you there?", tainted: false })
+  expect(await askOf(room, "x1")).toEqual({ state: "open", answer: null })
+  // bob's send_message answers it, once.
+  await call(`/mail/${room}/bob`, { id: "x-answer", to: "ada", text: "8797", tainted: false })
+  expect(await askOf(room, "x1")).toEqual({ state: "answered", answer: "8797" })
+  await call(`/ask/${room}/ada`, { id: "x4", to: "bob", text: "and the host?", tainted: false })
+  // The same tool call replayed after a crash must not answer the new ask.
+  await call(`/mail/${room}/bob`, { id: "x-answer", to: "ada", text: "8797", tainted: false })
+  expect(await askOf(room, "x4")).toEqual({ state: "open", answer: null })
+  ws.ws.close()
+})
+
+test("a run that read a question and answered in a plain reply answers the ask; past the wait, the reply goes as mail", async () => {
+  const { room, ws } = await team()
+  await call(`/ask/${room}/ada`, { id: "p1", to: "bob", text: "what is the plan?", tainted: false })
+  const [question] = await delivered(room, "bob", 1)
+  const heard = question!.envelopes.map((e) => e.id)
+  // A run that did not read the question answers nothing.
+  await call(`/post/${room}/bob/bob:other`, { text: "unrelated" })
+  await call(`/end/${room}/bob/bob:other`, [])
+  expect(await askOf(room, "p1")).toEqual({ state: "open", answer: null })
+  await call(`/post/${room}/bob/bob:p1`, { text: "ship friday" })
+  await call(`/post/${room}/bob/bob:p1`, { text: "then rest", index: 1 })
+  await call(`/end/${room}/bob/bob:p1`, heard)
+  expect(await askOf(room, "p1")).toEqual({ state: "answered", answer: "ship friday\n\nthen rest" })
+  await until("the pushed answer", async () => (await received(room, "ada")).answers.length === 1)
+  expect((await received(room, "ada")).answers).toEqual([{ id: "p1", answer: "ship friday\n\nthen rest" }])
+  // A repeat of the run's end answers nothing twice.
+  await call(`/end/${room}/bob/bob:p1`, heard)
+  expect((await received(room, "ada")).answers).toHaveLength(1)
+
+  // ada stopped waiting on her second question. bob's plain reply reaches her as mail.
+  await call(`/ask/${room}/ada`, { id: "p2", to: "bob", text: "and the date?", tainted: false })
+  const second = (await delivered(room, "bob", 2))[1]!
+  expect(await call(`/closeask/${room}/p2`)).toEqual({ state: "closed", answer: null })
+  await call(`/post/${room}/bob/bob:p2`, { text: "the 9th" })
+  await call(`/end/${room}/bob/bob:p2`, second.envelopes.map((e) => e.id))
+  const mail = await delivered(room, "ada", 1)
+  expect(mail[0]!.envelopes.map((e) => [e.from, e.body])).toEqual([[{ kind: "agent", slug: "bob" }, "the 9th"]])
+  expect((await received(room, "ada")).answers).toHaveLength(1)
+  ws.ws.close()
+})
+
+test("a batch dropped for a missing key answers the ask it carried with why", async () => {
+  const { room, ws } = await team()
+  await call(`/ask/${room}/ada`, { id: "k1", to: "bob", text: "status?", tainted: false })
+  const [question] = await delivered(room, "bob", 1)
+  await call(`/noprovider/${room}/bob`, question!.envelopes.map((e) => e.id))
+  const state = await askOf(room, "k1")
+  expect(state.state).toBe("answered")
+  expect(state.answer).toContain("@bob cannot run")
+  await until("the pushed reason", async () => (await received(room, "ada")).answers.length === 1)
+  ws.ws.close()
+})
+
+test("mail held for a busy agent never rewrites the chain of its run; the next run takes it", async () => {
+  const { room, ws } = await team()
+  await ws.say("@bob go")
+  const [human] = await delivered(room, "bob", 1)
+  const root = human!.envelopes[0]!.rootId
+  await call(`/status/${room}/bob/working`)
+  // ada writes to bob mid-run. ada was never handed anything, so hers is an `auto` chain.
+  await call(`/mail/${room}/ada`, { id: "c1", to: "bob", text: "fyi", tainted: false })
+  await delivered(room, "bob", 2)
+  // bob's run sends on the human's chain, not ada's.
+  await call(`/mail/${room}/bob`, { id: "c2", to: "cy", text: "please help", tainted: false })
+  const [toCy] = await delivered(room, "cy", 1)
+  expect(toCy!.envelopes.map((e) => ({ rootId: e.rootId, hop: e.hop, origin: e.origin }))).toEqual([{ rootId: root, hop: 1, origin: "human" }])
+  // The run ends; the run that reads ada's mail is on her chain.
+  await call(`/end/${room}/bob/bob:c`)
+  await call(`/mail/${room}/bob`, { id: "c3", to: "cy", text: "thanks", tainted: false })
+  const toCy2 = (await delivered(room, "cy", 2))[1]!
+  expect(toCy2.envelopes.map((e) => ({ rootId: e.rootId, hop: e.hop, origin: e.origin }))).toEqual([{ rootId: "agent:ada", hop: 2, origin: "auto" }])
+  ws.ws.close()
+})
+
+test("a human message warns only the busy agents it is for, and mail waits only for agents the open burst addresses", async () => {
+  const { room, ws } = await team()
+  await ws.until(() => ws.members().length === 4)
+  await call(`/status/${room}/ada/working`)
+  await call(`/status/${room}/cy/working`)
+  // A fragment keeps the burst open for 2.5 s.
+  await ws.say("@ada wait for it,")
+  await until("ada's warning", async () => (await received(room, "ada")).coming === 1)
+  expect((await received(room, "cy")).coming).toBe(0)
+  // Mail to cy goes at once. Mail to ada waits for the human's message.
+  await call(`/mail/${room}/bob`, { id: "h1", to: "cy", text: "for cy", tainted: false })
+  await call(`/mail/${room}/bob`, { id: "h2", to: "ada", text: "for ada", tainted: false })
+  await delivered(room, "cy", 1)
+  expect((await received(room, "ada")).received).toHaveLength(0)
+  const got = await delivered(room, "ada", 2)
+  expect(got.map((r) => r.envelopes.map((e) => e.body))).toEqual([["@ada wait for it,"], ["for ada"]])
+  ws.ws.close()
+})
+
+test("a burst the day's limit refused releases the agents it warned and the mail it held", async () => {
+  const { room, ws } = await team()
+  await ws.until(() => ws.members().length === 4)
+  await call(`/status/${room}/ada/working`)
+  await call("/refuse/1")
+  try {
+    await ws.say("@ada one more,")
+    await until("ada's warning", async () => (await received(room, "ada")).coming === 1)
+    await call(`/mail/${room}/bob`, { id: "r1", to: "ada", text: "held behind the burst", tainted: false })
+    await Bun.sleep(300)
+    expect((await received(room, "ada")).received).toHaveLength(0)
+    // The burst closes, refused: ada hears it is gone, and bob's mail reaches her.
+    const got = await delivered(room, "ada", 1)
+    expect(got[0]!.envelopes.map((e) => e.body)).toEqual(["held behind the burst"])
+    await until("ada told the human message is gone", async () => (await received(room, "ada")).gone === 1)
+  } finally {
+    await call("/refuse/0")
+  }
+  ws.ws.close()
+})
+
+test("a task an agent makes in the human's work wakes its owner with the human's authority and root", async () => {
+  const { room, ws } = await team()
+  await ws.say("@kiko plan it")
+  const [human] = await delivered(room, "kiko", 1)
+  ws.send({ t: "task", op: { op: "create", id: "w1", title: "first", owner: "ada" } })
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "task" && e.task.id === "w1"))
+  expect(((await call(`/task/${room}/kiko`, { op: "create_task", id: "w2", title: "second", owner: "bob", dependsOn: ["w1"] })) as { ok: boolean }).ok).toBe(true)
+  ws.send({ t: "task", op: { op: "update", id: "w1", status: "done" } })
+  const [wake] = await delivered(room, "bob", 1)
+  expect(wake!.envelopes.map((e) => ({ id: e.id, rootId: e.rootId, origin: e.origin }))).toEqual([{ id: "unblocked:w2", rootId: human!.envelopes[0]!.rootId, origin: "human" }])
+  ws.ws.close()
+})
+
+test("typing covers the whole run, tools included, and the chat list is touched once per run", async () => {
+  const { room, ws } = await team()
+  await ws.until(() => ws.members().length === 4)
+  const touches = async () => ((await call("/touches")) as { touches: number }).touches
+  await Bun.sleep(300)
+  const before = await touches()
+  for (const state of ["typing", "working", "typing", "working", "typing"]) await call(`/status/${room}/ada/${state}`)
+  await call(`/post/${room}/ada/ada:t1`, { text: "one" })
+  await call(`/post/${room}/ada/ada:t1`, { text: "two", index: 1 })
+  await call(`/end/${room}/ada/ada:t1`)
+  await Bun.sleep(300)
+  const typing = ws.frames.filter((f) => f.t === "typing").map((f) => (f.t === "typing" ? f.who.join(",") : ""))
+  expect(typing).toEqual(["ada", ""])
+  expect((await touches()) - before).toBe(1)
+  ws.ws.close()
+})

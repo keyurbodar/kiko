@@ -150,6 +150,11 @@ const MIGRATIONS: readonly string[] = [
 	DROP TABLE IF EXISTS ws_activity;
 	DROP TABLE IF EXISTS ws_notes;
 	`,
+	`
+	-- The chain a task was made on (root, hop, authority), so its wakes keep the authority of the work
+	-- the human asked for (section 25.3). Null on a task made before.
+	ALTER TABLE ws_tasks ADD COLUMN chain TEXT;
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

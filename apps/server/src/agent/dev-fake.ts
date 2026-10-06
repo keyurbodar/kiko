@@ -34,6 +34,7 @@ import type { WorkspacePort } from "./extensions/workspace"
 //   [question]  in a teammate's message: the model answers that teammate with `[answer] 42`
 //   [tool name {json}] the model calls any tool `name` with the JSON arguments, once (section 25)
 //   [quiet]     the answer is `[skip]`, which posts nothing (section 25.2)
+//   [later s] x the model runs `slow_tool` for three seconds, then calls `send_message` to `s` with `x`
 //
 // An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02),
 // or any other tool `t` with the arguments the result names (section 25.3).
@@ -46,6 +47,8 @@ import type { WorkspacePort } from "./extensions/workspace"
 export const FAKE_MODEL = { provider: "faux", modelId: "faux-1" } as const
 export const SLOW_TOOL = "slow_tool"
 export const SLOW_TOOL_MS = 5_000
+/** How long `[later s] x` works before it sends. */
+const LATER_MS = 3_000
 /** Faux tokens are about four characters. 25 a second is about 100 characters a second. */
 const TOKENS_PER_SECOND = 25
 const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
@@ -87,6 +90,9 @@ export function fakeReply(transcript: readonly Message[]) {
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
   const any = last?.role === "user" ? anyToolCall(rawOf(last)) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
+  const later = users.map((u) => /\[later ([a-z0-9-]+)\]\s*([^<]*)/.exec(u)).find(Boolean)
+  if (later && last?.role === "user") return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: LATER_MS }), { stopReason: "toolUse" })
+  if (later && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(fauxToolCall("send_message", { to: later[1]!, text: later[2]!.trim() }), { stopReason: "toolUse" })
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }

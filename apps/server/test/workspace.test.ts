@@ -98,7 +98,8 @@ test("finishing the last dependency unblocks a task once, and a task cannot fini
 	expect((await state(r)).brief.map((t: any) => t.id)).toEqual(["b", "a", "a2"])
 	expect((await call(r, "ada", false, { op: "update_task", id: "a", status: "done" })).wakes).toEqual([])
 	const done = await call(r, "bob", true, { op: "update_task", id: "a2", status: "done" })
-	expect(done.wakes).toEqual([{ taskId: "b", owner: "cy", title: "second", seq: done.events[0].seq }])
+	// The wake keeps the chain its task was made on: bob made it in work the human asked for.
+	expect(done.wakes).toEqual([{ taskId: "b", owner: "cy", title: "second", seq: done.events[0].seq, chain: { rootId: "m-bob", hop: 1, authority: { origin: "human", grant: [] } } }])
 	expect(await post(`/woke/${r}`, { taskId: "b" })).toEqual([])
 	// Reopening and finishing a dependency again wakes nobody a second time.
 	await call(r, "bob", true, { op: "update_task", id: "a2", status: "review" })

@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, watchEvents } from "@earendil-works/pi-durable"
+import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState } from "@kiko/protocol"
 import type { Message } from "@earendil-works/pi-ai"
 import { taints } from "./extensions/trust"
@@ -31,7 +31,8 @@ export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string, tainted: boolean): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
-  endRun(runId: string): Promise<void>
+  /** `inputs` are the `pi-durable` submissions the run answered, when the outbox saw its end live. */
+  endRun(runId: string, inputs?: readonly SubmissionId[]): Promise<void>
   /** Section 6.5. With no `messageId`, the room picks the last human message it handed over. */
   react(emoji: string, messageId?: string): Promise<unknown>
 }
@@ -212,7 +213,7 @@ export class Outbox {
         if (this.run) this.run.toolsRunning = Math.max(0, this.run.toolsRunning - 1)
         return this.setStatus("typing")
       case "run_end":
-        return this.end(`${this.prefix()}:${event.inputs[0]}`)
+        return this.end(`${this.prefix()}:${event.inputs[0]}`, event.inputs)
       default:
         return
     }
@@ -358,14 +359,14 @@ export class Outbox {
   }
 
   /** The run answered or failed. Posts what is left, then tells the room once. */
-  private async end(id: string): Promise<void> {
+  private async end(id: string, inputs?: readonly SubmissionId[]): Promise<void> {
     const run = this.run?.id === id ? this.run : null
     if (run) {
       run.generation = null
       this.save(run)
       await this.flush()
     }
-    await this.room()?.endRun(id)
+    await this.room()?.endRun(id, inputs)
     this.sql.exec("UPDATE outbox SET ended = 1 WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
     this.taintPending = false
