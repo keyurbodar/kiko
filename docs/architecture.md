@@ -695,7 +695,7 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 
 Kiko follows OptMem's own loop: wake from memory once, then work in an ordinary transcript.
 
-1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block: the life view from the run's one `turnContext` call, then this chat's view from `RoomDO.memoryView`.
+1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `agent/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task with Executor started over at every step, because Executor's guides alone pass the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06): the life view from the run's one `turnContext` call, then this chat's view from `RoomDO.memoryView`.
 2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own. A turn there is cut at 300 characters, as before, and now says so and how to zoom for the rest.
 
 A steer and a mid-run restart add no block. Every view line is written once and never changes (a fixed UTC time, one cut), so both the transcript and a fresh block are mostly served from the provider's cache.
@@ -917,6 +917,8 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 
 ## 18. Files, media, and link previews
 
+
+**Big tool output.** pi-durable keeps a tool result to 50 KB and cuts at the last line break that fits, so a large one-line JSON document came back as its first line and nothing else. A `web_fetch` or Executor result over 40 KB is saved whole at `/downloads/<name>-<hash>.<ext>`, with JSON pretty-printed and JSON inside its strings opened, and the agent gets its first 8 KB and the path to search with `bash` or `read` (`agent/extensions/spill.ts`). The same content lands at the same path once. `read` and `bash` results are outside content, so a later run that reads the file is tainted as before.
 ### 18.1 Files
 
 - R2 holds bytes. The key is `u/<userId>/r/<roomId>/<fileId>`.

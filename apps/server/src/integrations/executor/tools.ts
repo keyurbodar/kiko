@@ -1,5 +1,7 @@
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "../../agent/effects"
+import { spill } from "../../agent/extensions/spill"
+import type { RoomFs } from "../../files/room-fs"
 import { acceptResponse, type ApprovalGate, pendingInteraction, RESUME_TOOL } from "./approval"
 
 // Architecture section 12.2, P7-04. Every tool Executor lists becomes an agent tool named
@@ -34,7 +36,8 @@ export const executorGrant = (tool: string): number | undefined =>
 /** `executor_` plus the name, with anything a model's tool name cannot hold turned into `_`. */
 export const toolName = (name: string) => `executor_${name.replace(/[^a-zA-Z0-9_-]/g, "_")}`.slice(0, 64)
 
-export function executorExtension(tools: readonly ExecutorTool[], call: ExecutorCall, gate?: ApprovalGate): Extension {
+/** With `fs`, a result too big to return whole is saved in the chat's files (`spill.ts`). */
+export function executorExtension(tools: readonly ExecutorTool[], call: ExecutorCall, gate?: ApprovalGate, fs?: RoomFs): Extension {
   return defineExtension({
     name: EXECUTOR,
     tools: tools.map((t) =>
@@ -75,7 +78,9 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
                   content: [{ type: "text" as const, text: `${text}\n\nthis is paused for the human; a card is in the chat. tell the human what it does and wait.${ask} once the approval result says accepted, call ${toolName(RESUME_TOOL)} with requestId ${pending.requestId}. never run the program again to continue it.` }],
                 }
               }
-              return { content: out.content.length ? out.content : [{ type: "text" as const, text: "(no output)" }], isError: out.isError }
+              if (!out.content.length) return { content: [{ type: "text" as const, text: "(no output)" }], isError: out.isError }
+              const content = await Promise.all(out.content.map(async (b) => (b.type === "text" ? { ...b, text: await spill(fs, `executor-${t.name}`, b.text) } : b)))
+              return { content, isError: out.isError }
             } catch (e) {
               return { content: [{ type: "text" as const, text: `executor did not answer: ${e instanceof Error ? e.message : String(e)}` }], isError: true }
             }

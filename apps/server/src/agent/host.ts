@@ -34,11 +34,31 @@ const RETRY_MS = 1_000
  */
 export const CONTEXT_BUDGET_CHARS = 60_000
 /**
+ * A working task (a transcript that is mostly tool output, with a run in the last `TASK_IDLE_MS`) goes
+ * on past `CONTEXT_BUDGET_CHARS` up to this, so the agent does not forget what its tools showed it and
+ * fetch it all again at every step. Plain chat never qualifies, so its cost is unchanged.
+ */
+export const TASK_BUDGET_CHARS = 240_000
+export const TASK_IDLE_MS = 15 * 60_000
+
+/** The transcript a new run would go on with, measured. */
+export type Transcript = { inputs: number; chars: number; toolChars: number; idleMs: number }
+
+/** Whether a new run starts over from the <memory> block (section 13). */
+export function startsFresh(t: Transcript): boolean {
+  if (t.inputs === 0) return true
+  if (t.chars <= CONTEXT_BUDGET_CHARS) return false
+  const working = t.toolChars * 2 > t.chars && t.idleMs < TASK_IDLE_MS
+  return !working || t.chars > TASK_BUDGET_CHARS
+}
+/**
  * A fresh start leaves old pi-durable entries in storage that are never read again. Every this many runs,
  * an idle agent drops pi-durable's tables, so storage stays bounded; its next run starts fresh.
  */
 export const COMPACT_EVERY_RUNS = 50
 const RUNS_KEY = "runs:since-compact"
+/** When the last run started, for `startsFresh`. */
+const LAST_RUN_KEY = "runs:last-at"
 const COMPACT_DUE_KEY = "compact:due"
 /** Storage keys of the mid-run rules (section 6.2). */
 const STOP_KEY = "mid-run:stop"
@@ -371,6 +391,7 @@ export class AgentHost {
         const out = await inputMemory(batch, await this.contextFull(root))
         if (out.fresh) await root.reset(undefined, context)
         await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
+        await this.ctx.storage.put(LAST_RUN_KEY, Date.now())
         memory = out.text
       }
       // A batch the root is not answering starts a new turn, so it starts its own authority, even while a
@@ -432,19 +453,21 @@ export class AgentHost {
     await root.submit({ type: "input", content, requestId: `budget:${row.started_at}`, whenBusy: "steer" }, context)
   }
 
-  /** True when the model's view holds no input yet, or more than `CONTEXT_BUDGET_CHARS` of text. */
+  /** Whether the next run starts over from the <memory> block: see `startsFresh`. */
   private async contextFull(root: Conversation): Promise<boolean> {
     const view = await root.context(context)
-    let chars = 0
-    let inputs = 0
+    const t: Transcript = { inputs: 0, chars: 0, toolChars: 0, idleMs: Date.now() - ((await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0) }
     for (const entry of view.entries) {
-      if (entry.kind === "pi.user") inputs++
-      for (const m of (entry.model ?? []) as unknown as { content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[] }[]) {
-        if (typeof m.content === "string") chars += m.content.length
-        else for (const p of m.content ?? []) chars += (p.text?.length ?? 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+      if (entry.kind === "pi.user") t.inputs++
+      for (const m of (entry.model ?? []) as unknown as { role?: string; content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[] }[]) {
+        let n = 0
+        if (typeof m.content === "string") n = m.content.length
+        else for (const p of m.content ?? []) n += (p.text?.length ?? 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+        t.chars += n
+        if (m.role === "toolResult") t.toolChars += n
       }
     }
-    return inputs === 0 || chars > CONTEXT_BUDGET_CHARS
+    return startsFresh(t)
   }
 
   /** The root conversation's run, or null when it is idle. */
