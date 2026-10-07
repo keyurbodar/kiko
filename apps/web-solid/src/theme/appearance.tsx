@@ -14,6 +14,7 @@ import {
   BACKGROUND_EFFECTS,
   BLUR_RADIUS,
   chooseBackground,
+  DEFAULT_GLASS,
   EFFECT_DESCRIPTIONS,
   EFFECT_LABELS,
   glass,
@@ -25,7 +26,7 @@ import {
   VISIBILITY,
 } from "./glass"
 import { chooseTheme, customThemes, look, matchWallpaper, removeThemes, updateLook } from "./live"
-import { matchesWallpaper, type Mode } from "./look"
+import { DEFAULT_LOOK, matchesWallpaper, type Mode } from "./look"
 import { ACCENT_PRESETS, colorsForMode, monocodeColors, WALLPAPER_ID, wallpaperColors, serializeThemeFile, themeModes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
 
 // The import dialog, with culori, fflate and the Open VSX client, loads on the first click.
@@ -427,6 +428,16 @@ function BackgroundGroup(): JSX.Element {
   )
 }
 
+/**
+ * Monocode's restore defaults (SettingsView.tsx `restoreDefaults`): dark, the stock theme with no
+ * tint or accent, monocode's glass, and no chat background.
+ */
+function restoreDefaults(): void {
+  updateLook({ mode: DEFAULT_LOOK.mode, light: null, dark: null, themes: [], wallpaper: null, tint: DEFAULT_LOOK.tint, accent: null })
+  setGlass(DEFAULT_GLASS)
+  if (background()) void removeBackground()
+}
+
 export default function Appearance(): JSX.Element {
   return (
     <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={shown()}>
@@ -434,6 +445,11 @@ export default function Appearance(): JSX.Element {
       <ThemeGroup />
       <TranslucencyGroup />
       <BackgroundGroup />
+      <div class="flex justify-end">
+        <button type="button" class={button} data-action="restore-appearance" onClick={restoreDefaults}>
+          restore defaults
+        </button>
+      </div>
     </div>
   )
 }
