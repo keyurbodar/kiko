@@ -325,7 +325,7 @@ export default function ChatRoute() {
           <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && connectedProviders().length === 0)}>
             {(np) => (
               <div
-                class="bg-menu mx-auto mb-2 flex w-full max-w-[720px] items-center gap-3 rounded-xl py-2 pr-2 pl-3.5 text-[13px] text-muted shadow-[inset_0_0_0_1px_var(--hairline)]"
+                class="bg-menu mx-auto mb-2 flex w-full max-w-[720px] items-center gap-3 rounded-2xl py-1.5 pr-1.5 pl-4 text-[13px] text-text shadow-[inset_0_0_0_1px_var(--hairline)]"
                 role="status"
                 data-component="no-provider"
               >
@@ -334,7 +334,8 @@ export default function ChatRoute() {
                     ? `${(np() as { slug: string }).slug} can't reply yet: no ${(np() as { provider: string }).provider} key is connected.`
                     : "connect a provider so your agents can reply."}
                 </span>
-                <A href="/settings/models" class="shrink-0 rounded-md bg-[var(--accent-fill)] px-2.5 py-1 text-[12px] font-medium text-[var(--on-accent)] no-underline hover:bg-[var(--accent-hover)]">
+                {/* 6px in from a 16px corner, so a 10px corner sits concentric with it. */}
+                <A href="/settings/models" class="inline-flex h-8 shrink-0 items-center rounded-[10px] bg-[var(--accent-fill)] px-3.5 text-[13px] font-medium text-[var(--on-accent)] no-underline hover:bg-[var(--accent-hover)]">
                   connect
                 </A>
               </div>
