@@ -484,7 +484,7 @@
 .composer-dock .composer-row {
   gap: 6px;
   margin: 0 6px 6px;
-  padding: 4px;
+  padding: 6px;
   align-items: flex-end;
   background: color-mix(in oklab, var(--text) 3%, transparent);
   -webkit-backdrop-filter: blur(8px);
@@ -564,4 +564,68 @@
 .composer-dock .composer-send svg {
   width: 14px;
   height: 14px;
+}
+
+/* The reply bar is set above the field the way monocode sets attachments: a block inside the box
+ * with no fill, no border and no rule of its own. It reaches out over the attach and send columns
+ * (26px + 6px gap, plus the field's 2px inset) to the box's padding: 12px above it, 8px between
+ * it and the field row, 6px below that. The accent mark lines up with the attach button, and it and the text sit close, as one quote. */
+.composer-dock .reply-bar {
+  max-height: none;
+  margin: 0 -34px 12px;
+  padding: 2px 4px 0 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.composer-dock .reply-bar-jump {
+  padding: 0 0 0 12px;
+}
+
+.composer-dock .reply-bar-jump::before {
+  top: 1px;
+  bottom: 1px;
+  left: 2px;
+  width: 2px;
+  border-radius: 1px;
+}
+
+.composer-dock .reply-bar-text {
+  gap: 0;
+}
+
+.composer-dock .reply-bar-role {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.composer-dock .reply-bar-preview {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.composer-dock .reply-bar-thumb,
+.composer-dock .reply-bar-glyph {
+  width: 26px;
+  height: 26px;
+  max-width: 26px;
+  max-height: 26px;
+  flex: 0 0 26px;
+  margin-right: 6px;
+}
+
+.composer-dock .reply-bar-dismiss {
+  width: 26px;
+  min-height: 26px;
+  align-self: center;
+  border-radius: 6px;
+}
+
+@media (hover: hover) {
+  .composer-dock .reply-bar-dismiss:hover {
+    background: color-mix(in oklab, var(--text) 8%, transparent);
+    color: var(--text);
+  }
 }
