@@ -164,6 +164,9 @@ function paintRoot(): void {
     else root.setAttribute(name, value)
   }
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value)
+  // The sharp picture, once read, makes a richer desktop than the small stand-in.
+  const sharp = state.picture()
+  if (sharp && state.background()) root.style.setProperty("--desktop-image", `url(${JSON.stringify(sharp)})`)
 }
 
 let revision = 0
@@ -222,6 +225,7 @@ async function loadPicture(): Promise<void> {
     }
   }
   if (old) URL.revokeObjectURL(old)
+  paintRoot()
   await paintPicture()
 }
 
@@ -232,11 +236,16 @@ export function setGlass(patch: Partial<Glass>): void {
   paintRoot()
 }
 
+/** A background with some settings changed, checked as stored text would be. The picture and its palette stay. */
+export function patchBackground(current: Background, patch: Partial<Omit<Background, "id" | "desktop" | "palette">>): Background | null {
+  return parseBackground(JSON.stringify({ ...current, ...patch, id: current.id, desktop: current.desktop, palette: current.palette, paletteVersion: PALETTE_VERSION }))
+}
+
 /** Changes the background's settings. A new picture goes through `chooseBackground`. */
 export function setBackground(patch: Partial<Omit<Background, "id" | "desktop" | "palette">>): void {
   const current = state.background()
   if (!current) return
-  const next = parseBackground(JSON.stringify({ ...current, ...patch }))
+  const next = patchBackground(current, patch)
   if (!next) return
   write(BACKGROUND_KEY, JSON.stringify({ ...next, paletteVersion: PALETTE_VERSION }))
   state.setBackground(next)
@@ -266,6 +275,27 @@ export async function chooseBackground(file: File): Promise<void> {
   paintRoot()
   await loadPicture()
   if (old) await removePicture(old.id).catch(() => {})
+}
+
+/**
+ * The background's palette, reading it from the picture if it was never read or was read by an
+ * older reader. Null when there is no picture on this device.
+ */
+export async function ensurePalette(): Promise<WallpaperPalette | null> {
+  const bg = state.background()
+  if (!bg) return null
+  if (bg.palette) return bg.palette
+  const { loadPicture: load } = await import("./background-store")
+  const blob = await load(bg.id)
+  if (!blob) return null
+  const { paletteOfBlob } = await import("./background-image")
+  const palette = await paletteOfBlob(blob)
+  const current = state.background()
+  if (current?.id !== bg.id) return null
+  const next = { ...current, palette }
+  write(BACKGROUND_KEY, JSON.stringify({ ...next, paletteVersion: PALETTE_VERSION }))
+  state.setBackground(next)
+  return palette
 }
 
 export async function removeBackground(): Promise<void> {

@@ -224,7 +224,6 @@
 
 .sidebar-shell .chat-search-field:focus-within {
   color: var(--text-muted);
-  box-shadow: inset 0 0 0 1px oklch(from var(--accent) l c h / 55%);
 }
 
 .sidebar-shell .chat-search-input {

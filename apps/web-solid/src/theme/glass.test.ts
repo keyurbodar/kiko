@@ -1,12 +1,17 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { BACKGROUND_KEY, DEFAULT_GLASS, GLASS_KEY, glassRoot, parseBackground, parseGlass, type Background } from "./glass"
+import { BACKGROUND_KEY, DEFAULT_GLASS, GLASS_KEY, glassRoot, parseBackground, parseGlass, patchBackground, type Background } from "./glass"
 
 const desktop = "data:image/webp;base64,UklGRg=="
 const picked: Background = { id: "a1b2", desktop, effect: "halftone", scope: "empty", empty: 0.4, session: 0.1, palette: { hue: 20, saturation: 12, lightness: 8, accent: { h: 30, c: 0.15 } } }
 
 describe("glass settings", () => {
+  test("changing a background setting keeps the picture and its palette, so matching stays available", () => {
+    const next = patchBackground(picked, { effect: "dither", session: 0.3 })
+    expect(next).toEqual({ ...picked, effect: "dither", session: 0.3 })
+  })
+
   test("nothing stored, or anything unreadable, is monocode's default: 85% opacity, 24 blur, main pane glass on", () => {
     for (const text of [null, "", "{ nope", "[]"]) expect(parseGlass(text)).toEqual(DEFAULT_GLASS)
     expect(DEFAULT_GLASS).toEqual({ opacity: 0.85, blur: 24, body: true })

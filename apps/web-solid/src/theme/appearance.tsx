@@ -126,8 +126,8 @@ function WallpaperRow(): JSX.Element {
       label="match wallpaper"
       note={background() ? (matchesWallpaper(look()) ? "follows your picture" : "from your picture") : "add a chat background first"}
       colors={palette() ? { light: wallpaperColors(palette()!, "light"), dark: wallpaperColors(palette()!, "dark") } : {}}
-      disabled={!background()?.palette && !look().wallpaper}
-      onPick={() => (background()?.palette ? matchWallpaper() : look().wallpaper && updateLook({ light: WALLPAPER_ID, dark: WALLPAPER_ID }))}
+      disabled={!background() && !look().wallpaper}
+      onPick={() => (background() ? void matchWallpaper() : look().wallpaper && updateLook({ light: WALLPAPER_ID, dark: WALLPAPER_ID }))}
     />
   )
 }
@@ -384,7 +384,7 @@ function BackgroundGroup(): JSX.Element {
         {(b) => (
           <>
             <Row label="match theme to picture" description="kiko takes its colors from the picture: the surfaces from its overall tone, the accent from its most vivid color. a new picture recolors it.">
-              <Toggle label="match theme to picture" on={matchesWallpaper(look())} disabled={!b().palette} onChange={(on) => (on ? matchWallpaper() : chooseTheme(null))} />
+              <Toggle label="match theme to picture" on={matchesWallpaper(look())} onChange={(on) => (on ? void matchWallpaper() : chooseTheme(null))} />
             </Row>
             <Row label="background effect" description={EFFECT_DESCRIPTIONS[b().effect]}>
               <Segmented label="background effect" value={b().effect} options={BACKGROUND_EFFECTS.map((e) => ({ value: e, label: EFFECT_LABELS[e] }))} onChange={(effect) => setBackground({ effect })} />

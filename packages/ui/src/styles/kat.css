@@ -811,7 +811,7 @@
 }
 
 :root:not([data-appearance="light"]) {
-  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 100%), transparent);
+  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 78%), transparent);
   --surface-blur: blur(24px) saturate(1.4);
   --popover-blur: var(--surface-blur);
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.1);
@@ -830,11 +830,13 @@
 }
 
 :root[data-desktop]:not([data-appearance="light"]) {
-  --shell-bg: color-mix(in oklab, var(--bg-sidebar) calc(var(--sidebar-opacity) * 100%), transparent);
+  /* A page sees its stand-in desktop through more glass than a native window: monocode's native
+     tint sits over a live desktop, this over one still picture. */
+  --shell-bg: color-mix(in oklab, var(--bg-sidebar) calc(var(--sidebar-opacity) * 78%), transparent);
 }
 
 :root[data-desktop][data-glass-body]:not([data-appearance="light"]) {
-  --panel: color-mix(in oklab, var(--bg) calc(var(--sidebar-opacity) * 100%), transparent);
+  --panel: color-mix(in oklab, var(--bg) calc(var(--sidebar-opacity) * 90%), transparent);
 }
 
 /* The overhang keeps the blur from fading at the window's edges. */
@@ -845,7 +847,7 @@
   z-index: -1;
   pointer-events: none;
   background: var(--desktop-image, none) center / cover no-repeat;
-  filter: blur(var(--glass-blur));
+  filter: blur(var(--glass-blur)) saturate(1.5);
 }
 
 /* The chat pane's background. Instant, unlike monocode's 600ms ease: switching chats is

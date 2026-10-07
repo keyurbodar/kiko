@@ -13,7 +13,7 @@ import { type UserChannel, userChannel } from "../sync/user-channel"
 import { BUILT_IN_THEMES } from "./builtins"
 import { applyCommitted, readCache, writeCache } from "./apply"
 import { setBirdPicks } from "../mascot/choices"
-import { background } from "./glass"
+import { background, ensurePalette } from "./glass"
 import { formatLook, matchesWallpaper, parseLook, withHalf, withTheme, withWallpaper, type Look } from "./look"
 import { readStoredThemes, type ThemeAppearance, type ThemeDefinition } from "./palette"
 
@@ -95,9 +95,12 @@ const themeById = (id: string | null) => (id === null ? null : (allThemes().find
 /** Every theme a person can pick: t3code's built-ins, then this browser's imports. */
 export const allThemes = (): ThemeDefinition[] => [...BUILT_IN_THEMES, ...library()]
 
-/** Both halves follow the chat background's own colors. Returns false when there is no picture to read. */
-export function matchWallpaper(): boolean {
-  const palette = background()?.palette
+/**
+ * Both halves follow the chat background's own colors. A palette that was never read, or was
+ * read by an older reader, is read from the picture first. False when there is no picture here.
+ */
+export async function matchWallpaper(): Promise<boolean> {
+  const palette = background()?.palette ?? (await ensurePalette())
   if (!palette) return false
   saveLook(withWallpaper(look(), palette))
   return true
