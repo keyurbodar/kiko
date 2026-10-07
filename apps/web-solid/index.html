@@ -40,7 +40,11 @@
         attr("data-chat-background", ok ? "" : null);
         attr("data-chat-background-scope", ok ? (b.scope === "empty" ? "empty" : "all") : null);
         attr("data-chat-background-effect", ok ? (["dither", "ascii", "halftone", "scanlines", "gradient-blur"].indexOf(b.effect) >= 0 ? b.effect : "none") : null);
-        d.style.setProperty("--sidebar-opacity", String(Math.round(num(g.opacity, 0.15, 1, 0.85) * 100) / 100));
+        var op = Math.round(num(g.opacity, 0.15, 1, 0.85) * 100) / 100;
+        d.style.setProperty("--sidebar-opacity", String(op));
+        d.style.setProperty("--window-tint-alpha", String(Math.round((0.4 + 0.6 * op) * 100) / 100));
+        d.style.setProperty("--window-tint-share", Math.round((0.4 + 0.6 * op) * 100) + "%");
+        d.style.setProperty("--sidebar-share", Math.round(op * 100) + "%");
         d.style.setProperty("--glass-blur", Math.round(num(g.blur, 1, 64, 24)) + "px");
         d.style.setProperty("--chat-background-empty-opacity", String(ok ? Math.round(num(b.empty, 0.05, 0.65, 0.24) * 100) / 100 : 0.24));
         d.style.setProperty("--chat-background-session-opacity", String(ok ? Math.round(num(b.session, 0.05, 0.65, 0.24) * 100) / 100 : 0.24));

@@ -115,6 +115,11 @@ export function glassRoot(glass: Glass, background: Background | null): { attrs:
     },
     vars: {
       "--sidebar-opacity": String(glass.opacity),
+      // Monocode's window tint, 0.4 + 0.6 x opacity, as plain numbers so no engine has to
+      // evaluate a calc() inside color-mix().
+      "--window-tint-alpha": String(Math.round((0.4 + 0.6 * glass.opacity) * 100) / 100),
+      "--window-tint-share": `${Math.round((0.4 + 0.6 * glass.opacity) * 100)}%`,
+      "--sidebar-share": `${Math.round(glass.opacity * 100)}%`,
       "--glass-blur": `${glass.blur}px`,
       "--chat-background-empty-opacity": String(background?.empty ?? VISIBILITY.default),
       "--chat-background-session-opacity": String(background?.session ?? VISIBILITY.default),

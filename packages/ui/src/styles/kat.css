@@ -812,7 +812,7 @@
 }
 
 :root:not([data-appearance="light"]) {
-  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 100%), transparent);
+  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) var(--sidebar-share, 85%), transparent);
   --surface-blur: blur(24px);
   /* Monocode's popover glass (index.css `.popover-backdrop`): the content at 2% over a 24px
      backdrop blur, so a menu reads as glass over what it opens on. Dialogs keep the 55%
@@ -845,9 +845,10 @@
      0.4 + 0.6 x sidebar opacity, over the desktop blurred and otherwise untouched. The page
      itself is transparent, so the sidebar, the tab bar, and the panes are all that one layer,
      split by hairlines; the picture bleeds through it evenly and colors the whole window. */
-  --window-tint: color-mix(in oklab, var(--bg) calc((0.4 + 0.6 * var(--sidebar-opacity)) * 100%), transparent);
   --shell-bg: transparent;
-  --drawer-bg: var(--window-tint);
+  /* The share is a literal percentage theme/glass.ts writes: a calc() of a variable inside
+     color-mix() is not drawn by every engine, and a dropped tint leaves the bare picture. */
+  --drawer-bg: color-mix(in oklab, var(--bg) var(--window-tint-share, 91%), transparent);
 }
 
 :root[data-desktop][data-glass-body]:not([data-appearance="light"]) {
@@ -879,7 +880,9 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: var(--window-tint);
+  /* A plain color at an opacity: nothing here can be dropped by an engine. */
+  background: var(--bg);
+  opacity: var(--window-tint-alpha, 0.91);
 }
 
 /* The chat pane's background. Instant, unlike monocode's 600ms ease: switching chats is
