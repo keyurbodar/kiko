@@ -87,17 +87,17 @@ const THEME = [
   "font-family:var(--font-family-sans)",
   "font-size:var(--font-sm)",
   "--emoji-font-family:var(--font-family-sans)",
-  "--emoji-size:1.25rem",
-  "--emoji-padding:0.375rem",
-  "--num-columns:8",
+  "--emoji-size:1.375rem",
+  "--emoji-padding:0.3rem",
+  "--num-columns:9",
   // No borders in this system, so the sizes are zero rather than matching
   // hairlines.
   "--border-size:0px",
-  "--border-radius:calc(16px * var(--brm))",
+  "--border-radius:12px",
   "--input-border-size:0px",
-  "--input-border-radius:calc(10px * var(--brm))",
+  "--input-border-radius:8px",
   "--skintone-border-radius:calc(8px * var(--brm))",
-  "--background:var(--menu-bg)",
+  "--background:transparent",
   "--border-color:transparent",
   "--indicator-color:var(--accent)",
   "--outline-color:var(--accent)",
@@ -106,11 +106,13 @@ const THEME = [
   "--input-font-color:var(--text)",
   "--input-placeholder-color:var(--text-faint)",
   "--category-font-color:var(--text-muted)",
-  "--category-font-size:var(--font-sm)",
-  "--button-hover-background:var(--hover-bg)",
-  "--button-active-background:var(--hover-bg)",
+  "--category-font-size:11px",
+  "--input-font-size:13px",
+  "--input-padding:0.375rem 0.625rem",
+  "--button-hover-background:var(--selected-bg)",
+  "--button-active-background:var(--selected-bg)",
   // The element is 400px tall by default and the panel is anchored to a row.
-  "height:360px",
+  "height:340px",
 ].join(";")
 
 /** What the footer shows: the glyph, the annotation, and its shortcode. */
@@ -271,7 +273,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
   })
 
   return (
-    <div class={cn("flex flex-col bg-menu", props.class)}>
+    <div class={cn("flex flex-col", props.class)}>
       <Show when={ready()}>
         <emoji-picker
           ref={setPicker}
@@ -283,7 +285,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
           the same two facts kat does: the annotation, and the shortcode that
           names it. */}
       <div
-        class="flex min-h-[52px] items-center gap-2.5 px-3 shadow-[inset_0_1px_0_0_oklch(from_var(--text)_l_c_h_/_6%)]"
+        class="flex min-h-[44px] items-center gap-2.5 px-3 shadow-[inset_0_1px_0_0_var(--hairline)]"
         aria-live="polite"
       >
         <Show when={hovered()}>
@@ -291,10 +293,10 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
             <>
               {/* Artwork, like the grid above it. The platform glyph here would
                   put the two sets side by side in the same panel. */}
-              <Emoji emoji={cell().emoji} class="size-6 shrink-0" eager />
+              <Emoji emoji={cell().emoji} class="size-5 shrink-0" eager />
               <span class="flex min-w-0 flex-col gap-px">
-                <span class="truncate text-md font-medium lowercase">{cell().label}</span>
-                <span class="truncate text-xs text-weak">:{cell().shortcode}:</span>
+                <span class="truncate text-[13px] font-medium lowercase">{cell().label}</span>
+                <span class="truncate text-[11px] text-weak">:{cell().shortcode}:</span>
               </span>
             </>
           )}

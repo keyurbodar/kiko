@@ -9,6 +9,7 @@ import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
+import { SidebarSky } from "./sky"
 import { Bird } from "../mascot/bird"
 import { ChatPanel } from "./chat-panel"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
@@ -159,6 +160,7 @@ export function Sidebar(props: SidebarProps) {
          */
         style={{ "--sidebar-content-w": width() === null ? undefined : `${width()}px` }}
       >
+        <SidebarSky />
         <header class="panel-header">
           <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="chats">
             <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={22} />

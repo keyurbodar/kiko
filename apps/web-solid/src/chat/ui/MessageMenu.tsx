@@ -122,17 +122,16 @@ export function MessageMenu(props: MessageMenuProps) {
             // sits in `@layer v2`, below `utilities` - unlayered it beat every
             // one of them and the menu rendered at the library's 2px padding,
             // 6px radius and 13px rows instead.
-            "chat-menu min-w-[200px] rounded-[calc(20px*var(--brm))] p-2",
-            // Painted, not inherited: the vendored v2 menu resolves its own
-            // light ramp, so the kat roles have to be stated here.
-            "border-none bg-menu text-base text-text shadow-menu",
-            // One item rhythm for every row in the menu: kat's rows are taller
-            // and set larger than the library default, and every entry carries
-            // a leading glyph. The row itself is `data-component`, NOT
-            // `data-slot` - only the inner content span is a slot.
-            "[&_[data-component=menu-v2-item]]:h-10",
-            "[&_[data-slot=menu-v2-item-content]]:text-base",
+            // Monocode's menu: a 12px glass frame, 4px in, rows 30px tall at 13px with a
+            // quiet leading glyph. The frame and its glass come from the shared menu
+            // surface, so this only sets the rhythm.
+            "chat-menu min-w-[184px] rounded-xl p-1 text-text",
+            // The row itself is `data-component`, NOT `data-slot` - only the inner
+            // content span is a slot.
+            "[&_[data-component=menu-v2-item]]:h-[30px]",
+            "[&_[data-slot=menu-v2-item-content]]:text-[13px]",
             "[&_[data-slot=menu-v2-item-content]]:gap-2.5",
+            "[&_[data-component=menu-v2-item]_svg]:text-muted",
           )}
           data-component="chat-menu"
         >
@@ -140,7 +139,7 @@ export function MessageMenu(props: MessageMenuProps) {
           when={pickerOpen()}
           fallback={
             <>
-              <div class="chat-menu__quick flex gap-0.5 p-1 mb-2">
+              <div class="chat-menu__quick flex items-center gap-0.5 px-0.5 pt-0.5 pb-1">
                 <For each={QUICK_REACTIONS}>
                   {(entry) => (
                     <button
@@ -151,10 +150,10 @@ export function MessageMenu(props: MessageMenuProps) {
                         // treated as one property and the size utility was dropped,
                         // leaving every emoji at the inherited 14px. Preflight
                         // already gives a button `color: inherit`.
-                        "chat-menu__emoji flex size-9 items-center justify-center rounded-xl p-0 text-[22px] leading-none",
+                        "chat-menu__emoji flex size-8 items-center justify-center rounded-lg p-0 text-[19px] leading-none",
                         "cursor-default border-none bg-transparent",
-                        "hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
-                        "focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
+                        "hover:bg-[var(--selected-bg)]",
+                        "focus-visible:bg-[var(--selected-bg)]",
                         // One of the three permitted motions.
                         "active:scale-[0.85]",
                       )}
@@ -162,17 +161,17 @@ export function MessageMenu(props: MessageMenuProps) {
                       aria-label={entry.label}
                       onClick={() => props.onReact(entry.emoji)}
                     >
-                      <Emoji emoji={entry.emoji} class="size-[22px] align-middle" eager />
+                      <Emoji emoji={entry.emoji} class="size-[19px] align-middle" eager />
                     </button>
                   )}
                 </For>
                 <button
                   type="button"
                   class={cn(
-                    "chat-menu__more flex size-9 items-center justify-center rounded-xl p-0",
+                    "chat-menu__more ml-auto flex size-8 items-center justify-center rounded-lg p-0",
                     "cursor-default border-none bg-transparent text-weak",
-                    "hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
-                    "hover:text-text focus-visible:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]",
+                    "hover:bg-[var(--selected-bg)]",
+                    "hover:text-text focus-visible:bg-[var(--selected-bg)]",
                     "focus-visible:text-text",
                   )}
                   aria-label="more emoji"
@@ -187,17 +186,17 @@ export function MessageMenu(props: MessageMenuProps) {
                 {(url) => (
                   <>
                     <MenuV2.Item onSelect={openLink}>
-                      <HugeIcon icon={ExternalIcon} class="size-4 shrink-0" aria-hidden="true" />
+                      <HugeIcon icon={ExternalIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                       open link
                     </MenuV2.Item>
                     <MenuV2.Item onSelect={() => void copy(url(), "link copied")}>
-                      <HugeIcon icon={LinkIcon} class="size-4 shrink-0" aria-hidden="true" />
+                      <HugeIcon icon={LinkIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                       copy link
                     </MenuV2.Item>
                     {/* Only where the system share sheet exists; elsewhere it would be copy link twice. */}
                     <Show when={canShare}>
                       <MenuV2.Item onSelect={() => void shareLink()}>
-                        <HugeIcon icon={ShareIcon} class="size-4 shrink-0" aria-hidden="true" />
+                        <HugeIcon icon={ShareIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                         share link
                       </MenuV2.Item>
                     </Show>
@@ -206,16 +205,16 @@ export function MessageMenu(props: MessageMenuProps) {
                 )}
               </Show>
               <MenuV2.Item onSelect={props.onReply}>
-                <HugeIcon icon={ReplyIcon} class="size-4 shrink-0" aria-hidden="true" />
+                <HugeIcon icon={ReplyIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                 reply
               </MenuV2.Item>
               <MenuV2.Item onSelect={() => void copy()}>
-                <HugeIcon icon={CopyIcon} class="size-4 shrink-0" aria-hidden="true" />
+                <HugeIcon icon={CopyIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                 copy
               </MenuV2.Item>
               <Show when={props.onTogglePin}>
                 <MenuV2.Item onSelect={props.onTogglePin}>
-                  <HugeIcon icon={PinIcon} class="size-4 shrink-0" aria-hidden="true" />
+                  <HugeIcon icon={PinIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                   {props.pinned ? "unpin" : "pin"}
                 </MenuV2.Item>
               </Show>
@@ -225,20 +224,18 @@ export function MessageMenu(props: MessageMenuProps) {
               </Show>
               <Show when={props.side === "user" && props.onEdit}>
                 <MenuV2.Item onSelect={props.onEdit}>
-                  <HugeIcon icon={EditIcon} class="size-4 shrink-0" aria-hidden="true" />
+                  <HugeIcon icon={EditIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                   edit
                 </MenuV2.Item>
               </Show>
               <Show when={props.onDelete}>
                 <MenuV2.Item
                   class={cn(
-                    "chat-menu__danger text-danger",
-                    "hover:bg-[oklch(from_var(--danger)_l_c_h_/_12%)]",
-                    "focus-visible:bg-[oklch(from_var(--danger)_l_c_h_/_12%)]",
+                    "chat-menu__danger text-danger [&_svg]:!text-[var(--danger)]",
                   )}
                   onSelect={props.onDelete}
                 >
-                  <HugeIcon icon={TrashIcon} class="size-4 shrink-0" aria-hidden="true" />
+                  <HugeIcon icon={TrashIcon} class="size-[15px] shrink-0" aria-hidden="true" />
                   delete
                 </MenuV2.Item>
               </Show>

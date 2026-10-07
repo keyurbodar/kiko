@@ -167,7 +167,7 @@
   --c-user-bubble-text: var(--c-brand-on);
   --l-on-accent: var(--l-brand-on);
   --c-on-accent: var(--c-brand-on);
-  --radius-row: 20px;
+  --radius-row: 10px;
   --radius-field: 999px;
 }
 
@@ -467,7 +467,8 @@
   --font-xs: 11px;
   --font-sm: 12px;
   --font-md: 13px;
-  --font-base: 14px;
+  /* Monocode sets reading text at 13px. */
+  --font-base: 13px;
   --line-height: 1.45;
   --line-height-code: 1.5;
   --font-weight-regular: 400;
@@ -773,8 +774,8 @@
    the person's settings, which stay on this device.
 
    - Floating surfaces (menus, hover cards, dialogs, the palette, tooltips,
-     toasts) are frosted glass: the menu surface at 78% over a 24px backdrop
-     blur, with a hairline edge.
+     toasts) are monocode's glass: the background at 55% over a 28px,
+     saturated backdrop blur, with a hairline edge.
    - A web page has no desktop to see through, so the chat background stands
      in for it: blurred by `--glass-blur` behind the whole window
      (`body::before`). The shell lets it through at `--sidebar-opacity`, and the
@@ -812,9 +813,14 @@
 
 :root:not([data-appearance="light"]) {
   --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 78%), transparent);
-  --surface-blur: blur(24px) saturate(1.4);
+  --surface-blur: blur(28px) saturate(1.8);
   --popover-blur: var(--surface-blur);
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.1);
+}
+
+/* A menu row lights with monocode's selection fill. */
+[data-component="menu-v2-item"] {
+  --menu-v2-hover: var(--selected-bg);
 }
 
 /* Every floating surface is frosted glass in dark: dialogs, the palette, search, tooltips,
@@ -1019,7 +1025,7 @@
   --panel-edge: color-mix(in oklab, #ebebeb 10%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #ebebeb 20%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #ebebeb 32%, transparent);
-  --menu-bg: color-mix(in oklab, color-mix(in oklab, #ebebeb 4%, #171717) 78%, transparent);
+  --menu-bg: color-mix(in oklab, color-mix(in oklab, #ebebeb 3%, #171717) 55%, transparent);
   --tooltip-bg: color-mix(in oklab, #ebebeb 12%, #171717);
   --user-bubble: color-mix(in oklab, #ebebeb 10%, transparent);
   --user-bubble-text: #ebebeb;
@@ -1087,7 +1093,7 @@
   --radius-sm: 8px;
   --radius-bubble: 18px;
   --radius-bubble-tight: 8px;
-  --radius-row: 20px;
+  --radius-row: 10px;
   --radius-field: 999px;
 }
 

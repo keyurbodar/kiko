@@ -447,9 +447,10 @@ export function tokensFor(colors: ThemeColors, mode: ThemeAppearance, accent: st
   const ink = (share: number) => `color-mix(in oklab, ${colors.text} ${share}%, transparent)`
   for (const [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
   // Tooltips stay opaque: they are small and sit over text.
-  // Menus, dialogs and the palette: in dark, monocode's frosted glass, the surface at 78% over a
-  // backdrop blur (kat.css section 4d). In light, opaque, as monocode's light popovers are.
-  vars["--menu-bg"] = mode === "dark" ? `color-mix(in oklab, color-mix(in oklab, ${colors.text} 4%, ${colors.canvas}) 78%, transparent)` : colors.canvas
+  // Menus, dialogs and the palette: in dark, monocode's glass, the background at 55% over a strong
+  // backdrop blur (kat.css section 4d), so what is behind shows as soft color. In light, opaque,
+  // as monocode's light popovers are.
+  vars["--menu-bg"] = mode === "dark" ? `color-mix(in oklab, color-mix(in oklab, ${colors.text} 3%, ${colors.canvas}) 55%, transparent)` : colors.canvas
   vars["--tooltip-bg"] = `color-mix(in oklab, ${colors.text} 12%, ${colors.canvas})`
   // Your bubble: the content at 10% in dark, and solid in light, as monocode draws it.
   vars["--user-bubble"] = mode === "dark" ? ink(10) : colors.text
