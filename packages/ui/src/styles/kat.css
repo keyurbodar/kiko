@@ -813,7 +813,11 @@
 
 :root:not([data-appearance="light"]) {
   --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 100%), transparent);
-  --surface-blur: blur(28px) saturate(1.8);
+  --surface-blur: blur(24px);
+  /* Monocode's popover glass (index.css `.popover-backdrop`): the content at 2% over a 24px
+     backdrop blur, so a menu reads as glass over what it opens on. Dialogs keep the 55%
+     background, as monocode's modal does. */
+  --popover-bg: color-mix(in oklab, var(--text) 2%, transparent);
   --popover-blur: var(--surface-blur);
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.1);
 }
@@ -894,22 +898,17 @@
   opacity: var(--chat-background-session-opacity);
 }
 
-/* Monocode's composer band: from the composer's top edge to the bottom of the pane, one
-   full-width sheet of frosted glass with a hairline on top. The picture runs on under it and
-   shows only as soft color, so the composer never sits on a busy picture. The dock is as wide as
-   the reading column; the band is as wide as the pane (`100cqw` of the pane). */
-:root[data-chat-background] .chat-pane-background .composer-dock::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 50%;
-  z-index: -1;
-  width: 100cqw;
-  transform: translateX(-50%);
-  pointer-events: none;
-  background: color-mix(in oklab, var(--bg) 58%, transparent);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
-  box-shadow: inset 0 1px 0 var(--hairline);
+/* Monocode's docked composer has no band behind it: the transcript fades out over its last
+   2.5rem instead, and the last message scrolls clear of that fade (index.css,
+   `.transcript-composer-fade`). Only over a picture: without one, the scroll fades paint the
+   panel color and already do this. */
+:root[data-chat-background] [data-component="chat-scroll"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000, #000 calc(100% - 2.5rem), transparent);
+  mask-image: linear-gradient(to bottom, #000, #000 calc(100% - 2.5rem), transparent);
+}
+
+:root[data-chat-background] [data-component="chat-column"] {
+  padding-bottom: 2.5rem;
 }
 
 /* Haze: the picture blurred and faded into the pane below it. Each masked copy samples the

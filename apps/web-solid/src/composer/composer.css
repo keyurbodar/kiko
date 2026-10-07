@@ -474,3 +474,94 @@
     font-size: 16px;
   }
 }
+
+/* ===== Monocode's composer ---------------------------------------------- */
+
+/* Monocode's chat composer (MonoComposer.tsx): one box, not three pieces. An 8px-cornered
+ * glass box with a hairline that darkens on focus, holding a 26px square attach button, the
+ * field, and a 26px square send button on one row. These rules come last and win over the
+ * three-piece layout above. */
+.composer-dock .composer-row {
+  gap: 6px;
+  margin: 0 6px 6px;
+  padding: 4px;
+  align-items: flex-end;
+  background: color-mix(in oklab, var(--text) 3%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent);
+}
+
+.composer-dock .composer-row:focus-within {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 20%, transparent);
+}
+
+:root[data-appearance="light"] .composer-dock .composer-row {
+  background: var(--bg);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent),
+    0 6px 24px color-mix(in oklab, var(--text) 9%, transparent),
+    0 2px 6px color-mix(in oklab, var(--text) 6%, transparent);
+}
+
+.composer-dock .composer-attach,
+.composer-dock .composer-send {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.composer-dock .composer-attach {
+  background: color-mix(in oklab, var(--text) 8%, transparent);
+  color: color-mix(in oklab, var(--text) 55%, transparent);
+}
+
+@media (hover: hover) {
+  .composer-dock .composer-attach:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--text) 12%, transparent);
+    color: var(--text);
+  }
+}
+
+/* Monocode's primary action: the solid fill, and at 30% while there is nothing to send. */
+.composer-dock .composer-send {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.composer-dock .composer-send:disabled {
+  opacity: 1;
+  background: color-mix(in oklab, var(--accent-fill) 30%, transparent);
+  color: color-mix(in oklab, var(--on-accent) 40%, transparent);
+}
+
+.composer-dock .composer-input-wrap {
+  --composer-radius: 0;
+  padding: 4px 2px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.composer-dock .composer-input,
+.composer-dock .composer-placeholder {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.composer-dock .composer-input {
+  min-height: 18px;
+}
+
+.composer-dock .composer-placeholder {
+  right: 2px;
+  bottom: 4px;
+  left: 2px;
+  color: color-mix(in oklab, var(--text) 35%, transparent);
+}
+
+.composer-dock .composer-attach svg,
+.composer-dock .composer-send svg {
+  width: 14px;
+  height: 14px;
+}

@@ -325,7 +325,7 @@ export default function ChatRoute() {
           <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && connectedProviders().length === 0)}>
             {(np) => (
               <div
-                class="bg-menu mx-auto mb-2 flex w-full max-w-[720px] items-center gap-3 rounded-2xl py-1.5 pr-1.5 pl-4 text-[13px] text-text shadow-[inset_0_0_0_1px_var(--hairline)]"
+                class="mx-1.5 mb-1.5 flex items-center gap-3 rounded-lg bg-[color-mix(in_oklab,var(--text)_3%,transparent)] py-1 pr-1 pl-3 text-[13px] text-text shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text)_10%,transparent)] backdrop-blur-sm"
                 role="status"
                 data-component="no-provider"
               >
@@ -334,8 +334,8 @@ export default function ChatRoute() {
                     ? `${(np() as { slug: string }).slug} can't reply yet: no ${(np() as { provider: string }).provider} key is connected.`
                     : "connect a provider so your agents can reply."}
                 </span>
-                {/* 6px in from a 16px corner, so a 10px corner sits concentric with it. */}
-                <A href="/settings/models" class="inline-flex h-8 shrink-0 items-center rounded-[10px] bg-[var(--accent-fill)] px-3.5 text-[13px] font-medium text-[var(--on-accent)] no-underline hover:bg-[var(--accent-hover)]">
+                {/* Monocode's primary action, 4px in from an 8px corner. */}
+                <A href="/settings/models" class="inline-flex h-7 shrink-0 items-center rounded-md bg-[var(--accent-fill)] px-3 text-[12px] font-medium text-[var(--on-accent)] no-underline hover:bg-[var(--accent-hover)]">
                   connect
                 </A>
               </div>

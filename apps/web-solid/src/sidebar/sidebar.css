@@ -774,26 +774,19 @@
 
 /* ===== Main panes ----------------------------------------------------- */
 
-/* The chat pane, and the info pane beside it when it is open: rounded panes under the top bar,
- * 8px apart, with no border. Each is the panel colour against the sidebar colour. */
+/* The chat pane, and the info pane beside it when it is open. As in monocode, the panes sit
+ * flush in the window under the tab bar and are split by hairlines, not floated as rounded
+ * cards with gaps. */
 .sidebar-shell .main-row {
-  gap: 8px;
-  margin: 0 8px 8px 0;
-}
-
-.sidebar-shell .main-row[data-top] {
-  margin-top: 8px;
-}
-
-.sidebar-shell:has(.panel[data-collapsed]) .main-row {
-  margin-left: 8px;
+  gap: 0;
+  margin: 0;
 }
 
 .sidebar-shell .main-panel,
 .sidebar-shell .info-pane {
   background: var(--panel);
-  border-radius: 12px;
-  box-shadow: var(--glass-edge);
+  border-radius: 0;
+  box-shadow: inset 1px 0 0 var(--hairline), inset 0 1px 0 var(--hairline);
 }
 
 /* Where the info pane covers the chat instead of sitting beside it, it is opaque, so the
