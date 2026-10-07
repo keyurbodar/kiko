@@ -840,11 +840,19 @@
 }
 
 :root[data-desktop]:not([data-appearance="light"]) {
-  --shell-bg: color-mix(in oklab, var(--bg-sidebar) calc(var(--sidebar-opacity) * 100%), transparent);
+  /* Monocode's window glass (macos.rs `prepare_glass`, appearance.ts `nativeWindowOpacity`):
+     one tint in the theme's own background color over the whole window, at
+     0.4 + 0.6 x sidebar opacity, over the desktop blurred and otherwise untouched. The page
+     itself is transparent, so the sidebar, the tab bar, and the panes are all that one layer,
+     split by hairlines; the picture bleeds through it evenly and colors the whole window. */
+  --window-tint: color-mix(in oklab, var(--bg) calc((0.4 + 0.6 * var(--sidebar-opacity)) * 100%), transparent);
+  --shell-bg: transparent;
+  --drawer-bg: var(--window-tint);
 }
 
 :root[data-desktop][data-glass-body]:not([data-appearance="light"]) {
-  --panel: color-mix(in oklab, var(--bg) calc(var(--sidebar-opacity) * 100%), transparent);
+  /* Main pane glass on: the pane is the same window glass. Off: an opaque pane, as monocode's. */
+  --panel: transparent;
 }
 
 /* The overhang keeps the blur from fading at the window's edges. */
@@ -861,9 +869,17 @@
   z-index: -1;
   pointer-events: none;
   background: var(--desktop-image, none) center / cover no-repeat;
-  /* Darkened, as the system darkens a desktop under a dark window, so a bright picture never
-     washes out the text on the glass above it. */
-  filter: blur(var(--glass-blur)) saturate(1.4) brightness(0.55);
+  filter: blur(var(--glass-blur));
+}
+
+/* The window tint, over the blurred desktop and under everything else. */
+:root[data-desktop]:not([data-appearance="light"]) body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--window-tint);
 }
 
 /* The chat pane's background. Instant, unlike monocode's 600ms ease: switching chats is
