@@ -1,13 +1,12 @@
-import { SWATCHES } from "../theme/presets"
 import type { Mode } from "../theme/look"
 import type { Command } from "./registry"
 
 /*
- * Switching the look from the palette: one command per swatch, one per appearance, and
- * changing the open chat's bird. The pure table; `use-kat-commands.ts` wires it.
+ * Switching the look from the palette: one command per appearance, and changing the open
+ * chat's bird. The pure table; `use-kat-commands.ts` wires it. The one command per theme is
+ * `themeChoiceCommands`, which `theme/live.ts` registers once the themes are loaded.
  */
 export function themeCommands(deps: {
-  setPreset: (id: string) => void
   setMode: (mode: Mode) => void
   activeAgent: () => string | null
   changeBird: (slug: string) => void
@@ -18,7 +17,6 @@ export function themeCommands(deps: {
     ["system", "theme: follow the system"],
   ]
   return [
-    ...SWATCHES.map((s): Command => ({ id: `theme.preset.${s.id}`, title: `theme: ${s.label}`, group: "theme", icon: "appearance", run: () => deps.setPreset(s.id) })),
     ...modes.map(([mode, title]): Command => ({ id: `theme.mode.${mode}`, title, group: "theme", icon: "appearance", run: () => deps.setMode(mode) })),
     {
       id: "chat.change-bird",
@@ -32,4 +30,9 @@ export function themeCommands(deps: {
       },
     },
   ]
+}
+
+/** One command per theme, with null for t3code's stock palette. */
+export function themeChoiceCommands(themes: readonly { id: string | null; label: string }[], setTheme: (id: string | null) => void): Command[] {
+  return themes.map((t) => ({ id: `theme.use.${t.id ?? "default"}`, title: `theme: ${t.label.toLowerCase()}`, group: "theme", icon: "appearance", run: () => setTheme(t.id) }))
 }

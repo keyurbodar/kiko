@@ -104,7 +104,7 @@ function AgentCard(props: { slug: string; chatId: string }) {
           <div class="flex gap-2">
             <button
               type="button"
-              class="h-8 rounded-lg bg-btn px-3 text-sm text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))] disabled:opacity-40"
+              class="h-8 rounded-lg bg-btn px-3 text-sm text-[var(--danger)] disabled:opacity-40"
               disabled={roomMembers().length < 2}
               data-action="remove-agent"
               onClick={() => {

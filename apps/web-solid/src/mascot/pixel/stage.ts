@@ -123,7 +123,7 @@ export function runStage(canvas: HTMLCanvasElement, opts: StageOptions, scene: S
     resolved.clear()
     paint()
   })
-  retheme.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-appearance", "data-material", "class"] })
+  retheme.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-appearance", "class"] })
 
   return () => {
     cancelAnimationFrame(raf)

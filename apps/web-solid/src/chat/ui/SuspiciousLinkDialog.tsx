@@ -39,7 +39,7 @@ export function SuspiciousLinkDialog(props: { href: string; onClose: () => void 
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class="flex w-[min(420px,calc(100vw-32px))] flex-col gap-2 rounded-[calc(20px*var(--brm))] bg-menu-bg p-4 text-text shadow-popover"
+          class="flex w-[min(420px,calc(100vw-32px))] flex-col gap-2 rounded-[calc(20px*var(--brm))] bg-menu p-4 text-text shadow-popover"
           onPointerDownOutside={() => props.onClose()}
         >
           <ModalV2.Title class="text-base font-[var(--font-weight-bold)] lowercase">

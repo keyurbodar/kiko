@@ -108,7 +108,6 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   const live = () => import("../theme/live")
   useCommands(
     themeCommands({
-      setPreset: (preset) => void live().then((m) => m.updateLook({ theme: { preset } })),
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
       activeAgent: () => {
         const id = activeId()

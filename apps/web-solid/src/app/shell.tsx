@@ -66,9 +66,8 @@ function writeCollapsed(value: boolean) {
 
 /*
  * The frame around every screen: the sidebar column, then the main column with the top bar
- * over a rounded panel. In frost the shell is glass over the scene `kat.css` paints on the
- * body, and the panel is a second, denser pane. The shell is the router's root, so it never
- * remounts on a route change and the swap is instant.
+ * over a rounded panel. The shell is the router's root, so it never remounts on a route
+ * change and the swap is instant.
  *
  * `sidebar-shell` is the flex row the sidebar's stylesheet is scoped under.
  */

@@ -10,8 +10,7 @@ import { cn } from "../../lib/cn"
  * direction. A gradient at the very top of a thread whose first row is on
  * screen would be a lie — it would dim a row that has nothing above it.
  *
- * They paint `--fade-bg`, which frost clears: no flat colour matches glass whose
- * light changes across the window, so there it would show as a band.
+ * They paint `--fade-bg`, the panel colour.
  */
 export function ScrollFades(props: {
   /** False at the top of the range, where the first row is already on screen. */

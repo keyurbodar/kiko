@@ -216,7 +216,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 export function MemoryError(props: { store: MemoryStore }) {
 	return (
 		<Show when={props.store.state.error}>
-			<p class="rounded-lg bg-bg-subtle px-3 py-2 text-sm text-[oklch(var(--l-danger)_var(--c-danger)_var(--h-danger))]" role="alert" data-component="memory-error">
+			<p class="rounded-lg bg-bg-subtle px-3 py-2 text-sm text-[var(--danger)]" role="alert" data-component="memory-error">
 				{props.store.state.error}{" "}
 				<button type="button" class="underline" onClick={() => props.store.dismissError()}>
 					dismiss

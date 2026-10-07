@@ -1,65 +1,39 @@
-// A person's look: the appearance they picked, the theme, and the bird each agent wears.
-// It is one JSON record, synced through the user socket's theme slot, so the server keeps
-// it as opaque text. Parsing happens here, at the edge. Everything past it trusts the type.
+// A person's look: the appearance mode, the theme that owns each half (light and dark), and the
+// bird each agent wears. It is one JSON record, synced through the user socket's theme slot, so
+// the server keeps it as opaque text. Parsing happens here, at the edge. Everything past it
+// trusts the type.
+//
+// The halves follow t3code (MIT, apps/web/src/hooks/useTheme.ts): a two-mode theme can own both,
+// a light-only theme owns the light half. The library of imported themes stays in this browser,
+// as in t3code, but the record carries the imported themes its halves name, so another device
+// paints the same look.
 
-import { DEFAULT_PRESET, PRESETS } from "./presets"
-import { parseTheme, type Theme } from "./schema"
-import { isWallpaper } from "./wallpaper"
+import { BUILT_IN_THEMES } from "./builtins"
+import { colorsForMode, defaultColors, readStoredThemes, isThemeId, type ThemeAppearance, type ThemeColors, type ThemeDefinition, type ThemeMode } from "./palette"
 
-export type Mode = "system" | "light" | "dark"
+export type Mode = ThemeMode
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
-
-export type ThemeChoice = { preset: string } | { custom: Theme }
-
-/** Frost is translucent panels over a still scene. Solid is flat panels. */
-export type Material = "frost" | "solid"
-export const MATERIALS: readonly Material[] = ["frost", "solid"]
-
-/** How much the theme's hue tints the greys, from 0 (pure grey) to 1. */
-export const DEFAULT_TINT = 0.5
-const clampTint = (n: number) => Math.min(1, Math.max(0, Math.round(n * 100) / 100))
-
-/** How dark the overlay on a wallpaper is, 0.15 to 1. kat.css maps it onto 28% to 75% black. */
-export const DEFAULT_GLASS = 0.6
-export const MIN_GLASS = 0.15
-const clampGlass = (n: number) => Math.min(1, Math.max(MIN_GLASS, Math.round(n * 100) / 100))
-
-/** How much a wallpaper is frosted: a blur in px, 0 (sharp) to 48. */
-export const DEFAULT_FROST = 14
-export const MAX_FROST = 48
-const clampFrost = (n: number) => Math.min(MAX_FROST, Math.max(0, Math.round(n)))
-
-/** Where the frost is: over the whole picture, or fading in toward the bottom. */
-export type FrostWhere = "everywhere" | "bottom"
-export const FROST_WHERE: readonly FrostWhere[] = ["everywhere", "bottom"]
-
-/** A frosted-glass grain over the wallpaper, 0 (none) to 1. */
-export const DEFAULT_GRAIN = 0.3
-const clampUnit = (n: number) => Math.min(1, Math.max(0, Math.round(n * 100) / 100))
 
 export type Look = {
   mode: Mode
-  material: Material
-  tint: number
-  theme: ThemeChoice
-  /** A small data URL from `wallpaper.ts`, shown blurred behind frost. Null for none. */
-  wallpaper: string | null
-  /** How dark the overlay on the wallpaper is. Named glass in the record, shown as dim. */
-  glass: number
-  frost: number
-  frostWhere: FrostWhere
-  grain: number
+  /** The theme id for each half. Null is t3code's stock palette. */
+  light: string | null
+  dark: string | null
+  /** The imported themes `light` and `dark` name. Built-ins are never carried. */
+  themes: readonly ThemeDefinition[]
   /** An agent slug to the bird it wears. A slug without an entry gets the bird its slug seeds. */
   birds: Readonly<Record<string, string>>
 }
 
-export const DEFAULT_LOOK: Look = { mode: "system", material: "frost", tint: DEFAULT_TINT, theme: { preset: DEFAULT_PRESET }, wallpaper: null, glass: DEFAULT_GLASS, frost: DEFAULT_FROST, frostWhere: "everywhere", grain: DEFAULT_GRAIN, birds: {} }
+export const DEFAULT_LOOK: Look = { mode: "system", light: null, dark: null, themes: [], birds: {} }
 
 const MAX_BIRDS = 200
 const BIRD_ID = /^[a-z0-9.-]{1,48}$/
 const SLUG = /^[a-z0-9_-]{1,40}$/
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
+
+const isBuiltIn = (id: string) => BUILT_IN_THEMES.some((t) => t.id === id)
 
 /** Reads stored text. Anything it cannot read falls back to the default look, never an error. */
 export function parseLook(text: string | null): Look {
@@ -70,56 +44,53 @@ export function parseLook(text: string | null): Look {
   } catch {
     return DEFAULT_LOOK
   }
-  if (!isObject(raw)) return DEFAULT_LOOK
-  // Older records are a bare theme. They become a custom theme on the system appearance.
-  if (raw.kind !== "look") {
-    const t = parseTheme(raw)
-    return t.ok ? { ...DEFAULT_LOOK, theme: { custom: t.theme } } : DEFAULT_LOOK
-  }
+  if (!isObject(raw) || raw.kind !== "look") return DEFAULT_LOOK
   const mode = MODES.includes(raw.mode as Mode) ? (raw.mode as Mode) : "system"
-  const material = MATERIALS.includes(raw.material as Material) ? (raw.material as Material) : DEFAULT_LOOK.material
-  const tint = typeof raw.tint === "number" && Number.isFinite(raw.tint) ? clampTint(raw.tint) : DEFAULT_TINT
-  let theme: ThemeChoice = DEFAULT_LOOK.theme
-  if (typeof raw.preset === "string" && PRESETS[raw.preset]) theme = { preset: raw.preset }
-  else if (raw.custom !== undefined) {
-    const t = parseTheme(raw.custom)
-    if (t.ok) theme = { custom: t.theme }
-  }
   const birds: Record<string, string> = {}
   if (isObject(raw.birds)) {
     for (const [slug, id] of Object.entries(raw.birds).slice(0, MAX_BIRDS)) {
       if (SLUG.test(slug) && typeof id === "string" && BIRD_ID.test(id)) birds[slug] = id
     }
   }
-  const wallpaper = isWallpaper(raw.wallpaper) ? raw.wallpaper : null
-  const glass = typeof raw.glass === "number" && Number.isFinite(raw.glass) ? clampGlass(raw.glass) : DEFAULT_GLASS
-  const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v)
-  const frost = num(raw.frost) ? clampFrost(raw.frost) : DEFAULT_FROST
-  const frostWhere = FROST_WHERE.includes(raw.frostWhere as FrostWhere) ? (raw.frostWhere as FrostWhere) : "everywhere"
-  const grain = num(raw.grain) ? clampUnit(raw.grain) : DEFAULT_GRAIN
-  return { mode, material, tint, theme, wallpaper, glass, frost, frostWhere, grain, birds }
+  // Records from before t3code's themes carry a preset or a custom theme instead. Those looks are
+  // gone, so the halves start on the stock palette and the mode and birds carry over.
+  const themes = readStoredThemes(raw.themes).filter((t) => !isBuiltIn(t.id)).slice(0, 2)
+  const half = (v: unknown) => (isThemeId(v) && (isBuiltIn(v) || themes.some((t) => t.id === v)) ? v : null)
+  return { mode, light: half(raw.light), dark: half(raw.dark), themes, birds }
 }
 
 export function formatLook(look: Look): string {
-  const theme = "preset" in look.theme ? { preset: look.theme.preset } : { custom: look.theme.custom }
-  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, material: look.material, tint: look.tint, ...theme, wallpaper: look.wallpaper, glass: look.glass, frost: look.frost, frostWhere: look.frostWhere, grain: look.grain, birds: look.birds })
+  const named = new Set([look.light, look.dark])
+  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, light: look.light, dark: look.dark, themes: look.themes.filter((t) => named.has(t.id)), birds: look.birds })
 }
 
-export const presetOf = (look: Look): string | null => ("preset" in look.theme ? look.theme.preset : null)
-
-/*
- * The three looks the picker offers. Graphite and porcelain are the solid material fixed to one
- * appearance. Frost keeps whatever appearance the person picked.
- */
-export type Style = "frost" | "graphite" | "porcelain"
-export const STYLES: readonly Style[] = ["frost", "graphite", "porcelain"]
-
-export function styleOf(look: Look, appearance: "dark" | "light"): Style {
-  if (look.material === "frost") return "frost"
-  return appearance === "light" ? "porcelain" : "graphite"
+/** Finds a theme by id: a built-in, one the look carries, or one in this browser's library. */
+export function findTheme(id: string | null, look: Look, library: readonly ThemeDefinition[]): ThemeDefinition | null {
+  if (id === null) return null
+  return BUILT_IN_THEMES.find((t) => t.id === id) ?? look.themes.find((t) => t.id === id) ?? library.find((t) => t.id === id) ?? null
 }
 
-export function withStyle(look: Look, style: Style): Look {
-  if (style === "frost") return { ...look, material: "frost" }
-  return { ...look, material: "solid", mode: style === "porcelain" ? "light" : "dark" }
+/** The colors one half paints. A half whose theme is gone, or cannot draw that mode, falls back to stock. */
+export function colorsFor(look: Look, half: ThemeAppearance, library: readonly ThemeDefinition[]): ThemeColors {
+  const theme = findTheme(look[half], look, library)
+  return (theme && colorsForMode(theme, half)) ?? defaultColors(half)
+}
+
+/** Gives the theme every half it can draw. Null puts the stock palette back on both. */
+export function withTheme(look: Look, theme: ThemeDefinition | null): Look {
+  if (theme === null) return { ...look, light: null, dark: null, themes: [] }
+  const next: Look = { ...look }
+  for (const mode of ["light", "dark"] as const) if (colorsForMode(theme, mode)) next[mode] = theme.id
+  return carry(next, theme)
+}
+
+/** Gives one half to a theme. */
+export function withHalf(look: Look, half: ThemeAppearance, theme: ThemeDefinition | null): Look {
+  return carry({ ...look, [half]: theme?.id ?? null }, theme)
+}
+
+/** Keeps the imported themes the halves name, and only those. */
+function carry(look: Look, added: ThemeDefinition | null): Look {
+  const pool = added && !isBuiltIn(added.id) ? [added, ...look.themes.filter((t) => t.id !== added.id)] : look.themes
+  return { ...look, themes: pool.filter((t) => t.id === look.light || t.id === look.dark) }
 }

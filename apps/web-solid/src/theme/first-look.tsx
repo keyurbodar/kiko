@@ -1,15 +1,66 @@
-import { Show, createEffect, createSignal } from "solid-js"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { type Glyph, MonitorIcon, MoonIcon, SunIcon } from "@kiko/ui/icons"
+import { For, Show, createEffect, createSignal } from "solid-js"
 import { Bird } from "../mascot/bird"
-import { hasLook, look, lookSynced, saveLook } from "./live"
-import { LookPicker } from "./look-picker"
+import { appearanceOf } from "./apply"
+import { BUILT_IN_THEMES } from "./builtins"
+import { chooseTheme, hasLook, look, lookSynced, saveLook, updateLook } from "./live"
+import { MODES, type Mode } from "./look"
+import { DEFAULT_CARD, ThemeOrb, previewOf, themeCard } from "./theme-preview"
 
 /*
- * The first screen after sign-up: pick an appearance and a color before the app opens, the
+ * The first screen after sign-up: pick an appearance and a theme before the app opens, the
  * way kat asks. It shows only once the server has said this person has no look yet, so a
  * new device never asks again. Every pick applies at once, so the preview is the app itself.
  */
 
 const SEEN = "kiko:first-look"
+
+const MODE_ICON: Record<Mode, Glyph> = { system: MonitorIcon, light: SunIcon, dark: MoonIcon }
+const CARDS = [DEFAULT_CARD, ...BUILT_IN_THEMES.map(themeCard)]
+
+/** The appearance, then t3code's themes as orbs in the appearance on screen. Every pick applies at once. */
+function QuickPicker() {
+  const shown = () => appearanceOf(look().mode)
+  return (
+    <div class="flex flex-col gap-5" data-component="look-picker">
+      <div class="flex flex-wrap gap-1" role="radiogroup" aria-label="appearance">
+        <For each={MODES}>
+          {(mode) => (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={look().mode === mode}
+              data-mode={mode}
+              class="flex h-8 items-center gap-2 rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:bg-[var(--selected-bg)] aria-checked:text-text"
+              onClick={() => updateLook({ mode })}
+            >
+              <HugeIcon icon={MODE_ICON[mode]} size={15} />
+              {mode}
+            </button>
+          )}
+        </For>
+      </div>
+      <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="theme">
+        <For each={CARDS}>
+          {(card) => (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={look()[shown()] === card.id}
+              data-theme-id={card.id ?? "default"}
+              class="group flex w-[76px] flex-col items-center gap-1.5 rounded-xl p-1.5 outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:bg-[var(--selected-bg)]"
+              onClick={() => chooseTheme(card.id)}
+            >
+              <ThemeOrb colors={previewOf(card, shown())} mode={shown()} />
+              <span class="text-xs text-muted group-aria-checked:text-text">{card.label}</span>
+            </button>
+          )}
+        </For>
+      </div>
+    </div>
+  )
+}
 
 function seen(): boolean {
   try {
@@ -46,7 +97,7 @@ export default function FirstLook() {
             <p class="text-sm text-muted">pick how it looks. you can change it any time in settings or with the command palette.</p>
           </div>
           <div class="w-full rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">
-            <LookPicker look={look()} onChange={saveLook} />
+            <QuickPicker />
           </div>
           <div class="flex w-full flex-col gap-1.5 rounded-2xl bg-[var(--bg-sidebar)] p-4 text-sm" aria-hidden="true">
             <div class="self-end rounded-[18px] bg-[var(--user-bubble)] px-3 py-1.5 text-[var(--user-bubble-text)]">plan my tokyo trip</div>

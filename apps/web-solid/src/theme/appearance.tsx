@@ -1,107 +1,210 @@
-import { For, Show, createSignal } from "solid-js"
-import { compileTheme } from "./apply"
-import { look, saveLook } from "./live"
-import { LookPicker } from "./look-picker"
-import { formatTheme, MAX_THEME_CHARS } from "./schema"
+// Settings, appearance: the color scheme and the theme library. Ported from t3code (MIT),
+// apps/web/src/components/settings/ThemeSettings.tsx, in kiko's own controls.
+// DEVIATION: no theme editor and no fonts. The library holds the stock palette, t3code's
+// built-in themes, and the themes this browser imported.
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { MoonIcon, PlusIcon, ShareIcon, SunIcon, TrashIcon } from "@kiko/ui/icons"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { For, Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
+import { appearanceOf } from "./apply"
+import { button, iconButton } from "./controls"
+import { BUILT_IN_THEMES } from "./builtins"
+import { chooseTheme, customThemes, look, removeThemes, setHalf, updateLook } from "./live"
+import { findTheme, MODES, type Mode } from "./look"
+import { serializeThemeFile, themeModes, type ThemeAppearance, type ThemeDefinition } from "./palette"
+import { DEFAULT_CARD, ThemeOrb, ThemeWireframe, previewOf, themeCard, type ThemeCard } from "./theme-preview"
 
-/*
- * Settings, appearance. The same picker as the first-run screen, then a way to bring your
- * own theme as JSON: paste it or import a file. A theme that fails validation is never
- * applied, and its errors say which key is wrong. The format is in `docs/theming.md`.
- */
+// The import dialog, with culori, fflate and the Open VSX client, loads on the first click.
+const ThemeImportDialog = lazy(() => import("./theme-import-dialog"))
 
-const button =
-  "h-9 rounded-[10px] bg-[var(--btn-bg)] px-3.5 text-xs text-text outline-none hover:bg-[var(--btn-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+function download(filename: string, contents: string): void {
+  const url = URL.createObjectURL(new Blob([contents], { type: "application/json" }))
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  // Revoking at once can abort the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+}
 
-const STARTER = formatTheme({ version: 1, name: "my theme", extends: "plum", colors: { hue: 200, userHue: 200, chroma: 1.2 } })
+const MODE_LABEL: Record<Mode, string> = { system: "system", light: "light", dark: "dark" }
 
-export default function Appearance() {
-  const [draft, setDraft] = createSignal<string | null>(null)
-  const [errors, setErrors] = createSignal<string[]>([])
-  const custom = () => {
-    const t = look().theme
-    return "custom" in t ? t.custom : null
-  }
+function cardFor(id: string | null): ThemeCard {
+  const theme = findTheme(id, look(), customThemes())
+  return theme ? themeCard(theme) : DEFAULT_CARD
+}
 
-  const apply = (text: string) => {
-    const c = compileTheme(text)
-    if (!c.ok) return setErrors(c.errors)
-    setErrors([])
-    setDraft(null)
-    saveLook({ ...look(), theme: { custom: c.theme } })
-  }
-  const importFile = async (e: Event) => {
-    const input = e.currentTarget as HTMLInputElement
-    const file = input.files?.[0]
-    input.value = ""
-    if (!file) return
-    if (file.size > MAX_THEME_CHARS) return setErrors([`json: the file is larger than ${MAX_THEME_CHARS / 1024} KB`])
-    apply(await file.text())
-  }
-  const exportText = () => formatTheme(custom() ?? { version: 1, name: "my theme", extends: "plum" })
-
+function ModeTiles(): JSX.Element {
+  const colors = (mode: ThemeAppearance) => previewOf(cardFor(look()[mode]), mode)
   return (
-    <div class="flex flex-col gap-6" data-component="appearance">
-      <section class="flex flex-col gap-3 rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">
-        <LookPicker look={look()} onChange={saveLook} />
-      </section>
-
-      <section class="flex flex-col gap-3" data-component="custom-theme">
-        <div class="flex flex-col gap-1">
-          <h3 class="text-sm text-text">your own theme</h3>
-          <p class="text-xs text-muted">
-            bring a theme as json. it can change every color, radius, spacing and type size, with a separate set for light mode.
-          </p>
-        </div>
-        <Show when={custom()}>
-          {(t) => (
-            <div class="flex items-center gap-3 rounded-xl bg-[var(--card)] [box-shadow:var(--card-shadow)] px-3 py-2 text-sm" data-component="custom-active">
-              <span class="size-2 rounded-full bg-[var(--accent)]" />
-              <span class="min-w-0 flex-1 truncate">{t().name}</span>
-              <span class="text-xs text-muted">in use</span>
-            </div>
-          )}
-        </Show>
-        <Show when={draft() !== null}>
-          <textarea
-            class="min-h-48 w-full resize-y rounded-xl bg-input p-3 font-mono text-xs leading-relaxed text-text outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            aria-label="theme json"
-            spellcheck={false}
-            value={draft()!}
-            onInput={(e) => setDraft(e.currentTarget.value)}
-            data-component="theme-json"
-          />
-        </Show>
-        <Show when={errors().length}>
-          <ul class="flex flex-col gap-1 text-xs text-[var(--danger)]" role="alert" data-component="theme-errors">
-            <For each={errors()}>{(e) => <li>{e}</li>}</For>
-          </ul>
-        </Show>
-        <div class="flex flex-wrap gap-2">
-          <Show
-            when={draft() !== null}
-            fallback={
-              <button type="button" class={button} data-action="write-theme" onClick={() => setDraft(custom() ? exportText() : STARTER)}>
-                {custom() ? "edit json" : "write json"}
-              </button>
-            }
+    <div aria-label="appearance mode" role="radiogroup" class="grid w-full grid-cols-3 gap-3">
+      <For each={MODES}>
+        {(mode) => (
+          <button
+            type="button"
+            role="radio"
+            aria-label={mode === "system" ? "follow the system appearance" : `use ${mode} mode`}
+            aria-checked={look().mode === mode}
+            data-mode={mode}
+            class="group flex flex-col items-stretch gap-1.5 rounded-xl bg-[var(--card)] p-2 outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:shadow-[inset_0_0_0_1.5px_var(--accent)]"
+            onClick={() => updateLook({ mode })}
           >
-            <button type="button" class={button} data-action="apply-theme" onClick={() => apply(draft()!)}>
-              use this theme
-            </button>
-            <button type="button" class={button} onClick={() => (setDraft(null), setErrors([]))}>
-              cancel
-            </button>
-          </Show>
-          <label class={`${button} inline-flex cursor-default items-center has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--accent)]`}>
-            import file
-            <input type="file" accept=".json,application/json" class="sr-only" data-action="import-theme" onChange={(e) => void importFile(e)} />
-          </label>
-          <button type="button" class={button} data-action="copy-theme" onClick={() => void navigator.clipboard?.writeText(exportText()).catch(() => {})}>
-            copy json
+            <ThemeWireframe
+              panes={
+                mode === "system"
+                  ? [
+                      { clip: "left", colors: colors("light") },
+                      { clip: "right", colors: colors("dark") },
+                    ]
+                  : [{ colors: colors(mode) }]
+              }
+            />
+            <span class="text-center text-xs font-medium text-muted group-aria-checked:text-text">{MODE_LABEL[mode]}</span>
           </button>
+        )}
+      </For>
+    </div>
+  )
+}
+
+function ThemeLibraryCard(props: { card: ThemeCard; subtitle?: string; onExport?: () => void; onRemove?: () => void }): JSX.Element {
+  const owns = (mode: ThemeAppearance) => look()[mode] === props.card.id
+  const active = () => props.card.previews.every((p) => owns(p.mode))
+  return (
+    <div
+      data-theme-card={props.card.id ?? "default"}
+      aria-current={active() ? "true" : undefined}
+      class="cursor-default overflow-hidden rounded-xl bg-[var(--card)] hover:bg-[var(--hover-bg)] aria-[current]:shadow-[inset_0_0_0_1.5px_var(--accent)]"
+      onClick={() => chooseTheme(props.card.id)}
+    >
+      <div class="flex min-h-16 items-center justify-center gap-2.5 px-3 pt-3">
+        <For each={props.card.previews}>
+          {(preview) => (
+            <button
+              type="button"
+              title={preview.mode === "light" ? "use for light mode" : "use for dark mode"}
+              aria-label={`use ${props.card.label} for ${preview.mode} mode`}
+              aria-pressed={owns(preview.mode)}
+              class="relative flex size-[68px] shrink-0 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              onClick={(event) => {
+                event.stopPropagation()
+                setHalf(preview.mode, props.card.id)
+              }}
+            >
+              <ThemeOrb colors={preview.colors} mode={preview.mode} />
+              <Show when={owns(preview.mode)}>
+                <span aria-hidden="true" class="pointer-events-none absolute inset-0 rounded-full shadow-[inset_0_0_0_2px_var(--accent)]" />
+                <span aria-hidden="true" class="pointer-events-none absolute right-0.5 bottom-0.5 grid size-5 place-items-center rounded-full bg-[var(--bg)] text-text shadow-sm">
+                  <HugeIcon icon={preview.mode === "light" ? SunIcon : MoonIcon} size={12} />
+                </span>
+              </Show>
+            </button>
+          )}
+        </For>
+      </div>
+      <div class="flex items-center gap-1 px-3 pt-2 pb-3">
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-medium text-text">{props.card.label}</p>
+          <Show when={props.subtitle}>
+            <p class="truncate text-xs text-muted">{props.subtitle}</p>
+          </Show>
         </div>
-      </section>
+        <Show when={props.onExport}>
+          <button
+            type="button"
+            class={iconButton}
+            title="export theme file"
+            aria-label={`export ${props.card.label}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onExport!()
+            }}
+          >
+            <HugeIcon icon={ShareIcon} size={14} />
+          </button>
+        </Show>
+        <Show when={props.onRemove}>
+          <button
+            type="button"
+            class={`${iconButton} hover:text-[var(--danger)]`}
+            title="remove theme"
+            aria-label={`remove ${props.card.label}`}
+            data-action="remove-theme"
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onRemove!()
+            }}
+          >
+            <HugeIcon icon={TrashIcon} size={14} />
+          </button>
+        </Show>
+      </div>
+    </div>
+  )
+}
+
+function ThemeLibrary(): JSX.Element {
+  const [importOpen, setImportOpen] = createSignal(false)
+  const remove = (theme: ThemeDefinition) => {
+    if (!removeThemes([theme.id])) return void showToastV2({ title: "couldn't remove the theme. try again", variant: "error" })
+    showToastV2({ title: `${theme.label.toLowerCase()} removed`, description: "import its json file to bring it back" })
+  }
+  const grid = { "grid-template-columns": "repeat(auto-fill, minmax(min(100%, 14rem), 1fr))" }
+  return (
+    <div class="flex flex-col gap-3">
+      <h3 class="text-sm text-text">color scheme</h3>
+      <ModeTiles />
+      <div class="flex min-h-8 flex-wrap items-center justify-between gap-3 pt-3">
+        <h3 class="text-sm text-text">theme</h3>
+        <button type="button" class={button} data-action="add-theme" onClick={() => setImportOpen(true)}>
+          <HugeIcon icon={PlusIcon} size={14} />
+          add theme
+        </button>
+      </div>
+      <div class="grid w-full gap-2" style={grid} data-component="theme-library">
+        <ThemeLibraryCard card={DEFAULT_CARD} />
+        <For each={BUILT_IN_THEMES}>{(theme) => <ThemeLibraryCard card={themeCard(theme)} />}</For>
+        <For each={customThemes()}>
+          {(theme) => (
+            <ThemeLibraryCard
+              card={themeCard(theme)}
+              subtitle={theme.collection && theme.collection.label !== theme.label ? theme.collection.label.toLowerCase() : undefined}
+              onExport={() => download(`${theme.id}.json`, serializeThemeFile(theme))}
+              onRemove={() => remove(theme)}
+            />
+          )}
+        </For>
+      </div>
+      <Show when={importOpen()}>
+        <Suspense>
+          <ThemeImportDialog
+            onClose={() => setImportOpen(false)}
+            onImported={(themes, updated) => {
+              const verb = updated ? "updated" : "added"
+              const first = themes[0]
+              if (themes.length === 1 && first) {
+                chooseTheme(first.id)
+                const modes = themeModes(first)
+                showToastV2({
+                  title: `${first.label.toLowerCase()} ${verb}`,
+                  description: modes.length === 1 ? `it's now your ${modes[0]} theme` : "it's now in use",
+                  variant: "success",
+                })
+              } else {
+                showToastV2({ title: `${themes.length} themes ${verb}`, description: themes.map((t) => t.label.toLowerCase()).join(", "), variant: "success" })
+              }
+            }}
+          />
+        </Suspense>
+      </Show>
+    </div>
+  )
+}
+
+export default function Appearance(): JSX.Element {
+  return (
+    <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={appearanceOf(look().mode)}>
+      <ThemeLibrary />
     </div>
   )
 }

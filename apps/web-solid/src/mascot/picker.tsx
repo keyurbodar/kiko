@@ -119,7 +119,7 @@ export default function BirdPicker() {
         <ModalV2 open onOpenChange={(open: boolean) => !open && closeBirdPicker()}>
           <ModalV2.Portal>
             <ModalV2.Overlay />
-            <ModalV2.Content class="flex max-h-[90vh] w-[min(460px,calc(100vw-32px))] flex-col overflow-y-auto rounded-[calc(20px*var(--brm))] bg-menu-bg p-4 text-text shadow-popover">
+            <ModalV2.Content class="flex max-h-[90vh] w-[min(460px,calc(100vw-32px))] flex-col overflow-y-auto rounded-[calc(20px*var(--brm))] bg-menu p-4 text-text shadow-popover">
               <Picker slug={slug()} />
             </ModalV2.Content>
           </ModalV2.Portal>

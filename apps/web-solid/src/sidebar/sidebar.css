@@ -774,8 +774,7 @@
 /* ===== Main panes ----------------------------------------------------- */
 
 /* The chat pane, and the info pane beside it when it is open: rounded panes under the top bar,
- * 8px apart, with no border. In frost each is the denser glass; in solid each is the panel
- * colour against the darker shell. */
+ * 8px apart, with no border. Each is the panel colour against the sidebar colour. */
 .sidebar-shell .main-row {
   gap: 8px;
   margin: 0 8px 8px 0;

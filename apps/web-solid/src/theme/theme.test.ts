@@ -1,244 +1,192 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { buildDoc, buildTokensFile, DOC_FILE, TOKENS_FILE } from "../../scripts/gen-theme"
-import { parseKat, ROOT } from "../../scripts/theme-tokens"
-import { applyCommitted, CACHE_KEY, compileTheme, endPreview, preview, resolveLook, writeCache } from "./apply"
-import { DEFAULT_LOOK, DEFAULT_TINT, formatLook, parseLook, STYLES, styleOf, withStyle, type Look } from "./look"
-import { KNOWN_TOKENS } from "./known-tokens"
-import { PRESETS, presetFor } from "./presets"
-import { FIELDS, PRESET_IDS, parseTheme, resolveTheme, type Theme } from "./schema"
+import { applyCommitted, CACHE_KEY, endPreview, preview, resolveLook, writeCache } from "./apply"
+import { BUILT_IN_THEMES } from "./builtins"
+import { canonicalColor, colorToHex, pairVsCodeThemes, parseAnyThemeFile, parseThemeFile, parseVsCodeThemeFile, stripJsonComments } from "./import"
+import { colorsFor, DEFAULT_LOOK, formatLook, parseLook, withHalf, withTheme, type Look } from "./look"
+import {
+  DEFAULT_DARK_COLORS,
+  DEFAULT_LIGHT_COLORS,
+  oklchOf,
+  readStoredThemes,
+  serializeThemeFile,
+  THEME_COLOR_ROLES,
+  themeModes,
+  TOKEN_ROLES,
+  tokensFor,
+  type ThemeDefinition,
+} from "./palette"
 
-const base = { version: 1, name: "t" }
+const KAT = readFileSync(join(import.meta.dir, "../../../../packages/ui/src/styles/kat.css"), "utf8")
+const grove = BUILT_IN_THEMES.find((t) => t.id === "grove")!
+const imported = parseThemeFile({ version: 1, name: "Aurora", appearance: "dark", colors: { canvas: "#102030", accent: "#e05050" } })
 
-/** Parses and resolves a fixture theme, or throws. */
-function res(theme: unknown) {
-  const p = parseTheme(theme)
-  if (!p.ok) throw new Error(p.errors[0])
-  const r = resolveTheme(p.theme, presetFor)
-  if (!r.ok) throw new Error(r.error)
-  return r.resolved
+const dracula = {
+  name: "Dracula",
+  type: "dark",
+  colors: {
+    "editor.background": "#282A36",
+    "editor.foreground": "#F8F8F2",
+    "sideBar.background": "#21222C",
+    focusBorder: "#6272A4",
+    "button.background": "#44475A",
+    "list.hoverBackground": "#44475A75",
+  },
+  tokenColors: [],
 }
 
-function errorsOf(theme: unknown): string[] {
-  const r = parseTheme(theme)
-  return r.ok ? [] : r.errors
+const luminance = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+const contrast = (a: string, b: string) => {
+  const [x, y] = [luminance(a), luminance(b)]
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
 }
 
-// Each row is a bad theme and the first error it must produce. The error starts with the
-// key that is wrong, so a person can find it.
-const BAD: [string, unknown, string][] = [
-  ["not json", "{ nope", "json: "],
-  ["an array", "[]", "json: expected an object"],
-  ["a bad version", { ...base, version: 2 }, "version: expected 1, got 2"],
-  ["no name", { version: 1 }, "name: expected 1 to 48 characters"],
-  ["a long name", { version: 1, name: "x".repeat(49) }, "name: expected 1 to 48 characters"],
-  ["raw css", { ...base, css: "body{}" }, "css: unknown key"],
-  ["an unknown preset", { ...base, extends: "neon" }, 'extends: expected one of plum, bluebird, ocean, periwinkle, lilac, orchid, sakura, coral, sage, mint, teal, slate, graphite, mono, got "neon"'],
-  ["an appearance key", { ...base, appearance: "light" }, "appearance: unknown key"],
-  ["a group that is not an object", { ...base, colors: "red" }, 'colors: expected an object, got "red"'],
-  ["an unknown color key", { ...base, colors: { accnt: "red" } }, "colors.accnt: unknown key"],
-  ["a color that is not one", { ...base, colors: { accent: "big" } }, 'colors.accent: expected a color, got "big"'],
-  ["a color that injects", { ...base, colors: { accent: "red; background: url(x)" } }, "colors.accent: expected a color"],
-  ["a color that reads a variable", { ...base, colors: { bg: "var(--bg)" } }, "colors.bg: expected a color"],
-  ["a color that is a number", { ...base, colors: { text: 5 } }, "colors.text: expected a color, got 5"],
-  ["a radius that is not a length", { ...base, radius: { bubble: "big" } }, 'radius.bubble: expected a length, got "big"'],
-  ["a spacing that is not a length", { ...base, spacing: { runGap: "lots" } }, 'spacing.runGap: expected a length, got "lots"'],
-  ["a size with a bad unit", { ...base, size: { railWidth: "60vw" } }, 'size.railWidth: expected a length, got "60vw"'],
-  ["a scale that is a string", { ...base, radius: { scale: "2" } }, 'radius.scale: expected a number, got "2"'],
-  ["a font that breaks out", { ...base, type: { sans: "a; b" } }, 'type.sans: expected a font family list, got "a; b"'],
-  ["a weight that is not a number", { ...base, type: { weightBold: "bold" } }, 'type.weightBold: expected a number, got "bold"'],
-  ["a token that is not in tokens.md", { ...base, tokens: { "--nope": "1px" } }, "tokens.--nope: unknown token"],
-  ["a motion token", { ...base, tokens: { "--spring250-duration": "9s" } }, "tokens.--spring250-duration: unknown token"],
-  ["a token with a url", { ...base, tokens: { "--tab-shadow": "url(https://x)" } }, "tokens.--tab-shadow: expected a CSS value"],
-  ["a token of the wrong kind", { ...base, tokens: { "--bubble-pad-x": "red" } }, 'tokens.--bubble-pad-x: expected a length, got "red"'],
-  ["a variant that is not light", { ...base, variants: { dark: {} } }, 'variants.dark: unknown key, only "light" is allowed'],
-  ["a bad value in a variant", { ...base, variants: { light: { colors: { bg: "big" } } } }, 'variants.light.colors.bg: expected a color, got "big"'],
-  ["a motion key", { ...base, motion: { duration: 300 } }, "motion: unknown key"],
-]
+/** The declarations of one kat.css rule, as a map. */
+function katRule(selector: string, after: string): Record<string, string> {
+  const start = KAT.indexOf(`${selector} {`, KAT.indexOf(after))
+  const body = KAT.slice(KAT.indexOf("{", start) + 1, KAT.indexOf("\n}", start))
+  return Object.fromEntries(body.split(";").map((d) => d.trim()).filter(Boolean).map((d) => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()]))
+}
 
-describe("a bad theme names the wrong key", () => {
-  for (const [label, theme, first] of BAD) {
-    test(label, () => {
-      const errors = errorsOf(theme)
-      expect(errors.length).toBeGreaterThan(0)
-      expect(errors[0]).toStartWith(first)
-    })
-  }
-
-  test("every problem is reported, not only the first", () => {
-    const errors = errorsOf({ ...base, colors: { accent: "big" }, radius: { bubble: "big" }, size: { nope: 1 } })
-    expect(errors.map((e) => e.split(":")[0])).toEqual(["colors.accent", "radius.bubble", "size.nope"])
+describe("the palette on kiko's tokens", () => {
+  test("kat.css paints t3code's stock palette before any theme loads", () => {
+    // The 4e block is what a fresh browser sees. It must equal what the theme code paints.
+    expect(katRule(":root", "4e. The palette")).toEqual(tokensFor(DEFAULT_DARK_COLORS))
+    expect(katRule(':root[data-appearance="light"]', "4e. The palette")).toEqual(tokensFor(DEFAULT_LIGHT_COLORS))
   })
 
-  test("a theme with errors has no theme to apply", () => {
-    expect(compileTheme(JSON.stringify({ ...base, colors: { accent: "big" } })).ok).toBe(false)
+  test("every token a theme sets is one kat.css declares, so a theme reaches the UI", () => {
+    const declared = new Set([...KAT.matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1]))
+    for (const token of Object.keys(tokensFor(DEFAULT_DARK_COLORS))) expect([token, declared.has(token)]).toEqual([token, true])
+  })
+
+  test("each role lands on its token, and the hue follows the accent", () => {
+    const vars = tokensFor(grove.variants!.dark!)
+    for (const [token, role] of TOKEN_ROLES) expect(vars[token]).toBe(grove.variants!.dark![role])
+    expect(Number(vars["--hue"])).toBeCloseTo(oklchOf(grove.variants!.dark!.accent)!.h, 0)
+    expect(vars["--tint"]).toContain(grove.variants!.dark!.text)
+  })
+
+  test("hex and oklch read to the same lightness, chroma and hue", () => {
+    const hex = oklchOf("#346bf1")!
+    const ok = oklchOf(canonicalColor("#346bf1")!)!
+    expect([hex.l, hex.c, hex.h].map((n) => n.toFixed(2))).toEqual([ok.l, ok.c, ok.h].map((n) => n.toFixed(2)))
+  })
+
+  test("every built-in is t3code's: valid, stored safely, and draws both modes", () => {
+    expect(BUILT_IN_THEMES.map((t) => t.id)).toEqual(["t3-chat", "grove", "ocean", "ember", "iris"])
+    // Reading them back through the store's guard drops nothing, so every color is a safe literal.
+    expect(readStoredThemes(JSON.parse(JSON.stringify(BUILT_IN_THEMES)))).toEqual(BUILT_IN_THEMES as ThemeDefinition[])
+    for (const theme of BUILT_IN_THEMES) expect(themeModes(theme)).toEqual(["light", "dark"])
   })
 })
 
-describe("good themes", () => {
-  test("a two line theme works and keeps everything else", () => {
-    const r = res({ version: 1, name: "blue", colors: { accent: "oklch(0.7 0.14 250)" } })
-    expect(r).toEqual({ dark: { "--accent": "oklch(0.7 0.14 250)" }, light: { "--accent": "oklch(0.7 0.14 250)" } })
+describe("stored themes", () => {
+  test("a color that could end the declaration is dropped for the stock one", () => {
+    const [theme] = readStoredThemes([{ id: "x", label: "X", appearance: "dark", colors: { canvas: "red; background: url(x)", text: "#fff" } }])
+    expect([theme!.colors.canvas, theme!.colors.text]).toEqual([DEFAULT_DARK_COLORS.canvas, "#fff"])
   })
 
-  test("numbers outside the range are clamped, with a note", () => {
-    const r = parseTheme({ ...base, radius: { bubble: 5000 }, type: { lineHeight: 99, weightBold: 1000 } })
-    expect(r.ok && r.theme.radius?.bubble).toBe("999px")
-    expect(r.ok && r.theme.type?.lineHeight).toBe(3)
-    expect(r.ok && r.theme.type?.weightBold).toBe(900)
-    expect(r.ok && r.notes).toContain("radius.bubble: clamped to 999px")
-  })
-
-  test("a number is pixels and a string keeps its unit", () => {
-    expect(res({ ...base, spacing: { runGap: 20, rowGap: "0.25rem" } }).dark).toEqual({ "--run-gap": "20px", "--row-gap": "0.25rem" })
-  })
-
-  test("scale multiplies the default and a set value, and leaves the pill alone", () => {
-    expect(res({ ...base, radius: { scale: 0.5, small: "20px" } }).dark).toEqual({
-      "--radius-bubble": "9px",
-      "--radius-bubble-tight": "4px",
-      "--radius-sm": "10px",
-      "--radius-row": "10px",
-    })
-  })
-
-  test("tokens are applied after the groups", () => {
-    expect(res({ ...base, colors: { bg: "#000" }, tokens: { "--bg": "#111", "--l-bg": 0.5, "--tab-shadow": "0 1px 2px #000" } }).dark).toEqual({ "--bg": "#111", "--l-bg": "0.5", "--tab-shadow": "0 1px 2px #000" })
-  })
-
-  test("extends inherits, and the child wins", () => {
-    const r = res({ ...base, extends: "bluebird", colors: { accent: "#c00" } })
-    expect(r.dark["--accent"]).toBe("#c00")
-    expect(r.dark["--hue"]).toBe("245") // from bluebird
-    expect(r.light["--hue"]).toBe("245")
-  })
-
-  test("a light variant layers on top for the light appearance only", () => {
-    const r = res({ ...base, colors: { bg: "#111" }, variants: { light: { colors: { bg: "#eee" }, tokens: { "--scrim": "#0004" } } } })
-    expect(r.light).toEqual({ "--bg": "#eee", "--scrim": "#0004" })
-    expect(r.dark).toEqual({ "--bg": "#111" })
-  })
-
-  test("mono flips the own bubble between appearances", () => {
-    const r = res(PRESETS.mono)
-    expect([r.dark["--l-brand-user"], r.light["--l-brand-user"]]).toEqual(["0.9", "0.22"])
-  })
-
-  test("a chain that loops or runs too long is an error, not a hang", () => {
-    const loop: Theme = { version: 1, name: "a", extends: "x" }
-    const r = resolveTheme(loop, () => loop)
-    expect(r.ok).toBe(false)
-  })
-
-  test("every preset is valid and resolves", () => {
-    expect(Object.keys(PRESETS).sort()).toEqual([...PRESET_IDS].sort())
-    for (const [id, preset] of Object.entries(PRESETS)) {
-      const c = compileTheme(JSON.stringify(preset))
-      expect(c.ok, id).toBe(true)
-    }
-  })
-})
-
-describe("every token is reachable", () => {
-  const tokensMd = readFileSync(join(ROOT, "packages/ui/src/styles/tokens.md"), "utf8")
-  const named = [...new Set([...tokensMd.matchAll(/`(--[a-z0-9-]+)`/g)].map((m) => m[1]!))]
-  const viaField = new Set(FIELDS.map((f) => f.variable))
-
-  test("tokens.md names variables", () => {
-    expect(named.length).toBeGreaterThan(60)
-  })
-
-  test("each one has a key in the format or is in the tokens table", () => {
-    const missing = named.filter((n) => !viaField.has(n) && !(n in KNOWN_TOKENS))
-    expect(missing).toEqual([])
-  })
-
-  test("a theme can set each one through tokens, with a value of its kind", () => {
-    const sample = { color: "#123456", length: "10px", number: 0.5, font: "serif", weight: 500, any: "none" } as const
-    const failures: string[] = []
-    for (const [name, kind] of Object.entries(KNOWN_TOKENS)) {
-      const r = parseTheme({ ...base, tokens: { [name]: sample[kind] } })
-      if (!r.ok) failures.push(r.errors[0]!)
-    }
-    expect(failures).toEqual([])
-  })
-
-  test("the format has no motion", () => {
-    expect([...viaField, ...Object.keys(KNOWN_TOKENS)].filter((v) => /spring|ease|duration|transition|animation/.test(v))).toEqual([])
-  })
-})
-
-describe("the files that follow kat.css", () => {
-  const css = readFileSync(join(ROOT, "packages/ui/src/styles/kat.css"), "utf8")
-
-  test("known-tokens.ts is current", () => {
-    expect(readFileSync(TOKENS_FILE, "utf8")).toBe(buildTokensFile(css))
-  })
-
-  test("docs/theming.md is current", () => {
-    expect(readFileSync(DOC_FILE, "utf8")).toBe(buildDoc(css))
-  })
-
-  test("a field default matches kat.css", () => {
-    const defaults = parseKat(css)
-    for (const f of FIELDS) {
-      if (f.default === undefined || f.variable.endsWith("-scale")) continue
-      expect([f.variable, defaults.get(f.variable)]).toEqual([f.variable, f.default])
-    }
-  })
-
-  test("every field variable is declared in kat.css or is derived from one", () => {
-    const defaults = parseKat(css)
-    // --danger, --success and --gold were once registered but never declared, so they rendered transparent.
-    const undeclared = FIELDS.filter((f) => !f.variable.endsWith("-scale") && !defaults.has(f.variable)).map((f) => f.variable)
-    expect(undeclared.sort()).toEqual([])
+  test("malformed entries and duplicate ids are skipped", () => {
+    const good = { id: "a", label: "A", appearance: "light", colors: {} }
+    expect(readStoredThemes([good, { ...good, label: "again" }, { id: "Bad Id", label: "B", appearance: "light", colors: {} }, null]).map((t) => t.label)).toEqual(["A"])
+    expect(readStoredThemes("nope")).toEqual([])
   })
 })
 
 describe("the look record", () => {
   test("nothing stored, or anything unreadable, is the default look", () => {
-    for (const text of [null, "", "{ nope", "[]", JSON.stringify({ version: 1, kind: "look", mode: "neon", preset: "nope" })]) {
-      expect(parseLook(text)).toEqual(DEFAULT_LOOK)
-    }
+    for (const text of [null, "", "{ nope", "[]", '{"version":1}']) expect(parseLook(text)).toEqual(DEFAULT_LOOK)
   })
 
-  test("an older record that is a bare theme becomes a custom theme", () => {
-    const look = parseLook(JSON.stringify({ version: 1, name: "old", colors: { accent: "#c00" } }))
-    expect(look.mode).toBe("system")
-    expect("custom" in look.theme && look.theme.custom.name).toBe("old")
+  test("a record from before t3code's themes keeps its mode and birds, and drops the old looks", () => {
+    const old = JSON.stringify({ version: 1, kind: "look", mode: "light", material: "frost", tint: 0.5, preset: "plum", wallpaper: null, birds: { scout: "robin" } })
+    expect(parseLook(old)).toEqual({ ...DEFAULT_LOOK, mode: "light", birds: { scout: "robin" } })
   })
 
-  test("a look survives the round trip, and bad bird entries are dropped", () => {
-    const look: Look = { mode: "light", material: "solid", tint: 0.25, theme: { preset: "sage" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: { scout: "cardinal.2.leaf" } }
+  test("a look survives the round trip, carrying the imported theme its half names", () => {
+    const look = withHalf(withTheme(DEFAULT_LOOK, grove), "dark", imported)
+    expect([look.light, look.dark, look.themes.map((t) => t.id)]).toEqual(["grove", "aurora", ["aurora"]])
     expect(parseLook(formatLook(look))).toEqual(look)
-    const raw = JSON.parse(formatLook(look))
-    raw.birds = { scout: "cardinal.2.leaf", "Bad Slug": "x", other: "<script>" }
-    expect(parseLook(JSON.stringify(raw)).birds).toEqual({ scout: "cardinal.2.leaf" })
   })
 
-  test("a look without a material or tint is frost at the default tint, and a tint is clamped", () => {
-    const old = parseLook(JSON.stringify({ version: 1, kind: "look", mode: "dark", preset: "sage", birds: {} }))
-    expect([old.material, old.tint]).toEqual(["frost", DEFAULT_TINT])
-    const loud = parseLook(JSON.stringify({ version: 1, kind: "look", mode: "dark", material: "chrome", tint: 7 }))
-    expect([loud.material, loud.tint]).toEqual(["frost", 1])
-    expect(parseLook(JSON.stringify({ version: 1, kind: "look", tint: -1 })).tint).toBe(0)
+  test("an id the record cannot resolve falls back to the stock palette", () => {
+    const raw = JSON.parse(formatLook({ ...DEFAULT_LOOK, light: "grove" }))
+    expect(parseLook(JSON.stringify({ ...raw, light: "missing", dark: "Not An Id" }))).toEqual(DEFAULT_LOOK)
   })
 
-  test("the three styles map to a material and an appearance, and back", () => {
-    const base = { ...DEFAULT_LOOK, mode: "system" as const }
-    expect(withStyle(base, "graphite")).toMatchObject({ material: "solid", mode: "dark" })
-    expect(withStyle(base, "porcelain")).toMatchObject({ material: "solid", mode: "light" })
-    expect(withStyle({ ...base, material: "solid", mode: "light" }, "frost")).toMatchObject({ material: "frost", mode: "light" })
-    for (const style of STYLES) {
-      const look = withStyle(base, style)
-      const appearance = look.mode === "light" ? "light" : "dark"
-      expect(styleOf(look, appearance)).toBe(style)
-    }
+  test("a theme takes every half it can draw, and a light-only theme leaves dark alone", () => {
+    const lightOnly = parseThemeFile({ version: 1, name: "Paper", appearance: "light", colors: { canvas: "#fff8ee" } })
+    const look = withTheme({ ...DEFAULT_LOOK, dark: "iris" }, lightOnly)
+    expect([look.light, look.dark]).toEqual(["paper", "iris"])
+    expect(colorsFor(look, "light", []).canvas).toBe(lightOnly.colors.canvas)
+    expect(withTheme(look, null)).toEqual({ ...DEFAULT_LOOK })
   })
 
-  test("the server keeps it, because it is a version 1 object", () => {
-    expect(JSON.parse(formatLook(DEFAULT_LOOK)).version).toBe(1)
+  test("a half whose theme is gone or cannot draw that mode paints the stock palette", () => {
+    expect(colorsFor({ ...DEFAULT_LOOK, dark: "gone" }, "dark", [])).toEqual(DEFAULT_DARK_COLORS)
+    expect(colorsFor({ ...DEFAULT_LOOK, light: "aurora", themes: [imported] }, "light", [])).toEqual(DEFAULT_LIGHT_COLORS)
+  })
+
+  test("the server keeps it: a version 1 object well under its 32 KB limit with two imported themes", () => {
+    const other = parseThemeFile({ version: 1, name: "Other", appearance: "light", colors: { canvas: "#fefefe" }, variants: { dark: { canvas: "#010101" } } })
+    const text = formatLook(withHalf(withHalf(DEFAULT_LOOK, "light", other), "dark", imported))
+    expect(JSON.parse(text).version).toBe(1)
+    expect(text.length).toBeLessThan(16 * 1024)
+  })
+})
+
+describe("theme files", () => {
+  test("a file fills omitted roles and stores colors as oklch", () => {
+    expect(imported.id).toBe("aurora")
+    expect(imported.colors.canvas).toBe(canonicalColor("#102030")!)
+    expect(imported.colors.text).toBe(canonicalColor(DEFAULT_DARK_COLORS.text)!)
+    expect(Object.keys(imported.colors).sort()).toEqual([...THEME_COLOR_ROLES].sort())
+  })
+
+  test("unknown roles, contextual colors, and reserved and built-in ids are refused", () => {
+    expect(() => parseThemeFile({ version: 1, name: "X", appearance: "dark", colors: { nope: "#fff" } })).toThrow("supported theme color role")
+    expect(() => parseThemeFile({ version: 1, name: "X", appearance: "dark", colors: { canvas: "var(--x)" } })).toThrow("literal CSS color")
+    expect(() => parseThemeFile({ version: 1, name: "Dark", appearance: "dark", colors: { canvas: "#000" } })).toThrow("reserved")
+    expect(() => parseThemeFile({ version: 1, name: "Grove", appearance: "dark", colors: { canvas: "#000" } })).toThrow("reserved")
+    expect(canonicalColor("currentColor")).toBeNull()
+  })
+
+  test("an exported theme imports to the same theme, and a built-in exports as a file t3code reads", () => {
+    const theme = parseThemeFile({ version: 1, name: "Round Trip", appearance: "dark", colors: { canvas: "#123456" }, variants: { light: { canvas: "#fefefe" } } })
+    expect(parseAnyThemeFile(serializeThemeFile(theme))).toEqual(theme)
+    const file = JSON.parse(serializeThemeFile(grove))
+    expect([file.version, file.name, file.appearance, Object.keys(file.variants)]).toEqual([1, "Grove", "light", ["dark"]])
+  })
+})
+
+describe("VS Code themes", () => {
+  test("Dracula converts to a dark palette on its own background, with readable text", () => {
+    const theme = parseVsCodeThemeFile(dracula)
+    expect(theme.appearance).toBe("dark")
+    expect(theme.colors.canvas).toBe(canonicalColor("#282a36")!)
+    expect(tokensFor(theme.colors)["--bg-sidebar"]).toBe(canonicalColor("#21222c")!)
+    expect(contrast(colorToHex(theme.colors.text)!, "#282a36")).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(colorToHex(theme.colors.sidebarForeground)!, "#21222c")).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(colorToHex(theme.colors.messageActionForeground)!, colorToHex(theme.colors.messageAction)!)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test("comments and trailing commas in JSONC are stripped, not text inside strings", () => {
+    const text = stripJsonComments('{\n // a comment\n "url": "https://x.y/z", /* block */ "a": [1, 2,],\n}')
+    expect(JSON.parse(text)).toEqual({ url: "https://x.y/z", a: [1, 2] })
+  })
+
+  test("a light and a dark file with the same base name pair into one two-mode theme", () => {
+    const light = parseVsCodeThemeFile({ name: "Solar Light", type: "light", colors: { "editor.background": "#fdf6e3" } })
+    const dark = parseVsCodeThemeFile({ name: "Solar Dark", type: "dark", colors: { "editor.background": "#002b36" } })
+    const [paired, ...rest] = pairVsCodeThemes([light, dark])
+    expect(rest).toEqual([])
+    expect(paired!.label).toBe("Solar")
+    expect(themeModes(paired!)).toEqual(["light", "dark"])
   })
 })
 
@@ -252,8 +200,12 @@ function fakeRoot() {
     style: {
       setProperty: (k: string, v: string) => void (style[k] = v),
       removeProperty: (k: string) => void delete style[k],
-      set colorScheme(v: string) { style.colorScheme = v },
-      set backgroundColor(v: string) { style.backgroundColor = v },
+      set colorScheme(v: string) {
+        style.colorScheme = v
+      },
+      set backgroundColor(v: string) {
+        style.backgroundColor = v
+      },
     },
     classList: { toggle: (c: string, on: boolean) => void (on ? classes.add(c) : classes.delete(c)) },
   }
@@ -266,62 +218,24 @@ describe("applying", () => {
     delete g.document
   })
 
-  test("sets the variables and the appearance, previews, reverts, and clears what a reset leaves", () => {
+  test("paints the half on screen, previews another look, and puts the saved one back", () => {
     const { root, style, classes, dataset } = fakeRoot()
-    g.document = { documentElement: root }
-    const custom: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "c", colors: { accent: "#c00" } } }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }
-    applyCommitted(custom)
-    expect([style["--accent"], dataset.appearance, classes.has("dark")]).toEqual(["#c00", "dark", true])
-    preview({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} })
-    expect([style["--accent"] ?? "", style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["", "0.22", "light", false])
+    g.document = { documentElement: root, querySelectorAll: () => [] }
+    applyCommitted({ ...withTheme(DEFAULT_LOOK, grove), mode: "dark" }, [])
+    expect([style["--bg"], style["--accent"], dataset.appearance, classes.has("dark")]).toEqual([grove.variants!.dark!.canvas, grove.variants!.dark!.accent, "dark", true])
+    preview({ ...withTheme(DEFAULT_LOOK, imported), mode: "dark" })
+    expect(style["--bg"]).toBe(imported.colors.canvas)
     endPreview()
-    expect([style["--accent"], "--l-brand-user" in style, dataset.appearance]).toEqual(["#c00", false, "dark"])
-    expect([dataset.material, style["--tinge"]]).toEqual(["solid", "0.5"])
-    applyCommitted({ ...DEFAULT_LOOK, mode: "dark" })
-    expect(Object.keys(style).filter((k) => k.startsWith("--") && !["--boot-bg", "--tinge", "--glass", "--frost", "--grain"].includes(k))).toEqual([])
-    expect([dataset.material, style["--tinge"]]).toEqual(["frost", String(DEFAULT_TINT)])
-  })
-})
-
-describe("a wallpaper", () => {
-  const g = globalThis as { document?: unknown }
-  afterEach(() => {
-    delete g.document
-  })
-  const pic = "data:image/webp;base64,UklGRg=="
-
-  test("round-trips with the glass, and the glass is clamped", () => {
-    const look: Look = { ...DEFAULT_LOOK, wallpaper: pic, glass: 0.6 }
-    expect(parseLook(formatLook(look))).toEqual(look)
-    const raw = JSON.parse(formatLook(look))
-    expect(parseLook(JSON.stringify({ ...raw, glass: 0.01 })).glass).toBe(0.15)
-    expect(parseLook(JSON.stringify({ ...raw, glass: 9 })).glass).toBe(1)
-    expect(parseLook(JSON.stringify({ ...raw, wallpaper: "javascript:x" })).wallpaper).toBe(null)
+    expect(style["--bg"]).toBe(grove.variants!.dark!.canvas)
+    applyCommitted({ ...DEFAULT_LOOK, mode: "light" }, [])
+    expect([style["--bg"], dataset.appearance, classes.has("dark"), style["--boot-bg"]]).toEqual([DEFAULT_LIGHT_COLORS.canvas, "light", false, DEFAULT_LIGHT_COLORS.canvas])
   })
 
-  test("its frost, where, and grain round-trip and are clamped", () => {
-    const look: Look = { ...DEFAULT_LOOK, wallpaper: pic, frost: 30, frostWhere: "bottom", grain: 0.8 }
-    expect(parseLook(formatLook(look))).toEqual(look)
-    const raw = JSON.parse(formatLook(look))
-    const again = (patch: object) => parseLook(JSON.stringify({ ...raw, ...patch }))
-    expect([again({ frost: 999 }).frost, again({ frost: -3 }).frost, again({ frost: 7.6 }).frost]).toEqual([48, 0, 8])
-    expect([again({ grain: 5 }).grain, again({ frostWhere: "top" }).frostWhere]).toEqual([1, "everywhere"])
-  })
-
-  test("sets the frost, its place, and the grain on the root", () => {
-    const { root, style, dataset } = fakeRoot()
-    g.document = { documentElement: root }
-    applyCommitted({ ...DEFAULT_LOOK, mode: "dark", wallpaper: pic, frost: 0, frostWhere: "bottom", grain: 0 })
-    expect([style["--frost"], style["--grain"], dataset.frostWhere]).toEqual(["0px", "0", "bottom"])
-  })
-
-  test("paints under frost and not under solid", () => {
-    const { root, style, dataset } = fakeRoot()
-    g.document = { documentElement: root }
-    applyCommitted({ ...DEFAULT_LOOK, mode: "dark", wallpaper: pic, glass: 0.7 })
-    expect(["wallpaper" in dataset, style["--wallpaper"], style["--glass"]]).toEqual([true, `url("${pic}")`, "0.7"])
-    applyCommitted({ ...DEFAULT_LOOK, mode: "dark", material: "solid", wallpaper: pic })
-    expect(["wallpaper" in dataset, "--wallpaper" in style]).toEqual([false, false])
+  test("a half on a theme only this browser's library has still paints", () => {
+    const { root, style } = fakeRoot()
+    g.document = { documentElement: root, querySelectorAll: () => [] }
+    applyCommitted({ ...DEFAULT_LOOK, mode: "dark", dark: "aurora" }, [imported])
+    expect(style["--bg"]).toBe(imported.colors.canvas)
   })
 })
 
@@ -335,28 +249,23 @@ describe("the pre-paint script", () => {
     new Function("document", "localStorage", "matchMedia", script)({ documentElement: root }, storage, () => ({ matches: prefersLight }))
     return { style, classes, dataset }
   }
-  const cacheOf = (look: Look) => JSON.stringify({ v: 2, text: "x", mode: look.mode, material: look.material, tint: look.tint, vars: resolveLook(look) })
+  const cacheOf = (look: Look) => JSON.stringify({ v: 3, text: "x", mode: look.mode, vars: resolveLook(look, []) })
 
-  test("paints the cached variables for the saved appearance", () => {
-    const { style, dataset, classes } = boot(cacheOf({ mode: "light", material: "solid", tint: 0.5, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }))
-    expect([style["--l-brand-user"], dataset.appearance, classes.has("dark")]).toEqual(["0.22", "light", false])
+  test("paints the cached tokens for the saved appearance", () => {
+    const { style, dataset, classes } = boot(cacheOf({ ...withTheme(DEFAULT_LOOK, grove), mode: "light" }))
+    expect([style["--bg"], style["--boot-bg"], dataset.appearance, classes.has("dark")]).toEqual([grove.colors.canvas, grove.colors.canvas, "light", false])
   })
 
-  test("system follows the system", () => {
-    const cache = cacheOf({ mode: "system", material: "solid", tint: 0.5, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} })
-    expect(boot(cache, true).dataset.appearance).toBe("light")
-    expect(boot(cache, false).style["--l-brand-user"]).toBe("0.9")
+  test("system follows the system, half by half", () => {
+    const cache = cacheOf(withHalf(DEFAULT_LOOK, "dark", grove))
+    expect(boot(cache, true).style["--bg"]).toBe(DEFAULT_LIGHT_COLORS.canvas)
+    expect(boot(cache, false).style["--bg"]).toBe(grove.variants!.dark!.canvas)
   })
 
-  test("paints the material and tint before first paint, and frost without a cache", () => {
-    const { style, dataset } = boot(cacheOf({ mode: "dark", material: "solid", tint: 0.2, theme: { preset: "mono" }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }))
-    expect([dataset.material, style["--tinge"]]).toEqual(["solid", "0.2"])
-    expect([boot(null).dataset.material, boot(null).style["--tinge"]]).toEqual(["frost", "0.5"])
-  })
-
-  test("falls back to the system appearance with no cache or a broken one", () => {
-    expect([boot(null).style["--boot-bg"], boot(null).dataset.appearance]).toEqual(["#141414", "dark"])
+  test("with no cache, a broken one, or an old one, it follows the system on kat.css's stock palette", () => {
+    expect([boot(null).style["--boot-bg"], boot(null).dataset.appearance, "--bg" in boot(null).style]).toEqual(["#0a0a0a", "dark", false])
     expect(boot("{ not json", true).dataset.appearance).toBe("light")
+    expect("--l-brand-user" in boot(JSON.stringify({ v: 2, mode: "dark", vars: { dark: { "--l-brand-user": "0.9" } } })).style).toBe(false)
   })
 
   test("reads what writeCache writes", () => {
@@ -366,12 +275,8 @@ describe("the pre-paint script", () => {
       setItem: (k: string, v: string) => void (store[k] = v),
       removeItem: (k: string) => void delete store[k],
     }
-    const look: Look = { mode: "dark", material: "solid", tint: 0.5, theme: { custom: { version: 1, name: "g", colors: { accent: "#0a0" } } }, wallpaper: null, glass: 0.85, frost: 14, frostWhere: "everywhere", grain: 0.3, birds: {} }
-    writeCache("text", look)
-    expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe("#0a0")
-    writeCache("text", { ...look, material: "frost", wallpaper: "data:image/webp;base64,UklGRg==", glass: 0.6 })
-    const booted = boot(store[CACHE_KEY]!)
-    expect(["wallpaper" in booted.dataset, booted.style["--wallpaper"], booted.style["--glass"]]).toEqual([true, 'url("data:image/webp;base64,UklGRg==")', "0.6"])
+    writeCache("text", { ...DEFAULT_LOOK, mode: "dark", dark: "aurora" }, [imported])
+    expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe(imported.colors.accent)
     delete (globalThis as { localStorage?: unknown }).localStorage
   })
 })
