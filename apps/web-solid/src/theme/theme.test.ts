@@ -4,9 +4,15 @@ import { join } from "node:path"
 import { applyCommitted, CACHE_KEY, endPreview, preview, resolveLook, writeCache } from "./apply"
 import { BUILT_IN_THEMES } from "./builtins"
 import { canonicalColor, colorToHex, pairVsCodeThemes, parseAnyThemeFile, parseThemeFile, parseVsCodeThemeFile, stripJsonComments } from "./import"
+import { withPalette } from "../../scripts/gen-palette"
 import { colorsFor, DEFAULT_LOOK, formatLook, parseLook, withHalf, withTheme, type Look } from "./look"
 import {
+  colorsForMode,
   DEFAULT_DARK_COLORS,
+  accentForeground,
+  DEFAULT_TINT,
+  monocodeColors,
+  NEUTRALS,
   DEFAULT_LIGHT_COLORS,
   oklchOf,
   readStoredThemes,
@@ -53,22 +59,56 @@ function katRule(selector: string, after: string): Record<string, string> {
 }
 
 describe("the palette on kiko's tokens", () => {
-  test("kat.css paints t3code's stock palette before any theme loads", () => {
-    // The 4e block is what a fresh browser sees. It must equal what the theme code paints.
-    expect(katRule(":root", "4e. The palette")).toEqual(tokensFor(DEFAULT_DARK_COLORS))
-    expect(katRule(':root[data-appearance="light"]', "4e. The palette")).toEqual(tokensFor(DEFAULT_LIGHT_COLORS))
+  test("kat.css paints the stock palette before any theme loads", () => {
+    // The palette block is what a fresh browser sees. It must equal what the theme code paints.
+    expect(withPalette(KAT)).toBe(KAT)
+    expect(katRule(":root", "palette:start")).toEqual(tokensFor(DEFAULT_DARK_COLORS, "dark"))
+  })
+
+  test("the stock palette is monocode's, and its tint moves every surface", () => {
+    expect([DEFAULT_DARK_COLORS.canvas, DEFAULT_DARK_COLORS.text, DEFAULT_LIGHT_COLORS.canvas]).toEqual(["#171717", "#ebebeb", "#f7f7f7"])
+    // The sidebar is the background 10% toward black in dark, and the background itself in light.
+    expect(oklchOf(DEFAULT_DARK_COLORS.sidebar)!.l).toBeLessThan(oklchOf(DEFAULT_DARK_COLORS.canvas)!.l)
+    expect(DEFAULT_LIGHT_COLORS.sidebar).toBe(DEFAULT_LIGHT_COLORS.canvas)
+    const teal = monocodeColors({ hue: 190, saturation: 40, lightness: 9 }, "dark")
+    for (const role of ["canvas", "sidebar", "surface", "textMuted"] as const) expect(Math.abs(oklchOf(teal[role])!.h - 200)).toBeLessThan(25)
+    expect(monocodeColors({ ...DEFAULT_TINT, lightness: 0 }, "dark").canvas).toBe("#000000")
+  })
+
+  test("every fill is the theme's text over what is beneath, at monocode's strength, in every theme", () => {
+    for (const theme of [{ id: "default", appearance: "dark", colors: DEFAULT_DARK_COLORS, variants: { light: DEFAULT_LIGHT_COLORS } } as ThemeDefinition, ...BUILT_IN_THEMES]) {
+      for (const mode of themeModes(theme)) {
+        const c = colorsForMode(theme, mode)!
+        const vars = tokensFor(c, mode)
+        for (const [token, dark, light] of NEUTRALS) expect(vars[token]).toBe(`color-mix(in oklab, ${c.text} ${mode === "dark" ? dark : light}%, transparent)`)
+        // A few percent of the text shows only where the text stands well apart from the canvas.
+        expect([theme.id, mode, Math.abs(oklchOf(c.text)!.l - oklchOf(c.canvas)!.l) > 0.5]).toEqual([theme.id, mode, true])
+      }
+    }
+    // Selection reads stronger than hover, and the user's bubble stronger than an agent's.
+    const dark = Object.fromEntries(NEUTRALS.map(([t, d]) => [t, d]))
+    expect(dark["--selected-bg"]! > dark["--hover-bg"]! && dark["--assistant-bubble"]! < 10).toBe(true)
+  })
+
+  test("your bubble is the content at 10% in dark and solid in light, and an accent takes it and the send button", () => {
+    const darkVars = tokensFor(DEFAULT_DARK_COLORS, "dark")
+    expect([darkVars["--user-bubble"], darkVars["--accent-fill"], darkVars["--on-accent"]]).toEqual([`color-mix(in oklab, #ebebeb 10%, transparent)`, "#ffffff", "#000000"])
+    const lightVars = tokensFor(DEFAULT_LIGHT_COLORS, "light")
+    expect([lightVars["--user-bubble"], lightVars["--user-bubble-text"]]).toEqual([DEFAULT_LIGHT_COLORS.text, DEFAULT_LIGHT_COLORS.canvas])
+    const pink = tokensFor(DEFAULT_DARK_COLORS, "dark", "#ec4899")
+    expect([pink["--accent-fill"], pink["--on-accent"], pink["--user-bubble"]]).toEqual(["#ec4899", "#000000", "color-mix(in oklab, #ec4899 24%, transparent)"])
+    expect(accentForeground("#1e3a8a")).toBe("#ffffff")
   })
 
   test("every token a theme sets is one kat.css declares, so a theme reaches the UI", () => {
     const declared = new Set([...KAT.matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1]))
-    for (const token of Object.keys(tokensFor(DEFAULT_DARK_COLORS))) expect([token, declared.has(token)]).toEqual([token, true])
+    for (const token of Object.keys(tokensFor(DEFAULT_DARK_COLORS, "dark", "#10b981"))) expect([token, declared.has(token)]).toEqual([token, true])
   })
 
   test("each role lands on its token, and the hue follows the accent", () => {
-    const vars = tokensFor(grove.variants!.dark!)
+    const vars = tokensFor(grove.variants!.dark!, "dark")
     for (const [token, role] of TOKEN_ROLES) expect(vars[token]).toBe(grove.variants!.dark![role])
     expect(Number(vars["--hue"])).toBeCloseTo(oklchOf(grove.variants!.dark!.accent)!.h, 0)
-    expect(vars["--tint"]).toContain(grove.variants!.dark!.text)
   })
 
   test("hex and oklch read to the same lightness, chroma and hue", () => {
@@ -169,7 +209,7 @@ describe("VS Code themes", () => {
     const theme = parseVsCodeThemeFile(dracula)
     expect(theme.appearance).toBe("dark")
     expect(theme.colors.canvas).toBe(canonicalColor("#282a36")!)
-    expect(tokensFor(theme.colors)["--bg-sidebar"]).toBe(canonicalColor("#21222c")!)
+    expect(tokensFor(theme.colors, "dark")["--bg-sidebar"]).toBe(canonicalColor("#21222c")!)
     expect(contrast(colorToHex(theme.colors.text)!, "#282a36")).toBeGreaterThanOrEqual(4.5)
     expect(contrast(colorToHex(theme.colors.sidebarForeground)!, "#21222c")).toBeGreaterThanOrEqual(4.5)
     expect(contrast(colorToHex(theme.colors.messageActionForeground)!, colorToHex(theme.colors.messageAction)!)).toBeGreaterThanOrEqual(4.5)
@@ -195,8 +235,11 @@ function fakeRoot() {
   const style: Record<string, string> = {}
   const classes = new Set<string>(["dark"])
   const dataset: Record<string, string> = {}
+  const attrs: Record<string, string> = {}
   const root = {
     dataset,
+    setAttribute: (k: string, v: string) => void (attrs[k] = v),
+    removeAttribute: (k: string) => void delete attrs[k],
     style: {
       setProperty: (k: string, v: string) => void (style[k] = v),
       removeProperty: (k: string) => void delete style[k],
@@ -209,7 +252,7 @@ function fakeRoot() {
     },
     classList: { toggle: (c: string, on: boolean) => void (on ? classes.add(c) : classes.delete(c)) },
   }
-  return { root, style, classes, dataset }
+  return { root, style, classes, dataset, attrs }
 }
 
 describe("applying", () => {
@@ -257,14 +300,14 @@ describe("the pre-paint script", () => {
   })
 
   test("system follows the system, half by half", () => {
-    const cache = cacheOf(withHalf(DEFAULT_LOOK, "dark", grove))
+    const cache = cacheOf({ ...withHalf(DEFAULT_LOOK, "dark", grove), mode: "system" })
     expect(boot(cache, true).style["--bg"]).toBe(DEFAULT_LIGHT_COLORS.canvas)
     expect(boot(cache, false).style["--bg"]).toBe(grove.variants!.dark!.canvas)
   })
 
-  test("with no cache, a broken one, or an old one, it follows the system on kat.css's stock palette", () => {
-    expect([boot(null).style["--boot-bg"], boot(null).dataset.appearance, "--bg" in boot(null).style]).toEqual(["#0a0a0a", "dark", false])
-    expect(boot("{ not json", true).dataset.appearance).toBe("light")
+  test("with no cache, a broken one, or an old one, it opens dark, monocode's default, on kat.css's stock palette", () => {
+    expect([boot(null, true).style["--boot-bg"], boot(null, true).dataset.appearance, "--bg" in boot(null).style]).toEqual(["#171717", "dark", false])
+    expect(boot("{ not json", true).dataset.appearance).toBe("dark")
     expect("--l-brand-user" in boot(JSON.stringify({ v: 2, mode: "dark", vars: { dark: { "--l-brand-user": "0.9" } } })).style).toBe(false)
   })
 

@@ -21,7 +21,7 @@ export const appearanceOf = (mode: ThemeMode): ThemeAppearance => resolveAppeara
 
 /** The tokens each half paints. */
 export function resolveLook(look: Look, library: readonly ThemeDefinition[]): Record<ThemeAppearance, Record<string, string>> {
-  return { light: tokensFor(colorsFor(look, "light", library)), dark: tokensFor(colorsFor(look, "dark", library)) }
+  return { light: tokensFor(colorsFor(look, "light", library), "light", look.accent), dark: tokensFor(colorsFor(look, "dark", library), "dark", look.accent) }
 }
 
 let applied = new Set<string>()
@@ -33,7 +33,7 @@ function paint(look: Look, library: readonly ThemeDefinition[]): void {
   const root = document.documentElement
   const appearance = appearanceOf(look.mode)
   const colors = colorsFor(look, appearance, library)
-  const next = tokensFor(colors)
+  const next = tokensFor(colors, appearance, look.accent)
   for (const name of applied) if (!(name in next)) root.style.removeProperty(name)
   for (const [name, value] of Object.entries(next)) root.style.setProperty(name, value)
   applied = new Set(Object.keys(next))
@@ -45,7 +45,8 @@ function paint(look: Look, library: readonly ThemeDefinition[]): void {
   root.style.setProperty("--boot-bg", colors.canvas)
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute("content", colors.canvas)
   // The tab icon is the kiko bird, so it wears the accent too.
-  setFavicon(oklchOf(colors.accent)?.h ?? 340, accentChroma(colors))
+  const brand = look.accent ?? colors.accent
+  setFavicon(oklchOf(brand)?.h ?? 340, accentChroma(brand))
 }
 
 function watch(): void {

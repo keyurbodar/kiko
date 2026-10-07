@@ -9,23 +9,27 @@
 // paints the same look.
 
 import { BUILT_IN_THEMES } from "./builtins"
-import { colorsForMode, defaultColors, readStoredThemes, isThemeId, type ThemeAppearance, type ThemeColors, type ThemeDefinition, type ThemeMode } from "./palette"
+import { colorsForMode, DEFAULT_TINT, isAccent, isThemeId, monocodeColors, readStoredThemes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition, type ThemeMode, type Tint } from "./palette"
 
 export type Mode = ThemeMode
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
 
 export type Look = {
   mode: Mode
-  /** The theme id for each half. Null is t3code's stock palette. */
+  /** The theme id for each half. Null is the stock palette, monocode's, in `tint`. */
   light: string | null
   dark: string | null
   /** The imported themes `light` and `dark` name. Built-ins are never carried. */
   themes: readonly ThemeDefinition[]
+  /** Monocode's tint of the stock palette. */
+  tint: Tint
+  /** Monocode's accent color, a hex, or null for the theme's own. */
+  accent: string | null
   /** An agent slug to the bird it wears. A slug without an entry gets the bird its slug seeds. */
   birds: Readonly<Record<string, string>>
 }
 
-export const DEFAULT_LOOK: Look = { mode: "system", light: null, dark: null, themes: [], birds: {} }
+export const DEFAULT_LOOK: Look = { mode: "dark", light: null, dark: null, themes: [], tint: DEFAULT_TINT, accent: null, birds: {} }
 
 const MAX_BIRDS = 200
 const BIRD_ID = /^[a-z0-9.-]{1,48}$/
@@ -45,23 +49,27 @@ export function parseLook(text: string | null): Look {
     return DEFAULT_LOOK
   }
   if (!isObject(raw) || raw.kind !== "look") return DEFAULT_LOOK
-  const mode = MODES.includes(raw.mode as Mode) ? (raw.mode as Mode) : "system"
+  const mode = MODES.includes(raw.mode as Mode) ? (raw.mode as Mode) : DEFAULT_LOOK.mode
   const birds: Record<string, string> = {}
   if (isObject(raw.birds)) {
     for (const [slug, id] of Object.entries(raw.birds).slice(0, MAX_BIRDS)) {
       if (SLUG.test(slug) && typeof id === "string" && BIRD_ID.test(id)) birds[slug] = id
     }
   }
-  // Records from before t3code's themes carry a preset or a custom theme instead. Those looks are
+  // Records from before these themes carry a preset or a custom theme instead. Those looks are
   // gone, so the halves start on the stock palette and the mode and birds carry over.
   const themes = readStoredThemes(raw.themes).filter((t) => !isBuiltIn(t.id)).slice(0, 2)
   const half = (v: unknown) => (isThemeId(v) && (isBuiltIn(v) || themes.some((t) => t.id === v)) ? v : null)
-  return { mode, light: half(raw.light), dark: half(raw.dark), themes, birds }
+  const t = isObject(raw.tint) ? raw.tint : {}
+  const part = (v: unknown, r: { min: number; max: number; default: number }) => (typeof v === "number" && Number.isFinite(v) ? Math.round(Math.min(r.max, Math.max(r.min, v))) : r.default)
+  const tint = { hue: part(t.hue, TINT_RANGE.hue), saturation: part(t.saturation, TINT_RANGE.saturation), lightness: part(t.lightness, TINT_RANGE.lightness) }
+  const accent = isAccent(raw.accent) ? raw.accent.toLowerCase() : null
+  return { mode, light: half(raw.light), dark: half(raw.dark), themes, tint, accent, birds }
 }
 
 export function formatLook(look: Look): string {
   const named = new Set([look.light, look.dark])
-  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, light: look.light, dark: look.dark, themes: look.themes.filter((t) => named.has(t.id)), birds: look.birds })
+  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, light: look.light, dark: look.dark, themes: look.themes.filter((t) => named.has(t.id)), tint: look.tint, accent: look.accent, birds: look.birds })
 }
 
 /** Finds a theme by id: a built-in, one the look carries, or one in this browser's library. */
@@ -73,7 +81,7 @@ export function findTheme(id: string | null, look: Look, library: readonly Theme
 /** The colors one half paints. A half whose theme is gone, or cannot draw that mode, falls back to stock. */
 export function colorsFor(look: Look, half: ThemeAppearance, library: readonly ThemeDefinition[]): ThemeColors {
   const theme = findTheme(look[half], look, library)
-  return (theme && colorsForMode(theme, half)) ?? defaultColors(half)
+  return (theme && colorsForMode(theme, half)) ?? monocodeColors(look.tint, half)
 }
 
 /** Gives the theme every half it can draw. Null puts the stock palette back on both. */

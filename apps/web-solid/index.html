@@ -4,15 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="theme-color" content="#171717" />
     <title>kiko</title>
     <link rel="icon" type="image/svg+xml" href="/kiko.svg" />
     <script>
       /* the look before first paint: the appearance, then the palette's tokens for it.
          src/theme/apply.ts writes this cache under the same key. Without it, kat.css already
-         is t3code's stock palette. */
+         is the stock palette, monocode's. */
       (function () {
-        var d = document.documentElement, mode = "system", vars = null;
+        var d = document.documentElement, mode = "dark", vars = null;
         try {
           var c = JSON.parse(localStorage.getItem("kiko:look"));
           if (c && c.v === 3) { mode = c.mode; vars = c.vars; }
@@ -22,14 +22,33 @@
         d.classList.toggle("dark", a === "dark");
         d.style.colorScheme = a;
         if (vars && vars[a]) for (var k in vars[a]) d.style.setProperty(k, vars[a][k]);
-        var bg = (vars && vars[a] && vars[a]["--bg"]) || (a === "light" ? "#fcfcfc" : "#0a0a0a");
+        var bg = (vars && vars[a] && vars[a]["--bg"]) || (a === "light" ? "#f7f7f7" : "#171717");
         d.style.setProperty("--boot-bg", bg);
-        d.style.setProperty("--boot-fg", a === "light" ? "#27272a" : "#f5f5f5");
+        d.style.setProperty("--boot-fg", a === "light" ? "#2e2e2e" : "#ebebeb");
         d.style.backgroundColor = bg;
+        /* monocode's glass and the chat background's stand-in desktop. src/theme/glass.ts writes
+           these keys and glassRoot() says what they set; a test runs both and compares. */
+        var g = null, b = null;
+        try { g = JSON.parse(localStorage.getItem("kiko:glass:v1")); } catch (e) {}
+        try { b = JSON.parse(localStorage.getItem("kiko:background:v1")); } catch (e) {}
+        g = g && typeof g === "object" ? g : {};
+        var num = function (v, lo, hi, def) { return typeof v === "number" && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; };
+        var ok = b && typeof b === "object" && typeof b.id === "string" && typeof b.desktop === "string" && /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+\/]+={0,2}$/.test(b.desktop) && b.desktop.length <= 60000;
+        var attr = function (n, on) { if (on === null) d.removeAttribute(n); else d.setAttribute(n, on); };
+        attr("data-desktop", ok ? "" : null);
+        attr("data-glass-body", g.body === false ? null : "");
+        attr("data-chat-background", ok ? "" : null);
+        attr("data-chat-background-scope", ok ? (b.scope === "empty" ? "empty" : "all") : null);
+        attr("data-chat-background-effect", ok ? (["dither", "ascii", "halftone", "scanlines", "gradient-blur"].indexOf(b.effect) >= 0 ? b.effect : "none") : null);
+        d.style.setProperty("--sidebar-opacity", String(Math.round(num(g.opacity, 0.15, 1, 0.85) * 100) / 100));
+        d.style.setProperty("--glass-blur", Math.round(num(g.blur, 1, 64, 24)) + "px");
+        d.style.setProperty("--chat-background-empty-opacity", String(ok ? Math.round(num(b.empty, 0.05, 0.65, 0.24) * 100) / 100 : 0.24));
+        d.style.setProperty("--chat-background-session-opacity", String(ok ? Math.round(num(b.session, 0.05, 0.65, 0.24) * 100) / 100 : 0.24));
+        d.style.setProperty("--desktop-image", ok ? 'url("' + b.desktop + '")' : "none");
       })();
     </script>
     <style>
-      html, body { margin: 0; height: 100%; background: var(--boot-bg, #0a0a0a); color: var(--boot-fg, #f5f5f5); }
+      html, body { margin: 0; height: 100%; background: var(--boot-bg, #171717); color: var(--boot-fg, #ebebeb); }
       body { font: 14px system-ui, sans-serif; }
       #root { height: 100%; }
       #boot { display: flex; align-items: center; justify-content: center; height: 100%; }
@@ -40,7 +59,7 @@
     </style>
   </head>
   <body>
-    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#0a0a0a)"></div>
+    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#171717)"></div>
     <script>
       /* the last screen, painted before any module loads. src/lib/snapshot.ts saves it and removes this layer. */
       (function () {
