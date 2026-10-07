@@ -812,7 +812,7 @@
 }
 
 :root:not([data-appearance="light"]) {
-  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 78%), transparent);
+  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 100%), transparent);
   --surface-blur: blur(28px) saturate(1.8);
   --popover-blur: var(--surface-blur);
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.1);
@@ -836,16 +836,20 @@
 }
 
 :root[data-desktop]:not([data-appearance="light"]) {
-  /* A page sees its stand-in desktop through more glass than a native window: monocode's native
-     tint sits over a live desktop, this over one still picture. */
-  --shell-bg: color-mix(in oklab, var(--bg-sidebar) calc(var(--sidebar-opacity) * 78%), transparent);
+  --shell-bg: color-mix(in oklab, var(--bg-sidebar) calc(var(--sidebar-opacity) * 100%), transparent);
 }
 
 :root[data-desktop][data-glass-body]:not([data-appearance="light"]) {
-  --panel: color-mix(in oklab, var(--bg) calc(var(--sidebar-opacity) * 90%), transparent);
+  --panel: color-mix(in oklab, var(--bg) calc(var(--sidebar-opacity) * 100%), transparent);
 }
 
 /* The overhang keeps the blur from fading at the window's edges. */
+:root[data-desktop]:not([data-appearance="light"]) body {
+  /* index.html paints the body for the boot screen, and a body background is drawn over a
+     fixed layer with a negative z-index. With a backdrop, the root alone carries the color. */
+  background: transparent;
+}
+
 :root[data-desktop]:not([data-appearance="light"]) body::before {
   content: "";
   position: fixed;
@@ -853,7 +857,9 @@
   z-index: -1;
   pointer-events: none;
   background: var(--desktop-image, none) center / cover no-repeat;
-  filter: blur(var(--glass-blur)) saturate(1.5);
+  /* Darkened, as the system darkens a desktop under a dark window, so a bright picture never
+     washes out the text on the glass above it. */
+  filter: blur(var(--glass-blur)) saturate(1.4) brightness(0.55);
 }
 
 /* The chat pane's background. Instant, unlike monocode's 600ms ease: switching chats is
@@ -863,12 +869,14 @@
   --fade-bg: transparent;
 }
 
-.chat-pane-background {
-  position: relative;
+/* The picture is drawn on the rounded pane itself, edge to edge, as monocode draws it on its
+   pane; the chat column inside only says whether the chat is empty. */
+.sidebar-shell .main-panel:has(.chat-pane-background) {
   isolation: isolate;
+  container-type: inline-size;
 }
 
-.chat-pane-background::before {
+.sidebar-shell .main-panel:has(.chat-pane-background)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -878,12 +886,30 @@
   opacity: 0;
 }
 
-:root[data-chat-background-ready]:not([data-chat-background-effect="gradient-blur"]) .chat-pane-background::before {
+:root[data-chat-background-ready]:not([data-chat-background-effect="gradient-blur"]) .sidebar-shell .main-panel:has(.chat-pane-background)::before {
   opacity: var(--chat-background-empty-opacity);
 }
 
-:root[data-chat-background-ready]:not([data-chat-background-effect="gradient-blur"]) .chat-pane-background[data-session-empty="false"]::before {
+:root[data-chat-background-ready]:not([data-chat-background-effect="gradient-blur"]) .sidebar-shell .main-panel:has(.chat-pane-background[data-session-empty="false"])::before {
   opacity: var(--chat-background-session-opacity);
+}
+
+/* Monocode's composer band: from the composer's top edge to the bottom of the pane, one
+   full-width sheet of frosted glass with a hairline on top. The picture runs on under it and
+   shows only as soft color, so the composer never sits on a busy picture. The dock is as wide as
+   the reading column; the band is as wide as the pane (`100cqw` of the pane). */
+:root[data-chat-background] .chat-pane-background .composer-dock::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 50%;
+  z-index: -1;
+  width: 100cqw;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: color-mix(in oklab, var(--bg) 58%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  box-shadow: inset 0 1px 0 var(--hairline);
 }
 
 /* Haze: the picture blurred and faded into the pane below it. Each masked copy samples the
@@ -980,7 +1006,7 @@
 }
 
 /* Shown on empty chats only. */
-:root[data-chat-background-scope="empty"] .chat-pane-background[data-session-empty="false"]::before,
+:root[data-chat-background-scope="empty"] .sidebar-shell .main-panel:has(.chat-pane-background[data-session-empty="false"])::before,
 :root[data-chat-background-scope="empty"] .chat-pane-background[data-session-empty="false"] > .gradient-blur-background {
   opacity: 0;
 }
