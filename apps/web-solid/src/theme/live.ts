@@ -13,7 +13,8 @@ import { type UserChannel, userChannel } from "../sync/user-channel"
 import { BUILT_IN_THEMES } from "./builtins"
 import { applyCommitted, readCache, writeCache } from "./apply"
 import { setBirdPicks } from "../mascot/choices"
-import { formatLook, parseLook, withHalf, withTheme, type Look } from "./look"
+import { background } from "./glass"
+import { formatLook, matchesWallpaper, parseLook, withHalf, withTheme, withWallpaper, type Look } from "./look"
 import { readStoredThemes, type ThemeAppearance, type ThemeDefinition } from "./palette"
 
 /** The library's key. Every theme here was imported in this browser. */
@@ -94,6 +95,14 @@ const themeById = (id: string | null) => (id === null ? null : (allThemes().find
 /** Every theme a person can pick: t3code's built-ins, then this browser's imports. */
 export const allThemes = (): ThemeDefinition[] => [...BUILT_IN_THEMES, ...library()]
 
+/** Both halves follow the chat background's own colors. Returns false when there is no picture to read. */
+export function matchWallpaper(): boolean {
+  const palette = background()?.palette
+  if (!palette) return false
+  saveLook(withWallpaper(look(), palette))
+  return true
+}
+
 /** Uses a theme for every half it can draw. Null puts t3code's stock palette back. */
 export const chooseTheme = (id: string | null) => saveLook(withTheme(look(), themeById(id)))
 /** Gives one half of the appearance to a theme. */
@@ -165,6 +174,17 @@ export function startTheme(userId: string, shared: UserChannel = userChannel): v
       createEffect(() => {
         if (useApp.user()?.state.synced) setSynced(true)
       })
+      // Matching the wallpaper is live: a new picture recolors the theme at once. Only this
+      // device's picture drives it; another device keeps the palette the look carries.
+      createEffect(
+        on(
+          () => background()?.palette,
+          (palette) => {
+            const current = look()
+            if (palette && matchesWallpaper(current) && JSON.stringify(palette) !== JSON.stringify(current.wallpaper)) saveLook({ ...current, wallpaper: palette })
+          },
+        ),
+      )
       createEffect(
         on(
           () => useApp.user()?.state.theme,

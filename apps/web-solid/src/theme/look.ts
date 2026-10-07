@@ -9,7 +9,25 @@
 // paints the same look.
 
 import { BUILT_IN_THEMES } from "./builtins"
-import { colorsForMode, DEFAULT_TINT, isAccent, isThemeId, monocodeColors, readStoredThemes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition, type ThemeMode, type Tint } from "./palette"
+import {
+  colorsForMode,
+  DEFAULT_TINT,
+  isAccent,
+  isThemeId,
+  monocodeColors,
+  readStoredThemes,
+  readWallpaperPalette,
+  TINT_RANGE,
+  WALLPAPER_ID,
+  wallpaperAccent,
+  wallpaperColors,
+  type ThemeAppearance,
+  type ThemeColors,
+  type ThemeDefinition,
+  type ThemeMode,
+  type Tint,
+  type WallpaperPalette,
+} from "./palette"
 
 export type Mode = ThemeMode
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
@@ -25,11 +43,16 @@ export type Look = {
   tint: Tint
   /** Monocode's accent color, a hex, or null for the theme's own. */
   accent: string | null
+  /**
+   * The chat background's palette, read from the picture, while a half matches the wallpaper.
+   * It travels with the look, so another device paints the same colors without the picture.
+   */
+  wallpaper: WallpaperPalette | null
   /** An agent slug to the bird it wears. A slug without an entry gets the bird its slug seeds. */
   birds: Readonly<Record<string, string>>
 }
 
-export const DEFAULT_LOOK: Look = { mode: "dark", light: null, dark: null, themes: [], tint: DEFAULT_TINT, accent: null, birds: {} }
+export const DEFAULT_LOOK: Look = { mode: "dark", light: null, dark: null, themes: [], tint: DEFAULT_TINT, accent: null, wallpaper: null, birds: {} }
 
 const MAX_BIRDS = 200
 const BIRD_ID = /^[a-z0-9.-]{1,48}$/
@@ -59,17 +82,20 @@ export function parseLook(text: string | null): Look {
   // Records from before these themes carry a preset or a custom theme instead. Those looks are
   // gone, so the halves start on the stock palette and the mode and birds carry over.
   const themes = readStoredThemes(raw.themes).filter((t) => !isBuiltIn(t.id)).slice(0, 2)
-  const half = (v: unknown) => (isThemeId(v) && (isBuiltIn(v) || themes.some((t) => t.id === v)) ? v : null)
+  const wallpaper = readWallpaperPalette(raw.wallpaper)
+  const half = (v: unknown) => (v === WALLPAPER_ID ? (wallpaper ? v : null) : isThemeId(v) && (isBuiltIn(v) || themes.some((t) => t.id === v)) ? v : null)
   const t = isObject(raw.tint) ? raw.tint : {}
   const part = (v: unknown, r: { min: number; max: number; default: number }) => (typeof v === "number" && Number.isFinite(v) ? Math.round(Math.min(r.max, Math.max(r.min, v))) : r.default)
   const tint = { hue: part(t.hue, TINT_RANGE.hue), saturation: part(t.saturation, TINT_RANGE.saturation), lightness: part(t.lightness, TINT_RANGE.lightness) }
   const accent = isAccent(raw.accent) ? raw.accent.toLowerCase() : null
-  return { mode, light: half(raw.light), dark: half(raw.dark), themes, tint, accent, birds }
+  const light = half(raw.light)
+  const dark = half(raw.dark)
+  return { mode, light, dark, themes, tint, accent, wallpaper: light === WALLPAPER_ID || dark === WALLPAPER_ID ? wallpaper : null, birds }
 }
 
 export function formatLook(look: Look): string {
   const named = new Set([look.light, look.dark])
-  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, light: look.light, dark: look.dark, themes: look.themes.filter((t) => named.has(t.id)), tint: look.tint, accent: look.accent, birds: look.birds })
+  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, light: look.light, dark: look.dark, themes: look.themes.filter((t) => named.has(t.id)), tint: look.tint, accent: look.accent, wallpaper: look.wallpaper, birds: look.birds })
 }
 
 /** Finds a theme by id: a built-in, one the look carries, or one in this browser's library. */
@@ -80,13 +106,14 @@ export function findTheme(id: string | null, look: Look, library: readonly Theme
 
 /** The colors one half paints. A half whose theme is gone, or cannot draw that mode, falls back to stock. */
 export function colorsFor(look: Look, half: ThemeAppearance, library: readonly ThemeDefinition[]): ThemeColors {
+  if (look[half] === WALLPAPER_ID && look.wallpaper) return wallpaperColors(look.wallpaper, half)
   const theme = findTheme(look[half], look, library)
   return (theme && colorsForMode(theme, half)) ?? monocodeColors(look.tint, half)
 }
 
 /** Gives the theme every half it can draw. Null puts the stock palette back on both. */
 export function withTheme(look: Look, theme: ThemeDefinition | null): Look {
-  if (theme === null) return { ...look, light: null, dark: null, themes: [] }
+  if (theme === null) return { ...look, light: null, dark: null, themes: [], wallpaper: null }
   const next: Look = { ...look }
   for (const mode of ["light", "dark"] as const) if (colorsForMode(theme, mode)) next[mode] = theme.id
   return carry(next, theme)
@@ -100,5 +127,21 @@ export function withHalf(look: Look, half: ThemeAppearance, theme: ThemeDefiniti
 /** Keeps the imported themes the halves name, and only those. */
 function carry(look: Look, added: ThemeDefinition | null): Look {
   const pool = added && !isBuiltIn(added.id) ? [added, ...look.themes.filter((t) => t.id !== added.id)] : look.themes
-  return { ...look, themes: pool.filter((t) => t.id === look.light || t.id === look.dark) }
+  return { ...look, themes: pool.filter((t) => t.id === look.light || t.id === look.dark), wallpaper: matchesWallpaper(look) ? look.wallpaper : null }
+}
+
+/** Both halves follow the wallpaper's palette. */
+export const withWallpaper = (look: Look, palette: WallpaperPalette): Look => ({ ...look, light: WALLPAPER_ID, dark: WALLPAPER_ID, wallpaper: palette, themes: [] })
+
+/** True when a half on screen follows the wallpaper. */
+export const matchesWallpaper = (look: Look) => look.light === WALLPAPER_ID || look.dark === WALLPAPER_ID
+
+/**
+ * The accent a half paints with: the person's own, or, while it matches the wallpaper, the
+ * picture's, so the send button and your bubbles take the picture's color too.
+ */
+export function accentFor(look: Look, half: ThemeAppearance): string | null {
+  if (look.accent) return look.accent
+  if (look[half] === WALLPAPER_ID && look.wallpaper && look.wallpaper.accent.c >= 0.03) return wallpaperAccent(look.wallpaper, half)
+  return null
 }

@@ -772,8 +772,9 @@
    in light, where the window is opaque. theme/glass.ts sets each variable from
    the person's settings, which stay on this device.
 
-   - Popovers (menus, hover cards) are glass: a 2% tint of the text over a 24px
-     backdrop blur, with a hairline edge.
+   - Floating surfaces (menus, hover cards, dialogs, the palette, tooltips,
+     toasts) are frosted glass: the menu surface at 78% over a 24px backdrop
+     blur, with a hairline edge.
    - A web page has no desktop to see through, so the chat background stands
      in for it: blurred by `--glass-blur` behind the whole window
      (`body::before`). The shell lets it through at `--sidebar-opacity`, and the
@@ -800,10 +801,32 @@
   --fade-bg: var(--bg);
 }
 
+:root {
+  --surface-blur: none;
+}
+
+:root {
+  /* The sidebar as a drawer over the chat, and the info pane over it on a narrow window. */
+  --drawer-bg: var(--sidebar-solid);
+}
+
 :root:not([data-appearance="light"]) {
-  --popover-bg: color-mix(in oklab, var(--text) 2%, transparent);
-  --popover-blur: blur(24px);
+  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) calc(var(--sidebar-opacity) * 100%), transparent);
+  --surface-blur: blur(24px) saturate(1.4);
+  --popover-blur: var(--surface-blur);
   --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.1);
+}
+
+/* Every floating surface is frosted glass in dark: dialogs, the palette, search, tooltips,
+   toasts. Menus and hover cards set it themselves through --popover-blur. */
+.bg-menu,
+.palette-panel,
+.search-panel,
+.search-bar,
+[data-component="tooltip-v2"],
+.toast-v2 {
+  -webkit-backdrop-filter: var(--surface-blur);
+  backdrop-filter: var(--surface-blur);
 }
 
 :root[data-desktop]:not([data-appearance="light"]) {
@@ -994,7 +1017,7 @@
   --panel-edge: color-mix(in oklab, #ebebeb 10%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #ebebeb 20%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #ebebeb 32%, transparent);
-  --menu-bg: color-mix(in oklab, #ebebeb 4%, #171717);
+  --menu-bg: color-mix(in oklab, color-mix(in oklab, #ebebeb 4%, #171717) 78%, transparent);
   --tooltip-bg: color-mix(in oklab, #ebebeb 12%, #171717);
   --user-bubble: color-mix(in oklab, #ebebeb 10%, transparent);
   --user-bubble-text: #ebebeb;
@@ -1258,7 +1281,7 @@
 :root {
   --v2-background-bg-base: var(--input-bg);
   --v2-background-bg-deep: var(--bg);
-  --v2-background-bg-layer-01: var(--bg-subtle);
+  --v2-background-bg-layer-01: var(--menu-bg);
   --v2-background-bg-layer-02: var(--bg-subtle);
   --v2-background-bg-layer-03: var(--surface-raised);
   --v2-background-bg-layer-04: var(--surface-raised);

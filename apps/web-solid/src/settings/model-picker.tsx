@@ -121,7 +121,7 @@ export function ModelPickerButton(props: { chatId: string | null }) {
       </Show>
       <ModalV2.Portal>
         <ModalV2.Overlay />
-        <ModalV2.Content class="h-[min(560px,80dvh)] w-[min(520px,94vw)] flex-col gap-2 rounded-[16px] bg-bg p-3 shadow-xl">
+        <ModalV2.Content class="h-[min(560px,80dvh)] w-[min(520px,94vw)] flex-col gap-2 rounded-[16px] bg-menu p-3 shadow-xl">
           <ModalV2.Title class="px-1 text-sm font-medium text-muted">choose a model</ModalV2.Title>
           <ModelList
             autofocus

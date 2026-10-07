@@ -4,6 +4,8 @@
 // before it is shrunk, so it stretches back smoothly, and it is small enough for localStorage,
 // which the inline script reads before first paint.
 
+import { wallpaperPalette, type WallpaperPalette } from "./palette"
+
 /** The picture types a browser can decode. Anything else is refused before it is read. */
 const IMAGE = /^image\/(png|jpeg|webp|gif|avif|bmp)$/
 /** Monocode refuses nothing by size, but a phone photo is plenty. */
@@ -13,7 +15,7 @@ const WORK_EDGE = 1280
 const PREBLUR = 40
 const MAX_DESKTOP_CHARS = 60_000
 
-export type Prepared = { sharp: Blob; desktop: string }
+export type Prepared = { sharp: Blob; desktop: string; palette: WallpaperPalette }
 
 const canvas2d = (w: number, h: number) => {
   const c = document.createElement("canvas")
@@ -65,7 +67,23 @@ export async function prepareBackground(file: Blob): Promise<Prepared> {
       if (desktop.length <= MAX_DESKTOP_CHARS) break
     }
     if (desktop.length > MAX_DESKTOP_CHARS) throw new Error("that picture couldn't be saved")
-    return { sharp, desktop }
+    return { sharp, desktop, palette: paletteOfBitmap(bitmap) }
+  } finally {
+    bitmap.close()
+  }
+}
+
+/** The palette a picture asks for, read from a 64 px copy. */
+export function paletteOfBitmap(source: ImageBitmap): WallpaperPalette {
+  const small = fitted(source, 64)
+  return wallpaperPalette(small.getContext("2d")!.getImageData(0, 0, small.width, small.height).data)
+}
+
+/** The palette of a stored picture, for a background chosen before palettes were kept. */
+export async function paletteOfBlob(blob: Blob): Promise<WallpaperPalette> {
+  const bitmap = await createImageBitmap(blob)
+  try {
+    return paletteOfBitmap(bitmap)
   } finally {
     bitmap.close()
   }

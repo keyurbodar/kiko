@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { BACKGROUND_KEY, DEFAULT_GLASS, GLASS_KEY, glassRoot, parseBackground, parseGlass, type Background } from "./glass"
 
 const desktop = "data:image/webp;base64,UklGRg=="
-const picked: Background = { id: "a1b2", desktop, effect: "halftone", scope: "empty", empty: 0.4, session: 0.1 }
+const picked: Background = { id: "a1b2", desktop, effect: "halftone", scope: "empty", empty: 0.4, session: 0.1, palette: { hue: 20, saturation: 12, lightness: 8, accent: { h: 30, c: 0.15 } } }
 
 describe("glass settings", () => {
   test("nothing stored, or anything unreadable, is monocode's default: 85% opacity, 24 blur, main pane glass on", () => {
@@ -18,11 +18,13 @@ describe("glass settings", () => {
   })
 
   test("a background that could break out of its url, or has no picture, is none", () => {
-    expect(parseBackground(JSON.stringify(picked))).toEqual(picked)
+    expect(parseBackground(JSON.stringify({ ...picked, paletteVersion: 2 }))).toEqual(picked)
+    // A palette read by an older version of the reader is read again from the picture.
+    expect(parseBackground(JSON.stringify(picked))!.palette).toBeNull()
     expect(parseBackground(JSON.stringify({ ...picked, desktop: 'data:image/png;base64,") ; x' }))).toBeNull()
     expect(parseBackground(JSON.stringify({ ...picked, desktop: "https://example.com/a.png" }))).toBeNull()
     expect(parseBackground(JSON.stringify({ ...picked, id: "../x" }))).toBeNull()
-    expect(parseBackground(JSON.stringify({ ...picked, effect: "sparkle", empty: 2 }))).toEqual({ ...picked, effect: "none", empty: 0.65 })
+    expect(parseBackground(JSON.stringify({ ...picked, paletteVersion: 2, effect: "sparkle", empty: 2 }))).toEqual({ ...picked, effect: "none", empty: 0.65 })
   })
 })
 

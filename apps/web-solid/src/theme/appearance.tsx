@@ -24,9 +24,9 @@ import {
   SIDEBAR_OPACITY,
   VISIBILITY,
 } from "./glass"
-import { chooseTheme, customThemes, look, removeThemes, updateLook } from "./live"
-import { type Mode } from "./look"
-import { ACCENT_PRESETS, colorsForMode, monocodeColors, serializeThemeFile, themeModes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
+import { chooseTheme, customThemes, look, matchWallpaper, removeThemes, updateLook } from "./live"
+import { matchesWallpaper, type Mode } from "./look"
+import { ACCENT_PRESETS, colorsForMode, monocodeColors, WALLPAPER_ID, wallpaperColors, serializeThemeFile, themeModes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
 
 // The import dialog, with culori, fflate and the Open VSX client, loads on the first click.
 const ThemeImportDialog = lazy(() => import("./theme-import-dialog"))
@@ -60,7 +60,16 @@ function Swatch(props: { colors: Partial<Record<ThemeAppearance, ThemeColors>> }
   )
 }
 
-function ThemeRow(props: { id: string | null; label: string; note?: string; colors: Partial<Record<ThemeAppearance, ThemeColors>>; onExport?: () => void; onRemove?: () => void }): JSX.Element {
+function ThemeRow(props: {
+  id: string | null
+  label: string
+  note?: string
+  colors: Partial<Record<ThemeAppearance, ThemeColors>>
+  onPick?: () => void
+  disabled?: boolean
+  onExport?: () => void
+  onRemove?: () => void
+}): JSX.Element {
   const owned = () => (["light", "dark"] as const).filter((m) => look()[m] === props.id && props.colors[m])
   const active = () => look()[shown()] === props.id || (owned().length > 0 && !props.colors[shown()])
   return (
@@ -69,7 +78,12 @@ function ThemeRow(props: { id: string | null; label: string; note?: string; colo
       data-theme-row={props.id ?? "default"}
       aria-current={active() ? "true" : undefined}
     >
-      <button type="button" class="flex min-w-0 flex-1 items-center gap-3 self-stretch text-left outline-none focus-visible:underline" onClick={() => chooseTheme(props.id)}>
+      <button
+        type="button"
+        disabled={props.disabled}
+        class="flex min-w-0 flex-1 items-center gap-3 self-stretch text-left outline-none focus-visible:underline disabled:cursor-default disabled:opacity-50"
+        onClick={() => (props.onPick ? props.onPick() : chooseTheme(props.id))}
+      >
         <Swatch colors={props.colors} />
         <span class="min-w-0 flex-1 truncate text-[13px] text-text">{props.label}</span>
         <Show when={props.note}>
@@ -103,6 +117,21 @@ function ThemeRow(props: { id: string | null; label: string; note?: string; colo
   )
 }
 
+/** The theme read from the chat background itself. It recolors whenever the picture changes. */
+function WallpaperRow(): JSX.Element {
+  const palette = () => look().wallpaper ?? background()?.palette ?? null
+  return (
+    <ThemeRow
+      id={WALLPAPER_ID}
+      label="match wallpaper"
+      note={background() ? (matchesWallpaper(look()) ? "follows your picture" : "from your picture") : "add a chat background first"}
+      colors={palette() ? { light: wallpaperColors(palette()!, "light"), dark: wallpaperColors(palette()!, "dark") } : {}}
+      disabled={!background()?.palette && !look().wallpaper}
+      onPick={() => (background()?.palette ? matchWallpaper() : look().wallpaper && updateLook({ light: WALLPAPER_ID, dark: WALLPAPER_ID }))}
+    />
+  )
+}
+
 const colorsOf = (theme: ThemeDefinition) => Object.fromEntries(themeModes(theme).map((m) => [m, colorsForMode(theme, m)!])) as Partial<Record<ThemeAppearance, ThemeColors>>
 const noteOf = (theme: ThemeDefinition) => {
   const modes = themeModes(theme)
@@ -128,7 +157,8 @@ function ThemeGroup(): JSX.Element {
       id="themes"
     >
       <div data-component="theme-library">
-        <ThemeRow id={null} label="kiko" note="tinted below" colors={{ light: monocodeColors(look().tint, "light"), dark: monocodeColors(look().tint, "dark") }} />
+        <ThemeRow id={null} label="default" note="tinted above" colors={{ light: monocodeColors(look().tint, "light"), dark: monocodeColors(look().tint, "dark") }} />
+        <WallpaperRow />
         <For each={BUILT_IN_THEMES}>{(theme) => <ThemeRow id={theme.id} label={theme.label.toLowerCase()} colors={colorsOf(theme)} />}</For>
         <For each={customThemes()}>
           {(theme) => (
@@ -353,6 +383,9 @@ function BackgroundGroup(): JSX.Element {
       <Show when={bg()}>
         {(b) => (
           <>
+            <Row label="match theme to picture" description="kiko takes its colors from the picture: the surfaces from its overall tone, the accent from its most vivid color. a new picture recolors it.">
+              <Toggle label="match theme to picture" on={matchesWallpaper(look())} disabled={!b().palette} onChange={(on) => (on ? matchWallpaper() : chooseTheme(null))} />
+            </Row>
             <Row label="background effect" description={EFFECT_DESCRIPTIONS[b().effect]}>
               <Segmented label="background effect" value={b().effect} options={BACKGROUND_EFFECTS.map((e) => ({ value: e, label: EFFECT_LABELS[e] }))} onChange={(effect) => setBackground({ effect })} />
             </Row>

@@ -219,7 +219,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 			<ModalV2 open={confirming()} onOpenChange={setConfirming}>
 				<ModalV2.Portal>
 					<ModalV2.Overlay />
-					<ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-3 rounded-[16px] bg-bg p-4 shadow-xl">
+					<ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-3 rounded-[16px] bg-menu p-4 shadow-xl">
 						<ModalV2.Title class="text-sm font-medium text-muted">disconnect?</ModalV2.Title>
 						<p class="text-xs text-weak">your agents lose these tools until you connect again.</p>
 						<div class="flex justify-end gap-2">

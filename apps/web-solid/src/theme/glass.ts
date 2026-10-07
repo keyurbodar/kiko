@@ -7,6 +7,7 @@
 // picture is in IndexedDB and fades in when it is read, as monocode's does.
 
 import { createRoot, createSignal } from "solid-js"
+import { readWallpaperPalette, type WallpaperPalette } from "./palette"
 
 export type BackgroundEffect = "none" | "dither" | "ascii" | "halftone" | "scanlines" | "gradient-blur"
 export const BACKGROUND_EFFECTS: readonly BackgroundEffect[] = ["none", "dither", "ascii", "halftone", "scanlines", "gradient-blur"]
@@ -46,10 +47,14 @@ export type Background = Readonly<{
   /** Visibility in an empty chat, and once it has messages. */
   empty: number
   session: number
+  /** The colors the picture asks for, for the "match wallpaper" theme. Null until read. */
+  palette: WallpaperPalette | null
 }>
 
 /** The keys the inline script in index.html reads. Keep the two in step. */
 export const GLASS_KEY = "kiko:glass:v1"
+/** Bumped when the way a palette is read from a picture changes, so a kept one is read again. */
+export const PALETTE_VERSION = 2
 export const BACKGROUND_KEY = "kiko:background:v1"
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n))
@@ -91,6 +96,7 @@ export function parseBackground(text: string | null): Background | null {
     scope: raw.scope === "empty" ? "empty" : "all",
     empty: num(raw.empty, VISIBILITY),
     session: num(raw.session, VISIBILITY),
+    palette: raw.paletteVersion === PALETTE_VERSION ? readWallpaperPalette(raw.palette) : null,
   }
 }
 
@@ -204,6 +210,16 @@ async function loadPicture(): Promise<void> {
     const blob = await load(bg.id)
     if (state.background()?.id !== bg.id) return
     state.setPicture(blob ? URL.createObjectURL(blob) : null)
+    // A background chosen before palettes were kept gets its palette now.
+    if (blob && !bg.palette) {
+      const { paletteOfBlob } = await import("./background-image")
+      const palette = await paletteOfBlob(blob).catch(() => null)
+      if (palette && state.background()?.id === bg.id) {
+        const next = { ...bg, palette }
+        write(BACKGROUND_KEY, JSON.stringify({ ...next, paletteVersion: PALETTE_VERSION }))
+        state.setBackground(next)
+      }
+    }
   }
   if (old) URL.revokeObjectURL(old)
   await paintPicture()
@@ -217,12 +233,12 @@ export function setGlass(patch: Partial<Glass>): void {
 }
 
 /** Changes the background's settings. A new picture goes through `chooseBackground`. */
-export function setBackground(patch: Partial<Omit<Background, "id" | "desktop">>): void {
+export function setBackground(patch: Partial<Omit<Background, "id" | "desktop" | "palette">>): void {
   const current = state.background()
   if (!current) return
   const next = parseBackground(JSON.stringify({ ...current, ...patch }))
   if (!next) return
-  write(BACKGROUND_KEY, JSON.stringify(next))
+  write(BACKGROUND_KEY, JSON.stringify({ ...next, paletteVersion: PALETTE_VERSION }))
   state.setBackground(next)
   paintRoot()
   if (patch.effect !== undefined && patch.effect !== current.effect) void paintPicture()
@@ -243,8 +259,9 @@ export async function chooseBackground(file: File): Promise<void> {
     scope: old?.scope ?? "all",
     empty: old?.empty ?? VISIBILITY.default,
     session: old?.session ?? VISIBILITY.default,
+    palette: prepared.palette,
   }
-  write(BACKGROUND_KEY, JSON.stringify(next))
+  write(BACKGROUND_KEY, JSON.stringify({ ...next, paletteVersion: PALETTE_VERSION }))
   state.setBackground(next)
   paintRoot()
   await loadPicture()

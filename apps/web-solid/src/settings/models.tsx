@@ -253,7 +253,7 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
     >
       <ModalV2.Portal>
         <ModalV2.Overlay />
-        <ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-3 rounded-[16px] bg-bg p-4 shadow-xl">
+        <ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-3 rounded-[16px] bg-menu p-4 shadow-xl">
           <ModalV2.Title class="text-sm font-medium text-muted" data-component="connect-title">
             connect {props.provider?.name.toLowerCase()}
           </ModalV2.Title>

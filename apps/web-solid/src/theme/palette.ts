@@ -195,6 +195,166 @@ export const defaultColors = (appearance: ThemeAppearance): ThemeColors =>
   appearance === "dark" ? DEFAULT_DARK_COLORS : DEFAULT_LIGHT_COLORS
 
 // ---------------------------------------------------------------------------
+// The wallpaper's own palette. Nothing here is a preset or a setting: the surfaces take the
+// picture's overall hue, colorfulness and darkness through the stock palette's tint, and the
+// accent is the picture's most vivid color. A new picture gives a new palette.
+
+/** What a picture asks for. `accent` is an OKLCH hue and chroma. */
+export type WallpaperPalette = Readonly<{ hue: number; saturation: number; lightness: number; accent: Readonly<{ h: number; c: number }> }>
+
+/** The theme id that means "match the wallpaper". It is never a stored theme's id. */
+export const WALLPAPER_ID = "wallpaper"
+
+const linear = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+const gamma = (v: number) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055)
+
+function oklabOf(r: number, g: number, b: number): [number, number, number] {
+  const R = linear(r / 255)
+  const G = linear(g / 255)
+  const B = linear(b / 255)
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B)
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B)
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B)
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s]
+}
+
+/** An OKLCH color as #rrggbb, with chroma reduced until it fits sRGB. */
+export function oklchHex(L: number, C: number, h: number): string {
+  const rgb = (c: number) => {
+    const a = c * Math.cos((h * Math.PI) / 180)
+    const b = c * Math.sin((h * Math.PI) / 180)
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+    return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s]
+  }
+  let c = C
+  while (c > 0 && rgb(c).some((v) => v < -0.0005 || v > 1.0005)) c -= 0.005
+  return hex(rgb(Math.max(0, c)).map((v) => gamma(Math.min(1, Math.max(0, v))) * 255) as unknown as Rgb)
+}
+
+/** Below this OKLCH chroma a pixel is grey and has no hue to give. */
+const GREY = 0.03
+
+/** A pixel at least this colorful can be the accent. Softer colors only tint the surfaces. */
+const VIVID = 0.1
+
+/** The hue a histogram's busiest 30° asks for: its votes' weighted mean direction. Null when empty. */
+function busiest(votes: Float64Array, sumA: Float64Array, sumB: Float64Array): { hue: number; bins: number[] } | null {
+  const BINS = votes.length
+  let best = -1
+  let top = 0
+  for (let i = 0; i < BINS; i++) {
+    const v = votes[(i + BINS - 1) % BINS]! + votes[i]! + votes[(i + 1) % BINS]!
+    if (v > top) {
+      top = v
+      best = i
+    }
+  }
+  if (best < 0) return null
+  const bins = [(best + BINS - 1) % BINS, best, (best + 1) % BINS]
+  const a = bins.reduce((t, i) => t + sumA[i]!, 0)
+  const b = bins.reduce((t, i) => t + sumB[i]!, 0)
+  return { hue: Math.round(((Math.atan2(b, a) * 180) / Math.PI + 360) % 360), bins }
+}
+
+/**
+ * Reads a picture's palette from its pixels (RGBA bytes; a 64 px copy is plenty).
+ *
+ * - The surfaces take the hue that covers the most of the picture, each pixel weighted by how
+ *   colorful it is. Hues are counted, not averaged: a violet sky over a tan field is violet, not
+ *   the muddy red their average would be.
+ * - Their saturation follows how colorful the picture is overall, kept low so text still reads,
+ *   and dark mode's background lightness follows the picture's own brightness.
+ * - The accent is the vivid color with the most presence: only pixels vivid enough to be an
+ *   accent vote, each by its chroma squared, so a wide field of blue petals outvotes a few
+ *   hot-pink flecks, and a small bright sun still outvotes a dull sky.
+ */
+export function wallpaperPalette(rgba: ArrayLike<number>): WallpaperPalette {
+  const BINS = 36
+  const bin = (A: number, B: number) => Math.floor((((Math.atan2(B, A) * 180) / Math.PI + 360) % 360) / (360 / BINS)) % BINS
+  const tone = { votes: new Float64Array(BINS), a: new Float64Array(BINS), b: new Float64Array(BINS) }
+  const vivid = { votes: new Float64Array(BINS), a: new Float64Array(BINS), b: new Float64Array(BINS), chroma: new Float64Array(BINS) }
+  let n = 0
+  let sumL = 0
+  let sumC = 0
+  for (let i = 0; i + 3 < rgba.length; i += 4) {
+    if (rgba[i + 3]! < 128) continue
+    const [L, A, B] = oklabOf(rgba[i]!, rgba[i + 1]!, rgba[i + 2]!)
+    const c = Math.hypot(A, B)
+    n++
+    sumL += L
+    sumC += c
+    if (c < GREY) continue
+    const k = bin(A, B)
+    tone.votes[k] += c
+    tone.a[k] += A
+    tone.b[k] += B
+    if (c < VIVID || L < 0.25 || L > 0.95) continue
+    const w = c * c
+    vivid.votes[k] += w
+    vivid.a[k] += (A / c) * w
+    vivid.b[k] += (B / c) * w
+    vivid.chroma[k] += c * w
+  }
+  if (n === 0) return { hue: DEFAULT_TINT.hue, saturation: 0, lightness: DEFAULT_TINT.lightness, accent: { h: 252, c: 0 } }
+  const meanL = sumL / n
+  const meanC = sumC / n
+  const surface = busiest(tone.votes, tone.a, tone.b)
+  // A grey picture keeps neutral surfaces; a vivid one tints them, at most 28%.
+  const saturation = surface ? Math.round(Math.min(28, Math.max(0, (meanC - 0.01) * 260))) : 0
+  // A dark picture keeps a dark background, a bright one lifts it a little: 5% to 14%.
+  const lightness = Math.round(5 + Math.min(1, Math.max(0, meanL - 0.15) / 0.6) * 9)
+  const hue = surface?.hue ?? DEFAULT_TINT.hue
+  const accentHue = busiest(vivid.votes, vivid.a, vivid.b)
+  let accent = { h: hue, c: 0 }
+  if (accentHue) {
+    const weight = accentHue.bins.reduce((t, i) => t + vivid.votes[i]!, 0)
+    const chroma = accentHue.bins.reduce((t, i) => t + vivid.chroma[i]!, 0) / weight
+    accent = { h: accentHue.hue, c: Math.round(chroma * 1000) / 1000 }
+  }
+  return { hue, saturation, lightness, accent }
+}
+
+/** The accent a palette paints in one appearance: bright on dark, deeper on light, always vivid enough to show. */
+export function wallpaperAccent(p: WallpaperPalette, mode: ThemeAppearance): string {
+  if (p.accent.c < GREY) return mode === "dark" ? "#ffffff" : hex(hsl(p.hue, p.saturation, 18))
+  const c = Math.min(0.2, Math.max(0.12, p.accent.c))
+  return oklchHex(mode === "dark" ? 0.74 : 0.55, c, p.accent.h)
+}
+
+/**
+ * The HSL hue of an OKLCH hue. The palette is read in OKLCH, where hues are evenly spaced to the
+ * eye, but the stock palette's tint is monocode's HSL; the two scales differ by up to 40°.
+ */
+export function hslHueOf(oklchHue: number): number {
+  const color = oklchHex(0.6, 0.1, oklchHue)
+  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16) / 255) as [number, number, number]
+  const max = Math.max(r, g, b)
+  const d = max - Math.min(r, g, b)
+  if (d === 0) return 0
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return Math.round((h * 60 + 360) % 360)
+}
+
+/** The full theme a wallpaper palette makes: the stock palette in the picture's tint, with its accent. */
+export function wallpaperColors(p: WallpaperPalette, mode: ThemeAppearance): ThemeColors {
+  const base = monocodeColors({ hue: hslHueOf(p.hue), saturation: p.saturation, lightness: p.lightness }, mode)
+  const accent = wallpaperAccent(p, mode)
+  return { ...base, accent, focus: accent, update: accent, updateForeground: accent }
+}
+
+/** Reads a stored wallpaper palette, or null. */
+export function readWallpaperPalette(v: unknown): WallpaperPalette | null {
+  if (typeof v !== "object" || v === null) return null
+  const r = v as Record<string, unknown>
+  const n = (x: unknown, min: number, max: number) => typeof x === "number" && Number.isFinite(x) && x >= min && x <= max
+  const accent = r.accent as Record<string, unknown> | undefined
+  if (!n(r.hue, 0, 360) || !n(r.saturation, 0, 100) || !n(r.lightness, 0, 30) || !accent || !n(accent.h, 0, 360) || !n(accent.c, 0, 0.5)) return null
+  return { hue: r.hue as number, saturation: r.saturation as number, lightness: r.lightness as number, accent: { h: accent.h as number, c: accent.c as number } }
+}
+
+// ---------------------------------------------------------------------------
 // From a palette to kiko's tokens.
 
 /*
@@ -286,8 +446,10 @@ export function tokensFor(colors: ThemeColors, mode: ThemeAppearance, accent: st
   for (const [token, role] of TOKEN_ROLES) vars[token] = colors[role]
   const ink = (share: number) => `color-mix(in oklab, ${colors.text} ${share}%, transparent)`
   for (const [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
-  // Opaque where something must hide what is under it: dialogs and tooltips.
-  vars["--menu-bg"] = mode === "dark" ? `color-mix(in oklab, ${colors.text} 4%, ${colors.canvas})` : colors.canvas
+  // Tooltips stay opaque: they are small and sit over text.
+  // Menus, dialogs and the palette: in dark, monocode's frosted glass, the surface at 78% over a
+  // backdrop blur (kat.css section 4d). In light, opaque, as monocode's light popovers are.
+  vars["--menu-bg"] = mode === "dark" ? `color-mix(in oklab, color-mix(in oklab, ${colors.text} 4%, ${colors.canvas}) 78%, transparent)` : colors.canvas
   vars["--tooltip-bg"] = `color-mix(in oklab, ${colors.text} 12%, ${colors.canvas})`
   // Your bubble: the content at 10% in dark, and solid in light, as monocode draws it.
   vars["--user-bubble"] = mode === "dark" ? ink(10) : colors.text

@@ -5,7 +5,7 @@ import { applyCommitted, CACHE_KEY, endPreview, preview, resolveLook, writeCache
 import { BUILT_IN_THEMES } from "./builtins"
 import { canonicalColor, colorToHex, pairVsCodeThemes, parseAnyThemeFile, parseThemeFile, parseVsCodeThemeFile, stripJsonComments } from "./import"
 import { withPalette } from "../../scripts/gen-palette"
-import { colorsFor, DEFAULT_LOOK, formatLook, parseLook, withHalf, withTheme, type Look } from "./look"
+import { accentFor, colorsFor, DEFAULT_LOOK, formatLook, parseLook, withHalf, withTheme, withWallpaper, type Look } from "./look"
 import {
   colorsForMode,
   DEFAULT_DARK_COLORS,
@@ -22,6 +22,9 @@ import {
   TOKEN_ROLES,
   tokensFor,
   type ThemeDefinition,
+  wallpaperAccent,
+  wallpaperColors,
+  wallpaperPalette,
 } from "./palette"
 
 const KAT = readFileSync(join(import.meta.dir, "../../../../packages/ui/src/styles/kat.css"), "utf8")
@@ -321,5 +324,62 @@ describe("the pre-paint script", () => {
     writeCache("text", { ...DEFAULT_LOOK, mode: "dark", dark: "aurora" }, [imported])
     expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe(imported.colors.accent)
     delete (globalThis as { localStorage?: unknown }).localStorage
+  })
+})
+
+describe("matching the wallpaper", () => {
+  /** A picture as RGBA bytes: `n` pixels of each color. */
+  const picture = (...parts: [rgb: [number, number, number], n: number][]) => parts.flatMap(([[r, g, b], n]) => Array.from({ length: n }, () => [r, g, b, 255]).flat())
+  const hueDistance = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b))
+
+  test("a dusky blue picture with a small orange sun: blue surfaces, an orange accent", () => {
+    const p = wallpaperPalette(picture([[22, 34, 66], 900], [[240, 130, 40], 60]))
+    expect(hueDistance(p.hue, oklchOf("#162242")!.h)).toBeLessThan(30)
+    expect(hueDistance(p.accent.h, oklchOf("#f08228")!.h)).toBeLessThan(15)
+    expect(p.saturation).toBeGreaterThan(0)
+    // A dark picture keeps a dark background.
+    expect(p.lightness).toBeLessThanOrEqual(8)
+  })
+
+  test("a picture like a lavender sky over a cream field, with blue petals: lavender surfaces, a blue accent", () => {
+    // Shares like the owner's wallpaper: sky, field, rocks, clouds, petals, and a few hot flecks.
+    const p = wallpaperPalette(
+      picture([[112, 106, 163], 400], [[207, 198, 160], 250], [[201, 160, 136], 90], [[240, 240, 245], 60], [[61, 107, 224], 120], [[210, 60, 200], 25], [[214, 42, 42], 15]),
+    )
+    expect(hueDistance(p.hue, oklchOf("#706aa3")!.h)).toBeLessThan(25)
+    expect(hueDistance(p.accent.h, oklchOf("#3d6be0")!.h)).toBeLessThan(20)
+    // And the surfaces painted from it are that lavender, not a magenta from mixing hue scales.
+    expect(hueDistance(oklchOf(wallpaperColors(p, "dark").canvas)!.h, oklchOf("#706aa3")!.h)).toBeLessThan(25)
+  })
+
+  test("a grey picture keeps neutral surfaces and the stock white action", () => {
+    const p = wallpaperPalette(picture([[120, 120, 120], 500], [[40, 40, 40], 500]))
+    expect([p.saturation, p.accent.c < 0.03, wallpaperAccent(p, "dark")]).toEqual([0, true, "#ffffff"])
+  })
+
+  test("a bright picture lifts the dark background a little, never past 14%", () => {
+    const p = wallpaperPalette(picture([[235, 225, 210], 1000]))
+    expect(p.lightness).toBeGreaterThan(9)
+    expect(p.lightness).toBeLessThanOrEqual(14)
+  })
+
+  test("the accent reads on its own background in both modes", () => {
+    const p = wallpaperPalette(picture([[30, 30, 40], 800], [[90, 200, 120], 100]))
+    for (const mode of ["dark", "light"] as const) {
+      const c = wallpaperColors(p, mode)
+      expect([mode, Math.abs(oklchOf(c.accent)!.l - oklchOf(c.canvas)!.l) > 0.3]).toEqual([mode, true])
+    }
+  })
+
+  test("the look carries the palette, so another device paints the same colors, and the accent tints your bubble", () => {
+    const p = wallpaperPalette(picture([[22, 34, 66], 900], [[240, 130, 40], 60]))
+    const look = withWallpaper(DEFAULT_LOOK, p)
+    const again = parseLook(formatLook(look))
+    expect(again).toEqual(look)
+    expect(colorsFor(again, "dark", []).canvas).toBe(wallpaperColors(p, "dark").canvas)
+    expect(accentFor(again, "dark")).toBe(wallpaperAccent(p, "dark"))
+    // Leaving the wallpaper drops the palette; a record naming it without one falls back to stock.
+    expect(withTheme(look, null).wallpaper).toBeNull()
+    expect(parseLook(JSON.stringify({ ...JSON.parse(formatLook(look)), wallpaper: null })).dark).toBeNull()
   })
 })
