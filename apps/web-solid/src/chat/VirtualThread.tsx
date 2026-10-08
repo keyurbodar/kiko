@@ -125,7 +125,9 @@ const COLUMN_CLASS =
   // bottom of a thread would leave the newest message half-dissolved — the
   // scrim is meant to soften content passing under the composer, not to dim
   // the place a conversation ends.
-  "mx-auto flex w-full max-w-(--content-max-w) flex-col pt-12 pb-12"
+  // `self-start min-h-full`: the scroller is a flex row, and a stretched column would be exactly
+  // the scroller's height with the rows overflowing it, which puts `pb-12` off screen.
+  "mx-auto flex min-h-full w-full max-w-(--content-max-w) self-start flex-col pt-12 pb-12"
 
 const ROW_SELECTOR = '[data-component="chat-vrow"]'
 

@@ -390,7 +390,9 @@
 /* ===== Scroll down ---------------------------------------------------- */
 
 /* kat's `scroll-down`: a 34px circle floating just above the composer's right
- * edge, in line with the send button rather than centred in the transcript.
+ * edge, centred over the send button rather than in the transcript. The send
+ * button's centre is 25px in from the dock's edge (6px margin, 6px padding, half
+ * of 26px), so the 34px circle sits 8px in.
  *
  * `bottom: calc(100% + 8px)` is measured from the dock's own top edge, so it
  * clears the whole composer — the input row and, when one is armed, the
@@ -399,11 +401,11 @@
  * No shadow, against kat, which gives this button one. The user's rule for this
  * whole seam is that nothing casts a shadow while the transcript is scrolled,
  * and this button exists only while it is scrolled — so it is the one element
- * the rule always applies to. The opaque fill is what separates it; it does not
- * need lifting off the messages as well. */
+ * the rule always applies to. The frosted menu surface and its hairline are what
+ * separate it from the text under it; it does not need lifting off as well. */
 .composer-dock .composer-scroll-down {
   position: absolute;
-  right: 16px;
+  right: 8px;
   bottom: calc(100% + 8px);
   z-index: 6;
   display: flex;
@@ -412,16 +414,19 @@
   align-items: center;
   justify-content: center;
   color: var(--text);
-  background: color-mix(in oklch, var(--tint) 60%, var(--bg));
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: var(--surface-blur);
+  backdrop-filter: var(--surface-blur);
   border: none;
   border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent);
 }
 
 /* Telegram's @ button: the same circle, stacked above scroll-down when that
  * shows, with the count of unseen mentions on its shoulder. */
 .composer-dock .composer-jump-mention {
   position: absolute;
-  right: 16px;
+  right: 8px;
   bottom: calc(100% + 8px);
   z-index: 6;
   display: flex;
@@ -432,9 +437,12 @@
   color: var(--accent);
   font-size: 16px;
   font-weight: var(--font-weight-medium);
-  background: color-mix(in oklch, var(--tint) 60%, var(--bg));
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: var(--surface-blur);
+  backdrop-filter: var(--surface-blur);
   border: none;
   border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent);
 }
 
 .composer-dock .composer-jump-mention[data-stacked] {

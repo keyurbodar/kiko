@@ -918,16 +918,12 @@
 }
 
 /* Monocode's docked composer has no band behind it: the transcript fades out over its last
-   2.5rem instead, and the last message scrolls clear of that fade (index.css,
-   `.transcript-composer-fade`). Only over a picture: without one, the scroll fades paint the
-   panel color and already do this. */
+   2.5rem instead, and the last message scrolls clear of that fade on the column's 48px bottom
+   inset (index.css, `.transcript-composer-fade`). Only over a picture: without one, the scroll
+   fades paint the panel color and already do this. */
 :root[data-chat-background] [data-component="chat-scroll"] {
   -webkit-mask-image: linear-gradient(to bottom, #000, #000 calc(100% - 2.5rem), transparent);
   mask-image: linear-gradient(to bottom, #000, #000 calc(100% - 2.5rem), transparent);
-}
-
-:root[data-chat-background] [data-component="chat-column"] {
-  padding-bottom: 2.5rem;
 }
 
 /* Haze: the picture blurred and faded into the pane below it. Each masked copy samples the

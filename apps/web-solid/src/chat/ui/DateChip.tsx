@@ -56,8 +56,9 @@ export function DateChip(props: {
         active={open()}
         class={cn(
           "flex w-max max-w-full flex-col items-stretch overflow-clip text-text",
-          // Open, the calendar floats over the transcript, so it is the frosted menu surface.
-          open() ? "bg-menu" : "bg-surface-raised",
+          // The chip floats over the transcript, open or closed, so it is the frosted menu surface.
+          // The translucent raised fill let the text scrolling under it show through.
+          "bg-menu",
           // The shadow belongs to the open calendar. On the closed pill it read as a halo.
           open() ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full shadow-popover motion-calendar-open" : "rounded-[15px]",
         )}

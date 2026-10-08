@@ -13,7 +13,7 @@ export function EmptyState(props: { class?: string }) {
   return (
     <div
       class={cn(
-        "chat-empty pointer-events-none flex min-h-[calc(100dvh-16rem)] flex-1 select-none flex-col items-center justify-center gap-5 px-4",
+        "chat-empty pointer-events-none flex flex-1 select-none flex-col items-center justify-center gap-5 px-4",
         props.class,
       )}
       data-component="chat-empty"
