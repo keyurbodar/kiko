@@ -86,10 +86,18 @@ function ChatMenuItems(props: { id: string }) {
   )
 }
 
+/** The one pinned chat whose preview card is open. One at a time: each tile had its own, and quick
+ *  moves across the tiles left several open at once. */
+const [openPreview, setOpenPreview] = createSignal<string | null>(null)
+
 /** The pinned block: a circle, a dot when unread, a name clamped to two lines. */
 function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void; hint?: string }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
-  const [previewOpen, setPreviewOpen] = createSignal(false)
+  const previewOpen = () => openPreview() === props.bot.id
+  const setPreviewOpen = (open: boolean) => {
+    if (open) setOpenPreview(props.bot.id)
+    else if (previewOpen()) setOpenPreview(null)
+  }
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   return (
     <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
@@ -112,7 +120,10 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
             data-active={props.active ? "" : undefined}
             data-unread={unread() ? "" : undefined}
             aria-current={props.active ? "true" : undefined}
-            onClick={props.onSelect}
+            onClick={() => {
+              setPreviewOpen(false)
+              props.onSelect()
+            }}
           >
             <span class="pin-tile-circle">
               <span class="pin-tile-icon">

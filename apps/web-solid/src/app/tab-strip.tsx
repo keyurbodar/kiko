@@ -72,9 +72,21 @@ export function TabStrip() {
     openTabs.ids()
     queueMicrotask(edges)
   })
+  // When the strip changes width (the sidebar opened or shut, the window resized), it scrolls back
+  // as far left as the active tab allows. Kept where it was, a wider strip showed a half-cut tab at
+  // its start for no reason.
+  const settle = () => {
+    const el = strip.el
+    const id = activeId()
+    const tab = id ? el?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`) : null
+    if (!el) return
+    const right = tab ? tab.getBoundingClientRect().right - el.getBoundingClientRect().left + el.scrollLeft : 0
+    el.scrollLeft = Math.max(0, right - el.clientWidth)
+    edges()
+  }
   onMount(() => {
     if (!strip.el || typeof ResizeObserver === "undefined") return
-    const observer = new ResizeObserver(edges)
+    const observer = new ResizeObserver(settle)
     observer.observe(strip.el)
     onCleanup(() => observer.disconnect())
   })
