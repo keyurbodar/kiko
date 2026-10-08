@@ -11,7 +11,7 @@ import { BUILT_IN_THEMES } from "./builtins"
 import { cn } from "../lib/cn"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { background, BACKGROUND_EFFECTS, BLUR_RADIUS, chooseBackground, DEFAULT_GLASS, EFFECT_DESCRIPTIONS, EFFECT_LABELS, glass, picture, removeBackground, setBackground, setGlass, SIDEBAR_OPACITY, VISIBILITY } from "./glass"
-import { chooseTheme, customThemes, look, matchWallpaper, removeThemes, setHalf, updateLook } from "./live"
+import { allThemes, chooseTheme, customThemes, look, matchWallpaper, removeThemes, setHalf, updateLook } from "./live"
 import { ThemeSelect, type ThemeOption } from "./theme-select"
 import { DEFAULT_LOOK, type Mode } from "./look"
 import { ACCENT_PRESETS, colorsForMode, monocodeColors, WALLPAPER_ID, wallpaperColors, serializeThemeFile, themeModes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
@@ -54,31 +54,42 @@ const removeTheme = (theme: ThemeDefinition) => {
   showToastV2({ title: `${theme.label.toLowerCase()} removed`, description: "import its file to bring it back" })
 }
 
-/** The themes one mode can wear: kiko's own, the picture's when there is one, then every theme that draws it. */
-function optionsFor(half: ThemeAppearance): ThemeOption[] {
+/**
+ * Every theme, drawn in the mode on screen: kiko's own, the picture's when there is one, the
+ * built-ins, then the imported ones. A theme that draws only the other mode shows its own colors.
+ */
+function themeOptions(): ThemeOption[] {
+  const now = shown()
   const palette = look().wallpaper ?? background()?.palette ?? null
-  const draws = (theme: ThemeDefinition) => colorsForMode(theme, half)
+  const colors = (theme: ThemeDefinition) => colorsForMode(theme, now) ?? colorsForMode(theme, now === "dark" ? "light" : "dark")!
+  const only = (theme: ThemeDefinition) => {
+    const modes = themeModes(theme)
+    return modes.length === 1 ? `${modes[0]} only` : undefined
+  }
   return [
-    { id: null, label: "kiko", colors: monocodeColors(look().tint, half) },
-    ...(palette ? [{ id: WALLPAPER_ID, label: "match wallpaper", colors: wallpaperColors(palette, half) }] : []),
-    ...BUILT_IN_THEMES.filter(draws).map((t) => ({ id: t.id, label: t.label.toLowerCase(), colors: draws(t)! })),
-    ...customThemes()
-      .filter(draws)
-      .map((t) => ({
-        id: t.id,
-        label: t.label.toLowerCase(),
-        note: t.collection && t.collection.label !== t.label ? t.collection.label.toLowerCase() : undefined,
-        colors: draws(t)!,
-        onExport: () => download(`${t.id}.json`, serializeThemeFile(t)),
-        onRemove: () => removeTheme(t),
-      })),
+    { id: null, label: "kiko", colors: monocodeColors(look().tint, now) },
+    ...(palette ? [{ id: WALLPAPER_ID, label: "match wallpaper", colors: wallpaperColors(palette, now) }] : []),
+    ...BUILT_IN_THEMES.map((t) => ({ id: t.id, label: t.label.toLowerCase(), colors: colors(t) })),
+    ...customThemes().map((t) => ({
+      id: t.id,
+      label: t.label.toLowerCase(),
+      note: only(t),
+      colors: colors(t),
+      onExport: () => download(`${t.id}.json`, serializeThemeFile(t)),
+      onRemove: () => removeTheme(t),
+    })),
   ]
 }
 
-/** Picks a half's theme. The picture's palette goes with "match wallpaper". */
-function pickHalf(half: ThemeAppearance, id: string | null) {
-  if (id === WALLPAPER_ID) return updateLook({ [half]: WALLPAPER_ID, wallpaper: look().wallpaper ?? background()?.palette ?? null })
-  setHalf(half, id)
+/** Picks a theme for every mode it draws; one that draws a single mode takes only that one. */
+function pickTheme(id: string | null) {
+  if (id === null) return chooseTheme(null)
+  if (id === WALLPAPER_ID) return void (background() ? matchWallpaper() : updateLook({ light: WALLPAPER_ID, dark: WALLPAPER_ID }))
+  const theme = allThemes().find((t) => t.id === id)
+  if (!theme) return
+  const modes = themeModes(theme)
+  if (modes.length === 1) setHalf(modes[0]!, id)
+  else chooseTheme(id)
 }
 
 function AccentPicker(): JSX.Element {
@@ -126,11 +137,8 @@ function ColorGroups(): JSX.Element {
             onChange={(mode) => updateLook({ mode })}
           />
         </Row>
-        <Row label="light theme" description="what kiko wears in light mode.">
-          <ThemeSelect half="light" value={look().light} options={optionsFor("light")} onPick={(id) => pickHalf("light", id)} />
-        </Row>
-        <Row label="dark theme" description="what kiko wears in dark mode.">
-          <ThemeSelect half="dark" value={look().dark} options={optionsFor("dark")} onPick={(id) => pickHalf("dark", id)} />
+        <Row label="color theme" description="kiko's own, one from your picture, a built-in, or one you added.">
+          <ThemeSelect value={look()[shown()]} options={themeOptions()} onPick={pickTheme} />
         </Row>
         <Row label="accent color" description="used for the send button and your message bubbles.">
           <AccentPicker />

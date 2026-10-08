@@ -9,7 +9,7 @@ import { For, Show, createSignal, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
 import { cn } from "../lib/cn"
 import { buttonClass, iconButtonClass } from "../settings/kit"
-import type { ThemeAppearance, ThemeColors } from "./palette"
+import type { ThemeColors } from "./palette"
 
 export type ThemeOption = {
   id: string | null
@@ -21,23 +21,21 @@ export type ThemeOption = {
   onRemove?: () => void
 }
 
-/** A theme in miniature: its canvas with its accent as a dot. */
+/** A theme in miniature: a small ball of its canvas with its accent glowing from one side. */
 export function Swatch(props: { colors: ThemeColors }): JSX.Element {
   return (
     <span
       aria-hidden="true"
-      class="grid size-4 shrink-0 place-items-center rounded-[5px] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text)_16%,transparent)]"
-      style={{ background: props.colors.canvas }}
-    >
-      <span class="size-1.5 rounded-full" style={{ background: props.colors.accent }} />
-    </span>
+      class="block size-3.5 shrink-0 rounded-full shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text)_18%,transparent)]"
+      style={{ background: `radial-gradient(circle at 30% 30%, ${props.colors.accent} 0%, color-mix(in oklab, ${props.colors.accent} 45%, ${props.colors.canvas}) 45%, ${props.colors.canvas} 75%)` }}
+    />
   )
 }
 
 const PANEL_W = 280
 const PANEL_H = 320
 
-export function ThemeSelect(props: { half: ThemeAppearance; value: string | null; options: readonly ThemeOption[]; onPick: (id: string | null) => void }): JSX.Element {
+export function ThemeSelect(props: { value: string | null; options: readonly ThemeOption[]; onPick: (id: string | null) => void }): JSX.Element {
   const [open, setOpen] = createSignal(false)
   const [place, setPlace] = createSignal<JSX.CSSProperties>({})
   let trigger: HTMLButtonElement | undefined
@@ -62,9 +60,8 @@ export function ThemeSelect(props: { half: ThemeAppearance; value: string | null
         class={buttonClass("secondary", "max-w-52 justify-between gap-2")}
         aria-haspopup="listbox"
         aria-expanded={open()}
-        aria-label={`${props.half} theme: ${chosen()?.label ?? "kiko"}`}
+        aria-label={`color theme: ${chosen()?.label ?? "kiko"}`}
         data-component="theme-select"
-        data-half={props.half}
         onClick={() => (open() ? setOpen(false) : show())}
       >
         <span class="flex min-w-0 items-center gap-2">
@@ -84,7 +81,7 @@ export function ThemeSelect(props: { half: ThemeAppearance; value: string | null
             class="bg-menu fixed z-50 flex max-h-[320px] flex-col overflow-y-auto rounded-xl p-1 shadow-popover"
             style={{ ...place(), width: `${PANEL_W}px` }}
             role="listbox"
-            aria-label={`${props.half} theme`}
+            aria-label="color theme"
           >
             <For each={props.options}>
               {(option) => {
