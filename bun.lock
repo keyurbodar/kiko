@@ -32,6 +32,7 @@
         "@earendil-works/pi-mcp": "1.0.0",
         "@kiko/agent": "workspace:*",
         "@kiko/durable": "workspace:*",
+        "@kiko/memory": "workspace:*",
         "@kiko/protocol": "workspace:*",
         "better-auth": "^1.7.7",
         "effect": "4.0.0",
@@ -110,6 +111,19 @@
     "packages/durable": {
       "name": "@kiko/durable",
       "version": "0.0.1",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20260101.0",
+        "typescript": "^5.9.0",
+      },
+    },
+    "packages/memory": {
+      "name": "@kiko/memory",
+      "version": "0.0.1",
+      "dependencies": {
+        "@earendil-works/pi-ai": "^1.0.0",
+        "@earendil-works/pi-durable": "^1.0.0",
+        "@kiko/agent": "workspace:*",
+      },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260101.0",
         "typescript": "^5.9.0",
@@ -454,6 +468,8 @@
     "@kiko/cli": ["@kiko/cli@workspace:apps/cli"],
 
     "@kiko/durable": ["@kiko/durable@workspace:packages/durable"],
+
+    "@kiko/memory": ["@kiko/memory@workspace:packages/memory"],
 
     "@kiko/protocol": ["@kiko/protocol@workspace:packages/protocol"],
 

@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
-import { parseZoomId } from "../src/agent/extensions/memory"
+import { parseZoomId } from "@kiko/memory/tools"
 import { perRun } from "../src/agent/extensions/self"
 import { briefToShow } from "@kiko/agent/host"
 import { renderInput } from "@kiko/agent/inbox"
-import { itemLine } from "../src/lib/optmem"
+import { itemLine } from "@kiko/memory/optmem"
 import { buildBrief, shortBrief } from "../src/room/brief"
 import type { MemberRow } from "../src/room/members"
-import { norm } from "../src/user/life"
+import { norm } from "@kiko/memory/life"
 
 // Section 13.4 and 7.4: the small rules that keep a run from paying twice for what it already has.
 

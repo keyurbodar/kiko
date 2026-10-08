@@ -20,8 +20,9 @@ import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsC
 import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
-import { Life } from "./life"
-import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "../lib/optmem"
+import { Life } from "@kiko/memory/life"
+import { importRecords } from "./import-records"
+import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
@@ -115,7 +116,7 @@ export class UserDO extends DurableObject<Env> {
       this.alarms = createAlarms(ctx)
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
       // The records store this log replaced is read once into it, then dropped (architecture section 13).
-      if (this.life.importRecords() > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
+      if (importRecords(this.sql, this.life) > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner(), (by) => this.triggerAuthority(by)), Date.now, {

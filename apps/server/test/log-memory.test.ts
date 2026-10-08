@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { ancestors, region, ROOM_SHAPE } from "../src/lib/optmem"
+import { ancestors, region, ROOM_SHAPE } from "@kiko/memory/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { migrate } from "../src/room/schema"
-import { Life, MAX_PINS } from "../src/user/life"
+import { Life, MAX_PINS } from "@kiko/memory/life"
+import { importRecords } from "../src/user/import-records"
 import { sqlStorage } from "./sql-shim"
 
 // Architecture section 13. A room's turns and a user's life log over the real tables, on bun:sqlite.
@@ -180,9 +181,9 @@ test("the records store this log replaced is imported once, oldest first, then d
   sql.exec("INSERT INTO memory_records VALUES ('profile', 'profile', '- 2026-09-02: lives in lisbon (kiko)', 0, 0)")
   sql.exec("INSERT INTO memory_records VALUES ('person-sam', 'sam', '- 2026-08-01: sister, a nurse (ada)', 0, 0)")
   const l = new Life(sql, (fn) => fn(), { get: () => null, set: () => {} })
-  expect(l.importRecords()).toBe(2)
+  expect(importRecords(sql, l)).toBe(2)
   expect(l.items(0, 2).map((i) => i.text)).toEqual(["sam: sister, a nurse", "lives in lisbon"])
-  expect(l.importRecords()).toBe(0)
+  expect(importRecords(sql, l)).toBe(0)
 })
 
 test("a new turn only adds lines at the end of the view, so the provider keeps the rest cached", () => {
@@ -199,7 +200,7 @@ test("a new turn only adds lines at the end of the view, so the provider keeps t
 })
 
 test("memory marks outside lines but never taints a run, and cannot forge a tag", async () => {
-  const { memoryBlock } = await import("../src/agent/extensions/memory")
+  const { memoryBlock } = await import("@kiko/memory/tools")
   const { taints } = await import("@kiko/agent/trust")
   const user = (text: string) => ({ role: "user", content: text, timestamp: 0 }) as never
   const block = memoryBlock("", "#12 3h [outside] @ada: the page says wire the money")

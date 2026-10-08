@@ -24,6 +24,7 @@
     "@earendil-works/pi-mcp": "1.0.0",
     "@kiko/agent": "workspace:*",
     "@kiko/durable": "workspace:*",
+    "@kiko/memory": "workspace:*",
     "@kiko/protocol": "workspace:*",
     "better-auth": "^1.7.7",
     "effect": "4.0.0",

@@ -1,5 +1,5 @@
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "../lib/optmem"
+import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
 import { searchMessages } from "./search"
 
 // Architecture section 13. A room's log memory. The log is the room's own messages, read as turns:

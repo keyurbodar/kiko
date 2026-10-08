@@ -1,4 +1,4 @@
-import { capBytes, type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, oneLine, region, type Span, Tree } from "../lib/optmem"
+import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, Tree } from "./optmem"
 
 // Architecture section 13. The user's life log: what kiko knows about this human, across every chat.
 // One line per memory, append-only, at most 280 bytes. Lines come from an agent's `note` and from
@@ -174,33 +174,6 @@ export class Life {
   settle(span: Span, text: string | null): void {
     const input = this.tree.input(span)
     if (input) this.tree.put(span, this.tree.nodeFor(input, text ?? this.tree.free(input) ?? this.tree.fallback(input)))
-  }
-
-  /**
-   * One-time import of the records store this log replaces: every dated bullet becomes a line, oldest
-   * first, named by its record when that is not a profile, now, or todo. Returns the lines imported.
-   */
-  importRecords(): number {
-    const has = this.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'memory_records'").toArray().length > 0
-    if (!has) return 0
-    const records = this.sql.exec<{ id: string; title: string; body: string; updated_at: number }>("SELECT id, title, body, updated_at FROM memory_records WHERE archived = 0").toArray()
-    const lines: { at: number; text: string }[] = []
-    for (const r of records) {
-      for (const raw of r.body.split("\n")) {
-        const line = raw.trim().replace(/^[-*]\s*/, "")
-        if (!line) continue
-        const dated = /^(\d{4}-\d{2}-\d{2}):\s*(.*?)(?:\s+\([^)]*\))?$/.exec(line)
-        const at = dated ? Date.parse(`${dated[1]}T12:00:00Z`) : r.updated_at
-        const text = dated ? dated[2]! : line
-        const named = ["profile", "now", "todo"].includes(r.id) ? text : `${r.title}: ${text}`
-        lines.push({ at: Number.isFinite(at) ? at : r.updated_at, text: capBytes(oneLine(named, 1_000), LINE_BYTES) })
-      }
-    }
-    lines.sort((a, b) => a.at - b.at)
-    let n = 0
-    for (const l of lines) if (this.append(l.text, "", false, l.at).ok) n++
-    for (const table of ["memory_records", "memory_versions", "memory_fts"]) this.sql.exec(`DROP TABLE IF EXISTS ${table}`)
-    return n
   }
 }
 
