@@ -1,14 +1,16 @@
-import { For, Show, Suspense, createEffect, createMemo, createResource, createSignal, on, onCleanup, untrack } from "solid-js"
+import { For, Show, Suspense, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
+import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { chatModel, setChatModel } from "./chat-model"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { Moment } from "../mascot/pixel/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
-import { Button, choiceRowClass, DetailsButton, Empty, fieldClass, Group, Hint, Item, line, ListRow, Notice, Pill, Radio } from "./kit"
+import { Button, DetailsButton, Empty, fieldClass, Group, Hint, Item, line, ListRow, Notice, Row, Toggle } from "./kit"
+import { ModelSelect, StarButton } from "./model-select"
+import { groupForDisplay, modelPrefs, setHidden, toggleFavorite } from "./model-prefs"
 import { cn } from "../lib/cn"
 
 const METHOD_LABEL: Record<ConnectMethod, string> = {
@@ -17,8 +19,6 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
   paste_code: "browser sign-in",
 }
 
-/** Models listed under a provider before "show all". A provider can carry hundreds. */
-const PREVIEW_MODELS = 6
 
 /*
  * Settings, models: three groups. The connected providers with their keys, the default model a
@@ -78,14 +78,16 @@ export function ModelsPage() {
         <Hint data-component="no-provider">no provider yet. connect one below to start chatting. keys stay on the server and never reach your browser.</Hint>
       </Show>
       <Show when={connected().length > 0}>
+        <Group title="defaults">
+          <Row id="default-model" label="model" description="a new chat starts on this model. you can change it per chat.">
+            <ModelSelect providers={connected()} value={chatModel(null)} onPick={(ref) => setChatModel(null, ref)} label="default model" data-component="default-model" />
+          </Row>
+        </Group>
+      </Show>
+      <Show when={connected().length > 0}>
       <Group title="providers" description="keys stay on the server and never reach your browser.">
         <For each={connected()}>{(provider) => <ConnectedProvider provider={provider} info={saved(provider.id)!} />}</For>
       </Group>
-      </Show>
-      <Show when={connected().length > 0}>
-        <Group title="default model" description="a new chat starts on this model. you can change it per chat.">
-          <For each={connected()}>{(provider) => <ProviderModels provider={provider} heading={connected().length > 1} />}</For>
-        </Group>
       </Show>
       <div data-component="provider-add">
         <Group
@@ -164,6 +166,7 @@ function ConnectedProvider(props: { provider: CatalogProvider; info: { kind: str
     }
   }
   const count = () => props.provider.models.length
+  const [open, setOpen] = createSignal(false)
   return (
     <Item
       data-provider={props.provider.id}
@@ -172,74 +175,94 @@ function ConnectedProvider(props: { provider: CatalogProvider; info: { kind: str
       title={props.provider.name.toLowerCase()}
       meta={`${props.info.kind === "api_key" ? `key ending ${props.info.last4}` : "signed in"} · ${count()} ${count() === 1 ? "model" : "models"}`}
       actions={
-        <Button variant="danger" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
-          disconnect
-        </Button>
+        <>
+          <DetailsButton open={open()} onToggle={() => setOpen(!open())} label="models" data-action="provider-models" />
+          <Button variant="danger" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
+            disconnect
+          </Button>
+        </>
       }
-    />
+    >
+      {open() ? <ProviderModelList provider={props.provider} /> : undefined}
+    </Item>
   )
 }
 
-/** A connected provider's models as options; the default for new chats is marked. */
-function ProviderModels(props: { provider: CatalogProvider; heading: boolean }) {
-  const [all, setAll] = createSignal(false)
-  const current = () => chatModel(null)
-  // The default as the page opened goes first, so it is always in the short list. Picking one
-  // later does not reorder the rows under the pointer.
-  const first = untrack(current)
-  const models = createMemo(() => {
-    const list = [...props.provider.models]
-    const at = list.findIndex((m) => modelRef(props.provider.id, m.id) === first)
-    if (at > 0) list.unshift(...list.splice(at, 1))
-    return list
+/** Above this many models the list gets a filter, as in t3code. */
+const FILTER_THRESHOLD = 8
+
+/**
+ * A provider's models, after t3code's provider models section (MIT, ProviderModelsSection.tsx):
+ * which the picker shows first (a star) and which it leaves out (a switch), favorites first,
+ * then the shown models, then the hidden ones.
+ */
+function ProviderModelList(props: { provider: CatalogProvider }) {
+  const [filter, setFilter] = createSignal("")
+  const refOf = (m: CatalogModel) => modelRef(props.provider.id, m.id)
+  const refs = () => props.provider.models.map(refOf)
+  const hidden = () => new Set(modelPrefs().hidden)
+  const matching = createMemo(() => {
+    const words = filter().toLowerCase().split(/\s+/).filter(Boolean)
+    return props.provider.models.filter((m) => words.every((w) => `${m.name} ${m.id}`.toLowerCase().includes(w)))
   })
-  const shown = () => (all() ? models() : models().slice(0, PREVIEW_MODELS))
+  const groups = createMemo(() => groupForDisplay(matching(), refOf, modelPrefs()))
+  const favorites = () => props.provider.models.filter((m) => modelPrefs().favorites.includes(refOf(m))).length
+  const hiddenCount = () => refs().filter((r) => hidden().has(r)).length
+  const allHidden = () => refs().length > 0 && refs().every((r) => hidden().has(r))
+  const n = () => props.provider.models.length
+
+  const label = (text: string) => <div class="px-2 pt-3 pb-1 text-[11px] font-medium text-[color-mix(in_oklab,var(--text)_45%,transparent)] first:pt-1">{text}</div>
+  const row = (m: CatalogModel) => {
+    const ref = refOf(m)
+    const off = () => hidden().has(ref)
+    return (
+      <div class="grid h-8 grid-cols-[1.5rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md px-2 hover:bg-[color-mix(in_oklab,var(--text)_4%,transparent)]" classList={{ "opacity-50": off() }} data-model={ref}>
+        <StarButton on={modelPrefs().favorites.includes(ref)} name={m.name.toLowerCase()} onToggle={() => toggleFavorite(ref)} />
+        <span class="flex min-w-0 items-baseline gap-2">
+          <span class="truncate text-[12px] text-text">{m.name.toLowerCase()}</span>
+          <Show when={m.name.toLowerCase() !== m.id.toLowerCase()}>
+            <code class="truncate font-mono text-[11px] text-[color-mix(in_oklab,var(--text)_40%,transparent)]">{m.id}</code>
+          </Show>
+        </span>
+        <span class="text-[11px] tabular-nums text-[color-mix(in_oklab,var(--text)_45%,transparent)]">
+          {formatContext(m.contextWindow)}
+          {m.reasoning ? " · reasoning" : ""}
+        </span>
+        <Toggle label={`show ${m.name.toLowerCase()} in the model picker`} on={!off()} onChange={(on) => setHidden([ref], !on)} />
+      </div>
+    )
+  }
   return (
-    <div class="flex flex-col py-1" data-provider-models={props.provider.id}>
-      <Show when={props.heading}>
-        <div class="flex h-8 items-center gap-2 px-4 text-xs font-medium text-muted">
-          <ProviderIcon id={props.provider.id} width="13" height="13" />
-          {props.provider.name.toLowerCase()}
-        </div>
-      </Show>
-      <ul class="flex flex-col" role="listbox" aria-label={`${props.provider.name.toLowerCase()} models`}>
-        <For each={shown()}>
-          {(model) => {
-            const ref = modelRef(props.provider.id, model.id)
-            const isDefault = () => current() === ref
-            return (
-              <li
-                role="option"
-                aria-selected={isDefault()}
-                tabindex="0"
-                class={cn(choiceRowClass, "h-10")}
-                data-model={ref}
-                onClick={() => setChatModel(null, ref)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    setChatModel(null, ref)
-                  }
-                }}
-              >
-                <Radio on={isDefault()} />
-                <span class={cn("min-w-0 flex-1 truncate text-[13px]", isDefault() ? "font-medium text-text" : "text-text")}>{model.name.toLowerCase()}</span>
-                <Show when={isDefault()}>
-                  <Pill tone="accent" data-component="default-model">default</Pill>
-                </Show>
-                <span class="w-14 shrink-0 text-right text-xs tabular-nums text-muted">{formatContext(model.contextWindow)}</span>
-              </li>
-            )
-          }}
-        </For>
-        <Show when={models().length > PREVIEW_MODELS}>
-          <li>
-            <div class="px-4 py-2">
-              <DetailsButton open={all()} onToggle={() => setAll(!all())} label={all() ? "show fewer" : `show all ${models().length}`} data-action="show-all-models" />
-            </div>
-          </li>
+    <div class="flex flex-col gap-2 pl-10" data-provider-models={props.provider.id}>
+      <div class="flex flex-wrap items-center gap-2">
+        <Show when={n() > FILTER_THRESHOLD}>
+          <input class={cn(fieldClass, "w-56 max-w-full")} placeholder="filter models" aria-label="filter models" spellcheck={false} value={filter()} onInput={(e) => setFilter(e.currentTarget.value)} />
         </Show>
-      </ul>
+        <Button variant="ghost" data-action="toggle-all-models" onClick={() => setHidden(refs(), !allHidden())}>
+          {allHidden() ? "show all" : "hide all"}
+        </Button>
+        <span class="ml-auto text-[12px] text-[color-mix(in_oklab,var(--text)_45%,transparent)]">
+          {n()} {n() === 1 ? "model" : "models"}
+          {favorites() ? ` · ${favorites()} ${favorites() === 1 ? "favorite" : "favorites"}` : ""}
+          {hiddenCount() ? ` · ${hiddenCount()} hidden` : ""}
+        </span>
+      </div>
+      <div class="-mx-2 max-h-72 overflow-y-auto">
+        <Show when={matching().length} fallback={<p class="px-2 py-2 text-[12px] text-[color-mix(in_oklab,var(--text)_50%,transparent)]">no models match</p>}>
+          <Show when={groups().favorites.length}>
+            {label("favorites")}
+            <For each={groups().favorites}>{row}</For>
+          </Show>
+          <Show when={groups().shown.length}>
+            <Show when={groups().favorites.length}>{label("all")}</Show>
+            <For each={groups().shown}>{row}</For>
+          </Show>
+          <Show when={groups().hidden.length}>
+            {label("hidden from picker")}
+            <For each={groups().hidden}>{row}</For>
+          </Show>
+        </Show>
+      </div>
     </div>
   )
 }
