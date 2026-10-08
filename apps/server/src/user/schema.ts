@@ -40,30 +40,6 @@ const TABLES = [
   )`,
   // The user socket's durable events. `seq` only increases. Architecture section 9.2.
   `CREATE TABLE IF NOT EXISTS user_events (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL)`,
-  // Memory. Architecture section 13.1. The FTS table is kept in step by memory.ts.
-  `CREATE TABLE IF NOT EXISTS memory_records (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    aliases TEXT NOT NULL DEFAULT '[]',
-    body TEXT NOT NULL DEFAULT '',
-    pinned INTEGER NOT NULL DEFAULT 0,
-    archived INTEGER NOT NULL DEFAULT 0,
-    uses INTEGER NOT NULL DEFAULT 0,
-    last_used_at INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    version INTEGER NOT NULL DEFAULT 1
-  )`,
-  `CREATE TABLE IF NOT EXISTS memory_versions (
-    record_id TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    body TEXT NOT NULL,
-    author TEXT NOT NULL,
-    at INTEGER NOT NULL,
-    PRIMARY KEY (record_id, version)
-  )`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(id UNINDEXED, title, aliases, body)`,
 ]
 
 export function migrate(sql: SqlStorage): void {
