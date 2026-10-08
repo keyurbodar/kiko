@@ -1,4 +1,4 @@
-import type { Envelope, Sender } from "@kiko/protocol"
+import type { Envelope, Sender } from "./envelope"
 
 // Architecture section 7.3. The inbox stores every envelope the room delivers. Rows are not deleted
 // when they are drained, because the id is the dedupe key: a delivery repeated after its run finished

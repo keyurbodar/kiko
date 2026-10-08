@@ -6,7 +6,7 @@ import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, Harness, MemoryStorage } from "@earendil-works/pi-durable"
 import type { Envelope } from "@kiko/protocol"
 import { fakeReply, TRUST_TOOLS_EXTENSION } from "../src/agent/dev-fake"
-import { declareEffect, effectTable } from "../src/agent/effects"
+import { declareEffect, effectTable } from "@kiko/agent/effects"
 import {
   type Approvals,
   escapeLookalikes,
@@ -15,10 +15,10 @@ import {
   runTainted,
   TRUST,
   wrapUntrusted,
-} from "../src/agent/extensions/trust"
+} from "@kiko/agent/trust"
 import { buildAgent } from "../src/agent/factory"
-import { type Authority, AUTO, HUMAN } from "../src/lib/origin"
-import { renderInput } from "../src/agent/inbox"
+import { type Authority, AUTO, HUMAN } from "@kiko/agent/authority"
+import { renderInput } from "@kiko/agent/inbox"
 
 // P7-01, architecture sections 16 and 25.3. The gate is code, so these tests are deterministic. Each
 // attack runs a real `pi-durable` harness on the scripted fake model of `dev-fake.ts`, which obeys any

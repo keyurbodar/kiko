@@ -22,6 +22,7 @@
     "@earendil-works/pi-ai": "^1.0.0",
     "@earendil-works/pi-durable": "^1.0.0",
     "@earendil-works/pi-mcp": "1.0.0",
+    "@kiko/agent": "workspace:*",
     "@kiko/durable": "workspace:*",
     "@kiko/protocol": "workspace:*",
     "better-auth": "^1.7.7",

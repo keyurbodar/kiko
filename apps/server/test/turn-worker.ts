@@ -3,7 +3,7 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import type { AgentSlug, AgentState, Envelope, RoomId } from "@kiko/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
-import type { AgentSetup, HostOptions } from "../src/agent/host"
+import type { AgentSetup, HostOptions } from "@kiko/agent/host"
 import type { RoomPort } from "../src/agent/outbox"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../src/lib/names"
 import type { RoomDO } from "../src/room/room-do"

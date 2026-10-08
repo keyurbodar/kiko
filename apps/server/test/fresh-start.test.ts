@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { CONTEXT_BUDGET_CHARS, measure, startsFresh, TASK_BUDGET_CHARS, TASK_IDLE_MS } from "../src/agent/host"
+import { CONTEXT_BUDGET_CHARS, measure, startsFresh, TASK_BUDGET_CHARS, TASK_IDLE_MS } from "@kiko/agent/host"
 
 // Section 13. When a new run starts over from <memory> and when it goes on with its transcript.
 const minute = 60_000

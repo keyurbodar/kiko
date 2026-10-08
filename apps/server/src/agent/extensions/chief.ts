@@ -2,7 +2,7 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import type { Agent } from "@kiko/protocol"
 import type { ProposalInput } from "../../room/chief"
-import { declareEffect } from "../effects"
+import { declareEffect } from "@kiko/agent/effects"
 
 // Architecture section 7.11. Only kiko, the chief, makes the human's agents and groups. It works
 // out what they want, proposes a name and a soul (or a group and its /chat.md), shows it, and

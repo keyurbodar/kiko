@@ -4,7 +4,7 @@ import type { Env } from "../../index"
 import { roomStub } from "../../lib/names"
 import type { AgentHome } from "../../room/room-do"
 import { TASK_STATUSES, type WorkspaceAnswer, type WorkspaceCall } from "../../room/workspace"
-import { declareEffect } from "../effects"
+import { declareEffect } from "@kiko/agent/effects"
 
 // Architecture sections 7.5 and 7.6. The task board as agent tools. Every
 // tool calls the room's `Workspace` through a `WorkspacePort`, which `AgentDO` binds to its own room

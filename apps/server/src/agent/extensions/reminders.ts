@@ -5,8 +5,8 @@ import { Trigger as TriggerSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } from "../../user/reminders"
 import type { RoutineResult } from "../../user/routines"
-import { declareEffect } from "../effects"
-import { isRunTainted, runAuthority } from "./trust"
+import { declareEffect } from "@kiko/agent/effects"
+import { isRunTainted, runAuthority } from "@kiko/agent/trust"
 
 // Architecture section 14, P5-06. Agents schedule reminders for the human, for themselves, or for a
 // teammate. `UserDO` owns the table and the alarm. When one fires, the room posts it, and a reminder

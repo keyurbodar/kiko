@@ -3,10 +3,10 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult } from "@kiko/protocol"
 import type { RoomFs } from "../../files/room-fs"
-import { declareEffect, type Effect, effectOf } from "../effects"
+import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
 import type { CheckReport } from "../script/check"
 import { extensionName } from "../script/compile"
-import { isRunTainted } from "./trust"
+import { isRunTainted } from "@kiko/agent/trust"
 
 // Architecture section 24.6. Agents write extensions as files in the chat, at
 // /extensions/<name>/extension.json plus the script, the same way skills live at

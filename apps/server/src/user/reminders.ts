@@ -3,7 +3,7 @@ import type { Env } from "../index"
 import type { Alarms } from "@kiko/durable/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
-import type { Authority } from "../lib/origin"
+import type { Authority } from "@kiko/agent/authority"
 import { RRule } from "rrule"
 import { nextOccurrence, ruleProblem } from "./recurrence"
 

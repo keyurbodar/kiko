@@ -1,4 +1,4 @@
-import type { Sender } from "@kiko/protocol"
+import type { Sender } from "./envelope"
 
 // Architecture section 6.2. What the agent does with an arrival while it works. `decide` is a pure
 // table. The host reads the run's state, asks it, and makes the `pi-durable` call it names.
@@ -34,6 +34,8 @@ export type RunState = {
   /** How often the current burst has already restarted a run. */
   restarts: number
 }
+
+export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "toolRunning">
 
 export type Arrival = { kind: Sender["kind"] } | { kind: "stop" }
 

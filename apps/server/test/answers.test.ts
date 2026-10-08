@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { AnswerWaiters } from "../src/agent/answers"
+import { AnswerWaiters } from "@kiko/agent/answers"
 
 test("a pushed answer ends the wait at once", async () => {
   const w = new AnswerWaiters()

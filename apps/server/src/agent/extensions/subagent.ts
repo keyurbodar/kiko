@@ -1,11 +1,11 @@
 import { Type, type AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { declareEffect } from "../effects"
+import { declareEffect } from "@kiko/agent/effects"
 import { CHIEF_EXT } from "./chief"
 import { MEMORY_NOTE } from "./memory"
 import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
-import { isRunTainted, markRunTainted } from "./trust"
+import { isRunTainted, markRunTainted } from "@kiko/agent/trust"
 import { WORKSPACE } from "./workspace"
 
 // Architecture section 8. A private child conversation inside this agent's own object, from

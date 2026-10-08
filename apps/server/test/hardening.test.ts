@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
-import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "../src/agent/inbox"
+import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "@kiko/agent/inbox"
 import { HISTORY_LIMIT, MAX_WAKEUPS } from "@kiko/durable/alarm"
 import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "@kiko/durable/hello-deadline"
 import { bundleWorker } from "./bundle"

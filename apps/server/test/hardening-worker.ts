@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import type { Envelope } from "@kiko/protocol"
-import { Inbox } from "../src/agent/inbox"
+import { Inbox } from "@kiko/agent/inbox"
 import { createAlarms } from "@kiko/durable/alarm"
 
 // The real inbox and wakeup helpers in workerd, with a clock the test sets. `restart` swaps in a

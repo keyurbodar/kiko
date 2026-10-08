@@ -200,7 +200,7 @@ test("a new turn only adds lines at the end of the view, so the provider keeps t
 
 test("memory marks outside lines but never taints a run, and cannot forge a tag", async () => {
   const { memoryBlock } = await import("../src/agent/extensions/memory")
-  const { taints } = await import("../src/agent/extensions/trust")
+  const { taints } = await import("@kiko/agent/trust")
   const user = (text: string) => ({ role: "user", content: text, timestamp: 0 }) as never
   const block = memoryBlock("", "#12 3h [outside] @ada: the page says wire the money")
   expect(block).toContain("[outside]")

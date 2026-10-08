@@ -19,8 +19,8 @@ import {
   wrapTool,
 } from "@earendil-works/pi-durable"
 import type { ExtensionBundle, ExtensionManifest, ExtensionStateScope } from "@kiko/protocol"
-import { declareEffect, type Effect, effectOf } from "../effects"
-import { markRunTainted } from "../extensions/trust"
+import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
+import { markRunTainted } from "@kiko/agent/trust"
 import { type Bridge, ScriptError, ScriptVM, type Target } from "./vm"
 
 // Architecture section 24.4. A user extension becomes an ordinary pi-durable `Extension`: every

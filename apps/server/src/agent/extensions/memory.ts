@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
-import { declareEffect } from "../effects"
-import { isRunTainted } from "./trust"
+import { declareEffect } from "@kiko/agent/effects"
+import { isRunTainted } from "@kiko/agent/trust"
 
 // Architecture section 13. Memory is not a tool an agent must remember to use: every run opens with a
 // <memory> block, the user's life log and this chat, each a log with older lines compressed (see

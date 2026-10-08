@@ -2,8 +2,8 @@ import { expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
 import { parseZoomId } from "../src/agent/extensions/memory"
 import { perRun } from "../src/agent/extensions/self"
-import { briefToShow } from "../src/agent/host"
-import { renderInput } from "../src/agent/inbox"
+import { briefToShow } from "@kiko/agent/host"
+import { renderInput } from "@kiko/agent/inbox"
 import { itemLine } from "../src/lib/optmem"
 import { buildBrief, shortBrief } from "../src/room/brief"
 import type { MemberRow } from "../src/room/members"
@@ -63,17 +63,17 @@ test("the long line about the human is cut from a brief that is not fresh", () =
 test("only the newest brief shows, once, until it changes or the run starts fresh", () => {
   const a = brief(null, null)
   const b = brief(null, "reading a web page")
-  const first = briefToShow([a], true, undefined)
+  const first = briefToShow([a], true, undefined, shortBrief)
   expect(first.brief).toBe(a)
   // The same brief again, on a run that goes on: the transcript has it.
-  expect(briefToShow([a], false, first.key)).toEqual({ key: first.key })
+  expect(briefToShow([a], false, first.key, shortBrief)).toEqual({ key: first.key })
   // A batch with two briefs shows only the newest, without the long line.
-  const next = briefToShow([a, b], false, first.key)
+  const next = briefToShow([a, b], false, first.key, shortBrief)
   expect(next.brief).toBe(shortBrief(b))
   expect(next.key).not.toBe(first.key)
   // A fresh run shows it in full even when unchanged, since the transcript starts over.
-  expect(briefToShow([b], true, next.key).brief).toBe(b)
-  expect(briefToShow([], false, next.key)).toEqual({})
+  expect(briefToShow([b], true, next.key, shortBrief).brief).toBe(b)
+  expect(briefToShow([], false, next.key, shortBrief)).toEqual({})
 })
 
 let n = 0

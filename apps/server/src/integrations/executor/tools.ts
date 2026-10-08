@@ -1,5 +1,5 @@
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { declareEffect } from "../../agent/effects"
+import { declareEffect } from "@kiko/agent/effects"
 import { spill } from "../../agent/extensions/spill"
 import type { RoomFs } from "../../files/room-fs"
 import { acceptResponse, type ApprovalGate, pendingInteraction, RESUME_TOOL } from "./approval"

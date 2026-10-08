@@ -12,7 +12,7 @@ const ALLOWED: Record<string, readonly string[]> = {
   agent: ["@kiko/durable"],
   memory: ["@kiko/agent"],
   sandbox: ["@kiko/agent"],
-  protocol: [],
+  protocol: ["@kiko/agent", "@kiko/sandbox"],
 }
 
 const ROOT = join(import.meta.dir, "..")

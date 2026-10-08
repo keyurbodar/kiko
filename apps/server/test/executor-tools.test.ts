@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { effectOf } from "../src/agent/effects"
+import { effectOf } from "@kiko/agent/effects"
 import type { ApprovalGate } from "../src/integrations/executor/approval"
 import { executorExtension, toolName } from "../src/integrations/executor/tools"
 

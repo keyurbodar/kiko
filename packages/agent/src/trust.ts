@@ -11,8 +11,8 @@ import {
   type ToolExecutionResult,
   ToolTask,
 } from "@earendil-works/pi-durable"
-import type { Effect, EffectDeclaration } from "../effects"
-import { type Authority, HUMAN } from "../../lib/origin"
+import type { Effect, EffectDeclaration } from "./effects"
+import { type Authority, HUMAN } from "./authority"
 
 // Architecture section 16. `Trust` limits what an injected instruction can do, in code. The model
 // can be fooled; the gate below sets the limit on the damage.

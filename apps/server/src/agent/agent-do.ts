@@ -6,7 +6,7 @@ import type { Envelope, RoomId } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
-import { AnswerWaiters } from "./answers"
+import { AnswerWaiters } from "@kiko/agent/answers"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import type { ApprovalAnswer, ApprovalRequest } from "../room/approvals"
@@ -15,11 +15,12 @@ import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { ChiefPort } from "./extensions/chief"
+import { shortBrief } from "../room/brief"
 import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "./extensions/memory"
 import { roomWorkspacePort } from "./extensions/workspace"
-import type { Approvals } from "./extensions/trust"
+import type { Approvals } from "@kiko/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
 import type { ExecutorTool } from "../integrations/executor/tools"
@@ -33,8 +34,8 @@ import { checkExtension } from "./script/check"
 import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@kiko/protocol"
 import { createAlarms } from "@kiko/durable/alarm"
-import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
-import type { Batch } from "./inbox"
+import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "@kiko/agent/host"
+import type { Batch } from "@kiko/agent/inbox"
 import { storedRows, wipeStorage } from "@kiko/durable/wipe"
 import { instrument } from "../lib/dev-stats"
 
@@ -89,6 +90,8 @@ export class AgentDO extends DurableObject<Env> {
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
       progress: () => this.outbox.progress(),
+      shortBrief,
+      onReset: () => this.outbox.clear(),
       // Extension VMs live for a run. Wasm memory never shrinks, and the isolate's 128 MB is shared.
       onIdle: () => this.#userExtensions?.release(),
       ...this.hostOptions,

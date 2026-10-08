@@ -1,5 +1,5 @@
 import { checkBundle, describeManifest, type ExtensionBundle, type ExtensionTest } from "@kiko/protocol"
-import type { Effect } from "../effects"
+import type { Effect } from "@kiko/agent/effects"
 import { isPlainGet, mayCall } from "./compile"
 import { ScriptError, ScriptVM } from "./vm"
 

@@ -3,9 +3,9 @@ import { defineExtension, defineTool, type Extension, type ToolExecutionApi } fr
 import type { AgentSlug } from "@kiko/protocol"
 import type { AgentSend } from "../../room/mail"
 import type { SpawnInput } from "../../room/room-do"
-import { declareEffect } from "../effects"
-import type { Answer } from "../answers"
-import { isRunTainted, markRunTainted } from "./trust"
+import { declareEffect } from "@kiko/agent/effects"
+import type { Answer } from "@kiko/agent/answers"
+import { isRunTainted, markRunTainted } from "@kiko/agent/trust"
 
 // Architecture sections 7.5 and 7.7. The team tools: send_message, team, and for the lead spawn_agent. Every agent message goes through `RoomDO`,
 // which stores it in the log, delivers it, and enforces the loop limits. A plain reply bubble

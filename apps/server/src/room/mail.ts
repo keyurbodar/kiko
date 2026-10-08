@@ -3,7 +3,7 @@ import { attachedLine } from "./deliver"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
-import { AUTO, type Authority, authorityOfAll, combine, stamp } from "../lib/origin"
+import { AUTO, type Authority, authorityOfAll, combine, stamp } from "@kiko/agent/authority"
 
 // Architecture sections 7.5 and 7.7. Agent-to-agent messages. Every one goes through the room,
 // which stores it in the log with its addressee, then delivers it with `hop + 1` and the sender's

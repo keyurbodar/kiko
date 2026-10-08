@@ -7,8 +7,8 @@ import type { FsEntry } from "../../room/files"
 import { baseName } from "../../room/files"
 import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
 import { asRun, type RoomFs, SOUL_PATH } from "../../files/room-fs"
-import { declareEffect } from "../effects"
-import { isRunTainted, markRunTainted, TRUST } from "./trust"
+import { declareEffect } from "@kiko/agent/effects"
+import { isRunTainted, markRunTainted, TRUST } from "@kiko/agent/trust"
 
 // Architecture sections 7.5 and 18.1. The chat's files, as a Linux-like file system rooted at `/`.
 // `write` and `edit` are `pi-durable`'s own tools, unchanged, running on `RoomFs` through the

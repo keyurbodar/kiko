@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { type Arrival, decide, MAX_RESTARTS, type MidRunAction, type RunState } from "../src/agent/mid-run"
+import { type Arrival, decide, MAX_RESTARTS, type MidRunAction, type RunState } from "@kiko/agent/mid-run"
 
 // P1-12. Every row of the table in architecture section 6.2, and the two guards.
 

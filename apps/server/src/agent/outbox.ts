@@ -2,8 +2,8 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState } from "@kiko/protocol"
 import type { Message } from "@earendil-works/pi-ai"
-import { taints } from "./extensions/trust"
-import type { RunState } from "./mid-run"
+import { taints } from "@kiko/agent/trust"
+import type { RunProgress } from "@kiko/agent/mid-run"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 // Architecture section 6.3. The outbox watches the root conversation and turns the assistant's
@@ -87,9 +87,6 @@ type Run = {
   toolsRunning: number
 }
 
-/** What the mid-run rules need to know of the run in flight. */
-export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "toolRunning">
-
 const hasToolCall = (message: AssistantLike | undefined) => (message?.content ?? []).some((part) => part.type === "toolCall")
 
 export class Outbox {
@@ -149,6 +146,10 @@ export class Outbox {
    * The run this process follows, or null when it has seen none start. A bubble counts as posted
    * from the moment its post is sent, and a tool from the moment the model asked for it.
    */
+  clear(): void {
+    this.sql.exec("DELETE FROM outbox")
+  }
+
   progress(): RunProgress | null {
     const run = this.run
     if (!run) return null

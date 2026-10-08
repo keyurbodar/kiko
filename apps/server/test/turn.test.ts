@@ -4,7 +4,7 @@ import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 import { blocksOf } from "../src/agent/outbox"
 import { debounce, deliverable, isFragment, MAX_DELIVERY_ENVELOPES } from "../src/room/burst"
-import { MAX_ENTRY_BYTES, MAX_OPEN } from "../src/agent/inbox"
+import { MAX_ENTRY_BYTES, MAX_OPEN } from "@kiko/agent/inbox"
 import { AFTER, BEFORE } from "./turn-fixtures"
 
 // P1-11. The room's bubble store and the agent's outbox inside workerd, through Miniflare. The

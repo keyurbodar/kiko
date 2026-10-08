@@ -1,17 +1,12 @@
 // Architecture section 7.1. An envelope is a message as `RoomDO` delivers it to
 // an agent. It crosses a Durable Object call, never a client socket.
 
+import type { Origin } from "@kiko/agent/envelope"
 import type { AgentSlug, MessageId, RoomId } from "./ids"
 
 export type SystemReason = "task_unblocked" | "reminder" | "approval_result" | "run_budget" | "limit" | "files" | "created" | "routine" | "stalled"
 
-/**
- * Architecture section 25.3. Where a run's authority comes from. `human`: a human message is in the chain.
- * `routine`: a routine the human turned on, which may use the tools in `grant` outside kiko. `auto`:
- * anything else (an agent's reminder, a task wake, a stall nudge). The room sets it, and a message an
- * agent sends inherits the origin of its chain, so delegation never widens it.
- */
-export type Origin = "human" | "routine" | "auto"
+export type { Origin }
 
 export type Human = { kind: "human" }
 export type AgentRef = { kind: "agent"; slug: AgentSlug }

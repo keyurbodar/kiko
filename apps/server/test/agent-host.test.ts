@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
-import { renderInput, requestIdFor } from "../src/agent/inbox"
+import { renderInput, requestIdFor } from "@kiko/agent/inbox"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 
 // The agent host (P1-06) inside workerd, through Miniflare. The worker is the real `AgentDO` with a

@@ -7,8 +7,8 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { AssistantEntry, createRegistry, Harness, type Storage } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
-import { type CoalescingStorage, createCoalescingStorage } from "../agent/coalescing-storage"
-import { openDurableObjectSqlite } from "../agent/sqlite"
+import { type CoalescingStorage, createCoalescingStorage } from "@kiko/agent/coalescing-storage"
+import { openDurableObjectSqlite } from "@kiko/agent/sqlite"
 import type { Env } from "../index"
 
 const context = BACKGROUND_CONTEXT

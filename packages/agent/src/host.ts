@@ -3,15 +3,13 @@ import type { Models } from "@earendil-works/pi-ai"
 import { type AgentChange, type Conversation, Harness, type HarnessSettings, type RegistryReader } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
-import type { Envelope } from "@kiko/protocol"
 import { type Alarms, createAlarms } from "@kiko/durable/alarm"
 import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
 import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
-import { type Arrival, decide, FRESH_RUN, type RunState } from "./mid-run"
-import { shortBrief } from "../room/brief"
-import type { RunProgress } from "./outbox"
+import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
+import type { Envelope } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
-import { AUTO, type Authority, authorityOfAll, combine } from "../lib/origin"
+import { AUTO, type Authority, authorityOfAll, combine } from "./authority"
 
 // Architecture sections 4.4 and 7.3. The host owns one agent's `pi-durable` harness inside its
 // `AgentDO`. `receive()` only stores. The alarm does the work: it opens the harness, resumes what a
@@ -81,10 +79,15 @@ function opening(text: string): number {
  * line about @-mentioning the human is left out, since the fresh run's brief said it. `last` is the key
  * of the brief shown last; the result's `key` is the one to keep.
  */
-export function briefToShow(briefs: readonly string[], fresh: boolean, last: string | undefined): { brief?: string; key?: string } {
+export function briefToShow(
+  briefs: readonly string[],
+  fresh: boolean,
+  last: string | undefined,
+  shorten: (brief: string) => string = (brief) => brief,
+): { brief?: string; key?: string } {
   const newest = briefs.at(-1)
   if (newest === undefined) return {}
-  const short = shortBrief(newest)
+  const short = shorten(newest)
   const key = hashText(short)
   if (!fresh && key === last) return { key }
   return { brief: fresh ? newest : short, key }
@@ -169,6 +172,10 @@ export type HostOptions = {
   onIdle?: () => void
   /** A run that no human started passed twice its budget and was aborted (section 25.2). */
   onTimeout?: () => void | Promise<void>
+  /** The brief a run that goes on shows: the fresh run already showed the rest. */
+  shortBrief?: (brief: string) => string
+  /** The harness tables were dropped: the agent forgets the run state it keeps beside them. */
+  onReset?: () => void
   /** The budget of a run no human started. Default `AUTO_RUN_BUDGET_MS`; the dev route shortens it. */
   autoBudgetMs?: () => Promise<number>
 }
@@ -475,7 +482,7 @@ export class AgentHost {
       // background task (a subagent) of an earlier run is still live (section 25.3).
       this.joinAuthority(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
       const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
-      const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined)
+      const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : [])] }, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
@@ -646,7 +653,7 @@ export class AgentHost {
     // goes into every run id from now on. Without it, the room takes a new run's bubbles for repeats of
     // an old run's and stores none of them.
     sql.exec("INSERT INTO harness_epoch (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1")
-    sql.exec("DELETE FROM outbox")
+    this.options.onReset?.()
     if (!requeue) return
     const newest = sql
       .exec<{ request_id: string }>("SELECT request_id FROM inbox WHERE submitted = 1 AND request_id IS NOT NULL AND request_id != 'stopped' ORDER BY arrival DESC LIMIT 1")

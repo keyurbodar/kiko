@@ -1,4 +1,4 @@
-import type { Envelope, Origin } from "@kiko/protocol"
+import type { Envelope, Origin } from "./envelope"
 
 // Architecture section 25.3. Where a run's authority comes from, and how two sources combine. The
 // room stamps every envelope, a message an agent sends inherits its chain's authority, and the trust

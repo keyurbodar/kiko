@@ -43,7 +43,7 @@ import { CHIEF } from "../room/chief"
 import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
 import type { GuestRequest, GuestResponse } from "../agent/script/compile"
 import { closeSockets, storedRows, wipeStorage } from "@kiko/durable/wipe"
-import type { Authority } from "../lib/origin"
+import type { Authority } from "@kiko/agent/authority"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }

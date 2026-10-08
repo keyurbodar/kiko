@@ -7,7 +7,7 @@ import {
   type StorageConformanceAssertions,
   type StorageConformanceProvider,
 } from "@earendil-works/pi-durable/testing"
-import { openDurableObjectSqlite } from "../src/agent/sqlite"
+import { openDurableObjectSqlite } from "@kiko/agent/sqlite"
 
 // Runs inside workerd. Each request runs one case in a Durable Object of its own, so every case
 // starts on an empty database. `sqlite-conformance.test.ts` drives it through Miniflare.
