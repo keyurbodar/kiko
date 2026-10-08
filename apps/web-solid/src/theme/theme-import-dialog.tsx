@@ -19,7 +19,6 @@ import {
 } from "./import"
 import { customThemes, installThemes } from "./live"
 import type { ThemeDefinition } from "./palette"
-import { ThemeSearch } from "./theme-search"
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} mb`
@@ -167,18 +166,7 @@ export default function ThemeImportDialog(props: {
           class="flex max-h-[90vh] w-[min(720px,calc(100vw-32px))] flex-col gap-5 overflow-y-auto rounded-[calc(20px*var(--brm))] bg-menu p-5 text-text shadow-popover"
           data-component="theme-import-dialog"
         >
-          <ModalV2.Title class="text-base font-medium text-text">add a theme</ModalV2.Title>
-          <ThemeSearch
-            onInstalled={(themes, updated) => {
-              props.onImported(themes, updated)
-              props.onClose()
-            }}
-          />
-          <div class="flex items-center gap-3" aria-hidden="true">
-            <div class="h-px flex-1 bg-[var(--hairline)]" />
-            <span class="text-[11px] text-faint">or import a file</span>
-            <div class="h-px flex-1 bg-[var(--hairline)]" />
-          </div>
+          <ModalV2.Title class="text-base font-medium text-text">import a theme file</ModalV2.Title>
           <Show
             when={!conflicts()}
             fallback={

@@ -3,32 +3,19 @@
 // monocode's own settings. The theme list is kiko's addition: t3code's built-in themes and the
 // ones imported from a file or Open VSX, each one quiet row.
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ImageIcon, PlusIcon, ShareIcon, TrashIcon } from "@kiko/ui/icons"
+import { ImageIcon, PlusIcon, SearchIcon, ShareIcon, TrashIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { For, Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
+import { For, Show, Suspense, createEffect, createSignal, lazy, onCleanup, untrack, type JSX } from "solid-js"
 import { appearanceOf } from "./apply"
 import { BUILT_IN_THEMES } from "./builtins"
 import { cn } from "../lib/cn"
-import { buttonClass, choiceRowClass, Group, iconButtonClass, Radio, Row, rowLine, Segmented, Slider, Toggle } from "../settings/kit"
-import {
-  background,
-  BACKGROUND_EFFECTS,
-  BLUR_RADIUS,
-  chooseBackground,
-  DEFAULT_GLASS,
-  EFFECT_DESCRIPTIONS,
-  EFFECT_LABELS,
-  glass,
-  picture,
-  removeBackground,
-  setBackground,
-  setGlass,
-  SIDEBAR_OPACITY,
-  VISIBILITY,
-} from "./glass"
-import { chooseTheme, customThemes, look, matchWallpaper, removeThemes, updateLook } from "./live"
-import { DEFAULT_LOOK, matchesWallpaper, type Mode } from "./look"
-import { ACCENT_PRESETS, colorsForMode, monocodeColors, WALLPAPER_ID, wallpaperColors, serializeThemeFile, themeModes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
+import { buttonClass, choiceRowClass, Group, iconButtonClass, Radio, rowLine } from "../settings/kit"
+import { background, chooseBackground, DEFAULT_GLASS, glass, picture, removeBackground, setBackground, setGlass } from "./glass"
+import { allThemes, chooseTheme, customThemes, look, matchWallpaper, removeThemes, updateLook } from "./live"
+import { formatDoc, fromDoc, toDoc } from "./appearance-json"
+import { createOpenVsxSearch, OpenVsxRow } from "./theme-search"
+import { DEFAULT_LOOK, matchesWallpaper } from "./look"
+import { colorsForMode, monocodeColors, WALLPAPER_ID, wallpaperColors, serializeThemeFile, themeModes, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
 
 // The import dialog, with culori, fflate and the Open VSX client, loads on the first click.
 const ThemeImportDialog = lazy(() => import("./theme-import-dialog"))
@@ -143,10 +130,19 @@ const noteOf = (theme: ThemeDefinition) => {
 
 function ThemeGroup(): JSX.Element {
   const [importOpen, setImportOpen] = createSignal(false)
+  const [query, setQuery] = createSignal("")
+  const vsx = createOpenVsxSearch(onThemesAdded)
   const remove = (theme: ThemeDefinition) => {
     if (!removeThemes([theme.id])) return void showToastV2({ title: "couldn't remove the theme. try again", variant: "error" })
     showToastV2({ title: `${theme.label.toLowerCase()} removed`, description: "import its file to bring it back" })
   }
+  // One search: it narrows the installed themes and looks up the same words on Open VSX.
+  const matches = (label: string) => {
+    const words = query().toLowerCase().split(/\s+/).filter(Boolean)
+    return words.every((w) => label.toLowerCase().includes(w))
+  }
+  const searching = () => query().trim().length > 0
+  const faint = "text-[12px] text-[color-mix(in_oklab,var(--text)_45%,transparent)]"
   return (
     <Group
       title="themes"
@@ -154,16 +150,38 @@ function ThemeGroup(): JSX.Element {
       action={
         <button type="button" class={buttonClass()} data-action="add-theme" onClick={() => setImportOpen(true)}>
           <HugeIcon icon={PlusIcon} size={13} />
-          add theme
+          import file
         </button>
       }
       id="themes"
     >
+      <div class={cn("flex h-11 items-center gap-2.5 px-4", rowLine)}>
+        <span class="text-[color-mix(in_oklab,var(--text)_40%,transparent)]" classList={{ "animate-pulse": vsx.searching() }}>
+          <HugeIcon icon={SearchIcon} size={14} />
+        </span>
+        <input
+          type="search"
+          class="h-full min-w-0 flex-1 bg-transparent text-[13px] text-text outline-none placeholder:text-[color-mix(in_oklab,var(--text)_40%,transparent)]"
+          placeholder="search your themes and open vsx"
+          aria-label="search themes"
+          spellcheck={false}
+          value={query()}
+          onInput={(e) => {
+            setQuery(e.currentTarget.value)
+            vsx.search(e.currentTarget.value)
+          }}
+          data-component="theme-search"
+        />
+      </div>
       <div data-component="theme-library">
-        <ThemeRow id={null} label="default" note="tinted above" colors={{ light: monocodeColors(look().tint, "light"), dark: monocodeColors(look().tint, "dark") }} />
-        <WallpaperRow />
-        <For each={BUILT_IN_THEMES}>{(theme) => <ThemeRow id={theme.id} label={theme.label.toLowerCase()} colors={colorsOf(theme)} />}</For>
-        <For each={customThemes()}>
+        <Show when={!searching() || matches("default")}>
+          <ThemeRow id={null} label="default" note="tint in the json" colors={{ light: monocodeColors(look().tint, "light"), dark: monocodeColors(look().tint, "dark") }} />
+        </Show>
+        <Show when={!searching() || matches("match wallpaper")}>
+          <WallpaperRow />
+        </Show>
+        <For each={BUILT_IN_THEMES.filter((t) => !searching() || matches(t.label))}>{(theme) => <ThemeRow id={theme.id} label={theme.label.toLowerCase()} colors={colorsOf(theme)} />}</For>
+        <For each={customThemes().filter((t) => !searching() || matches(t.label))}>
           {(theme) => (
             <ThemeRow
               id={theme.id}
@@ -176,139 +194,28 @@ function ThemeGroup(): JSX.Element {
           )}
         </For>
       </div>
+      <Show when={searching()}>
+        <div class={cn("flex h-8 items-end px-4 pb-1.5", faint)}>on open vsx</div>
+        <Show when={vsx.error()}>
+          <p class="px-4 pb-3 text-[12px] text-[var(--danger)]" role="alert">
+            {vsx.error()}
+          </p>
+        </Show>
+        <Show when={vsx.results()} fallback={<p class={cn("px-4 pb-3", faint)}>{vsx.searching() ? "searching…" : ""}</p>}>
+          {(list) => (
+            <div data-component="theme-results">
+              <For each={list()} fallback={<p class={cn("px-4 pb-3", faint)}>no supported themes found. try a broader search.</p>}>
+                {(extension) => <OpenVsxRow extension={extension} search={vsx} />}
+              </For>
+            </div>
+          )}
+        </Show>
+      </Show>
       <Show when={importOpen()}>
         <Suspense>
-          <ThemeImportDialog
-            onClose={() => setImportOpen(false)}
-            onImported={(themes, updated) => {
-              const verb = updated ? "updated" : "added"
-              const first = themes[0]
-              if (themes.length === 1 && first) {
-                chooseTheme(first.id)
-                showToastV2({ title: `${first.label.toLowerCase()} ${verb}`, variant: "success" })
-              } else {
-                showToastV2({ title: `${themes.length} themes ${verb}`, description: themes.map((t) => t.label.toLowerCase()).join(", "), variant: "success" })
-              }
-            }}
-          />
+          <ThemeImportDialog onClose={() => setImportOpen(false)} onImported={onThemesAdded} />
         </Suspense>
       </Show>
-    </Group>
-  )
-}
-
-function AccentPicker(): JSX.Element {
-  const choices = [null, ...ACCENT_PRESETS] as const
-  const names: Record<string, string> = { default: "default", "#4da3f5": "blue", "#8b5cf6": "violet", "#ec4899": "pink", "#ef4444": "red", "#f59e0b": "orange", "#10b981": "green" }
-  return (
-    <div class="flex items-center gap-1.5" role="radiogroup" aria-label="accent color">
-      <For each={choices}>
-        {(color) => (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={look().accent === color}
-            aria-label={names[color ?? "default"]}
-            title={names[color ?? "default"]}
-            data-accent={color ?? "default"}
-            class="grid size-6 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_3.5px_var(--text)]"
-            onClick={() => updateLook({ accent: color })}
-          >
-            <span class="block size-5 rounded-full" style={{ background: color ?? "var(--text)" }} />
-          </button>
-        )}
-      </For>
-    </div>
-  )
-}
-
-function ColorGroups(): JSX.Element {
-  const tint = () => look().tint
-  const lightNow = () => shown() === "light"
-  const onStock = () => look()[shown()] === null
-  return (
-    <>
-      <Group title="theme" description="dark and light share the same tint, so the color settings below apply to both.">
-        <Row label="mode" description="system follows the os appearance.">
-          <Segmented<Mode>
-            label="theme"
-            value={look().mode}
-            options={[
-              { value: "system", label: "system" },
-              { value: "dark", label: "dark" },
-              { value: "light", label: "light" },
-            ]}
-            onChange={(mode) => updateLook({ mode })}
-          />
-        </Row>
-        <Row label="accent color" description="used for the send button and your message bubbles.">
-          <AccentPicker />
-        </Row>
-      </Group>
-      <Group
-        title="color"
-        description={onStock() ? "hue and saturation tint every surface. lightness only moves the dark theme." : "these tint kiko's own theme. pick kiko in themes to see them."}
-      >
-        <Row label="hue" description="base hue for tinted surfaces.">
-          <Slider label="hue" value={tint().hue} display={`${tint().hue}°`} min={TINT_RANGE.hue.min} max={TINT_RANGE.hue.max} onChange={(hue) => updateLook({ tint: { ...tint(), hue } })} />
-        </Row>
-        <Row label="saturation" description="how strongly the hue tints the interface. zero keeps it neutral.">
-          <Slider
-            label="saturation"
-            value={tint().saturation}
-            display={`${tint().saturation}%`}
-            min={TINT_RANGE.saturation.min}
-            max={TINT_RANGE.saturation.max}
-            onChange={(saturation) => updateLook({ tint: { ...tint(), saturation } })}
-          />
-        </Row>
-        <Row
-          label="dark-mode lightness"
-          description={lightNow() ? "this only affects dark mode. your dark-mode value is kept." : "base brightness of the dark theme. lower is darker; zero is true black."}
-        >
-          <Slider
-            label="dark-mode lightness"
-            value={tint().lightness}
-            display={`${tint().lightness}%`}
-            min={TINT_RANGE.lightness.min}
-            max={TINT_RANGE.lightness.max}
-            disabled={lightNow()}
-            onChange={(lightness) => updateLook({ tint: { ...tint(), lightness } })}
-          />
-        </Row>
-      </Group>
-    </>
-  )
-}
-
-function TranslucencyGroup(): JSX.Element {
-  const off = () => shown() === "light"
-  return (
-    <Group
-      title="translucency"
-      description={
-        off()
-          ? "light mode always uses an opaque window, so these are off. your dark-mode values are kept."
-          : "how much of the chat background shows through kiko, as if it were your desktop. blur costs more to draw the higher it goes."
-      }
-    >
-      <Row label="sidebar opacity" description="applies to the sidebar and the other glass panes.">
-        <Slider
-          label="sidebar opacity"
-          value={percent(glass().opacity)}
-          display={`${percent(glass().opacity)}%`}
-          min={percent(SIDEBAR_OPACITY.min)}
-          max={percent(SIDEBAR_OPACITY.max)}
-          disabled={off()}
-          onChange={(p) => setGlass({ opacity: p / 100 })}
-        />
-      </Row>
-      <Row label="blur radius" description="background blur behind the window.">
-        <Slider label="blur radius" value={glass().blur} display={String(glass().blur)} min={BLUR_RADIUS.min} max={BLUR_RADIUS.max} disabled={off()} onChange={(blur) => setGlass({ blur })} />
-      </Row>
-      <Row label="main pane glass" description="extend the translucent treatment to the chat pane and the info pane.">
-        <Toggle label="main pane glass" on={glass().body} disabled={off()} onChange={(body) => setGlass({ body })} />
-      </Row>
     </Group>
   )
 }
@@ -334,9 +241,9 @@ function BackgroundGroup(): JSX.Element {
   }
   const bg = background
   return (
-    <Group title="chat background" description="a picture behind your chats. it stays on this device." id="chat-background">
-      <div class="p-4">
-        <div class="overflow-hidden rounded-lg [box-shadow:inset_0_0_0_1px_var(--hairline)]">
+    <Group title="chat background" description="a picture behind your chats. it stays on this device; how it shows is in the json below." id="chat-background">
+      <div>
+        <div>
           <Show
             when={bg() && picture()}
             fallback={
@@ -368,7 +275,7 @@ function BackgroundGroup(): JSX.Element {
         </div>
         <input ref={input} type="file" accept="image/*" class="hidden" data-slot="background-file-input" onChange={(e) => pick(e.currentTarget.files?.[0])} />
         <Show when={bg()}>
-          <div class="mt-3 flex items-center justify-end gap-2">
+          <div class={cn("flex items-center justify-end gap-2 px-4 py-2.5", "border-t border-[color-mix(in_oklab,var(--text)_6%,transparent)]")}>
             <button type="button" class={buttonClass()} disabled={busy()} onClick={() => input?.click()}>
               {busy() ? "reading…" : "change"}
             </button>
@@ -378,80 +285,123 @@ function BackgroundGroup(): JSX.Element {
           </div>
         </Show>
         <Show when={error()}>
-          <p class="mt-2 text-xs text-[var(--danger)]" role="alert">
+          <p class="px-4 pb-3 text-xs text-[var(--danger)]" role="alert">
             {error()}
           </p>
         </Show>
       </div>
-      <Show when={bg()}>
-        {(b) => (
-          <>
-            <Row label="match theme to picture" description="kiko takes its colors from the picture: the surfaces from its overall tone, the accent from its most vivid color. a new picture recolors it.">
-              <Toggle label="match theme to picture" on={matchesWallpaper(look())} onChange={(on) => (on ? void matchWallpaper() : chooseTheme(null))} />
-            </Row>
-            <Row label="background effect" description={EFFECT_DESCRIPTIONS[b().effect]}>
-              <Segmented label="background effect" value={b().effect} options={BACKGROUND_EFFECTS.map((e) => ({ value: e, label: EFFECT_LABELS[e] }))} onChange={(effect) => setBackground({ effect })} />
-            </Row>
-            <Row label="show on" description="empty chats only, or every chat.">
-              <Segmented
-                label="show background on"
-                value={b().scope}
-                options={[
-                  { value: "empty", label: "empty only" },
-                  { value: "all", label: "all chats" },
-                ]}
-                onChange={(scope) => setBackground({ scope })}
-              />
-            </Row>
-            <Row label="empty chat visibility" description="background strength before a chat has messages.">
-              <Slider
-                label="empty chat background visibility"
-                value={percent(b().empty)}
-                display={`${percent(b().empty)}%`}
-                min={percent(VISIBILITY.min)}
-                max={percent(VISIBILITY.max)}
-                onChange={(p) => setBackground({ empty: p / 100 })}
-              />
-            </Row>
-            <Row label="chat visibility" description="background strength once the chat has messages.">
-              <Slider
-                label="chat background visibility"
-                value={percent(b().session)}
-                display={`${percent(b().session)}%`}
-                min={percent(VISIBILITY.min)}
-                max={percent(VISIBILITY.max)}
-                onChange={(p) => setBackground({ session: p / 100 })}
-              />
-            </Row>
-          </>
-        )}
+    </Group>
+  )
+}
+
+/** Back to kiko's defaults: dark, the stock theme with no tint, accent, or token, monocode's glass, no picture. */
+function restoreDefaults(): void {
+  updateLook({ mode: DEFAULT_LOOK.mode, light: null, dark: null, themes: [], wallpaper: null, tint: DEFAULT_LOOK.tint, accent: null, tokens: DEFAULT_LOOK.tokens })
+  setGlass(DEFAULT_GLASS)
+  if (background()) void removeBackground()
+}
+
+const onThemesAdded = (themes: ThemeDefinition[], updated: boolean) => {
+  const verb = updated ? "updated" : "added"
+  const first = themes[0]
+  if (themes.length === 1 && first) {
+    chooseTheme(first.id)
+    showToastV2({ title: `${first.label.toLowerCase()} ${verb}`, variant: "success" })
+  } else {
+    showToastV2({ title: `${themes.length} themes ${verb}`, description: themes.map((t) => t.label.toLowerCase()).join(", "), variant: "success" })
+  }
+}
+
+/**
+ * Everything else, as json: mode, theme per half, accent, tint, glass, how the background shows,
+ * and css variables over any theme's. A valid edit applies a moment after typing stops; an
+ * invalid one says what is wrong and where, and changes nothing.
+ */
+function JsonGroup(): JSX.Element {
+  const current = () => toDoc(look(), glass(), background())
+  const text = () => formatDoc(current())
+  const [draft, setDraft] = createSignal(text())
+  const [error, setError] = createSignal<string | null>(null)
+  const [editing, setEditing] = createSignal(false)
+  // While the field is not being edited it follows the settings, so a theme picked above shows here.
+  createEffect(() => {
+    const next = text()
+    if (!untrack(editing)) {
+      setDraft(next)
+      setError(null)
+    }
+  })
+  const themeIds = () => new Set([...allThemes().map((t) => t.id), ...(look().wallpaper || background()?.palette ? [WALLPAPER_ID] : [])])
+  let timer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => clearTimeout(timer))
+  const apply = (value: string) => {
+    const out = fromDoc(value, current(), themeIds())
+    if (!out.ok) return setError(out.error)
+    setError(null)
+    const v = out.value
+    const wantsWallpaper = v.look.light === WALLPAPER_ID || v.look.dark === WALLPAPER_ID
+    updateLook({ ...v.look, wallpaper: wantsWallpaper ? (look().wallpaper ?? background()?.palette ?? null) : null })
+    setGlass(v.glass)
+    if (background()) setBackground(v.background)
+  }
+  const onInput = (value: string) => {
+    setDraft(value)
+    clearTimeout(timer)
+    timer = setTimeout(() => apply(value), 400)
+  }
+  return (
+    <Group
+      title="settings.json"
+      description="mode, theme, accent, tint, glass, the background, and tokens: any css variable over the theme's, per mode. edits apply as you type."
+      id="appearance-json"
+      action={
+        <>
+          <button type="button" class={buttonClass("ghost")} data-action="copy-appearance" onClick={() => void navigator.clipboard?.writeText(draft())}>
+            copy
+          </button>
+          <button type="button" class={buttonClass()} data-action="restore-appearance" onClick={restoreDefaults}>
+            reset
+          </button>
+        </>
+      }
+    >
+      <textarea
+        class="block min-h-[30rem] w-full resize-y bg-transparent px-4 py-3.5 font-mono text-[12px] leading-[1.6] text-text outline-none [tab-size:2]"
+        spellcheck={false}
+        autocomplete="off"
+        aria-label="appearance settings json"
+        aria-invalid={error() ? true : undefined}
+        data-component="appearance-json"
+        value={draft()}
+        onFocus={() => setEditing(true)}
+        onBlur={() => {
+          setEditing(false)
+          if (!error()) setDraft(text())
+        }}
+        onInput={(e) => onInput(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Tab" || e.shiftKey) return
+          e.preventDefault()
+          const el = e.currentTarget
+          el.setRangeText("  ", el.selectionStart, el.selectionEnd, "end")
+          onInput(el.value)
+        }}
+      />
+      <Show when={error()}>
+        <p class="border-t border-[color-mix(in_oklab,var(--text)_8%,transparent)] px-4 py-2.5 font-mono text-[12px] text-[var(--danger)]" role="alert" data-component="appearance-json-error">
+          {error()}
+        </p>
       </Show>
     </Group>
   )
 }
 
-/**
- * Monocode's restore defaults (SettingsView.tsx `restoreDefaults`): dark, the stock theme with no
- * tint or accent, monocode's glass, and no chat background.
- */
-function restoreDefaults(): void {
-  updateLook({ mode: DEFAULT_LOOK.mode, light: null, dark: null, themes: [], wallpaper: null, tint: DEFAULT_LOOK.tint, accent: null })
-  setGlass(DEFAULT_GLASS)
-  if (background()) void removeBackground()
-}
-
 export default function Appearance(): JSX.Element {
   return (
     <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={shown()}>
-      <ColorGroups />
       <ThemeGroup />
-      <TranslucencyGroup />
       <BackgroundGroup />
-      <div class="flex justify-end">
-        <button type="button" class={buttonClass()} data-action="restore-appearance" onClick={restoreDefaults}>
-          restore defaults
-        </button>
-      </div>
+      <JsonGroup />
     </div>
   )
 }
