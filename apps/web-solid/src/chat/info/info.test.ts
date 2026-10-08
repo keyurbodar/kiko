@@ -20,13 +20,13 @@ describe("header text", () => {
   test("the header says when the chat started, for one agent or a group", () => {
     const at = new Date(2026, 9, 2, 12).getTime()
     const id = newRoomId(at)
-    expect(shortDate(at)).toBe("oct 2, 2026")
-    expect(subtitle(id, [member("kiko", true)])).toBe("started oct 2, 2026")
-    expect(subtitle(id, [member("kiko", true), member("ada"), member("bo")])).toBe("started oct 2, 2026")
+    expect(shortDate(at)).toBe("Oct 2, 2026")
+    expect(subtitle(id, [member("kiko", true)])).toBe("Started Oct 2, 2026")
+    expect(subtitle(id, [member("kiko", true), member("ada"), member("bo")])).toBe("Started Oct 2, 2026")
   })
 
   test("sizes", () => {
-    expect([formatBytes(12), formatBytes(3482), formatBytes(2_500_000)]).toEqual(["12 b", "3.4 kb", "2.4 mb"])
+    expect([formatBytes(12), formatBytes(3482), formatBytes(2_500_000)]).toEqual(["12 B", "3.4 KB", "2.4 MB"])
   })
 })
 

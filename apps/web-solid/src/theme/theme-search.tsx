@@ -10,15 +10,16 @@ import { importOpenVsxExtension, searchOpenVsxThemes, type OpenVsxExtension, typ
 import type { ThemeDefinition } from "./palette"
 
 const FORMAT = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 })
-const SUGGESTIONS = ["dracula", "catppuccin", "nord", "tokyo night"]
+/** Popular searches, by query, with the name shown. */
+const SUGGESTIONS: Record<string, string> = { dracula: "Dracula", catppuccin: "Catppuccin", nord: "Nord", "tokyo night": "Tokyo Night" }
 const SORTS: Array<{ value: OpenVsxSort; label: string }> = [
-  { value: "downloadCount", label: "most downloaded" },
-  { value: "rating", label: "best rated" },
-  { value: "timestamp", label: "newest" },
-  { value: "relevance", label: "most relevant" },
+  { value: "downloadCount", label: "Most downloaded" },
+  { value: "rating", label: "Best rated" },
+  { value: "timestamp", label: "Newest" },
+  { value: "relevance", label: "Most relevant" },
 ]
 
-const lower = (cause: unknown, fallback: string) => (cause instanceof Error ? cause.message : fallback).toLowerCase()
+const messageOf = (cause: unknown, fallback: string) => (cause instanceof Error ? cause.message : fallback)
 
 function ExtensionIcon(props: { extension: OpenVsxExtension }): JSX.Element {
   const [failed, setFailed] = createSignal(false)
@@ -61,7 +62,7 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
     } catch (cause) {
       if (!controller.signal.aborted) {
         setResults(null)
-        setError(lower(cause, "open vsx search failed"))
+        setError(messageOf(cause, "Open VSX search failed."))
       }
     }
     if (request === controller) {
@@ -82,11 +83,11 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
     try {
       const themes = await importOpenVsxExtension(extension, controller.signal)
       if (!controller.signal.aborted) {
-        if (!installThemes(themes)) throw new Error("installed themes couldn't be saved in this browser")
+        if (!installThemes(themes)) throw new Error("Installed themes couldn't be saved in this browser.")
         props.onInstalled(themes, updated)
       }
     } catch (cause) {
-      if (!controller.signal.aborted) setError(lower(cause, "that theme couldn't be added"))
+      if (!controller.signal.aborted) setError(messageOf(cause, "That theme couldn't be added."))
     }
     if (request === controller) request = null
     setInstalling(null)
@@ -105,9 +106,9 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
           <HugeIcon icon={SearchIcon} size={16} />
         </span>
         <input
-          aria-label="search open vsx themes"
+          aria-label="Search Open VSX themes"
           type="search"
-          placeholder="search themes…"
+          placeholder="Search themes…"
           class="min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-faint"
           value={query()}
           onInput={(event) => {
@@ -122,8 +123,8 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
       </label>
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-          <p class="text-xs text-muted">popular</p>
-          <For each={SUGGESTIONS}>
+          <p class="text-xs text-muted">Popular</p>
+          <For each={Object.keys(SUGGESTIONS)}>
             {(suggestion) => (
               <button
                 type="button"
@@ -132,16 +133,16 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
                 data-suggestion={suggestion}
                 onClick={() => search(suggestion)}
               >
-                {suggestion}
+                {SUGGESTIONS[suggestion]}
               </button>
             )}
           </For>
         </div>
         <Show when={results()?.length}>
           <label class="flex shrink-0 items-center justify-end gap-2 text-xs text-muted">
-            sort
+            Sort
             <select
-              aria-label="sort themes"
+              aria-label="Sort themes"
               class="h-7 rounded-lg bg-input px-2 text-xs text-text outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               disabled={installing() !== null}
               value={sortBy()}
@@ -156,7 +157,7 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
         </Show>
       </div>
       <div class="sr-only" role="status">
-        {searching() ? "searching themes…" : results() ? `${results()!.length} supported ${results()!.length === 1 ? "theme" : "themes"} found` : ""}
+        {searching() ? "Searching themes…" : results() ? `${results()!.length} supported ${results()!.length === 1 ? "theme" : "themes"} found` : ""}
       </div>
       <Show when={error()}>
         <p class="rounded-lg bg-[var(--danger-wash)] px-3 py-2 text-xs text-[var(--danger)]" role="alert" aria-live="polite">
@@ -164,7 +165,7 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
         </p>
       </Show>
       <Show when={searching() && results() === null}>
-        <div class="flex min-h-20 items-center justify-center text-sm text-muted">searching themes…</div>
+        <div class="flex min-h-20 items-center justify-center text-sm text-muted">Searching themes…</div>
       </Show>
       <Show when={results()}>
         {(list) => (
@@ -172,8 +173,8 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
             when={list().length > 0}
             fallback={
               <div class="flex min-h-32 flex-col items-center justify-center rounded-2xl bg-[var(--card)] text-center">
-                <p class="text-sm font-medium">no supported open-source themes found</p>
-                <p class="mt-1 text-xs text-muted">try a broader search.</p>
+                <p class="text-sm font-medium">No supported open-source themes found</p>
+                <p class="mt-1 text-xs text-muted">Try a broader search.</p>
               </div>
             }
           >
@@ -182,7 +183,7 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
                 {(extension) => {
                   const busy = () => installing() === extension.id
                   const installed = () => customThemes().some((t) => t.collection?.id === extension.collectionId)
-                  const label = () => (busy() ? (installed() ? "updating…" : "installing…") : installed() ? "update" : "install")
+                  const label = () => (busy() ? (installed() ? "Updating…" : "Installing…") : installed() ? "Update" : "Install")
                   return (
                     <article class="flex min-w-0 flex-col gap-3 rounded-xl bg-[var(--card)] p-3" data-extension={extension.id}>
                       <div class="flex min-w-0 gap-3">
@@ -194,7 +195,7 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
                           </p>
                         </div>
                       </div>
-                      <p class="line-clamp-2 min-h-8 text-xs leading-4 text-muted">{extension.description || "a community color theme for your editor."}</p>
+                      <p class="line-clamp-2 min-h-8 text-xs leading-4 text-muted">{extension.description || "A community color theme."}</p>
                       <div class="mt-auto flex items-center justify-between gap-2">
                         <Show when={extension.sourceUrl} fallback={<span />}>
                           <a
@@ -202,7 +203,7 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
                             target="_blank"
                             rel="noreferrer"
                             class="grid size-7 place-items-center rounded-lg text-muted outline-none hover:bg-[var(--hover-bg)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                            aria-label={`view source for ${extension.name}`}
+                            aria-label={`View source for ${extension.name}`}
                           >
                             <HugeIcon icon={ExternalIcon} size={14} />
                           </a>

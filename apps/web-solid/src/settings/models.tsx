@@ -13,9 +13,9 @@ import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
 
 const METHOD_LABEL: Record<ConnectMethod, string> = {
-  api_key: "api key",
-  device_code: "device code sign-in",
-  paste_code: "browser sign-in",
+  api_key: "API key",
+  device_code: "Device code sign-in",
+  paste_code: "Browser sign-in",
 }
 
 
@@ -32,13 +32,13 @@ const faint = "text-[color-mix(in_oklab,var(--text)_45%,transparent)]"
 
 /** Popular providers, in the order offered, with one line each. Only those in the catalog show. */
 const POPULAR: readonly { id: string; note: string }[] = [
-  { id: "opencode-go", note: "low-cost open models from opencode." },
-  { id: "opencode", note: "models picked and tested by the opencode team." },
-  { id: "anthropic", note: "claude models." },
-  { id: "openai", note: "gpt models." },
-  { id: "google", note: "gemini models." },
-  { id: "openrouter", note: "many providers' models behind one key." },
-  { id: "github-copilot", note: "the models in your copilot plan." },
+  { id: "opencode-go", note: "Low-cost open models from OpenCode." },
+  { id: "opencode", note: "Models picked and tested by the OpenCode team." },
+  { id: "anthropic", note: "Claude models." },
+  { id: "openai", note: "GPT models." },
+  { id: "google", note: "Gemini models." },
+  { id: "openrouter", note: "Many providers' models behind one key." },
+  { id: "github-copilot", note: "The models in your Copilot plan." },
 ]
 
 /** The catalog and who is connected, shared by both pages. */
@@ -83,32 +83,32 @@ export function ProvidersPage() {
           <Suspense>
             <Moment kind="cheer" faces={["kiko", "scout", "budget"]} />
           </Suspense>
-          <p class="text-[13px] text-text">connected. your agents can reply now.</p>
+          <p class="text-[13px] text-text">Connected. Your agents can reply now.</p>
         </div>
       </Show>
       <Show when={catalog.error}>
-        <Notice data-component="catalog-error">the model catalog did not load. reload to try again.</Notice>
+        <Notice data-component="catalog-error">The model catalog did not load. Reload to try again.</Notice>
       </Show>
-      <Group title="connected">
-        <For each={connected()} fallback={<Empty data-component="no-provider">{catalog.loading ? "loading" : "no provider yet. connect one below to start chatting."}</Empty>}>
+      <Group title="Connected">
+        <For each={connected()} fallback={<Empty data-component="no-provider">{catalog.loading ? "Loading" : "No providers connected."}</Empty>}>
           {(provider) => <ConnectedRow provider={provider} info={saved(provider.id)!} />}
         </For>
       </Group>
       <div data-component="provider-add">
-        <Group title={connected().length ? "add another" : "popular"}>
+        <Group title={connected().length ? "Add another" : "Popular"}>
           <For each={popular()}>
             {({ provider, note }) => (
               <Item
                 data-provider={provider.id}
                 icon={<ProviderIcon id={provider.id} width="16" height="16" />}
-                title={provider.name.toLowerCase()}
+                title={provider.name}
                 meta={note}
                 actions={
                   <Button data-action="connect" onClick={() => setDialog(provider)}>
                     <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
                       <path d="M8 3.5v9M3.5 8h9" />
                     </svg>
-                    connect
+                    Connect
                   </Button>
                 }
               />
@@ -116,7 +116,7 @@ export function ProvidersPage() {
           </For>
         </Group>
         <button type="button" class="mt-3 cursor-pointer text-[13px] font-medium text-[var(--accent)] hover:underline" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
-          view all providers
+          View all providers
         </button>
       </div>
       <AddProviderDialog
@@ -153,13 +153,13 @@ function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; 
       icon={<ProviderIcon id={props.provider.id} width="16" height="16" />}
       title={
         <>
-          <span class="truncate">{props.provider.name.toLowerCase()}</span>
-          <Pill>{props.info.kind === "api_key" ? `api key ••${props.info.last4}` : "signed in"}</Pill>
+          <span class="truncate">{props.provider.name}</span>
+          <Pill>{props.info.kind === "api_key" ? `API key ••${props.info.last4}` : "Signed in"}</Pill>
         </>
       }
       actions={
         <Button variant="ghost" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
-          disconnect
+          Disconnect
         </Button>
       }
     />
@@ -207,10 +207,10 @@ export function ModelsPage() {
         when={connected().length}
         fallback={
           <Hint>
-            {catalog.loading ? "loading" : "no provider yet. "}
+            {catalog.loading ? "Loading" : "No providers connected. "}
             <Show when={!catalog.loading}>
               <A href="/settings/providers" class="text-[var(--accent)] hover:underline">
-                connect one
+                Connect one
               </A>{" "}
               to see its models here.
             </Show>
@@ -220,15 +220,15 @@ export function ModelsPage() {
         <input
           type="search"
           class={cn(fieldClass, "h-8 w-full")}
-          placeholder="search models"
-          aria-label="search models"
+          placeholder="Search models"
+          aria-label="Search models"
           spellcheck={false}
           autocomplete="off"
           value={query()}
           onInput={(e) => setQuery(e.currentTarget.value)}
           data-component="model-search"
         />
-        <For each={groups()} fallback={<Hint>no models match "{query()}"</Hint>}>
+        <For each={groups()} fallback={<Hint>No models match "{query()}"</Hint>}>
           {(group) => {
             const open = () => searching() || !collapsed()[group.provider.id]
             return (
@@ -245,7 +245,7 @@ export function ModelsPage() {
                       <path d="M5.4 6.75c-.2-.33.04-.75.42-.75h4.38c.39 0 .63.42.43.75l-2.19 3.76a.5.5 0 0 1-.87 0z" />
                     </svg>
                     <ProviderIcon id={group.provider.id} width="16" height="16" />
-                    {group.provider.name.toLowerCase()}
+                    {group.provider.name}
                     <span class={cn("font-normal", faint)}>{group.models.length}</span>
                   </button>
                 </h2>
@@ -257,12 +257,12 @@ export function ModelsPage() {
                         const shown = () => !hiddenModels().includes(ref)
                         return (
                           <div class={cn("flex min-h-12 items-center gap-4 px-5 py-2.5", rowLine)} data-model={ref}>
-                            <span class={cn("min-w-0 flex-1 truncate text-[13px] font-medium", shown() ? "text-text" : faint)}>{m.name.toLowerCase()}</span>
+                            <span class={cn("min-w-0 flex-1 truncate text-[13px] font-medium", shown() ? "text-text" : faint)}>{m.name}</span>
                             <span class={cn("hidden shrink-0 text-[12px] tabular-nums sm:inline", faint)}>
                               {formatContext(m.contextWindow)}
                               {m.reasoning ? " · reasoning" : ""}
                             </span>
-                            <Toggle label={`show ${m.name.toLowerCase()} in the model picker`} on={shown()} onChange={(on) => setHidden([ref], !on)} />
+                            <Toggle label={`Show ${m.name} in the model picker`} on={shown()} onChange={(on) => setHidden([ref], !on)} />
                           </div>
                         )
                       }}
@@ -303,8 +303,7 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
         <ModalV2.Content class="flex h-[min(560px,86dvh)] w-[min(600px,94vw)] flex-col overflow-hidden rounded-2xl bg-menu shadow-xl" data-component="provider-add">
           <div class="flex flex-col gap-3 border-b border-[color-mix(in_oklab,var(--text)_8%,transparent)] p-4">
             <div>
-              <ModalV2.Title class="text-[15px] font-semibold text-text">add a provider</ModalV2.Title>
-              <p class="mt-1 text-[12px] text-[color-mix(in_oklab,var(--text)_50%,transparent)]">pick the service whose models your agents should use. its key stays on the server.</p>
+              <ModalV2.Title class="text-[15px] font-semibold text-text">Add a provider</ModalV2.Title>
             </div>
             <form
               role="search"
@@ -317,8 +316,8 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
               <input
                 type="search"
                 class={cn(fieldClass, "h-8 w-full")}
-                placeholder="search providers"
-                aria-label="search providers"
+                placeholder="Search providers"
+                aria-label="Search providers"
                 autocomplete="off"
                 value={query()}
                 ref={(el) => requestAnimationFrame(() => el.focus())}
@@ -328,7 +327,7 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
             </form>
           </div>
           <ul class="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-2 overflow-y-auto p-4 sm:grid-cols-2" data-component="provider-list">
-            <For each={shown()} fallback={<li class="text-[13px] text-[color-mix(in_oklab,var(--text)_50%,transparent)] sm:col-span-2">{props.loading ? "loading providers" : "no provider matches"}</li>}>
+            <For each={shown()} fallback={<li class="text-[13px] text-[color-mix(in_oklab,var(--text)_50%,transparent)] sm:col-span-2">{props.loading ? "Loading providers" : "No provider matches"}</li>}>
               {(provider) => (
                 <li data-provider={provider.id}>
                   <button
@@ -338,7 +337,7 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
                     onClick={() => props.onPick(provider)}
                   >
                     <ProviderIcon id={provider.id} width="18" height="18" />
-                    <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-text">{provider.name.toLowerCase()}</span>
+                    <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-text">{provider.name}</span>
                     <span class="shrink-0 text-[12px] tabular-nums text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{provider.models.length}</span>
                   </button>
                 </li>
@@ -375,7 +374,7 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
       await refreshConnected()
       props.onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message.toLowerCase() : "could not save the key")
+      setError(e instanceof Error ? e.message : "Could not save the key.")
     } finally {
       setBusy(false)
     }
@@ -395,13 +394,13 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
         <ModalV2.Overlay />
         <ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-4 rounded-[16px] bg-menu p-4 shadow-xl">
           <ModalV2.Title class="text-[13px] font-semibold text-text" data-component="connect-title">
-            connect {props.provider?.name.toLowerCase()}
+            Connect {props.provider?.name}
           </ModalV2.Title>
           <For each={props.provider?.connect ?? []}>
             {(method) =>
               method === "api_key" ? (
                 <form class="flex flex-col gap-2.5" onSubmit={submit} data-method="api_key">
-                  <label class="text-xs text-muted" for="provider-key">api key</label>
+                  <label class="text-xs text-muted" for="provider-key">API key</label>
                   <input
                     id="provider-key"
                     ref={input}
@@ -419,10 +418,10 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
                   </Show>
                   <div class="flex justify-end gap-2">
                     <Button variant="ghost" data-action="cancel-connect" onClick={() => { setError(null); props.onClose() }}>
-                      cancel
+                      Cancel
                     </Button>
                     <Button type="submit" variant="primary" disabled={busy()} data-action="save-key">
-                      save key
+                      Save key
                     </Button>
                   </div>
                 </form>
@@ -482,7 +481,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
           when={running()}
           fallback={
             <Button variant="primary" data-action="sign-in" onClick={start}>
-              {state()?.status === "error" ? "try again" : "sign in"}
+              {state()?.status === "error" ? "Try again" : "Sign in"}
             </Button>
           }
         >
@@ -494,7 +493,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
               setState(null)
             }}
           >
-            cancel
+            Cancel
           </Button>
         </Show>
       </div>
@@ -504,7 +503,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
             <Show when={s().code}>
               {(code) => (
                 <div class={cn("flex flex-col gap-1 rounded-xl border p-3", line, "bg-[color-mix(in_oklab,var(--text)_3%,transparent)]")} data-component="device-code">
-                  <span class="text-xs text-muted">enter this code at the provider</span>
+                  <span class="text-xs text-muted">Enter this code at the provider</span>
                   <span class="select-all font-mono text-lg tracking-widest text-text">{code().userCode}</span>
                   <a
                     href={code().verificationUri}
@@ -512,7 +511,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
                     rel="noopener noreferrer"
                     class="truncate text-xs text-[var(--accent)]"
                   >
-                    open {code().verificationUri.replace(/^https?:\/\//, "")}
+                    Open {code().verificationUri.replace(/^https?:\/\//, "")}
                   </a>
                 </div>
               )}
@@ -521,34 +520,34 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
               {(link) => (
                 <div class={cn("flex flex-col gap-1 rounded-xl border p-3", line, "bg-[color-mix(in_oklab,var(--text)_3%,transparent)]")} data-component="sign-in-link">
                   <Show when={link().instructions}>
-                    <span class="text-xs text-muted">{link().instructions!.toLowerCase()}</span>
+                    <span class="text-xs text-muted">{link().instructions}</span>
                   </Show>
                   <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-[13px] text-[var(--accent)]">
-                    open the sign-in page
+                    Open the sign-in page
                   </a>
                 </div>
               )}
             </Show>
             <Show when={s().note}>
-              <p class="text-xs text-muted" data-component="sign-in-note">{s().note!.toLowerCase()}</p>
+              <p class="text-xs text-muted" data-component="sign-in-note">{s().note}</p>
             </Show>
             <Show when={s().prompt}>
               {(p) => {
                 const prompt = p().prompt
                 return prompt.type === "select" ? (
                   <div class="flex flex-col gap-1.5" data-component="sign-in-select">
-                    <span class="text-xs text-muted">{prompt.message.toLowerCase()}</span>
+                    <span class="text-xs text-muted">{prompt.message}</span>
                     <For each={prompt.options}>
                       {(option) => (
                         <Button class="w-full justify-start" onClick={() => handle?.answer(p().promptId, option.id)}>
-                          {option.label.toLowerCase()}
+                          {option.label}
                         </Button>
                       )}
                     </For>
                   </div>
                 ) : (
                   <form class="flex flex-col gap-2.5" onSubmit={answer} data-component="sign-in-prompt">
-                    <label class="text-xs text-muted" for="sign-in-answer">{prompt.message.toLowerCase()}</label>
+                    <label class="text-xs text-muted" for="sign-in-answer">{prompt.message}</label>
                     <input
                       id="sign-in-answer"
                       ref={input}
@@ -562,7 +561,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
                     />
                     <div class="flex justify-end">
                       <Button type="submit" variant="primary" data-action="answer-sign-in">
-                        continue
+                        Continue
                       </Button>
                     </div>
                   </form>
@@ -574,7 +573,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
       </Show>
       <Show when={state()?.status === "error" ? state()?.error : null}>
         {(error) => (
-          <Notice data-component="sign-in-error">{error().toLowerCase()}</Notice>
+          <Notice data-component="sign-in-error">{error()}</Notice>
         )}
       </Show>
     </div>

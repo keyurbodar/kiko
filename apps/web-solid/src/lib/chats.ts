@@ -6,7 +6,7 @@ import { type Agent, type AgentSlug, type Chat, dmFor, KIKO, kikoOnly, type Room
  */
 
 /** The agent every user has. It is not stored, so it is never missing. */
-export const BUILTIN_AGENT: Agent = { id: KIKO, name: "kiko", slug: KIKO as AgentSlug, prompt: "", model: "" }
+export const BUILTIN_AGENT: Agent = { id: KIKO, name: "Kiko", slug: KIKO as AgentSlug, prompt: "", model: "" }
 
 /** The user's agents with the built-in one first. */
 export function agentList(stored: readonly Agent[]): Agent[] {
@@ -48,4 +48,4 @@ export function resumeChat(chats: readonly Chat[], loaded: boolean, wanted: read
 }
 
 /** The title a temporary chat gets when it becomes a group: its agents' names. */
-export const groupTitle = (names: readonly string[]): string => names.join(", ").toLowerCase()
+export const groupTitle = (names: readonly string[]): string => names.join(", ")

@@ -6,7 +6,7 @@
  * Colours come from `kat.css` tokens only. There are no borders: a surface is told apart by
  * its fill. Collapse, resize and hover are instant. The one animation is the typing pulse,
  * because the reader is waiting on an agent. Sizes follow monocode: 13px rows, 11px meta,
- * 6 to 10px corners. All text is lowercase. */
+ * 6 to 10px corners. Text is sentence case. */
 
 .sidebar-shell {
   display: flex;

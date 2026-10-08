@@ -42,6 +42,9 @@ const loadFiles = () => import("../../files/pane")
 const FilesPane = lazy(loadFiles)
 const FilesActions = lazy(() => loadFiles().then((m) => ({ default: m.FilesActions })))
 const TABS: readonly InfoTab[] = ["info", "files"]
+const TAB_LABELS: Record<InfoTab, string> = { info: "Info", files: "Files" }
+/** "idle" reads "Idle": the status is a wire value, its label is interface. */
+const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 /*
  * The chat info panel: everything about one chat behind one click on its name. It is the
@@ -56,10 +59,10 @@ const TABS: readonly InfoTab[] = ["info", "files"]
 const scrolls = new Map<string, number>()
 
 const TITLES: Record<InfoView["kind"], string> = {
-  home: "chat info",
-  memory: "memory",
-  agent: "agent",
-  tasks: "tasks",
+  home: "Chat info",
+  memory: "Memory",
+  agent: "Agent",
+  tasks: "Tasks",
 }
 
 function AgentCard(props: { slug: string; chatId: string }) {
@@ -71,8 +74,8 @@ function AgentCard(props: { slug: string; chatId: string }) {
         <button
           type="button"
           class="rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-          aria-label="change bird"
-          title="change bird"
+          aria-label="Change bird"
+          title="Change bird"
           data-action="change-bird"
           onClick={() => openBirdPicker(props.slug)}
         >
@@ -80,21 +83,21 @@ function AgentCard(props: { slug: string; chatId: string }) {
         </button>
         <h2 class="text-lg font-medium text-text">{member()?.name ?? props.slug}</h2>
       </div>
-      <Card id="agent-facts" title="details">
+      <Card id="agent-facts" title="Details">
         <dl class="flex flex-col gap-1 px-2 py-1 text-sm">
           <div class="flex justify-between">
-            <dt class="text-weak">role</dt>
-            <dd data-field="role">{member()?.lead ? "lead" : "agent"}</dd>
+            <dt class="text-weak">Role</dt>
+            <dd data-field="role">{member()?.lead ? "Lead" : "Agent"}</dd>
           </div>
           <div class="flex justify-between">
-            <dt class="text-weak">model</dt>
+            <dt class="text-weak">Model</dt>
             <dd class="truncate" data-field="model">
-              {chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "none"}
+              {chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "None"}
             </dd>
           </div>
           <div class="flex justify-between">
-            <dt class="text-weak">status</dt>
-            <dd data-field="status">{status()}</dd>
+            <dt class="text-weak">Status</dt>
+            <dd data-field="status">{sentence(status())}</dd>
           </div>
         </dl>
       </Card>
@@ -112,7 +115,7 @@ function AgentCard(props: { slug: string; chatId: string }) {
                 popInfo()
               }}
             >
-              remove
+              Remove
             </button>
           </div>
         )}
@@ -136,9 +139,9 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
       <Header chatId={props.chatId} members={members()} />
       <Members members={members()} />
       <div class="flex flex-col" data-component="info-rows">
-        <ListRow id="memory" label="memory" icon={MemoryIcon} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
+        <ListRow id="memory" label="Memory" icon={MemoryIcon} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
         <Show when={roomMembers().length > 1}>
-          <ListRow id="tasks" label="tasks" icon={TasksIcon} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
+          <ListRow id="tasks" label="Tasks" icon={TasksIcon} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
         </Show>
       </div>
       <SharedContent media={props.media} links={props.links} />
@@ -160,7 +163,7 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
 function MemoryViews() {
   const store = useMemoryStore()
   return (
-    <Show when={store()} fallback={<p class="p-2 text-sm text-weak">loading</p>}>
+    <Show when={store()} fallback={<p class="p-2 text-sm text-weak">Loading</p>}>
       {(s) => (
         <div class="flex flex-col gap-3" data-component="info-memory">
           <MemoryError store={s()} />
@@ -197,7 +200,7 @@ function Resizer(props: { chatId: string }) {
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="resize panel"
+      aria-label="Resize panel"
       aria-valuemin={wide() ? FILE_MIN_WIDTH : MIN_WIDTH}
       aria-valuemax={wide() ? FILE_MAX_WIDTH : MAX_WIDTH}
       aria-valuenow={panelWidth(props.chatId)}
@@ -235,7 +238,7 @@ export default function InfoPanel(props: { chatId: string }) {
   useCommands([
     {
       id: "chat.info-close",
-      title: "chat: close panel",
+      title: "Chat: Close panel",
       group: "chat",
       icon: "close",
       shortcut: "Escape",
@@ -274,11 +277,11 @@ export default function InfoPanel(props: { chatId: string }) {
       style={{ width: `min(${panelWidth(props.chatId)}px, 100%)` }}
       data-component="info-panel"
       data-tab={infoTab()}
-      aria-label="chat panel"
+      aria-label="Chat panel"
     >
       <Resizer chatId={props.chatId} />
       <div class="flex h-12 shrink-0 items-center gap-1 pr-2 pl-2.5">
-        <div class="flex min-w-0 items-center gap-0.5 rounded-lg bg-[var(--tint-subtle)] p-0.5" role="tablist" aria-label="panel" data-component="info-tabs">
+        <div class="flex min-w-0 items-center gap-0.5 rounded-lg bg-[var(--tint-subtle)] p-0.5" role="tablist" aria-label="Panel" data-component="info-tabs">
           <For each={TABS}>
             {(tab) => (
               <button
@@ -289,7 +292,7 @@ export default function InfoPanel(props: { chatId: string }) {
                 data-tab={tab}
                 onClick={() => setInfoTab(tab)}
               >
-                {tab}
+                {TAB_LABELS[tab]}
               </button>
             )}
           </For>
@@ -300,7 +303,7 @@ export default function InfoPanel(props: { chatId: string }) {
             <FilesActions />
           </Suspense>
         </Show>
-        <button type="button" class={iconButton} data-action="close" aria-label="close panel" title="close panel" onClick={() => closeInfo()}>
+        <button type="button" class={iconButton} data-action="close" aria-label="Close panel" title="Close panel" onClick={() => closeInfo()}>
           <HugeIcon icon={CloseIcon} size={15} />
         </button>
       </div>
@@ -315,7 +318,7 @@ export default function InfoPanel(props: { chatId: string }) {
         <Match when={infoTab() === "info"}>
           <Show when={infoDepth() > 1}>
             <div class="flex h-10 shrink-0 items-center gap-1 px-2.5">
-              <button type="button" class={iconButton} data-action="back" aria-label="back" onClick={() => popInfo()}>
+              <button type="button" class={iconButton} data-action="back" aria-label="Back" onClick={() => popInfo()}>
                 <Back />
               </button>
               <h2 class="min-w-0 flex-1 truncate text-[13px] font-medium text-muted" data-component="info-title">

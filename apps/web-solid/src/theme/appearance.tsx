@@ -30,12 +30,13 @@ function download(filename: string, contents: string): void {
 }
 
 const percent = (n: number) => Math.round(n * 100)
+const ONLY: Record<ThemeAppearance, string> = { light: "Light only", dark: "Dark only" }
 const shown = () => appearanceOf(look().mode)
 
 const colorsOf = (theme: ThemeDefinition) => Object.fromEntries(themeModes(theme).map((m) => [m, colorsForMode(theme, m)!])) as Partial<Record<ThemeAppearance, ThemeColors>>
 const noteOf = (theme: ThemeDefinition) => {
   const modes = themeModes(theme)
-  return modes.length === 1 ? `${modes[0]} only` : undefined
+  return modes.length === 1 ? ONLY[modes[0]!] : undefined
 }
 
 const onThemesAdded = (themes: ThemeDefinition[], updated: boolean) => {
@@ -43,15 +44,15 @@ const onThemesAdded = (themes: ThemeDefinition[], updated: boolean) => {
   const first = themes[0]
   if (themes.length === 1 && first) {
     chooseTheme(first.id)
-    showToastV2({ title: `${first.label.toLowerCase()} ${verb}`, variant: "success" })
+    showToastV2({ title: `${first.label} ${verb}`, variant: "success" })
   } else {
-    showToastV2({ title: `${themes.length} themes ${verb}`, description: themes.map((t) => t.label.toLowerCase()).join(", "), variant: "success" })
+    showToastV2({ title: `${themes.length} themes ${verb}`, description: themes.map((t) => t.label).join(", "), variant: "success" })
   }
 }
 
 const removeTheme = (theme: ThemeDefinition) => {
-  if (!removeThemes([theme.id])) return void showToastV2({ title: "couldn't remove the theme. try again", variant: "error" })
-  showToastV2({ title: `${theme.label.toLowerCase()} removed`, description: "import its file to bring it back" })
+  if (!removeThemes([theme.id])) return void showToastV2({ title: "Couldn't remove the theme. Try again.", variant: "error" })
+  showToastV2({ title: `${theme.label} removed`, description: "Import its file to bring it back." })
 }
 
 /**
@@ -64,15 +65,15 @@ function themeOptions(): ThemeOption[] {
   const colors = (theme: ThemeDefinition) => colorsForMode(theme, now) ?? colorsForMode(theme, now === "dark" ? "light" : "dark")!
   const only = (theme: ThemeDefinition) => {
     const modes = themeModes(theme)
-    return modes.length === 1 ? `${modes[0]} only` : undefined
+    return modes.length === 1 ? ONLY[modes[0]!] : undefined
   }
   return [
-    { id: null, label: "kiko", colors: monocodeColors(look().tint, now) },
-    ...(palette ? [{ id: WALLPAPER_ID, label: "match wallpaper", colors: wallpaperColors(palette, now) }] : []),
-    ...BUILT_IN_THEMES.map((t) => ({ id: t.id, label: t.label.toLowerCase(), colors: colors(t) })),
+    { id: null, label: "Kiko", colors: monocodeColors(look().tint, now) },
+    ...(palette ? [{ id: WALLPAPER_ID, label: "Match wallpaper", colors: wallpaperColors(palette, now) }] : []),
+    ...BUILT_IN_THEMES.map((t) => ({ id: t.id, label: t.label, colors: colors(t) })),
     ...customThemes().map((t) => ({
       id: t.id,
-      label: t.label.toLowerCase(),
+      label: t.label,
       note: only(t),
       colors: colors(t),
       onExport: () => download(`${t.id}.json`, serializeThemeFile(t)),
@@ -94,9 +95,9 @@ function pickTheme(id: string | null) {
 
 function AccentPicker(): JSX.Element {
   const choices = [null, ...ACCENT_PRESETS] as const
-  const names: Record<string, string> = { default: "default", "#4da3f5": "blue", "#8b5cf6": "violet", "#ec4899": "pink", "#ef4444": "red", "#f59e0b": "orange", "#10b981": "green" }
+  const names: Record<string, string> = { default: "Default", "#4da3f5": "Blue", "#8b5cf6": "Violet", "#ec4899": "Pink", "#ef4444": "Red", "#f59e0b": "Orange", "#10b981": "Green" }
   return (
-    <div class="flex items-center gap-1.5" role="radiogroup" aria-label="accent color">
+    <div class="flex items-center gap-1.5" role="radiogroup" aria-label="Accent color">
       <For each={choices}>
         {(color) => (
           <button
@@ -124,29 +125,29 @@ function ColorGroups(): JSX.Element {
   const onStock = () => look()[shown()] === null
   return (
     <>
-      <Group title="theme" description="dark and light share the same tint, so the color settings below apply to both.">
-        <Row label="mode" description="system follows the os appearance.">
+      <Group title="Theme" description="Dark and light share the same tint, so the color settings below apply to both.">
+        <Row label="Mode" description="System follows the OS appearance.">
           <Segmented<Mode>
-            label="theme"
+            label="Mode"
             value={look().mode}
             options={[
-              { value: "system", label: "system" },
-              { value: "dark", label: "dark" },
-              { value: "light", label: "light" },
+              { value: "system", label: "System" },
+              { value: "dark", label: "Dark" },
+              { value: "light", label: "Light" },
             ]}
             onChange={(mode) => updateLook({ mode })}
           />
         </Row>
-        <Row label="color theme" description="kiko's own, one from your picture, a built-in, or one you added.">
+        <Row label="Color theme">
           <ThemeSelect value={look()[shown()]} options={themeOptions()} onPick={pickTheme} />
         </Row>
-        <Row label="accent color" description="used for the send button and your message bubbles.">
+        <Row label="Accent color" description="Used for the send button and your message bubbles.">
           <AccentPicker />
         </Row>
-        <Row label="more themes" description="vs code themes from open vsx, or a theme file.">
+        <Row label="More themes" description="VS Code themes from Open VSX, or a theme file.">
           <button type="button" class={buttonClass()} data-action="add-theme" onClick={() => setImportOpen(true)}>
             <HugeIcon icon={PlusIcon} size={13} />
-            add theme
+            Add theme
           </button>
         </Row>
       </Group>
@@ -156,15 +157,15 @@ function ColorGroups(): JSX.Element {
         </Suspense>
       </Show>
       <Group
-        title="color"
-        description={onStock() ? "hue and saturation tint every surface. lightness only moves the dark theme." : "these tint kiko's own theme. pick kiko as the theme to see them."}
+        title="Color"
+        description={onStock() ? "Hue and saturation tint every surface. Lightness only moves the dark theme." : "These tint Kiko's own theme. Pick Kiko as the theme to see them."}
       >
-        <Row label="hue" description="base hue for tinted surfaces.">
-          <Slider label="hue" value={tint().hue} display={`${tint().hue}°`} min={TINT_RANGE.hue.min} max={TINT_RANGE.hue.max} onChange={(hue) => updateLook({ tint: { ...tint(), hue } })} />
+        <Row label="Hue">
+          <Slider label="Hue" value={tint().hue} display={`${tint().hue}°`} min={TINT_RANGE.hue.min} max={TINT_RANGE.hue.max} onChange={(hue) => updateLook({ tint: { ...tint(), hue } })} />
         </Row>
-        <Row label="saturation" description="how strongly the hue tints the interface. zero keeps it neutral.">
+        <Row label="Saturation" description="How strongly the hue tints the interface. Zero keeps it neutral.">
           <Slider
-            label="saturation"
+            label="Saturation"
             value={tint().saturation}
             display={`${tint().saturation}%`}
             min={TINT_RANGE.saturation.min}
@@ -173,11 +174,11 @@ function ColorGroups(): JSX.Element {
           />
         </Row>
         <Row
-          label="dark-mode lightness"
-          description={lightNow() ? "this only affects dark mode. your dark-mode value is kept." : "base brightness of the dark theme. lower is darker; zero is true black."}
+          label="Dark-mode lightness"
+          description={lightNow() ? "This only affects dark mode. Your dark-mode value is kept." : "Base brightness of the dark theme. Zero is true black."}
         >
           <Slider
-            label="dark-mode lightness"
+            label="Dark-mode lightness"
             value={tint().lightness}
             display={`${tint().lightness}%`}
             min={TINT_RANGE.lightness.min}
@@ -195,16 +196,16 @@ function TranslucencyGroup(): JSX.Element {
   const off = () => shown() === "light"
   return (
     <Group
-      title="translucency"
+      title="Translucency"
       description={
         off()
-          ? "light mode always uses an opaque window, so these are off. your dark-mode values are kept."
-          : "how much of the chat background shows through kiko, as if it were your desktop. blur costs more to draw the higher it goes."
+          ? "Light mode always uses an opaque window, so these are off. Your dark-mode values are kept."
+          : "How much of the chat background shows through Kiko."
       }
     >
-      <Row label="sidebar opacity" description="applies to the sidebar and the other glass panes.">
+      <Row label="Sidebar opacity" description="Applies to the sidebar and the other glass panes.">
         <Slider
-          label="sidebar opacity"
+          label="Sidebar opacity"
           value={percent(glass().opacity)}
           display={`${percent(glass().opacity)}%`}
           min={percent(SIDEBAR_OPACITY.min)}
@@ -213,11 +214,11 @@ function TranslucencyGroup(): JSX.Element {
           onChange={(p) => setGlass({ opacity: p / 100 })}
         />
       </Row>
-      <Row label="blur radius" description="background blur behind the window.">
-        <Slider label="blur radius" value={glass().blur} display={String(glass().blur)} min={BLUR_RADIUS.min} max={BLUR_RADIUS.max} disabled={off()} onChange={(blur) => setGlass({ blur })} />
+      <Row label="Blur radius">
+        <Slider label="Blur radius" value={glass().blur} display={String(glass().blur)} min={BLUR_RADIUS.min} max={BLUR_RADIUS.max} disabled={off()} onChange={(blur) => setGlass({ blur })} />
       </Row>
-      <Row label="main pane glass" description="extend the translucent treatment to the chat pane and the info pane.">
-        <Toggle label="main pane glass" on={glass().body} disabled={off()} onChange={(body) => setGlass({ body })} />
+      <Row label="Main pane glass" description="Extend the translucent treatment to the chat pane and the info pane.">
+        <Toggle label="Main pane glass" on={glass().body} disabled={off()} onChange={(body) => setGlass({ body })} />
       </Row>
     </Group>
   )
@@ -233,7 +234,7 @@ function BackgroundGroup(): JSX.Element {
     try {
       await work()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message.toLowerCase() : "that picture couldn't be used")
+      setError(cause instanceof Error ? cause.message : "That picture couldn't be used.")
     } finally {
       setBusy(false)
     }
@@ -244,7 +245,7 @@ function BackgroundGroup(): JSX.Element {
   }
   const bg = background
   return (
-    <Group title="chat background" description="a picture behind your chats. it stays on this device." id="chat-background">
+    <Group title="Chat background" description="A picture behind your chats. It stays on this device." id="chat-background">
       <div class="p-4">
         <div class="overflow-hidden rounded-lg [box-shadow:inset_0_0_0_1px_var(--hairline)]">
           <Show
@@ -258,7 +259,7 @@ function BackgroundGroup(): JSX.Element {
                 onClick={() => input?.click()}
               >
                 <HugeIcon icon={ImageIcon} size={20} />
-                <span class="text-xs">{busy() ? "reading picture…" : "choose an image"}</span>
+                <span class="text-xs">{busy() ? "Reading picture…" : "Choose an image"}</span>
               </button>
             }
           >
@@ -272,7 +273,7 @@ function BackgroundGroup(): JSX.Element {
                   <span class="gradient-blur-background-strong" />
                 </div>
               </Show>
-              <span class="pointer-events-none absolute bottom-2 left-2 text-[11px] text-faint">empty chat preview at {percent(bg()!.empty)}%</span>
+              <span class="pointer-events-none absolute bottom-2 left-2 text-[11px] text-faint">Empty chat preview at {percent(bg()!.empty)}%</span>
             </div>
           </Show>
         </div>
@@ -280,10 +281,10 @@ function BackgroundGroup(): JSX.Element {
         <Show when={bg()}>
           <div class="mt-3 flex items-center justify-end gap-2">
             <button type="button" class={buttonClass()} disabled={busy()} onClick={() => input?.click()}>
-              {busy() ? "reading…" : "change"}
+              {busy() ? "Reading…" : "Change"}
             </button>
             <button type="button" class={buttonClass("danger")} disabled={busy()} data-action="remove-background" onClick={() => void run(removeBackground)}>
-              remove
+              Remove
             </button>
           </div>
         </Show>
@@ -296,23 +297,23 @@ function BackgroundGroup(): JSX.Element {
       <Show when={bg()}>
         {(b) => (
           <>
-            <Row label="background effect" description={EFFECT_DESCRIPTIONS[b().effect]}>
-              <Segmented label="background effect" value={b().effect} options={BACKGROUND_EFFECTS.map((e) => ({ value: e, label: EFFECT_LABELS[e] }))} onChange={(effect) => setBackground({ effect })} />
+            <Row label="Background effect" description={EFFECT_DESCRIPTIONS[b().effect]}>
+              <Segmented label="Background effect" value={b().effect} options={BACKGROUND_EFFECTS.map((e) => ({ value: e, label: EFFECT_LABELS[e] }))} onChange={(effect) => setBackground({ effect })} />
             </Row>
-            <Row label="show on" description="empty chats only, or every chat.">
+            <Row label="Show on">
               <Segmented
-                label="show background on"
+                label="Show background on"
                 value={b().scope}
                 options={[
-                  { value: "empty", label: "empty only" },
-                  { value: "all", label: "all chats" },
+                  { value: "empty", label: "Empty only" },
+                  { value: "all", label: "All chats" },
                 ]}
                 onChange={(scope) => setBackground({ scope })}
               />
             </Row>
-            <Row label="empty chat visibility" description="background strength before a chat has messages.">
+            <Row label="Empty chat visibility">
               <Slider
-                label="empty chat background visibility"
+                label="Empty chat background visibility"
                 value={percent(b().empty)}
                 display={`${percent(b().empty)}%`}
                 min={percent(VISIBILITY.min)}
@@ -320,9 +321,9 @@ function BackgroundGroup(): JSX.Element {
                 onChange={(p) => setBackground({ empty: p / 100 })}
               />
             </Row>
-            <Row label="chat visibility" description="background strength once the chat has messages.">
+            <Row label="Chat visibility">
               <Slider
-                label="chat background visibility"
+                label="Chat background visibility"
                 value={percent(b().session)}
                 display={`${percent(b().session)}%`}
                 min={percent(VISIBILITY.min)}
@@ -355,7 +356,7 @@ export default function Appearance(): JSX.Element {
       <BackgroundGroup />
       <div class="flex justify-end">
         <button type="button" class={buttonClass()} data-action="restore-appearance" onClick={restoreDefaults}>
-          restore defaults
+          Restore defaults
         </button>
       </div>
     </div>

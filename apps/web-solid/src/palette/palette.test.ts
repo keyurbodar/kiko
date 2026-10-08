@@ -27,7 +27,7 @@ describe("palette rows", () => {
 
   test("keep registry order, drop disabled commands and the palette itself", () => {
     const titles = paletteRows(list).map((c) => c.title)
-    expect(titles).toEqual(["view: toggle sidebar", "chat: new", "chat: new group", "chat: reopen closed", "chats: go to chat...", "chats: search all chats"])
+    expect(titles).toEqual(["View: Toggle sidebar", "Chat: New", "Chat: New group", "Chat: Reopen closed", "Chats: Go to chat...", "Chats: Search all chats"])
   })
 
   test("palette.open and chats.go are enabled", () => {

@@ -60,7 +60,7 @@ export function ThemeSelect(props: { value: string | null; options: readonly The
         class={buttonClass("secondary", "max-w-52 justify-between gap-2")}
         aria-haspopup="listbox"
         aria-expanded={open()}
-        aria-label={`color theme: ${chosen()?.label ?? "kiko"}`}
+        aria-label={`Color theme: ${chosen()?.label ?? "Kiko"}`}
         data-component="theme-select"
         onClick={() => (open() ? setOpen(false) : show())}
       >
@@ -81,7 +81,7 @@ export function ThemeSelect(props: { value: string | null; options: readonly The
             class="bg-menu fixed z-50 flex max-h-[320px] flex-col overflow-y-auto rounded-xl p-1 shadow-popover"
             style={{ ...place(), width: `${PANEL_W}px` }}
             role="listbox"
-            aria-label="color theme"
+            aria-label="Color theme"
           >
             <For each={props.options}>
               {(option) => {
@@ -110,12 +110,12 @@ export function ThemeSelect(props: { value: string | null; options: readonly The
                       </Show>
                     </button>
                     <Show when={option.onExport}>
-                      <button type="button" class={cn(iconButtonClass, "size-6")} title="export theme file" aria-label={`export ${option.label}`} onClick={() => option.onExport!()}>
+                      <button type="button" class={cn(iconButtonClass, "size-6")} title="Export theme file" aria-label={`Export ${option.label}`} onClick={() => option.onExport!()}>
                         <HugeIcon icon={ShareIcon} size={13} />
                       </button>
                     </Show>
                     <Show when={option.onRemove}>
-                      <button type="button" class={cn(iconButtonClass, "mr-0.5 size-6 hover:text-[var(--danger)]")} title="remove theme" aria-label={`remove ${option.label}`} data-action="remove-theme" onClick={() => option.onRemove!()}>
+                      <button type="button" class={cn(iconButtonClass, "mr-0.5 size-6 hover:text-[var(--danger)]")} title="Remove theme" aria-label={`Remove ${option.label}`} data-action="remove-theme" onClick={() => option.onRemove!()}>
                         <HugeIcon icon={TrashIcon} size={13} />
                       </button>
                     </Show>

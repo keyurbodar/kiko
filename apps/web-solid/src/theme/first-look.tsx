@@ -17,6 +17,7 @@ import { DEFAULT_CARD, ThemeOrb, previewOf, themeCard } from "./theme-preview"
 const SEEN = "kiko:first-look"
 
 const MODE_ICON: Record<Mode, Glyph> = { system: MonitorIcon, light: SunIcon, dark: MoonIcon }
+const MODE_LABEL: Record<Mode, string> = { system: "System", light: "Light", dark: "Dark" }
 const CARDS = [DEFAULT_CARD, ...BUILT_IN_THEMES.map(themeCard)]
 
 /** The appearance, then t3code's themes as orbs in the appearance on screen. Every pick applies at once. */
@@ -24,7 +25,7 @@ function QuickPicker() {
   const shown = () => appearanceOf(look().mode)
   return (
     <div class="flex flex-col gap-5" data-component="look-picker">
-      <div class="flex flex-wrap gap-1" role="radiogroup" aria-label="appearance">
+      <div class="flex flex-wrap gap-1" role="radiogroup" aria-label="Appearance">
         <For each={MODES}>
           {(mode) => (
             <button
@@ -36,12 +37,12 @@ function QuickPicker() {
               onClick={() => updateLook({ mode })}
             >
               <HugeIcon icon={MODE_ICON[mode]} size={15} />
-              {mode}
+              {MODE_LABEL[mode]}
             </button>
           )}
         </For>
       </div>
-      <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="theme">
+      <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Theme">
         <For each={CARDS}>
           {(card) => (
             <button
@@ -93,18 +94,18 @@ export default function FirstLook() {
         <div class="flex w-full max-w-[560px] flex-col items-center gap-7">
           <Bird slug="kiko" size={88} state="wave" />
           <div class="flex flex-col items-center gap-1.5 text-center">
-            <h1 id="first-look-title" class="text-2xl font-semibold text-text">make kiko yours</h1>
-            <p class="text-sm text-muted">pick how it looks. you can change it any time in settings or with the command palette.</p>
+            <h1 id="first-look-title" class="text-2xl font-semibold text-text">Make Kiko yours</h1>
+            <p class="text-sm text-muted">You can change this any time in Settings.</p>
           </div>
           <div class="w-full rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">
             <QuickPicker />
           </div>
           <div class="flex w-full flex-col gap-1.5 rounded-2xl bg-[var(--bg-sidebar)] p-4 text-sm" aria-hidden="true">
-            <div class="self-end rounded-[18px] bg-[var(--user-bubble)] px-3 py-1.5 text-[var(--user-bubble-text)]">plan my tokyo trip</div>
+            <div class="self-end rounded-[18px] bg-[var(--user-bubble)] px-3 py-1.5 text-[var(--user-bubble-text)]">Plan my Tokyo trip</div>
             <div class="flex items-end gap-2">
               <Bird slug="kiko" size={26} />
               <div class="rounded-[18px] bg-[var(--assistant-bubble)] px-3 py-1.5 text-text">
-                love that. asking <span class="font-medium text-[var(--accent)]">@scout</span> for flights
+                Love that. Asking <span class="font-medium text-[var(--accent)]">@scout</span> for flights
               </div>
             </div>
           </div>
@@ -114,7 +115,7 @@ export default function FirstLook() {
             data-action="finish-first-look"
             onClick={finish}
           >
-            continue
+            Continue
           </button>
         </div>
       </div>

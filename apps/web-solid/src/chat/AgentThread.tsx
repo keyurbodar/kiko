@@ -4,11 +4,10 @@ import type { JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 
-/** "kiko and piko", "kiko, piko and ada". Lowercase, like every interface string. */
+/** "Kiko and Piko", "Kiko, Piko and Ada". Each name keeps its own casing. */
 export function joinNames(names: readonly string[]): string {
-  const low = names.map((n) => n.toLowerCase())
-  if (low.length <= 1) return low[0] ?? ""
-  return `${low.slice(0, -1).join(", ")} and ${low.at(-1)}`
+  if (names.length <= 1) return names[0] ?? ""
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
 }
 
 /** "1 message", "3 messages". */
@@ -30,7 +29,7 @@ export function AgentThread(props: {
     <div class="mx-auto flex w-full max-w-(--content-max-w) px-4 pt-(--run-gap) pb-(--row-gap)" data-component="chat-agent-thread">
       <button
         type="button"
-        class="flex min-w-0 cursor-pointer items-center gap-2 rounded-full bg-bg-subtle py-1 ps-1.5 pe-3 text-xs text-weak lowercase hover:text-text"
+        class="flex min-w-0 cursor-pointer items-center gap-2 rounded-full bg-bg-subtle py-1 ps-1.5 pe-3 text-xs text-weak hover:text-text"
         aria-expanded={props.expanded}
         onClick={() => props.onToggle()}
       >

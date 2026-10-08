@@ -19,7 +19,7 @@
  *   2. motion only where kat has it: the send-press squash, the input
  *      surface's own transition, and the reply bar's entrance. The input
  *      growing is instant, and no hover colour outside kat's is animated.
- *   3. all UI text we author is lowercase. */
+ *   3. all UI text we author is sentence case. */
 
 /* ===== Dock ------------------------------------------------------------ */
 

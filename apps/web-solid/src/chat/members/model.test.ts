@@ -29,16 +29,16 @@ describe("member list model", () => {
   ] as const)("%s", (_name, input, want) => expect(renameOp(member("piko"), input)).toEqual(want as never))
 
   test.each([
-    ["limit", { op: "add", slug: "ada", name: "Ada" }, "a group holds at most 8 agents"],
-    ["exists", { op: "add", slug: "ada", name: "Ada" }, "ada is already in this chat"],
+    ["limit", { op: "add", slug: "ada", name: "Ada" }, "A group holds at most 8 agents"],
+    ["exists", { op: "add", slug: "ada", name: "Ada" }, "Ada is already in this chat"],
     ["unknown", { op: "remove", slug: "ada" }, "ada is not in this chat"],
-    ["last", { op: "remove", slug: "ada" }, "a chat keeps at least one agent"],
+    ["last", { op: "remove", slug: "ada" }, "A chat keeps at least one agent"],
     ["reserved", { op: "add", slug: "all", name: "all" }, "@all is a reserved handle"],
   ] as const)("a %s refusal says why", (reason, op, want) => expect(refusalText(op as never, reason)).toBe(want))
 
   test.each([
-    ["the lead", member("kiko", { lead: true, role: "plans" }), "lead"],
-    ["a role's first line", member("ada", { role: "Reviews code\nand more" }), "reviews code"],
-    ["no role", member("piko"), "agent"],
+    ["the lead", member("kiko", { lead: true, role: "plans" }), "Lead"],
+    ["a role's first line", member("ada", { role: "Reviews code\nand more" }), "Reviews code"],
+    ["no role", member("piko"), "Agent"],
   ] as const)("%s", (_name, m, want) => expect(roleLabel(m)).toBe(want))
 })

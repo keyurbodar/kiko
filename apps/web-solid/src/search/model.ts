@@ -122,7 +122,7 @@ export function createSearch(options: {
 
 /** Who wrote a hit, as a row names them. */
 export function senderName(from: Sender, agents: readonly Pick<Agent, "slug" | "name">[]): string {
-  if (from.kind === "human") return "you"
-  if (from.kind === "system") return "kiko"
-  return (agents.find((a) => a.slug === from.slug)?.name ?? from.slug).toLowerCase()
+  if (from.kind === "human") return "You"
+  if (from.kind === "system") return "Kiko"
+  return agents.find((a) => a.slug === from.slug)?.name ?? from.slug
 }

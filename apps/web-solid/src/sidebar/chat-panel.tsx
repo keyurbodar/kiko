@@ -11,7 +11,7 @@ import { useCommands, type Command } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
-import type { RosterBot } from "../lib/types"
+import type { BotPresence, RosterBot } from "../lib/types"
 import {
   cancelRename,
   clearUnreadMark,
@@ -49,6 +49,8 @@ export function rowStamp(updatedAt: number, now: number): string {
 
 const menuClass = "min-w-[180px]"
 
+const PRESENCE: Record<BotPresence, string> = { idle: "Idle", typing: "Typing", working: "Working", sleeping: "Sleeping" }
+
 /** What every chat's menu holds, in kat's order (screenshot 16). */
 function ChatMenuItems(props: { id: string }) {
   const navigate = useNavigate()
@@ -57,18 +59,18 @@ function ChatMenuItems(props: { id: string }) {
   const [sure, setSure] = createSignal(false)
   return (
     <>
-      <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">rename</MenuV2.Item>
+      <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">Rename</MenuV2.Item>
       {/* The kiko chat is the chief's tile: always pinned, never deleted. */}
       <Show when={!chat()?.kiko}>
-        <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "unpin" : "pin"}</MenuV2.Item>
+        <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "Unpin" : "Pin"}</MenuV2.Item>
       </Show>
-      <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "unmute" : "mute"}</MenuV2.Item>
+      <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "Unmute" : "Mute"}</MenuV2.Item>
       <Show when={useApp.chatFaces(props.id).length === 1}>
-        <MenuV2.Item onSelect={() => openBirdPicker(useApp.chatFaces(props.id)[0]!)}>change bird</MenuV2.Item>
+        <MenuV2.Item onSelect={() => openBirdPicker(useApp.chatFaces(props.id)[0]!)}>Change bird</MenuV2.Item>
       </Show>
       <MenuV2.Separator />
-      <MenuV2.Item onSelect={() => markUnread(props.id)}>mark as unread</MenuV2.Item>
-      <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>close</MenuV2.Item>
+      <MenuV2.Item onSelect={() => markUnread(props.id)}>Mark as unread</MenuV2.Item>
+      <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>Close</MenuV2.Item>
       <Show when={!chat()?.kiko}>
         <MenuV2.Separator />
         {/* Deleting cannot be undone, so the first select arms it and the second deletes, as in the info panel.
@@ -79,7 +81,7 @@ function ChatMenuItems(props: { id: string }) {
           closeOnSelect={false}
           onSelect={() => (sure() ? deleteChat(props.id, active(), navigate) : setSure(true))}
         >
-          {sure() ? "sure? delete" : "delete"}
+          {sure() ? "Sure? Delete" : "Delete"}
         </MenuV2.Item>
       </Show>
     </>
@@ -101,7 +103,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   return (
     <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
-      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id} data-hint={props.hint} data-hint-label="chat" data-hint-side="right">
+      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id} data-hint={props.hint} data-hint-label="Chat" data-hint-side="right">
         <HoverCardV2
           open={previewOpen() && !menuOpen()}
           onOpenChange={setPreviewOpen}
@@ -163,7 +165,7 @@ function ChatPreview(props: { bot: RosterBot }) {
         <ChatAvatar faces={useApp.chatFaces(props.bot.id)} size={32} />
         <div class="min-w-0">
           <div class="truncate text-[13px] font-semibold text-text">{props.bot.name}</div>
-          <div class="truncate text-[11px] text-weak">{props.bot.presence}</div>
+          <div class="truncate text-[11px] text-weak">{PRESENCE[props.bot.presence]}</div>
         </div>
       </div>
 
@@ -172,7 +174,7 @@ function ChatPreview(props: { bot: RosterBot }) {
           <For each={tail()}>
             {(message) => (
               <p class="line-clamp-2 text-[12px] leading-snug text-muted">
-                <span class="font-medium text-weak">{message.sender === "user" ? "you" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}</span>{" "}
+                <span class="font-medium text-weak">{message.sender === "user" ? "You" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}</span>{" "}
                 {message.body}
               </p>
             )}
@@ -203,7 +205,7 @@ function RowTitle(props: { id: string; title: string }) {
         ref={(el) => (input = el)}
         class="chat-rename"
         data-component="sidebar-rename"
-        aria-label="chat name"
+        aria-label="Chat name"
         value={props.title}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
@@ -273,7 +275,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
         data-component="sidebar-row"
         data-chat-id={props.bot.id}
         data-hint={props.hint}
-        data-hint-label="chat"
+        data-hint-label="Chat"
         data-hint-side="right"
         data-active={props.active ? "" : undefined}
         data-unread={unread() ? "" : undefined}
@@ -332,11 +334,11 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
                       </>
                     }
                   >
-                    <span class="chat-draft" data-component="sidebar-draft">draft:</span> {draft()}
+                    <span class="chat-draft" data-component="sidebar-draft">Draft:</span> {draft()}
                   </Show>
                 }
               >
-                {props.bot.typing ?? "typing"}
+                {props.bot.typing ?? "Typing"}
                 <i class="chat-typing-dot" aria-hidden="true" />
                 <i class="chat-typing-dot" aria-hidden="true" />
                 <i class="chat-typing-dot" aria-hidden="true" />
@@ -344,12 +346,12 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
             </span>
             {/* tweb's mention badge: a round @ beside the count while a mention of you is unread. */}
             <Show when={props.bot.mentions}>
-              <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="you were mentioned">@</i>
+              <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="You were mentioned">@</i>
             </Show>
             <Show when={unread()}>
               <Show
                 when={props.bot.unread > 0}
-                fallback={<i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-label="marked unread" role="img" />}
+                fallback={<i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-label="Marked unread" role="img" />}
               >
                 <span class="chat-count" data-component="sidebar-unread-count" role="img" aria-label={`${props.bot.unread} unread`}>
                   {props.bot.unread > 99 ? "99+" : props.bot.unread}
@@ -377,15 +379,15 @@ function SearchRow(props: {
   onUnreadOnly: (on: boolean) => void
 }): JSX.Element {
   return (
-    <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="go to chat">
+    <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="Go to chat">
       <label class="chat-search-field">
         <HugeIcon icon={SearchIcon} size={15} />
         <input
           type="text"
           class="chat-search-input"
           data-component="sidebar-search-input"
-          placeholder="search"
-          aria-label="search chats"
+          placeholder="Search"
+          aria-label="Search chats"
           autocomplete="off"
           spellcheck={false}
           value={props.query}
@@ -402,9 +404,9 @@ function SearchRow(props: {
         type="button"
         class="chat-filter"
         data-component="sidebar-filter"
-        aria-label="show unread only"
+        aria-label="Show unread only"
         aria-pressed={props.unreadOnly}
-        title="unread only"
+        title="Unread only"
         onClick={() => props.onUnreadOnly(!props.unreadOnly)}
       >
         <HugeIcon icon={FilterIcon} size={16} />
@@ -468,7 +470,7 @@ export function ChatPanel() {
           <Suspense>
             <Moment kind="nothing" />
           </Suspense>
-          <p class="text-xs text-weak">no chats match</p>
+          <p class="text-xs text-weak">No chats match</p>
         </div>
       </Show>
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">

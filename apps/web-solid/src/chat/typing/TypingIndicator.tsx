@@ -29,6 +29,9 @@ const ROWS = 3;
 /** How long an act runs before its caption shows, so a quick tool call never flashes words. */
 const CAPTION_AFTER_MS = 2000;
 
+/** The room reports "reading a web page"; a caption on its own line starts with a capital. */
+const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
 function Row(props: { seed: string; doing?: string; group?: boolean }) {
   const motion = () => motionOf(props.doing);
   const [caption, setCaption] = createSignal<string>();
@@ -38,7 +41,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
       (doing) => {
         setCaption(undefined);
         if (!doing) return;
-        const timer = setTimeout(() => setCaption(doing), CAPTION_AFTER_MS);
+        const timer = setTimeout(() => setCaption(sentence(doing)), CAPTION_AFTER_MS);
         onCleanup(() => clearTimeout(timer));
       },
     ),
@@ -90,7 +93,7 @@ export function TypingIndicator(props: TypingIndicatorProps) {
       <For each={rows()}>{(seed, i) => <Row seed={seed} doing={props.doings?.[i()]} group={props.group} />}</For>
       <Show when={more() > 0}>
         <span class="typing-more" data-group={props.group ? "" : undefined} aria-hidden="true">
-          and {more()} {more() === 1 ? "other" : "others"}
+          And {more()} {more() === 1 ? "other" : "others"}
         </span>
       </Show>
       <span class="typing-sr" role="status" aria-live="polite" aria-atomic="true">

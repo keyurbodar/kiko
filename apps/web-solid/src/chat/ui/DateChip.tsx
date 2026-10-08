@@ -77,7 +77,7 @@ export function DateChip(props: {
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto cursor-pointer px-[11px] py-1 text-xs lowercase hover:bg-btn-hover aria-expanded:bg-btn-hover",
+              "chat-chip pointer-events-auto cursor-pointer px-[11px] py-1 text-xs hover:bg-btn-hover aria-expanded:bg-btn-hover",
               open()
                 ? "min-h-7 rounded-full bg-btn px-3 text-sm hover:bg-btn-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 : "min-h-[30px]",
@@ -96,7 +96,7 @@ export function DateChip(props: {
             <button
               type="button"
               class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-weak hover:bg-btn hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
-              aria-label="close calendar"
+              aria-label="Close calendar"
               onClick={close}
             >
               <HugeIcon icon={CloseIcon} class="size-3.5" aria-hidden="true" />

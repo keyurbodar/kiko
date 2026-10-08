@@ -57,14 +57,14 @@ function RenameDialog(props: { member: Member; onClose: () => void }): JSX.Eleme
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content class="bg-menu flex w-[min(360px,calc(100vw-32px))] flex-col gap-3 rounded-2xl p-4 text-text shadow-popover" data-component="member-rename">
-          <ModalV2.Title class="text-[14px] font-semibold">rename {props.member.name.toLowerCase()}</ModalV2.Title>
+          <ModalV2.Title class="text-[14px] font-semibold">Rename {props.member.name}</ModalV2.Title>
           <input
             ref={(el) => {
               input = el
               queueMicrotask(() => (el.focus(), el.select()))
             }}
             class="h-8 w-full rounded-lg bg-[var(--input-bg)] px-2.5 text-[13px] text-text outline-none shadow-[inset_0_0_0_1px_var(--hairline)]"
-            aria-label={`new name for ${props.member.name}`}
+            aria-label={`New name for ${props.member.name}`}
             value={props.member.name}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -76,10 +76,10 @@ function RenameDialog(props: { member: Member; onClose: () => void }): JSX.Eleme
           />
           <div class="flex justify-end gap-2">
             <button type="button" class={secondary} onClick={() => props.onClose()}>
-              cancel
+              Cancel
             </button>
             <button type="button" class={primary} data-action="save-rename" onClick={commit}>
-              rename
+              Rename
             </button>
           </div>
         </ModalV2.Content>
@@ -95,14 +95,14 @@ function AgentRow(props: { member: Member; canRemove: boolean; onOpen: (slug: st
   const items = () => (
     <>
       <MenuV2.Item onSelect={() => setRenaming(true)} data-action="rename-agent">
-        rename
+        Rename
       </MenuV2.Item>
-      <MenuV2.Item onSelect={() => openBirdPicker(props.member.slug)}>change bird</MenuV2.Item>
-      <MenuV2.Item onSelect={() => props.onOpen(props.member.slug)}>open profile</MenuV2.Item>
+      <MenuV2.Item onSelect={() => openBirdPicker(props.member.slug)}>Change bird</MenuV2.Item>
+      <MenuV2.Item onSelect={() => props.onOpen(props.member.slug)}>Open profile</MenuV2.Item>
       <Show when={props.canRemove}>
         <MenuV2.Separator />
         <MenuV2.Item class="text-danger" data-action="remove-agent" onSelect={() => useApp.memberOp({ op: "remove", slug: props.member.slug })}>
-          remove from chat
+          Remove from chat
         </MenuV2.Item>
       </Show>
     </>
@@ -160,8 +160,8 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
         <li>
           <div class={row} data-member="human">
             <IdentityAvatar seed={me()?.id ?? "you"} size={30} />
-            <span class="min-w-0 flex-1 truncate">{(me()?.name ?? "you").toLowerCase()}</span>
-            <span class="text-xs text-weak">you</span>
+            <span class="min-w-0 flex-1 truncate">{me()?.name ?? "You"}</span>
+            <span class="text-xs text-weak">You</span>
           </div>
         </li>
         <For each={props.members}>
@@ -173,12 +173,12 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
           <span class="grid size-[30px] place-items-center rounded-full bg-[var(--tint-subtle)]">
             <HugeIcon icon={PlusIcon} size={14} />
           </span>
-          add
+          Add
         </MenuV2.Trigger>
         <MenuV2.Portal>
           <MenuV2.Content class="min-w-[240px] max-w-[300px]" data-component="member-add">
-            <MenuV2.GroupLabel>add to this chat</MenuV2.GroupLabel>
-            <Show when={candidates().length > 0} fallback={<p class="px-3 pb-2 text-[12px] text-weak">every agent is here. ask kiko to make a new one.</p>}>
+            <MenuV2.GroupLabel>Add to this chat</MenuV2.GroupLabel>
+            <Show when={candidates().length > 0} fallback={<p class="px-3 pb-2 text-[12px] text-weak">Every agent is here. Ask Kiko to make a new one.</p>}>
               <For each={candidates()}>
                 {(agent) => (
                   <MenuV2.Item data-action="add-member" data-slug={agent.slug} onSelect={() => useApp.memberOp(addOp(agent))}>

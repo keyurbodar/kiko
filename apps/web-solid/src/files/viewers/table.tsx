@@ -16,7 +16,7 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
 	)
 	return (
 		<div class="fv-scroll fv-table-scroll" data-component="file-table">
-			<Show when={rows()} fallback={<p class="fv-note">{rows.error ? "this file did not load" : "loading..."}</p>}>
+			<Show when={rows()} fallback={<p class="fv-note">{rows.error ? "This file did not load" : "Loading..."}</p>}>
 				{(all) => (
 					<>
 						<table class="fv-table">
@@ -36,7 +36,7 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
 							</tbody>
 						</table>
 						<Show when={all().length > LIMIT}>
-							<p class="fv-note">showing the first {LIMIT} rows. source shows all of it.</p>
+							<p class="fv-note">Showing the first {LIMIT} rows. Source shows all of it.</p>
 						</Show>
 					</>
 				)}

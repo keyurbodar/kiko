@@ -13,9 +13,9 @@ interface Slash {
 }
 
 export const SLASH: readonly Slash[] = [
-  { trigger: "new", title: "start a new chat", commandId: "chat.new" },
-  { trigger: "remind", title: "ask for a reminder" },
-  { trigger: "skill:", title: "use a skill" },
+  { trigger: "new", title: "Start a new chat", commandId: "chat.new" },
+  { trigger: "remind", title: "Ask for a reminder" },
+  { trigger: "skill:", title: "Use a skill" },
 ]
 
 export function slashSuggestions(): PromptInputV2Suggestion[] {

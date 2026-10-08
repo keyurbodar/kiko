@@ -969,11 +969,11 @@ function manyChats(count: number): Chat[] {
   const now = Date.now()
   return Array.from({ length: count }, (_, i) => ({
     roomId: newRoomId(now - i * 1000),
-    title: `chat ${i + 1}`,
+    title: `Chat ${i + 1}`,
     pinned: i < 3,
     muted: false,
     lastSeq: 0,
-    lastPreview: `message number ${i + 1} in this chat`,
+    lastPreview: `Message number ${i + 1} in this chat`,
     unread: i % 7 === 0 ? 1 : 0,
     updatedAt: now - i * 60_000,
   }))

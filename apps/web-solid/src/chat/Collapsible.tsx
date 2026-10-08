@@ -105,7 +105,7 @@ export function Collapsible(props: {
           type="button"
           class="mt-1 flex h-6 w-full cursor-pointer items-center justify-center opacity-70 hover:opacity-100"
           aria-expanded={!clamped()}
-          aria-label={clamped() ? "read more" : "show less"}
+          aria-label={clamped() ? "Read more" : "Show less"}
           data-component="chat-collapsible-toggle"
           onClick={toggle}
         >

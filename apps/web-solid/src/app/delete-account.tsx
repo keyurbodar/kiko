@@ -28,12 +28,12 @@ export function DeleteAccount() {
       })
       if (res.status === 202) return await signOut()
       if (res.status === 403) {
-        setMessage("sign in again, then delete your account within ten minutes")
+        setMessage("Sign in again, then delete your account within ten minutes.")
         return await signOut()
       }
-      setMessage("the account was not deleted. try again")
+      setMessage("The account was not deleted. Try again.")
     } catch {
-      setMessage("the account was not deleted. check your connection")
+      setMessage("The account was not deleted. Check your connection.")
     } finally {
       setBusy(false)
     }
@@ -48,10 +48,10 @@ export function DeleteAccount() {
   // A row in the account card. Asked, it opens the confirmation in place, under its own line.
   return (
     <div data-component="delete-account">
-      <Row label="delete account" description="every chat, agent, file, key, and memory you have. it cannot be undone.">
+      <Row label="Delete account" description="Deletes every chat, agent, file, key, and memory. This cannot be undone.">
         <Show when={!open()}>
           <Button variant="danger" onClick={() => setOpen(true)}>
-            delete account
+            Delete account
           </Button>
         </Show>
       </Row>
@@ -67,7 +67,7 @@ export function DeleteAccount() {
           }}
         >
           <label class="flex flex-col gap-1.5 text-xs text-muted">
-            type "{CONFIRM_PHRASE}" to confirm
+            Type "{CONFIRM_PHRASE}" to confirm
             <input
               class={fieldClass}
               autocomplete="off"
@@ -80,10 +80,10 @@ export function DeleteAccount() {
           </label>
           <div class="flex flex-wrap items-center gap-2">
             <Button type="submit" variant="danger" disabled={typed() !== CONFIRM_PHRASE || busy()}>
-              delete my account forever
+              Delete my account forever
             </Button>
             <Button variant="ghost" onClick={cancel}>
-              keep my account
+              Keep my account
             </Button>
           </div>
           <Show when={message()}>

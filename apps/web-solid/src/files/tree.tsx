@@ -294,7 +294,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			<Show when={!props.newFolderRequests}>
 				<div class="ft-header">
 					<span class="ft-actions">
-						<button type="button" class="ft-btn" aria-label="new folder" title="new folder" onClick={() => startNew("folder")}>
+						<button type="button" class="ft-btn" aria-label="New folder" title="New folder" onClick={() => startNew("folder")}>
 							<NewFolderIcon />
 						</button>
 					</span>
@@ -309,7 +309,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 						setMenuTarget(el?.dataset.path ?? null)
 					}}
 				>
-					<div {...container()} class="ft-list" aria-label="files">
+					<div {...container()} class="ft-list" aria-label="Files">
 						<Show
 							when={rows().length <= VIRTUALIZE_AFTER}
 							fallback={
@@ -321,7 +321,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 							<For each={rows()}>{renderRow}</For>
 						</Show>
 						<Show when={rows().length === 0}>
-							<div class="ft-empty">no files yet. agents save what they make here, and + adds one.</div>
+							<div class="ft-empty">No files yet. Agents save what they make here, and + adds one.</div>
 						</Show>
 					</div>
 				</MenuV2.Context.Trigger>
@@ -330,14 +330,14 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 						<Show when={menuTarget()}>
 							{(path) => (
 								<>
-									<MenuV2.Item onSelect={() => startRename(path())}>rename</MenuV2.Item>
-									<MenuV2.Item onSelect={() => remove(path())}>delete</MenuV2.Item>
+									<MenuV2.Item onSelect={() => startRename(path())}>Rename</MenuV2.Item>
+									<MenuV2.Item onSelect={() => remove(path())}>Delete</MenuV2.Item>
 									<MenuV2.Separator />
 								</>
 							)}
 						</Show>
-						<MenuV2.Item onSelect={() => startNew("file")}>new file</MenuV2.Item>
-						<MenuV2.Item onSelect={() => startNew("folder")}>new folder</MenuV2.Item>
+						<MenuV2.Item onSelect={() => startNew("file")}>New file</MenuV2.Item>
+						<MenuV2.Item onSelect={() => startNew("folder")}>New folder</MenuV2.Item>
 					</MenuV2.Context.Content>
 				</MenuV2.Context.Portal>
 			</MenuV2.Context>

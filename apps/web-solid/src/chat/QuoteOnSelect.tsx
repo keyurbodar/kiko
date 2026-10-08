@@ -63,7 +63,7 @@ export default function QuoteOnSelect(props: { onQuote: (messageId: string, text
             setPicked(null)
           }}
         >
-          quote
+          Quote
         </button>
       )}
     </Show>

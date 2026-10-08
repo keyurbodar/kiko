@@ -4,7 +4,7 @@ import { katCommands } from "./kat-commands"
 import { commands, registerCommands, runCommand, shortcuts, type Command } from "./registry"
 
 const make = (id: string, extra: Partial<Command> = {}): Command => ({
-  id, title: `chat: ${id}`, group: "chat", icon: "plus", run: () => {}, ...extra,
+  id, title: `Chat: ${id}`, group: "chat", icon: "plus", run: () => {}, ...extra,
 })
 
 describe("registry", () => {
@@ -42,25 +42,25 @@ describe("kat commands", () => {
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.filter((c) => !c.unlisted).map((c) => [c.title, c.shortcut]))
     expect(map).toEqual({
-      "view: toggle sidebar": "Mod+S",
-      "chat: new": "Mod+N",
-      "chat: new group": undefined,
-      "chat: reopen closed": "Mod+Shift+T",
-      "chat: attach file...": "Mod+O",
-      "chat: rename": "F2",
-      "chat: pin": "Mod+D",
-      "chat: info": "Mod+I",
-      "chat: files": "Mod+Shift+E",
-      "chat: close": "Mod+W",
-      "chat: delete": undefined,
-      "chats: go to chat...": "Mod+P",
-      "chats: previous chat": "Alt+ArrowUp",
-      "chats: next chat": "Alt+ArrowDown",
-      "chats: search messages in current chat": "Mod+F",
-      "chats: search all chats": "Mod+Shift+F",
-      "palette: open": "Mod+K",
+      "View: Toggle sidebar": "Mod+S",
+      "Chat: New": "Mod+N",
+      "Chat: New group": undefined,
+      "Chat: Reopen closed": "Mod+Shift+T",
+      "Chat: Attach file...": "Mod+O",
+      "Chat: Rename": "F2",
+      "Chat: Pin": "Mod+D",
+      "Chat: Info": "Mod+I",
+      "Chat: Files": "Mod+Shift+E",
+      "Chat: Close": "Mod+W",
+      "Chat: Delete": undefined,
+      "Chats: Go to chat...": "Mod+P",
+      "Chats: Previous chat": "Alt+ArrowUp",
+      "Chats: Next chat": "Alt+ArrowDown",
+      "Chats: Search messages in current chat": "Mod+F",
+      "Chats: Search all chats": "Mod+Shift+F",
+      "Palette: Open": "Mod+K",
     })
-    for (const c of list) expect(c.title).toBe(c.title.toLowerCase())
+    for (const c of list) expect(c.title).toMatch(/^[A-Z][a-z]*: [A-Z]/)
   })
 
   test("new chat answers to Mod+N and keeps Mod+T as an alias", () => {

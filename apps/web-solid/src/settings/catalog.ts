@@ -52,10 +52,10 @@ export function loadCatalog(): Promise<Catalog> {
   return cached
 }
 
-/** "128k", "1m", "8k". Context sizes are shown in thousands or millions of tokens. */
+/** "128K", "1M", "8K". Context sizes are shown in thousands or millions of tokens. */
 export function formatContext(tokens: number): string {
-  if (tokens >= 1_000_000) return `${+(tokens / 1_000_000).toFixed(1)}m`
-  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`
+  if (tokens >= 1_000_000) return `${+(tokens / 1_000_000).toFixed(1)}M`
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`
   return String(tokens)
 }
 
@@ -64,10 +64,10 @@ function dollars(value: number): string {
   return String(value >= 1 ? +value.toFixed(2) : +value.toFixed(3))
 }
 
-/** "$0.14 in / $0.28 out per 1m", or "free". */
+/** "$0.14 in / $0.28 out per 1M", or "Free". */
 export function formatPrice(pricing: { input: number; output: number }): string {
-  if (pricing.input === 0 && pricing.output === 0) return "free"
-  return `$${dollars(pricing.input)} in / $${dollars(pricing.output)} out per 1m`
+  if (pricing.input === 0 && pricing.output === 0) return "Free"
+  return `$${dollars(pricing.input)} in / $${dollars(pricing.output)} out per 1M`
 }
 
 export interface ModelRow {

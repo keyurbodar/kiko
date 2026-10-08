@@ -12,7 +12,7 @@ export interface ProviderInfo {
 async function request(path: string, init?: RequestInit): Promise<any> {
   const response = await fetch(`/api/credentials${path}`, { credentials: "same-origin", ...init })
   const body = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "request failed")
+  if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "Request failed.")
   return body
 }
 

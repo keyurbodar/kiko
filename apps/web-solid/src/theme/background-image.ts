@@ -22,13 +22,13 @@ const canvas2d = (w: number, h: number) => {
   c.width = Math.max(1, Math.round(w))
   c.height = Math.max(1, Math.round(h))
   const ctx = c.getContext("2d")
-  if (!ctx) throw new Error("this browser can't read pictures")
+  if (!ctx) throw new Error("This browser can't read pictures.")
   ctx.imageSmoothingQuality = "high"
   return [c, ctx] as const
 }
 
 const toBlob = (c: HTMLCanvasElement, type: string, quality: number) =>
-  new Promise<Blob>((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("that picture couldn't be saved"))), type, quality))
+  new Promise<Blob>((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("That picture couldn't be saved."))), type, quality))
 
 /** The picture fitted to `edge` on its long side, blurred by `radius`, drawn past the edges so the blur never fades there. */
 function fitted(source: ImageBitmap, edge: number, radius = 0): HTMLCanvasElement {
@@ -44,13 +44,13 @@ function fitted(source: ImageBitmap, edge: number, radius = 0): HTMLCanvasElemen
 }
 
 export async function prepareBackground(file: Blob): Promise<Prepared> {
-  if (!IMAGE.test(file.type)) throw new Error("choose a png, jpeg, webp, gif or avif picture")
-  if (file.size > MAX_BACKGROUND_BYTES) throw new Error("that picture is larger than 40 mb")
+  if (!IMAGE.test(file.type)) throw new Error("Choose a PNG, JPEG, WebP, GIF, or AVIF picture.")
+  if (file.size > MAX_BACKGROUND_BYTES) throw new Error("That picture is larger than 40 MB.")
   let bitmap: ImageBitmap
   try {
     bitmap = await createImageBitmap(file)
   } catch {
-    throw new Error("that picture couldn't be read")
+    throw new Error("That picture couldn't be read.")
   }
   try {
     const full = fitted(bitmap, SHARP_EDGE)
@@ -66,7 +66,7 @@ export async function prepareBackground(file: Blob): Promise<Prepared> {
       if (!desktop.startsWith("data:image/webp")) desktop = c.toDataURL("image/jpeg", quality)
       if (desktop.length <= MAX_DESKTOP_CHARS) break
     }
-    if (desktop.length > MAX_DESKTOP_CHARS) throw new Error("that picture couldn't be saved")
+    if (desktop.length > MAX_DESKTOP_CHARS) throw new Error("That picture couldn't be saved.")
     return { sharp, desktop, palette: paletteOfBitmap(bitmap) }
   } finally {
     bitmap.close()

@@ -44,7 +44,7 @@ export function cancelRename(): void {
 /** Commits an edited title. An empty or unchanged title is a cancel. */
 export function commitRename(id: string, title: string): void {
   setRenaming(null)
-  const next = title.trim().toLowerCase()
+  const next = title.trim()
   const current = useApp.chatById(id)
   if (next === "" || !current || next === current.name) return
   useApp.user()?.rename(id as RoomId, next)

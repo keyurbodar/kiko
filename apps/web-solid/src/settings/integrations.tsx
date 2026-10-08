@@ -8,7 +8,7 @@ import { createExecutorClient, createMockExecutor, type ExecutorClient } from ".
 /*
  * The integrations section. It shows what the server says and names nothing itself: the
  * connection state, the organization, and the tool list all come from the user socket.
- * The empty state explains the service in two lines. Connect opens the sign-in at the
+ * The group links to the service. Connect opens the sign-in at the
  * address the server returns. The paste-key form is the fallback; its field is cleared
  * before the request leaves, so a key never outlives the click.
  */
@@ -36,7 +36,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 	const open = (url: string) => (props.open ? props.open(url) : window.location.assign(url))
 
 	function apply(result: ExecutorResult) {
-		if (!result.ok) return setError(result.error.toLowerCase())
+		if (!result.ok) return setError(result.error)
 		setError(null)
 		setView((v) => ({ status: result.status, tools: result.status.connected ? (result.tools ?? v.tools) : null }))
 	}
@@ -109,28 +109,27 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 				<Notice data-component="integrations-error">{error()}</Notice>
 			</Show>
 			<Group
-				title="executor"
-				description={
-					<span data-component="integrations-about">
-						one place for your agents to reach the apps you use.{" "}
-						<a class="text-text underline decoration-[color-mix(in_oklab,var(--text)_30%,transparent)] underline-offset-2 hover:decoration-current" href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
-							learn more
+				title="Executor"
+				action={
+					<span class="text-[12px]" data-component="integrations-about">
+						<a class="text-[color-mix(in_oklab,var(--text)_55%,transparent)] underline decoration-[color-mix(in_oklab,var(--text)_30%,transparent)] underline-offset-2 hover:text-text hover:decoration-current" href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
+							Learn more
 						</a>
 					</span>
 				}
 			>
-				<Show when={status()} fallback={<Empty>loading</Empty>}>
+				<Show when={status()} fallback={<Empty>Loading</Empty>}>
 					<Show
 						when={status()?.connected}
 						fallback={
 							<Item
 								data-state="empty"
 								icon={<GridIcon />}
-								title="executor"
-								meta="not connected"
+								title="Executor"
+								meta="Not connected"
 								actions={
 									<Button variant="primary" data-action="connect" disabled={busy()} onClick={() => void signIn()}>
-										{status()?.pending ? "continue" : "connect"}
+										{status()?.pending ? "Continue" : "Connect"}
 									</Button>
 								}
 							>
@@ -139,12 +138,12 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 									when={keyOpen()}
 									fallback={
 										<Button variant="ghost" class="-ml-2.5" data-action="use-key" onClick={() => setKeyOpen(true)}>
-											use an api key instead
+											Use an API key instead
 										</Button>
 									}
 								>
 									<form class="flex gap-2" onSubmit={submitKey} data-method="api_key">
-										<label class="sr-only" for="integrations-key">executor api key</label>
+										<label class="sr-only" for="integrations-key">Executor API key</label>
 										<input
 											id="integrations-key"
 											ref={key}
@@ -159,7 +158,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 											data-component="integrations-key"
 										/>
 										<Button type="submit" variant="secondary" class="h-[30px]" disabled={busy()} data-action="save-key">
-											save
+											Save
 										</Button>
 									</form>
 								</Show>
@@ -169,17 +168,17 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 						<Item
 							data-state="connected"
 							icon={<GridIcon />}
-							title={<span class="truncate" data-field="organization">{status()?.organization?.toLowerCase() ?? "connected"}</span>}
+							title={<span class="truncate" data-field="organization">{status()?.organization ?? "Connected"}</span>}
 							meta={
 								<span data-field="tool-count">
-									{tools() ? `${tools()!.length} ${tools()!.length === 1 ? "tool" : "tools"}` : "loading tools"}
+									{tools() ? `${tools()!.length} ${tools()!.length === 1 ? "tool" : "tools"}` : "Loading tools"}
 									{" · "}
-									{status()?.kind === "api_key" ? "api key" : "signed in"}
+									{status()?.kind === "api_key" ? "API key" : "signed in"}
 								</span>
 							}
 							actions={
 								<Button variant="danger" data-action="disconnect" disabled={busy()} onClick={() => setConfirming(true)}>
-									disconnect
+									Disconnect
 								</Button>
 							}
 						/>
@@ -187,9 +186,9 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 				</Show>
 			</Group>
 			<Show when={status()?.connected}>
-				<Group title="tools" description="what your agents can call through executor.">
-					<Show when={tools()} fallback={<Empty>loading tools</Empty>}>
-						<Show when={tools()!.length > 0} fallback={<Empty>no tools yet</Empty>}>
+				<Group title="Tools">
+					<Show when={tools()} fallback={<Empty>Loading tools</Empty>}>
+						<Show when={tools()!.length > 0} fallback={<Empty>No tools yet</Empty>}>
 							<ul class="flex flex-col py-1" data-component="tool-list">
 								<For each={tools() ?? []}>
 									{(name) => (
@@ -211,14 +210,14 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 				<ModalV2.Portal>
 					<ModalV2.Overlay />
 					<ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-3 rounded-[16px] bg-menu p-4 shadow-xl">
-						<ModalV2.Title class="text-[13px] font-semibold text-text">disconnect?</ModalV2.Title>
-						<p class="text-xs leading-relaxed text-muted">your agents lose these tools until you connect again.</p>
+						<ModalV2.Title class="text-[13px] font-semibold text-text">Disconnect Executor?</ModalV2.Title>
+						<p class="text-xs leading-relaxed text-muted">Your agents lose these tools until you connect again.</p>
 						<div class="flex justify-end gap-2">
 							<Button variant="ghost" data-action="cancel-disconnect" onClick={() => setConfirming(false)}>
-								cancel
+								Cancel
 							</Button>
 							<Button variant="danger" data-action="confirm-disconnect" onClick={disconnect}>
-								disconnect
+								Disconnect
 							</Button>
 						</div>
 					</ModalV2.Content>

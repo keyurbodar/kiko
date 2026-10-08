@@ -22,9 +22,9 @@ export async function proposeFromFiles(roomId: string, name: string, files: read
       else bundled[f.name.slice(dir.length)] = text
     }
   } catch (e) {
-    return { ok: false, error: e instanceof SyntaxError ? "extension.json is not valid json" : "a file did not load" }
+    return { ok: false, error: e instanceof SyntaxError ? "extension.json is not valid JSON" : "A file did not load" }
   }
   const store = useApp.user()
-  if (!store) return { ok: false, error: "still connecting" }
+  if (!store) return { ok: false, error: "Still connecting" }
   return store.extensionOp({ op: "propose", bundle: { manifest, files: bundled }, room: roomId as never })
 }

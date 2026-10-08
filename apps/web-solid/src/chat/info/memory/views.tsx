@@ -20,7 +20,7 @@ export function ago(at: number, now = Date.now()): string {
 	if (s < 3600) return `${Math.floor(s / 60)}m`
 	if (s < 86400) return `${Math.floor(s / 3600)}h`
 	if (s < 7 * 86400) return `${Math.floor(s / 86400)}d`
-	return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" }).toLowerCase()
+	return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
 function Line(props: { line: LifeLine; store: MemoryStore }) {
@@ -28,19 +28,19 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 	const [sure, setSure] = createSignal(false)
 	return (
 		<div class="group flex flex-col gap-0.5 rounded-xl px-2.5 py-2 hover:bg-nav-hover" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
-			<Show when={!l().redacted} fallback={<span class="text-sm text-faint">removed</span>}>
+			<Show when={!l().redacted} fallback={<span class="text-sm text-faint">Removed</span>}>
 				<span class="text-[15px] leading-snug text-text">{l().text}</span>
 				<span class="flex items-center gap-1 text-xs text-faint">
-					<span>{l().source || "kiko"}</span>
+					<span>{l().source || "Kiko"}</span>
 					<span>·</span>
 					<span>{ago(l().at)}</span>
 					<Show when={l().tainted}>
-						<span title="written after reading outside content">· from outside</span>
+						<span title="Written after reading outside content">· from outside</span>
 					</Show>
 					<span class="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
 						<Show when={l().pos >= 0}>
 							<button type="button" class={quiet} data-action="pin" onClick={() => props.store.pin(l().pos, !l().pinned)}>
-								{l().pinned ? "unpin" : "pin"}
+								{l().pinned ? "Unpin" : "Pin"}
 							</button>
 							<button
 								type="button"
@@ -49,7 +49,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 								onClick={() => (sure() ? props.store.redact(l().pos) : setSure(true))}
 								onBlur={() => setSure(false)}
 							>
-								{sure() ? "remove for good" : "remove"}
+								{sure() ? "Remove for good" : "Remove"}
 							</button>
 						</Show>
 					</span>
@@ -95,8 +95,8 @@ function MemoryModelRow(props: { store: MemoryStore }) {
 	return (
 		<section class="flex flex-col gap-2" data-component="memory-model">
 			<button type="button" class="flex items-center gap-2 rounded-xl px-2.5 py-2 text-left hover:bg-nav-hover" onClick={() => setOpen(!open())}>
-				<span class="flex-1 text-sm text-text">summaries written by</span>
-				<span class="truncate text-sm text-weak">{current() ? `${current()!.provider}/${current()!.modelId}` : "the default model"}</span>
+				<span class="flex-1 text-sm text-text">Summaries written by</span>
+				<span class="truncate text-sm text-weak">{current() ? `${current()!.provider}/${current()!.modelId}` : "Default model"}</span>
 			</button>
 			<Show when={open()}>
 				<div class="flex max-h-80 flex-col">
@@ -112,7 +112,7 @@ function MemoryModelRow(props: { store: MemoryStore }) {
 					</Suspense>
 					<Show when={current()}>
 						<button type="button" class={`${quiet} self-start`} onClick={() => void props.store.setModel(null)}>
-							use the default model
+							Use the default model
 						</button>
 					</Show>
 				</div>
@@ -129,14 +129,14 @@ export function MemoryList(props: { store: MemoryStore }) {
 	const s = () => props.store.state
 	const shown = () => (query().trim() ? (s().results ?? []) : s().lines)
 	return (
-		<nav class="flex flex-col gap-4" aria-label="memory" data-component="memory-list">
+		<nav class="flex flex-col gap-4" aria-label="Memory" data-component="memory-list">
 			<label class="sticky top-0 z-10 flex h-9 items-center gap-2 rounded-xl bg-input px-3 text-weak focus-within:text-text">
 				<SearchIcon />
 				<input
 					type="search"
 					class="h-full min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
-					placeholder="search memory"
-					aria-label="search memory"
+					placeholder="Search memory"
+					aria-label="Search memory"
 					value={query()}
 					onInput={(e) => {
 						setQuery(e.currentTarget.value)
@@ -163,8 +163,8 @@ export function MemoryList(props: { store: MemoryStore }) {
 			>
 				<input
 					class="h-9 min-w-0 flex-1 rounded-xl bg-input px-3 text-sm text-text outline-none placeholder:text-weak"
-					placeholder="tell kiko something to remember"
-					aria-label="add a memory"
+					placeholder="Tell Kiko something to remember"
+					aria-label="Add a memory"
 					maxLength={280}
 					value={draft()}
 					onInput={(e) => setDraft(e.currentTarget.value)}
@@ -173,8 +173,8 @@ export function MemoryList(props: { store: MemoryStore }) {
 			<Show when={!query().trim() && s().view.length}>
 				<section class="flex flex-col gap-1" data-component="memory-view">
 					<button type="button" class="flex items-baseline gap-1.5 px-2.5 text-left text-xs font-medium text-weak" onClick={() => setReading(!reading())}>
-						what every agent reads
-						<span class="text-faint">{reading() ? "hide" : `${s().view.length} lines`}</span>
+						What every agent reads
+						<span class="text-faint">{reading() ? "Hide" : `${s().view.length} lines`}</span>
 					</button>
 					<Show when={reading()}>
 						<div class="flex flex-col rounded-2xl bg-bg-subtle px-3 py-2">
@@ -188,7 +188,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 			</div>
 			<Show when={!query().trim() && s().next !== null}>
 				<button type="button" class={`${quiet} self-center`} onClick={() => void props.store.more()}>
-					older
+					Older
 				</button>
 			</Show>
 			<Show when={s().loaded && query().trim() && !shown().length}>
@@ -196,7 +196,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 					<Suspense>
 						<Moment kind="nothing" />
 					</Suspense>
-					<p class="text-center text-sm text-weak">nothing matches "{query().trim()}"</p>
+					<p class="text-center text-sm text-weak">Nothing matches "{query().trim()}"</p>
 				</div>
 			</Show>
 			<Show when={s().loaded && !query().trim() && !s().lines.length}>
@@ -204,8 +204,8 @@ export function MemoryList(props: { store: MemoryStore }) {
 					<Suspense>
 						<Moment kind="nest" />
 					</Suspense>
-					<p class="mt-2 text-sm text-text">nothing remembered yet</p>
-					<p class="text-xs text-weak">talk to kiko about people, places, and how you like things done. it keeps the lasting parts here.</p>
+					<p class="mt-2 text-sm text-text">Nothing remembered yet</p>
+					<p class="text-xs text-weak">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
 				</div>
 			</Show>
 			<MemoryModelRow store={props.store} />
@@ -219,7 +219,7 @@ export function MemoryError(props: { store: MemoryStore }) {
 			<p class="rounded-lg bg-bg-subtle px-3 py-2 text-sm text-[var(--danger)]" role="alert" data-component="memory-error">
 				{props.store.state.error}{" "}
 				<button type="button" class="underline" onClick={() => props.store.dismissError()}>
-					dismiss
+					Dismiss
 				</button>
 			</p>
 		</Show>

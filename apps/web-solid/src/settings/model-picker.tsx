@@ -39,8 +39,8 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
           <input
             type="search"
             class="h-full min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
-            placeholder="search models"
-            aria-label="search models"
+            placeholder="Search models"
+            aria-label="Search models"
             autofocus={props.autofocus}
             value={query()}
             onInput={(e) => setQuery(e.currentTarget.value)}
@@ -52,12 +52,12 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
         when={connectedIds().size > 0}
         fallback={
           <div class="p-4 text-sm text-weak" data-component="model-empty">
-            no provider is connected. <A href="/settings/models" class="underline">connect one</A> to pick a model.
+            No provider is connected. <A href="/settings/providers" class="underline">Connect one</A> to pick a model.
           </div>
         }
       >
-        <ul class="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="models" data-component="model-rows">
-          <For each={rows().slice(0, MAX_ROWS)} fallback={<li class="p-4 text-sm text-weak">{catalog.loading ? "loading models" : "no models match"}</li>}>
+        <ul class="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Models" data-component="model-rows">
+          <For each={rows().slice(0, MAX_ROWS)} fallback={<li class="p-4 text-sm text-weak">{catalog.loading ? "Loading models" : "No models match"}</li>}>
             {({ provider, model }) => {
               const ref = modelRef(provider.id, model.id)
               return (
@@ -77,8 +77,8 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
                   }}
                 >
                   <span class="min-w-0">
-                    <span class="block truncate text-sm text-[var(--tab-text-active)]">{model.name.toLowerCase()}</span>
-                    <span class="block truncate text-xs text-weak">{provider.name.toLowerCase()}</span>
+                    <span class="block truncate text-sm text-[var(--tab-text-active)]">{model.name}</span>
+                    <span class="block truncate text-xs text-weak">{provider.name}</span>
                   </span>
                   <span class="shrink-0 text-right text-xs text-weak">
                     <span class="block" data-field="context">{formatContext(model.contextWindow)} context</span>
@@ -114,12 +114,12 @@ export function ModelPickerButton(props: { chatId: string | null }) {
           class="flex h-7 max-w-[200px] shrink-0 items-center gap-1 rounded-[9px] px-2 text-xs text-muted outline-none hover:bg-[var(--tab-bg-hover)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           data-component="model-picker-button"
           data-hint="chat.model"
-          data-hint-label="model"
-          aria-label="choose model"
-          title="choose model"
+          data-hint-label="Model"
+          aria-label="Choose model"
+          title="Choose model"
           onClick={() => setPickerOpen(true)}
         >
-          <span class="truncate">{current()?.split("/").slice(1).join("/") ?? "choose model"}</span>
+          <span class="truncate">{current()?.split("/").slice(1).join("/") ?? "Choose model"}</span>
           <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70" aria-hidden="true">
             <path d="M3 4.5L6 7.5l3-3" />
           </svg>
@@ -128,7 +128,7 @@ export function ModelPickerButton(props: { chatId: string | null }) {
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content class="h-[min(560px,80dvh)] w-[min(520px,94vw)] flex-col gap-2 rounded-[16px] bg-menu p-3 shadow-xl">
-          <ModalV2.Title class="px-1 text-sm font-medium text-muted">choose a model</ModalV2.Title>
+          <ModalV2.Title class="px-1 text-sm font-medium text-muted">Choose a model</ModalV2.Title>
           <ModelList
             autofocus
             current={current()}

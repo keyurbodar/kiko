@@ -8,6 +8,9 @@ import { loadProviders, signInAsDev, signInWithProvider } from "./session"
  * is on. The dev button shows only on a development Worker. One click starts the
  * sign-in and every button holds until it ends, so a double tap cannot start two.
  */
+/** Each provider by its own name. */
+const PROVIDER = { google: "Google", github: "GitHub" } as const
+
 const button =
   "flex h-11 w-full items-center justify-center rounded-lg bg-btn px-4 text-sm font-medium text-text outline-none hover:bg-btn-hover focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-wait disabled:opacity-60"
 
@@ -36,7 +39,7 @@ export default function SignIn() {
     <div class="flex h-dvh items-center justify-center bg-bg px-4" data-component="sign-in">
       <div class="flex w-full max-w-72 flex-col items-center gap-3">
         <Bird slug="kiko" size={72} state="wave" />
-        <h1 class="mb-4 mt-1 text-xl font-medium text-text">sign in to kiko</h1>
+        <h1 class="mb-4 mt-1 text-xl font-medium text-text">Sign in to Kiko</h1>
         <For each={social()}>
           {(id, i) => (
             <button
@@ -46,7 +49,7 @@ export default function SignIn() {
               ref={(el) => i() === 0 && focusFirst(el)}
               onClick={() => void run(() => signInWithProvider(id))}
             >
-              continue with {id}
+              Continue with {PROVIDER[id]}
             </button>
           )}
         </For>
@@ -58,16 +61,16 @@ export default function SignIn() {
             ref={(el) => !social().length && focusFirst(el)}
             onClick={() => void run(() => signInAsDev())}
           >
-            continue as dev
+            Continue as dev
           </button>
         </Show>
         <Show when={failed()}>
           <p class="text-sm text-[var(--danger)]" role="alert">
-            could not sign in. try again
+            Could not sign in. Try again
           </p>
         </Show>
         <Show when={providers() && !social().length && !providers()?.dev}>
-          <p class="text-sm text-weak">no sign-in method is set up on this server</p>
+          <p class="text-sm text-weak">No sign-in method is set up on this server</p>
         </Show>
       </div>
     </div>

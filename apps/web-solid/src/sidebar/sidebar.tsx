@@ -35,11 +35,11 @@ type PanelAction = {
 /** The header's one primary action. Settings has none. */
 const ACTIONS: Record<SectionId, PanelAction | null> = {
   chat: {
-    label: "new chat",
+    label: "New chat",
     run: () => runCommand("chat.new"),
     menu: [
-      { label: "new chat", command: "chat.new", shortcut: "⌘N" },
-      { label: "new group", command: "chat.new-group" },
+      { label: "New chat", command: "chat.new", shortcut: "⌘N" },
+      { label: "New group", command: "chat.new-group" },
     ],
   },
   settings: null,
@@ -181,9 +181,9 @@ export function Sidebar(props: SidebarProps) {
       >
         <SidebarSky />
         <header class="panel-header">
-          <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="chats">
+          <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
             <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={22} />
-            <span>kiko</span>
+            <span>Kiko</span>
           </A>
           <span class="flex-1" aria-hidden="true" />
           <Show when={props.section && ACTIONS[props.section]}>{(action) => <HeaderAction action={action()} />}</Show>
@@ -224,7 +224,7 @@ export function Sidebar(props: SidebarProps) {
           data-component="sidebar-resize"
           role="separator"
           aria-orientation="vertical"
-          aria-label="resize sidebar"
+          aria-label="Resize sidebar"
           aria-valuemin={MIN_W}
           aria-valuemax={MAX_W}
           aria-valuenow={collapsed() ? 0 : (width() ?? DEFAULT_W)}
@@ -241,12 +241,12 @@ export function Sidebar(props: SidebarProps) {
 /** Opens and closes the sidebar. The top bar shows the same button while the sidebar is shut. */
 export function SidebarToggle(props: { open: boolean; onToggle: () => void; class?: string }) {
   return (
-    <TooltipV2 placement="bottom" openDelay={400} value={props.open ? "hide sidebar" : "show sidebar"}>
+    <TooltipV2 placement="bottom" openDelay={400} value={props.open ? "Hide sidebar" : "Show sidebar"}>
       <button
         type="button"
         class={props.class ?? "panel-icon-button"}
         data-component="sidebar-toggle"
-        aria-label="toggle sidebar"
+        aria-label="Toggle sidebar"
         aria-expanded={props.open}
         aria-keyshortcuts="Control+S Meta+S"
         data-hint="view.toggle-sidebar"
@@ -268,20 +268,20 @@ function Foot(props: { section: SectionId | null }) {
   const waiting = () => (useApp.user()?.proposals().length ?? 0) > 0
   return (
     <footer class="panel-foot" data-component="sidebar-foot">
-      <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="account">
+      <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
         <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
-        <span class="panel-me-name">{(user()?.name ?? "you").toLowerCase()}</span>
+        <span class="panel-me-name">{user()?.name ?? "You"}</span>
       </A>
-      <TooltipV2 placement="top" openDelay={400} value="settings">
+      <TooltipV2 placement="top" openDelay={400} value="Settings">
         <A
           href={waiting() ? "/settings/extensions" : "/settings"}
           class="panel-icon-button relative"
           data-component="sidebar-settings"
           data-hint="settings.open"
-          data-hint-label="settings"
+          data-hint-label="Settings"
           data-active={props.section === "settings" ? "" : undefined}
           aria-current={props.section === "settings" ? "page" : undefined}
-          aria-label={waiting() ? "settings, an extension waits for review" : "settings"}
+          aria-label={waiting() ? "Settings, an extension waits for review" : "Settings"}
         >
           <HugeIcon icon={SettingsIcon} size={17} />
           <Show when={waiting()}>
@@ -294,8 +294,8 @@ function Foot(props: { section: SectionId | null }) {
 }
 
 /**
- * The compose button in the panel header. On chat it is a two-item menu: "new chat" (kiko, the same command
- * as `Mod+N` and the bird in the top bar) and "new group", which opens the same temporary chat
+ * The compose button in the panel header. On chat it is a two-item menu: "New chat" (Kiko, the same command
+ * as `Mod+N` and the bird in the top bar) and "New group", which opens the same temporary chat
  * with its "to:" search already open. It does not own the sidebar toggle; the rail icon and
  * `cmd+s` do.
  */
@@ -313,7 +313,7 @@ function HeaderAction(props: { action: PanelAction }) {
     >
       {(items) => (
         <MenuV2 gutter={6} placement="bottom-end">
-          <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="new chat">
+          <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="New chat">
             <HugeIcon icon={ComposeIcon} size={17} />
           </MenuV2.Trigger>
           <MenuV2.Portal>

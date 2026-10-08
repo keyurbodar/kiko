@@ -26,28 +26,28 @@ export function renameOp(member: Member, name: string): MemberOp | null {
   return next && next !== member.name ? { op: "rename", slug: member.slug, name: next } : null
 }
 
-/** What the toast says when the room refuses a change. Lowercase, like every interface string. */
+/** What the toast says when the room refuses a change. A name keeps its own casing. */
 export function refusalText(op: MemberOp, reason: MemberRefusal): string {
-  const who = "name" in op ? op.name.toLowerCase() : op.slug
+  const who = "name" in op ? op.name : op.slug
   switch (reason) {
     case "limit":
-      return "a group holds at most 8 agents"
+      return "A group holds at most 8 agents"
     case "exists":
       return `${who} is already in this chat`
     case "unknown":
       return `${who} is not in this chat`
     case "last":
-      return "a chat keeps at least one agent"
+      return "A chat keeps at least one agent"
     case "reserved":
       return `@${op.slug} is a reserved handle`
     case "chief":
-      return "kiko leads every chat and stays in it"
+      return "Kiko leads every chat and stays in it"
   }
 }
 
-/** `lead`, or the agent's role cut to one line, or `agent`. */
+/** `Lead`, or the agent's role cut to one line, or `Agent`. */
 export function roleLabel(member: Member): string {
-  if (member.lead) return "lead"
-  const role = member.role?.split("\n")[0]?.trim().toLowerCase()
-  return role || "agent"
+  if (member.lead) return "Lead"
+  const role = member.role?.split("\n")[0]?.trim()
+  return role || "Agent"
 }

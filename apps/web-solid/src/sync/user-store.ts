@@ -343,7 +343,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		},
 		createTemp() {
 			const roomId = newRoomId()
-			act({ op: "create", roomId, title: "new chat", agents: [KIKO], temp: true })
+			act({ op: "create", roomId, title: "New chat", agents: [KIKO], temp: true })
 			return roomId
 		},
 		keep: (roomId, title, agents) => act({ op: "keep", roomId, title, agents: [...agents] }),
@@ -386,14 +386,14 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 						resolve()
 					}, EXTENSION_TIMEOUT_MS / 3)
 				})
-				if (!socket?.send({ t: "extension", reqId, op })) return { ok: false, error: "you are offline. try again when kiko reconnects." }
+				if (!socket?.send({ t: "extension", reqId, op })) return { ok: false, error: "You are offline. Try again when Kiko reconnects." }
 			}
 			setState("extensionPatches", (list) => [...list, { reqId, op }])
 			return new Promise<ExtensionResult>((resolve) => {
 				const timer = setTimeout(() => {
 					answers.delete(reqId)
 					setState("extensionPatches", (list) => list.filter((p) => p.reqId !== reqId))
-					resolve({ ok: false, error: "kiko did not answer. try again." })
+					resolve({ ok: false, error: "Kiko did not answer. Try again." })
 				}, EXTENSION_TIMEOUT_MS)
 				answers.set(reqId, (result) => {
 					clearTimeout(timer)

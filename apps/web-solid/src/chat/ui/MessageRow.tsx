@@ -34,8 +34,8 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
 
 /** The quoted message's author. The parent's own author is passed in, so the row never looks up a roster. */
 function quoteSender(message: ChatMessage, parentBot: RosterBot | undefined): string {
-  if (message.sender === "user") return "you"
-  return parentBot?.name ?? "bot"
+  if (message.sender === "user") return "You"
+  return parentBot?.name ?? "Bot"
 }
 
 /** Width of the avatar gutter in a group chat: the 32px run avatar and an 8px gap. */
@@ -207,7 +207,7 @@ export function MessageRow(props: {
             {(to) => (
               <div class="px-3 pb-2">
                 <A href={`/chat/${to()}`} class="inline-flex h-8 items-center rounded-full bg-btn px-3 text-sm text-text" data-action="open-made-chat">
-                  open chat
+                  Open chat
                 </A>
               </div>
             )}
@@ -239,7 +239,7 @@ export function MessageRow(props: {
                 data-component="chat-media-time"
                 datetime={new Date(props.message.sentAt).toISOString()}
               >
-                {props.message.status === "sending" ? "sending" : formatTimeOfDay(props.message.sentAt)}
+                {props.message.status === "sending" ? "Sending" : formatTimeOfDay(props.message.sentAt)}
               </time>
             </Show>
           </WebPageCard>

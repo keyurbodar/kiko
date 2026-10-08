@@ -11,24 +11,24 @@ const you = { from: "human", at } as const
 describe("describeLast", () => {
   // [case, last, the DM line, the group line]
   const cases: [string, ChatLast, ActivityLine, ActivityLine][] = [
-    ["an agent's text", { ...ada, kind: "text", text: "hi there" }, { text: "hi there" }, { from: "ada", text: "hi there" }],
-    ["your text", { ...you, kind: "text", text: "hello" }, { from: "you", text: "hello" }, { from: "you", text: "hello" }],
-    ["a photo", { ...ada, kind: "photo" }, { text: "photo" }, { from: "ada", text: "photo" }],
-    ["a photo with a caption", { ...you, kind: "photo", text: "look" }, { from: "you", text: "photo, look" }, { from: "you", text: "photo, look" }],
-    ["two photos", { ...you, kind: "photo", count: 2 }, { from: "you", text: "2 photos" }, { from: "you", text: "2 photos" }],
-    ["a video", { ...ada, kind: "video" }, { text: "video" }, { from: "ada", text: "video" }],
-    ["an album", { ...you, kind: "album" }, { from: "you", text: "album" }, { from: "you", text: "album" }],
-    ["a file", { ...ada, kind: "file", file: "plan.pdf" }, { text: "plan.pdf" }, { from: "ada", text: "plan.pdf" }],
-    ["three files", { ...you, kind: "file", count: 3 }, { from: "you", text: "3 files" }, { from: "you", text: "3 files" }],
-    ["a voice message", { ...you, kind: "voice" }, { from: "you", text: "voice message" }, { from: "you", text: "voice message" }],
-    ["audio", { ...ada, kind: "audio", file: "song.mp3" }, { text: "song.mp3" }, { from: "ada", text: "song.mp3" }],
-    ["a link", { ...you, kind: "link", text: "https://kat.ai" }, { from: "you", text: "https://kat.ai" }, { from: "you", text: "https://kat.ai" }],
-    ["a reaction", { ...ada, kind: "react", emoji: "❤️", text: "hello" }, { text: 'reacted ❤️ to "hello"' }, { text: 'ada reacted ❤️ to "hello"' }],
-    ["a join", { ...ada, kind: "joined" }, { text: "ada joined" }, { text: "ada joined" }],
-    ["a leave", { ...ada, kind: "left" }, { text: "ada left" }, { text: "ada left" }],
-    ["a rename", { ...you, kind: "renamed", text: "launch" }, { text: "you renamed the group to launch" }, { text: "you renamed the group to launch" }],
-    ["a new group", { ...you, kind: "created" }, { text: "you created the group" }, { text: "you created the group" }],
-    ["an approval", { ...ada, kind: "approval" }, { text: "needs your approval" }, { text: "ada needs your approval" }],
+    ["an agent's text", { ...ada, kind: "text", text: "hi there" }, { text: "hi there" }, { from: "Ada", text: "hi there" }],
+    ["your text", { ...you, kind: "text", text: "hello" }, { from: "You", text: "hello" }, { from: "You", text: "hello" }],
+    ["a photo", { ...ada, kind: "photo" }, { text: "Photo" }, { from: "Ada", text: "Photo" }],
+    ["a photo with a caption", { ...you, kind: "photo", text: "look" }, { from: "You", text: "Photo, look" }, { from: "You", text: "Photo, look" }],
+    ["two photos", { ...you, kind: "photo", count: 2 }, { from: "You", text: "2 photos" }, { from: "You", text: "2 photos" }],
+    ["a video", { ...ada, kind: "video" }, { text: "Video" }, { from: "Ada", text: "Video" }],
+    ["an album", { ...you, kind: "album" }, { from: "You", text: "Album" }, { from: "You", text: "Album" }],
+    ["a file", { ...ada, kind: "file", file: "plan.pdf" }, { text: "plan.pdf" }, { from: "Ada", text: "plan.pdf" }],
+    ["three files", { ...you, kind: "file", count: 3 }, { from: "You", text: "3 files" }, { from: "You", text: "3 files" }],
+    ["a voice message", { ...you, kind: "voice" }, { from: "You", text: "Voice message" }, { from: "You", text: "Voice message" }],
+    ["audio", { ...ada, kind: "audio", file: "song.mp3" }, { text: "song.mp3" }, { from: "Ada", text: "song.mp3" }],
+    ["a link", { ...you, kind: "link", text: "https://kat.ai" }, { from: "You", text: "https://kat.ai" }, { from: "You", text: "https://kat.ai" }],
+    ["a reaction", { ...ada, kind: "react", emoji: "❤️", text: "hello" }, { text: 'Reacted ❤️ to "hello"' }, { text: 'Ada reacted ❤️ to "hello"' }],
+    ["a join", { ...ada, kind: "joined" }, { text: "Ada joined" }, { text: "Ada joined" }],
+    ["a leave", { ...ada, kind: "left" }, { text: "Ada left" }, { text: "Ada left" }],
+    ["a rename", { ...you, kind: "renamed", text: "launch" }, { text: "You renamed the group to launch" }, { text: "You renamed the group to launch" }],
+    ["a new group", { ...you, kind: "created" }, { text: "You created the group" }, { text: "You created the group" }],
+    ["an approval", { ...ada, kind: "approval" }, { text: "Needs your approval" }, { text: "Ada needs your approval" }],
     ["a reminder", { from: "system", kind: "notice", text: "reminder: water", at }, { text: "reminder: water" }, { text: "reminder: water" }],
   ]
   for (const [name, last, dm, group] of cases) {
@@ -39,11 +39,11 @@ describe("describeLast", () => {
 
 describe("typingLine", () => {
   const cases: [readonly string[], boolean, string][] = [
-    [["Ada"], false, "typing"],
-    [["Ada"], true, "ada is typing"],
-    [["Ada", "Bob"], true, "ada and bob are typing"],
-    [["Ada", "Bob", "Cy"], true, "ada and 2 others are typing"],
-    [[], true, "typing"],
+    [["Ada"], false, "Typing"],
+    [["Ada"], true, "Ada is typing"],
+    [["Ada", "Bob"], true, "Ada and Bob are typing"],
+    [["Ada", "Bob", "Cy"], true, "Ada and 2 others are typing"],
+    [[], true, "Typing"],
   ]
   for (const [names, group, want] of cases) test(`${names.join(",")} ${group ? "group" : "dm"}`, () => expect(typingLine(names, group)).toBe(want))
 })
@@ -67,17 +67,17 @@ describe("chatRow", () => {
 
   test("a group row names the sender and carries the mention count", () => {
     const row = chatRow(chat({ group: true, mentions: 2, last: { ...ada, kind: "text", text: "@alice look" } }))
-    expect(row).toMatchObject({ previewFrom: "ada", preview: "@alice look", mentions: 2 })
+    expect(row).toMatchObject({ previewFrom: "Ada", preview: "@alice look", mentions: 2 })
   })
 
   test("typing names who, in a group", () => {
     const row = chatRow(chat({ group: true }), "idle", { typing: ["Ada", "Bob"] })
-    expect(row).toMatchObject({ presence: "typing", typing: "ada and bob are typing" })
+    expect(row).toMatchObject({ presence: "typing", typing: "Ada and Bob are typing" })
   })
 
   test("the open room's own newest message wins over the server's line", () => {
     const row = chatRow(chat({ last: { ...ada, kind: "text", text: "old" } }), "idle", { last: { ...you, kind: "photo", at: 99 }, group: false })
-    expect(row).toMatchObject({ previewFrom: "you", preview: "photo", updatedAt: 99 })
+    expect(row).toMatchObject({ previewFrom: "You", preview: "Photo", updatedAt: 99 })
   })
 })
 

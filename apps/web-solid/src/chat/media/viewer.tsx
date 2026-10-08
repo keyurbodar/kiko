@@ -525,7 +525,7 @@ export default function MediaViewer(props: {
             <button
               type="button"
               class="media-viewer-icon-button"
-              aria-label="close"
+              aria-label="Close"
               onClick={() => void requestClose()}
             >
               <HugeIcon icon={CloseIcon} size={24} aria-hidden="true" />
@@ -591,7 +591,7 @@ export default function MediaViewer(props: {
             class="media-viewer-sibling media-viewer-sibling--previous"
             data-viewer-fade
             classList={{ "media-viewer-sibling--hidden": !hasPrevious() }}
-            aria-label="previous item"
+            aria-label="Previous item"
             onClick={() => step(-1)}
           >
             <HugeIcon icon={ChevronLeftIcon} size={24} aria-hidden="true" />
@@ -602,7 +602,7 @@ export default function MediaViewer(props: {
             class="media-viewer-sibling media-viewer-sibling--next"
             data-viewer-fade
             classList={{ "media-viewer-sibling--hidden": !hasNext() }}
-            aria-label="next item"
+            aria-label="Next item"
             onClick={() => step(1)}
           >
             <HugeIcon icon={ChevronRightIcon} size={24} aria-hidden="true" />
@@ -614,7 +614,7 @@ export default function MediaViewer(props: {
               <button
                 type="button"
                 class="media-viewer-icon-button"
-                aria-label="zoom out"
+                aria-label="Zoom out"
                 onClick={() => changeScale(scale() - ZOOM_STEP)}
               >
                 <HugeIcon icon={MinusIcon} size={24} aria-hidden="true" />
@@ -626,13 +626,13 @@ export default function MediaViewer(props: {
                 max={ZOOM_MAX}
                 step={ZOOM_STEP}
                 value={scale()}
-                aria-label="zoom level"
+                aria-label="Zoom level"
                 onInput={(event) => changeScale(Number(event.currentTarget.value))}
               />
               <button
                 type="button"
                 class="media-viewer-icon-button"
-                aria-label="zoom in"
+                aria-label="Zoom in"
                 onClick={() => changeScale(scale() + ZOOM_STEP)}
               >
                 <HugeIcon icon={PlusIcon} size={24} aria-hidden="true" />
@@ -640,7 +640,7 @@ export default function MediaViewer(props: {
               <button
                 type="button"
                 class="media-viewer-icon-button"
-                aria-label="fit to the window"
+                aria-label="Fit to the window"
                 onClick={fit}
               >
                 <HugeIcon icon={ScanIcon} size={24} aria-hidden="true" />

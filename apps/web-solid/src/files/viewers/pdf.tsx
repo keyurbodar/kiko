@@ -11,7 +11,7 @@ export default function PdfView(props: { src: string; title: string }) {
 		() => props.src,
 		async (src) => {
 			const res = await fetch(src)
-			if (!res.ok) throw new Error(`the server said ${res.status}`)
+			if (!res.ok) throw new Error(`The server said ${res.status}`)
 			if (url) URL.revokeObjectURL(url)
 			url = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: "application/pdf" }))
 			return url
@@ -19,7 +19,7 @@ export default function PdfView(props: { src: string; title: string }) {
 	)
 	onCleanup(() => url && URL.revokeObjectURL(url))
 	return (
-		<Show when={blob()} fallback={<p class="fv-note">{blob.error ? "this file did not load" : "loading..."}</p>}>
+		<Show when={blob()} fallback={<p class="fv-note">{blob.error ? "This file did not load" : "Loading..."}</p>}>
 			{(href) => <iframe class="fv-frame" src={`${href()}#view=FitH`} title={props.title} data-component="file-pdf" />}
 		</Show>
 	)

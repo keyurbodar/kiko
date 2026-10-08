@@ -13,7 +13,7 @@ export type CommandGroup = "view" | "chat" | "chats" | "palette" | "go" | "setti
 export interface Command {
   /** Stable id, `group.verb`, for example `chat.new`. */
   id: string
-  /** Lowercase `noun: verb`, shown in the palette, for example `chat: new`. */
+  /** Sentence-case `Noun: Verb`, shown in the palette, for example `Chat: New`. */
   title: string
   group: CommandGroup
   /** An icon name. The palette maps it to a glyph, so this file imports none. */

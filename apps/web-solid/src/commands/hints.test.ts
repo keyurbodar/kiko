@@ -27,8 +27,8 @@ describe("holding the command key", () => {
 
 describe("pill labels", () => {
   test("drop the noun and the trailing dots", () => {
-    expect(pillLabel("chat: attach file...")).toBe("attach file")
-    expect(pillLabel("view: toggle sidebar")).toBe("toggle sidebar")
+    expect(pillLabel("Chat: Attach file...")).toBe("Attach file")
+    expect(pillLabel("View: Toggle sidebar")).toBe("Toggle sidebar")
   })
 })
 

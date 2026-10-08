@@ -63,7 +63,7 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
       <div class="rich-code-bar">
         <span class="rich-code-lang">{props.lang ?? ""}</span>
         <button type="button" class="rich-code-copy" onClick={copy}>
-          {copied() ? "copied" : "copy"}
+          {copied() ? "Copied" : "Copy"}
         </button>
       </div>
       <pre class="rich-code-pre">

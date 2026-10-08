@@ -22,18 +22,18 @@ import type { ThemeDefinition } from "./palette"
 import { ThemeSearch } from "./theme-search"
 
 function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} mb`
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} kb`
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
   return `${bytes} bytes`
 }
 
 export function describeOversizedThemeFile(bytes: number): string | null {
   if (bytes <= MAX_THEME_FILE_BYTES) return null
-  return `that file is ${formatBytes(bytes)}. theme files are only a few kb, so it wasn't read (limit ${formatBytes(MAX_THEME_FILE_BYTES)})`
+  return `That file is ${formatBytes(bytes)}. Theme files are only a few KB, so it wasn't read (limit ${formatBytes(MAX_THEME_FILE_BYTES)}).`
 }
 
-/** Errors from the parser are sentences; the interface voice is lowercase. */
-const lower = (cause: unknown, fallback: string) => (cause instanceof Error ? cause.message : fallback).toLowerCase()
+/** Errors from the parser are sentences, shown as they come. */
+const messageOf = (cause: unknown, fallback: string) => (cause instanceof Error ? cause.message : fallback)
 
 /** A copy under the next free "name (n)". */
 function copyOf(theme: ThemeDefinition): ThemeDefinition {
@@ -48,7 +48,7 @@ function copyOf(theme: ThemeDefinition): ThemeDefinition {
     })
     if (!customThemes().some((t) => t.id === candidate.id)) return candidate
   }
-  throw new Error(`too many copies of "${theme.label}"`)
+  throw new Error(`Too many copies of "${theme.label}".`)
 }
 
 /** A dropped file named differently from its theme (dracula soft) keeps the file's name for its copy. */
@@ -83,7 +83,7 @@ export default function ThemeImportDialog(props: {
   const [conflicts, setConflicts] = createSignal<ThemeDefinition[] | null>(null)
 
   const finish = (themes: ThemeDefinition[], updated: boolean) => {
-    if (!installThemes(themes)) return setError("themes couldn't be saved in this browser")
+    if (!installThemes(themes)) return setError("Themes couldn't be saved in this browser.")
     props.onImported(themes, updated)
     props.onClose()
   }
@@ -112,20 +112,20 @@ export default function ThemeImportDialog(props: {
       const parsed: Array<{ theme: ThemeDefinition; sourceName: string }> = []
       for (const file of files) {
         if (describeOversizedThemeFile(file.size)) {
-          failures.push(`${file.name}: too large`)
+          failures.push(`${file.name}: Too large`)
           continue
         }
         try {
           const value: unknown = JSON.parse(stripJsonComments(await file.text()))
           parsed.push({ sourceName: file.name, theme: isVsCodeThemeFile(value) ? parseVsCodeThemeFile(value) : parseThemeFile(value) })
         } catch (cause) {
-          failures.push(`${file.name}: ${lower(cause, "not a theme file")}`)
+          failures.push(`${file.name}: ${messageOf(cause, "Not a theme file.")}`)
         }
       }
       if (failures.length) return setError(failures.join(" · "))
       offer(pairVsCodeThemes(resolveLabelCollisions(parsed)))
     } catch {
-      setError("couldn't read that file. paste the json below instead")
+      setError("Couldn't read that file. Paste the JSON below instead.")
     } finally {
       setReading(false)
     }
@@ -137,7 +137,7 @@ export default function ThemeImportDialog(props: {
     try {
       offer([parseAnyThemeFile(json())])
     } catch (cause) {
-      setError(lower(cause, "that theme file isn't valid"))
+      setError(messageOf(cause, "That theme file isn't valid."))
     }
   }
 
@@ -155,7 +155,7 @@ export default function ThemeImportDialog(props: {
       setConflicts(null)
       finish(next, mode === "update")
     } catch (cause) {
-      setError(lower(cause, "that theme couldn't be added"))
+      setError(messageOf(cause, "That theme couldn't be added."))
     }
   }
 
@@ -167,7 +167,7 @@ export default function ThemeImportDialog(props: {
           class="flex max-h-[90vh] w-[min(720px,calc(100vw-32px))] flex-col gap-5 overflow-y-auto rounded-[calc(20px*var(--brm))] bg-menu p-5 text-text shadow-popover"
           data-component="theme-import-dialog"
         >
-          <ModalV2.Title class="text-base font-medium text-text">add a theme</ModalV2.Title>
+          <ModalV2.Title class="text-base font-medium text-text">Add a theme</ModalV2.Title>
           <ThemeSearch
             onInstalled={(themes, updated) => {
               props.onImported(themes, updated)
@@ -176,7 +176,7 @@ export default function ThemeImportDialog(props: {
           />
           <div class="flex items-center gap-3" aria-hidden="true">
             <div class="h-px flex-1 bg-[var(--hairline)]" />
-            <span class="text-[11px] text-faint">or import a file</span>
+            <span class="text-[11px] text-faint">Or import a file</span>
             <div class="h-px flex-1 bg-[var(--hairline)]" />
           </div>
           <Show
@@ -184,18 +184,18 @@ export default function ThemeImportDialog(props: {
             fallback={
               <div class="flex flex-col gap-3">
                 <div class="rounded-xl bg-[var(--card)] p-3">
-                  <p class="text-sm font-medium">already installed</p>
-                  <p class="mt-1 text-xs text-muted">{conflicts()!.map((t) => t.label.toLowerCase()).join(", ")}</p>
+                  <p class="text-sm font-medium">Already installed</p>
+                  <p class="mt-1 text-xs text-muted">{conflicts()!.map((t) => t.label).join(", ")}</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                   <button type="button" class={buttonClass()} onClick={() => resolve("update")}>
-                    update existing
+                    Update existing
                   </button>
                   <button type="button" class={buttonClass()} onClick={() => resolve("copy")}>
-                    keep both
+                    Keep both
                   </button>
                   <button type="button" class={buttonClass()} onClick={() => setConflicts(null)}>
-                    back
+                    Back
                   </button>
                 </div>
               </div>
@@ -225,12 +225,12 @@ export default function ThemeImportDialog(props: {
                 }}
               >
                 <div class="min-w-0">
-                  <p class="text-sm font-medium">theme file</p>
-                  <p class="truncate text-xs text-muted">{fileName() ?? "drop t3code or vs code .json files"}</p>
+                  <p class="text-sm font-medium">Theme file</p>
+                  <p class="truncate text-xs text-muted">{fileName() ?? "Drop t3code or VS Code .json files"}</p>
                 </div>
                 <button type="button" class={buttonClass()} disabled={reading()} onClick={() => fileInput?.click()}>
                   <HugeIcon icon={FileIcon} size={14} />
-                  {reading() ? "reading…" : "choose files"}
+                  {reading() ? "Reading…" : "Choose files"}
                 </button>
                 <input
                   ref={fileInput}
@@ -247,12 +247,12 @@ export default function ThemeImportDialog(props: {
                 />
               </div>
               <label class="flex flex-col gap-2">
-                <span class="text-sm font-medium">theme json</span>
+                <span class="text-sm font-medium">Theme JSON</span>
                 <textarea
-                  aria-label="theme json"
+                  aria-label="Theme JSON"
                   spellcheck={false}
                   class="min-h-44 w-full resize-y rounded-xl bg-input p-3 font-mono text-xs leading-5 text-text outline-none placeholder:text-faint focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  placeholder={'{\n  "version": 1,\n  "name": "aurora",\n  "appearance": "light",\n  "colors": { ... }\n}'}
+                  placeholder={'{\n  "version": 1,\n  "name": "Aurora",\n  "appearance": "light",\n  "colors": { ... }\n}'}
                   value={json()}
                   onInput={(event) => setJson(event.currentTarget.value)}
                   data-component="theme-json"
@@ -260,7 +260,7 @@ export default function ThemeImportDialog(props: {
               </label>
               <div class="flex flex-wrap justify-end gap-2">
                 <button type="button" class={buttonClass()} onClick={() => props.onClose()}>
-                  cancel
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -270,7 +270,7 @@ export default function ThemeImportDialog(props: {
                   onClick={submit}
                 >
                   <HugeIcon icon={PlusIcon} size={14} />
-                  add theme
+                  Add theme
                 </button>
               </div>
             </div>

@@ -40,8 +40,8 @@ function Page() {
       <Suspense>
         {ready() && (
           <>
-            <AudioBubble src={FIRST} title="first" duration={30} waveform={wave} />
-            <AudioBubble src={SECOND} title="second" duration={20} />
+            <AudioBubble src={FIRST} title="First" duration={30} waveform={wave} />
+            <AudioBubble src={SECOND} title="Second" duration={20} />
           </>
         )}
       </Suspense>

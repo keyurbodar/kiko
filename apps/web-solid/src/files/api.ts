@@ -26,17 +26,17 @@ export async function putFile(roomId: string, path: string, body: string, type: 
 			body,
 		})
 		if (res.status === 409) return { kind: "conflict", theirs: ((await res.json()) as { file: FileRef | null }).file }
-		if (!res.ok) return { kind: "error", message: `the server said ${res.status}` }
+		if (!res.ok) return { kind: "error", message: `The server said ${res.status}` }
 		return { kind: "saved", file: ((await res.json()) as { file: FileRef }).file }
 	} catch {
-		return { kind: "error", message: "could not reach the server" }
+		return { kind: "error", message: "Could not reach the server" }
 	}
 }
 
 /** The bytes of one stored version, as text, with their hash. */
 export async function readFile(roomId: string, id: string): Promise<{ text: string; sha256: string }> {
 	const res = await fetch(urls.file(roomId, id))
-	if (!res.ok) throw new Error(`the server said ${res.status}`)
+	if (!res.ok) throw new Error(`The server said ${res.status}`)
 	const bytes = await res.arrayBuffer()
 	return { text: new TextDecoder().decode(bytes), sha256: await sha256Hex(bytes) }
 }

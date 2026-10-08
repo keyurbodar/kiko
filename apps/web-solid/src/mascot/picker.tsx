@@ -42,21 +42,21 @@ function Picker(props: { slug: string }) {
       <div class="flex items-center gap-4 rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">
         <Bird spec={draft()} state={MOODS[mood()]} size={96} />
         <div class="flex min-w-0 flex-col gap-1">
-          <ModalV2.Title class="text-base font-medium text-text">{isKiko() ? "kiko, the chief" : `@${props.slug}`}</ModalV2.Title>
+          <ModalV2.Title class="text-base font-medium text-text">{isKiko() ? "Kiko, the chief" : `@${props.slug}`}</ModalV2.Title>
           <p class="text-xs text-muted">
             {SPECIES[draft().species].label}
-            {draft().accessory !== "none" ? ` in a ${ACCESSORIES[draft().accessory].label}` : ""} · {MOODS[mood()]}
+            {draft().accessory !== "none" ? ` in a ${ACCESSORIES[draft().accessory].label.toLowerCase()}` : ""} · {MOODS[mood()]}
           </p>
           <Show when={isKiko()}>
-            <p class="text-xs text-muted">kiko always follows your theme color.</p>
+            <p class="text-xs text-muted">Kiko always follows your theme color.</p>
           </Show>
         </div>
       </div>
 
       <Show when={!isKiko()}>
         <section class="flex flex-col gap-2">
-          <h3 class="text-xs text-muted">bird</h3>
-          <div class="grid grid-cols-8 gap-1" role="radiogroup" aria-label="bird">
+          <h3 class="text-xs text-muted">Bird</h3>
+          <div class="grid grid-cols-8 gap-1" role="radiogroup" aria-label="Bird">
             <For each={species()}>
               {(s) => (
                 <button type="button" role="radio" aria-checked={draft().species === s} aria-label={SPECIES[s].label} title={SPECIES[s].label} class={`${chip} aspect-square`} onClick={() => set({ species: s })}>
@@ -69,11 +69,11 @@ function Picker(props: { slug: string }) {
       </Show>
 
       <section class="flex flex-col gap-2">
-        <h3 class="text-xs text-muted">color</h3>
-        <div class="flex gap-1" role="radiogroup" aria-label="color">
+        <h3 class="text-xs text-muted">Color</h3>
+        <div class="flex gap-1" role="radiogroup" aria-label="Color">
           <For each={TINTS.map((_, i) => i)}>
             {(t) => (
-              <button type="button" role="radio" aria-checked={draft().tint === t} aria-label={`color ${t + 1}`} class={`${chip} size-12`} onClick={() => set({ tint: t })}>
+              <button type="button" role="radio" aria-checked={draft().tint === t} aria-label={`Color ${t + 1}`} class={`${chip} size-12`} onClick={() => set({ tint: t })}>
                 <Bird spec={{ ...draft(), tint: t, accessory: "none" }} size={34} />
               </button>
             )}
@@ -82,8 +82,8 @@ function Picker(props: { slug: string }) {
       </section>
 
       <section class="flex flex-col gap-2">
-        <h3 class="text-xs text-muted">wears</h3>
-        <div class="grid grid-cols-6 gap-1" role="radiogroup" aria-label="accessory">
+        <h3 class="text-xs text-muted">Wears</h3>
+        <div class="grid grid-cols-6 gap-1" role="radiogroup" aria-label="Accessory">
           <For each={ACCESSORY_IDS}>
             {(a) => (
               <button type="button" role="radio" aria-checked={draft().accessory === a} aria-label={ACCESSORIES[a].label} title={ACCESSORIES[a].label} class={`${chip} aspect-square`} onClick={() => set({ accessory: a })}>
@@ -96,14 +96,14 @@ function Picker(props: { slug: string }) {
 
       <div class="flex items-center justify-between gap-2">
         <button type="button" class="rounded-[10px] px-3 py-1.5 text-sm text-muted hover:bg-[var(--btn-bg)]" onClick={reset} disabled={!look().birds[props.slug]}>
-          use its own bird
+          Use its own bird
         </button>
         <div class="flex gap-2">
           <button type="button" class="rounded-[10px] px-3 py-1.5 text-sm hover:bg-[var(--btn-bg)]" onClick={closeBirdPicker}>
-            cancel
+            Cancel
           </button>
           <button type="button" class="rounded-[10px] bg-[var(--accent-fill)] px-3 py-1.5 text-sm text-[var(--on-accent)] hover:bg-[var(--accent-hover)]" data-action="save-bird" onClick={save}>
-            keep this bird
+            Keep this bird
           </button>
         </div>
       </div>

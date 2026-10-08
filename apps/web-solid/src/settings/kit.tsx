@@ -74,7 +74,7 @@ export function DetailsButton(props: { open: boolean; onToggle: () => void; labe
   const [local, rest] = splitProps(props, ["open", "onToggle", "label", "class"])
   return (
     <button type="button" class={buttonClass("ghost", local.class)} aria-expanded={local.open} onClick={() => local.onToggle()} {...rest}>
-      {local.label ?? (local.open ? "hide details" : "details")}
+      {local.label ?? (local.open ? "Hide details" : "Details")}
       <svg class="size-3.5 shrink-0" classList={{ "rotate-180": local.open }} viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
@@ -270,7 +270,7 @@ export function Notice(props: { tone?: "danger" | "muted"; children: JSX.Element
   )
 }
 
-/** monocode's "default" pill, lowercase. */
+/** monocode's "default" pill. */
 export function Pill(props: { tone?: "muted" | "accent" | "danger"; children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["tone", "children"])
   const tone = {

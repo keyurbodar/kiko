@@ -1,6 +1,5 @@
 import { Show, createEffect, createSignal, onCleanup, onMount, type JSX } from "solid-js"
 import type { Picker } from "emoji-picker-element"
-import enI18n from "emoji-picker-element/i18n/en.js"
 import { cn } from "../../lib/cn"
 import { Emoji, twemojiSources } from "../../lib/emoji"
 
@@ -37,27 +36,6 @@ let registered: Promise<void> | undefined
 function ensureRegistered(): Promise<void> {
   registered ??= import("emoji-picker-element").then(() => undefined)
   return registered
-}
-
-/**
- * The element's own copy, lowercased.
- *
- * Every label the picker draws comes from a shipped locale, and English's are
- * sentence-cased — the search field reads "Search". This app's chrome is
- * lowercase throughout, so the placeholder was the one capitalised string on the
- * panel. `i18n` REPLACES the locale object rather than merging into it, so the
- * shipped default is spread and only the strings a reader can SEE are
- * overridden: the placeholder, and the two messages that take its place while
- * the database loads or fails. The aria-only strings — the region label, the
- * category names, the skin-tone names — are left alone, because lowercase is a
- * typographic rule about drawn text and a screen reader announcing "flags"
- * instead of "Flags" is a regression dressed as consistency.
- */
-const I18N = {
-  ...enI18n,
-  searchLabel: "search",
-  loadingMessage: "loading…",
-  networkErrorMessage: "could not load emoji.",
 }
 
 /**
@@ -209,10 +187,6 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
     const target = picker()
     if (!ready() || target === undefined) return
 
-    // A property, not an attribute: the element reads `i18n` off itself when it
-    // renders the panel, and a string attribute would arrive as text.
-    target.i18n = I18N
-
     // A real DOM listener rather than a JSX handler: the event is dispatched
     // inside the element's own shadow root, and `on:emoji-click` in JSX reads
     // as a namespaced event instead of this one.
@@ -295,7 +269,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                   put the two sets side by side in the same panel. */}
               <Emoji emoji={cell().emoji} class="size-5 shrink-0" eager />
               <span class="flex min-w-0 flex-col gap-px">
-                <span class="truncate text-[13px] font-medium lowercase">{cell().label}</span>
+                <span class="truncate text-[13px] font-medium">{cell().label}</span>
                 <span class="truncate text-[11px] text-weak">:{cell().shortcode}:</span>
               </span>
             </>

@@ -28,7 +28,7 @@ export function Card(props: { id: string; title: string; hint?: string; onOpen?:
           type="button"
           class="flex w-full items-center justify-between rounded-md px-2 pb-1 text-[11px] font-medium tracking-[0.02em] text-faint hover:text-text"
           data-action="open-card"
-          aria-label={`open ${props.title}`}
+          aria-label={`Open ${props.title}`}
           onClick={() => props.onOpen?.()}
         >
           <span>{props.title}</span>
@@ -53,7 +53,7 @@ export function Chevron() {
  * ASSUMPTION: until teams (P6) a room stores no member record, and its one agent is `kiko` (the
  * server's DEFAULT_AGENT). The sidebar already falls back to that name, so the panel does too.
  */
-const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "kiko", lead: true }
+const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "Kiko", lead: true }
 
 /** The open room's agents with pending changes applied, or the one default agent while the room lists none. */
 export function roomMembers(): readonly Member[] {
@@ -85,17 +85,17 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
             type="button"
             class="mt-1 max-w-full truncate rounded-md px-2 py-0.5 text-[15px] font-semibold text-text hover:bg-hover"
             data-component="info-name"
-            aria-label="rename chat"
+            aria-label="Rename chat"
             onClick={() => setEditing(true)}
           >
-            {title() || "new chat"}
+            {title() || "New chat"}
           </button>
         }
       >
         <input
           class="mt-1 h-8 w-full rounded-md bg-input px-3 text-center text-[15px] font-semibold text-text outline-none"
           data-component="info-name-input"
-          aria-label="chat name"
+          aria-label="Chat name"
           value={title()}
           ref={(el) => queueMicrotask(() => (el.focus(), el.select()))}
           onBlur={(e) => commit(e.currentTarget.value)}
@@ -119,7 +119,7 @@ export function Header(props: { chatId: string; members: readonly Member[] }) {
 /** The members card. Its list, with add, rename, and remove, is the group chat's (`chat/members/`). */
 export function Members(props: { members: readonly Member[] }) {
   return (
-    <Card id="members" title="members">
+    <Card id="members" title="Members">
       <MemberList members={props.members} onOpen={(slug) => pushInfo({ kind: "agent", slug })} />
     </Card>
   )
@@ -181,7 +181,7 @@ export function DeleteChat(props: { chatId: string }) {
         onBlur={() => setSure(false)}
       >
         <Badge icon={TrashIcon} danger />
-        {sure() ? "sure? delete this chat" : "delete chat"}
+        {sure() ? "Sure? Delete this chat" : "Delete chat"}
       </button>
     </div>
   )

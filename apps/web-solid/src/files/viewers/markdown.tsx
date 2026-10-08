@@ -15,7 +15,7 @@ export default function MarkdownView(props: { roomId: string; file: FileRef }) {
 	)
 	return (
 		<div class="fv-scroll" data-component="file-markdown">
-			<Show when={tree()} fallback={<p class="fv-note">{tree.error ? "this file did not load" : "loading..."}</p>}>
+			<Show when={tree()} fallback={<p class="fv-note">{tree.error ? "This file did not load" : "Loading..."}</p>}>
 				{(t) => <RichText tree={t()} class="fv-markdown" />}
 			</Show>
 		</div>

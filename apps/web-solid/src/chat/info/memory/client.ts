@@ -40,7 +40,7 @@ export function createMemoryClient(options: MemoryClientOptions = {}): MemoryCli
 				const reqId = `m${++n}`
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "kiko did not answer" })
+					resolve({ ok: false, error: "Kiko did not answer" })
 				}, timeoutMs)
 				const p: Pending = { op, resolve, timer }
 				pending.set(reqId, p)
@@ -52,7 +52,7 @@ export function createMemoryClient(options: MemoryClientOptions = {}): MemoryCli
 			stopFrames()
 			for (const p of pending.values()) {
 				clearTimeout(p.timer)
-				p.resolve({ ok: false, error: "closed" })
+				p.resolve({ ok: false, error: "Closed" })
 			}
 			pending.clear()
 		},

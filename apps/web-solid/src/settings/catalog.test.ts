@@ -16,15 +16,15 @@ const providers: CatalogProvider[] = [
 
 describe("catalog helpers", () => {
   test("formats context size", () => {
-    expect(formatContext(8192)).toBe("8k")
-    expect(formatContext(128_000)).toBe("128k")
-    expect(formatContext(1_000_000)).toBe("1m")
+    expect(formatContext(8192)).toBe("8K")
+    expect(formatContext(128_000)).toBe("128K")
+    expect(formatContext(1_000_000)).toBe("1M")
     expect(formatContext(512)).toBe("512")
   })
   test("formats price", () => {
-    expect(formatPrice({ input: 0, output: 0 })).toBe("free")
-    expect(formatPrice({ input: 0.14, output: 0.28 })).toBe("$0.14 in / $0.28 out per 1m")
-    expect(formatPrice({ input: 3, output: 15 })).toBe("$3 in / $15 out per 1m")
+    expect(formatPrice({ input: 0, output: 0 })).toBe("Free")
+    expect(formatPrice({ input: 0.14, output: 0.28 })).toBe("$0.14 in / $0.28 out per 1M")
+    expect(formatPrice({ input: 3, output: 15 })).toBe("$3 in / $15 out per 1M")
   })
   test("search needs every word and matches provider names", () => {
     expect(searchModels(providers, "").length).toBe(3)

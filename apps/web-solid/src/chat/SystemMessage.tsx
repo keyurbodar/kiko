@@ -36,7 +36,7 @@ export function SystemMessage(props: {
   return (
     <div
       class={cn(
-        "chat-system-message flex items-baseline justify-center gap-1.5 text-center text-xs lowercase",
+        "chat-system-message flex items-baseline justify-center gap-1.5 text-center text-xs",
         divider() ? "px-4 pt-3.5 pb-2.5" : "px-4 py-1",
         accent()
           ? [

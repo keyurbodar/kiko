@@ -12,7 +12,7 @@ import "./bird-grid.css"
 
 const ROWS = 22
 const GROUND = 19
-const SAYINGS = ["seed acquired", "chirp", "yum", "one more", "found one", "hi"]
+const SAYINGS = ["Seed acquired", "Chirp", "Yum", "One more", "Found one", "Hi"]
 
 type Bird = { x: number; dir: 1 | -1; hop: number; peck: number; rest: number; pixels: Pixels }
 type Seed = { x: number; life: number }

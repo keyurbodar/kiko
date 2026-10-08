@@ -44,7 +44,7 @@ export function TabStrip() {
     })
   })
 
-  const label = (id: string) => useApp.chatById(id)?.name || "chat"
+  const label = (id: string) => useApp.chatById(id)?.name || "Chat"
   const unread = (id: string) => (useApp.chatById(id)?.unread ?? 0) > 0
   const go = (id: string | null) => navigate(id ? `/chat/${id}` : "/chat")
 
@@ -120,7 +120,7 @@ export function TabStrip() {
       class="tab-strip flex h-full min-w-0 flex-initial items-center gap-0.5 overflow-x-auto overflow-y-hidden"
       data-component="tab-strip"
       role="tablist"
-      aria-label="open chats"
+      aria-label="Open chats"
       onScroll={edges}
       onWheel={onWheel}
     >
@@ -152,10 +152,10 @@ export function TabStrip() {
                 class="flex min-w-0 flex-1 items-center gap-[6px]"
                 data-component="tab-identity"
                 data-hint={active() ? "chat.info" : undefined}
-                data-hint-label="chat info"
+                data-hint-label="Chat info"
                 data-info-toggle={active() ? "" : undefined}
                 aria-expanded={active() ? infoOpen() : undefined}
-                title={active() ? "chat info" : undefined}
+                title={active() ? "Chat info" : undefined}
                 onPointerEnter={() => active() && void loadInfoPanel()}
                 onClick={(event) => {
                   if (!active()) return
@@ -176,10 +176,10 @@ export function TabStrip() {
                 <button
                   type="button"
                   tabindex="-1"
-                  aria-label={`close ${label(id)}`}
+                  aria-label={`Close ${label(id)}`}
                   data-component="tab-close"
                   data-hint={active() ? "chat.close" : undefined}
-                  data-hint-label="close"
+                  data-hint-label="Close"
                   class="relative hidden size-4 items-center justify-center rounded-[5px] text-[var(--tab-text)] before:absolute before:-inset-[10px] before:content-[''] before:md:-inset-1 hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] group-hover:flex group-data-[active]:flex"
                   onClick={(event) => {
                     event.stopPropagation()

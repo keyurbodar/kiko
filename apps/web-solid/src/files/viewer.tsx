@@ -36,12 +36,12 @@ export function FileViewer(props: { roomId: string; path: string; file: FileRef 
 
 	return (
 		<div class="file-view" data-component="file-viewer" data-kind={props.kind} data-mode={props.mode}>
-			<Show when={props.file} fallback={<div class="fv-center">no file here</div>}>
+			<Show when={props.file} fallback={<div class="fv-center">No file here</div>}>
 				{(ref) => (
-					<Suspense fallback={<div class="fv-center">loading...</div>}>
+					<Suspense fallback={<div class="fv-center">Loading...</div>}>
 						<Switch>
 							<Match when={broken() === ref().id}>
-								<Download file={ref()} src={src(ref())} note="this file did not load" />
+								<Download file={ref()} src={src(ref())} note="This file did not load" />
 							</Match>
 							<Match when={(props.kind === "text" || props.kind === "json" || props.kind === "markdown" || props.kind === "csv") && textMode()}>
 								<Show when={opened()} keyed>
@@ -67,7 +67,7 @@ export function FileViewer(props: { roomId: string; path: string; file: FileRef 
 									<button
 										type="button"
 										class="fv-image"
-										aria-label={`open ${baseName(ref().name)}`}
+										aria-label={`Open ${baseName(ref().name)}`}
 										onClick={() =>
 											media.open([{ kind: "photo", src: src(ref()), width: ref().width ?? 1600, height: ref().height ?? 900, alt: ref().name }], 0)
 										}
@@ -104,10 +104,10 @@ function Download(props: { file: FileRef; src: string; note?: string }) {
 			<div class="fv-card">
 				<span class="fv-card-name">{baseName(props.file.name)}</span>
 				<span class="fv-card-meta">
-					{props.note ?? `${props.file.type || "unknown type"} · ${formatBytes(props.file.size)}`}
+					{props.note ?? `${props.file.type || "Unknown type"} · ${formatBytes(props.file.size)}`}
 				</span>
 				<a class="fv-download" href={props.src} download={baseName(props.file.name)} data-action="download">
-					download
+					Download
 				</a>
 			</div>
 		</div>

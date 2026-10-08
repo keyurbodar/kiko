@@ -25,19 +25,19 @@ export function createMockMemory(now: () => number = Date.now): MemoryClient {
 			case "search":
 				return { ok: true, lines: lines.filter((l) => !l.redacted && l.text.includes(op.query.toLowerCase())).reverse(), next: null }
 			case "zoom":
-				return { ok: false, error: "not a summary id" }
+				return { ok: false, error: "Not a summary id" }
 			case "note":
 				add(op.text, "you")
 				return { ok: true }
 			case "pin": {
 				const l = lines[op.pos]
-				if (!l || l.redacted) return { ok: false, error: "no such memory" }
+				if (!l || l.redacted) return { ok: false, error: "No such memory" }
 				l.pinned = op.pinned
 				return { ok: true }
 			}
 			case "redact": {
 				const l = lines[op.pos]
-				if (!l || l.redacted) return { ok: false, error: "no such memory" }
+				if (!l || l.redacted) return { ok: false, error: "No such memory" }
 				Object.assign(l, { text: "", redacted: true, pinned: false })
 				return { ok: true }
 			}

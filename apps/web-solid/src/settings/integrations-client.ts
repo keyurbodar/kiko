@@ -46,7 +46,7 @@ export function createExecutorClient(options: ExecutorClientOptions = {}): Execu
 				const frame = { ...ask, reqId } as ClientToUser
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "kiko did not answer" })
+					resolve({ ok: false, error: "Kiko did not answer." })
 				}, timeoutMs)
 				pending.set(reqId, { frame, resolve, timer })
 				socket.send(frame)
@@ -61,7 +61,7 @@ export function createExecutorClient(options: ExecutorClientOptions = {}): Execu
 			stopFrames()
 			for (const p of pending.values()) {
 				clearTimeout(p.timer)
-				p.resolve({ ok: false, error: "closed" })
+				p.resolve({ ok: false, error: "The connection closed." })
 			}
 			pending.clear()
 			listeners.clear()

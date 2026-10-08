@@ -114,7 +114,7 @@ export const setHalf = (half: ThemeAppearance, id: string | null) => saveLook(wi
 // The palette offers every theme. Imports and removals here or in another tab update it.
 createRoot(() =>
   createEffect(() => {
-    const remove = registerCommands(themeChoiceCommands([{ id: null, label: "default" }, ...allThemes()], chooseTheme))
+    const remove = registerCommands(themeChoiceCommands([{ id: null, label: "Default" }, ...allThemes()], chooseTheme))
     onCleanup(remove)
   }),
 )

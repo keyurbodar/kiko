@@ -31,7 +31,7 @@ const fill = (
     String(params?.[key] ?? ""),
   );
 
-// The one dictionary is already lowercase, so the shell just looks keys up.
+// The one dictionary holds the final wording, so the shell just looks keys up.
 const i18n: UiI18n = {
   locale: () => "en",
   t: (key, params) => fill(dict[key] ?? String(key), params),

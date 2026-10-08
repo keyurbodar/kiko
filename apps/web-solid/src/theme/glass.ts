@@ -12,20 +12,20 @@ import { readWallpaperPalette, type WallpaperPalette } from "./palette"
 export type BackgroundEffect = "none" | "dither" | "ascii" | "halftone" | "scanlines" | "gradient-blur"
 export const BACKGROUND_EFFECTS: readonly BackgroundEffect[] = ["none", "dither", "ascii", "halftone", "scanlines", "gradient-blur"]
 export const EFFECT_LABELS: Record<BackgroundEffect, string> = {
-  none: "none",
-  dither: "dither",
-  ascii: "ascii",
-  halftone: "halftone",
-  scanlines: "scanlines",
-  "gradient-blur": "haze",
+  none: "None",
+  dither: "Dither",
+  ascii: "ASCII",
+  halftone: "Halftone",
+  scanlines: "Scanlines",
+  "gradient-blur": "Haze",
 }
 export const EFFECT_DESCRIPTIONS: Record<BackgroundEffect, string> = {
-  none: "shows the original picture.",
-  dither: "rebuilds the picture with a dithered color palette.",
-  ascii: "recreates the picture with colored characters on black.",
-  halftone: "recreates the picture with colored print dots on black.",
-  scanlines: "adds a pronounced horizontal display-line texture.",
-  "gradient-blur": "blurs and fades the picture into the background below.",
+  none: "Shows the original picture.",
+  dither: "Rebuilds the picture with a dithered color palette.",
+  ascii: "Recreates the picture with colored characters on black.",
+  halftone: "Recreates the picture with colored print dots on black.",
+  scanlines: "Adds a pronounced horizontal display-line texture.",
+  "gradient-blur": "Blurs and fades the picture into the background below.",
 }
 export type BackgroundScope = "empty" | "all"
 

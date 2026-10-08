@@ -846,10 +846,10 @@ export function VirtualThread(props: {
         <SystemMessage
           variant="divider"
           tone="accent"
-          label="new messages"
+          label="New messages"
           data-component="chat-unread-rule"
         >
-          new messages
+          New messages
         </SystemMessage>
       )
     }

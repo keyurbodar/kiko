@@ -18,8 +18,7 @@ export interface TimeLabelOptions {
 const fmt = (at: number, o: Intl.DateTimeFormatOptions, opts: TimeLabelOptions) =>
   new Intl.DateTimeFormat(opts.locale, { ...o, timeZone: opts.timeZone })
     .format(at)
-    .replace(/[  ]/g, " ")
-    .toLowerCase();
+    .replace(/[  ]/g, " ");
 
 /** The label for a divider placed before the message sent at `at`, by its age at `now`. */
 export function dividerLabel(at: number, now: number, opts: TimeLabelOptions = {}): string {
@@ -29,8 +28,8 @@ export function dividerLabel(at: number, now: number, opts: TimeLabelOptions = {
   const t = new Date(today);
   const daysAgo = (n: number) => new Date(t.getFullYear(), t.getMonth(), t.getDate() - n).getTime();
 
-  if (day === today) return `today ${time}`;
-  if (day === daysAgo(1)) return `yesterday ${time}`;
+  if (day === today) return `Today ${time}`;
+  if (day === daysAgo(1)) return `Yesterday ${time}`;
   for (let n = 2; n <= 6; n += 1) {
     if (day === daysAgo(n)) return `${fmt(at, { weekday: "long" }, opts)} ${time}`;
   }

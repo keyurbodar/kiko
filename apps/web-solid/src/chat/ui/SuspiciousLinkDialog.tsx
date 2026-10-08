@@ -42,8 +42,8 @@ export function SuspiciousLinkDialog(props: { href: string; onClose: () => void 
           class="flex w-[min(420px,calc(100vw-32px))] flex-col gap-2 rounded-[calc(20px*var(--brm))] bg-menu p-4 text-text shadow-popover"
           onPointerDownOutside={() => props.onClose()}
         >
-          <ModalV2.Title class="text-base font-[var(--font-weight-bold)] lowercase">
-            this link may not go where it says
+          <ModalV2.Title class="text-base font-[var(--font-weight-bold)]">
+            This link may not go where it says
           </ModalV2.Title>
           <p class="text-sm text-weak">
             The address is written in mixed scripts, which is how a look-alike
@@ -53,20 +53,20 @@ export function SuspiciousLinkDialog(props: { href: string; onClose: () => void 
           <div class="mt-1 flex justify-end gap-2">
             <button
               type="button"
-              class="cursor-pointer rounded-[calc(10px*var(--brm))] px-3 py-1.5 text-sm lowercase hover:bg-btn"
+              class="cursor-pointer rounded-[calc(10px*var(--brm))] px-3 py-1.5 text-sm hover:bg-btn"
               onClick={() => props.onClose()}
             >
-              cancel
+              Cancel
             </button>
             <button
               type="button"
-              class="cursor-pointer rounded-[calc(10px*var(--brm))] bg-accent-fill px-3 py-1.5 text-sm lowercase text-text hover:bg-btn-hover"
+              class="cursor-pointer rounded-[calc(10px*var(--brm))] bg-accent-fill px-3 py-1.5 text-sm text-text hover:bg-btn-hover"
               onClick={() => {
                 window.open(props.href, "_blank", "noopener,noreferrer")
                 props.onClose()
               }}
             >
-              open anyway
+              Open anyway
             </button>
           </div>
         </ModalV2.Content>

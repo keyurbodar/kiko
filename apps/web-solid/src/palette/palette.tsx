@@ -46,7 +46,7 @@ export default function Palette() {
         <div class="palette-scrim" data-component="palette" onMouseDown={(e) => e.target === e.currentTarget && close()}>
           <Cmdk
             class="palette-panel"
-            label="command palette"
+            label="Command palette"
             loop
             onKeyDown={(e: KeyboardEvent) => {
               if (e.key === "Escape") {
@@ -58,11 +58,11 @@ export default function Palette() {
             <Cmdk.Input
               ref={input}
               class="palette-input"
-              placeholder={mode() === "chats" ? "go to chat..." : "type a command..."}
+              placeholder={mode() === "chats" ? "Go to chat..." : "Type a command..."}
               autofocus
             />
             <Cmdk.List class="palette-list">
-              <Cmdk.Empty class="palette-empty">no results</Cmdk.Empty>
+              <Cmdk.Empty class="palette-empty">No results</Cmdk.Empty>
               <Show
                 when={mode() === "commands"}
                 fallback={
@@ -70,7 +70,7 @@ export default function Palette() {
                     {(chat) => (
                       <Cmdk.Item class="palette-row" value={`${chat.id} ${chat.name.toLowerCase()}`} onSelect={() => run(() => navigate(`/chat/${chat.id}`))}>
                         <ChatAvatar faces={useApp.chatFaces(chat.id)} size={18} />
-                        <span class="palette-label">{chat.name.toLowerCase()}</span>
+                        <span class="palette-label">{chat.name}</span>
                       </Cmdk.Item>
                     )}
                   </For>

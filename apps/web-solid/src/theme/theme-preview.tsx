@@ -8,14 +8,14 @@ export type ThemeCard = { id: string | null; label: string; previews: Array<{ mo
 /** t3code's stock palette, the look with no theme picked. */
 export const DEFAULT_CARD: ThemeCard = {
   id: null,
-  label: "default",
+  label: "Default",
   previews: (["light", "dark"] as const).map((mode) => ({ mode, colors: defaultColors(mode) })),
 }
 
 export function themeCard(theme: ThemeDefinition): ThemeCard {
   return {
     id: theme.id,
-    label: theme.label.toLowerCase(),
+    label: theme.label,
     previews: themeModes(theme).map((mode) => ({ mode, colors: colorsForMode(theme, mode) ?? theme.colors })),
   }
 }

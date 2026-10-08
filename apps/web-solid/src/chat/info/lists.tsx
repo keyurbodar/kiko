@@ -16,10 +16,10 @@ const rowClass = "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left 
 // previewed keeps its site name and path. The signal lives as long as the row that shows it.
 function titleOf(url: string): () => string | undefined {
   const known = peekLinkPreview(url)
-  const [title, setTitle] = createSignal<string | undefined>(known?.title?.trim().toLowerCase() || undefined)
+  const [title, setTitle] = createSignal<string | undefined>(known?.title?.trim() || undefined)
   if (known === undefined)
     void resolveLinkPreview(url)
-      .then((page) => setTitle(page?.title?.trim().toLowerCase() || undefined))
+      .then((page) => setTitle(page?.title?.trim() || undefined))
       .catch(() => {})
   return title
 }
@@ -67,7 +67,7 @@ export function LinksList(props: { catalog: Catalog }) {
   return (
     <div data-component="info-links">
       <For each={links()}>{(l) => <LinkRow link={l} />}</For>
-      <Empty loaded={props.catalog.loaded() && !links().length} text="no links yet" />
+      <Empty loaded={props.catalog.loaded() && !links().length} text="No links yet" />
       <MoreButton catalog={props.catalog} />
     </div>
   )
@@ -77,7 +77,7 @@ function MoreButton(props: { catalog: Catalog }) {
   return (
     <Show when={props.catalog.hasMore()}>
       <button type="button" class={`${rowClass} justify-center text-weak`} data-action="more" onClick={() => void props.catalog.more()}>
-        show more
+        Show more
       </button>
     </Show>
   )
@@ -106,7 +106,7 @@ function Grid(props: { catalog: Catalog; max?: number }) {
               class="relative aspect-square overflow-hidden rounded-md bg-btn"
               data-component="info-media"
               data-thumb
-              aria-label={`open ${m.file.name}`}
+              aria-label={`Open ${m.file.name}`}
               onClick={() => viewer.open(media().map((x) => mediaItem(roomId(), x)), index())}
             >
               <svg class="absolute inset-0 m-auto text-faint" width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -125,7 +125,7 @@ function Grid(props: { catalog: Catalog; max?: number }) {
                 )}
               </Show>
               <Show when={m.file.type.startsWith("video/")}>
-                <span class="absolute right-1 bottom-1 rounded bg-black/60 px-1 text-[10px] text-white">video</span>
+                <span class="absolute right-1 bottom-1 rounded bg-black/60 px-1 text-[10px] text-white">Video</span>
               </Show>
             </button>
           )}
@@ -140,13 +140,14 @@ export function MediaList(props: { catalog: Catalog }) {
   return (
     <div data-component="info-media-list">
       <Grid catalog={props.catalog} />
-      <Empty loaded={props.catalog.loaded() && !props.catalog.items().length} text="no photos or videos yet" />
+      <Empty loaded={props.catalog.loaded() && !props.catalog.items().length} text="No photos or videos yet" />
       <MoreButton catalog={props.catalog} />
     </div>
   )
 }
 
 type SharedKind = "media" | "links"
+const KIND_LABELS: Record<SharedKind, string> = { media: "Media", links: "Links" }
 
 /*
  * What the chat has shared, as horizontal tabs. A tab shows only when its kind has something,
@@ -169,7 +170,7 @@ export function SharedContent(props: { media: Catalog; links: Catalog }) {
   return (
     <Show when={kinds().length}>
       <section class="flex flex-col gap-1" data-component="info-shared">
-        <div class="flex items-center gap-1 px-1" role="tablist" aria-label="shared">
+        <div class="flex items-center gap-1 px-1" role="tablist" aria-label="Shared">
           <For each={kinds()}>
             {(kind) => (
               <button
@@ -180,7 +181,7 @@ export function SharedContent(props: { media: Catalog; links: Catalog }) {
                 data-tab={kind}
                 onClick={() => setPicked(kind)}
               >
-                {kind}
+                {KIND_LABELS[kind]}
               </button>
             )}
           </For>

@@ -687,7 +687,7 @@ describe("the user store", () => {
 		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
 		await store.ready
 		const id = store.createTemp()
-		expect(store.chats().find((c) => c.roomId === id)).toMatchObject({ title: "new chat", agents: ["kiko"], temp: true })
+		expect(store.chats().find((c) => c.roomId === id)).toMatchObject({ title: "New chat", agents: ["kiko"], temp: true })
 		store.keep(id, "kiko, ada", ["kiko", "id-ada"])
 		const kept = store.chats().find((c) => c.roomId === id)!
 		expect(kept).toMatchObject({ title: "kiko, ada", agents: ["kiko", "id-ada"] })

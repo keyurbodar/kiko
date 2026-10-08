@@ -75,7 +75,7 @@ export function startSignIn(provider: string, onState: (state: SignIn) => void):
   socket.onclose = () => {
     if (ended) return
     ended = true
-    state = { ...state, status: "error", prompt: null, error: "the connection closed. try again" }
+    state = { ...state, status: "error", prompt: null, error: "The connection closed. Try again." }
     onState(state)
   }
   return {

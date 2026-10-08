@@ -72,7 +72,7 @@ export function VideoPlayer(props: {
           color: "var(--text)",
         }}
       >
-        <button type="button" aria-label={playing() ? "pause" : "play"} onClick={toggle} style={btn}>
+        <button type="button" aria-label={playing() ? "Pause" : "Play"} onClick={toggle} style={btn}>
           <Show when={playing()} fallback={<HugeIcon icon={PlayIcon} size={16} fill="currentColor" />}>
             <HugeIcon icon={PauseIcon} size={16} fill="currentColor" />
           </Show>
@@ -80,7 +80,7 @@ export function VideoPlayer(props: {
         <span style={{ "font-size": "12px", "font-variant-numeric": "tabular-nums" }}>{formatTime(time())}</span>
         <input
           type="range"
-          aria-label="seek"
+          aria-label="Seek"
           min="0"
           max={length() || 0}
           step="0.1"
@@ -89,14 +89,14 @@ export function VideoPlayer(props: {
           style={{ flex: "1", "min-width": "0", "accent-color": "var(--accent)" }}
         />
         <span style={{ "font-size": "12px", "font-variant-numeric": "tabular-nums" }}>{formatTime(length())}</span>
-        <button type="button" aria-label={muted() ? "unmute" : "mute"} onClick={() => (video.muted = !video.muted)} style={btn}>
+        <button type="button" aria-label={muted() ? "Unmute" : "Mute"} onClick={() => (video.muted = !video.muted)} style={btn}>
           <Show when={muted()} fallback={<HugeIcon icon={VolumeIcon} size={16} />}>
             <HugeIcon icon={VolumeOffIcon} size={16} />
           </Show>
         </button>
         <button
           type="button"
-          aria-label="full screen"
+          aria-label="Full screen"
           onClick={() => (document.fullscreenElement ? document.exitFullscreen() : box.requestFullscreen?.())}
           style={btn}
         >

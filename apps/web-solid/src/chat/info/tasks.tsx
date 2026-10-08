@@ -13,6 +13,7 @@ export { openTasks } from "./tasks-model"
 
 const ORDER: readonly TaskStatus[] = ["doing", "blocked", "todo", "review", "done", "cancelled"]
 const NEXT: Record<TaskStatus, TaskStatus> = { todo: "doing", doing: "done", blocked: "doing", review: "done", done: "todo", cancelled: "todo" }
+const LABEL: Record<TaskStatus, string> = { doing: "Doing", blocked: "Blocked", todo: "To do", review: "Review", done: "Done", cancelled: "Cancelled" }
 const HUE: Record<TaskStatus, number> = { doing: 45, blocked: 25, todo: 265, review: 210, done: 150, cancelled: 0 }
 
 
@@ -27,11 +28,11 @@ function StatusChip(props: { task: Task }) {
       type="button"
       class="shrink-0 rounded-full px-2.5 py-1 text-xs hover:brightness-125"
       style={{ background: `oklch(0.62 0.13 ${HUE[props.task.status]} / 0.18)`, color: `oklch(0.8 0.13 ${HUE[props.task.status]})` }}
-      title={`mark ${NEXT[props.task.status]}`}
+      title={`Mark ${LABEL[NEXT[props.task.status]].toLowerCase()}`}
       data-action="task-status"
       onClick={set}
     >
-      {props.task.status}
+      {LABEL[props.task.status]}
     </button>
   )
 }
@@ -47,13 +48,13 @@ export function TasksView() {
             <Suspense>
               <Moment kind="nest" />
             </Suspense>
-            <p class="text-center text-sm text-weak">no tasks yet. the lead puts work here when a job needs splitting up.</p>
+            <p class="text-center text-sm text-weak">No tasks yet. The lead puts work here when a job needs splitting up.</p>
           </div>
         }>
         {(g) => (
           <section class="flex flex-col gap-1" data-status={g.status}>
             <h3 class="flex items-baseline gap-1.5 px-2.5 text-xs font-medium text-weak">
-              {g.status}
+              {LABEL[g.status]}
               <span class="text-faint">{g.tasks.length}</span>
             </h3>
             <div class="flex flex-col rounded-2xl bg-bg-subtle p-1">
@@ -66,7 +67,7 @@ export function TasksView() {
                     <span class="min-w-0 flex-1">
                       <span class={`block truncate text-[15px] ${t.status === "done" ? "text-weak line-through" : "text-text"}`}>{t.title}</span>
                       <span class="block truncate text-xs text-weak">
-                        {t.owner ? `@${t.owner}` : "unassigned"}
+                        {t.owner ? `@${t.owner}` : "Unassigned"}
                         <Show when={t.dependsOn.length}> · waits on {t.dependsOn.map(title).join(", ")}</Show>
                       </span>
                     </span>

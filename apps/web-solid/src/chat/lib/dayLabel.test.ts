@@ -42,34 +42,34 @@ function dayFacts(tz: string, from: [number, number, number], to: [number, numbe
 describe("dayChipLabel", () => {
   test("names the current day today, even minutes after midnight", () => {
     const now = new Date(2024, 4, 15, 0, 4, 0);
-    expect(dayChipLabel(new Date(2024, 4, 15, 0, 0, 0).getTime(), now.getTime())).toBe("today");
+    expect(dayChipLabel(new Date(2024, 4, 15, 0, 0, 0).getTime(), now.getTime())).toBe("Today");
   });
 
   test("names the previous calendar day yesterday, even minutes before midnight", () => {
     const now = new Date(2024, 4, 15, 23, 56, 0);
-    expect(dayChipLabel(new Date(2024, 4, 14, 0, 0, 0).getTime(), now.getTime())).toBe("yesterday");
+    expect(dayChipLabel(new Date(2024, 4, 14, 0, 0, 0).getTime(), now.getTime())).toBe("Yesterday");
   });
 
-  test("falls through to a lowercase weekday once today and yesterday are out of range", () => {
+  test("falls through to the weekday once today and yesterday are out of range", () => {
     // 2024-05-13 is a Monday.
     const now = new Date(2024, 4, 15, 12, 0, 0);
-    expect(dayChipLabel(new Date(2024, 4, 13, 0, 0, 0).getTime(), now.getTime())).toBe("monday");
+    expect(dayChipLabel(new Date(2024, 4, 13, 0, 0, 0).getTime(), now.getTime())).toBe("Monday");
   });
 
-  test("labels are lowercase whatever the weekday", () => {
+  test("labels start with a capital whatever the weekday", () => {
     const now = new Date(2024, 4, 15, 12, 0, 0);
     for (let back = 3; back < 9; back += 1) {
       const day = new Date(2024, 4, 15 - back, 0, 0, 0).getTime();
       const label = dayChipLabel(day, now.getTime());
-      expect(label).toBe(label.toLowerCase());
       expect(label).not.toBe("");
+      expect(label[0]).toBe(label[0]!.toUpperCase());
     }
   });
 
   test("ignores the time of day a day start was handed to it", () => {
     const now = new Date(2024, 4, 15, 12, 0, 0);
     const notMidnight = new Date(2024, 4, 15, 19, 45, 0).getTime();
-    expect(dayChipLabel(notMidnight, now.getTime())).toBe("today");
+    expect(dayChipLabel(notMidnight, now.getTime())).toBe("Today");
   });
 
   test("reads yesterday across a 23-hour spring-forward day, where 24h arithmetic misses", () => {
@@ -78,8 +78,8 @@ describe("dayChipLabel", () => {
 
     expect(facts.span).toBe(23 * 3_600_000);
     expect(facts.naiveHit).toBe(false);
-    expect(facts.sameDay).toBe("today");
-    expect(facts.nextDay).toBe("yesterday");
+    expect(facts.sameDay).toBe("Today");
+    expect(facts.nextDay).toBe("Yesterday");
   });
 
   test("reads yesterday across a 25-hour fall-back day, where 24h arithmetic misses", () => {
@@ -88,28 +88,28 @@ describe("dayChipLabel", () => {
 
     expect(facts.span).toBe(25 * 3_600_000);
     expect(facts.naiveHit).toBe(false);
-    expect(facts.sameDay).toBe("today");
-    expect(facts.nextDay).toBe("yesterday");
+    expect(facts.sameDay).toBe("Today");
+    expect(facts.nextDay).toBe("Yesterday");
   });
 });
 
 describe("formatTimeOfDay", () => {
   const at = (h: number, m: number) => formatTimeOfDay(new Date(2024, 4, 15, h, m, 0).getTime());
 
-  test("drops the leading zero and lowercases the meridiem", () => {
-    expect(at(9, 41)).toBe("9:41 am");
-    expect(at(1, 7)).toBe("1:07 am");
+  test("drops the leading zero and writes the meridiem in capitals", () => {
+    expect(at(9, 41)).toBe("9:41 AM");
+    expect(at(1, 7)).toBe("1:07 AM");
   });
 
   test("renders midnight and noon as 12", () => {
-    expect(at(0, 5)).toBe("12:05 am");
-    expect(at(12, 0)).toBe("12:00 pm");
-    expect(at(23, 59)).toBe("11:59 pm");
-    expect(at(13, 30)).toBe("1:30 pm");
+    expect(at(0, 5)).toBe("12:05 AM");
+    expect(at(12, 0)).toBe("12:00 PM");
+    expect(at(23, 59)).toBe("11:59 PM");
+    expect(at(13, 30)).toBe("1:30 PM");
   });
 
   test("always pads minutes to two digits", () => {
-    expect(at(6, 0)).toBe("6:00 am");
+    expect(at(6, 0)).toBe("6:00 AM");
   });
 });
 
@@ -117,11 +117,10 @@ describe("formatFullTimestamp", () => {
   test("carries the date and the time of day", () => {
     const stamp = formatFullTimestamp(new Date(2024, 4, 15, 14, 3, 0).getTime());
 
-    expect(stamp).toContain("may");
+    expect(stamp).toContain("May");
     expect(stamp).toContain("15");
     expect(stamp).toContain("2024");
-    expect(stamp).toContain("2:03 pm");
-    expect(stamp).toBe(stamp.toLowerCase());
+    expect(stamp).toContain("2:03 PM");
   });
 
   test("agrees with formatTimeOfDay on the clock it prints", () => {

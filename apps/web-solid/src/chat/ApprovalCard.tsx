@@ -39,7 +39,7 @@ export default function ApprovalCards(props: {
           <div
             class="flex w-full flex-col gap-1.5 rounded-2xl bg-message-assistant px-4 py-2.5 text-message-assistant-text"
             role="group"
-            aria-label={`approval for ${a.tool}`}
+            aria-label={`Approval for ${a.tool}`}
             data-component="approval-card"
             data-approval-id={a.id}
             data-state={a.state}
@@ -54,7 +54,7 @@ export default function ApprovalCards(props: {
                 data-component="approval-decline"
                 onClick={() => props.onDecide(a.id, "decline")}
               >
-                decline
+                Decline
               </button>
               <button
                 type="button"
@@ -62,11 +62,11 @@ export default function ApprovalCards(props: {
                 data-component="approval-accept"
                 onClick={() => props.onDecide(a.id, "accept")}
               >
-                approve
+                Approve
               </button>
             </div>
             <details class="text-xs text-text-muted" data-component="approval-details">
-              <summary class="w-fit cursor-default select-none">details</summary>
+              <summary class="w-fit cursor-default select-none">Details</summary>
               <pre class="mt-1 max-h-40 overflow-auto whitespace-pre-wrap wrap-break-word font-mono text-xs">
                 {a.tool}
                 {"\n"}

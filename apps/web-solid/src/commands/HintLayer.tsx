@@ -17,7 +17,7 @@ const EDGE = 8
 /** Space kept between two pills. */
 const SPACE = 4
 
-/** A command title "chat: attach file..." reads as "attach file" on a pill. */
+/** A command title "Chat: Attach file..." reads as "Attach file" on a pill. */
 export function pillLabel(title: string): string {
   const name = title.includes(": ") ? title.slice(title.indexOf(": ") + 2) : title
   return name.replace(/\.\.\.$/, "")

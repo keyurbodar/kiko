@@ -38,7 +38,7 @@ async function putOnce(roomId: string, file: LocalFile, body: Blob, path: string
     headers["x-kiko-height"] = String(file.height)
   }
   const res = await fetch(`/api/files/${roomId}?path=${encodeURIComponent(path)}`, { method: "PUT", headers, body })
-  if (!res.ok) throw new Error(`upload failed with ${res.status}`)
+  if (!res.ok) throw new Error(`Upload failed with ${res.status}`)
   return ((await res.json()) as { file: FileRef }).file
 }
 

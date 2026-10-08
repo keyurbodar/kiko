@@ -243,19 +243,18 @@ export function Composer(props: ComposerProps) {
       id: `agent-${bot.id}`,
       kind: "agent",
       label: `@${bot.id}`,
-      description: [bot.name.toLowerCase() === bot.id ? "" : bot.name.toLowerCase(), bot.persona ?? "agent"].filter(Boolean).join(" · "),
+      description: [bot.name.toLowerCase() === bot.id ? "" : bot.name, bot.persona ?? "Agent"].filter(Boolean).join(" · "),
       mention: { type: "agent", name: bot.id, content: `@${bot.id}`, start: 0, end: 0 },
     }))
 
   /*
-   * The placeholder names the conversation, the way kat's says `message kat`.
-   * Lowercase because that is the register the whole app writes chrome in, and
-   * taken from the roster rather than hardcoded so it stays true when the
-   * reader switches conversation.
+   * The placeholder names the conversation, the way kat's says `Message kat`.
+   * The name keeps its own casing, and it is taken from the roster rather than
+   * hardcoded so it stays true when the reader switches conversation.
    */
   const placeholder = () => {
     const name = props.title || botById(props.threadId)?.name
-    return name ? `message ${name.toLowerCase()}` : "message"
+    return name ? `Message ${name}` : "Message"
   }
 
   const controller = createPromptInputV2Controller({
@@ -361,7 +360,7 @@ export function Composer(props: ComposerProps) {
         {(message) => (
           <ReplyBar
             summary={replySummary(message())}
-            role="edit message"
+            role="Edit message"
             onJump={() => props.onJumpToReply?.(message().id)}
             onDismiss={() => props.onCancelEdit?.()}
           />
@@ -373,8 +372,8 @@ export function Composer(props: ComposerProps) {
             summary={props.replyQuote ? quoteSummary(props.replyQuote) : replySummary(message())}
             role={
               message().sender === "user"
-                ? "you"
-                : (botById(message().botId)?.name ?? (props.bots.length === 1 ? props.bots[0]!.name : "agent")).toLowerCase()
+                ? "You"
+                : (botById(message().botId)?.name ?? (props.bots.length === 1 ? props.bots[0]!.name : "Agent"))
             }
             onJump={() => props.onJumpToReply?.(message().id)}
             onDismiss={() => props.onClearReply?.()}

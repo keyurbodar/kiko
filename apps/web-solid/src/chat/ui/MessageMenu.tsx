@@ -55,11 +55,11 @@ export interface MessageMenuController {
  * search index and both emojibase dependencies are gone.
  */
 const QUICK_REACTIONS: readonly { readonly emoji: string; readonly label: string }[] = [
-  { emoji: "👍", label: "thumbs up" },
-  { emoji: "❤️", label: "heart" },
-  { emoji: "😂", label: "joy" },
-  { emoji: "😮", label: "surprised" },
-  { emoji: "🙏", label: "folded hands" },
+  { emoji: "👍", label: "Thumbs up" },
+  { emoji: "❤️", label: "Heart" },
+  { emoji: "😂", label: "Joy" },
+  { emoji: "😮", label: "Surprised" },
+  { emoji: "🙏", label: "Folded hands" },
 ]
 
 /**
@@ -84,14 +84,14 @@ export function MessageMenu(props: MessageMenuProps) {
       // The reader closed the share sheet.
     }
   }
-  const copy = async (text = props.message.body, done = "copied") => {
+  const copy = async (text = props.message.body, done = "Copied") => {
     try {
       await navigator.clipboard.writeText(text)
       showToastV2({ title: done, variant: "success" })
     } catch {
       showToastV2({
-        title: "could not copy",
-        description: "the clipboard is not available in this context",
+        title: "Could not copy",
+        description: "The clipboard is not available in this context",
         variant: "error",
       })
     }
@@ -174,7 +174,7 @@ export function MessageMenu(props: MessageMenuProps) {
                     "hover:text-text focus-visible:bg-[var(--selected-bg)]",
                     "focus-visible:text-text",
                   )}
-                  aria-label="more emoji"
+                  aria-label="More emoji"
                   aria-expanded={pickerOpen()}
                   onClick={() => setPickerOpen(true)}
                 >
@@ -187,17 +187,17 @@ export function MessageMenu(props: MessageMenuProps) {
                   <>
                     <MenuV2.Item onSelect={openLink}>
                       <HugeIcon icon={ExternalIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                      open link
+                      Open link
                     </MenuV2.Item>
-                    <MenuV2.Item onSelect={() => void copy(url(), "link copied")}>
+                    <MenuV2.Item onSelect={() => void copy(url(), "Link copied")}>
                       <HugeIcon icon={LinkIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                      copy link
+                      Copy link
                     </MenuV2.Item>
                     {/* Only where the system share sheet exists; elsewhere it would be copy link twice. */}
                     <Show when={canShare}>
                       <MenuV2.Item onSelect={() => void shareLink()}>
                         <HugeIcon icon={ShareIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                        share link
+                        Share link
                       </MenuV2.Item>
                     </Show>
                     <MenuV2.Separator />
@@ -206,16 +206,16 @@ export function MessageMenu(props: MessageMenuProps) {
               </Show>
               <MenuV2.Item onSelect={props.onReply}>
                 <HugeIcon icon={ReplyIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                reply
+                Reply
               </MenuV2.Item>
               <MenuV2.Item onSelect={() => void copy()}>
                 <HugeIcon icon={CopyIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                copy
+                Copy
               </MenuV2.Item>
               <Show when={props.onTogglePin}>
                 <MenuV2.Item onSelect={props.onTogglePin}>
                   <HugeIcon icon={PinIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                  {props.pinned ? "unpin" : "pin"}
+                  {props.pinned ? "Unpin" : "Pin"}
                 </MenuV2.Item>
               </Show>
               {/* The divider only appears when something follows it. */}
@@ -225,7 +225,7 @@ export function MessageMenu(props: MessageMenuProps) {
               <Show when={props.side === "user" && props.onEdit}>
                 <MenuV2.Item onSelect={props.onEdit}>
                   <HugeIcon icon={EditIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                  edit
+                  Edit
                 </MenuV2.Item>
               </Show>
               <Show when={props.onDelete}>
@@ -236,7 +236,7 @@ export function MessageMenu(props: MessageMenuProps) {
                   onSelect={props.onDelete}
                 >
                   <HugeIcon icon={TrashIcon} class="size-[15px] shrink-0" aria-hidden="true" />
-                  delete
+                  Delete
                 </MenuV2.Item>
               </Show>
             </>

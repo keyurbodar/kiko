@@ -98,21 +98,21 @@ export default function SearchOverlay() {
       close()
     }
   }
-  const chatName = (roomId: string) => (useApp.chat(roomId)?.title ?? "chat").toLowerCase()
+  const chatName = (roomId: string) => useApp.chat(roomId)?.title ?? "Chat"
   const now = Date.now()
 
   return (
     <div class="search-overlay" data-component="search-overlay" data-scope={view()?.scope}>
       <div class="search-scrim" aria-hidden="true" onPointerDown={close} />
-      <div class="search-panel" role="dialog" aria-label="search messages">
+      <div class="search-panel" role="dialog" aria-label="Search messages">
         <div class="search-bar">
           <Icon name="magnifying-glass" size="small" class="search-glass" />
           <input
             ref={input}
             class="search-input"
             data-component="search-input"
-            placeholder="search messages..."
-            aria-label="search messages"
+            placeholder="Search messages..."
+            aria-label="Search messages"
             aria-controls="search-results"
             aria-activedescendant={view()?.hits.length ? `search-hit-${view()!.selected}` : undefined}
             autocomplete="off"
@@ -120,7 +120,7 @@ export default function SearchOverlay() {
             onInput={(e) => search.type(e.currentTarget.value)}
             onKeyDown={onKeyDown}
           />
-          <div class="search-scope" role="radiogroup" aria-label="search in">
+          <div class="search-scope" role="radiogroup" aria-label="Search in">
             <For each={["chat", "all"] as const}>
               {(scope) => (
                 <button
@@ -133,7 +133,7 @@ export default function SearchOverlay() {
                   onPointerDown={(e) => e.preventDefault()}
                   onClick={() => pickScope(scope)}
                 >
-                  {scope}
+                  {scope === "chat" ? "Chat" : "All"}
                 </button>
               )}
             </For>
@@ -186,7 +186,7 @@ export default function SearchOverlay() {
                     <Moment kind="nothing" />
                   </Suspense>
                 </Show>
-                {view()?.status === "error" ? "search is not reachable" : view()?.status === "done" ? "no messages found" : "searching..."}
+                {view()?.status === "error" ? "Search is not reachable" : view()?.status === "done" ? "No messages found" : "Searching..."}
               </div>
             </Show>
           </div>

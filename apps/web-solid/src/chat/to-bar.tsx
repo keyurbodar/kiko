@@ -98,7 +98,7 @@ export function ToBar(props: { roomId: RoomId }) {
 
   return (
     <div class="relative flex h-9 items-center gap-2 px-1 text-sm" data-component="to-bar" ref={(el) => (root = el)}>
-      <span class="text-weak">to:</span>
+      <span class="text-weak">To:</span>
       <For each={chips()}>
         {(chip) => (
           <span class="flex h-7 items-center gap-1.5 rounded-full bg-btn py-0 pr-1 pl-1 text-text" data-component="to-chip" data-slug={chip.slug}>
@@ -108,7 +108,7 @@ export function ToBar(props: { roomId: RoomId }) {
               <button
                 type="button"
                 class="grid size-5 place-items-center rounded-full text-weak hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] hover:text-text"
-                aria-label={`remove ${chip.name}`}
+                aria-label={`Remove ${chip.name}`}
                 data-action="to-remove"
                 onClick={() => remove(chip.slug)}
               >
@@ -123,7 +123,7 @@ export function ToBar(props: { roomId: RoomId }) {
       <button
         type="button"
         class="grid size-7 place-items-center rounded-full bg-btn text-text hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]"
-        aria-label="add someone"
+        aria-label="Add someone"
         aria-expanded={open()}
         data-action="to-add"
         onClick={() => setOpen((o) => !o)}
@@ -133,7 +133,7 @@ export function ToBar(props: { roomId: RoomId }) {
         </svg>
       </button>
       <Show when={chips().length === 0}>
-        <span class="text-weak">add someone to message</span>
+        <span class="text-weak">Add someone to message</span>
       </Show>
       <Show when={open()}>
         <div
@@ -148,8 +148,8 @@ export function ToBar(props: { roomId: RoomId }) {
             <input
               ref={(el) => queueMicrotask(() => el.focus())}
               class="min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
-              placeholder="name, @username"
-              aria-label="search your agents"
+              placeholder="Name, @username"
+              aria-label="Search your agents"
               autocomplete="off"
               spellcheck={false}
               value={query()}
@@ -158,7 +158,7 @@ export function ToBar(props: { roomId: RoomId }) {
               data-component="to-search"
             />
           </label>
-          <ul class="flex max-h-[320px] flex-col overflow-y-auto" role="listbox" aria-label="agents">
+          <ul class="flex max-h-[320px] flex-col overflow-y-auto" role="listbox" aria-label="Agents">
             <For each={results()}>
               {(agent, i) => (
                 <li
@@ -181,7 +181,7 @@ export function ToBar(props: { roomId: RoomId }) {
             </For>
           </ul>
           <p class="px-2 py-3 text-center text-xs text-weak" data-component="to-hint">
-            {query().trim() && results().length === 0 ? "no one by that name" : "search by name or @username"}
+            {query().trim() && results().length === 0 ? "No one by that name" : "Search by name or @username"}
           </p>
         </div>
       </Show>

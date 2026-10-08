@@ -23,6 +23,9 @@ const ICON: Record<string, Glyph> = {
   account: UserIcon,
 }
 
+/** The group headings, by group id. */
+const GROUP_LABEL: Record<string, string> = { agents: "Agents", you: "You" }
+
 export default function SettingsSidebar() {
   const [query, setQuery] = createSignal("")
   const rows = () => searchSections(query())
@@ -40,17 +43,17 @@ export default function SettingsSidebar() {
     </A>
   )
   return (
-    <nav class="settings-panel" data-component="settings-panel" aria-label="settings sections">
+    <nav class="settings-panel" data-component="settings-panel" aria-label="Settings sections">
       <A href="/chat" class="settings-panel-row" data-component="settings-back">
         <HugeIcon icon={BackIcon} size={16} />
-        <span class="settings-row-label">chats</span>
+        <span class="settings-row-label">Chats</span>
       </A>
       <label class="settings-search">
         <HugeIcon icon={SearchIcon} size={15} />
         <input
           type="search"
-          placeholder="search settings"
-          aria-label="search settings"
+          placeholder="Search settings"
+          aria-label="Search settings"
           value={query()}
           onInput={(e) => setQuery(e.currentTarget.value)}
           onKeyDown={(e) => {
@@ -68,7 +71,7 @@ export default function SettingsSidebar() {
             <Suspense>
               <Moment kind="nothing" />
             </Suspense>
-            <p class="settings-empty">nothing matches</p>
+            <p class="settings-empty">Nothing matches</p>
           </div>
         }
       >
@@ -76,7 +79,7 @@ export default function SettingsSidebar() {
           {(group) => (
             <div class="settings-group" data-group={group.name ?? "results"}>
               <Show when={group.name}>
-                <div class="settings-group-label">{group.name}</div>
+                <div class="settings-group-label">{GROUP_LABEL[group.name!]}</div>
               </Show>
               <For each={group.rows}>{row}</For>
             </div>

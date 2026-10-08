@@ -57,7 +57,7 @@ export default function DateCalendar(props: {
                   <div class="flex min-h-9 w-full items-center gap-0.5">
                     <button
                       type="button"
-                      class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-base font-medium whitespace-nowrap text-accent lowercase hover:bg-btn"
+                      class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-base font-medium whitespace-nowrap text-accent hover:bg-btn"
                       aria-expanded={picking()}
                       onClick={() => setPicking((was) => !was)}
                     >
@@ -74,7 +74,7 @@ export default function DateCalendar(props: {
                       <button
                         type="button"
                         class="grid size-7 cursor-pointer place-items-center rounded-full text-weak hover:bg-btn hover:text-text"
-                        aria-label={picking() ? "previous year" : "previous month"}
+                        aria-label={picking() ? "Previous year" : "Previous month"}
                         onClick={() =>
                           calendar.navigate(picking() ? "prev-year" : "prev-month")
                         }
@@ -84,7 +84,7 @@ export default function DateCalendar(props: {
                       <button
                         type="button"
                         class="grid size-7 cursor-pointer place-items-center rounded-full text-weak hover:bg-btn hover:text-text"
-                        aria-label={picking() ? "next year" : "next month"}
+                        aria-label={picking() ? "Next year" : "Next month"}
                         onClick={() =>
                           calendar.navigate(picking() ? "next-year" : "next-month")
                         }
@@ -102,7 +102,7 @@ export default function DateCalendar(props: {
                             <button
                               type="button"
                               class={cn(
-                                "cursor-pointer rounded-[10px] py-2 text-sm lowercase",
+                                "cursor-pointer rounded-[10px] py-2 text-sm",
                                 "hover:bg-[oklch(from_var(--text)_l_c_h_/_6%)]",
                                 "aria-current:bg-[oklch(from_var(--accent)_l_c_h_/_22%)]",
                                 "aria-current:font-bold aria-current:text-accent",
@@ -131,7 +131,7 @@ export default function DateCalendar(props: {
                           <Index each={calendar.weekdays}>
                             {(day) => (
                               <Calendar.HeadCell
-                                class="h-7 text-center text-sm font-medium text-weak lowercase"
+                                class="h-7 text-center text-sm font-medium text-weak"
                                 scope="col"
                               >
                                 {WEEKDAY_SHORT.format(day()).slice(0, 2)}

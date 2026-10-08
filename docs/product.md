@@ -27,7 +27,7 @@ Every user brings their own model access. Kiko does not sell, pay for, or choose
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles. It can react with an emoji and say nothing.
 4. **The human outranks every agent.** A human message is handled before agent messages and can interrupt work in progress.
 5. **Your keys, your data.** Credentials are encrypted per user and never return to the browser. Agents of one user cannot reach another user.
-6. **Lowercase voice.** Every interface string is lowercase, as in kat. Docs and code are not.
+6. **Sentence case.** Interface strings are sentence case, as in monocode and t3code, and names keep their own casing. DEVIATION: kiko began with kat's all-lowercase voice; the owner moved it to sentence case on 2026-10-08 so the app reads like the tools it sits beside.
 
 ## Features
 

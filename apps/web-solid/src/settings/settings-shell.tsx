@@ -27,19 +27,19 @@ function Account() {
   }
   return (
     <div class="flex flex-col gap-8" data-component="account">
-      <Group title="profile">
+      <Group title="Profile">
         <Item
           icon={<IdentityAvatar seed={user()?.id ?? "you"} size={28} />}
-          title={(user()?.name ?? "you").toLowerCase()}
+          title={user()?.name ?? "You"}
           meta={user()?.email ?? ""}
           actions={
             <Button data-action="sign-out" onClick={() => void signOut()}>
-              sign out
+              Sign out
             </Button>
           }
         />
       </Group>
-      <Group title="leave kiko">
+      <Group title="Leave Kiko">
         <DeleteAccount />
       </Group>
     </div>
@@ -52,8 +52,8 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   account: Account,
   integrations: Integrations,
   skills: () => (
-    <Group title="skills">
-      <Empty data-component="skills-empty">no skills yet. agents will list what they learn here.</Empty>
+    <Group>
+      <Empty data-component="skills-empty">No skills yet.</Empty>
     </Group>
   ),
   appearance: () => (
@@ -90,7 +90,7 @@ export function SettingsShell(props: { sectionId: string }) {
       <nav
         ref={nav}
         class="ml-9 flex shrink-0 gap-1 overflow-x-auto [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
-        aria-label="settings sections"
+        aria-label="Settings sections"
       >
         {NAV_SECTIONS.map((s) => (
           <A
@@ -104,7 +104,7 @@ export function SettingsShell(props: { sectionId: string }) {
       </nav>
       <div class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
         <div class="mx-auto w-full max-w-5xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
-          <Page title={meta()?.label ?? "settings"} description={meta()?.hint}>
+          <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
             {section(props.sectionId)}
           </Page>
         </div>

@@ -42,7 +42,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
       <button
         class="reply-bar-dismiss"
         type="button"
-        aria-label="cancel reply"
+        aria-label="Cancel reply"
         onClick={() => props.onDismiss()}
       >
         ×

@@ -6,8 +6,8 @@
 export type SectionId = "chat" | "settings"
 
 export const SECTIONS: readonly { id: SectionId; label: string; href: string }[] = [
-  { id: "chat", label: "chat", href: "/chat" },
-  { id: "settings", label: "settings", href: "/settings" },
+  { id: "chat", label: "Chat", href: "/chat" },
+  { id: "settings", label: "Settings", href: "/settings" },
 ]
 
 /*

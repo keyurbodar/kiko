@@ -120,15 +120,13 @@ function App() {
   return (
     <div class="harness-root flex h-dvh min-h-0 flex-col bg-bg">
       <header class="harness-bar flex flex-wrap items-center gap-3 bg-bg-sidebar px-4 py-2 text-weak text-sm shadow-[0_1px_0_0_var(--panel-edge)]">
-        {/* Chrome is lowercased. Message bodies never are, and that is the
-            transcript's rule to keep, not this page's. */}
-        <span class="harness-title text-text font-[var(--font-weight-bold)] lowercase">chat slice</span>
+        <span class="harness-title text-text font-[var(--font-weight-bold)]">Chat slice</span>
         <span class="harness-state font-mono text-accent" data-component="harness-state">
-          {unknownFlag() ? `unknown state: ${slug()}` : slug()}
+          {unknownFlag() ? `Unknown state: ${slug()}` : slug()}
         </span>
         <span class="harness-spacer flex-1" />
         <span class="harness-hint font-mono text-xs text-faint">
-          states: {SLUGS.length} · ?state=&lt;slug&gt;
+          States: {SLUGS.length} · ?state=&lt;slug&gt;
         </span>
       </header>
 

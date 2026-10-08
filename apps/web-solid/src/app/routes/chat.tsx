@@ -130,10 +130,11 @@ export default function ChatRoute() {
     if (id && useApp.hasUnread()) useApp.markRead(id);
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
+  const agentName = (slug: string) => members().get(slug)?.name ?? slug;
   const messages = createMemo(() => useApp.activeMessages());
   /* "kiko joined", "piko left": one muted line each, placed by the room's sequence. */
   const notices = createMemo(() =>
-    useApp.memberNotices().map((n) => ({ key: `${n.seq}`, seq: n.seq, at: n.at, text: `${n.name.toLowerCase()} ${n.kind}` })),
+    useApp.memberNotices().map((n) => ({ key: `${n.seq}`, seq: n.seq, at: n.at, text: `${n.name} ${n.kind}` })),
   );
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
@@ -300,7 +301,7 @@ export default function ChatRoute() {
               type="button"
               class="composer-scroll-down"
               data-component="composer-scroll-down"
-              aria-label="scroll to latest"
+              aria-label="Scroll to latest"
               onClick={toLatest}
             >
               <IconV2 name="chevron-down" />
@@ -312,7 +313,7 @@ export default function ChatRoute() {
               class="composer-jump-mention"
               data-component="composer-jump-mention"
               data-stacked={scrolled() ? "" : undefined}
-              aria-label="next mention"
+              aria-label="Next mention"
               onClick={jumpToMention}
             >
               <span aria-hidden="true">@</span>
@@ -332,12 +333,12 @@ export default function ChatRoute() {
               >
                 <span class="min-w-0 flex-1">
                   {typeof np() === "object"
-                    ? `${(np() as { slug: string }).slug} can't reply yet: no ${(np() as { provider: string }).provider} key is connected.`
-                    : "connect a provider so your agents can reply."}
+                    ? `${agentName((np() as { slug: string }).slug)} can't reply yet: no ${(np() as { provider: string }).provider} key is connected.`
+                    : "Connect a provider so your agents can reply."}
                 </span>
                 {/* Monocode's primary action, 4px in from an 8px corner. */}
                 <A href="/settings/models" class="inline-flex h-7 shrink-0 items-center rounded-md bg-[var(--accent-fill)] px-3 text-[12px] font-medium text-[var(--on-accent)] no-underline hover:bg-[var(--accent-hover)]">
-                  connect
+                  Connect
                 </A>
               </div>
             )}
@@ -360,8 +361,8 @@ export default function ChatRoute() {
           </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
-            /* A temporary chat is still "new chat"; its composer names who will read the message. */
-            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "kiko" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
+            /* A temporary chat is still "New chat"; its composer names who will read the message. */
+            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "Kiko" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => {
@@ -384,10 +385,10 @@ export default function ChatRoute() {
                 target === null
                   ? useApp.appendMessage(message)
                   : useApp.appendReply(message, target, replyQuote());
-              // A temporary chat is named by its first message, so its tab stops reading "new chat".
+              // A temporary chat is named by its first message, so its tab stops reading "New chat".
               const id = params.id;
               if (sent !== undefined && id && isTemp() && messages().length <= 1) {
-                const title = message.body.trim().replace(/\s+/g, " ").slice(0, 40).toLowerCase();
+                const title = message.body.trim().replace(/\s+/g, " ").slice(0, 40);
                 if (title) useApp.user()?.rename(id as RoomId, title);
               }
               setQuote(null);

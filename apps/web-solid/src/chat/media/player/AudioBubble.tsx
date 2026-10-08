@@ -59,7 +59,7 @@ export function AudioBubble(props: {
       />
       <button
         type="button"
-        aria-label={playing() ? "pause" : "play"}
+        aria-label={playing() ? "Pause" : "Play"}
         onClick={toggle}
         style={{
           width: "40px",
@@ -80,7 +80,7 @@ export function AudioBubble(props: {
         <div
           role="slider"
           tabindex="0"
-          aria-label="seek"
+          aria-label="Seek"
           aria-valuemin={0}
           aria-valuemax={Math.round(length())}
           aria-valuenow={Math.round(time())}

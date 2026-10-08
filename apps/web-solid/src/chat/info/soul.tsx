@@ -32,7 +32,7 @@ export function SoulCard(props: { slug: string }) {
 			body: JSON.stringify({ body, expectSha: current.sha }),
 		}).catch(() => null)
 		setSaving(false)
-		const out = res ? ((await res.json().catch(() => ({}))) as Partial<Soul> & { error?: string }) : { error: "could not reach kiko" }
+		const out = res ? ((await res.json().catch(() => ({}))) as Partial<Soul> & { error?: string }) : { error: "Could not reach Kiko" }
 		if (res?.ok && out.body !== undefined && out.sha) {
 			mutate({ body: out.body, sha: out.sha })
 			setDraft(null)
@@ -41,15 +41,15 @@ export function SoulCard(props: { slug: string }) {
 		if (res?.status === 409 && out.body !== undefined && out.sha) {
 			mutate({ body: out.body, sha: out.sha })
 			setDraft(out.body)
-			showToastV2({ title: "it changed while you were editing. this is the newest version", variant: "error" })
+			showToastV2({ title: "It changed while you were editing. This is the newest version", variant: "error" })
 			return
 		}
-		showToastV2({ title: out.error ?? "could not save", variant: "error" })
+		showToastV2({ title: out.error ?? "Could not save", variant: "error" })
 	}
 
 	return (
-		<Card id="agent-soul" title="profile" hint="who it is and how it works with you. it keeps this current itself.">
-			<Show when={soul()} fallback={<p class="px-2 py-1 text-sm text-weak">{soul.loading ? "loading" : "could not load"}</p>}>
+		<Card id="agent-soul" title="Profile" hint="Who it is and how it works with you. It keeps this current itself.">
+			<Show when={soul()} fallback={<p class="px-2 py-1 text-sm text-weak">{soul.loading ? "Loading" : "Could not load"}</p>}>
 				{(s) => (
 					<Show
 						when={draft() !== null}
@@ -59,7 +59,7 @@ export function SoulCard(props: { slug: string }) {
 									{s().body}
 								</pre>
 								<button type="button" class="h-8 self-start rounded-lg bg-btn px-3 text-sm" data-action="edit-soul" onClick={() => setDraft(s().body)}>
-									edit
+									Edit
 								</button>
 							</div>
 						}
@@ -74,10 +74,10 @@ export function SoulCard(props: { slug: string }) {
 							/>
 							<div class="flex items-center gap-2">
 								<button type="button" class="h-8 rounded-lg bg-btn px-3 text-sm disabled:opacity-40" data-action="save-soul" disabled={saving() || !draft()?.trim()} onClick={() => void save()}>
-									{saving() ? "saving" : "save"}
+									{saving() ? "Saving" : "Save"}
 								</button>
 								<button type="button" class="h-8 rounded-lg px-3 text-sm text-weak" onClick={() => setDraft(null)}>
-									cancel
+									Cancel
 								</button>
 								<span class="ml-auto text-xs text-faint">
 									{draft()?.length ?? 0}/{MAX_SOUL}

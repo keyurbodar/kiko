@@ -30,8 +30,8 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
         <button
           type="button"
           class="group/new grid size-8 shrink-0 place-items-center rounded-[9px] text-[var(--tab-text)] hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          aria-label="new chat"
-          title="new chat"
+          aria-label="New chat"
+          title="New chat"
           data-action="logo-new-chat"
           onClick={() => runCommand("chat.new")}
         >
@@ -48,11 +48,11 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
         <button
           type="button"
           class="grid size-8 shrink-0 place-items-center rounded-[9px] text-[var(--tab-text)] hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          aria-label="search messages"
-          title="search messages"
+          aria-label="Search messages"
+          title="Search messages"
           data-action="search-messages"
           data-hint="chats.search-current"
-          data-hint-label="search"
+          data-hint-label="Search"
           onPointerEnter={preloadSearch}
           onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
         >

@@ -68,7 +68,7 @@ export function TextEditor(props: {
 			setTheirs(null)
 			setState("clean")
 		} catch (e) {
-			setMessage(e instanceof Error ? e.message : "could not load the file")
+			setMessage(e instanceof Error ? e.message : "Could not load the file")
 			setState("error")
 		}
 	}
@@ -189,18 +189,18 @@ export function TextEditor(props: {
 				<footer class="fe-bar">
 					<Show when={state() === "conflict"}>
 						<span class="fe-warn" role="alert" data-component="file-conflict">
-							{theirs() ? "someone else changed this file" : "this file was removed"}
+							{theirs() ? "Someone else changed this file" : "This file was removed"}
 						</span>
 						<Show when={theirs()}>
 							<button type="button" class="fe-btn" onClick={loadTheirs}>
-								load theirs
+								Load theirs
 							</button>
 							<button type="button" class="fe-btn" onClick={() => void overwrite()}>
-								overwrite
+								Overwrite
 							</button>
 						</Show>
 						<button type="button" class="fe-btn" onClick={() => setState("dirty")}>
-							keep editing
+							Keep editing
 						</button>
 					</Show>
 					<Show when={state() === "error"}>
@@ -208,7 +208,7 @@ export function TextEditor(props: {
 							{message()}
 						</span>
 						<button type="button" class="fe-btn" data-action="retry-save" onClick={flush}>
-							try again
+							Try again
 						</button>
 					</Show>
 				</footer>
