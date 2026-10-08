@@ -211,16 +211,37 @@ export class RoomLog {
 		return row ? { id: row.id as MessageId, seq: row.seq } : null
 	}
 
-	/** Live message ids of a run from attempts before `attempt`. */
-	earlierAttempts(runId: string, attempt: number): MessageId[] {
+	/** Live message ids of a run from attempts before `attempt`, at `fromIndex` or later. */
+	earlierAttempts(runId: string, attempt: number, fromIndex = 0): MessageId[] {
 		return this.sql
 			.exec<{ id: string }>(
-				"SELECT id FROM messages WHERE run_id = ? AND run_attempt < ? AND deleted_at IS NULL ORDER BY seq",
+				"SELECT id FROM messages WHERE run_id = ? AND run_attempt < ? AND run_index >= ? AND deleted_at IS NULL ORDER BY seq",
 				runId,
 				attempt,
+				fromIndex,
 			)
 			.toArray()
 			.map((r) => r.id as MessageId)
+	}
+
+	/**
+	 * Moves a live bubble of an earlier attempt to `run`'s attempt when it holds the same text at the
+	 * same index, so a restarted run that writes it again keeps the bubble where it was. True when moved.
+	 */
+	adoptBubble(run: RunRef, text: string, replyTo: string | null): boolean {
+		const row = this.sql
+			.exec<{ id: string }>(
+				"SELECT id FROM messages WHERE run_id = ? AND run_attempt < ? AND run_index = ? AND text = ? AND reply_to IS ? AND deleted_at IS NULL",
+				run.runId,
+				run.attempt,
+				run.index,
+				text,
+				replyTo,
+			)
+			.toArray()[0]
+		if (!row) return false
+		this.sql.exec("UPDATE messages SET run_attempt = ? WHERE id = ?", run.attempt, row.id)
+		return true
 	}
 
 	/**

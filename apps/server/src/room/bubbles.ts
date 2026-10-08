@@ -3,10 +3,13 @@ import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
 
 // Architecture section 6.3. An agent posts each closed block of its answer with the key
-// `(runId, attempt, index)`. A repeated post stores nothing. A post with a higher attempt
-// first deletes the bubbles of the earlier attempts of that run, because a run that
-// restarted after a crash may write different text. A post from an older attempt is late
-// and stores nothing.
+// `(runId, attempt, index)`. A repeated post stores nothing. A run that restarted after a crash
+// posts its blocks again under a higher attempt, because it may write different text. A block
+// it writes again unchanged keeps its bubble where it was: deleting it and posting a copy put
+// the agent's earlier messages under whatever the human sent since, as if they were replayed.
+// The first block that differs deletes the earlier attempts' bubbles from its index on, and
+// the run's end deletes any the restart never wrote again. A post from an older attempt is
+// late and stores nothing.
 
 const REPLY_TAG = /^\[reply:([^\]\s]+)\]\s*/
 
@@ -39,17 +42,28 @@ export class Bubbles {
 		if (latest !== null && run.attempt < latest) return []
 		const from = { kind: "agent", slug } as const
 		const events: RoomEvent[] = []
-		const earlier = this.log.earlierAttempts(run.runId, run.attempt)
+		const { text, replyTo } = replyTag(block)
+		const target = replyTo && this.log.message(replyTo) ? { replyTo: replyTo as MessageId } : {}
+		if (text && this.log.adoptBubble(run, text, target.replyTo ?? null)) return events
+		const earlier = this.log.earlierAttempts(run.runId, run.attempt, run.index)
 		const deleted = earlier.length ? this.log.deleteMessages(earlier, from) : null
 		if (deleted) events.push(deleted)
-		const { text, replyTo } = replyTag(block)
 		// A block with nothing to draw, such as a lone `---` the splitter cut out, is not a bubble.
 		const rich = parseRichText(text)
 		if (!text || !rich.length) return events
-		const target = replyTo && this.log.message(replyTo) ? { replyTo: replyTo as MessageId } : {}
 		const { event } = this.log.addMessage({ from, text, rich, run, tainted, ...target })
 		if (event) events.push(event)
 		return events
+	}
+
+	/** Deletes the bubbles of earlier attempts that the run's last attempt never wrote again. */
+	settle(slug: AgentSlug, runId: string): RoomEvent | null {
+		const latest = this.sql
+			.exec<{ attempt: number | null }>("SELECT max(run_attempt) AS attempt FROM messages WHERE run_id = ?", runId)
+			.one().attempt
+		if (latest === null) return null
+		const stale = this.log.earlierAttempts(runId, latest)
+		return stale.length ? this.log.deleteMessages(stale, { kind: "agent", slug }) : null
 	}
 
 	/** True once `markEnded` ran for the run. */

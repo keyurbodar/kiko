@@ -79,6 +79,11 @@ export default {
       const b = (await request.json()) as PostBody
       return Response.json(await stub.post(b.slug as AgentSlug, b.runId, b.attempt, b.index, b.block))
     }
+    if (op === "end") {
+      const b = (await request.json()) as PostBody
+      await stub.endRun(b.slug as AgentSlug, b.runId)
+      return Response.json(true)
+    }
     const headers = new Headers(request.headers)
     headers.set(USER_ID_HEADER, "alice")
     headers.set(ROOM_ID_HEADER, roomId!)

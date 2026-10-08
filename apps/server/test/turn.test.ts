@@ -195,6 +195,32 @@ test("a repeated post stores one message, and a higher attempt replaces the earl
   expect(await snapshot(roomId)).toEqual([[1, 0, "rewritten", 1]])
 }, 30_000)
 
+test("a restarted run keeps the bubbles it writes again unchanged, in place", async () => {
+  const roomId = "01J00000000000000000000002"
+  const call = async (op: string, body: object) =>
+    (await fetch(`${origin}/room/${roomId}/${op}`, { method: "POST", body: JSON.stringify({ slug: "kiko", runId: "kiko:1", ...body }) })).json()
+  await call("post", { attempt: 0, index: 0, block: "first" })
+  await call("post", { attempt: 0, index: 1, block: "second" })
+  await call("post", { attempt: 0, index: 2, block: "third" })
+  // The restart writes the first block again, then different text.
+  expect(await call("post", { attempt: 1, index: 0, block: "first" })).toBe(false)
+  expect(await snapshot(roomId)).toEqual([
+    [1, 0, "first", 1],
+    [0, 1, "second", 1],
+    [0, 2, "third", 1],
+  ])
+  expect(await call("post", { attempt: 1, index: 1, block: "changed" })).toBe(true)
+  expect(await snapshot(roomId)).toEqual([
+    [1, 0, "first", 1],
+    [1, 1, "changed", 1],
+  ])
+  // A restart that writes fewer blocks leaves none of the earlier attempt behind once the run ends.
+  await call("post", { attempt: 2, index: 0, block: "first" })
+  // This test room has no user object, so the rest of `endRun` fails after the bubbles are settled.
+  await fetch(`${origin}/room/${roomId}/end`, { method: "POST", body: JSON.stringify({ slug: "kiko", runId: "kiko:1" }) })
+  expect(await snapshot(roomId)).toEqual([[2, 0, "first", 1]])
+}, 30_000)
+
 test.each([
   // A short complete reply goes after the plain pause.
   ["yes", false],

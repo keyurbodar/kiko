@@ -1494,7 +1494,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/**
 	 * RPC for an agent in this room (section 6.3). Stores one closed block of a run's answer. A repeated
-	 * `(runId, attempt, index)` stores nothing. A higher attempt deletes the bubbles of earlier attempts.
+	 * `(runId, attempt, index)` stores nothing. A higher attempt keeps an earlier bubble it writes again
+	 * unchanged and replaces the rest (bubbles.ts).
 	 * Returns true when this call stored the bubble. A bubble of a `tainted` run gets a link card only
 	 * for a link a human message holds: any other link may carry what outside content made the run
 	 * write, so the room never fetches it (section 16.4).
@@ -1588,6 +1589,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * question among them that the run never answered with `send_message` is answered by its bubbles.
 	 */
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = []): Promise<void> {
+		const settled = this.bubbles.settle(slug, runId)
+		if (settled) this.publish([settled], { previews: false, touch: false })
 		const home = this.home()
 		const first = !this.bubbles.ended(runId)
 		if (home && first) {
