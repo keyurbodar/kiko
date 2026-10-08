@@ -4,9 +4,9 @@ import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { useApp } from "../lib/store"
 import { lineDiff } from "./line-diff"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronDownIcon, ChevronUpIcon, ExtensionsIcon } from "@kiko/ui/icons"
+import { ExtensionsIcon } from "@kiko/ui/icons"
 import { cn } from "../lib/cn"
-import { Button, Empty, Group, IconButton, Item, Notice, Pill, Toggle, fieldClass, line } from "./kit"
+import { Button, DetailsButton, Empty, fieldClass, Group, Hint, Item, line, Notice, Pill, Toggle } from "./kit"
 
 /*
  * Settings, extensions (architecture section 24). Three lists, in the order the human needs them:
@@ -72,19 +72,14 @@ export default function ExtensionsPage() {
 
   return (
     <div class="flex flex-col gap-8" data-component="extensions-page">
-      <Group>
-        <Item
-          data-component="extensions-intro"
-          icon={<PuzzleIcon />}
-          title="teach your agents something new"
-          meta={<span class="whitespace-normal">extensions add tools, instructions, and schedules. they run sandboxed on kiko's server, and keys never reach their code.</span>}
-          actions={
-            <Button data-action="ask-kiko" onClick={askKiko}>
-              build one with kiko
-            </Button>
-          }
-        />
-      </Group>
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-3" data-component="extensions-intro">
+        <p class="min-w-[16rem] flex-1 text-[13px] leading-relaxed text-[color-mix(in_oklab,var(--text)_50%,transparent)]">
+          they run sandboxed on kiko's server, and keys never reach their code. pick one below, or describe what you want and kiko writes it.
+        </p>
+        <Button data-action="ask-kiko" onClick={askKiko}>
+          build one with kiko
+        </Button>
+      </div>
 
       <Show when={error()}>
         <Notice data-component="extensions-error">{error()!}</Notice>
@@ -102,11 +97,7 @@ export default function ExtensionsPage() {
         <Group title="installed" bare>
           <Show
             when={extensions().length}
-            fallback={
-              <div class={card}>
-                <Empty data-component="extensions-empty">nothing yet. add one from the catalog below, or ask kiko to build one.</Empty>
-              </div>
-            }
+            fallback={<Hint data-component="extensions-empty">nothing yet. add one from the catalog below, or ask kiko to build one.</Hint>}
           >
             <ul class={cn(card, divided)}>
               <For each={extensions()}>{(x) => <InstalledRow extension={x} run={run} />}</For>
@@ -119,20 +110,15 @@ export default function ExtensionsPage() {
         <Group title="catalog" bare>
           <Show
             when={!catalog.error}
-            fallback={
-              <div class={card}>
-                <Empty>the catalog did not load. reload to try again.</Empty>
-              </div>
-            }
+            fallback={<Hint>the catalog did not load. reload to try again.</Hint>}
           >
-            <ul class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <For
-                each={catalog() ?? []}
-                fallback={<li class={cn(card, "px-4 py-3.5 text-[13px] text-muted sm:col-span-2")}>{catalog.loading ? "loading the catalog" : "the catalog is empty"}</li>}
-              >
+            <Show when={(catalog() ?? []).length} fallback={<Hint>{catalog.loading ? "loading the catalog" : "the catalog is empty"}</Hint>}>
+            <ul class={cn(card, divided)}>
+              <For each={catalog() ?? []}>
                 {(entry) => <CatalogCard entry={entry} installed={installedNames().has(entry.name)} waiting={waitingNames().has(entry.name)} run={run} />}
               </For>
             </ul>
+            </Show>
           </Show>
         </Group>
       </div>
@@ -230,7 +216,7 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
   return (
     <li class="flex flex-col" data-extension={x().name} data-enabled={x().enabled}>
       <div class="flex min-h-14 items-center gap-3 px-4 py-2.5">
-        <button type="button" class={cn("flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left", focus)} aria-expanded={open()} data-action="open-extension" onClick={() => setOpen(!open())}>
+        <div class="flex min-w-0 flex-1 items-center gap-3">
           <span class={cn(tile, "text-[13px] font-semibold text-text")} aria-hidden="true">
             {x().name.slice(0, 1)}
           </span>
@@ -252,7 +238,7 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
             </span>
             <span class="mt-0.5 block truncate text-xs text-muted">{x().description.toLowerCase()}</span>
           </span>
-        </button>
+        </div>
         <div class="flex shrink-0 items-center gap-1.5">
           <Toggle
             label={`${x().name} on`}
@@ -260,9 +246,7 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
             data-action="toggle-extension"
             onChange={(on) => void props.run({ op: "enable", name: x().name, enabled: on })}
           />
-          <IconButton label={open() ? "hide details" : "details"} aria-expanded={open()} onClick={() => setOpen(!open())}>
-            <HugeIcon icon={open() ? ChevronUpIcon : ChevronDownIcon} size={16} />
-          </IconButton>
+          <DetailsButton open={open()} onToggle={() => setOpen(!open())} data-action="open-extension" />
         </div>
       </div>
       <Show when={open()}>
@@ -416,7 +400,7 @@ function SecretField(props: { extension: ExtensionInfo; name: string; set: boole
   )
 }
 
-/** A catalog entry: what it is, its powers on open, and one tap to review it. */
+/** A catalog entry: what it is, a "details" button for its powers, and "add" to review it above. */
 function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; waiting: boolean; run: Run }) {
   const [open, setOpen] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
@@ -427,12 +411,13 @@ function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; 
     setBusy(false)
   }
   return (
-    <li class={cn(card, "flex flex-col gap-3 p-3.5")} classList={{ "sm:col-span-2": open() }} data-catalog={props.entry.name}>
-      <div class="flex items-start gap-3">
-        <button type="button" class={cn("min-w-0 flex-1 rounded-md text-left", focus)} aria-expanded={open()} onClick={() => setOpen(!open())}>
+    <li class="flex flex-col" data-catalog={props.entry.name}>
+      <div class="flex items-center gap-4 py-3 pr-3 pl-4">
+        <div class="min-w-0 flex-1">
           <span class="block text-[13px] font-medium text-text">{props.entry.name}</span>
-          <span class="mt-0.5 block text-xs leading-relaxed text-muted">{props.entry.description.toLowerCase()}</span>
-        </button>
+          <span class="mt-0.5 block text-[12px] leading-relaxed text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{props.entry.description.toLowerCase()}</span>
+        </div>
+        <DetailsButton open={open()} onToggle={() => setOpen(!open())} data-action="catalog-details" />
         <Show when={!props.installed} fallback={<Pill data-component="catalog-installed">installed</Pill>}>
           <Button disabled={busy() || props.waiting} data-action="add-from-catalog" onClick={() => void add()}>
             {props.waiting ? "review above" : busy() ? "adding" : "add"}
@@ -440,7 +425,9 @@ function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; 
         </Show>
       </div>
       <Show when={open()}>
-        <Review lines={describeManifest(props.entry.bundle.manifest)} />
+        <div class="px-4 pb-3.5">
+          <Review lines={describeManifest(props.entry.bundle.manifest)} />
+        </div>
       </Show>
     </li>
   )

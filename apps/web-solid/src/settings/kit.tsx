@@ -7,28 +7,38 @@ import { For, Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
 
-// `color-mix(in_oklab,var(--text)_N%,transparent)` below is monocode's `content/N`.
-const focus = "outline-none focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+// Controls are t3code's (MIT, apps/web/src/components/ui/button.tsx, input.tsx): 28px, 8px
+// corners, 13px medium text, a visible border on the default button, and a ring on focus. Cards
+// and rows are monocode's (MIT, src/features/settings/ui/SettingsView.tsx). Every color is the
+// text color mixed over what is behind it, so both work on kiko's light, dark, and glass themes:
+// `color-mix(in_oklab,var(--text)_N%,transparent)` below is t3code's `white/N` in dark mode.
+//
+// One rule keeps the page predictable: only something that looks like a button does anything.
+// A card or a title is never a hidden click target, nothing appears only under the pointer, a
+// choice in a list shows its radio, and anything that opens shows a "details" button.
+const focus = "outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]"
 
-/** Hairline shared by every card, field, and quiet button: monocode's `border-content/10`. */
-export const line = "border-[color-mix(in_oklab,var(--text)_10%,transparent)]"
+/** The input border, t3code's `--input`. */
+export const line = "border-[color-mix(in_oklab,var(--text)_12%,transparent)]"
 
 type Variant = "primary" | "secondary" | "ghost" | "danger"
 
-// monocode's SecondaryButton (shared/ui/SecondaryButton.tsx), its solid "use" button
-// (SettingsView.tsx), and its quiet icon button, with kiko's danger color for its red-400.
 const VARIANTS: Record<Variant, string> = {
-  primary: "h-6 rounded-[4.5px] bg-text px-2.5 text-[11px] font-medium text-[var(--bg)] hover:bg-[color-mix(in_oklab,var(--text)_85%,transparent)] active:scale-[0.97]",
-  secondary: "rounded-md border border-[color-mix(in_oklab,var(--text)_10%,transparent)] px-2.5 py-1 text-[12px] text-[color-mix(in_oklab,var(--text)_70%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_10%,transparent)] hover:text-text",
-  ghost: "rounded-md px-2.5 py-1 text-[12px] text-[color-mix(in_oklab,var(--text)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_10%,transparent)] hover:text-text",
-  danger: "rounded-md border border-[color-mix(in_oklab,var(--text)_10%,transparent)] px-2.5 py-1 text-[12px] text-[var(--danger)] hover:border-[color-mix(in_oklab,var(--danger)_40%,transparent)] hover:bg-[color-mix(in_oklab,var(--danger)_10%,transparent)]",
+  // t3code's default: the accent, solid.
+  primary: "border-transparent bg-[var(--accent-fill)] text-[var(--on-accent)] hover:bg-[color-mix(in_oklab,var(--accent-fill)_90%,transparent)]",
+  // t3code's outline: the input border over a faint fill.
+  secondary: "border-[color-mix(in_oklab,var(--text)_12%,transparent)] bg-[color-mix(in_oklab,var(--text)_3%,transparent)] text-text hover:bg-[color-mix(in_oklab,var(--text)_8%,transparent)]",
+  // t3code's ghost-muted.
+  ghost: "border-transparent text-[color-mix(in_oklab,var(--text)_60%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] hover:text-text",
+  // t3code's destructive-outline: red text always, so the harm is never a surprise.
+  danger: "border-[color-mix(in_oklab,var(--text)_12%,transparent)] bg-[color-mix(in_oklab,var(--text)_3%,transparent)] text-[var(--danger)] hover:border-[color-mix(in_oklab,var(--danger)_32%,transparent)] hover:bg-[color-mix(in_oklab,var(--danger)_8%,transparent)]",
 }
 
 /** The class of a settings button, for an element that cannot be a `Button` (a link, a label). */
 export function buttonClass(variant: Variant = "secondary", extra?: string) {
   return cn(
-    "flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
-    "disabled:cursor-default disabled:opacity-40",
+    "inline-flex h-7 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-[9px] text-[13px] font-medium active:scale-[0.97]",
+    "disabled:pointer-events-none disabled:opacity-60",
     focus,
     VARIANTS[variant],
     extra,
@@ -40,8 +50,9 @@ export function Button(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { va
   return <button type={local.type ?? "button"} class={buttonClass(local.variant, local.class)} {...rest} />
 }
 
+/** t3code's icon-sm ghost: a 28px square that is always there, never revealed by hover. */
 export const iconButtonClass = cn(
-  "grid size-7 shrink-0 place-items-center rounded-md text-[color-mix(in_oklab,var(--text)_40%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_10%,transparent)] hover:text-text active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40",
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-[color-mix(in_oklab,var(--text)_60%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] hover:text-text active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60",
   focus,
 )
 
@@ -52,17 +63,54 @@ export function IconButton(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & 
       type="button"
       aria-label={local.label}
       title={local.label}
-      class={cn(iconButtonClass, local.danger && "hover:bg-[color-mix(in_oklab,var(--danger)_10%,transparent)] hover:text-[var(--danger)]", local.class)}
+      class={cn(iconButtonClass, local.danger && "hover:bg-[color-mix(in_oklab,var(--danger)_8%,transparent)] hover:text-[var(--danger)]", local.class)}
       {...rest}
     />
   )
 }
 
-/** monocode's settings field: 28px, 6px corners, the hairline, a 5% fill. */
+/** The button that opens and closes something under it: a word and a chevron that turns. */
+export function DetailsButton(props: { open: boolean; onToggle: () => void; label?: string; class?: string; [data: `data-${string}`]: string | undefined }): JSX.Element {
+  const [local, rest] = splitProps(props, ["open", "onToggle", "label", "class"])
+  return (
+    <button type="button" class={buttonClass("ghost", local.class)} aria-expanded={local.open} onClick={() => local.onToggle()} {...rest}>
+      {local.label ?? (local.open ? "hide details" : "details")}
+      <svg class="size-3.5 shrink-0" classList={{ "rotate-180": local.open }} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+  )
+}
+
+/** The mark of a choice in a list: an empty ring, filled when chosen. Drawn on every choice. */
+export function Radio(props: { on: boolean }): JSX.Element {
+  return (
+    <span
+      aria-hidden="true"
+      class="grid size-4 shrink-0 place-items-center rounded-full border"
+      classList={{
+        "border-[var(--accent-fill)] bg-[var(--accent-fill)]": props.on,
+        "border-[color-mix(in_oklab,var(--text)_25%,transparent)]": !props.on,
+      }}
+    >
+      <Show when={props.on}>
+        <span class="size-1.5 rounded-full bg-[var(--on-accent)]" />
+      </Show>
+    </span>
+  )
+}
+
+/** The class of a choice row: the whole row is the button, it says so with a radio and a hover fill. */
+export const choiceRowClass = cn(
+  "flex w-full cursor-pointer items-center gap-3 px-4 text-left hover:bg-[color-mix(in_oklab,var(--text)_4%,transparent)] aria-selected:bg-[color-mix(in_oklab,var(--text)_4%,transparent)] aria-[current=true]:bg-[color-mix(in_oklab,var(--text)_4%,transparent)]",
+  "outline-none focus-visible:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]",
+)
+
+/** t3code's input: 28px, 8px corners, the input border, a ring on focus. */
 export const fieldClass = cn(
-  "h-7 min-w-0 rounded-md border bg-[color-mix(in_oklab,var(--text)_5%,transparent)] px-2 text-[12px] text-text placeholder:text-[color-mix(in_oklab,var(--text)_35%,transparent)]",
+  "h-7 min-w-0 rounded-lg border bg-[color-mix(in_oklab,var(--text)_3%,transparent)] px-[11px] text-[13px] text-text placeholder:text-[color-mix(in_oklab,var(--text)_40%,transparent)]",
   line,
-  "outline-none focus:border-[color-mix(in_oklab,var(--text)_20%,transparent)]",
+  "outline-none focus:border-[var(--accent)] focus:ring-[3px] focus:ring-[color-mix(in_oklab,var(--accent)_24%,transparent)]",
 )
 
 /** monocode's PageHeader, then the page's groups. */
@@ -169,6 +217,35 @@ export function Item(props: {
   )
 }
 
+/** A plain muted sentence with no box: an empty list, a loading list. A box around one line is noise. */
+export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
+  const [local, rest] = splitProps(props, ["children"])
+  return (
+    <p class="text-[13px] leading-relaxed text-[color-mix(in_oklab,var(--text)_50%,transparent)]" {...rest}>
+      {local.children}
+    </p>
+  )
+}
+
+/** A compact 40px row for a long catalog: a small icon, the name, a muted count on the right, the action. */
+export function ListRow(props: { icon?: JSX.Element; title: JSX.Element; meta?: JSX.Element; actions?: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
+  const [local, rest] = splitProps(props, ["icon", "title", "meta", "actions"])
+  return (
+    <div class={cn("flex h-10 items-center gap-3 pr-2 pl-4", rowLine)} {...rest}>
+      <Show when={local.icon}>
+        <span class="grid size-4 shrink-0 place-items-center text-[color-mix(in_oklab,var(--text)_60%,transparent)]">{local.icon}</span>
+      </Show>
+      <span class="min-w-0 flex-1 truncate text-[13px] text-text">{local.title}</span>
+      <Show when={local.meta}>
+        <span class="shrink-0 text-[12px] tabular-nums text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{local.meta}</span>
+      </Show>
+      <Show when={local.actions}>
+        <div class="flex shrink-0 items-center gap-1.5">{local.actions}</div>
+      </Show>
+    </div>
+  )
+}
+
 /** One muted line inside a card, monocode's empty state: "No MCP servers configured." */
 export function Empty(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
@@ -214,7 +291,7 @@ export function Segmented<T extends string>(props: { label: string; value: T; op
     <div
       role="radiogroup"
       aria-label={props.label}
-      class="inline-grid max-w-full shrink-0 gap-0.5 rounded-md border border-[color-mix(in_oklab,var(--text)_10%,transparent)] p-0.5 text-[12px]"
+      class="inline-grid max-w-full shrink-0 gap-0.5 rounded-lg bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-0.5 text-[13px]"
       style={{ "grid-template-columns": `repeat(${props.options.length}, minmax(0, 1fr))` }}
     >
       <For each={props.options}>
@@ -225,7 +302,7 @@ export function Segmented<T extends string>(props: { label: string; value: T; op
             aria-checked={props.value === option.value}
             data-value={option.value}
             class={cn(
-              "min-w-0 truncate rounded-[5px] px-2.5 py-1 text-[color-mix(in_oklab,var(--text)_50%,transparent)] hover:text-text aria-checked:bg-[var(--selected-bg)] aria-checked:text-text",
+              "h-6 min-w-0 cursor-pointer truncate rounded-md px-2.5 font-medium text-[color-mix(in_oklab,var(--text)_55%,transparent)] hover:text-text aria-checked:bg-[var(--bg)] aria-checked:text-text aria-checked:shadow-[0_1px_2px_rgb(0_0_0/0.2)]",
               focus,
             )}
             onClick={() => props.onChange(option.value)}
@@ -268,7 +345,7 @@ export function Toggle(props: { label: string; on: boolean; disabled?: boolean; 
       aria-label={local.label}
       aria-checked={local.on}
       disabled={local.disabled}
-      class={cn("relative h-5 w-9 shrink-0 rounded-full disabled:cursor-not-allowed disabled:opacity-40", focus)}
+      class={cn("relative h-5 w-9 shrink-0 cursor-pointer rounded-full disabled:cursor-not-allowed disabled:opacity-60", focus)}
       classList={{ "bg-[var(--accent)]": local.on, "bg-[color-mix(in_oklab,var(--text)_20%,transparent)]": !local.on }}
       onClick={() => local.onChange(!local.on)}
       {...rest}

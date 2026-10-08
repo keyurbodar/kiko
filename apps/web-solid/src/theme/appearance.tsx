@@ -3,12 +3,13 @@
 // monocode's own settings. The theme list is kiko's addition: t3code's built-in themes and the
 // ones imported from a file or Open VSX, each one quiet row.
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CheckIcon, ImageIcon, PlusIcon, ShareIcon, TrashIcon } from "@kiko/ui/icons"
+import { ImageIcon, PlusIcon, ShareIcon, TrashIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { For, Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
 import { appearanceOf } from "./apply"
 import { BUILT_IN_THEMES } from "./builtins"
-import { buttonClass, Group, iconButtonClass, Row, Segmented, Slider, Toggle } from "../settings/kit"
+import { cn } from "../lib/cn"
+import { buttonClass, choiceRowClass, Group, iconButtonClass, Radio, Row, rowLine, Segmented, Slider, Toggle } from "../settings/kit"
 import {
   background,
   BACKGROUND_EFFECTS,
@@ -75,37 +76,38 @@ function ThemeRow(props: {
   const active = () => look()[shown()] === props.id || (owned().length > 0 && !props.colors[shown()])
   return (
     <div
-      class="group flex h-11 items-center gap-3 px-4 hover:bg-[var(--hover-bg)] [&+&]:shadow-[inset_0_1px_0_var(--hairline)]"
+      class={cn("flex h-11 items-center pr-2", rowLine)}
       data-theme-row={props.id ?? "default"}
       aria-current={active() ? "true" : undefined}
     >
+      {/* A theme is a choice: the row is its button, and its radio says so. */}
       <button
         type="button"
+        role="radio"
+        aria-checked={active()}
         disabled={props.disabled}
-        class="flex min-w-0 flex-1 items-center gap-3 self-stretch text-left outline-none focus-visible:underline disabled:cursor-default disabled:opacity-50"
+        class={cn(choiceRowClass, "min-w-0 flex-1 self-stretch disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent")}
         onClick={() => (props.onPick ? props.onPick() : chooseTheme(props.id))}
       >
+        <Radio on={active()} />
         <Swatch colors={props.colors} />
         <span class="min-w-0 flex-1 truncate text-[13px] text-text">{props.label}</span>
         <Show when={props.note}>
           <span class="shrink-0 text-xs text-muted">{props.note}</span>
         </Show>
-        <Show when={owned().length}>
-          <span class="shrink-0 text-xs text-muted">{owned().length === 2 ? "" : `${owned()[0]} mode`}</span>
-          <span class="shrink-0 text-text">
-            <HugeIcon icon={CheckIcon} size={15} />
-          </span>
+        <Show when={owned().length === 1}>
+          <span class="shrink-0 text-xs text-muted">{owned()[0]} mode</span>
         </Show>
       </button>
       <Show when={props.onExport}>
-        <button type="button" class={`${iconButtonClass} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`} title="export theme file" aria-label={`export ${props.label}`} onClick={() => props.onExport!()}>
+        <button type="button" class={iconButtonClass} title="export theme file" aria-label={`export ${props.label}`} onClick={() => props.onExport!()}>
           <HugeIcon icon={ShareIcon} size={14} />
         </button>
       </Show>
       <Show when={props.onRemove}>
         <button
           type="button"
-          class={`${iconButtonClass} opacity-0 hover:text-[var(--danger)] group-hover:opacity-100 focus-visible:opacity-100`}
+          class={cn(iconButtonClass, "hover:text-[var(--danger)]")}
           title="remove theme"
           aria-label={`remove ${props.label}`}
           data-action="remove-theme"

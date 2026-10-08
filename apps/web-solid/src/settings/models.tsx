@@ -8,7 +8,7 @@ import { connectedProviders, connectedReady, refreshConnected } from "./connecte
 import { Moment } from "../mascot/pixel/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
-import { Button, Empty, Group, Item, Notice, Pill, fieldClass, line } from "./kit"
+import { Button, choiceRowClass, DetailsButton, Empty, fieldClass, Group, Hint, Item, line, ListRow, Notice, Pill, Radio } from "./kit"
 import { cn } from "../lib/cn"
 
 const METHOD_LABEL: Record<ConnectMethod, string> = {
@@ -30,6 +30,9 @@ export function ModelsPage() {
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
   const [query, setQuery] = createSignal("")
+  // A hundred providers is a wall. The first few show, a search finds any, and "show all" lists them.
+  const [allProviders, setAllProviders] = createSignal(false)
+  const PREVIEW_PROVIDERS = 12
   const connected = createMemo(() => (catalog()?.providers ?? []).filter((p) => saved(p.id)))
   const available = createMemo(() => {
     const q = query().trim().toLowerCase()
@@ -71,11 +74,14 @@ export function ModelsPage() {
       <Show when={catalog.error}>
         <Notice data-component="catalog-error">the model catalog did not load. reload to try again.</Notice>
       </Show>
+      <Show when={connected().length === 0}>
+        <Hint data-component="no-provider">no provider yet. connect one below to start chatting. keys stay on the server and never reach your browser.</Hint>
+      </Show>
+      <Show when={connected().length > 0}>
       <Group title="providers" description="keys stay on the server and never reach your browser.">
-        <For each={connected()} fallback={<Empty data-component="no-provider">no provider yet. add one below to start chatting.</Empty>}>
-          {(provider) => <ConnectedProvider provider={provider} info={saved(provider.id)!} />}
-        </For>
+        <For each={connected()}>{(provider) => <ConnectedProvider provider={provider} info={saved(provider.id)!} />}</For>
       </Group>
+      </Show>
       <Show when={connected().length > 0}>
         <Group title="default model" description="a new chat starts on this model. you can change it per chat.">
           <For each={connected()}>{(provider) => <ProviderModels provider={provider} heading={connected().length > 1} />}</For>
@@ -105,7 +111,7 @@ export function ModelsPage() {
         >
           <ul class="flex flex-col [&>li+li]:border-t [&>li+li]:border-[color-mix(in_oklab,var(--text)_6%,transparent)]" data-component="provider-list">
             <For
-              each={available()}
+              each={query().trim() || allProviders() ? available() : available().slice(0, PREVIEW_PROVIDERS)}
               fallback={
                 <li>
                   <Empty>{catalog.loading ? "loading providers" : "no provider matches"}</Empty>
@@ -113,8 +119,8 @@ export function ModelsPage() {
               }
             >
               {(provider) => (
-                <li style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 56px" }} data-provider={provider.id}>
-                  <Item
+                <li style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 40px" }} data-provider={provider.id}>
+                  <ListRow
                     icon={<ProviderIcon id={provider.id} width="16" height="16" />}
                     title={provider.name.toLowerCase()}
                     meta={`${provider.models.length} models`}
@@ -128,6 +134,16 @@ export function ModelsPage() {
               )}
             </For>
           </ul>
+          <Show when={!query().trim() && available().length > PREVIEW_PROVIDERS}>
+            <div class="px-2 py-1.5">
+              <DetailsButton
+                open={allProviders()}
+                onToggle={() => setAllProviders(!allProviders())}
+                label={allProviders() ? "show fewer" : `show all ${available().length}`}
+                data-action="show-all-providers"
+              />
+            </div>
+          </Show>
         </Group>
       </div>
       <ConnectDialog provider={dialog()} onClose={() => setDialog(null)} />
@@ -178,8 +194,6 @@ function ProviderModels(props: { provider: CatalogProvider; heading: boolean }) 
     return list
   })
   const shown = () => (all() ? models() : models().slice(0, PREVIEW_MODELS))
-  const hover = "hover:bg-[color-mix(in_oklab,var(--text)_5%,transparent)]"
-  const ring = "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
   return (
     <div class="flex flex-col py-1" data-provider-models={props.provider.id}>
       <Show when={props.heading}>
@@ -198,7 +212,7 @@ function ProviderModels(props: { provider: CatalogProvider; heading: boolean }) 
                 role="option"
                 aria-selected={isDefault()}
                 tabindex="0"
-                class={cn("flex h-10 cursor-default items-center gap-3 px-4", hover, ring)}
+                class={cn(choiceRowClass, "h-10")}
                 data-model={ref}
                 onClick={() => setChatModel(null, ref)}
                 onKeyDown={(e) => {
@@ -208,13 +222,7 @@ function ProviderModels(props: { provider: CatalogProvider; heading: boolean }) 
                   }
                 }}
               >
-                <span class="grid size-4 shrink-0 place-items-center text-[var(--accent)]" aria-hidden="true">
-                  <Show when={isDefault()}>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M3.5 8.5l3 3 6-7" />
-                    </svg>
-                  </Show>
-                </span>
+                <Radio on={isDefault()} />
                 <span class={cn("min-w-0 flex-1 truncate text-[13px]", isDefault() ? "font-medium text-text" : "text-text")}>{model.name.toLowerCase()}</span>
                 <Show when={isDefault()}>
                   <Pill tone="accent" data-component="default-model">default</Pill>
@@ -226,14 +234,9 @@ function ProviderModels(props: { provider: CatalogProvider; heading: boolean }) 
         </For>
         <Show when={models().length > PREVIEW_MODELS}>
           <li>
-            <button
-              type="button"
-              class={cn("flex h-9 w-full items-center px-4 pl-11 text-left text-xs text-muted hover:text-text", hover, ring)}
-              data-action="show-all-models"
-              onClick={() => setAll(!all())}
-            >
-              {all() ? "show fewer" : `show all ${models().length}`}
-            </button>
+            <div class="px-4 py-2">
+              <DetailsButton open={all()} onToggle={() => setAll(!all())} label={all() ? "show fewer" : `show all ${models().length}`} data-action="show-all-models" />
+            </div>
           </li>
         </Show>
       </ul>
