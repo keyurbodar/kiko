@@ -3,7 +3,7 @@
  * hint is the page's one line under its title.
  */
 export const SETTINGS_SECTIONS = [
-  { id: "models", group: "agents", label: "models", hint: "the providers your agents think with, and the model a new chat starts on.", keywords: "provider key api openai anthropic google opencode connect sign in default model" },
+  { id: "models", group: "agents", label: "models", hint: "the circle picks the model a new chat starts on. a star puts a model first in the picker, and the switch hides it.", keywords: "provider key api openai anthropic google opencode connect sign in default model" },
   { id: "integrations", group: "agents", label: "integrations", hint: "the apps your agents can reach, through executor.", keywords: "executor mcp tools apps" },
   { id: "extensions", group: "agents", label: "extensions", hint: "new tools, instructions, and schedules for your agents.", keywords: "extension plugin addon tool hook script catalog install" },
   { id: "skills", group: "agents", label: "skills", hint: "what your agents know how to do.", keywords: "skill" },

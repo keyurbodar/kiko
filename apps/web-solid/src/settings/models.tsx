@@ -8,8 +8,7 @@ import { connectedProviders, connectedReady, refreshConnected } from "./connecte
 import { Moment } from "../mascot/pixel/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
-import { Button, DetailsButton, Empty, fieldClass, Group, Hint, Item, line, ListRow, Notice, Row, Toggle } from "./kit"
-import { ModelSelect, StarButton } from "./model-select"
+import { Button, DetailsButton, fieldClass, line, Notice, Pill, Radio, Toggle } from "./kit"
 import { groupForDisplay, modelPrefs, setHidden, toggleFavorite } from "./model-prefs"
 import { cn } from "../lib/cn"
 
@@ -21,30 +20,20 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
 
 
 /*
- * Settings, models: three groups. The connected providers with their keys, the default model a
- * new chat starts on (one click on any model of a connected provider makes it the default), and
- * a search over the providers not connected yet, each one click from its connect dialog.
+ * Settings, models. One card per connected provider: its header says how it is connected and
+ * holds its two actions, and its rows are its models. Each fact is shown once. The default for new
+ * chats is the radio on a model's row, one across every provider, so there is no separate
+ * default setting. A provider is added from a dialog with a search over every provider, which
+ * leads straight into its connect step. After t3code's providers settings (MIT,
+ * ProviderSettingsPanel.tsx, ProviderModelsSection.tsx, AddProviderInstanceDialog.tsx).
  */
 export function ModelsPage() {
   const [catalog] = createResource(loadCatalog)
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
+  const [adding, setAdding] = createSignal(false)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
-  const [query, setQuery] = createSignal("")
-  // A hundred providers is a wall. The first few show, a search finds any, and "show all" lists them.
-  const [allProviders, setAllProviders] = createSignal(false)
-  const PREVIEW_PROVIDERS = 12
   const connected = createMemo(() => (catalog()?.providers ?? []).filter((p) => saved(p.id)))
-  const available = createMemo(() => {
-    const q = query().trim().toLowerCase()
-    const rest = (catalog()?.providers ?? []).filter((p) => !saved(p.id))
-    return q ? rest.filter((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : rest
-  })
-  // Enter on the search connects the first hit, so the common case is type, enter, paste the key.
-  const connectFirst = (event: SubmitEvent) => {
-    event.preventDefault()
-    const first = available()[0]
-    if (first) setDialog(first)
-  }
+  const available = createMemo(() => (catalog()?.providers ?? []).filter((p) => !saved(p.id)))
 
   // The first provider is the moment kiko starts working, so the birds cheer once. Only a
   // change seen on this page counts: a list that loads with providers in it is not a moment.
@@ -62,7 +51,7 @@ export function ModelsPage() {
   )
 
   return (
-    <div class="flex flex-col gap-8" data-component="models-page">
+    <div class="flex flex-col gap-4" data-component="models-page">
       <Show when={cheer()}>
         <div class="flex items-center gap-3 rounded-xl bg-[var(--accent-wash)] px-4 py-2.5" data-component="first-provider-cheer" role="status">
           <Suspense>
@@ -74,88 +63,66 @@ export function ModelsPage() {
       <Show when={catalog.error}>
         <Notice data-component="catalog-error">the model catalog did not load. reload to try again.</Notice>
       </Show>
-      <Show when={connected().length === 0}>
-        <Hint data-component="no-provider">no provider yet. connect one below to start chatting. keys stay on the server and never reach your browser.</Hint>
+      <Show
+        when={connected().length}
+        fallback={
+          <div class={cn(card, "flex flex-col items-center gap-3 px-6 py-14 text-center")} data-component="no-provider">
+            <p class="text-[14px] font-medium text-text">{catalog.loading ? "loading providers" : "no provider yet"}</p>
+            <p class="-mt-2 max-w-sm text-[13px] text-[color-mix(in_oklab,var(--text)_50%,transparent)]">connect one to start chatting.</p>
+            <Button variant="primary" data-action="add-provider" onClick={() => setAdding(true)}>
+              add provider
+            </Button>
+          </div>
+        }
+      >
+        <div class="flex justify-end">
+          <Button data-action="add-provider" onClick={() => setAdding(true)}>
+            <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <path d="M8 3.5v9M3.5 8h9" />
+            </svg>
+            add provider
+          </Button>
+        </div>
+        <For each={connected()}>{(provider) => <ProviderCard provider={provider} info={saved(provider.id)!} onReconnect={() => setDialog(provider)} />}</For>
       </Show>
-      <Show when={connected().length > 0}>
-        <Group title="defaults">
-          <Row id="default-model" label="model" description="a new chat starts on this model. you can change it per chat.">
-            <ModelSelect providers={connected()} value={chatModel(null)} onPick={(ref) => setChatModel(null, ref)} label="default model" data-component="default-model" />
-          </Row>
-        </Group>
-      </Show>
-      <Show when={connected().length > 0}>
-      <Group title="providers" description="keys stay on the server and never reach your browser.">
-        <For each={connected()}>{(provider) => <ConnectedProvider provider={provider} info={saved(provider.id)!} />}</For>
-      </Group>
-      </Show>
-      <div data-component="provider-add">
-        <Group
-          title={connected().length ? "add a provider" : "connect a provider"}
-          action={
-            <form class="relative flex w-56 max-w-full items-center text-faint" role="search" onSubmit={connectFirst}>
-              <svg class="pointer-events-none absolute left-2.5" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-                <circle cx="7" cy="7" r="4.75" />
-                <path d="M10.5 10.5L14 14" />
-              </svg>
-              <input
-                type="search"
-                class={cn(fieldClass, "w-full pl-8")}
-                placeholder="search providers"
-                aria-label="search providers"
-                autocomplete="off"
-                value={query()}
-                onInput={(e) => setQuery(e.currentTarget.value)}
-                data-component="provider-search"
-              />
-            </form>
-          }
-        >
-          <ul class="flex flex-col [&>li+li]:border-t [&>li+li]:border-[color-mix(in_oklab,var(--text)_6%,transparent)]" data-component="provider-list">
-            <For
-              each={query().trim() || allProviders() ? available() : available().slice(0, PREVIEW_PROVIDERS)}
-              fallback={
-                <li>
-                  <Empty>{catalog.loading ? "loading providers" : "no provider matches"}</Empty>
-                </li>
-              }
-            >
-              {(provider) => (
-                <li style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 40px" }} data-provider={provider.id}>
-                  <ListRow
-                    icon={<ProviderIcon id={provider.id} width="16" height="16" />}
-                    title={provider.name.toLowerCase()}
-                    meta={`${provider.models.length} models`}
-                    actions={
-                      <Button variant="ghost" data-action="connect" onClick={() => setDialog(provider)}>
-                        connect
-                      </Button>
-                    }
-                  />
-                </li>
-              )}
-            </For>
-          </ul>
-          <Show when={!query().trim() && available().length > PREVIEW_PROVIDERS}>
-            <div class="px-2 py-1.5">
-              <DetailsButton
-                open={allProviders()}
-                onToggle={() => setAllProviders(!allProviders())}
-                label={allProviders() ? "show fewer" : `show all ${available().length}`}
-                data-action="show-all-providers"
-              />
-            </div>
-          </Show>
-        </Group>
-      </div>
+      <AddProviderDialog
+        open={adding()}
+        loading={catalog.loading}
+        providers={available()}
+        onClose={() => setAdding(false)}
+        onPick={(provider) => {
+          setAdding(false)
+          setDialog(provider)
+        }}
+      />
       <ConnectDialog provider={dialog()} onClose={() => setDialog(null)} />
     </div>
   )
 }
 
-/** One connected provider: its name, how it is connected, and a way to disconnect it. */
-function ConnectedProvider(props: { provider: CatalogProvider; info: { kind: string; last4: string } }) {
+const card = "overflow-hidden rounded-xl border border-[color-mix(in_oklab,var(--text)_10%,transparent)] bg-[color-mix(in_oklab,var(--text)_3%,transparent)]"
+const faint = "text-[color-mix(in_oklab,var(--text)_45%,transparent)]"
+
+/** Above this many models a provider's list gets a filter, as in t3code. */
+const FILTER_THRESHOLD = 8
+/** A long list shows this many until "show all". */
+const PREVIEW_MODELS = 10
+
+const starIcon = (filled: boolean) => (
+  <svg class="size-3.5" viewBox="0 0 16 16" fill={filled ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">
+    <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
+  </svg>
+)
+
+/**
+ * A connected provider: one header line (who, how it is connected, its two actions) over its
+ * models. A row's radio makes it the default for new chats, its star puts it first in the model
+ * picker, and its switch says whether the picker offers it.
+ */
+function ProviderCard(props: { provider: CatalogProvider; info: { kind: string; last4: string }; onReconnect: () => void }) {
   const [removing, setRemoving] = createSignal(false)
+  const [filter, setFilter] = createSignal("")
+  const [all, setAll] = createSignal(false)
   async function remove() {
     setRemoving(true)
     try {
@@ -165,105 +132,175 @@ function ConnectedProvider(props: { provider: CatalogProvider; info: { kind: str
       await refreshConnected()
     }
   }
-  const count = () => props.provider.models.length
-  const [open, setOpen] = createSignal(false)
-  return (
-    <Item
-      data-provider={props.provider.id}
-      data-connected="true"
-      icon={<ProviderIcon id={props.provider.id} width="16" height="16" />}
-      title={props.provider.name.toLowerCase()}
-      meta={`${props.info.kind === "api_key" ? `key ending ${props.info.last4}` : "signed in"} · ${count()} ${count() === 1 ? "model" : "models"}`}
-      actions={
-        <>
-          <DetailsButton open={open()} onToggle={() => setOpen(!open())} label="models" data-action="provider-models" />
-          <Button variant="danger" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
-            disconnect
-          </Button>
-        </>
-      }
-    >
-      {open() ? <ProviderModelList provider={props.provider} /> : undefined}
-    </Item>
-  )
-}
-
-/** Above this many models the list gets a filter, as in t3code. */
-const FILTER_THRESHOLD = 8
-
-/**
- * A provider's models, after t3code's provider models section (MIT, ProviderModelsSection.tsx):
- * which the picker shows first (a star) and which it leaves out (a switch), favorites first,
- * then the shown models, then the hidden ones.
- */
-function ProviderModelList(props: { provider: CatalogProvider }) {
-  const [filter, setFilter] = createSignal("")
+  const byKey = () => props.info.kind === "api_key"
   const refOf = (m: CatalogModel) => modelRef(props.provider.id, m.id)
-  const refs = () => props.provider.models.map(refOf)
   const hidden = () => new Set(modelPrefs().hidden)
   const matching = createMemo(() => {
     const words = filter().toLowerCase().split(/\s+/).filter(Boolean)
     return props.provider.models.filter((m) => words.every((w) => `${m.name} ${m.id}`.toLowerCase().includes(w)))
   })
-  const groups = createMemo(() => groupForDisplay(matching(), refOf, modelPrefs()))
-  const favorites = () => props.provider.models.filter((m) => modelPrefs().favorites.includes(refOf(m))).length
-  const hiddenCount = () => refs().filter((r) => hidden().has(r)).length
-  const allHidden = () => refs().length > 0 && refs().every((r) => hidden().has(r))
-  const n = () => props.provider.models.length
+  // Favorites first, then the shown models, then the hidden ones.
+  const ordered = createMemo(() => {
+    const g = groupForDisplay(matching(), refOf, modelPrefs())
+    return [...g.favorites, ...g.shown, ...g.hidden]
+  })
+  const long = () => !filter().trim() && ordered().length > PREVIEW_MODELS
+  const rows = () => (long() && !all() ? ordered().slice(0, PREVIEW_MODELS) : ordered())
 
-  const label = (text: string) => <div class="px-2 pt-3 pb-1 text-[11px] font-medium text-[color-mix(in_oklab,var(--text)_45%,transparent)] first:pt-1">{text}</div>
   const row = (m: CatalogModel) => {
     const ref = refOf(m)
+    const isDefault = () => chatModel(null) === ref
     const off = () => hidden().has(ref)
+    const favorite = () => modelPrefs().favorites.includes(ref)
     return (
-      <div class="grid h-8 grid-cols-[1.5rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md px-2 hover:bg-[color-mix(in_oklab,var(--text)_4%,transparent)]" classList={{ "opacity-50": off() }} data-model={ref}>
-        <StarButton on={modelPrefs().favorites.includes(ref)} name={m.name.toLowerCase()} onToggle={() => toggleFavorite(ref)} />
-        <span class="flex min-w-0 items-baseline gap-2">
-          <span class="truncate text-[12px] text-text">{m.name.toLowerCase()}</span>
+      <div
+        class="grid h-9 grid-cols-[1rem_minmax(0,1fr)_auto_1.5rem_auto] items-center gap-3 px-4 hover:bg-[color-mix(in_oklab,var(--text)_3%,transparent)]"
+        data-model={ref}
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={isDefault()}
+          aria-label={`start new chats on ${m.name.toLowerCase()}`}
+          title="start new chats on this model"
+          class="grid cursor-pointer place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          onClick={() => setChatModel(null, ref)}
+        >
+          <Radio on={isDefault()} />
+        </button>
+        <span class="flex min-w-0 items-baseline gap-2" classList={{ "opacity-50": off() && !isDefault() }}>
+          <span class="truncate text-[13px] text-text">{m.name.toLowerCase()}</span>
+          <Show when={isDefault()}>
+            <Pill tone="accent" data-component="default-model">default</Pill>
+          </Show>
           <Show when={m.name.toLowerCase() !== m.id.toLowerCase()}>
-            <code class="truncate font-mono text-[11px] text-[color-mix(in_oklab,var(--text)_40%,transparent)]">{m.id}</code>
+            <code class={cn("hidden truncate font-mono text-[11px] sm:inline", faint)}>{m.id}</code>
           </Show>
         </span>
-        <span class="text-[11px] tabular-nums text-[color-mix(in_oklab,var(--text)_45%,transparent)]">
+        <span class={cn("text-[12px] tabular-nums", faint)}>
           {formatContext(m.contextWindow)}
           {m.reasoning ? " · reasoning" : ""}
         </span>
+        <button
+          type="button"
+          class={cn(
+            "grid size-6 cursor-pointer place-items-center rounded-md outline-none hover:bg-[color-mix(in_oklab,var(--text)_8%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+            favorite() ? "text-[#f5b83d]" : "text-[color-mix(in_oklab,var(--text)_35%,transparent)] hover:text-text",
+          )}
+          aria-pressed={favorite()}
+          aria-label={favorite() ? `remove ${m.name.toLowerCase()} from favorites` : `add ${m.name.toLowerCase()} to favorites`}
+          title={favorite() ? "remove from favorites" : "favorite: first in the model picker"}
+          onClick={() => toggleFavorite(ref)}
+        >
+          {starIcon(favorite())}
+        </button>
         <Toggle label={`show ${m.name.toLowerCase()} in the model picker`} on={!off()} onChange={(on) => setHidden([ref], !on)} />
       </div>
     )
   }
+
   return (
-    <div class="flex flex-col gap-2 pl-10" data-provider-models={props.provider.id}>
-      <div class="flex flex-wrap items-center gap-2">
-        <Show when={n() > FILTER_THRESHOLD}>
-          <input class={cn(fieldClass, "w-56 max-w-full")} placeholder="filter models" aria-label="filter models" spellcheck={false} value={filter()} onInput={(e) => setFilter(e.currentTarget.value)} />
-        </Show>
-        <Button variant="ghost" data-action="toggle-all-models" onClick={() => setHidden(refs(), !allHidden())}>
-          {allHidden() ? "show all" : "hide all"}
-        </Button>
-        <span class="ml-auto text-[12px] text-[color-mix(in_oklab,var(--text)_45%,transparent)]">
-          {n()} {n() === 1 ? "model" : "models"}
-          {favorites() ? ` · ${favorites()} ${favorites() === 1 ? "favorite" : "favorites"}` : ""}
-          {hiddenCount() ? ` · ${hiddenCount()} hidden` : ""}
+    <section class={card} data-provider={props.provider.id} data-connected="true" data-provider-models={props.provider.id}>
+      <header class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color-mix(in_oklab,var(--text)_6%,transparent)] px-4 py-3">
+        <ProviderIcon id={props.provider.id} width="18" height="18" />
+        <h2 class="min-w-0 truncate text-[14px] font-semibold text-text">{props.provider.name.toLowerCase()}</h2>
+        <span class={cn("text-[12px]", faint)}>{byKey() ? `key ••${props.info.last4}` : "signed in"}</span>
+        <span class="ml-auto flex items-center gap-1.5">
+          <Button variant="ghost" data-action="reconnect" onClick={() => props.onReconnect()}>
+            {byKey() ? "replace key" : "sign in again"}
+          </Button>
+          <Button variant="danger" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
+            disconnect
+          </Button>
         </span>
+      </header>
+      <Show when={props.provider.models.length > FILTER_THRESHOLD}>
+        <div class="px-4 pt-3 pb-1">
+          <input class={cn(fieldClass, "w-56 max-w-full")} placeholder="filter models" aria-label={`filter ${props.provider.name.toLowerCase()} models`} spellcheck={false} value={filter()} onInput={(e) => setFilter(e.currentTarget.value)} />
+        </div>
+      </Show>
+      <div class="py-1.5" role="radiogroup" aria-label={`${props.provider.name.toLowerCase()} models`}>
+        <For each={rows()} fallback={<p class={cn("px-4 py-2 text-[12px]", faint)}>no models match</p>}>{row}</For>
       </div>
-      <div class="-mx-2 max-h-72 overflow-y-auto">
-        <Show when={matching().length} fallback={<p class="px-2 py-2 text-[12px] text-[color-mix(in_oklab,var(--text)_50%,transparent)]">no models match</p>}>
-          <Show when={groups().favorites.length}>
-            {label("favorites")}
-            <For each={groups().favorites}>{row}</For>
-          </Show>
-          <Show when={groups().shown.length}>
-            <Show when={groups().favorites.length}>{label("all")}</Show>
-            <For each={groups().shown}>{row}</For>
-          </Show>
-          <Show when={groups().hidden.length}>
-            {label("hidden from picker")}
-            <For each={groups().hidden}>{row}</For>
-          </Show>
-        </Show>
-      </div>
-    </div>
+      <Show when={long()}>
+        <div class="border-t border-[color-mix(in_oklab,var(--text)_6%,transparent)] px-2 py-1.5">
+          <DetailsButton open={all()} onToggle={() => setAll(!all())} label={all() ? "show fewer" : `show all ${ordered().length}`} data-action="show-all-models" />
+        </div>
+      </Show>
+    </section>
+  )
+}
+
+/**
+ * Adding a provider, after t3code's add-provider dialog: a search over every provider not yet
+ * connected and a grid of them. Choosing one goes straight to its connect step.
+ */
+function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
+  const [query, setQuery] = createSignal("")
+  const shown = createMemo(() => {
+    const q = query().trim().toLowerCase()
+    return q ? props.providers.filter((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : props.providers
+  })
+  return (
+    <ModalV2
+      open={props.open}
+      onOpenChange={(open) => {
+        if (!open) {
+          setQuery("")
+          props.onClose()
+        }
+      }}
+    >
+      <ModalV2.Portal>
+        <ModalV2.Overlay />
+        <ModalV2.Content class="flex h-[min(560px,86dvh)] w-[min(600px,94vw)] flex-col overflow-hidden rounded-2xl bg-menu shadow-xl" data-component="provider-add">
+          <div class="flex flex-col gap-3 border-b border-[color-mix(in_oklab,var(--text)_8%,transparent)] p-4">
+            <div>
+              <ModalV2.Title class="text-[15px] font-semibold text-text">add a provider</ModalV2.Title>
+              <p class="mt-1 text-[12px] text-[color-mix(in_oklab,var(--text)_50%,transparent)]">pick the service whose models your agents should use. its key stays on the server.</p>
+            </div>
+            <form
+              role="search"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const first = shown()[0]
+                if (first) props.onPick(first)
+              }}
+            >
+              <input
+                type="search"
+                class={cn(fieldClass, "h-8 w-full")}
+                placeholder="search providers"
+                aria-label="search providers"
+                autocomplete="off"
+                value={query()}
+                ref={(el) => requestAnimationFrame(() => el.focus())}
+                onInput={(e) => setQuery(e.currentTarget.value)}
+                data-component="provider-search"
+              />
+            </form>
+          </div>
+          <ul class="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-2 overflow-y-auto p-4 sm:grid-cols-2" data-component="provider-list">
+            <For each={shown()} fallback={<li class="text-[13px] text-[color-mix(in_oklab,var(--text)_50%,transparent)] sm:col-span-2">{props.loading ? "loading providers" : "no provider matches"}</li>}>
+              {(provider) => (
+                <li data-provider={provider.id}>
+                  <button
+                    type="button"
+                    class="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[color-mix(in_oklab,var(--text)_3%,transparent)] px-3 py-3 text-left outline-none ring-1 ring-[color-mix(in_oklab,var(--text)_6%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    data-action="connect"
+                    onClick={() => props.onPick(provider)}
+                  >
+                    <ProviderIcon id={provider.id} width="18" height="18" />
+                    <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-text">{provider.name.toLowerCase()}</span>
+                    <span class="shrink-0 text-[12px] tabular-nums text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{provider.models.length}</span>
+                  </button>
+                </li>
+              )}
+            </For>
+          </ul>
+        </ModalV2.Content>
+      </ModalV2.Portal>
+    </ModalV2>
   )
 }
 
