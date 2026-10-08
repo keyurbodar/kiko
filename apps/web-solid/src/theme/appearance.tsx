@@ -12,8 +12,7 @@ import { cn } from "../lib/cn"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { background, BACKGROUND_EFFECTS, BLUR_RADIUS, chooseBackground, DEFAULT_GLASS, EFFECT_DESCRIPTIONS, EFFECT_LABELS, glass, picture, removeBackground, setBackground, setGlass, SIDEBAR_OPACITY, VISIBILITY } from "./glass"
 import { chooseTheme, customThemes, look, matchWallpaper, removeThemes, setHalf, updateLook } from "./live"
-import { ThemeCard, themeGridClass } from "./theme-cards"
-import { ThemeSearch } from "./theme-search"
+import { ThemeSelect, type ThemeOption } from "./theme-select"
 import { DEFAULT_LOOK, type Mode } from "./look"
 import { ACCENT_PRESETS, colorsForMode, monocodeColors, WALLPAPER_ID, wallpaperColors, serializeThemeFile, themeModes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
 
@@ -39,9 +38,6 @@ const noteOf = (theme: ThemeDefinition) => {
   return modes.length === 1 ? `${modes[0]} only` : undefined
 }
 
-/** The modes a theme id is set for. */
-const modesOf = (id: string | null): ThemeAppearance[] => (["light", "dark"] as const).filter((m) => look()[m] === id)
-
 const onThemesAdded = (themes: ThemeDefinition[], updated: boolean) => {
   const verb = updated ? "updated" : "added"
   const first = themes[0]
@@ -53,91 +49,36 @@ const onThemesAdded = (themes: ThemeDefinition[], updated: boolean) => {
   }
 }
 
-/** The themes, as t3code's card grid: kiko's own, the picture's, the built-ins, then the imported ones. */
-function ThemeGroup(): JSX.Element {
-  const [importOpen, setImportOpen] = createSignal(false)
-  const remove = (theme: ThemeDefinition) => {
-    if (!removeThemes([theme.id])) return void showToastV2({ title: "couldn't remove the theme. try again", variant: "error" })
-    showToastV2({ title: `${theme.label.toLowerCase()} removed`, description: "import its file to bring it back" })
-  }
-  const palette = () => look().wallpaper ?? background()?.palette ?? null
-  const useWallpaper = (mode?: ThemeAppearance) => {
-    if (!mode) return void (background() ? matchWallpaper() : look().wallpaper && updateLook({ light: WALLPAPER_ID, dark: WALLPAPER_ID }))
-    if (palette()) updateLook({ [mode]: WALLPAPER_ID, wallpaper: palette() })
-  }
-  // A theme that draws one mode takes only that half; one that draws both takes both.
-  const use = (theme: ThemeDefinition) => {
-    const modes = themeModes(theme)
-    if (modes.length === 1) setHalf(modes[0]!, theme.id)
-    else chooseTheme(theme.id)
-  }
-  return (
-    <Group
-      title="themes"
-      description="the name sets a theme for every mode it draws. a ball sets it for that mode only."
-      action={
-        <button type="button" class={buttonClass()} data-action="add-theme" onClick={() => setImportOpen(true)}>
-          <HugeIcon icon={PlusIcon} size={13} />
-          import file
-        </button>
-      }
-      id="themes"
-      bare
-    >
-      <div class={themeGridClass} data-component="theme-library">
-        <ThemeCard
-          id="default"
-          label="kiko"
-          colors={{ light: monocodeColors(look().tint, "light"), dark: monocodeColors(look().tint, "dark") }}
-          activeModes={modesOf(null)}
-          onUse={() => chooseTheme(null)}
-          onUseMode={(mode) => setHalf(mode, null)}
-        />
-        <ThemeCard
-          id={WALLPAPER_ID}
-          label="match wallpaper"
-          note={palette() ? undefined : "add a chat background first"}
-          colors={palette() ? { light: wallpaperColors(palette()!, "light"), dark: wallpaperColors(palette()!, "dark") } : {}}
-          activeModes={modesOf(WALLPAPER_ID)}
-          disabled={!palette()}
-          onUse={() => useWallpaper()}
-          onUseMode={(mode) => useWallpaper(mode)}
-        />
-        <For each={BUILT_IN_THEMES}>
-          {(theme) => <ThemeCard id={theme.id} label={theme.label.toLowerCase()} colors={colorsOf(theme)} activeModes={modesOf(theme.id)} onUse={() => use(theme)} onUseMode={(mode) => setHalf(mode, theme.id)} />}
-        </For>
-        <For each={customThemes()}>
-          {(theme) => (
-            <ThemeCard
-              id={theme.id}
-              label={theme.label.toLowerCase()}
-              note={noteOf(theme)}
-              colors={colorsOf(theme)}
-              activeModes={modesOf(theme.id)}
-              onUse={() => use(theme)}
-              onUseMode={(mode) => setHalf(mode, theme.id)}
-              onExport={() => download(`${theme.id}.json`, serializeThemeFile(theme))}
-              onRemove={() => remove(theme)}
-            />
-          )}
-        </For>
-      </div>
-      <Show when={importOpen()}>
-        <Suspense>
-          <ThemeImportDialog onClose={() => setImportOpen(false)} onImported={onThemesAdded} />
-        </Suspense>
-      </Show>
-    </Group>
-  )
+const removeTheme = (theme: ThemeDefinition) => {
+  if (!removeThemes([theme.id])) return void showToastV2({ title: "couldn't remove the theme. try again", variant: "error" })
+  showToastV2({ title: `${theme.label.toLowerCase()} removed`, description: "import its file to bring it back" })
 }
 
-/** Open VSX, t3code's community theme search: VS Code color themes, installed in a click. */
-function OpenVsxGroup(): JSX.Element {
-  return (
-    <Group title="community themes" description="search open vsx for vs code color themes. an installed one joins the grid above." id="open-vsx" bare>
-      <ThemeSearch onInstalled={onThemesAdded} />
-    </Group>
-  )
+/** The themes one mode can wear: kiko's own, the picture's when there is one, then every theme that draws it. */
+function optionsFor(half: ThemeAppearance): ThemeOption[] {
+  const palette = look().wallpaper ?? background()?.palette ?? null
+  const draws = (theme: ThemeDefinition) => colorsForMode(theme, half)
+  return [
+    { id: null, label: "kiko", colors: monocodeColors(look().tint, half) },
+    ...(palette ? [{ id: WALLPAPER_ID, label: "match wallpaper", colors: wallpaperColors(palette, half) }] : []),
+    ...BUILT_IN_THEMES.filter(draws).map((t) => ({ id: t.id, label: t.label.toLowerCase(), colors: draws(t)! })),
+    ...customThemes()
+      .filter(draws)
+      .map((t) => ({
+        id: t.id,
+        label: t.label.toLowerCase(),
+        note: t.collection && t.collection.label !== t.label ? t.collection.label.toLowerCase() : undefined,
+        colors: draws(t)!,
+        onExport: () => download(`${t.id}.json`, serializeThemeFile(t)),
+        onRemove: () => removeTheme(t),
+      })),
+  ]
+}
+
+/** Picks a half's theme. The picture's palette goes with "match wallpaper". */
+function pickHalf(half: ThemeAppearance, id: string | null) {
+  if (id === WALLPAPER_ID) return updateLook({ [half]: WALLPAPER_ID, wallpaper: look().wallpaper ?? background()?.palette ?? null })
+  setHalf(half, id)
 }
 
 function AccentPicker(): JSX.Element {
@@ -166,12 +107,13 @@ function AccentPicker(): JSX.Element {
 }
 
 function ColorGroups(): JSX.Element {
+  const [importOpen, setImportOpen] = createSignal(false)
   const tint = () => look().tint
   const lightNow = () => shown() === "light"
   const onStock = () => look()[shown()] === null
   return (
     <>
-      <Group title="interface" description="dark and light share the same tint, so the color settings below apply to both.">
+      <Group title="theme" description="dark and light share the same tint, so the color settings below apply to both.">
         <Row label="mode" description="system follows the os appearance.">
           <Segmented<Mode>
             label="theme"
@@ -184,13 +126,30 @@ function ColorGroups(): JSX.Element {
             onChange={(mode) => updateLook({ mode })}
           />
         </Row>
+        <Row label="light theme" description="what kiko wears in light mode.">
+          <ThemeSelect half="light" value={look().light} options={optionsFor("light")} onPick={(id) => pickHalf("light", id)} />
+        </Row>
+        <Row label="dark theme" description="what kiko wears in dark mode.">
+          <ThemeSelect half="dark" value={look().dark} options={optionsFor("dark")} onPick={(id) => pickHalf("dark", id)} />
+        </Row>
         <Row label="accent color" description="used for the send button and your message bubbles.">
           <AccentPicker />
         </Row>
+        <Row label="more themes" description="vs code themes from open vsx, or a theme file.">
+          <button type="button" class={buttonClass()} data-action="add-theme" onClick={() => setImportOpen(true)}>
+            <HugeIcon icon={PlusIcon} size={13} />
+            add theme
+          </button>
+        </Row>
       </Group>
+      <Show when={importOpen()}>
+        <Suspense>
+          <ThemeImportDialog onClose={() => setImportOpen(false)} onImported={onThemesAdded} />
+        </Suspense>
+      </Show>
       <Group
         title="color"
-        description={onStock() ? "hue and saturation tint every surface. lightness only moves the dark theme." : "these tint kiko's own theme. pick kiko in themes to see them."}
+        description={onStock() ? "hue and saturation tint every surface. lightness only moves the dark theme." : "these tint kiko's own theme. pick kiko as the theme to see them."}
       >
         <Row label="hue" description="base hue for tinted surfaces.">
           <Slider label="hue" value={tint().hue} display={`${tint().hue}°`} min={TINT_RANGE.hue.min} max={TINT_RANGE.hue.max} onChange={(hue) => updateLook({ tint: { ...tint(), hue } })} />
@@ -383,8 +342,6 @@ function restoreDefaults(): void {
 export default function Appearance(): JSX.Element {
   return (
     <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={shown()}>
-      <ThemeGroup />
-      <OpenVsxGroup />
       <ColorGroups />
       <TranslucencyGroup />
       <BackgroundGroup />
