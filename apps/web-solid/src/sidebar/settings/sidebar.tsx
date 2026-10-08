@@ -3,13 +3,13 @@ import { Moment } from "../../mascot/pixel/lazy"
 import { createSignal, For, Show, Suspense } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
-import { searchSections } from "../../settings/sections"
+import { SETTINGS_GROUPS, searchSections, type SettingsSection } from "../../settings/sections"
 import { useApp } from "../../lib/store"
 
 /*
- * The settings sidebar: back to chats, a search, and one row per section. You and the account
- * page are the card at the sidebar's foot. The URL names the section, so the active row is the
- * link the router marks.
+ * The settings sidebar: back to chats, a search, and the sections under their group's label
+ * (monocode's settings rail). While searching, the hits are one flat list. The URL names the
+ * section, so the active row is the link the router marks.
  */
 
 /** By section id. A section without an entry gets the gear. */
@@ -25,6 +25,19 @@ const ICON: Record<string, Glyph> = {
 export default function SettingsSidebar() {
   const [query, setQuery] = createSignal("")
   const rows = () => searchSections(query())
+  const groups = () => (query().trim() ? [{ name: null, rows: rows() }] : SETTINGS_GROUPS.map((name) => ({ name, rows: rows().filter((s) => s.group === name) })))
+  const row = (s: SettingsSection) => (
+    <A href={`/settings/${s.id}`} class="settings-panel-row" activeClass="settings-panel-row-active" data-section={s.id}>
+      <HugeIcon icon={ICON[s.id] ?? SettingsIcon} size={16} />
+      <span class="settings-row-label">{s.label}</span>
+      {/* Installs that wait for the human: a count, so an agent's proposal is never missed. */}
+      <Show when={s.id === "extensions" && (useApp.user()?.proposals().length ?? 0) > 0}>
+        <span class="ml-auto min-w-5 rounded-full bg-[var(--count-bg)] px-1.5 text-center text-[11px] leading-5 font-medium text-[var(--count-text)]" data-component="proposals-count">
+          {useApp.user()?.proposals().length}
+        </span>
+      </Show>
+    </A>
+  )
   return (
     <nav class="settings-panel" data-component="settings-panel" aria-label="settings sections">
       <A href="/chat" class="settings-panel-row" data-component="settings-back">
@@ -47,8 +60,8 @@ export default function SettingsSidebar() {
           }}
         />
       </label>
-      <For
-        each={rows()}
+      <Show
+        when={rows().length}
         fallback={
           <div class="flex flex-col items-center gap-2 py-6">
             <Suspense>
@@ -58,19 +71,17 @@ export default function SettingsSidebar() {
           </div>
         }
       >
-        {(s) => (
-          <A href={`/settings/${s.id}`} class="settings-panel-row" activeClass="settings-panel-row-active" data-section={s.id}>
-            <HugeIcon icon={ICON[s.id] ?? SettingsIcon} size={16} />
-            <span class="settings-row-label">{s.label}</span>
-            {/* Installs that wait for the human: a count, so an agent's proposal is never missed. */}
-            <Show when={s.id === "extensions" && (useApp.user()?.proposals().length ?? 0) > 0}>
-              <span class="ml-auto min-w-5 rounded-full bg-[var(--count-bg)] px-1.5 text-center text-[11px] leading-5 font-medium text-[var(--count-text)]" data-component="proposals-count">
-                {useApp.user()?.proposals().length}
-              </span>
-            </Show>
-          </A>
-        )}
-      </For>
+        <For each={groups()}>
+          {(group) => (
+            <div class="settings-group" data-group={group.name ?? "results"}>
+              <Show when={group.name}>
+                <div class="settings-group-label">{group.name}</div>
+              </Show>
+              <For each={group.rows}>{row}</For>
+            </div>
+          )}
+        </For>
+      </Show>
     </nav>
   )
 }

@@ -7,6 +7,7 @@ import { DeleteAccount } from "../app/delete-account"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { session, signOut } from "../app/session"
 import type { JSX } from "solid-js"
+import { Button, Empty, Group, Item, Page } from "./kit"
 
 /*
  * The settings route body: the section the URL names. The section list lives in the sidebar
@@ -25,23 +26,22 @@ function Account() {
     return s.status === "signed-in" ? s.user : null
   }
   return (
-    <div class="flex flex-col gap-4" data-component="account">
-      <div class="flex items-center gap-3 rounded-2xl bg-[var(--surface-raised)] p-4">
-        <IdentityAvatar seed={user()?.id ?? "you"} size={48} />
-        <span class="min-w-0 flex-1">
-          <span class="block truncate text-[15px] font-semibold text-text">{(user()?.name ?? "you").toLowerCase()}</span>
-          <span class="block truncate text-xs text-weak">{user()?.email ?? ""}</span>
-        </span>
-        <button
-          type="button"
-          class="h-10 shrink-0 rounded-[10px] bg-[var(--tab-bg-active)] px-4 text-sm text-[var(--tab-text-active)] hover:bg-[var(--tab-bg-hover)] md:h-8"
-          data-action="sign-out"
-          onClick={() => void signOut()}
-        >
-          sign out
-        </button>
-      </div>
-      <DeleteAccount />
+    <div class="flex flex-col gap-8" data-component="account">
+      <Group title="profile">
+        <Item
+          icon={<IdentityAvatar seed={user()?.id ?? "you"} size={28} />}
+          title={(user()?.name ?? "you").toLowerCase()}
+          meta={user()?.email ?? ""}
+          actions={
+            <Button data-action="sign-out" onClick={() => void signOut()}>
+              sign out
+            </Button>
+          }
+        />
+      </Group>
+      <Group title="leave kiko">
+        <DeleteAccount />
+      </Group>
     </div>
   )
 }
@@ -50,7 +50,11 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   models: ModelsPage,
   account: Account,
   integrations: Integrations,
-  skills: () => <p class="text-xs text-weak" data-component="skills-empty">no skills yet</p>,
+  skills: () => (
+    <Group title="skills">
+      <Empty data-component="skills-empty">no skills yet. agents will list what they learn here.</Empty>
+    </Group>
+  ),
   appearance: () => (
     <Suspense>
       <Appearance />
@@ -84,26 +88,24 @@ export function SettingsShell(props: { sectionId: string }) {
       {/* On a phone the sidebar is a drawer, so the sections are a row of tabs here. From 768 px the sidebar lists them. */}
       <nav
         ref={nav}
-        class="flex shrink-0 gap-1 overflow-x-auto [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+        class="ml-9 flex shrink-0 gap-1 overflow-x-auto [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
         aria-label="settings sections"
       >
         {NAV_SECTIONS.map((s) => (
           <A
             href={`/settings/${s.id}`}
-            class="flex h-10 shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-sm text-muted outline-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-9"
-            activeClass="bg-[var(--tab-bg-active)] text-[var(--tab-text-active)]"
+            class="flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            activeClass="bg-[var(--selected-bg)] text-text"
           >
             {s.label}
           </A>
         ))}
       </nav>
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
-        <div class="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-1 pt-6 pb-10 md:pt-10">
-          <header class="flex flex-col gap-0.5 px-1">
-            <h1 class="text-[15px] font-semibold text-text">{meta()?.label ?? "settings"}</h1>
-            <p class="text-sm text-weak">{meta()?.hint}</p>
-          </header>
-          {section(props.sectionId)}
+      <div class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
+        <div class="mx-auto w-full max-w-5xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
+          <Page title={meta()?.label ?? "settings"} description={meta()?.hint}>
+            {section(props.sectionId)}
+          </Page>
         </div>
       </div>
     </div>

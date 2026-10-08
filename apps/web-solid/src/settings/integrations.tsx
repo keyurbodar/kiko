@@ -1,6 +1,8 @@
 import type { ExecutorResult, ExecutorStatus } from "@kiko/protocol"
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
+import { cn } from "../lib/cn"
+import { Button, Empty, Group, Item, Notice, buttonClass, fieldClass } from "./kit"
 import { createExecutorClient, createMockExecutor, type ExecutorClient } from "./integrations-client"
 
 /*
@@ -99,140 +101,137 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 
 	const status = () => view().status
 
+	const tools = () => view().tools
+
 	return (
-		<div class="flex min-h-0 flex-1 flex-col gap-3" data-component="integrations">
+		<div class="flex flex-col gap-8" data-component="integrations">
 			<Show when={error()}>
-				<p class="text-xs text-[var(--danger)]" role="alert" data-component="integrations-error">{error()}</p>
+				<Notice data-component="integrations-error">{error()}</Notice>
 			</Show>
-			<Show when={status()} fallback={<p class="p-3 text-sm text-weak">loading</p>}>
-				<Show
-					when={status()?.connected}
-					fallback={
-						<section class="flex flex-col overflow-hidden rounded-2xl bg-[var(--surface-raised)]" data-state="empty">
-							<div class="flex items-center gap-3 p-4">
-								<span class="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--input-bg)] text-[var(--accent)]">
-									<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-										<path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" />
-									</svg>
-								</span>
-								<span class="min-w-0 flex-1">
-									<span class="block text-[15px] text-text">executor</span>
-									<span class="block text-xs text-weak" data-component="integrations-about">
-										one place for your agents to reach the apps you use.{" "}
-										<a class="underline" href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
-											learn more
-										</a>
-									</span>
-								</span>
-								<button
-									type="button"
-									class="h-9 shrink-0 rounded-xl bg-[var(--accent-fill)] px-4 text-sm text-[var(--on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
-									data-action="connect"
-									disabled={busy()}
-									onClick={() => void signIn()}
-								>
-									{status()?.pending ? "continue" : "connect"}
-								</button>
-							</div>
-							{/* Sign-in is the way to connect. A key is the fallback, folded away until asked for. */}
-							<Show
-								when={keyOpen()}
-								fallback={
-									<button
-										type="button"
-										class="px-4 pb-3 text-left text-xs text-weak hover:text-text"
-										data-action="use-key"
-										onClick={() => setKeyOpen(true)}
-									>
-										use an api key instead
-									</button>
+			<Group
+				title="executor"
+				description={
+					<span data-component="integrations-about">
+						one place for your agents to reach the apps you use.{" "}
+						<a class="text-text underline decoration-[color-mix(in_oklab,var(--text)_30%,transparent)] underline-offset-2 hover:decoration-current" href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
+							learn more
+						</a>
+					</span>
+				}
+			>
+				<Show when={status()} fallback={<Empty>loading</Empty>}>
+					<Show
+						when={status()?.connected}
+						fallback={
+							<Item
+								data-state="empty"
+								icon={<GridIcon />}
+								title="executor"
+								meta="not connected"
+								actions={
+									<Button variant="primary" data-action="connect" disabled={busy()} onClick={() => void signIn()}>
+										{status()?.pending ? "continue" : "connect"}
+									</Button>
 								}
 							>
-							<form class="flex flex-col gap-2 px-4 pb-3" onSubmit={submitKey} data-method="api_key">
-								<label class="sr-only" for="integrations-key">executor api key</label>
-								<div class="flex gap-2">
-									<input
-										id="integrations-key"
-										ref={key}
-										type="password"
-										name="kiko-integration-secret"
-										autocomplete="off"
-										autocapitalize="off"
-										spellcheck={false}
-										placeholder="exp_..."
-										autofocus
-										class="h-9 min-w-0 flex-1 rounded-xl bg-[var(--input-bg)] px-3 text-sm text-text outline-none placeholder:text-weak focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-										data-component="integrations-key"
-									/>
-									<button
-										type="submit"
-										disabled={busy()}
-										class="h-9 rounded-xl bg-[var(--btn-bg)] px-3 text-sm text-text hover:bg-[var(--btn-bg-hover)] disabled:opacity-50"
-										data-action="save-key"
-									>
-										save
-									</button>
-								</div>
-							</form>
-							</Show>
-						</section>
-					}
-				>
-					<section class="flex min-h-0 flex-1 flex-col gap-3" data-state="connected">
-						<div class="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-raised)] p-4">
-							<span class="min-w-0">
-								<span class="block truncate text-[15px] text-text" data-field="organization">
-									{status()?.organization?.toLowerCase() ?? "connected"}
-								</span>
-								<span class="block truncate text-xs text-weak" data-field="tool-count">
-									{view().tools ? `${view().tools!.length} ${view().tools!.length === 1 ? "tool" : "tools"}` : "loading tools"}
+								{/* Sign-in is the way to connect. A key is the fallback, folded away until asked for. */}
+								<Show
+									when={keyOpen()}
+									fallback={
+										<Button variant="ghost" class="-ml-2.5" data-action="use-key" onClick={() => setKeyOpen(true)}>
+											use an api key instead
+										</Button>
+									}
+								>
+									<form class="flex gap-2" onSubmit={submitKey} data-method="api_key">
+										<label class="sr-only" for="integrations-key">executor api key</label>
+										<input
+											id="integrations-key"
+											ref={key}
+											type="password"
+											name="kiko-integration-secret"
+											autocomplete="off"
+											autocapitalize="off"
+											spellcheck={false}
+											placeholder="exp_..."
+											autofocus
+											class={cn(fieldClass, "flex-1")}
+											data-component="integrations-key"
+										/>
+										<Button type="submit" variant="secondary" class="h-[30px]" disabled={busy()} data-action="save-key">
+											save
+										</Button>
+									</form>
+								</Show>
+							</Item>
+						}
+					>
+						<Item
+							data-state="connected"
+							icon={<GridIcon />}
+							title={<span class="truncate" data-field="organization">{status()?.organization?.toLowerCase() ?? "connected"}</span>}
+							meta={
+								<span data-field="tool-count">
+									{tools() ? `${tools()!.length} ${tools()!.length === 1 ? "tool" : "tools"}` : "loading tools"}
 									{" · "}
 									{status()?.kind === "api_key" ? "api key" : "signed in"}
 								</span>
-							</span>
-							<button
-								type="button"
-								class="h-9 rounded-[10px] px-3 text-xs text-muted hover:bg-[var(--tab-bg-active)] disabled:opacity-50 md:h-7 md:px-2"
-								data-action="disconnect"
-								disabled={busy()}
-								onClick={() => setConfirming(true)}
-							>
-								disconnect
-							</button>
-						</div>
-						<ul class="flex min-h-0 flex-col overflow-y-auto rounded-2xl bg-[var(--surface-raised)] p-1" data-component="tool-list">
-							<For each={view().tools ?? []}>
-								{(name) => (
-									<li
-										class="truncate rounded-[10px] px-3 py-1.5 text-sm text-muted"
-										style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 32px" }}
-										data-tool={name}
-									>
-										{name}
-									</li>
-								)}
-							</For>
-						</ul>
-					</section>
+							}
+							actions={
+								<Button variant="danger" data-action="disconnect" disabled={busy()} onClick={() => setConfirming(true)}>
+									disconnect
+								</Button>
+							}
+						/>
+					</Show>
 				</Show>
+			</Group>
+			<Show when={status()?.connected}>
+				<Group title="tools" description="what your agents can call through executor.">
+					<Show when={tools()} fallback={<Empty>loading tools</Empty>}>
+						<Show when={tools()!.length > 0} fallback={<Empty>no tools yet</Empty>}>
+							<ul class="flex flex-col py-1" data-component="tool-list">
+								<For each={tools() ?? []}>
+									{(name) => (
+										<li
+											class="truncate px-4 py-1.5 font-mono text-[13px] text-text"
+											style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 30px" }}
+											data-tool={name}
+										>
+											{name}
+										</li>
+									)}
+								</For>
+							</ul>
+						</Show>
+					</Show>
+				</Group>
 			</Show>
 			<ModalV2 open={confirming()} onOpenChange={setConfirming}>
 				<ModalV2.Portal>
 					<ModalV2.Overlay />
 					<ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-3 rounded-[16px] bg-menu p-4 shadow-xl">
-						<ModalV2.Title class="text-sm font-medium text-muted">disconnect?</ModalV2.Title>
-						<p class="text-xs text-weak">your agents lose these tools until you connect again.</p>
+						<ModalV2.Title class="text-[13px] font-semibold text-text">disconnect?</ModalV2.Title>
+						<p class="text-xs leading-relaxed text-muted">your agents lose these tools until you connect again.</p>
 						<div class="flex justify-end gap-2">
-							<button type="button" class="h-10 rounded-[10px] px-4 text-sm text-muted hover:bg-[var(--tab-bg-hover)] md:h-8" data-action="cancel-disconnect" onClick={() => setConfirming(false)}>
+							<Button variant="ghost" data-action="cancel-disconnect" onClick={() => setConfirming(false)}>
 								cancel
-							</button>
-							<button type="button" class="h-10 rounded-[10px] bg-[var(--danger-wash)] px-4 text-sm text-[var(--danger)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)] md:h-8" data-action="confirm-disconnect" onClick={disconnect}>
+							</Button>
+							<Button variant="danger" data-action="confirm-disconnect" onClick={disconnect}>
 								disconnect
-							</button>
+							</Button>
 						</div>
 					</ModalV2.Content>
 				</ModalV2.Portal>
 			</ModalV2>
 		</div>
+	)
+}
+
+function GridIcon() {
+	return (
+		<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			<path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" />
+		</svg>
 	)
 }

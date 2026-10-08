@@ -8,7 +8,7 @@ import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { For, Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
 import { appearanceOf } from "./apply"
 import { BUILT_IN_THEMES } from "./builtins"
-import { button, Group, iconButton, Row, Segmented, Slider, Toggle } from "./controls"
+import { buttonClass, Group, iconButtonClass, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import {
   background,
   BACKGROUND_EFFECTS,
@@ -98,14 +98,14 @@ function ThemeRow(props: {
         </Show>
       </button>
       <Show when={props.onExport}>
-        <button type="button" class={`${iconButton} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`} title="export theme file" aria-label={`export ${props.label}`} onClick={() => props.onExport!()}>
+        <button type="button" class={`${iconButtonClass} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`} title="export theme file" aria-label={`export ${props.label}`} onClick={() => props.onExport!()}>
           <HugeIcon icon={ShareIcon} size={14} />
         </button>
       </Show>
       <Show when={props.onRemove}>
         <button
           type="button"
-          class={`${iconButton} opacity-0 hover:text-[var(--danger)] group-hover:opacity-100 focus-visible:opacity-100`}
+          class={`${iconButtonClass} opacity-0 hover:text-[var(--danger)] group-hover:opacity-100 focus-visible:opacity-100`}
           title="remove theme"
           aria-label={`remove ${props.label}`}
           data-action="remove-theme"
@@ -150,7 +150,7 @@ function ThemeGroup(): JSX.Element {
       title="themes"
       description="a theme takes every mode it draws. one that draws only light or dark leaves the other mode as it was."
       action={
-        <button type="button" class={button} data-action="add-theme" onClick={() => setImportOpen(true)}>
+        <button type="button" class={buttonClass()} data-action="add-theme" onClick={() => setImportOpen(true)}>
           <HugeIcon icon={PlusIcon} size={13} />
           add theme
         </button>
@@ -227,7 +227,7 @@ function ColorGroups(): JSX.Element {
   return (
     <>
       <Group title="theme" description="dark and light share the same tint, so the color settings below apply to both.">
-        <Row label="theme" description="system follows the os appearance.">
+        <Row label="mode" description="system follows the os appearance.">
           <Segmented<Mode>
             label="theme"
             value={look().mode}
@@ -367,10 +367,10 @@ function BackgroundGroup(): JSX.Element {
         <input ref={input} type="file" accept="image/*" class="hidden" data-slot="background-file-input" onChange={(e) => pick(e.currentTarget.files?.[0])} />
         <Show when={bg()}>
           <div class="mt-3 flex items-center justify-end gap-2">
-            <button type="button" class={button} disabled={busy()} onClick={() => input?.click()}>
+            <button type="button" class={buttonClass()} disabled={busy()} onClick={() => input?.click()}>
               {busy() ? "reading…" : "change"}
             </button>
-            <button type="button" class={`${button} text-[var(--danger)]`} disabled={busy()} data-action="remove-background" onClick={() => void run(removeBackground)}>
+            <button type="button" class={buttonClass("danger")} disabled={busy()} data-action="remove-background" onClick={() => void run(removeBackground)}>
               remove
             </button>
           </div>
@@ -446,7 +446,7 @@ export default function Appearance(): JSX.Element {
       <TranslucencyGroup />
       <BackgroundGroup />
       <div class="flex justify-end">
-        <button type="button" class={button} data-action="restore-appearance" onClick={restoreDefaults}>
+        <button type="button" class={buttonClass()} data-action="restore-appearance" onClick={restoreDefaults}>
           restore defaults
         </button>
       </div>

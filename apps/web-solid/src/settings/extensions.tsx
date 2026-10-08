@@ -1,10 +1,12 @@
 import { describeManifest, type ExtensionBundle, type ExtensionCatalogEntry, type ExtensionInfo, type ExtensionOp, type ExtensionProposal, type ExtensionResult, type ReviewLine } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
-import { For, Show, createMemo, createResource, createSignal, type JSX } from "solid-js"
+import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { useApp } from "../lib/store"
 import { lineDiff } from "./line-diff"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ExtensionsIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, ChevronUpIcon, ExtensionsIcon } from "@kiko/ui/icons"
+import { cn } from "../lib/cn"
+import { Button, Empty, Group, IconButton, Item, Notice, Pill, Toggle, fieldClass, line } from "./kit"
 
 /*
  * Settings, extensions (architecture section 24). Three lists, in the order the human needs them:
@@ -36,6 +38,13 @@ const loadCatalog = () => {
   return catalogCache
 }
 
+/** The card of a list, as the kit's `Group` draws it, for lists that must be a `ul`. */
+const card = cn("overflow-hidden rounded-xl border bg-[color-mix(in_oklab,var(--text)_3%,transparent)]", line)
+const divided = "[&>*+*]:border-t [&>*+*]:border-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+/** The icon tile of a kit `Item`, for a row whose header is one button. */
+const tile = "grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg bg-[color-mix(in_oklab,var(--text)_5%,transparent)] text-muted ring-1 ring-inset ring-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+const focus = "outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+
 const LEVEL_ORDER: Record<ReviewLine["level"], number> = { warning: 0, notice: 1, info: 2 }
 
 export default function ExtensionsPage() {
@@ -62,60 +71,71 @@ export default function ExtensionsPage() {
   }
 
   return (
-    <div class="flex flex-col gap-6" data-component="extensions-page">
-      <section class="flex flex-wrap items-center gap-3 rounded-2xl bg-[var(--surface-raised)] p-4" data-component="extensions-intro">
-        <span class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--tab-bg-active)] text-[var(--accent)]" aria-hidden="true">
-          <PuzzleIcon />
-        </span>
-        <span class="min-w-[200px] flex-1">
-          <span class="block text-sm text-text">teach your agents something new</span>
-          <span class="block text-xs text-weak">extensions add tools, instructions, and schedules. they run sandboxed on kiko's server, and keys never reach their code.</span>
-        </span>
-        <button
-          type="button"
-          class="h-9 w-full shrink-0 rounded-[10px] bg-[var(--accent-fill)] px-3 text-sm text-[var(--on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:w-auto md:h-8"
-          data-action="ask-kiko"
-          onClick={askKiko}
-        >
-          build one with kiko
-        </button>
-      </section>
+    <div class="flex flex-col gap-8" data-component="extensions-page">
+      <Group>
+        <Item
+          data-component="extensions-intro"
+          icon={<PuzzleIcon />}
+          title="teach your agents something new"
+          meta={<span class="whitespace-normal">extensions add tools, instructions, and schedules. they run sandboxed on kiko's server, and keys never reach their code.</span>}
+          actions={
+            <Button data-action="ask-kiko" onClick={askKiko}>
+              build one with kiko
+            </Button>
+          }
+        />
+      </Group>
 
       <Show when={error()}>
-        <p class="rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-3 py-2 text-xs text-[var(--danger)]" role="alert" data-component="extensions-error">
-          {error()}
-        </p>
+        <Notice data-component="extensions-error">{error()!}</Notice>
       </Show>
 
       <Show when={proposals().length}>
-        <section class="flex flex-col gap-2" data-component="extension-proposals">
-          <h2 class="px-1 text-xs text-weak">waiting for you</h2>
-          <For each={proposals()}>{(p) => <ProposalCard proposal={p} installed={extensions().find((x) => x.name === p.name)} run={run} />}</For>
-        </section>
+        <div data-component="extension-proposals">
+          <Group title="waiting for you">
+            <For each={proposals()}>{(p) => <ProposalCard proposal={p} installed={extensions().find((x) => x.name === p.name)} run={run} />}</For>
+          </Group>
+        </div>
       </Show>
 
-      <section class="flex flex-col gap-2" data-component="extensions-installed">
-        <h2 class="px-1 text-xs text-weak">installed</h2>
-        <Show
-          when={extensions().length}
-          fallback={<p class="rounded-2xl bg-[var(--surface-raised)] px-4 py-3 text-sm text-weak" data-component="extensions-empty">nothing yet. add one from the catalog below, or ask kiko to build one.</p>}
-        >
-          <ul class="flex flex-col gap-1 rounded-2xl bg-[var(--surface-raised)] p-1">
-            <For each={extensions()}>{(x) => <InstalledRow extension={x} run={run} />}</For>
-          </ul>
-        </Show>
-      </section>
+      <div data-component="extensions-installed">
+        <Group title="installed" bare>
+          <Show
+            when={extensions().length}
+            fallback={
+              <div class={card}>
+                <Empty data-component="extensions-empty">nothing yet. add one from the catalog below, or ask kiko to build one.</Empty>
+              </div>
+            }
+          >
+            <ul class={cn(card, divided)}>
+              <For each={extensions()}>{(x) => <InstalledRow extension={x} run={run} />}</For>
+            </ul>
+          </Show>
+        </Group>
+      </div>
 
-      <section class="flex flex-col gap-2" data-component="extension-catalog">
-        <h2 class="px-1 text-xs text-weak">catalog</h2>
-        <Show when={!catalog.error} fallback={<p class="px-1 text-sm text-weak">the catalog did not load. reload to try again.</p>}>
-          <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <For each={catalog() ?? []} fallback={<li class="px-1 text-sm text-weak">{catalog.loading ? "loading the catalog" : "the catalog is empty"}</li>}>
-              {(entry) => <CatalogCard entry={entry} installed={installedNames().has(entry.name)} waiting={waitingNames().has(entry.name)} run={run} />}
-            </For>
-          </ul>
-        </Show>
-      </section>
+      <div data-component="extension-catalog">
+        <Group title="catalog" bare>
+          <Show
+            when={!catalog.error}
+            fallback={
+              <div class={card}>
+                <Empty>the catalog did not load. reload to try again.</Empty>
+              </div>
+            }
+          >
+            <ul class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <For
+                each={catalog() ?? []}
+                fallback={<li class={cn(card, "px-4 py-3.5 text-[13px] text-muted sm:col-span-2")}>{catalog.loading ? "loading the catalog" : "the catalog is empty"}</li>}
+              >
+                {(entry) => <CatalogCard entry={entry} installed={installedNames().has(entry.name)} waiting={waitingNames().has(entry.name)} run={run} />}
+              </For>
+            </ul>
+          </Show>
+        </Group>
+      </div>
     </div>
   )
 }
@@ -136,59 +156,38 @@ function ProposalCard(props: { proposal: ExtensionProposal; installed?: Extensio
   )
   const from = () => (p().source === "catalog" ? "from the catalog" : p().by ? `written by @${p().by}` : "from your files")
   return (
-    <article class="flex flex-col gap-3 rounded-2xl bg-[var(--surface-raised)] p-4" data-extension-proposal={p().name}>
-      <header class="flex items-start gap-3">
-        <span class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--tab-bg-active)] text-sm font-semibold text-text" aria-hidden="true">
-          {p().name.slice(0, 1)}
-        </span>
-        <span class="min-w-0 flex-1">
-          <span class="flex flex-wrap items-baseline gap-x-2">
-            <span class="text-sm font-medium text-text">{p().name}</span>
-            <span class="text-xs text-weak">
-              {props.installed ? `${props.installed.version} → ${p().version}` : p().version} · {from()}
-            </span>
-          </span>
-          <span class="block text-xs text-muted">{m().description.toLowerCase()}</span>
-        </span>
-      </header>
-      <Show when={p().tainted}>
-        <p class="rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)]" data-component="proposal-tainted">
-          written after the agent read outside content, like a web page. read the code before you install it.
-        </p>
-      </Show>
-      <Review lines={describeManifest(m())} />
-      <div class="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          class="h-9 rounded-[10px] bg-[var(--accent-fill)] px-4 text-sm text-[var(--on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-8"
-          data-action="install-extension"
-          onClick={() => void props.run({ op: "install", id: p().id })}
-        >
-          {props.installed ? "update" : "install"}
-        </button>
-        <button
-          type="button"
-          class="h-9 rounded-[10px] px-3 text-sm text-muted outline-none hover:bg-[var(--nav-hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-8"
-          data-action="decline-extension"
-          onClick={() => void props.run({ op: "decline", id: p().id })}
-        >
-          decline
-        </button>
-        <Show when={Object.keys(p().bundle.files).length}>
-          <button
-            type="button"
-            class="ml-auto h-9 rounded-[10px] px-3 text-xs text-weak outline-none hover:bg-[var(--nav-hover-bg)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-8"
-            aria-expanded={code()}
-            data-action="show-code"
-            onClick={() => setCode(!code())}
-          >
-            {code() ? "hide code" : props.installed ? "what changed" : "read the code"}
-          </button>
-        </Show>
-      </div>
-      <Show when={code()}>
-        <CodeView bundle={p().bundle} before={props.installed ? (before() ?? undefined) : undefined} />
-      </Show>
+    <article data-extension-proposal={p().name}>
+      <Item
+        icon={<span class="text-[13px] font-semibold text-text">{p().name.slice(0, 1)}</span>}
+        title={p().name}
+        meta={`${props.installed ? `${props.installed.version} → ${p().version}` : p().version} · ${from()}`}
+      >
+        <div class="flex flex-col gap-3 pl-10">
+          <p class="text-xs leading-relaxed text-muted">{m().description.toLowerCase()}</p>
+          <Show when={p().tainted}>
+            <Notice tone="danger" data-component="proposal-tainted">
+              written after the agent read outside content, like a web page. read the code before you install it.
+            </Notice>
+          </Show>
+          <Review lines={describeManifest(m())} />
+          <div class="flex flex-wrap items-center gap-2">
+            <Button variant="primary" data-action="install-extension" onClick={() => void props.run({ op: "install", id: p().id })}>
+              {props.installed ? "update" : "install"}
+            </Button>
+            <Button variant="ghost" data-action="decline-extension" onClick={() => void props.run({ op: "decline", id: p().id })}>
+              decline
+            </Button>
+            <Show when={Object.keys(p().bundle.files).length}>
+              <Button variant="ghost" class="ml-auto" aria-expanded={code()} data-action="show-code" onClick={() => setCode(!code())}>
+                {code() ? "hide code" : props.installed ? "what changed" : "read the code"}
+              </Button>
+            </Show>
+          </div>
+          <Show when={code()}>
+            <CodeView bundle={p().bundle} before={props.installed ? (before() ?? undefined) : undefined} />
+          </Show>
+        </div>
+      </Item>
     </article>
   )
 }
@@ -197,15 +196,15 @@ function ProposalCard(props: { proposal: ExtensionProposal; installed?: Extensio
 function Review(props: { lines: ReviewLine[] }) {
   const sorted = () => [...props.lines].sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
   return (
-    <ul class="flex flex-col gap-1" data-component="extension-review">
+    <ul class={cn("flex flex-col gap-1.5 rounded-lg border px-3 py-2.5", line)} data-component="extension-review">
       <For each={sorted()}>
-        {(line) => (
-          <li class="flex items-start gap-2 text-xs" data-level={line.level}>
+        {(entry) => (
+          <li class="flex items-start gap-2 text-xs leading-relaxed" data-level={entry.level}>
             <span
-              class={`mt-[5px] size-1.5 shrink-0 rounded-full ${line.level === "warning" ? "bg-[var(--danger)]" : line.level === "notice" ? "bg-[var(--accent)]" : "bg-[var(--text-faint)]"}`}
+              class={`mt-[7px] size-1.5 shrink-0 rounded-full ${entry.level === "warning" ? "bg-[var(--danger)]" : entry.level === "notice" ? "bg-[var(--accent)]" : "bg-[var(--text-faint)]"}`}
               aria-hidden="true"
             />
-            <span class={line.level === "warning" ? "text-text" : "text-muted"}>{line.text}</span>
+            <span class={entry.level === "warning" ? "text-text" : "text-muted"}>{entry.text}</span>
           </li>
         )}
       </For>
@@ -230,92 +229,88 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
   const tools = () => Object.keys(x().manifest.tools ?? {})
   return (
     <li class="flex flex-col" data-extension={x().name} data-enabled={x().enabled}>
-      <div class="flex min-h-12 items-center gap-3 rounded-[12px] px-3 py-2 hover:bg-[var(--nav-hover-bg)]">
-        <button
-          type="button"
-          class="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-          aria-expanded={open()}
-          data-action="open-extension"
-          onClick={() => setOpen(!open())}
-        >
+      <div class="flex min-h-14 items-center gap-3 px-4 py-2.5">
+        <button type="button" class={cn("flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left", focus)} aria-expanded={open()} data-action="open-extension" onClick={() => setOpen(!open())}>
+          <span class={cn(tile, "text-[13px] font-semibold text-text")} aria-hidden="true">
+            {x().name.slice(0, 1)}
+          </span>
           <span class="min-w-0 flex-1">
-            <span class="flex items-baseline gap-2">
-              <span class="truncate text-sm text-text">{x().name}</span>
-              <span class="shrink-0 text-xs text-weak">{x().version}</span>
+            <span class="flex items-center gap-1.5 text-[13px] font-medium text-text">
+              <span class="truncate">{x().name}</span>
+              <span class="shrink-0 text-xs font-normal text-muted">{x().version}</span>
               <Show when={x().error}>
-                <span class="shrink-0 text-xs text-[var(--danger)]" data-component="extension-has-error">error</span>
+                <span class="size-1.5 shrink-0 rounded-full bg-[var(--danger)]" aria-hidden="true" />
+                <Pill tone="danger" data-component="extension-has-error">
+                  error
+                </Pill>
               </Show>
               <Show when={missing()}>
-                <span class="shrink-0 text-xs text-[var(--accent)]" data-component="extension-needs-secret">needs {missing() === 1 ? "a secret" : `${missing()} secrets`}</span>
+                <Pill tone="accent" data-component="extension-needs-secret">
+                  needs {missing() === 1 ? "a secret" : `${missing()} secrets`}
+                </Pill>
               </Show>
             </span>
-            <span class="block truncate text-xs text-weak">{x().description.toLowerCase()}</span>
+            <span class="mt-0.5 block truncate text-xs text-muted">{x().description.toLowerCase()}</span>
           </span>
         </button>
-        <Toggle on={x().enabled} label={`${x().name} on`} onChange={(on) => void props.run({ op: "enable", name: x().name, enabled: on })} />
+        <div class="flex shrink-0 items-center gap-1.5">
+          <Toggle
+            label={`${x().name} on`}
+            on={x().enabled}
+            data-action="toggle-extension"
+            onChange={(on) => void props.run({ op: "enable", name: x().name, enabled: on })}
+          />
+          <IconButton label={open() ? "hide details" : "details"} aria-expanded={open()} onClick={() => setOpen(!open())}>
+            <HugeIcon icon={open() ? ChevronUpIcon : ChevronDownIcon} size={16} />
+          </IconButton>
+        </div>
       </div>
       <Show when={open()}>
-        <div class="flex flex-col gap-4 px-3 pt-1 pb-3" data-component="extension-detail">
+        <div class="flex flex-col gap-4 px-4 pb-4 pl-14" data-component="extension-detail">
           <Show when={x().error}>
-            <p class="rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-3 py-2 font-mono text-xs break-words text-[var(--danger)]">{x().error}</p>
+            <p class="font-mono text-xs leading-relaxed break-words text-[var(--danger)]">{x().error}</p>
           </Show>
           <Review lines={describeManifest(x().manifest)} />
           <Show when={tools().length}>
-            <p class="text-xs text-weak">
-              tools: <span class="font-mono text-muted">{tools().join(", ")}</span>
+            <p class="text-xs text-muted">
+              tools: <span class="font-mono text-text">{tools().join(", ")}</span>
             </p>
           </Show>
           <AgentScope extension={x()} run={props.run} />
           <Show when={x().secrets.length}>
             <div class="flex flex-col gap-2" data-component="extension-secrets">
-              <span class="text-xs text-weak">secrets, sealed on the server. the extension's code never sees them.</span>
+              <span class="text-xs text-muted">secrets, sealed on the server. the extension's code never sees them.</span>
               <For each={x().secrets}>{(s) => <SecretField extension={x()} name={s.name} set={s.set} run={props.run} />}</For>
             </div>
           </Show>
-          <p class="text-xs text-weak">
+          <p class="text-xs text-muted">
             {x().source === "catalog" ? "from the catalog" : x().by ? `written by @${x().by}` : "from your files"} · updated {new Date(x().updatedAt).toLocaleDateString().toLowerCase()}
           </p>
           <div class="flex flex-wrap items-center gap-2">
             <Show when={Object.keys(x().manifest.tools ?? {}).length || x().manifest.hooks?.length || Object.values(x().manifest.sections ?? {}).some((s) => s.text === undefined)}>
-              <button
-                type="button"
-                class="h-8 rounded-[10px] px-3 text-xs text-weak outline-none hover:bg-[var(--tab-bg-active)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                aria-expanded={code()}
-                data-action="show-code"
-                onClick={() => setCode(!code())}
-              >
+              <Button variant="ghost" aria-expanded={code()} data-action="show-code" onClick={() => setCode(!code())}>
                 {code() ? "hide code" : "read the code"}
-              </button>
+              </Button>
             </Show>
             <Show
               when={confirm()}
               fallback={
-                <button
-                  type="button"
-                  class="ml-auto h-8 rounded-[10px] px-3 text-xs text-weak outline-none hover:bg-[var(--tab-bg-active)] hover:text-[var(--danger)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  data-action="uninstall-extension"
-                  onClick={() => setConfirm(true)}
-                >
+                <Button variant="danger" class="ml-auto" data-action="uninstall-extension" onClick={() => setConfirm(true)}>
                   remove
-                </button>
+                </Button>
               }
             >
               <span class="ml-auto text-xs text-muted">remove it and its notes?</span>
-              <button
-                type="button"
-                class="h-8 rounded-[10px] bg-[var(--danger)] px-3 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                data-action="confirm-uninstall"
-                onClick={() => void props.run({ op: "uninstall", name: x().name })}
-              >
+              <Button variant="danger" data-action="confirm-uninstall" onClick={() => void props.run({ op: "uninstall", name: x().name })}>
                 remove
-              </button>
-              <button type="button" class="h-8 rounded-[10px] px-3 text-xs text-muted hover:bg-[var(--tab-bg-active)]" onClick={() => setConfirm(false)}>
+              </Button>
+              <Button variant="ghost" onClick={() => setConfirm(false)}>
                 keep
-              </button>
+              </Button>
             </Show>
           </div>
           <Show when={code()}>
-            <Show when={source()} fallback={<p class="text-xs text-weak">{source.loading ? "loading the code" : "the code did not load"}</p>}>
+            <Show when={source()} fallback={<p class="text-xs text-muted">{source.loading ? "loading the code" : "the code did not load"}</p>}>
               {(b) => <CodeView bundle={b()} />}
             </Show>
           </Show>
@@ -337,7 +332,7 @@ function AgentScope(props: { extension: ExtensionInfo; run: Run }) {
   }
   return (
     <div class="flex flex-col gap-2" data-component="extension-agents">
-      <span class="text-xs text-weak">who uses it</span>
+      <span class="text-xs text-muted">who uses it</span>
       <div class="flex flex-wrap gap-1.5">
         <Chip on={scope() === null} onClick={() => set(null)} label="every agent" />
         <Chip on={scope()?.includes("kiko" as never) ?? false} onClick={() => toggle("kiko")} label="@kiko" />
@@ -352,7 +347,11 @@ function Chip(props: { on: boolean; label: string; onClick: () => void }) {
     <button
       type="button"
       aria-pressed={props.on}
-      class={`h-8 rounded-full px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-7 ${props.on ? "bg-[var(--accent-fill)] text-[var(--on-accent)]" : "bg-[var(--tab-bg-active)] text-muted hover:text-text"}`}
+      class={cn(
+        "h-7 rounded-md border px-2.5 text-xs text-muted hover:text-text aria-pressed:bg-[var(--selected-bg)] aria-pressed:text-text",
+        line,
+        focus,
+      )}
       onClick={props.onClick}
     >
       {props.label}
@@ -378,30 +377,25 @@ function SecretField(props: { extension: ExtensionInfo; name: string; set: boole
     if (out.ok) setEditing(false)
   }
   return (
-    <div class="flex flex-col gap-1 rounded-[12px] bg-[var(--input-bg)] p-3" data-secret={props.name} data-set={props.set}>
-      <div class="flex items-center gap-2">
+    <div class={cn("flex flex-col gap-1.5 rounded-lg border px-3 py-2.5", line)} data-secret={props.name} data-set={props.set}>
+      <div class="flex min-h-7 items-center gap-2">
         <span class="font-mono text-xs text-text">{props.name}</span>
-        <span class="min-w-0 flex-1 truncate text-xs text-weak">sent only to {hosts()}</span>
+        <span class="min-w-0 flex-1 truncate text-xs text-muted">sent only to {hosts()}</span>
         <Show when={props.set && !editing()}>
-          <span class="text-xs text-[var(--accent)]">set</span>
-          <button type="button" class="h-7 rounded-[8px] px-2 text-xs text-weak hover:text-text" data-action="replace-secret" onClick={() => setEditing(true)}>
+          <Pill tone="accent">set</Pill>
+          <Button variant="ghost" data-action="replace-secret" onClick={() => setEditing(true)}>
             replace
-          </button>
-          <button
-            type="button"
-            class="h-7 rounded-[8px] px-2 text-xs text-weak hover:text-[var(--danger)]"
-            data-action="clear-secret"
-            onClick={() => void props.run({ op: "secret", name: props.extension.name, secret: props.name, value: null })}
-          >
+          </Button>
+          <Button variant="ghost" data-action="clear-secret" onClick={() => void props.run({ op: "secret", name: props.extension.name, secret: props.name, value: null })}>
             clear
-          </button>
+          </Button>
         </Show>
       </div>
       <Show when={hint()}>
-        <span class="text-xs text-weak">{hint()!.toLowerCase()}</span>
+        <span class="text-xs text-muted">{hint()!.toLowerCase()}</span>
       </Show>
       <Show when={editing()}>
-        <form class="flex gap-2" onSubmit={save}>
+        <form class="flex gap-2 pt-0.5" onSubmit={save}>
           <input
             ref={input}
             type="password"
@@ -410,12 +404,12 @@ function SecretField(props: { extension: ExtensionInfo; name: string; set: boole
             autocapitalize="off"
             spellcheck={false}
             aria-label={`${props.name} value`}
-            class="h-9 min-w-0 flex-1 rounded-[10px] bg-[var(--surface-raised)] px-3 text-sm text-text outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:h-8"
+            class={cn(fieldClass, "flex-1")}
             data-component="secret-input"
           />
-          <button type="submit" class="h-9 shrink-0 rounded-[10px] bg-[var(--accent-fill)] px-3 text-xs text-[var(--on-accent)] md:h-8" data-action="save-secret">
+          <Button type="submit" variant="primary" data-action="save-secret">
             save
-          </button>
+          </Button>
         </form>
       </Show>
     </div>
@@ -433,29 +427,16 @@ function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; 
     setBusy(false)
   }
   return (
-    <li class="flex flex-col gap-2 rounded-2xl bg-[var(--surface-raised)] p-3" data-catalog={props.entry.name}>
-      <div class="flex items-start gap-2">
-        <button type="button" class="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" aria-expanded={open()} onClick={() => setOpen(!open())}>
-          <span class="block text-sm text-text">{props.entry.name}</span>
-          <span class="block text-xs text-weak">{props.entry.description.toLowerCase()}</span>
+    <li class={cn(card, "flex flex-col gap-3 p-3.5")} classList={{ "sm:col-span-2": open() }} data-catalog={props.entry.name}>
+      <div class="flex items-start gap-3">
+        <button type="button" class={cn("min-w-0 flex-1 rounded-md text-left", focus)} aria-expanded={open()} onClick={() => setOpen(!open())}>
+          <span class="block text-[13px] font-medium text-text">{props.entry.name}</span>
+          <span class="mt-0.5 block text-xs leading-relaxed text-muted">{props.entry.description.toLowerCase()}</span>
         </button>
-        <Show
-          when={!props.installed}
-          fallback={
-            <span class="shrink-0 py-1.5 text-xs text-weak" data-component="catalog-installed">
-              installed
-            </span>
-          }
-        >
-          <button
-            type="button"
-            disabled={busy() || props.waiting}
-            class="h-8 shrink-0 rounded-[10px] bg-[var(--btn-bg)] px-3 text-xs text-[var(--tab-text-active)] outline-none hover:bg-[var(--btn-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
-            data-action="add-from-catalog"
-            onClick={() => void add()}
-          >
+        <Show when={!props.installed} fallback={<Pill data-component="catalog-installed">installed</Pill>}>
+          <Button disabled={busy() || props.waiting} data-action="add-from-catalog" onClick={() => void add()}>
             {props.waiting ? "review above" : busy() ? "adding" : "add"}
-          </button>
+          </Button>
         </Show>
       </div>
       <Show when={open()}>
@@ -477,15 +458,15 @@ function CodeView(props: { bundle: ExtensionBundle; before?: ExtensionBundle }) 
   const [active, setActive] = createSignal(0)
   const file = () => files()[Math.min(active(), files().length - 1)]
   return (
-    <div class="flex flex-col overflow-hidden rounded-[12px] bg-[var(--input-bg)]" data-component="extension-code">
-      <div class="flex gap-1 overflow-x-auto bg-[var(--surface-raised)] p-1 [scrollbar-width:none]" role="tablist">
+    <div class={cn("flex flex-col overflow-hidden rounded-lg border", line)} data-component="extension-code">
+      <div class={cn("flex gap-1 overflow-x-auto border-b p-1 [scrollbar-width:none]", line)} role="tablist">
         <For each={files()}>
           {(f, i) => (
             <button
               type="button"
               role="tab"
               aria-selected={i() === active()}
-              class={`h-7 shrink-0 rounded-[8px] px-2 font-mono text-[11px] ${i() === active() ? "bg-[var(--tab-bg-active)] text-text" : "text-weak hover:text-text"}`}
+              class={cn("h-7 shrink-0 rounded-md px-2 font-mono text-xs", focus, i() === active() ? "bg-[var(--selected-bg)] text-text" : "text-muted hover:text-text")}
               onClick={() => setActive(i())}
             >
               {f.name}
@@ -496,7 +477,7 @@ function CodeView(props: { bundle: ExtensionBundle; before?: ExtensionBundle }) 
           )}
         </For>
       </div>
-      <pre class="max-h-[420px] overflow-auto p-3 font-mono text-[11px] leading-[1.55] text-muted" data-component="extension-code-body">
+      <pre class="max-h-[420px] overflow-auto p-3 font-mono text-xs leading-[1.55] text-muted" data-component="extension-code-body">
         <Show when={props.before && file()?.changed} fallback={<code>{file()?.now ?? ""}</code>}>
           <code>
             <For each={lineDiff(file()?.was ?? "", file()?.now ?? "")}>
@@ -516,23 +497,6 @@ function CodeView(props: { bundle: ExtensionBundle; before?: ExtensionBundle }) 
   )
 }
 
-/** A two-state switch. The state shows before the server answers; a refusal flips it back. */
-function Toggle(props: { on: boolean; label: string; onChange: (on: boolean) => void }): JSX.Element {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={props.on}
-      aria-label={props.label}
-      class={`relative h-6 w-10 shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${props.on ? "bg-[var(--accent-fill)]" : "bg-[color-mix(in_oklch,var(--text)_24%,transparent)]"}`}
-      data-action="toggle-extension"
-      onClick={() => props.onChange(!props.on)}
-    >
-      <span class={`absolute top-0.5 size-5 rounded-full bg-white shadow-sm ${props.on ? "left-[18px]" : "left-0.5"}`} />
-    </button>
-  )
-}
-
 function PuzzleIcon() {
-  return <HugeIcon icon={ExtensionsIcon} size={18} />
+  return <HugeIcon icon={ExtensionsIcon} size={16} />
 }

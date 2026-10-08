@@ -4,7 +4,7 @@ import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { FileIcon, PlusIcon } from "@kiko/ui/icons"
 import { Show, createSignal, type JSX } from "solid-js"
-import { button } from "./controls"
+import { buttonClass } from "../settings/kit"
 import {
   MAX_THEME_FILE_BYTES,
   humanizeThemeName,
@@ -188,13 +188,13 @@ export default function ThemeImportDialog(props: {
                   <p class="mt-1 text-xs text-muted">{conflicts()!.map((t) => t.label.toLowerCase()).join(", ")}</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                  <button type="button" class={button} onClick={() => resolve("update")}>
+                  <button type="button" class={buttonClass()} onClick={() => resolve("update")}>
                     update existing
                   </button>
-                  <button type="button" class={button} onClick={() => resolve("copy")}>
+                  <button type="button" class={buttonClass()} onClick={() => resolve("copy")}>
                     keep both
                   </button>
-                  <button type="button" class={button} onClick={() => setConflicts(null)}>
+                  <button type="button" class={buttonClass()} onClick={() => setConflicts(null)}>
                     back
                   </button>
                 </div>
@@ -228,7 +228,7 @@ export default function ThemeImportDialog(props: {
                   <p class="text-sm font-medium">theme file</p>
                   <p class="truncate text-xs text-muted">{fileName() ?? "drop t3code or vs code .json files"}</p>
                 </div>
-                <button type="button" class={button} disabled={reading()} onClick={() => fileInput?.click()}>
+                <button type="button" class={buttonClass()} disabled={reading()} onClick={() => fileInput?.click()}>
                   <HugeIcon icon={FileIcon} size={14} />
                   {reading() ? "reading…" : "choose files"}
                 </button>
@@ -259,12 +259,12 @@ export default function ThemeImportDialog(props: {
                 />
               </label>
               <div class="flex flex-wrap justify-end gap-2">
-                <button type="button" class={button} onClick={() => props.onClose()}>
+                <button type="button" class={buttonClass()} onClick={() => props.onClose()}>
                   cancel
                 </button>
                 <button
                   type="button"
-                  class={`${button} bg-[var(--accent-fill)] text-[var(--on-accent)] hover:bg-[var(--accent-hover)]`}
+                  class={buttonClass("primary")}
                   disabled={!json().trim() || reading()}
                   data-action="add-theme-json"
                   onClick={submit}

@@ -4,7 +4,7 @@ import { HugeIcon } from "@kiko/ui/huge-icon"
 import { AppearanceIcon, ExternalIcon, SearchIcon } from "@kiko/ui/icons"
 import { debounce } from "@solid-primitives/scheduled"
 import { For, Show, createSignal, onCleanup, type JSX } from "solid-js"
-import { button } from "./controls"
+import { buttonClass } from "../settings/kit"
 import { customThemes, installThemes } from "./live"
 import { importOpenVsxExtension, searchOpenVsxThemes, type OpenVsxExtension, type OpenVsxSort } from "./openvsx"
 import type { ThemeDefinition } from "./palette"
@@ -216,7 +216,7 @@ export function ThemeSearch(props: { onInstalled: (themes: ThemeDefinition[], up
                         </Show>
                         <button
                           type="button"
-                          class={button}
+                          class={buttonClass()}
                           disabled={installing() !== null}
                           aria-label={`${label()} ${extension.name}`}
                           data-action="install-theme"

@@ -1,0 +1,51 @@
+/* monocode's settings slider (styles/index.css, `.sidebar-opacity-slider`): a 4px track at 15%
+   of the text color and a 12px thumb in the text color. */
+.kit-range {
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 15%, transparent);
+  outline: none;
+  appearance: none;
+}
+
+.kit-range::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--text);
+  cursor: pointer;
+  appearance: none;
+}
+
+.kit-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--text);
+  cursor: pointer;
+}
+
+.kit-range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* monocode's narrow settings pane (styles/index.css): a row stacks, its control under its label,
+   unless the control is only a switch. The settings body is the `settings` container. */
+@container settings (width < 560px) {
+  .settings-row {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .settings-row-control {
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+
+  .settings-row:has(> .settings-row-control > [role="switch"]:only-child) {
+    flex-direction: row;
+    gap: 1.5rem;
+  }
+}

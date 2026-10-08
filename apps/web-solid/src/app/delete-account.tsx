@@ -1,5 +1,6 @@
 import { createSignal, Show } from "solid-js"
 import { signOut } from "./session"
+import { Button, fieldClass, Notice, Row } from "../settings/kit"
 
 /*
  * Account deletion (P9-02). The person types a phrase to confirm, and the server
@@ -7,9 +8,6 @@ import { signOut } from "./session"
  * browser out, and the local sign-out drops the warm tier.
  */
 export const CONFIRM_PHRASE = "delete my account"
-
-const button =
-  "flex h-10 items-center justify-center rounded-[10px] bg-btn px-4 text-sm font-medium text-danger outline-none hover:bg-btn-hover focus-visible:ring-2 focus-visible:ring-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-40"
 
 export function DeleteAccount() {
   const [open, setOpen] = createSignal(false)
@@ -41,34 +39,37 @@ export function DeleteAccount() {
     }
   }
 
+  const cancel = () => {
+    setOpen(false)
+    setTyped("")
+    setMessage("")
+  }
+
+  // A row in the account card. Asked, it opens the confirmation in place, under its own line.
   return (
-    <section class="flex flex-col gap-3" data-component="delete-account">
-      <Show
-        when={open()}
-        fallback={
-          <button type="button" class={button} onClick={() => setOpen(true)}>
+    <div data-component="delete-account">
+      <Row label="delete account" description="every chat, agent, file, key, and memory you have. it cannot be undone.">
+        <Show when={!open()}>
+          <Button variant="danger" onClick={() => setOpen(true)}>
             delete account
-          </button>
-        }
-      >
+          </Button>
+        </Show>
+      </Row>
+      <Show when={open()}>
         <form
-          class="flex w-full max-w-sm flex-col gap-3"
+          class="flex flex-col gap-2.5 px-4 pb-4"
           onSubmit={submit}
           onKeyDown={(e) => {
             if (e.key === "Escape" && !busy()) {
               e.stopPropagation()
-              setOpen(false)
-              setTyped("")
+              cancel()
             }
           }}
         >
-          <p class="text-sm text-text">
-            this deletes every chat, agent, file, key, and memory you have. it cannot be undone.
-          </p>
-          <label class="flex flex-col gap-1 text-sm text-weak">
+          <label class="flex flex-col gap-1.5 text-xs text-muted">
             type "{CONFIRM_PHRASE}" to confirm
             <input
-              class="h-10 rounded-[10px] bg-btn px-3 text-sm text-text outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)]"
+              class={fieldClass}
               autocomplete="off"
               autocapitalize="off"
               spellcheck={false}
@@ -77,25 +78,19 @@ export function DeleteAccount() {
               onInput={(e) => setTyped(e.currentTarget.value)}
             />
           </label>
-          <button type="submit" class={button} disabled={typed() !== CONFIRM_PHRASE || busy()}>
-            delete my account forever
-          </button>
-          <button
-            type="button"
-            class="h-10 rounded-[10px] px-4 text-sm text-muted outline-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            onClick={() => {
-              setOpen(false)
-              setTyped("")
-              setMessage("")
-            }}
-          >
-            keep my account
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button type="submit" variant="danger" disabled={typed() !== CONFIRM_PHRASE || busy()}>
+              delete my account forever
+            </Button>
+            <Button variant="ghost" onClick={cancel}>
+              keep my account
+            </Button>
+          </div>
           <Show when={message()}>
-            <p class="text-sm text-[var(--danger)]" role="alert">{message()}</p>
+            <Notice>{message()}</Notice>
           </Show>
         </form>
       </Show>
-    </section>
+    </div>
   )
 }
