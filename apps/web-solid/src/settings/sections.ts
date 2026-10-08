@@ -8,7 +8,7 @@ export const SETTINGS_SECTIONS = [
   { id: "integrations", group: "agents", label: "integrations", hint: "the apps your agents can reach, through executor.", keywords: "executor mcp tools apps" },
   { id: "extensions", group: "agents", label: "extensions", hint: "new tools, instructions, and schedules for your agents.", keywords: "extension plugin addon tool hook script catalog install" },
   { id: "skills", group: "agents", label: "skills", hint: "what your agents know how to do.", keywords: "skill" },
-  { id: "appearance", group: "you", label: "appearance", hint: "your themes, the picture behind your chats, and everything else as json.", keywords: "theme json dark light font radius spacing wallpaper background glass blur" },
+  { id: "appearance", group: "you", label: "appearance", hint: "themes, colors, glass, and the picture behind your chats.", keywords: "theme json dark light font radius spacing wallpaper background glass blur" },
   { id: "account", group: "you", label: "account", hint: "who you are signed in as, and leaving kiko.", keywords: "delete sign out email profile" },
 ] as const
 
