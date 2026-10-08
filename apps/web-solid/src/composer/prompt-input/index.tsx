@@ -325,9 +325,20 @@ function parsePromptInputV2Editor(editor: HTMLDivElement) {
     Array.from(node.childNodes).forEach(visit)
   }
 
+  // Each line after the first is a block, and the browser leaves the first line as bare text when
+  // the text was pasted or typed before the first Enter. A block starts a new line after anything
+  // that did not end one, and a block holding only <br> is an empty line, not two.
+  const ended = () => {
+    const tail = buffer || parts.at(-1)?.content || ""
+    return tail === "" || tail.endsWith("\n")
+  }
   Array.from(editor.childNodes).forEach((node, index, nodes) => {
-    visit(node)
-    if (node instanceof HTMLElement && ["DIV", "P"].includes(node.tagName) && index < nodes.length - 1) buffer += "\n"
+    const block = node instanceof HTMLElement && ["DIV", "P"].includes(node.tagName)
+    if (!block) return visit(node)
+    if (!ended()) buffer += "\n"
+    const empty = node.childNodes.length === 1 && node.firstChild instanceof HTMLElement && node.firstChild.tagName === "BR"
+    if (!empty) visit(node)
+    if (index < nodes.length - 1) buffer += "\n"
   })
   flush()
   if (
