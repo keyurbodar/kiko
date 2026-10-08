@@ -13,6 +13,8 @@ import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/
 import { background, BACKGROUND_EFFECTS, BLUR_RADIUS, chooseBackground, DEFAULT_GLASS, EFFECT_DESCRIPTIONS, EFFECT_LABELS, glass, picture, removeBackground, setBackground, setGlass, SIDEBAR_OPACITY, VISIBILITY } from "./glass"
 import { allThemes, chooseTheme, customThemes, look, matchWallpaper, removeThemes, setHalf, updateLook } from "./live"
 import { ThemeSelect, type ThemeOption } from "./theme-select"
+import { Select } from "../settings/select"
+import { CHAT_WIDTHS, CODE_FONTS, CONTRAST, DEFAULT_DISPLAY, INTERFACE_FONTS, TEXT_SIZES, type Display } from "./display"
 import { DEFAULT_LOOK, type Mode } from "./look"
 import { ACCENT_PRESETS, colorsForMode, monocodeColors, WALLPAPER_ID, wallpaperColors, serializeThemeFile, themeModes, TINT_RANGE, type ThemeAppearance, type ThemeColors, type ThemeDefinition } from "./palette"
 
@@ -126,7 +128,7 @@ function ColorGroups(): JSX.Element {
   return (
     <>
       <Group title="Theme" description="Dark and light share the same tint, so the color settings below apply to both.">
-        <Row label="Mode" description="System follows the OS appearance.">
+        <Row label="Mode" description="System follows the OS appearance." onReset={look().mode !== DEFAULT_LOOK.mode ? () => updateLook({ mode: DEFAULT_LOOK.mode }) : undefined}>
           <Segmented<Mode>
             label="Mode"
             value={look().mode}
@@ -138,10 +140,10 @@ function ColorGroups(): JSX.Element {
             onChange={(mode) => updateLook({ mode })}
           />
         </Row>
-        <Row label="Color theme">
+        <Row label="Color theme" onReset={look().light !== null || look().dark !== null ? () => chooseTheme(null) : undefined}>
           <ThemeSelect value={look()[shown()]} options={themeOptions()} onPick={pickTheme} />
         </Row>
-        <Row label="Accent color" description="Used for the send button and your message bubbles.">
+        <Row label="Accent color" description="Used for the send button and your message bubbles." onReset={look().accent !== null ? () => updateLook({ accent: null }) : undefined}>
           <AccentPicker />
         </Row>
         <Row label="More themes" description="VS Code themes from Open VSX, or a theme file.">
@@ -160,10 +162,14 @@ function ColorGroups(): JSX.Element {
         title="Color"
         description={onStock() ? "Hue and saturation tint every surface. Lightness only moves the dark theme." : "These tint Kiko's own theme. Pick Kiko as the theme to see them."}
       >
-        <Row label="Hue">
+        <Row label="Hue" onReset={tint().hue !== DEFAULT_LOOK.tint.hue ? () => updateLook({ tint: { ...tint(), hue: DEFAULT_LOOK.tint.hue } }) : undefined}>
           <Slider label="Hue" value={tint().hue} display={`${tint().hue}°`} min={TINT_RANGE.hue.min} max={TINT_RANGE.hue.max} onChange={(hue) => updateLook({ tint: { ...tint(), hue } })} />
         </Row>
-        <Row label="Saturation" description="How strongly the hue tints the interface. Zero keeps it neutral.">
+        <Row
+          label="Saturation"
+          description="How strongly the hue tints the interface. Zero keeps it neutral."
+          onReset={tint().saturation !== DEFAULT_LOOK.tint.saturation ? () => updateLook({ tint: { ...tint(), saturation: DEFAULT_LOOK.tint.saturation } }) : undefined}
+        >
           <Slider
             label="Saturation"
             value={tint().saturation}
@@ -176,6 +182,7 @@ function ColorGroups(): JSX.Element {
         <Row
           label="Dark-mode lightness"
           description={lightNow() ? "This only affects dark mode. Your dark-mode value is kept." : "Base brightness of the dark theme. Zero is true black."}
+          onReset={tint().lightness !== DEFAULT_LOOK.tint.lightness ? () => updateLook({ tint: { ...tint(), lightness: DEFAULT_LOOK.tint.lightness } }) : undefined}
         >
           <Slider
             label="Dark-mode lightness"
@@ -186,6 +193,41 @@ function ColorGroups(): JSX.Element {
             disabled={lightNow()}
             onChange={(lightness) => updateLook({ tint: { ...tint(), lightness } })}
           />
+        </Row>
+      </Group>
+    </>
+  )
+}
+
+/** t3code's interface and font settings (display.ts), each with its reset while changed. */
+function InterfaceGroups(): JSX.Element {
+  const d = () => look().display
+  const set = (patch: Partial<Display>) => updateLook({ display: { ...d(), ...patch } })
+  const reset = <K extends keyof Display>(key: K) => (d()[key] !== DEFAULT_DISPLAY[key] ? () => set({ [key]: DEFAULT_DISPLAY[key] } as Partial<Display>) : undefined)
+  const options = <T extends string>(table: Record<T, { label: string }>, fallback: T) =>
+    (Object.keys(table) as T[]).map((value) => ({ value, label: value === fallback ? `${table[value].label} (default)` : table[value].label }))
+  return (
+    <>
+      <Group title="Interface">
+        <Row label="Contrast" description="Adjust the contrast of borders, lines, and fills across the interface." onReset={reset("contrast")}>
+          <Slider label="Contrast" value={d().contrast} display={`${d().contrast}%`} min={CONTRAST.min} max={CONTRAST.max} step={CONTRAST.step} onChange={(contrast) => set({ contrast })} />
+        </Row>
+        <Row label="Text size" description="The size of text across Kiko, messages included." onReset={reset("textSize")}>
+          <Select label="Text size" value={d().textSize} options={options(TEXT_SIZES, DEFAULT_DISPLAY.textSize)} onChange={(textSize) => set({ textSize })} />
+        </Row>
+        <Row label="Chat width" description="How wide messages and the composer can grow on large screens." onReset={reset("chatWidth")}>
+          <Select label="Chat width" value={d().chatWidth} options={options(CHAT_WIDTHS, DEFAULT_DISPLAY.chatWidth)} onChange={(chatWidth) => set({ chatWidth })} />
+        </Row>
+      </Group>
+      <Group title="Fonts">
+        <Row label="Interface font" description="Everything outside code blocks." onReset={reset("interfaceFont")}>
+          <Select label="Interface font" value={d().interfaceFont} options={options(INTERFACE_FONTS, DEFAULT_DISPLAY.interfaceFont)} onChange={(interfaceFont) => set({ interfaceFont })} />
+        </Row>
+        <Row label="Code font" description="Code blocks and inline code." onReset={reset("codeFont")}>
+          <Select label="Code font" value={d().codeFont} options={options(CODE_FONTS, DEFAULT_DISPLAY.codeFont)} onChange={(codeFont) => set({ codeFont })} />
+        </Row>
+        <Row label="Font smoothing" description="Use thinner grayscale text smoothing instead of the system default." onReset={reset("smoothing")}>
+          <Toggle label="Font smoothing" on={d().smoothing} onChange={(smoothing) => set({ smoothing })} />
         </Row>
       </Group>
     </>
@@ -203,7 +245,7 @@ function TranslucencyGroup(): JSX.Element {
           : "How much of the chat background shows through Kiko."
       }
     >
-      <Row label="Sidebar opacity" description="Applies to the sidebar and the other glass panes.">
+      <Row label="Sidebar opacity" description="Applies to the sidebar and the other glass panes." onReset={glass().opacity !== DEFAULT_GLASS.opacity ? () => setGlass({ opacity: DEFAULT_GLASS.opacity }) : undefined}>
         <Slider
           label="Sidebar opacity"
           value={percent(glass().opacity)}
@@ -214,10 +256,10 @@ function TranslucencyGroup(): JSX.Element {
           onChange={(p) => setGlass({ opacity: p / 100 })}
         />
       </Row>
-      <Row label="Blur radius">
+      <Row label="Blur radius" onReset={glass().blur !== DEFAULT_GLASS.blur ? () => setGlass({ blur: DEFAULT_GLASS.blur }) : undefined}>
         <Slider label="Blur radius" value={glass().blur} display={String(glass().blur)} min={BLUR_RADIUS.min} max={BLUR_RADIUS.max} disabled={off()} onChange={(blur) => setGlass({ blur })} />
       </Row>
-      <Row label="Main pane glass" description="Extend the translucent treatment to the chat pane and the info pane.">
+      <Row label="Main pane glass" description="Extend the translucent treatment to the chat pane and the info pane." onReset={glass().body !== DEFAULT_GLASS.body ? () => setGlass({ body: DEFAULT_GLASS.body }) : undefined}>
         <Toggle label="Main pane glass" on={glass().body} disabled={off()} onChange={(body) => setGlass({ body })} />
       </Row>
     </Group>
@@ -343,7 +385,7 @@ function BackgroundGroup(): JSX.Element {
  * tint or accent, monocode's glass, and no chat background.
  */
 function restoreDefaults(): void {
-  updateLook({ mode: DEFAULT_LOOK.mode, light: null, dark: null, themes: [], wallpaper: null, tint: DEFAULT_LOOK.tint, accent: null })
+  updateLook({ mode: DEFAULT_LOOK.mode, light: null, dark: null, themes: [], wallpaper: null, tint: DEFAULT_LOOK.tint, accent: null, display: DEFAULT_DISPLAY })
   setGlass(DEFAULT_GLASS)
   if (background()) void removeBackground()
 }
@@ -352,6 +394,7 @@ export default function Appearance(): JSX.Element {
   return (
     <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={shown()}>
       <ColorGroups />
+      <InterfaceGroups />
       <TranslucencyGroup />
       <BackgroundGroup />
       <div class="flex justify-end">

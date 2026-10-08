@@ -399,6 +399,12 @@ export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, ligh
   ["--panel-edge", 10, 10],
   ["--scrollbar-thumb", 20, 20],
   ["--scrollbar-thumb-hover", 32, 32],
+  // The settings kit's control tokens (settings/kit.css), t3code's white/N in dark mode.
+  ["--kit-border", 9, 9],
+  ["--kit-input", 12, 12],
+  ["--kit-input-fill", 4, 4],
+  ["--kit-card", 3, 3],
+  ["--kit-hover", 7, 7],
 ]
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
@@ -441,10 +447,12 @@ export function accentForeground(color: string): "#000000" | "#ffffff" {
  * `--hue` and `--h-brand` follow the accent, so the few colors kat.css still derives from a
  * hue, and the kiko bird, wear the theme too.
  */
-export function tokensFor(colors: ThemeColors, mode: ThemeAppearance, accent: string | null = null): Record<string, string> {
+export function tokensFor(colors: ThemeColors, mode: ThemeAppearance, accent: string | null = null, contrast = 100): Record<string, string> {
   const vars: Record<string, string> = {}
   for (const [token, role] of TOKEN_ROLES) vars[token] = colors[role]
-  const ink = (share: number) => `color-mix(in oklab, ${colors.text} ${share}%, transparent)`
+  // Contrast scales every neutral's share, so borders, hairlines, and fills all move together. The
+  // percent is computed here, never with calc() inside color-mix, which some browsers drop.
+  const ink = (share: number) => `color-mix(in oklab, ${colors.text} ${Math.min(100, round((share * contrast) / 100, 2))}%, transparent)`
   for (const [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
   // Tooltips stay opaque: they are small and sit over text.
   // Menus, dialogs and the palette: in dark, monocode's glass, the background at 55% over a strong

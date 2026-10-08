@@ -28,6 +28,7 @@ import {
   type Tint,
   type WallpaperPalette,
 } from "./palette"
+import { DEFAULT_DISPLAY, readDisplay, type Display } from "./display"
 
 export type Mode = ThemeMode
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
@@ -50,9 +51,11 @@ export type Look = {
   wallpaper: WallpaperPalette | null
   /** An agent slug to the bird it wears. A slug without an entry gets the bird its slug seeds. */
   birds: Readonly<Record<string, string>>
+  /** Contrast, text size, chat width, fonts (display.ts). */
+  display: Display
 }
 
-export const DEFAULT_LOOK: Look = { mode: "dark", light: null, dark: null, themes: [], tint: DEFAULT_TINT, accent: null, wallpaper: null, birds: {} }
+export const DEFAULT_LOOK: Look = { mode: "dark", light: null, dark: null, themes: [], tint: DEFAULT_TINT, accent: null, wallpaper: null, birds: {}, display: DEFAULT_DISPLAY }
 
 const MAX_BIRDS = 200
 const BIRD_ID = /^[a-z0-9.-]{1,48}$/
@@ -90,12 +93,12 @@ export function parseLook(text: string | null): Look {
   const accent = isAccent(raw.accent) ? raw.accent.toLowerCase() : null
   const light = half(raw.light)
   const dark = half(raw.dark)
-  return { mode, light, dark, themes, tint, accent, wallpaper: light === WALLPAPER_ID || dark === WALLPAPER_ID ? wallpaper : null, birds }
+  return { mode, light, dark, themes, tint, accent, wallpaper: light === WALLPAPER_ID || dark === WALLPAPER_ID ? wallpaper : null, birds, display: readDisplay(raw.display) }
 }
 
 export function formatLook(look: Look): string {
   const named = new Set([look.light, look.dark])
-  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, light: look.light, dark: look.dark, themes: look.themes.filter((t) => named.has(t.id)), tint: look.tint, accent: look.accent, wallpaper: look.wallpaper, birds: look.birds })
+  return JSON.stringify({ version: 1, kind: "look", mode: look.mode, light: look.light, dark: look.dark, themes: look.themes.filter((t) => named.has(t.id)), tint: look.tint, accent: look.accent, wallpaper: look.wallpaper, birds: look.birds, display: look.display })
 }
 
 /** Finds a theme by id: a built-in, one the look carries, or one in this browser's library. */

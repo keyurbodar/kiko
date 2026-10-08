@@ -7,9 +7,8 @@ import { For, Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
 
-// Controls are t3code's (MIT, apps/web/src/components/ui/button.tsx, input.tsx): 28px, 8px
-// corners, 13px medium text, a visible border on the default button, and a ring on focus. Cards
-// and rows are monocode's (MIT, src/features/settings/ui/SettingsView.tsx). Every color is the
+// Controls, cards, and rows are t3code's (MIT, apps/web/src/components/ui and settings), drawn by
+// the classes in kit.css. Page layout follows monocode's (MIT, src/features/settings/ui/SettingsView.tsx). Every color is the
 // text color mixed over what is behind it, so both work on kiko's light, dark, and glass themes:
 // `color-mix(in_oklab,var(--text)_N%,transparent)` below is t3code's `white/N` in dark mode.
 //
@@ -23,27 +22,13 @@ export const line = "border-[color-mix(in_oklab,var(--text)_12%,transparent)]"
 
 type Variant = "primary" | "secondary" | "ghost" | "danger"
 
-const VARIANTS: Record<Variant, string> = {
-  // t3code's default: the accent, solid.
-  primary: "border-transparent bg-[var(--accent-fill)] text-[var(--on-accent)] hover:bg-[color-mix(in_oklab,var(--accent-fill)_90%,transparent)]",
-  // t3code's outline: the input border over a faint fill.
-  secondary: "border-[color-mix(in_oklab,var(--text)_12%,transparent)] bg-[color-mix(in_oklab,var(--text)_3%,transparent)] text-text hover:bg-[color-mix(in_oklab,var(--text)_8%,transparent)]",
-  // t3code's ghost-muted.
-  ghost: "border-transparent text-[color-mix(in_oklab,var(--text)_60%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] hover:text-text",
-  // t3code's destructive-outline: red text always, so the harm is never a surprise.
-  danger: "border-[color-mix(in_oklab,var(--text)_12%,transparent)] bg-[color-mix(in_oklab,var(--text)_3%,transparent)] text-[var(--danger)] hover:border-[color-mix(in_oklab,var(--danger)_32%,transparent)] hover:bg-[color-mix(in_oklab,var(--danger)_8%,transparent)]",
+/** The class of a settings button (t3code's, kit.css), for an element that cannot be a `Button`. */
+export function buttonClass(variant: Variant = "secondary", extra?: string) {
+  return cn("kit-btn", `kit-btn--${variant}`, extra)
 }
 
-/** The class of a settings button, for an element that cannot be a `Button` (a link, a label). */
-export function buttonClass(variant: Variant = "secondary", extra?: string) {
-  return cn(
-    "inline-flex h-7 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-[9px] text-[13px] font-medium active:scale-[0.97]",
-    "disabled:pointer-events-none disabled:opacity-60",
-    focus,
-    VARIANTS[variant],
-    extra,
-  )
-}
+/** The class of a select's trigger (t3code's, kit.css): a value and a chevron. */
+export const selectClass = "kit-select"
 
 export function Button(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }): JSX.Element {
   const [local, rest] = splitProps(props, ["variant", "class", "type"])
@@ -106,12 +91,8 @@ export const choiceRowClass = cn(
   "outline-none focus-visible:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]",
 )
 
-/** t3code's input: 28px, 8px corners, the input border, a ring on focus. */
-export const fieldClass = cn(
-  "h-7 min-w-0 rounded-lg border bg-[color-mix(in_oklab,var(--text)_3%,transparent)] px-[11px] text-[13px] text-text placeholder:text-[color-mix(in_oklab,var(--text)_40%,transparent)]",
-  line,
-  "outline-none focus:border-[var(--accent)] focus:ring-[3px] focus:ring-[color-mix(in_oklab,var(--accent)_24%,transparent)]",
-)
+/** t3code's input (kit.css): 30px, 8px corners, bevelled, a ring on focus. */
+export const fieldClass = "kit-field"
 
 /** monocode's PageHeader, then the page's groups. */
 export function Page(props: { title: string; description?: string; children: JSX.Element }): JSX.Element {
@@ -128,15 +109,15 @@ export function Page(props: { title: string; description?: string; children: JSX
   )
 }
 
-/** A titled card of rows, opencode's settings list: 8px corners, a half-pixel edge. A page spaces its groups 32px apart. `bare` drops the card. */
+/** A titled card of rows, t3code's settings group: a quiet heading over a 14px-cornered card. A page spaces its groups 32px apart. `bare` drops the card. */
 export function Group(props: { title?: string; description?: JSX.Element; action?: JSX.Element; id?: string; bare?: boolean; class?: string; children: JSX.Element }): JSX.Element {
   return (
     <section class={props.class} data-setting-group={props.id}>
       <Show when={props.title || props.action}>
-        <div class="flex items-end gap-4 pb-2.5">
+        <div class="flex items-end gap-4 px-1 pb-2.5">
           <div class="min-w-0 flex-1">
             <Show when={props.title}>
-              <h2 class="text-[13px] font-semibold text-text">{props.title}</h2>
+              <h2 class="text-[14px] font-normal text-[color-mix(in_oklab,var(--text)_70%,transparent)]">{props.title}</h2>
             </Show>
             <Show when={props.description}>
               <div class="mt-1 text-[12px] leading-relaxed text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{props.description}</div>
@@ -148,23 +129,41 @@ export function Group(props: { title?: string; description?: JSX.Element; action
         </div>
       </Show>
       <Show when={!props.bare} fallback={props.children}>
-        <div class="overflow-hidden rounded-lg bg-[color-mix(in_oklab,var(--text)_3%,transparent)] shadow-[inset_0_0_0_0.5px_color-mix(in_oklab,var(--text)_16%,transparent)]">{props.children}</div>
+        <div class="kit-card">{props.children}</div>
       </Show>
     </section>
   )
 }
 
 /** The hairline under each row of a card, gone under the last: monocode's `border-b border-content/5 last:border-b-0`. */
-export const rowLine = "border-b border-[color-mix(in_oklab,var(--text)_5%,transparent)] last:border-b-0"
+export const rowLine = "border-b border-[color-mix(in_oklab,var(--text)_6%,transparent)] last:border-b-0"
 
-/** monocode's Row: label and description on the left, the control on the right, top-aligned. Stacks in a narrow pane (kit.css). */
-export function Row(props: { label: JSX.Element; description?: JSX.Element; id?: string; children?: JSX.Element }): JSX.Element {
+/** t3code's settings row: a 14px label and a muted line on the left, the control on the right. Stacks in a narrow pane (kit.css). */
+export function Row(props: { label: JSX.Element; description?: JSX.Element; id?: string; onReset?: () => void; children?: JSX.Element }): JSX.Element {
   return (
-    <div class={cn("settings-row flex items-start gap-6 px-4 py-3.5", rowLine)} data-setting={props.id}>
+    <div class={cn("settings-row flex items-center gap-8 px-4 py-3", rowLine)} data-setting={props.id}>
       <div class="min-w-0 flex-1">
-        <div class="text-[13px] font-medium text-text">{props.label}</div>
+        <div class="flex min-h-5 items-center gap-1.5 text-[14px] font-medium leading-5 text-text">
+          {props.label}
+          {/* t3code's reset: shown only while the setting differs from its default. */}
+          <Show when={props.onReset}>
+            <button
+              type="button"
+              class="grid size-5 cursor-pointer place-items-center rounded-md text-[color-mix(in_oklab,var(--text)_45%,transparent)] outline-none hover:bg-[var(--kit-hover)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              title="Reset to default"
+              aria-label={`Reset ${typeof props.label === "string" ? props.label.toLowerCase() : "setting"} to default`}
+              data-action="reset-setting"
+              onClick={() => props.onReset!()}
+            >
+              <svg class="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9" />
+                <path d="M2.5 2.5v3h3" />
+              </svg>
+            </button>
+          </Show>
+        </div>
         <Show when={props.description}>
-          <div class="mt-1 text-[12px] leading-relaxed text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{props.description}</div>
+          <div class="mt-0.5 max-w-xl text-[12px] leading-normal text-[color-mix(in_oklab,var(--text)_50%,transparent)]">{props.description}</div>
         </Show>
       </div>
       <Show when={props.children}>
@@ -285,28 +284,13 @@ export function Pill(props: { tone?: "muted" | "accent" | "danger"; children: JS
   )
 }
 
-/** monocode's Segmented. */
+/** t3code's segmented toggle group (kit.css). */
 export function Segmented<T extends string>(props: { label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void }): JSX.Element {
   return (
-    <div
-      role="radiogroup"
-      aria-label={props.label}
-      class="inline-grid max-w-full shrink-0 gap-0.5 rounded-lg bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-0.5 text-[13px]"
-      style={{ "grid-template-columns": `repeat(${props.options.length}, minmax(0, 1fr))` }}
-    >
+    <div role="radiogroup" aria-label={props.label} class="kit-seg" style={{ "grid-template-columns": `repeat(${props.options.length}, minmax(0, 1fr))` }}>
       <For each={props.options}>
         {(option) => (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={props.value === option.value}
-            data-value={option.value}
-            class={cn(
-              "h-6 min-w-0 cursor-pointer truncate rounded-md px-2.5 font-medium text-[color-mix(in_oklab,var(--text)_55%,transparent)] hover:text-text aria-checked:bg-[var(--bg)] aria-checked:text-text aria-checked:shadow-[0_1px_2px_rgb(0_0_0/0.2)]",
-              focus,
-            )}
-            onClick={() => props.onChange(option.value)}
-          >
+          <button type="button" role="radio" aria-checked={props.value === option.value} data-value={option.value} class="kit-seg-item" onClick={() => props.onChange(option.value)}>
             {option.label}
           </button>
         )}
@@ -315,42 +299,34 @@ export function Segmented<T extends string>(props: { label: string; value: T; op
   )
 }
 
-/** monocode's Slider: a 4px track and a 12px thumb (kit.css). */
-export function Slider(props: { label: string; value: number; display: string; min: number; max: number; disabled?: boolean; onChange: (value: number) => void }): JSX.Element {
+/** t3code's settings slider (kit.css): the value as a small pill, then a track filled to the thumb. */
+export function Slider(props: { label: string; value: number; display: string; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }): JSX.Element {
+  const fill = () => `${((props.value - props.min) / (props.max - props.min || 1)) * 100}%`
   return (
-    <div class="flex w-56 max-w-full items-center gap-3" classList={{ "opacity-40": props.disabled }}>
+    <div class="flex w-56 max-w-full items-center gap-3" classList={{ "opacity-50": props.disabled }}>
+      <output class="kit-value">{props.display}</output>
       <input
         type="range"
         min={props.min}
         max={props.max}
-        step={1}
+        step={props.step ?? 1}
         value={props.value}
         aria-label={props.label}
         disabled={props.disabled}
-        class="kit-range min-w-0 flex-1 disabled:cursor-not-allowed"
+        class="kit-range"
+        style={{ "--fill": fill() }}
         onInput={(e) => props.onChange(Number(e.currentTarget.value))}
       />
-      <span class="w-10 shrink-0 text-right text-[12px] tabular-nums text-text">{props.display}</span>
     </div>
   )
 }
 
-/** monocode's Toggle. */
+/** t3code's switch (kit.css). */
 export function Toggle(props: { label: string; on: boolean; disabled?: boolean; onChange: (on: boolean) => void; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["label", "on", "disabled", "onChange"])
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-label={local.label}
-      aria-checked={local.on}
-      disabled={local.disabled}
-      class={cn("relative h-5 w-9 shrink-0 cursor-pointer rounded-full disabled:cursor-not-allowed disabled:opacity-60", focus)}
-      classList={{ "bg-[var(--accent)]": local.on, "bg-[color-mix(in_oklab,var(--text)_20%,transparent)]": !local.on }}
-      onClick={() => local.onChange(!local.on)}
-      {...rest}
-    >
-      <span class="absolute top-0.5 size-4 rounded-full bg-white" classList={{ "left-[18px]": local.on, "left-0.5": !local.on }} />
+    <button type="button" role="switch" aria-label={local.label} aria-checked={local.on} disabled={local.disabled} class="kit-switch" onClick={() => local.onChange(!local.on)} {...rest}>
+      <span aria-hidden="true" />
     </button>
   )
 }

@@ -5,6 +5,7 @@
 // Every function here is a no-op without a DOM, so tests can import it.
 
 import { setFavicon } from "../mascot/logo"
+import { displayVars } from "./display"
 import { accentFor, colorsFor, DEFAULT_LOOK, type Look } from "./look"
 import { accentChroma, oklchOf, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeDefinition, type ThemeMode } from "./palette"
 
@@ -21,7 +22,8 @@ export const appearanceOf = (mode: ThemeMode): ThemeAppearance => resolveAppeara
 
 /** The tokens each half paints. */
 export function resolveLook(look: Look, library: readonly ThemeDefinition[]): Record<ThemeAppearance, Record<string, string>> {
-  return { light: tokensFor(colorsFor(look, "light", library), "light", accentFor(look, "light")), dark: tokensFor(colorsFor(look, "dark", library), "dark", accentFor(look, "dark")) }
+  const half = (h: ThemeAppearance) => ({ ...tokensFor(colorsFor(look, h, library), h, accentFor(look, h), look.display.contrast), ...displayVars(look.display) })
+  return { light: half("light"), dark: half("dark") }
 }
 
 let applied = new Set<string>()
@@ -34,7 +36,7 @@ function paint(look: Look, library: readonly ThemeDefinition[]): void {
   const appearance = appearanceOf(look.mode)
   const colors = colorsFor(look, appearance, library)
   const accent = accentFor(look, appearance)
-  const next = tokensFor(colors, appearance, accent)
+  const next = { ...tokensFor(colors, appearance, accent, look.display.contrast), ...displayVars(look.display) }
   for (const name of applied) if (!(name in next)) root.style.removeProperty(name)
   for (const [name, value] of Object.entries(next)) root.style.setProperty(name, value)
   applied = new Set(Object.keys(next))

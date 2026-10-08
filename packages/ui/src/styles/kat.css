@@ -1065,6 +1065,11 @@
   --panel-edge: color-mix(in oklab, #ebebeb 10%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #ebebeb 20%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #ebebeb 32%, transparent);
+  --kit-border: color-mix(in oklab, #ebebeb 9%, transparent);
+  --kit-input: color-mix(in oklab, #ebebeb 12%, transparent);
+  --kit-input-fill: color-mix(in oklab, #ebebeb 4%, transparent);
+  --kit-card: color-mix(in oklab, #ebebeb 3%, transparent);
+  --kit-hover: color-mix(in oklab, #ebebeb 7%, transparent);
   --menu-bg: color-mix(in oklab, color-mix(in oklab, #ebebeb 3%, #171717) 55%, transparent);
   --tooltip-bg: color-mix(in oklab, #ebebeb 12%, #171717);
   --user-bubble: color-mix(in oklab, #ebebeb 10%, transparent);
@@ -1103,6 +1108,11 @@
   --panel-edge: color-mix(in oklab, #2e2e2e 10%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #2e2e2e 20%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #2e2e2e 32%, transparent);
+  --kit-border: color-mix(in oklab, #2e2e2e 9%, transparent);
+  --kit-input: color-mix(in oklab, #2e2e2e 12%, transparent);
+  --kit-input-fill: color-mix(in oklab, #2e2e2e 4%, transparent);
+  --kit-card: color-mix(in oklab, #2e2e2e 3%, transparent);
+  --kit-hover: color-mix(in oklab, #2e2e2e 7%, transparent);
   --menu-bg: #f7f7f7;
   --tooltip-bg: color-mix(in oklab, #2e2e2e 12%, #f7f7f7);
   --user-bubble: #2e2e2e;
@@ -1522,7 +1532,11 @@
    * component stylesheet restyles the whole page.
    *
    * The accordion and menu blocks still set both INSIDE their own
-   * `[data-component=...]` scope, which is fine and matches upstream. */
+   * `[data-component=...]` scope, which is fine and matches upstream.
+   *
+   * The one exception is the person's own choice: appearance > font smoothing sets
+   * `--font-smoothing` to antialiased. Unset, it is auto, the same as no rule. */
+  -webkit-font-smoothing: var(--font-smoothing, auto);
   color: var(--text);
   background: var(--bg);
 }
