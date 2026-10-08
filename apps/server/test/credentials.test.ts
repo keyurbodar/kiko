@@ -1,17 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
-import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "../src/lib/crypto"
-
-// P4-01. The crypto runs here in Bun. The store runs inside workerd through Miniflare,
-// with the real `UserDO`, and every line workerd prints is kept so the last test can
-// grep it for the keys the suite used.
+import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "@kiko/durable/crypto"
 
 const random = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("")
 const V1: Keyring = { current: { version: 1, secret: `kek-one-${random()}` } }
 const V2: Keyring = { current: { version: 2, secret: `kek-two-${random()}` }, previous: V1.current }
 const V2_ONLY: Keyring = { current: V2.current }
-/** Every key this suite stores. None may appear in a log or an answer. */
 const keys: string[] = []
 const newKey = () => {
   const key = `sk-test-${random()}`
@@ -94,10 +89,8 @@ test("connect, list, and disconnect through the real UserDO return no key", asyn
   expect(info.result).toEqual({ provider: "opencode-go", kind: "api_key", last4: key.slice(-4) })
   expect((await rpc(user, "listProviders")).result).toEqual([info.result])
 
-  // Another user sees nothing of it.
   expect((await rpc(fresh(), "listProviders")).result).toEqual([])
 
-  // Replacing the key keeps one row.
   const next = newKey()
   await rpc(user, "connectProvider", "opencode-go", next)
   expect((await rpc(user, "listProviders")).result).toEqual([{ provider: "opencode-go", kind: "api_key", last4: next.slice(-4) }])
@@ -120,20 +113,16 @@ test("a key sealed with the previous kek opens during rotation and is re-sealed"
   await vault(user, { keyring: V1, op: "connect", provider: "opencode-go", apiKey: key })
   expect((await vault(user, { keyring: V1, op: "versions" })).result).toEqual([{ provider_id: "opencode-go", kek_version: 1 }])
 
-  // The new secret alone cannot open a version 1 row.
   expect((await vault(user, { keyring: V2_ONLY, op: "read", provider: "opencode-go" })).error).toContain("kek version 1")
 
-  // With the old secret still present, the read works and re-seals the row.
   const read = await vault(user, { keyring: V2, op: "read", provider: "opencode-go" })
   expect(read.result).toEqual({ type: "api_key", key })
   expect((await vault(user, { keyring: V2, op: "versions" })).result).toEqual([{ provider_id: "opencode-go", kek_version: 2 }])
 
-  // After rotation the old secret can go.
   expect((await vault(user, { keyring: V2_ONLY, op: "read", provider: "opencode-go" })).result).toEqual({ type: "api_key", key })
 })
 
 test("no key the suite stored appears in the workerd log", async () => {
-  // The canary proves the capture works, so an empty grep means something.
   const canary = `canary${random()}`
   await mf.dispatchFetch(`http://do/log/x/${canary}`)
   const end = Date.now() + 2000

@@ -1,10 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
-import { keyringFromEnv } from "../src/lib/crypto"
+import { keyringFromEnv } from "@kiko/durable/crypto"
 import { ExtensionError, ExtensionStore } from "../src/user/extensions"
-
-// Runs inside workerd. `extension-store.test.ts` drives one real `ExtensionStore` over its own
-// SQLite, with a fetcher that answers DNS for every host and echoes each request back, so a test
-// can see exactly what left kiko: the URL, the method, the headers, and the body.
 
 type Env = { STORE: DurableObjectNamespace<StoreDO>; CREDENTIALS_KEK: string }
 
@@ -37,7 +33,6 @@ export class StoreDO extends DurableObject<Env> {
         new Headers(init.headers).forEach((v, k) => (headers[k] = v))
         const body = typeof init.body === "string" ? init.body : null
         this.sent.push({ url, method: init.method ?? "GET", headers, body })
-        // An echo server: everything it got, in the body, as JSON.
         return Response.json({ url, headers, body }, { headers: { "set-cookie": "a=b" } })
       },
     )

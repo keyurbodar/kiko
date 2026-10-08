@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { AnswerWaiters } from "../src/agent/answers"
+import { AnswerWaiters } from "@kiko/agent/answers"
 
 test("a pushed answer ends the wait at once", async () => {
   const w = new AnswerWaiters()
@@ -22,7 +22,6 @@ test("the human writing ends every wait with no answer", async () => {
   const b = w.wait("q2", 10_000)
   w.interrupt()
   expect(await Promise.all([a, b])).toEqual([null, null])
-  // A late answer after the interrupt waits for a replayed call, and never reaches the old one.
   w.answer("q1", { text: "late", tainted: true })
   expect(await w.wait("q1", 10)).toEqual({ text: "late", tainted: true })
 })

@@ -1,9 +1,6 @@
 import { expect, test } from "bun:test"
-import { ancestors, capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree } from "../src/lib/optmem"
+import { ancestors, capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree } from "@kiko/memory/optmem"
 import { sqlStorage } from "./sql-shim"
-
-// Architecture section 13. memo's invariants (OptMem test.py), ported, plus kiko's departures. The
-// compressor is fake (it joins and cuts), so the run is deterministic and costs no tokens.
 
 const tiles = (spans: Span[], T: number) => {
   let at = 0
@@ -21,7 +18,6 @@ test("cover tiles [0,T) with aligned power-of-two blocks within budget, finer to
       expect(tiles(c, T)).toBe(true)
       expect(c.length).toBeLessThanOrEqual(Math.max(budget, 1))
       for (const s of c) expect(isNode(s, 1)).toBe(true)
-      // Detail decays with age: block sizes never grow toward the present.
       for (let i = 1; i < c.length; i++) expect(c[i]!.hi - c[i]!.lo).toBeLessThanOrEqual(c[i - 1]!.hi - c[i - 1]!.lo)
       if (T <= budget) expect(c.every((s) => s.hi - s.lo === 1)).toBe(true)
     }
@@ -50,7 +46,6 @@ test("a sticky tiling keeps its old spans byte for byte until the budget overflo
     else if (prev?.length) retiles++
     prev = next
   }
-  // A tiling lasts at least budget - retile pages (128 turns), so the cached prefix rarely breaks.
   expect(retiles).toBeLessThanOrEqual(4000 / (shape.budget - shape.retile) + 1)
   expect(kept).toBeGreaterThan(3700)
 })
@@ -70,7 +65,6 @@ test("ancestors climb one node per level", () => {
   ])
 })
 
-// A fake log of `n` items and a fake compressor.
 function fakeLog(n: number, tainted: (i: number) => boolean = () => false) {
   const log: Item[] = Array.from({ length: n }, (_, i) => ({ pos: i, at: Date.UTC(2026, 8, 1) + i * 3_600_000, text: `item ${i}`, tainted: tainted(i) }))
   const tree = new Tree(sqlStorage(), "t", shape, (lo, hi) => log.slice(lo, Math.min(hi, log.length)))
@@ -93,11 +87,9 @@ function fakeLog(n: number, tainted: (i: number) => boolean = () => false) {
 test("every node is built once, smallest first, about one call per four items", () => {
   const { tree, napAll } = fakeLog(1000)
   const calls = napAll()
-  // 125 pages + 62 + 31 + 15 + 7 + 3 + 1 nodes.
   expect(calls).toBe(244)
   expect(napAll()).toBe(0)
   expect(tree.node({ lo: 0, hi: 512 })).not.toBeNull()
-  // A repeated put is a no-op, as an alarm delivered twice must be.
   expect(tree.put({ lo: 0, hi: 8 }, { text: "again", tainted: false, from: 0, to: 0 })).toBe(false)
   expect(tree.node({ lo: 0, hi: 8 })!.text).toBe("0,1,2,3,4,5,6,7")
 })
@@ -114,7 +106,6 @@ test("forgetting an old item rebuilds only its ancestors", () => {
 test("a view is bounded, keeps the floor verbatim, and falls back to halves for missing nodes", () => {
   const { tree, napAll } = fakeLog(5000)
   const now = Date.UTC(2026, 9, 4)
-  // Nothing summarized yet: the view still renders, from pages' items, and never waits.
   const cold = tree.view(200, null, now)
   expect(cold.lines.length).toBe(200)
   napAll()
@@ -122,7 +113,6 @@ test("a view is bounded, keeps the floor verbatim, and falls back to halves for 
   expect(warm.lines.length).toBeLessThanOrEqual(shape.budget + shape.floor + shape.page)
   expect(warm.lines.at(-1)).toContain("item 4999")
   expect(warm.lines.filter((l) => l.includes(" item ")).length).toBeGreaterThanOrEqual(shape.floor)
-  // The next view keeps the old lines exactly.
   const next = tree.view(5008, warm.tiling, now)
   expect(next.lines.slice(0, warm.tiling.length)).toEqual(warm.lines.slice(0, warm.tiling.length))
 })
@@ -147,7 +137,6 @@ test("zoom opens a node into its halves, down to items", () => {
 test("the nap prompt and the answer cleaner", () => {
   const { tree } = fakeLog(16)
   const prompt = napPrompt(tree.input({ lo: 8, hi: 16 })!, "turns")
-  // The stretch whole, a limit in words, and no ids anywhere: a model copies them into its line.
   expect(prompt).toStartWith("compress these turns into one line of at most 40 words.")
   expect(prompt).toEndWith(`\n\n${Array.from({ length: 8 }, (_, i) => `item ${i + 8}`).join("\n")}`)
   expect(prompt).not.toMatch(/#\d/)
@@ -170,14 +159,13 @@ test("a stretch that already fits a line is its own summary, word for word, with
 })
 
 test("a cut verbatim line says it was cut and how to see the rest", async () => {
-  const { itemLine } = await import("../src/lib/optmem")
+  const { itemLine } = await import("@kiko/memory/optmem")
   expect(itemLine({ pos: 12, at: 0, text: "short", tainted: false }, 100)).not.toContain("cut")
   expect(itemLine({ pos: 12, at: 0, text: "long ".repeat(50), tainted: false }, 100)).toEndWith("… (cut, zoom chat:12)")
 })
 
 test("a node whose call failed while later ones were built is still built, and so are the nodes above it", () => {
   const { tree, napAll } = fakeLog(64)
-  // Four pages run at once; the second one's call fails, the others are stored.
   for (const span of tree.pending(64, 4)) if (span.lo !== 8) tree.put(span, tree.nodeFor(tree.input(span)!, `page ${span.lo}`))
   expect(tree.node({ lo: 8, hi: 16 })).toBeNull()
   expect(tree.pending(64, 10)).toContainEqual({ lo: 8, hi: 16 })

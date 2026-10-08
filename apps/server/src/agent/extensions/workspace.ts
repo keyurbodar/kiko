@@ -4,27 +4,16 @@ import type { Env } from "../../index"
 import { roomStub } from "../../lib/names"
 import type { AgentHome } from "../../room/room-do"
 import { TASK_STATUSES, type WorkspaceAnswer, type WorkspaceCall } from "../../room/workspace"
-import { declareEffect } from "../effects"
-
-// Architecture sections 7.5 and 7.6. The task board as agent tools. Every
-// tool calls the room's `Workspace` through a `WorkspacePort`, which `AgentDO` binds to its own room
-// and slug, so a tool can never act as another agent or in another room. The room reads the caller's
-// lead flag from its member row; `create_task` is offered only to the lead and refused for anyone else.
-//
-// A replayed call is harmless: `create_task` draws its id once per call with `api.memo`, and the room
-// stores nothing for a repeated id. Updates are idempotent. Decisions go in /chat.md, and what an agent
-// did is its run's trace line in memory (section 13), so neither needs a tool here.
+import { declareEffect } from "@kiko/agent/effects"
 
 export const WORKSPACE = "workspace"
 
-/** What the tools need from the room. Tests pass a fake. */
 export interface WorkspacePort {
   call(call: WorkspaceCall): Promise<WorkspaceAnswer>
 }
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
 const answer = (a: WorkspaceAnswer) => (a.ok ? { content: text(a.text) } : { content: text(a.error), isError: true })
-/** A short task id a model can repeat: `t` and six base-36 characters. */
 const newTaskId = () => `t${crypto.randomUUID().replaceAll("-", "").slice(0, 6)}`
 
 export function workspaceExtension(port: WorkspacePort, lead: boolean): Extension {
@@ -64,7 +53,6 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
   return defineExtension({ name: WORKSPACE, tools })
 }
 
-/** The port over the agent's own room. `home` is read on every call because the room sets it on the first delivery. */
 export function roomWorkspacePort(env: Env, home: () => AgentHome | null): WorkspacePort {
   return {
     async call(call) {

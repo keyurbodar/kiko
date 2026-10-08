@@ -2,19 +2,14 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, wrapSection } from "@earendil-works/pi-durable"
 import { BUILTIN_SKILLS } from "../../skills/builtin.gen"
 import { formatSkills, parseSkill, resolveSkills, type Skill } from "../../skills/registry"
-import { declareEffect } from "../effects"
+import { declareEffect } from "@kiko/agent/effects"
 import type { RoomFs } from "../../files/room-fs"
 import { perRun } from "./self"
-
-// Architecture section 15, P5-08. Skills load on demand, as in pi's coding agent: the prompt's
-// skills slot lists each name and description, and read_skill returns the instructions. A room
-// skill is a chat file at skills/<name>/SKILL.md and wins over a built-in skill of the same name.
 
 export const SKILLS = "skills"
 const ROOM_PREFIX = "skills"
 const MAX_SKILL_BYTES = 64 * 1024
 
-/** The built-in skills, parsed once per isolate. */
 let parsed: Skill[] | undefined
 const builtin = (): Skill[] =>
   (parsed ??= BUILTIN_SKILLS.flatMap(([dir, content]) => {
@@ -41,7 +36,6 @@ async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
 
 export function skillsExtension(files?: RoomFs, stamp?: () => number): Extension {
   const all = async () => resolveSkills(await roomSkills(files), builtin())
-  // The list in the prompt is read once per run. `read_skill` reads afresh, so a skill written mid-run loads.
   const listed = perRun(async () => formatSkills(await all()), stamp)
   return defineExtension({
     name: SKILLS,

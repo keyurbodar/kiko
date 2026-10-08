@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { RoomEvent, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
-import { type Fetcher, safeFetch } from "../src/lib/safe-fetch"
+import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 import { imageHash, imagePath, IMAGE_PREFIX, openToken, serveImage } from "../src/previews/image"
 import { fragmentText, oembedFor } from "../src/previews/oembed"
 import { parsePreview } from "../src/previews/parse"
@@ -9,15 +9,12 @@ import { headWatcher, PREVIEW_USER_AGENT, resolvePreview } from "../src/previews
 import { previewTarget, previewUrl } from "../src/room/link-preview"
 import { bundleWorker } from "./bundle"
 
-// Architecture section 18.2: link previews, from the page's head to the card on the message.
-
 const SECRET = "test-secret-for-preview-images"
 const PNG = Uint8Array.from(
   atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="),
   (c) => c.charCodeAt(0),
 )
 
-/** Answers DNS with a public address, then hands every other request to `serve`. */
 function fakeWeb(serve: (url: URL, init: RequestInit) => Response | Promise<Response>): Fetcher & { hits: string[] } {
   const hits: string[] = []
   const fetcher = (async (url: string, init: RequestInit) => {
@@ -99,7 +96,6 @@ describe("head-only reading", () => {
       const stream = new ReadableStream<Uint8Array>({
         pull(controller) {
           pulls++
-          // The tag is split across two chunks, then the body would go on forever.
           controller.enqueue(pulls === 1 ? head : pulls === 2 ? end : filler)
         },
       })
@@ -244,7 +240,6 @@ describe("the room's link", () => {
   })
 })
 
-// The real RoomDO in workerd, with KV holding a cached preview, so no page is fetched.
 describe("room", () => {
   let mf: Miniflare
   let origin: string
@@ -288,7 +283,6 @@ describe("room", () => {
     expect(card!.seq).toBeGreaterThan(message.seq)
     ws.close()
 
-    // A late socket gets the card in the replay, after the message.
     const late = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
     const replay: RoomToClient[] = []
     late.onmessage = (e) => replay.push(JSON.parse(String(e.data)))
@@ -301,7 +295,6 @@ describe("room", () => {
   })
 
   test("a tainted run's link gets a card only once a human sent it; a clean run's always does", async () => {
-    // Section 16.4: a link a tainted run wrote may carry what outside content told it to write.
     const preview = { url: "https://cached.test/agent", title: "an agent's page" }
     const kv = await mf.getKVNamespace("PREVIEWS")
     await kv.put(`preview:v2:${preview.url}`, JSON.stringify({ preview }))
@@ -332,7 +325,6 @@ describe("room", () => {
     await until(() => cards().length === 1)
     expect(cards()).toMatchObject([{ messageId: messages()[1]!.id }])
 
-    // The human sends the link. Its own card is the second; the tainted run's next bubble gets the third.
     ws.send(JSON.stringify({ t: "send", clientId: "h1", text: `what about ${preview.url}?` }))
     await until(() => cards().length === 2)
     await post("kiko:tainted-after", true)

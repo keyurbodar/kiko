@@ -6,7 +6,7 @@ import type { Envelope, RoomId } from "@kiko/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
-import { AnswerWaiters } from "./answers"
+import { AnswerWaiters } from "@kiko/agent/answers"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import type { ApprovalAnswer, ApprovalRequest } from "../room/approvals"
@@ -15,11 +15,12 @@ import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { ChiefPort } from "./extensions/chief"
+import { shortBrief } from "../room/brief"
 import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
-import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "./extensions/memory"
+import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
-import type { Approvals } from "./extensions/trust"
+import type { Approvals } from "@kiko/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
 import type { ExecutorTool } from "../integrations/executor/tools"
@@ -27,15 +28,15 @@ import type { ExecutorTool } from "../integrations/executor/tools"
 const EXECUTOR_TOOLS_KEY = "executor_tools"
 const EXECUTOR_TOOLS_TTL_MS = 5 * 60_000
 import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
-import type { GuestResponse, Installed, ScriptPorts } from "./script/compile"
-import { hasScriptWasm, scriptWasm } from "./script/wasm"
-import { checkExtension } from "./script/check"
+import type { GuestResponse, Installed, ScriptPorts } from "@kiko/sandbox/compile"
+import { hasScriptWasm, scriptWasm } from "@kiko/sandbox/wasm"
+import { checkExtension } from "@kiko/sandbox/check"
 import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@kiko/protocol"
-import { createAlarms } from "../lib/alarm"
-import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
-import type { Batch } from "./inbox"
-import { storedRows, wipeStorage } from "../lib/wipe"
+import { createAlarms } from "@kiko/durable/alarm"
+import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "@kiko/agent/host"
+import type { Batch } from "@kiko/agent/inbox"
+import { storedRows, wipeStorage } from "@kiko/durable/wipe"
 import { instrument } from "../lib/dev-stats"
 
 declare const process: { env: { NODE_ENV?: string } }
@@ -43,22 +44,15 @@ import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
 const DEV_CLASSIC_KEY = "dev-classic"
-/** Development only: the budget `devBudget` sets for runs no human started. */
 const DEV_BUDGET_KEY = "dev:auto-budget-ms"
-/** The room's turn count when this agent last read it: where the next run's delta starts (section 13). */
 const MEMORY_POS_KEY = "memory:pos"
-/** Missed more turns than this, and the run starts over from the whole block instead of a long delta. */
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
-/** One outside request as it crosses to `egress`. */
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
-/** Extension bundles this agent fetched, by content hash (section 24.5). */
 const BUNDLE_PREFIX = "ext-bundle:"
-/** The model chosen for this agent in this room, and the one last applied to its conversation. */
 const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
 
-/** One agent in one room (architecture section 4.1). The host does the work; this class is its RPC surface. */
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
 const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
 
@@ -72,8 +66,6 @@ export class AgentDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     instrument(ctx, "agent")
-    // Architecture section 23: the schema migration runs before any other work on every start. The
-    // inbox, the wakeups, the outbox, and the home table create or upgrade their tables here.
     void ctx.blockConcurrencyWhile(async () => {
       void this.host
       void this.outbox
@@ -89,13 +81,13 @@ export class AgentDO extends DurableObject<Env> {
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
       progress: () => this.outbox.progress(),
-      // Extension VMs live for a run. Wasm memory never shrinks, and the isolate's 128 MB is shared.
+      shortBrief,
+      onReset: () => this.outbox.clear(),
       onIdle: () => this.#userExtensions?.release(),
       ...this.hostOptions,
       setup: () => this.setup(),
       onOpen: async (opened) => {
         await this.hostOptions.onOpen?.(opened)
-        // Before resume, so the outbox sees a resumed run from its first event.
         await this.outbox.attach(opened.harness, opened.root.id)
       },
       ...(process.env.NODE_ENV === "development" ? { autoBudgetMs: async () => (await this.ctx.storage.get<number>(DEV_BUDGET_KEY)) ?? AUTO_RUN_BUDGET_MS } : {}),
@@ -124,33 +116,16 @@ export class AgentDO extends DurableObject<Env> {
     return this.outboxInstance
   }
 
-  /**
-   * Called by `RoomDO` only. Stores the envelopes and returns. It never waits on a model or on
-   * another Durable Object, so two agents that message each other cannot deadlock. `home` says which
-   * room this agent belongs to and its member row; the room passes it on every delivery and the agent
-   * keeps the latest. The name of this object already fixes the user, room, and slug.
-   */
   receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     if (home) this.setHome(home)
     if (envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return this.host.receive(envelopes, brief)
   }
 
-  /**
-   * Called by `RoomDO` when the human presses stop (section 6.2). Discards the inputs that wait and
-   * sets the alarm, which aborts the run. Like `receive`, it never waits on another object.
-   */
   stop() {
     return this.host.stop()
   }
 
-  /**
-   * Called by `RoomDO` when a socket opens on a room process that just started while a run looked
-   * live. After a restart (a deploy, a crash) the run otherwise waits for its heartbeat, up to 30
-   * seconds. This moves a pending heartbeat to now, so the alarm reopens the harness and resumes the
-   * run at once. Like `receive`, it only stores and returns. A live process gets one extra alarm that
-   * finds nothing to do. Returns false when no heartbeat is pending, that is, when no run is live.
-   */
   async wake(): Promise<boolean> {
     this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
     const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
@@ -159,12 +134,10 @@ export class AgentDO extends DurableObject<Env> {
     return true
   }
 
-  /** Inbox counts and live work, for tests and the CLI. Opens nothing. */
   status() {
     return this.host.status()
   }
 
-  /** The room that delivered to this agent. Only `RoomDO` sets it, from its own name. */
   protected home(): AgentHome | null {
     this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS agent_home (id INTEGER PRIMARY KEY CHECK (id = 1), home TEXT NOT NULL)")
     const row = this.ctx.storage.sql.exec<{ home: string }>("SELECT home FROM agent_home WHERE id = 1").toArray()[0]
@@ -177,7 +150,6 @@ export class AgentDO extends DurableObject<Env> {
     this.ctx.storage.sql.exec("INSERT INTO agent_home (id, home) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET home = excluded.home", text)
   }
 
-  /** The room's RPC, bound to this agent's slug. Tests override it. */
   protected roomPort(): RoomPort | null {
     const home = this.home()
     if (!home) return null
@@ -191,19 +163,15 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** The team tools' side of the room (P6-03), bound to this agent's slug. The room sets the hop and root. */
-  /** The reminder tools' port (P5-06): the user's reminders, scoped to this room, created as this agent. */
   private remindersPort(): RemindersPort | null {
     const home = this.home()
     if (!home) return null
     const user = () => userStub(this.env.USER, home.userId)
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     const tz = () => this.#run?.timezone ?? "UTC"
-    // An agent reaches only the reminders and routines of its own chat, whatever id it passes.
     const mine = async (id: string) => (await user().listReminders()).some((r) => r.id === id && r.roomId === home.roomId)
     const notHere = { ok: false as const, error: "no such reminder in this chat" }
     return {
-      // The reminder keeps the chain this run works on, so it wakes with the authority of the work behind it (section 25.3).
       create: async (input) => user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug, chain: await room().chainOf(home.slug) }),
       list: async () => (await user().listReminders()).filter((r) => r.roomId === home.roomId),
       cancel: async (id) => {
@@ -221,11 +189,6 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /**
-   * The human's Executor tools (P7-04), listed when the harness opens and cached for five minutes,
-   * so a new integration reaches the next process without a deploy. Null when Executor is not
-   * connected; "unreachable" when it is but did not answer (the run starts without its tools).
-   */
   private async executorTools(): Promise<ExecutorTool[] | null | "unreachable"> {
     const home = this.home()
     if (!home) return null
@@ -240,21 +203,15 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** RPC from the room: a human message is in its burst window (section 7.8). Only stores. */
   async humanComing(): Promise<void> {
     this.host.humanComing()
     this.answers.interrupt()
   }
 
-  /** RPC from the room: the burst it warned about closed with nothing for this agent (section 7.8). Only stores. */
   async humanGone(): Promise<void> {
     await this.host.humanGone()
   }
 
-  /**
-   * The ids of the agent envelopes a run read, from the `pi-durable` inputs it answered. The room uses
-   * them to let a run's plain reply answer a teammate's open ask (section 7.5).
-   */
   private async heard(inputs: readonly SubmissionId[]): Promise<string[]> {
     if (!inputs.length) return []
     const { storage } = await this.host.open()
@@ -266,7 +223,6 @@ export class AgentDO extends DurableObject<Env> {
     return out
   }
 
-  /** RPC from the room: a teammate answered this agent's open ask `id` (section 7.5). Only hands it over. */
   async askAnswered(id: string, answer: string, tainted = true): Promise<void> {
     this.answers.answer(id, { text: answer, tainted })
   }
@@ -287,13 +243,11 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** One line for the team board: what this agent's current tool call is about (section 7.12). */
   private async report(doing: string): Promise<void> {
     const home = this.home()
     if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportDoing(home.slug, doing)
   }
 
-  /** kiko's making of agents and groups (section 7.11). Every other agent gets none. */
   private chiefPort(): ChiefPort | undefined {
     const home = this.home()
     if (home?.slug !== CHIEF) return undefined
@@ -306,7 +260,6 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** This agent's soul in UserDO (section 7.10). The slug comes from the room's delivery, never the model. */
   private soulPort(): SoulPort {
     const user = () => {
       const home = this.home()
@@ -318,7 +271,6 @@ export class AgentDO extends DurableObject<Env> {
         const { stub, slug } = user()
         return stub.soul(slug)
       },
-      // The prompt's copy: the one the run's `turnContext` brought, so no request waits on UserDO for it.
       forPrompt: async () => this.#run?.soul ?? (await user().stub.soul(user().slug)),
       set: async (body, expectSha) => {
         if (this.home()?.private) return { ok: false, code: "invalid", message: PRIVATE_REFUSAL }
@@ -330,12 +282,6 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /**
-   * The factory builds every agent. Every model request uses the user's own credential, which
-   * `beginRun` loads once per run (architecture section 11.3). The role and lead flag are the member
-   * row at the latest delivery. ASSUMPTION: they are read when the harness opens, so a change
-   * reaches the prompt when the root conversation is created, not later.
-   */
   protected async setup(): Promise<AgentSetup> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
@@ -352,16 +298,13 @@ export class AgentDO extends DurableObject<Env> {
           await this.syncExtensions(fake.extensions, root)
           return true
         },
-        // The fake reads memory like a real agent, so the suites prove the <memory> block, not a stand-in.
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.carryUsage(harness),
       }
     }
-    // WORKAROUND inside: the stable `x-opencode-session` header OpenCode Go requires (P0-05).
     const egress = this.egressFetch()
     const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString(), egress)
     const soul = this.soulPort()
-    // The chat's files at /, the user's drive at /home, and this agent's soul at /me, on one byte cache.
     const cache = new ObjectCache()
     const where = () => this.home()
     const notice = (text: string) => {
@@ -380,15 +323,12 @@ export class AgentDO extends DurableObject<Env> {
       ...built,
       ...user,
       env: fs,
-      // One call to UserDO loads the auth, the extension versions, and the soul, while the room
-      // computes the memory delta beside it (section 13.4).
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
         if (!(await this.beginRun(batch.requestId, root))) return false
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true
       },
-      // The clock goes into every input, so "in ten minutes" and "tomorrow at 9" resolve.
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
@@ -397,18 +337,11 @@ export class AgentDO extends DurableObject<Env> {
         const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
         return [clock, down, quiet, extensions].filter(Boolean).join("\n\n")
       },
-      // Development only: `classic` keeps the old transcript (no reset, no memory block), so `verify
-      // token-cost` can measure both designs on the same model.
       ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
       beforeCompact: (harness) => this.carryUsage(harness),
     }
   }
 
-  /**
-   * Section 13. The <memory> block a new run opens with: the user's life log and this chat as of now,
-   * without the messages the batch delivers and those that joined the last run (`joined`), which the
-   * transcript holds. The life log is read only here, when the run starts fresh.
-   */
   private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean }> {
     const ahead = this.#delta?.requestId === batch.requestId ? this.#delta.since : null
     this.#delta = undefined
@@ -417,7 +350,6 @@ export class AgentDO extends DurableObject<Env> {
     const room = roomStub(this.env.ROOM, home.userId, home.roomId)
     const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
     const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
-    // Going on: only the turns since this agent's last run, without its own, which its transcript holds.
     if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
@@ -425,17 +357,11 @@ export class AgentDO extends DurableObject<Env> {
         return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
       }
     }
-    // Starting over: the whole block, as OptMem's wake.
     const [view, life] = await Promise.all([room.memoryView(seqs), withLife ? userStub(this.env.USER, home.userId).lifeView() : ""])
     await this.ctx.storage.put(MEMORY_POS_KEY, view.count)
     return { fresh: true, text: memoryBlock(life, view.text) }
   }
 
-  /**
-   * Section 13.4. The delta a run that goes on will read, asked for while `beginRun` loads the run's
-   * auth, so the two calls overlap. `inputMemory` uses it when the run does go on; a run that starts
-   * fresh drops it.
-   */
   #delta?: { requestId: string; since: Promise<{ text: string; count: number } | null> }
 
   private prefetchDelta(batch: Batch): void {
@@ -450,7 +376,6 @@ export class AgentDO extends DurableObject<Env> {
     this.#delta = { requestId: batch.requestId, since }
   }
 
-  /** Keeps the token count across a drop of pi-durable's tables, so `devUsage` still adds up. */
   private async carryUsage(harness: Harness): Promise<void> {
     const now = await this.usageOf(harness)
     const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
@@ -469,11 +394,6 @@ export class AgentDO extends DurableObject<Env> {
     return sum
   }
 
-  /**
-   * Architecture section 24.5. Before each run: read the versions this agent runs, fetch the
-   * bundles it has not seen, install them in the registry, and give the root conversation the new
-   * selection when it changed. A failure keeps what the agent had: an extension never stops a run.
-   */
   private async syncExtensions(extensions: UserExtensions, root: Conversation, versions?: { name: string; hash: string }[]): Promise<void> {
     this.#userExtensions = extensions
     const home = this.home()
@@ -481,7 +401,6 @@ export class AgentDO extends DurableObject<Env> {
     const user = userStub(this.env.USER, home.userId)
     try {
       const list = versions ?? (await user.extensionsFor(home.slug))
-      // The same versions this process synced last: the registry and the conversation already have them.
       const key = JSON.stringify(list)
       if (this.#extensionsSynced?.on === extensions && this.#extensionsSynced.key === key) return
       this.#extensionsSynced = undefined
@@ -498,13 +417,11 @@ export class AgentDO extends DurableObject<Env> {
           installed.push(b)
         }
       }
-      // Bundles no longer installed are dropped from storage.
       const keep = new Set(list.map((i) => `${BUNDLE_PREFIX}${i.hash}`))
       const stale = [...(await this.ctx.storage.list({ prefix: BUNDLE_PREFIX })).keys()].filter((k) => !keep.has(k))
       if (stale.length) await this.ctx.storage.delete(stale)
       const problems = extensions.sync(installed)
       for (const p of problems) void user.extensionError(p.name, p.hash, p.error).catch(() => {})
-      // The run's context names what is installed, so the agent knows a tool it proposed is live now.
       const broken = new Set(problems.map((p) => p.name))
       this.#extensionsNote = installed
         .filter((i) => !broken.has(i.name))
@@ -513,7 +430,6 @@ export class AgentDO extends DurableObject<Env> {
       const want = extensions.selection()
       const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
       if (want.map((e) => e.name).join("\n") !== have.join("\n")) await root.configure({ extensions: want }, BACKGROUND_CONTEXT)
-      // A version that failed to compile is tried again next run.
       if (!problems.length) this.#extensionsSynced = { on: extensions, key }
     } catch (error) {
       console.error(`extensions not synced: ${error instanceof Error ? error.message : String(error)}`)
@@ -542,7 +458,6 @@ export class AgentDO extends DurableObject<Env> {
       const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
       signal?.throwIfAborted()
       // The request crosses as plain data: a request body streamed over RPC can be cut off before the
-      // other side reads it. Model requests are small JSON, so reading it whole costs nothing.
       const request = new Request(input as RequestInfo, { ...init, signal: null })
       const body = request.body ? await request.arrayBuffer() : null
       const response = await self().egress({ url: request.url, method: request.method, headers: [...request.headers], body })
@@ -553,16 +468,12 @@ export class AgentDO extends DurableObject<Env> {
     }) as typeof fetch
   }
 
-  /** This process's user extensions, so going idle can free their VMs. */
   #userExtensions?: UserExtensions
 
-  /** The extension versions this process synced last, as `syncExtensions` compares them. */
   #extensionsSynced?: { on: UserExtensions; key: string }
 
-  /** The installed extensions, as one line for the run's context. Empty when there are none. */
   #extensionsNote = ""
 
-  /** What a running extension script reaches, bound to this agent's user, room, and slug. Null without the QuickJS binary. */
   private scriptPorts(): ScriptPorts | undefined {
     if (!hasScriptWasm()) return undefined
     const where = () => {
@@ -578,7 +489,6 @@ export class AgentDO extends DurableObject<Env> {
       wasm: scriptWasm,
       state: async (name, kind, op, key, value) => {
         const home = where()
-        // A private chat leaves no trace across chats (section 7.10): user-wide state only reads.
         if (home.private && kind === "user" && (op === "set" || op === "delete")) throw new Error(PRIVATE_REFUSAL)
         return userStub(this.env.USER, home.userId).extensionState(name, scope(kind), op, key, value)
       },
@@ -594,7 +504,6 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** `extension_check` and `extension_propose`, on this chat's files. */
   private builderPorts(fs: RoomFs): BuilderPorts {
     const where = () => {
       const home = this.home()
@@ -615,25 +524,15 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /**
-   * The one way this agent asks the human (sections 12.3, 16.3, 25.3): the trust gate, a routine
-   * tool, and Executor's pause all post the room's card through here. The agent can ask; it can never
-   * decide. Null when the agent has no room yet.
-   */
   private async ask(req: ApprovalRequest): Promise<ApprovalAnswer | null> {
     const home = this.home()
     return home ? roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, req) : null
   }
 
-  /** The trust gate's side of `ask`: an `external` call in a run nobody asked for. */
   private approvalsPort(): Approvals {
     return (call) => this.ask({ kind: "grant", callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments, external: true })
   }
 
-  /**
-   * The memory tools' port (section 13). Life lines live in `UserDO`, this chat in `RoomDO`. A private
-   * chat reads both and writes nothing (section 7.10).
-   */
   private memoryPort(): MemoryPort | undefined {
     const home = this.home()
     if (!home) return undefined
@@ -653,12 +552,9 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  // Per-run credentials (P4-02). The auth lives in this process's memory only, never in storage.
   #run: { provider: string; auth: AuthResult | null; timezone: string; extensions?: { name: string; hash: string }[]; soul?: Soul } | null = null
-  /** Moves on at every run start, so the prompt reads the soul, /chat.md, and the skills once per run, not per request. */
   #runStamp = 0
 
-  /** Before a run: applies a newly chosen model, then loads the user's auth for its provider. */
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
     const home = this.home()
     if (!home) return false
@@ -671,13 +567,11 @@ export class AgentDO extends DurableObject<Env> {
     const model = chosen ?? DEFAULT_MODEL
     const auth = await this.loadAuth(model.provider)
     if (auth) return true
-    // The teammates' asks this batch carried are closed with the reason, so no asker waits for nothing.
     const heard = this.host.inbox.envelopeIds(requestId).filter((id) => id.startsWith("agent:"))
     await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard)
     return false
   }
 
-  /** The auth `Models` asks for on each request. A run resumed after an eviction loads it again. */
   private async runAuth(provider: string): Promise<AuthResult | undefined> {
     if (this.#run?.provider === provider) return this.#run.auth ?? undefined
     return (await this.loadAuth(provider)) ?? undefined
@@ -690,15 +584,10 @@ export class AgentDO extends DurableObject<Env> {
     return this.#run.auth
   }
 
-  /** The model this agent in this room uses. A chosen model, or the default. */
   async model(): Promise<ModelRef> {
     return (await this.ctx.storage.get<ModelRef>(MODEL_KEY)) ?? DEFAULT_MODEL
   }
 
-  /**
-   * Chooses this agent's model in this room. It applies from the next run. Returns false for a model
-   * pi-ai's catalog does not have; kiko keeps no model list of its own.
-   */
   async setModel(model: ModelRef): Promise<boolean> {
     if (!findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return false
     await this.ctx.storage.put(MODEL_KEY, { provider: model.provider, modelId: model.modelId })
@@ -707,7 +596,6 @@ export class AgentDO extends DurableObject<Env> {
 
   async alarm() {
     if (this.#wiped) return
-    // The experiment objects (`experiment:turn:*`) keep their own heartbeat key. Real agents never have it.
     const experiment = this.ctx.storage.sql.exec("SELECT 1 FROM wakeups WHERE key = 'experiment-heartbeat'").toArray().length > 0
     if (experiment) return this.experiment.alarm()
     await this.host.alarm()
@@ -725,13 +613,10 @@ export class AgentDO extends DurableObject<Env> {
     return measureTurn(this.ctx.storage, coalesce, streamMs)
   }
 
-  // Account deletion (P9-02). The room's deletion job calls these.
   #wiped = false
 
-  /** Deletes all of the agent's storage. Returns the rows that held data, 0 on a repeat. */
   async deleteAll(): Promise<number> {
     if (this.#wiped) return 0
-    // Marked first, so no alarm reopens the harness while the run stops.
     this.#wiped = true
     await this.hostInstance?.shutdown()
     return wipeStorage(this.ctx)
@@ -741,17 +626,11 @@ export class AgentDO extends DurableObject<Env> {
     return this.#wiped ? 0 : storedRows(this.ctx.storage)
   }
 
-  /**
-   * Development only. Makes this agent the scripted fake of `agent/dev-fake.ts` (P1-12), which spends
-   * no tokens. It takes effect when the harness next opens, so call it before the first message.
-   */
-  /** Development only. Makes this agent keep the old transcript, for `verify token-cost`. Call before the first message. */
   async devClassic(): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     await this.ctx.storage.put(DEV_CLASSIC_KEY, true)
   }
 
-  /** Development only. The tokens this agent's model requests spent, summed over every model. */
   async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     if (!this.home()) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
@@ -761,7 +640,6 @@ export class AgentDO extends DurableObject<Env> {
     return { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
   }
 
-  /** Development only. Each run's requests: the tools it called and how long its text was, for `verify token-cost`. */
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     if (!this.home()) return []
@@ -776,7 +654,6 @@ export class AgentDO extends DurableObject<Env> {
     })
   }
 
-  /** Development only. A shorter budget for runs nobody asked for, so `verify routines` sees a timeout (section 25.2). */
   async devBudget(ms: number): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     await this.ctx.storage.put(DEV_BUDGET_KEY, ms)
@@ -787,16 +664,12 @@ export class AgentDO extends DurableObject<Env> {
     await this.ctx.storage.put(DEV_FAKE_KEY, true)
   }
 
-  /** Development only. The agent's subagent conversations, so `verify subagent` can count them. */
   async devChildren(): Promise<{ id: string; taskId: string }[]> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    // Opening the harness builds the agent once per process; built before its first delivery, it would
-    // have no home, so no memory tools and no role. A dev route never does that.
     if (!this.home()) return []
     return this.host.children()
   }
 
-  /** Development only. Stores one row, so a deletion check has agent data before agents exist (P1-06). */
   async devSeed(): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     await this.ctx.storage.put("dev-seed", Date.now())

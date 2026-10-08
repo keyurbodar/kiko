@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import { createAlarms, runDue } from "../src/lib/alarm"
+import { createAlarms, runDue } from "@kiko/durable/alarm"
 
 export class T extends DurableObject {
   alarms = createAlarms(this.ctx)

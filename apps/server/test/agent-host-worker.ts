@@ -4,11 +4,8 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import type { Envelope } from "@kiko/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
-import { type AgentSetup, type HostOptions, RUNS_KEY } from "../src/agent/host"
+import { type AgentSetup, type HostOptions, RUNS_KEY } from "@kiko/agent/host"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
-
-// Runs inside workerd. `agent-host.test.ts` drives it through Miniflare. `T` is the real `AgentDO`
-// with the faux model in place of the dev setup, so no test spends a token.
 
 const context = BACKGROUND_CONTEXT
 
@@ -57,19 +54,16 @@ export class T extends AgentDO {
     faux.setResponses(Array.from({ length: 200 }, () => answer))
     const models = createModels()
     models.setProvider(faux.provider)
-    // Section 13: with memory on, every run starts from a <memory> block, as a real agent's does.
     const memory = (await this.ctx.storage.get<boolean>("memory"))
       ? {
           inputMemory: async (batch: { envelopes: Envelope[] }, fresh: boolean, joined: number[]) => {
             await this.ctx.storage.put("joined", joined)
-            // A message that starts with "wake" makes the run start over, as one that missed too much would.
             return fresh || batch.envelopes.some((e) => e.body.startsWith("wake"))
               ? { fresh: true, text: "<memory>\nchat:\n#0 human: earlier\n</memory>" }
               : { fresh: false, text: "<memory>\nchat since your last turn:\n#9 human: new\n</memory>" }
           },
         }
       : {}
-    // Counts the runs that loaded credentials, so a test sees a held batch load none.
     const beginRun = async () => {
       await this.ctx.storage.put("begins", ((await this.ctx.storage.get<number>("begins")) ?? 0) + 1)
       return true
@@ -105,7 +99,6 @@ export class T extends AgentDO {
       return Response.json({ ok: true })
     }
     if (body.op === "crash") {
-      // Everything committed so far is durable, then the process dies mid-run.
       await this.ctx.storage.sync()
       this.ctx.abort("simulated crash")
       return Response.json({ error: "still alive" }, { status: 500 })

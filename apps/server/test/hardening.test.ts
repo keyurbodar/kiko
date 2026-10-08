@@ -1,13 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
-import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "../src/agent/inbox"
-import { HISTORY_LIMIT, MAX_WAKEUPS } from "../src/lib/alarm"
-import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "../src/lib/hello-deadline"
+import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "@kiko/agent/inbox"
+import { HISTORY_LIMIT, MAX_WAKEUPS } from "@kiko/durable/alarm"
+import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "@kiko/durable/hello-deadline"
 import { bundleWorker } from "./bundle"
-
-// P1-13, architecture section 23. The four patterns kiko borrows from Rivet, each in workerd:
-// inbox entries in flight, inbox caps, the wakeup cap and history, and the hello deadline.
 
 let parts: Miniflare
 let room: Miniflare
@@ -65,18 +62,14 @@ describe("inbox entries in flight", () => {
     const e = envelope("one")
     expect((await call(id, "admit", { envelopes: [e] })).inserted).toBe(1)
 
-    // The run takes the entry and dies before it is submitted.
     const taken = await call<Batch[]>(id, "claim", { now: T0 })
     expect(taken.map((b) => b.envelopes.map((x) => x.id))).toEqual([[e.id]])
 
-    // In flight: nothing is handed out again before the timeout.
     expect(await call<Batch[]>(id, "claim", { now: T0 + RECLAIM_MS - 1 })).toEqual([])
 
-    // After the timeout the same batch comes back, with the same request id.
     const back = await call<Batch[]>(id, "claim", { now: T0 + RECLAIM_MS })
     expect(back.map((b) => b.requestId)).toEqual([taken[0]!.requestId])
 
-    // Completion counts once. The second is a no-op, and nothing is handed out after it.
     expect(await call<boolean>(id, "submitted", { requestId: back[0]!.requestId })).toBe(true)
     expect(await call<boolean>(id, "submitted", { requestId: back[0]!.requestId })).toBe(false)
     expect(await call<Batch[]>(id, "claim", { now: T0 + 2 * RECLAIM_MS })).toEqual([])
@@ -91,7 +84,6 @@ describe("inbox entries in flight", () => {
     await call(id, "restart")
     const back = await call<Batch[]>(id, "claim", { now: T0 + 1 })
     expect(back.map((b) => b.requestId)).toEqual([taken[0]!.requestId])
-    // The new process holds it now.
     expect(await call<Batch[]>(id, "claim", { now: T0 + 2 })).toEqual([])
   })
 
@@ -114,9 +106,7 @@ describe("inbox caps", () => {
     const two = [envelope("a"), envelope("b")]
     expect(await call(id, "admit", { envelopes: two })).toEqual({ admitted: [], inserted: 0, refused: "full" })
     expect((await call(id, "counts")).waiting).toBe(MAX_OPEN - 1)
-    // A repeat of stored ids is still a receipt, full or not.
     expect((await call(id, "admit", { envelopes: filler.slice(0, 3) })).admitted).toHaveLength(3)
-    // One more fits. Then it is full.
     expect((await call(id, "admit", { envelopes: two.slice(0, 1) })).inserted).toBe(1)
     expect((await call(id, "admit", { envelopes: two.slice(1) })).refused).toBe("full")
   })
@@ -143,7 +133,6 @@ describe("wakeups", () => {
     const id = fresh()
     expect(await call(id, "wakeups", { prefix: "k", count: MAX_WAKEUPS + 1 })).toEqual({ stored: MAX_WAKEUPS, error: "WakeupLimitError" })
     await call(id, "move", { key: "k0", at: 6e12 })
-    // Firing some frees room for new keys. `k0` moved past this alarm, so k1 to k10 fire.
     expect((await call(id, "due", { now: 5e12 + 10 })).keys).toHaveLength(10)
     expect(await call(id, "wakeups", { prefix: "new", count: 11 })).toEqual({ stored: 10, error: "WakeupLimitError" })
   }, 30_000)

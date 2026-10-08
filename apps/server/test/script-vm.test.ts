@@ -1,10 +1,7 @@
 import { beforeAll, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import type { ExtensionBundle } from "@kiko/protocol"
-import { ScriptVM } from "../src/agent/script/vm"
-
-// The sandbox on its own, in Bun with the same wasm the Worker imports. The Worker path is covered
-// by `bun kiko verify extensions`.
+import { ScriptVM } from "@kiko/sandbox/vm"
 
 let wasm: WebAssembly.Module
 
@@ -125,7 +122,7 @@ test("each bridge call carries its own op and arguments, even when calls overlap
 })
 
 test("a vm that grew past the retire size takes no new calls, and the pool starts a fresh one", async () => {
-  const { VmPool } = await import("../src/agent/script/compile")
+  const { VmPool } = await import("@kiko/sandbox/compile")
   const installed = { name: "t", hash: "h1", bundle: bundle(`let keep = []; export const tools = { go: async ({ grow }) => { if (grow) for (let i = 0; i < 9000; i++) keep.push("x".repeat(1000)); return keep.length } }`) }
   const pool = new VmPool(() => wasm)
   const first = await pool.get(installed)
@@ -134,7 +131,6 @@ test("a vm that grew past the retire size takes no new calls, and the pool start
   expect(first.unusable).toBe(true)
   const second = await pool.get(installed)
   expect(second).not.toBe(first)
-  // The fresh vm starts empty: the old one's data and memory are gone.
   expect(await second.invoke({ group: "tools", name: "go" }, [{ grow: false }], {}, noBridge)).toBe(0)
   pool.release()
   await Bun.sleep(0)

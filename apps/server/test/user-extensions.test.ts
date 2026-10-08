@@ -6,17 +6,14 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, Harness, MemoryStorage } from "@earendil-works/pi-durable"
 import type { ExtensionBundle } from "@kiko/protocol"
-import { declareEffect } from "../src/agent/effects"
-import { externalDecisions, TRUST } from "../src/agent/extensions/trust"
+import { declareEffect } from "@kiko/agent/effects"
+import { externalDecisions, TRUST } from "@kiko/agent/trust"
 import { buildAgent } from "../src/agent/factory"
-import { type Authority, AUTO, HUMAN } from "../src/lib/origin"
-import { checkExtension } from "../src/agent/script/check"
-import type { GuestRequest, ScriptPorts } from "../src/agent/script/compile"
+import { type Authority, AUTO, HUMAN } from "@kiko/agent/authority"
+import { checkExtension } from "@kiko/sandbox/check"
+import type { GuestRequest, ScriptPorts } from "@kiko/sandbox/compile"
 import { EXTENSION_CATALOG } from "../src/user/catalog.gen"
 import { generated } from "../scripts/gen-catalog"
-
-// User extensions in a real pi-durable harness on the faux model (architecture section 24). The
-// model's tool calls are scripted; every assertion is about what the tools and hooks did.
 
 const context = BACKGROUND_CONTEXT
 const FAUX = { provider: "faux", modelId: "faux-1" }
@@ -59,7 +56,6 @@ const ext = (manifest: Record<string, unknown>, source = ""): { name: string; ha
   bundle: { manifest: { kiko: 1, version: "1.0.0", description: "test", ...manifest } as never, files: source ? { "main.js": source } : {} },
 })
 
-/** Runs one input where the model makes `calls` in order, one per request, then answers. Returns the tool results. */
 async function run(installed: ReturnType<typeof ext>[], calls: { name: string; args: Record<string, unknown> }[], world: World, spare = 0, authority: Authority = HUMAN) {
   const built = buildAgent({ role: "", lead: true, model: FAUX, scripts: ports(world), testExtensions: [TEST_TOOLS], authority: () => authority })
   const problems = built.extensions.sync(installed)
@@ -90,7 +86,6 @@ async function run(installed: ReturnType<typeof ext>[], calls: { name: string; a
 }
 
 const fresh = (): World => ({ state: new Map(), fetches: [], errors: [] })
-/** A routine run granted the extension's `wx` and nothing else. */
 const ROUTINE_WX: Authority = { origin: "routine", grant: ["wx"] }
 
 describe("user extensions in the harness", () => {
@@ -127,7 +122,6 @@ describe("user extensions in the harness", () => {
     const weather = ext({ name: "wx", tools: { wx: { description: "weather", effect: "external" } }, egress: ["api.example.com"] }, `export const tools = { wx: async (_a, kiko) => (await kiko.fetch("https://api.example.com/now")).text }`)
     const { results, decisions } = await run([weather], [{ name: "wx", args: {} }, { name: "fake_send", args: {} }], world, 0, ROUTINE_WX)
     expect(world.fetches).toHaveLength(1)
-    // The fetched text is wrapped as untrusted, and the injected instruction does not get to send.
     expect(results[0]).toContain("<untrusted source=\"extension:wx\"")
     expect(results[1]).toContain("blocked")
     expect(sent).toEqual([])

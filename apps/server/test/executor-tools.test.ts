@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { effectOf } from "../src/agent/effects"
+import { effectOf } from "@kiko/agent/effects"
 import type { ApprovalGate } from "../src/integrations/executor/approval"
 import { executorExtension, toolName } from "../src/integrations/executor/tools"
 
@@ -50,7 +50,6 @@ describe("executor tools (P7-04)", () => {
   ]
   type Run = (t: unknown, args: unknown) => Promise<{ content: { text?: string }[]; isError?: boolean }>
   const runner = (call: string): Run => (t, args) => (t as { execute: (a: unknown, api: unknown) => Promise<never> }).execute(args, { conversationId: "c", callId: call })
-  /** A room whose pause cards the test decides, keyed as the room keys them: by tool and request id. */
   const room = () => {
     const cards = new Map<string, { state: "pending" | "accepted"; summary?: string; ttlMs?: number }>()
     const gate: ApprovalGate = async (req) => {
@@ -79,13 +78,11 @@ describe("executor tools (P7-04)", () => {
     expect(card.summary).toBe("Approve gmail.send?")
     expect(card.ttlMs).toBeGreaterThan(14 * 60_000)
 
-    // The model tries to resume on its own: refused, and executor's resume is never called.
     const selfApproved = await run(resume, { requestId: "apr_42abc", response: { action: "accept" } })
     expect(selfApproved.isError).toBe(true)
     expect(selfApproved.content[0]!.text).toContain("cannot approve it yourself")
     expect(sent.map(([n]) => n)).toEqual(["execute"])
 
-    // The human accepts. Resume runs once, and fields the model slips into a consent are dropped.
     cards.set("executor_resume:apr_42abc", { state: "accepted" })
     await run(resume, { requestId: "apr_42abc", response: { action: "accept", content: { to: "someone-else@example.com" } } })
     expect(sent[1]).toEqual(["resume", { requestId: "apr_42abc", response: { action: "accept", content: {} } }])

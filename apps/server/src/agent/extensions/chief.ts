@@ -2,11 +2,7 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import type { Agent } from "@kiko/protocol"
 import type { ProposalInput } from "../../room/chief"
-import { declareEffect } from "../effects"
-
-// Architecture section 7.11. Only kiko, the chief, makes the human's agents and groups. It works
-// out what they want, proposes a name and a soul (or a group and its /chat.md), shows it, and
-// creates it only after the human answers: the room refuses a create no human message followed.
+import { declareEffect } from "@kiko/agent/effects"
 
 export const CHIEF_EXT = "chief"
 
@@ -14,7 +10,6 @@ export type ChiefPort = {
   agents(): Promise<Agent[]>
   propose(input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }>
   create(id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }>
-  /** Section 25.7. What is open across the human's chats, in a few lines. */
   overview(): Promise<string>
 }
 
@@ -86,7 +81,6 @@ export function chiefExtension(port: ChiefPort): Extension {
 
   const overview = defineTool({
     name: "overview",
-    // Its previews quote other chats, which may hold outside content, so its result is outside content too.
     description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines and their last runs, reminders due soon. for check-ins.",
     parameters: Type.Object({}),
     replay: "safe",

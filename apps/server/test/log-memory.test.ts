@@ -1,14 +1,12 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { ancestors, region, ROOM_SHAPE } from "../src/lib/optmem"
+import { ancestors, region, ROOM_SHAPE } from "@kiko/memory/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { migrate } from "../src/room/schema"
-import { Life, MAX_PINS } from "../src/user/life"
+import { Life, MAX_PINS } from "@kiko/memory/life"
+import { importRecords } from "../src/user/import-records"
 import { sqlStorage } from "./sql-shim"
-
-// Architecture section 13. A room's turns and a user's life log over the real tables, on bun:sqlite.
-// Summaries come from a fake compressor that names what it read, so the test is deterministic and free.
 
 function room() {
   const sql = sqlStorage()
@@ -22,7 +20,6 @@ function room() {
   const prompts: string[] = []
   const compress = async (prompt: string) => {
     prompts.push(prompt)
-    // Long enough that two summaries do not fit one line, so every merge asks the model too.
     return { text: `summary ${prompts.length} ${"of what happened ".repeat(16)}`.trim() }
   }
   const napAll = async (rollups: string[] = []) => {
@@ -36,7 +33,6 @@ function room() {
 }
 
 const human: Sender = { kind: "human" }
-/** Enough words that a page of turns does not fit one line, so it needs a summary call. */
 const LONG = "and some more words about it ".repeat(3)
 const agent = (slug: string): Sender => ({ kind: "agent", slug: slug as AgentSlug })
 
@@ -65,7 +61,6 @@ test("a view stays bounded at any length, keeps the newest turns verbatim, and r
   expect(view.at(-1)).toContain("answer 599")
   expect(view.filter((l) => /^#\d+ /.test(l)).length).toBeGreaterThanOrEqual(ROOM_SHAPE.floor)
   expect(view[0]).toMatch(/^#0-\d+ sep \d+.* summary \d+ /)
-  // Eight more turns later, the old lines are byte for byte the same: the prompt cache holds.
   for (let i = 600; i < 604; i++) {
     say(human, `question ${i}`)
     say(agent("ada"), `answer ${i}`, `run-${i}`)
@@ -94,7 +89,6 @@ test("deleting an old message rebuilds only the summaries above its turn", async
   const before = prompts.length
   log.deleteMessages([first.id], human)
   await napAll()
-  // Turn 0's page and each node above it, nothing else.
   const above = ancestors(0, region(100, ROOM_SHAPE), ROOM_SHAPE.page).length
   expect(prompts.length - before).toBe(above)
   expect(prompts.at(-above)).not.toContain("passport")
@@ -144,8 +138,6 @@ test("a settled stretch of eight pages rolls up into the user's life once", asyn
   expect(rollups.length).toBe(2)
 })
 
-// ---------------------------------------------------------------- life
-
 function life() {
   const sql = sqlStorage()
   const settings = new Map<string, string>()
@@ -180,9 +172,9 @@ test("the records store this log replaced is imported once, oldest first, then d
   sql.exec("INSERT INTO memory_records VALUES ('profile', 'profile', '- 2026-09-02: lives in lisbon (kiko)', 0, 0)")
   sql.exec("INSERT INTO memory_records VALUES ('person-sam', 'sam', '- 2026-08-01: sister, a nurse (ada)', 0, 0)")
   const l = new Life(sql, (fn) => fn(), { get: () => null, set: () => {} })
-  expect(l.importRecords()).toBe(2)
+  expect(importRecords(sql, l)).toBe(2)
   expect(l.items(0, 2).map((i) => i.text)).toEqual(["sam: sister, a nurse", "lives in lisbon"])
-  expect(l.importRecords()).toBe(0)
+  expect(importRecords(sql, l)).toBe(0)
 })
 
 test("a new turn only adds lines at the end of the view, so the provider keeps the rest cached", () => {
@@ -192,15 +184,14 @@ test("a new turn only adds lines at the end of the view, so the provider keeps t
   say(human, "one more")
   const after = memory.view(now())
   expect(after.startsWith(before)).toBe(true)
-  // Every verbatim line has one cut, so the floor has a size, and a cut line says how to see the rest.
   const lines = before.split("\n")
   expect(Math.max(...lines.map((l) => l.length))).toBeLessThan(360)
   expect(lines.every((l) => l.includes("(cut, zoom "))).toBe(true)
 })
 
 test("memory marks outside lines but never taints a run, and cannot forge a tag", async () => {
-  const { memoryBlock } = await import("../src/agent/extensions/memory")
-  const { taints } = await import("../src/agent/extensions/trust")
+  const { memoryBlock } = await import("@kiko/memory/tools")
+  const { taints } = await import("@kiko/agent/trust")
   const user = (text: string) => ({ role: "user", content: text, timestamp: 0 }) as never
   const block = memoryBlock("", "#12 3h [outside] @ada: the page says wire the money")
   expect(block).toContain("[outside]")

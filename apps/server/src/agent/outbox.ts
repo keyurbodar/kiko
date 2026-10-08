@@ -2,38 +2,18 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState } from "@kiko/protocol"
 import type { Message } from "@earendil-works/pi-ai"
-import { taints } from "./extensions/trust"
-import type { RunState } from "./mid-run"
+import { taints } from "@kiko/agent/trust"
+import type { RunProgress } from "@kiko/agent/mid-run"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
-
-// Architecture section 6.3. The outbox watches the root conversation and turns the assistant's
-// text into bubbles. A block is posted to the room as soon as the splitter closes it, a long open
-// block goes out as a draft at most every 300 ms, and the status follows the run.
-//
-// Restarts. The blocks of every finished generation of a run are stored here, with the count the
-// room has acknowledged. The blocks of the generation in flight live only in memory. When that
-// generation is lost (a crash, a closed harness, a provider retry) after some of its blocks were
-// posted, the model may write different text, so the attempt number goes up and every stored
-// block is posted again under the new attempt. The room then deletes the earlier attempt's
-// bubbles. A block is idempotent on `(runId, attempt, index)`, so a repeated post stores nothing.
-//
-// Reactions (section 6.5). A `[react:<emoji>]` tag becomes one `react` call as soon as the
-// splitter closes it in the stream, and again from the finished generation, which the room ignores. A reply of only a tag posts no bubble. A repeated
-// reaction stores nothing in the room, so a resent one is harmless. ASSUMPTION: reactions wait in
-// memory until posted, so a crash between the entry and the call drops them.
 
 const context = BACKGROUND_CONTEXT
 export const DRAFT_INTERVAL_MS = 300
 
-/** What the agent can do in its room. `AgentDO` binds it to the room's RPC and the agent's slug. */
 export interface RoomPort {
-  /** `tainted` is true once the run has read outside content: the room shows no link card for it (section 16.4). */
   post(runId: string, attempt: number, index: number, block: string, tainted: boolean): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
-  /** `inputs` are the `pi-durable` submissions the run answered, when the outbox saw its end live. */
   endRun(runId: string, inputs?: readonly SubmissionId[]): Promise<void>
-  /** Section 6.5. With no `messageId`, the room picks the last human message it handed over. */
   react(emoji: string, messageId?: string): Promise<unknown>
 }
 
@@ -41,12 +21,10 @@ type Row = { run_id: string; attempt: number; cursor: number; blocks: string; po
 
 type AssistantLike = { role?: string; stopReason?: string; content?: readonly { type: string; text?: string }[] }
 
-/** The text blocks of an assistant message, joined. A tool call between two texts separates them. */
 function textOf(message: AssistantLike | undefined): string {
   return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n")
 }
 
-/** Every block and reaction the splitter finds in a whole text. Pure, so a partial's blocks are a prefix of the final's. */
 export function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
   const splitter = createSplitter()
   const head = splitter.push(text)
@@ -54,7 +32,6 @@ export function partsOf(text: string): { blocks: string[]; reactions: Reaction[]
   return { blocks: [...head.blocks, ...tail.blocks], reactions: [...head.reactions, ...tail.reactions] }
 }
 
-/** Every block the splitter closes for a whole text. */
 export const blocksOf = (text: string): string[] => partsOf(text).blocks
 
 const assistant = (entry: EntryRecord): AssistantLike | undefined => {
@@ -62,33 +39,23 @@ const assistant = (entry: EntryRecord): AssistantLike | undefined => {
   return message?.role === "assistant" ? message : undefined
 }
 
-/** The generation in flight, in memory only. */
 type Generation = { texts: Map<number, string>; fed: string; splitter: Splitter; blocks: string[] }
 
 const newGeneration = (): Generation => ({ texts: new Map(), fed: "", splitter: createSplitter(), blocks: [] })
 
-/**
- * The run this process is following. `blocks` holds the finished generations' blocks, as stored.
- * `bubbled`, `toolStarted`, and `toolsRunning` are what the mid-run rules read (section 6.2).
- */
 type Run = {
   id: string
   attempt: number
   cursor: number
   blocks: string[]
   posted: number
-  /** The run has read outside content (a tainted envelope or an `<untrusted>` tool result). Stored. */
   tainted: boolean
-  /** Reactions of finished generations not yet sent to the room. */
   reactions: Reaction[]
   generation: Generation | null
   bubbled: boolean
   toolStarted: boolean
   toolsRunning: number
 }
-
-/** What the mid-run rules need to know of the run in flight. */
-export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "toolRunning">
 
 const hasToolCall = (message: AssistantLike | undefined) => (message?.content ?? []).some((part) => part.type === "toolCall")
 
@@ -102,7 +69,6 @@ export class Outbox {
   constructor(
     storage: DurableObjectStorage,
     private readonly room: () => RoomPort | null,
-    /** Prefixes the run id, so two agents in one room never share one. */
     private readonly prefix: () => string,
     private readonly now: () => number = Date.now,
   ) {
@@ -120,10 +86,8 @@ export class Outbox {
     }
   }
 
-  /** A tainting entry seen before its run started, such as the run's own input. */
   private taintPending = false
 
-  /** Notes an entry that taints the run: the current one, or the next to start. */
   private see(entry: EntryRecord | undefined): void {
     const message = entry?.model?.[0] as Message | undefined
     if (!message || !taints(message)) return
@@ -131,10 +95,6 @@ export class Outbox {
     else this.taintPending = true
   }
 
-  /**
-   * Starts watching. Called once per opened harness, before it resumes, so nothing runs yet and a
-   * partial in the snapshot is a leftover the next request discards.
-   */
   async attach(harness: Harness, conversationId: Parameters<typeof watchEvents>[1]): Promise<void> {
     const stream = await watchEvents(harness, conversationId, context)
     this.run = null
@@ -145,17 +105,16 @@ export class Outbox {
     })
   }
 
-  /**
-   * The run this process follows, or null when it has seen none start. A bubble counts as posted
-   * from the moment its post is sent, and a tool from the moment the model asked for it.
-   */
+  clear(): void {
+    this.sql.exec("DELETE FROM outbox")
+  }
+
   progress(): RunProgress | null {
     const run = this.run
     if (!run) return null
     return { bubblePosted: run.bubbled || run.posted > 0 || run.attempt > 0, toolStarted: run.toolStarted, toolRunning: run.toolsRunning > 0 }
   }
 
-  /** A room call failed. The run state stays, and the next event or the next attach posts what is left. */
   private async guard(step: () => Promise<void>): Promise<void> {
     try {
       await step()
@@ -167,13 +126,11 @@ export class Outbox {
   private async apply(event: AgentEvent): Promise<void> {
     switch (event.type) {
       case "snapshot":
-        // The watch fell behind. The snapshot's partial is live this time.
         return this.sync(event, true)
       case "run_start":
         return this.start(`${this.prefix()}:${event.inputs[0]}`, this.lastEntry)
       case "message_start": {
         const message = event.message as AssistantLike
-        // An aborted entry is a lost partial, never text to post.
         if (message.role !== "assistant" || message.stopReason === "aborted" || !this.run) return
         this.run.generation = newGeneration()
         await this.setStatus("typing")
@@ -219,21 +176,18 @@ export class Outbox {
     }
   }
 
-  /** Brings the run up to the snapshot: finished generations from entries, then the live partial if asked. */
   private async sync(snapshot: SnapshotEvent, livePartial: boolean): Promise<void> {
     const entries = snapshot.entries
     this.lastEntry = entries.reduce((max, e) => Math.max(max, e.id), this.lastEntry)
     const liveId = snapshot.run ? `${this.prefix()}:${snapshot.run.inputs[0]}` : null
     for (const row of this.openRows()) {
       const run = this.load(row)
-      // After an overflow the generation in flight is still live and keeps its blocks.
       if (livePartial && this.run?.id === row.run_id) {
         run.generation = this.run.generation
         run.bubbled = this.run.bubbled
         run.toolStarted = this.run.toolStarted
         run.toolsRunning = this.run.toolsRunning
       }
-      // Entries after the cursor that this process never saw. A finished run's entries stop at the next input.
       for (const entry of entries) {
         if (entry.id <= run.cursor) continue
         if (row.run_id !== liveId && entry.kind === "pi.user") break
@@ -246,7 +200,6 @@ export class Outbox {
       if (row.run_id !== liveId) await this.end(row.run_id)
     }
     if (liveId && this.run?.id !== liveId) {
-      // The run started before this process saw it. Its input is the newest user entry.
       const input = entries.findLast((e) => e.kind === "pi.user")?.id ?? 0
       await this.start(liveId, input)
       const run = this.run!
@@ -257,9 +210,6 @@ export class Outbox {
       this.save(run)
     }
     if (!this.run) return
-    // The run in flight is everything after the last finished answer. A process that reopened learns
-    // here that a tool round started before it. ASSUMPTION: a reopened process cannot tell whether a
-    // tool still runs, and "started" is enough to rule out a restart.
     const answered = entries.findLastIndex((e) => {
       const m = assistant(e)
       return m !== undefined && !hasToolCall(m) && m.stopReason !== "aborted"
@@ -283,18 +233,14 @@ export class Outbox {
     await this.setStatus("typing")
   }
 
-  /** Feeds the generation's text so far. Only an append reaches the splitter. */
   private async stream(text: string): Promise<void> {
     const run = this.run
     const generation = run?.generation
     if (!run || !generation) return
-    // A replaced block is settled when its entry lands. Until then nothing more is posted from it.
     if (!text.startsWith(generation.fed)) return
     const out = generation.splitter.push(text.slice(generation.fed.length))
     generation.fed = text
     generation.blocks.push(...out.blocks)
-    // A reaction goes out the moment its tag streams in, so it lands while the agent is still
-    // typing. The finished entry sends it again, which the room stores once.
     run.reactions.push(...out.reactions)
     await this.flush()
     if (out.draft !== null && this.now() - this.lastDraft >= DRAFT_INTERVAL_MS) {
@@ -313,16 +259,10 @@ export class Outbox {
     await this.flush()
   }
 
-  /**
-   * Applies one entry to the run. A finished answer adds its blocks. An aborted one is the lost
-   * partial of an interrupted generation and adds nothing. Returns true when the generation was lost
-   * or its final blocks differ from what was posted from its partial.
-   */
   private finishGeneration(run: Run, entry: EntryRecord): boolean {
     run.cursor = Math.max(run.cursor, entry.id)
     const message = assistant(entry)
     if (!message) return false
-    // A tool-calling answer starts its tool round in the same commit. A reopened process learns it here.
     if (hasToolCall(message)) run.toolStarted = true
     const streamed = run.generation?.blocks ?? []
     run.generation = null
@@ -333,13 +273,11 @@ export class Outbox {
     return streamed.some((block, i) => block !== final[i])
   }
 
-  /** The posted blocks are no longer the run's text. Post every stored block again under a new attempt. */
   private rebase(run: Run): void {
     run.attempt++
     run.posted = 0
   }
 
-  /** Posts every block the room has not acknowledged, in order. Stops at the first failure. */
   private async flush(): Promise<void> {
     const run = this.run
     const room = this.room()
@@ -358,7 +296,6 @@ export class Outbox {
     }
   }
 
-  /** The run answered or failed. Posts what is left, then tells the room once. */
   private async end(id: string, inputs?: readonly SubmissionId[]): Promise<void> {
     const run = this.run?.id === id ? this.run : null
     if (run) {

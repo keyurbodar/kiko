@@ -1,22 +1,11 @@
 import type { Actor, AgentSlug, Envelope, RoomEvent, RoomId, Task, TaskOp, TaskStatus } from "@kiko/protocol"
-import { HUMAN } from "../lib/origin"
+import { HUMAN } from "@kiko/agent/authority"
 import { actorKey, type RoomLog } from "./log"
 import type { Chain } from "./mail"
-
-// Architecture sections 4.3, 7.5, and 7.6. The team's task board.
-// The tables carry a `ws_` prefix and every caller goes through `Workspace`, so the workspace can move
-// to its own class later with no change to tool code. Each write runs in one transaction with the room
-// events it causes and returns them; the caller publishes. Every board change is a `task` or
-// `task_removed` event, so the client stays live.
-//
-// A task that becomes `done` marks each task whose dependencies are now all done as unblocked. The room
-// delivers one `task_unblocked` envelope with the id `unblocked:<taskId>` to its owner and records the
-// wake, so it happens once (`pendingWakes`, `markWoken`).
 
 export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "doing", "blocked", "review", "done", "cancelled"]
 const CLOSED: ReadonlySet<TaskStatus> = new Set(["done", "cancelled"])
 
-// ASSUMPTION: the limits below. They keep a model from filling the room's storage.
 export const MAX_TASKS = 200
 const MAX_TITLE = 200
 const MAX_NOTE = 2_000
@@ -26,12 +15,10 @@ export type WorkspaceCall =
 	| { op: "update_task"; id: string; status?: string; note?: string }
 	| { op: "create_task"; id: string; title: string; owner?: string; dependsOn?: readonly string[] }
 
-/** What a tool gets back. `text` and `error` are for a model to read. */
 export type WorkspaceAnswer = { ok: true; text: string } | { ok: false; error: string }
 
 type Result<T> = { ok: true; value: T; events: RoomEvent[] } | { ok: false; error: string }
 
-/** `chain` is what the task's maker was working for (section 25.3), so its wake keeps that authority. Null on a task made before chains. */
 export type Wake = { taskId: string; owner: AgentSlug; title: string; seq: number; chain: Chain | null }
 
 type TaskRow = { id: string; title: string; status: string; owner: string | null; note: string | null }
@@ -43,25 +30,20 @@ const fail = (error: string) => ({ ok: false as const, error })
 export interface Workspace {
 	tasks(): Task[]
 	task(id: string): Task | null
-	/** The member's open tasks and the tasks that block them, for the brief (section 7.4). */
 	briefTasks(slug: AgentSlug): Task[]
-	/** `chain` is the maker's chain. A task the human makes carries the human's authority. */
 	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[], chain?: Chain): Result<Task>
 	update(by: Actor, id: string, patch: { title?: string; status?: string; owner?: string | null; note?: string }, members: readonly AgentSlug[], lead: boolean): Result<Task>
 	claim(slug: AgentSlug, id: string): Result<Task>
 	remove(id: string): Result<null>
 	pendingWakes(): Wake[]
 	markWoken(taskId: string): void
-	/** The chain task `id` was made on, or null. */
 	chainOf(id: string): Chain | null
 }
 
-/** Every task, oldest first, for a `reset` snapshot. */
 export function listTasks(storage: DurableObjectStorage): Task[] {
 	return readTasks(storage.sql)
 }
 
-/** The member's open tasks and the tasks that block them, for the brief (section 7.4). */
 export function briefTasks(sql: SqlStorage, slug: AgentSlug): Task[] {
 	const tasks = readTasks(sql)
 	const byId = new Map(tasks.map((t) => [t.id, t]))
@@ -77,7 +59,6 @@ export function briefTasks(sql: SqlStorage, slug: AgentSlug): Task[] {
 	return [...mine, ...blockers]
 }
 
-/** Every task, oldest first. Reads nothing before the table exists. */
 function readTasks(sql: SqlStorage): Task[] {
 	const exists = sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ws_tasks'").toArray().length > 0
 	if (!exists) return []
@@ -100,7 +81,6 @@ const toTask = (r: TaskRow, dependsOn: string[]): Task => ({
 	...(r.note ? { note: r.note } : {}),
 })
 
-/** The system envelope that wakes a task's owner (section 7.6). Its id is the dedupe key. */
 export function wakeEnvelope(roomId: RoomId, wake: Wake): Envelope {
 	const id = `unblocked:${wake.taskId}`
 	return {
@@ -143,7 +123,6 @@ export class RoomWorkspace implements Workspace {
 		return briefTasks(this.sql, slug)
 	}
 
-	/** The open dependencies of a task, by id. */
 	private openDeps(id: string): string[] {
 		return this.sql
 			.exec<{ id: string }>(
@@ -154,7 +133,6 @@ export class RoomWorkspace implements Workspace {
 			.map((r) => r.id)
 	}
 
-	/** True when `from` reaches `to` along dependency edges. */
 	private reaches(from: string, to: string): boolean {
 		const seen = new Set<string>()
 		const stack = [from]
@@ -177,7 +155,6 @@ export class RoomWorkspace implements Workspace {
 			const title = clip(input.title, MAX_TITLE)
 			if (!title) return fail("a task needs a title")
 			const before = this.task(input.id)
-			// A repeat of the same create (a replayed tool call or a resent frame) stores nothing.
 			if (before) return before.title === title ? { ok: true as const, value: before, events: [] } : fail(`task ${input.id} already exists`)
 			if (this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM ws_tasks").one().n >= MAX_TASKS) return fail(`the board is full (${MAX_TASKS} tasks)`)
 			const owner = input.owner || null
@@ -187,7 +164,6 @@ export class RoomWorkspace implements Workspace {
 			if (deps.includes(input.id)) return fail(`task ${input.id} cannot depend on itself`)
 			const missing = deps.filter((d) => !this.task(d))
 			if (missing.length) return fail(`no task ${missing.join(", ")}`)
-			// A new task has no dependents yet, so it closes a cycle only through an id already on the board.
 			const cycle = deps.find((d) => this.reaches(d, input.id))
 			if (cycle) return fail(`depending on ${cycle} would make a cycle`)
 			const seq = this.log.lastSeq() + 1
@@ -218,7 +194,6 @@ export class RoomWorkspace implements Workspace {
 		return this.storage.transactionSync(() => {
 			const current = this.task(id)
 			if (!current) return fail(`no task ${id}`)
-			// Section 7.6: an agent changes its own tasks. The lead reviews anyone's, and the human outranks both.
 			if (by.kind === "agent" && !lead && current.owner !== by.slug) {
 				return fail(current.owner ? `task ${id} is owned by @${current.owner}` : `task ${id} has no owner. set it to doing to take it`)
 			}
@@ -243,7 +218,6 @@ export class RoomWorkspace implements Workspace {
 		})
 	}
 
-	/** Marks each open task whose last open dependency was `doneId`. Runs inside the update's transaction. */
 	private markUnblocked(doneId: string, seq: number): void {
 		const dependents = this.sql.exec<{ id: string }>("SELECT task_id AS id FROM ws_task_deps WHERE depends_on = ?", doneId).toArray()
 		for (const { id } of dependents) {
@@ -260,7 +234,6 @@ export class RoomWorkspace implements Workspace {
 			if (current.owner && current.owner !== slug) return fail(`task ${id} is owned by @${current.owner}. ask them or the lead`)
 			if (CLOSED.has(current.status)) return fail(`task ${id} is ${current.status}`)
 			const open = this.openDeps(id)
-			// ASSUMPTION: claiming starts the task unless it still waits on another.
 			const status: TaskStatus = open.length ? current.status : current.status === "todo" || current.status === "blocked" ? "doing" : current.status
 			if (current.owner === slug && status === current.status) return { ok: true as const, value: current, events: [] }
 			this.sql.exec("UPDATE ws_tasks SET owner = ?, status = ?, updated_at = ? WHERE id = ?", slug, status, this.now(), id)
@@ -300,7 +273,6 @@ export class RoomWorkspace implements Workspace {
 	}
 }
 
-/** A human's `task` frame. The human may change any task. */
 export function applyTaskOp(ws: Workspace, op: TaskOp, members: readonly AgentSlug[]): RoomEvent[] {
 	const human: Actor = { kind: "human" }
 	const result =
@@ -314,17 +286,12 @@ export function applyTaskOp(ws: Workspace, op: TaskOp, members: readonly AgentSl
 
 const line = (t: Task) => `${t.id} [${t.status}] ${t.title}${t.owner ? ` (@${t.owner})` : ""}${t.dependsOn.length ? ` after ${t.dependsOn.join(", ")}` : ""}`
 
-/**
- * One agent tool call (section 7.5). `lead` is the caller's member row, read by the room, never by the
- * agent. Returns the answer for the model and the events to publish.
- */
 export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: WorkspaceCall, members: readonly AgentSlug[], chain?: Chain): { answer: WorkspaceAnswer; events: RoomEvent[] } {
 	const by: Actor = { kind: "agent", slug }
 	const done = <T>(r: Result<T>, text: (v: T) => string) =>
 		r.ok ? { answer: { ok: true as const, text: text(r.value) }, events: r.events } : { answer: fail(r.error), events: [] }
 	switch (call.op) {
 		case "update_task": {
-			// Taking a task nobody owns is moving it to doing: one tool, not a claim and an update.
 			const current = ws.task(call.id)
 			if (current && !current.owner && !lead && (call.status === undefined || call.status === "doing")) {
 				const claimed = ws.claim(slug, call.id)
