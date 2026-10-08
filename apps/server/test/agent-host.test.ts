@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 import { renderInput, requestIdFor } from "../src/agent/inbox"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 
@@ -9,21 +10,10 @@ import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 let mf: Miniflare
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./agent-host-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers", "node:*"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
-  // pi-ai loads Node modules with computed `import()` calls that Miniflare refuses. The faux model
-  // never reaches them. The same workaround as `coalescing-storage.test.ts`, for each copy the bundle has.
-  const dynamic = /import\(__rewriteRelativeImportExtension\d*\(\w+\)\)/g
-  const script = await built.outputs[0]!.text()
-  if (!dynamic.test(script)) throw new Error("the pi-ai dynamic import moved; update this test")
+  const script = await bundleWorker(new URL("./agent-host-worker.ts", import.meta.url))
   mf = new Miniflare({
     modules: true,
-    script: script.replace(dynamic, 'Promise.reject(new Error("no node modules in workerd"))'),
+    script,
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     durableObjects: { T: { className: "T", useSQLite: true } },

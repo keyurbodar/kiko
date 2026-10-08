@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
 import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "../src/agent/inbox"
-import { HISTORY_LIMIT, MAX_WAKEUPS } from "../src/lib/alarm"
-import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "../src/lib/hello-deadline"
+import { HISTORY_LIMIT, MAX_WAKEUPS } from "@kiko/durable/alarm"
+import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "@kiko/durable/hello-deadline"
 import { bundleWorker } from "./bundle"
 
 // P1-13, architecture section 23. The four patterns kiko borrows from Rivet, each in workerd:

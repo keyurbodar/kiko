@@ -1,5 +1,5 @@
 import type { Envelope, Message, RoomId } from "@kiko/protocol"
-import type { Alarms } from "../lib/alarm"
+import type { Alarms } from "@kiko/durable/alarm"
 
 // Architecture section 6.1. Human messages wait in `pending` until the human pauses. The
 // room delivers the whole burst in one `receive()` call per recipient. Rows leave `pending`

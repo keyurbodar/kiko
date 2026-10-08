@@ -8,7 +8,7 @@ import { userModels } from "../agent/factory"
 import { openDurableObjectSqlite } from "../agent/sqlite"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
-import { createAlarms } from "../lib/alarm"
+import { createAlarms } from "@kiko/durable/alarm"
 import { userStub } from "../lib/names"
 import { countRows, type RowCounts } from "./count-rows"
 

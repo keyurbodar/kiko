@@ -1,4 +1,4 @@
-import { type Fetcher, safeFetch } from "../lib/safe-fetch"
+import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 
 // Preview images on kiko's origin. Architecture section 18.2.
 //

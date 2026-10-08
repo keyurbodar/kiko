@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { RoomEvent, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
-import { type Fetcher, safeFetch } from "../src/lib/safe-fetch"
+import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 import { imageHash, imagePath, IMAGE_PREFIX, openToken, serveImage } from "../src/previews/image"
 import { fragmentText, oembedFor } from "../src/previews/oembed"
 import { parsePreview } from "../src/previews/parse"

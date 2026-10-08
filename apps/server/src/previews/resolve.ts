@@ -1,5 +1,5 @@
 import type { LinkPreview } from "@kiko/protocol"
-import { type Fetcher, safeFetch } from "../lib/safe-fetch"
+import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 import { imagePath } from "./image"
 import { oembedFor } from "./oembed"
 import { hasContent, type ParsedPage, parsePreview } from "./parse"

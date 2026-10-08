@@ -1,26 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // Experiment 3 (architecture section 17.5). Runs inside workerd, on a real Durable Object, through
 // Miniflare. The worker is bundled from `coalescing-worker.ts` and the source it imports.
 let mf: Miniflare
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./coalescing-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers", "node:*"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
-  // pi-ai's auth context loads Node modules with a computed `import()`, which Miniflare refuses to
-  // bundle. Nothing here calls it, because the faux model needs no credentials. Wrangler accepts it.
-  const dynamic = "import(__rewriteRelativeImportExtension(specifier))"
-  const script = await built.outputs[0]!.text()
-  if (!script.includes(dynamic)) throw new Error("the pi-ai dynamic import moved; update this test")
+  const script = await bundleWorker(new URL("./coalescing-worker.ts", import.meta.url))
   mf = new Miniflare({
     modules: true,
-    script: script.replace(dynamic, 'Promise.reject(new Error("no node modules in workerd"))'),
+    script,
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     durableObjects: { T: { className: "T", useSQLite: true } },

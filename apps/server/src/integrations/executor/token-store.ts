@@ -1,5 +1,5 @@
 import type { McpOAuthState, McpOAuthStateStore } from "@earendil-works/pi-mcp/oauth"
-import { type Keyring, open, seal } from "../../lib/crypto"
+import { type Keyring, open, seal } from "@kiko/durable/crypto"
 
 // Architecture section 12.1. A user's Executor Cloud secrets, sealed in `UserDO` SQLite with
 // the same envelope encryption as provider credentials (lib/crypto.ts, P4-01). Each row is

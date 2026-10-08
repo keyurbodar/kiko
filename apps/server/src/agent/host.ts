@@ -4,7 +4,7 @@ import { type AgentChange, type Conversation, Harness, type HarnessSettings, typ
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import type { Envelope } from "@kiko/protocol"
-import { type Alarms, createAlarms } from "../lib/alarm"
+import { type Alarms, createAlarms } from "@kiko/durable/alarm"
 import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
 import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
 import { type Arrival, decide, FRESH_RUN, type RunState } from "./mid-run"

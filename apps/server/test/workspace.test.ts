@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // P6-02. The workspace tables and the tool rules over real SQLite in workerd.
 
@@ -7,16 +8,10 @@ let mf: Miniflare
 let origin: string
 
 beforeAll(async () => {
-	const built = await Bun.build({
-		entrypoints: [new URL("./workspace-worker.ts", import.meta.url).pathname],
-		target: "browser",
-		format: "esm",
-		external: ["cloudflare:workers"],
-	})
-	if (!built.success) throw new Error(built.logs.join("\n"))
+	const script = await bundleWorker(new URL("./workspace-worker.ts", import.meta.url))
 	mf = new Miniflare({
 		modules: true,
-		script: await built.outputs[0]!.text(),
+		script,
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
 		durableObjects: { WS: { className: "WorkspaceDO", useSQLite: true } },

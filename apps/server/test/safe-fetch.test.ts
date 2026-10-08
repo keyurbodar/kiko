@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, expect, test } from "bun:test"
-import { safeFetch, type Fetcher } from "../src/lib/safe-fetch"
+import { safeFetch, type Fetcher } from "@kiko/durable/safe-fetch"
 
 // The tests run the real function against a real HTTP server on this machine.
 // One fetcher is injected. It answers DNS over HTTPS lookups from a table and

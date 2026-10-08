@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
-import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "../src/lib/crypto"
+import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "@kiko/durable/crypto"
 
 // P4-01. The crypto runs here in Bun. The store runs inside workerd through Miniflare,
 // with the real `UserDO`, and every line workerd prints is kept so the last test can

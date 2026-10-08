@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import { keyringFromEnv } from "../src/lib/crypto"
+import { keyringFromEnv } from "@kiko/durable/crypto"
 import { ExtensionError, ExtensionStore } from "../src/user/extensions"
 
 // Runs inside workerd. `extension-store.test.ts` drives one real `ExtensionStore` over its own

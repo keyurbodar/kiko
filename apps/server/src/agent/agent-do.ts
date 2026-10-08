@@ -32,10 +32,10 @@ import { hasScriptWasm, scriptWasm } from "./script/wasm"
 import { checkExtension } from "./script/check"
 import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@kiko/protocol"
-import { createAlarms } from "../lib/alarm"
+import { createAlarms } from "@kiko/durable/alarm"
 import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "./host"
 import type { Batch } from "./inbox"
-import { storedRows, wipeStorage } from "../lib/wipe"
+import { storedRows, wipeStorage } from "@kiko/durable/wipe"
 import { instrument } from "../lib/dev-stats"
 
 declare const process: { env: { NODE_ENV?: string } }

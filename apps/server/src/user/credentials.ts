@@ -1,5 +1,5 @@
 import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai"
-import { type Keyring, open, seal } from "../lib/crypto"
+import { type Keyring, open, seal } from "@kiko/durable/crypto"
 
 // Architecture sections 11.1 and 11.2. `UserDO` is the only owner of a user's provider
 // credentials. Each row is one provider, sealed with a key derived from the KEK and the

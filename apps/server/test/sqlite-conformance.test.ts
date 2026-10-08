@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
 // Runs pi-durable's storage conformance suite inside workerd, on a real Durable Object, through
 // Miniflare. The worker is bundled from `sqlite-worker.ts` and `src/agent/sqlite.ts`, so the test
@@ -7,16 +8,10 @@ import { Miniflare } from "miniflare"
 let mf: Miniflare
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./sqlite-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers", "node:*"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
+  const script = await bundleWorker(new URL("./sqlite-worker.ts", import.meta.url))
   mf = new Miniflare({
     modules: true,
-    script: await built.outputs[0]!.text(),
+    script,
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     durableObjects: { T: { className: "T", useSQLite: true } },

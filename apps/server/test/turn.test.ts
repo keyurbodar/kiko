@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { Envelope, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 import { blocksOf } from "../src/agent/outbox"
 import { debounce, deliverable, isFragment, MAX_DELIVERY_ENVELOPES } from "../src/room/burst"
 import { MAX_ENTRY_BYTES, MAX_OPEN } from "../src/agent/inbox"
@@ -13,20 +14,10 @@ let mf: Miniflare
 let origin: string
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./turn-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers", "node:*"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
-  // The same pi-ai dynamic import workaround as `agent-host.test.ts`.
-  const dynamic = /import\(__rewriteRelativeImportExtension\d*\(\w+\)\)/g
-  const script = await built.outputs[0]!.text()
-  if (!dynamic.test(script)) throw new Error("the pi-ai dynamic import moved; update this test")
+  const script = await bundleWorker(new URL("./turn-worker.ts", import.meta.url))
   mf = new Miniflare({
     modules: true,
-    script: script.replace(dynamic, 'Promise.reject(new Error("no node modules in workerd"))'),
+    script,
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     durableObjects: { T: { className: "T", useSQLite: true }, ROOM: { className: "RoomDO", useSQLite: true } },

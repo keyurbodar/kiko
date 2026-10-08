@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable"
 import { htmlToText, WEB_TOOL_EFFECTS, webExtension } from "../src/agent/extensions/web"
-import type { Fetcher } from "../src/lib/safe-fetch"
+import type { Fetcher } from "@kiko/durable/safe-fetch"
 
 // P8-05, architecture section 18.2: the safe fetcher behind `web_fetch`. The file tools are in
 // room-fs.test.ts, against the real room and R2.

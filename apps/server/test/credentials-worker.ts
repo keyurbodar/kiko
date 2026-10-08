@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import type { Keyring } from "../src/lib/crypto"
+import type { Keyring } from "@kiko/durable/crypto"
 import { CredentialVault, userIdFromObjectName } from "../src/user/credentials"
 import { UserDO } from "../src/user/user-do"
 
