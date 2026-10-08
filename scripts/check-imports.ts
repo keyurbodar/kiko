@@ -29,12 +29,12 @@ const problems: string[] = []
 for (const [pkg, allowed] of Object.entries(ALLOWED)) {
   const home = join(ROOT, "packages", pkg)
   for (const file of files(join(home, "src"))) {
-    for (const [, spec] of readFileSync(file, "utf8").matchAll(SPECIFIER)) {
+    for (const [, spec = ""] of readFileSync(file, "utf8").matchAll(SPECIFIER)) {
       const at = relative(ROOT, file)
-      if (spec!.startsWith(".")) {
-        if (relative(home, resolve(dirname(file), spec!)).startsWith("..")) problems.push(`${at}: ${spec} leaves packages/${pkg}`)
-      } else if (spec!.startsWith("@kiko/")) {
-        const name = spec!.split("/").slice(0, 2).join("/")
+      if (spec.startsWith(".")) {
+        if (relative(home, resolve(dirname(file), spec)).startsWith("..")) problems.push(`${at}: ${spec} leaves packages/${pkg}`)
+      } else if (spec.startsWith("@kiko/")) {
+        const name = spec.split("/").slice(0, 2).join("/")
         if (name !== `@kiko/${pkg}` && !allowed.includes(name)) problems.push(`${at}: ${name} is not allowed in @kiko/${pkg}`)
       }
     }
