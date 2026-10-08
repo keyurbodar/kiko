@@ -7,8 +7,10 @@ import { cn } from "../lib/cn"
 /**
  * "Read more" for a long bubble.
  *
- * A body taller than `COLLAPSE_THRESHOLD_PX` is clamped to that height with a
- * fade into the bubble colour and a chevron. Toggling is instant: no
+ * A body taller than `COLLAPSE_THRESHOLD_PX` is clamped to that height, its
+ * last lines faded out by a mask, with a chevron under it. A mask rather than a
+ * gradient in the bubble's colour: the bubble is translucent over the chat's
+ * picture, so a painted fade let the text show through it. Toggling is instant: no
  * transition, no animation. The row's height changes in one frame, `virtua`
  * remeasures it through its own ResizeObserver, and the toggle moves the
  * scroller so the tapped bubble stays where the reader was looking.
@@ -50,8 +52,6 @@ function scrollParent(element: HTMLElement): HTMLElement | undefined {
 
 export function Collapsible(props: {
   messageId: string
-  /** Which bubble colour the fade resolves to. */
-  side: "user" | "assistant"
   children: JSX.Element
 }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
@@ -94,29 +94,16 @@ export function Collapsible(props: {
       data-collapsed={clamped() ? "" : undefined}
     >
       <div
-        class={cn(clamped() && "overflow-hidden")}
+        class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-5rem)] mask-b-to-100%")}
         style={clamped() ? { "max-height": `${COLLAPSE_THRESHOLD_PX}px` } : undefined}
       >
         <div ref={inner}>{props.children}</div>
       </div>
       <Show when={overflowing()}>
-        <Show when={clamped()}>
-          <div
-            aria-hidden="true"
-            class={cn(
-              "pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-linear-to-b from-transparent",
-              props.side === "user" ? "to-message-user" : "to-message-assistant",
-            )}
-            data-component="chat-collapsible-fade"
-          />
-        </Show>
         <button
           ref={button}
           type="button"
-          class={cn(
-            "flex h-6 w-full cursor-pointer items-center justify-center opacity-70 hover:opacity-100",
-            clamped() ? "absolute inset-x-0 bottom-0" : "mt-1",
-          )}
+          class="mt-1 flex h-6 w-full cursor-pointer items-center justify-center opacity-70 hover:opacity-100"
           aria-expanded={!clamped()}
           aria-label={clamped() ? "read more" : "show less"}
           data-component="chat-collapsible-toggle"

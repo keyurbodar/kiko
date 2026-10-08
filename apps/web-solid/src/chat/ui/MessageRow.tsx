@@ -185,7 +185,7 @@ export function MessageRow(props: {
               class={hasAttachment() ? "px-3 pt-[5px] pb-[7px]" : undefined}
               style={captionStyle()}
             >
-              <Collapsible messageId={props.message.id} side={own() ? "user" : "assistant"}>
+              <Collapsible messageId={props.message.id}>
                 {/* An agent's markdown arrives parsed (section 6.4): code, lists, quotes, and inline
                     formatting draw from the tree. The human's own text stays plain. */}
                 <Show
