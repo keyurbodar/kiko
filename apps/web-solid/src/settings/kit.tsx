@@ -128,7 +128,7 @@ export function Page(props: { title: string; description?: string; children: JSX
   )
 }
 
-/** monocode's Group: a titled card of rows. A page spaces its groups 32px apart. `bare` drops the card. */
+/** A titled card of rows, opencode's settings list: 8px corners, a half-pixel edge. A page spaces its groups 32px apart. `bare` drops the card. */
 export function Group(props: { title?: string; description?: JSX.Element; action?: JSX.Element; id?: string; bare?: boolean; class?: string; children: JSX.Element }): JSX.Element {
   return (
     <section class={props.class} data-setting-group={props.id}>
@@ -148,7 +148,7 @@ export function Group(props: { title?: string; description?: JSX.Element; action
         </div>
       </Show>
       <Show when={!props.bare} fallback={props.children}>
-        <div class="overflow-hidden rounded-xl border border-[color-mix(in_oklab,var(--text)_10%,transparent)] bg-[color-mix(in_oklab,var(--text)_3%,transparent)]">{props.children}</div>
+        <div class="overflow-hidden rounded-lg bg-[color-mix(in_oklab,var(--text)_3%,transparent)] shadow-[inset_0_0_0_0.5px_color-mix(in_oklab,var(--text)_16%,transparent)]">{props.children}</div>
       </Show>
     </section>
   )

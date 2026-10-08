@@ -28,9 +28,13 @@ export const onChatModelChange = (fn: (chatId: string, ref: string) => void) => 
   listener = fn
 }
 
+/**
+ * Picks a chat's model. A pick in a chat is also where the next new chat starts, as in opencode,
+ * so there is no default to set anywhere else.
+ */
 export function setChatModel(chatId: string | null, ref: string): void {
   if (chatId) listener?.(chatId, ref)
-  const next = { ...picked(), [chatId ?? DEFAULT]: ref }
+  const next = { ...picked(), ...(chatId ? { [chatId]: ref } : {}), [DEFAULT]: ref }
   setPicked(next)
   try {
     localStorage.setItem(KEY, JSON.stringify(next))

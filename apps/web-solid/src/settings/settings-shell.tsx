@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router"
 import { Suspense, createEffect, lazy } from "solid-js"
 import { NAV_SECTIONS, SETTINGS_SECTIONS } from "./sections"
-import { ModelsPage } from "./models"
+import { ModelsPage, ProvidersPage } from "./models"
 import { Integrations } from "./integrations"
 import { DeleteAccount } from "../app/delete-account"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
@@ -47,6 +47,7 @@ function Account() {
 }
 
 const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
+  providers: ProvidersPage,
   models: ModelsPage,
   account: Account,
   integrations: Integrations,
@@ -68,7 +69,7 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
 }
 
 function section(id: string) {
-  const Section = COMPONENTS[id] ?? ModelsPage
+  const Section = COMPONENTS[id] ?? ProvidersPage
   return <Section />
 }
 

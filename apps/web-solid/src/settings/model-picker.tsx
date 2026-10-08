@@ -4,7 +4,7 @@ import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { chatModel, setChatModel } from "./chat-model"
 import { formatContext, formatPrice, loadCatalog, modelRef, searchModels } from "./catalog"
 import { connectedProviders } from "./connected"
-import { groupForDisplay, modelPrefs } from "./model-prefs"
+import { hiddenModels } from "./model-prefs"
 
 // At most this many rows render for one search. A catalog holds hundreds of
 // models, and a search narrows it faster than scrolling does.
@@ -19,12 +19,14 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
   const [catalog] = createResource(loadCatalog)
   const [query, setQuery] = createSignal("")
   const connectedIds = createMemo(() => new Set(connectedProviders().map((p) => p.provider)))
-  // Settings decide what this list offers: starred models first, hidden ones left out unless picked.
+  // Settings decide what this list offers: a model switched off there is left out, unless it is the one picked.
   const rows = createMemo(() => {
     const providers = catalog()?.providers.filter((p) => connectedIds().has(p.id)) ?? []
-    const found = searchModels(providers, query())
-    const { favorites, shown, hidden } = groupForDisplay(found, (r) => modelRef(r.provider.id, r.model.id), modelPrefs())
-    return [...favorites, ...shown, ...hidden.filter((r) => modelRef(r.provider.id, r.model.id) === props.current)]
+    const off = new Set(hiddenModels())
+    return searchModels(providers, query()).filter((r) => {
+      const ref = modelRef(r.provider.id, r.model.id)
+      return !off.has(ref) || ref === props.current
+    })
   })
   return (
     <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="model-list">

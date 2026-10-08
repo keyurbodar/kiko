@@ -2,7 +2,7 @@ import { A } from "@solidjs/router"
 import { Moment } from "../../mascot/pixel/lazy"
 import { createSignal, For, Show, Suspense } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
+import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, KeyIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
 import { SETTINGS_GROUPS, searchSections, type SettingsSection } from "../../settings/sections"
 import { useApp } from "../../lib/store"
 
@@ -14,6 +14,7 @@ import { useApp } from "../../lib/store"
 
 /** By section id. A section without an entry gets the gear. */
 const ICON: Record<string, Glyph> = {
+  providers: KeyIcon,
   models: ModelIcon,
   integrations: IntegrationsIcon,
   extensions: ExtensionsIcon,

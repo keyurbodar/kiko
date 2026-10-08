@@ -10,7 +10,7 @@ describe("settings sections", () => {
 
   test("search keeps a section only when every word is in its label, hint, or keywords", () => {
     expect(searchSections("").map((s) => s.id)).toEqual(SETTINGS_SECTIONS.map((s) => s.id))
-    expect(searchSections("api key").map((s) => s.id)).toEqual(["models"])
+    expect(searchSections("api key").map((s) => s.id)).toEqual(["providers"])
     expect(searchSections("sign out").map((s) => s.id)).toEqual(["account"])
     expect(searchSections("wallpaper").map((s) => s.id)).toEqual(["appearance"])
     expect(searchSections("nothing like this")).toEqual([])
