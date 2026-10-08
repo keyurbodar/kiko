@@ -66,8 +66,10 @@
   border-radius: 8px;
 }
 
-.sidebar-shell .panel-brand:hover {
-  background: var(--hover-bg);
+@media (hover: hover) {
+  .sidebar-shell .panel-brand:hover {
+    background: var(--hover-bg);
+  }
 }
 
 /* One look for every small square button in the chrome: the header's, the foot's, and the
@@ -90,9 +92,15 @@
   appearance: none;
 }
 
-.sidebar-shell .panel-icon-button:hover,
-.sidebar-shell .top-bar-button:hover,
-.sidebar-shell .main-sidebar-toggle:hover,
+@media (hover: hover) {
+  .sidebar-shell .panel-icon-button:hover,
+  .sidebar-shell .top-bar-button:hover,
+  .sidebar-shell .main-sidebar-toggle:hover {
+    color: var(--text);
+    background: var(--hover-bg);
+  }
+}
+
 .sidebar-shell .panel-icon-button[data-expanded] {
   color: var(--text);
   background: var(--hover-bg);
@@ -177,8 +185,10 @@
   border-radius: 8px;
 }
 
-.sidebar-shell .panel-me:hover {
-  background: var(--hover-bg);
+@media (hover: hover) {
+  .sidebar-shell .panel-me:hover {
+    background: var(--hover-bg);
+  }
 }
 
 .sidebar-shell .panel-me-active {
@@ -256,9 +266,11 @@
   cursor: pointer;
 }
 
-.sidebar-shell .chat-filter:hover {
-  color: var(--text);
-  background: var(--hover-bg);
+@media (hover: hover) {
+  .sidebar-shell .chat-filter:hover {
+    color: var(--text);
+    background: var(--hover-bg);
+  }
 }
 
 .sidebar-shell .chat-filter:focus-visible {
@@ -305,8 +317,10 @@
   appearance: none;
 }
 
-.sidebar-shell .pin-tile:hover {
-  background: var(--hover-bg);
+@media (hover: hover) {
+  .sidebar-shell .pin-tile:hover {
+    background: var(--hover-bg);
+  }
 }
 
 :root[data-input="keys"] .sidebar-shell .pin-tile:focus-visible {
@@ -378,8 +392,10 @@
   scrollbar-color: transparent transparent;
 }
 
-.sidebar-shell .chat-list:hover {
-  scrollbar-color: var(--scrollbar-thumb) transparent;
+@media (hover: hover) {
+  .sidebar-shell .chat-list:hover {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
 }
 
 .sidebar-shell .chat-row {
@@ -402,8 +418,10 @@
   appearance: none;
 }
 
-.sidebar-shell .chat-row:hover {
-  background: var(--hover-bg);
+@media (hover: hover) {
+  .sidebar-shell .chat-row:hover {
+    background: var(--hover-bg);
+  }
 }
 
 :root[data-input="keys"] .sidebar-shell .chat-row:focus-visible {
@@ -678,9 +696,11 @@
   border-radius: 8px;
 }
 
-.sidebar-shell .settings-panel-row:hover {
-  color: var(--text);
-  background: var(--hover-bg);
+@media (hover: hover) {
+  .sidebar-shell .settings-panel-row:hover {
+    color: var(--text);
+    background: var(--hover-bg);
+  }
 }
 
 .sidebar-shell .settings-panel-row-active {
@@ -726,7 +746,12 @@
   content: "";
 }
 
-.sidebar-shell .resize-handle:hover::after,
+@media (hover: hover) {
+  .sidebar-shell .resize-handle:hover::after {
+    opacity: 1;
+  }
+}
+
 .sidebar-shell .resize-handle:active::after {
   opacity: 1;
 }

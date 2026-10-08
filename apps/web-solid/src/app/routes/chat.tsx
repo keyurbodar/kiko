@@ -54,7 +54,8 @@ export default function ChatRoute() {
   /*
    * Opening a chat puts the cursor in the composer, the way kat and Telegram do, so the
    * next keystroke is a message. Not on a touch screen, where focus raises the keyboard
-   * over the transcript, and not while the reader is typing somewhere else.
+   * over the transcript, and not while the reader is typing somewhere else or stepping through
+   * the tabs with the arrow keys, which would leave the next arrow in the composer.
    */
   createEffect(
     on(
@@ -64,7 +65,7 @@ export default function ChatRoute() {
         requestAnimationFrame(() => {
           const active = document.activeElement;
           const typing = active instanceof HTMLElement && (active.isContentEditable || /^(input|textarea|select)$/i.test(active.tagName));
-          if (typing) return;
+          if (typing || (active instanceof HTMLElement && active.closest('[role="tab"]'))) return;
           document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus();
         });
       },

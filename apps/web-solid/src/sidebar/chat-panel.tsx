@@ -5,7 +5,7 @@ import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openBirdPicker } from "../mascot/picker-state"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, For, type JSX, Show, Suspense } from "solid-js"
+import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show, Suspense } from "solid-js"
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
@@ -406,11 +406,12 @@ function SearchRow(props: {
  * The chats panel: search, the pinned tiles (the kiko chat always first), then every conversation
  * in a virtual list. Temporary chats and hidden rooms are left out by `useApp.bots()`. Only the rows in the viewport plus the buffer exist in the DOM.
  *
- * `now` is read once per render rather than from a timer. The stamps are coarse
- * and the list re-renders on every roster change.
+ * `now` ticks once a minute, the stamps' finest unit, so "now" turns into "1m" without a new message.
  */
 export function ChatPanel() {
-  const now = Date.now()
+  const [now, setNow] = createSignal(Date.now())
+  const clock = setInterval(() => setNow(Date.now()), 60_000)
+  onCleanup(() => clearInterval(clock))
   const navigate = useNavigate()
   const [query, setQuery] = createSignal("")
   const [unreadOnly, setUnreadOnly] = createSignal(false)
@@ -462,7 +463,7 @@ export function ChatPanel() {
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
           <Show when={byId().get(id)}>
-            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now} hint={jumpHint().get(id)} />}
+            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now()} hint={jumpHint().get(id)} />}
           </Show>
         )}
       </VList>

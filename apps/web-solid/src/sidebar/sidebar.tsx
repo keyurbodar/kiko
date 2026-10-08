@@ -74,10 +74,29 @@ export interface SidebarProps {
  * curve; here the column is either there or it is not, because a panel that
  * takes a quarter second to get out of the way is a panel the user waits on.
  */
+const WIDTH_KEY = "kiko:sidebar-width"
+
+/** The width the reader dragged to, or null for the default. */
+function readWidth(): number | null {
+  try {
+    const value = Number(localStorage.getItem(WIDTH_KEY))
+    return value >= MIN_W && value <= MAX_W ? Math.round(value) : null
+  } catch {
+    return null
+  }
+}
+
+function writeWidth(value: number | null) {
+  try {
+    if (value === null) localStorage.removeItem(WIDTH_KEY)
+    else localStorage.setItem(WIDTH_KEY, String(value))
+  } catch {}
+}
+
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
   const setCollapsed = props.onCollapsedChange
-  const [width, setWidth] = createSignal<number | null>(null)
+  const [width, setWidth] = createSignal<number | null>(readWidth())
   const [resizing, setResizing] = createSignal(false)
   const [visited, setVisited] = createSignal<ReadonlySet<SectionId>>(new Set())
   createEffect(() => {
@@ -130,7 +149,6 @@ export function Sidebar(props: SidebarProps) {
          */
         if (next < MIN_W) {
           setCollapsed(true)
-          setWidth(null)
           return
         }
         setCollapsed(false)
@@ -139,6 +157,7 @@ export function Sidebar(props: SidebarProps) {
       onUp(() => {
         handleEl?.releasePointerCapture(event.pointerId)
         setResizing(false)
+        writeWidth(width())
       })
     },
   })

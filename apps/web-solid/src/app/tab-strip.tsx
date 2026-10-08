@@ -33,12 +33,13 @@ export function TabStrip() {
     if (id) untrack(() => openTabs.open(id))
   })
 
-  // A new or switched-to tab can sit past the strip's edge, most often on a phone. Bring it into view.
+  // A new or switched-to tab can sit past the strip's edge, most often on a phone. Bring it into view
+  // after layout: on a reload a microtask ran before the tabs had widths, and nothing scrolled.
   createEffect(() => {
     const id = activeId()
     openTabs.ids()
     if (!id) return
-    queueMicrotask(() => {
+    requestAnimationFrame(() => {
       strip.el?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`)?.scrollIntoView({ inline: "nearest", block: "nearest" })
     })
   })

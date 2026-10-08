@@ -51,7 +51,9 @@ export const loadInfoPanel = () => import("./panel")
 export const clampWidth = (width: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)))
 export const clampFileWidth = (width: number) => Math.min(FILE_MAX_WIDTH, Math.max(FILE_MIN_WIDTH, Math.round(width)))
 
-const [open, setOpen] = createSignal(read(OPEN_KEY) === "1")
+// Below 768 px the panel covers the chat, so like the sidebar drawer it starts closed on every load.
+const narrowAtLoad = typeof matchMedia === "function" && matchMedia("(width < 768px)").matches
+const [open, setOpen] = createSignal(read(OPEN_KEY) === "1" && !narrowAtLoad)
 const [stack, setStack] = createSignal<InfoView[]>([HOME])
 const [width, setWidthSignal] = createSignal(clampWidth(Number(read(WIDTH_KEY)) || DEFAULT_WIDTH))
 const [fileWidth, setFileWidthSignal] = createSignal(clampFileWidth(Number(read(FILE_WIDTH_KEY)) || FILE_DEFAULT_WIDTH))
