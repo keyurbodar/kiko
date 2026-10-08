@@ -1,5 +1,6 @@
 import { createPointerListeners } from "@solid-primitives/pointer"
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js"
+import { EDGE_PX } from "../../app/edge-swipe"
 
 /* ---------------------------------------------------------------------------
    The four numbers the gesture is made of. They are tuned so a reply takes a
@@ -375,6 +376,8 @@ export function useSwipeToReply(options: UseSwipeToReplyOptions): UseSwipeToRepl
     pointerTypes: ["mouse", "touch", "pen"],
     onDown: (event) => {
       if (event.button !== 0) return
+      // A touch from the screen's left edge opens the drawer (app/edge-swipe.ts), not a reply.
+      if (event.pointerType === "touch" && event.clientX <= EDGE_PX) return
       activePointer = event.pointerId
       gesture.down(event.clientX, event.clientY)
     },

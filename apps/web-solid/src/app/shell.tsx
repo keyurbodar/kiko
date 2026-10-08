@@ -9,7 +9,7 @@ import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { birdPickerSlug } from "../mascot/picker-state";
 import { createEffect, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
-import { infoOpen, loadInfoPanel } from "../chat/info/state";
+import { closeInfo, infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
@@ -19,6 +19,7 @@ import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
 import { Sidebar, SidebarToggle } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
+import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
 
@@ -111,6 +112,31 @@ export function Shell(props: ParentProps) {
     };
     window.addEventListener("keydown", on);
     onCleanup(() => window.removeEventListener("keydown", on));
+  });
+  // Phone swipes for the drawer and the info panel (edge-swipe.ts). Touch events, not pointer
+  // events: a pointer is cancelled once the browser starts panning, and the end is what decides.
+  createEffect(() => {
+    if (!narrow()) return;
+    let start: { x: number; y: number; region: SwipeRegion } | null = null;
+    const down = (e: TouchEvent) => {
+      const t = e.touches[0];
+      start = e.touches.length === 1 && t ? { x: t.clientX, y: t.clientY, region: swipeRegion(e.target, t.clientX) } : null;
+    };
+    const up = (e: TouchEvent) => {
+      const t = e.changedTouches[0];
+      if (!start || !t) return;
+      const action = swipeAction({ drawer: drawer(), info: infoOpen() }, start.region, t.clientX - start.x, t.clientY - start.y);
+      start = null;
+      if (action === "open-drawer") setDrawer(true);
+      else if (action === "close-drawer") setDrawer(false);
+      else if (action === "close-info") closeInfo();
+    };
+    window.addEventListener("touchstart", down, { passive: true });
+    window.addEventListener("touchend", up, { passive: true });
+    onCleanup(() => {
+      window.removeEventListener("touchstart", down);
+      window.removeEventListener("touchend", up);
+    });
   });
   const closed = () => (narrow() ? !drawer() : collapsed());
   const setAndSave = (value: boolean) => {
