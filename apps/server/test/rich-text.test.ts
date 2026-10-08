@@ -27,6 +27,9 @@ const cases: [string, string, unknown][] = [
 	["raw html inline", "a <b>x</b> b", [p(text("a "), text("<b>"), text("x"), text("</b>"), text(" b"))]],
 	["image becomes alt text", "![cat](https://a.com/c.png)", [p(text("cat"))]],
 	["hr dropped", "a\n\n---\n\nb", [p(text("a")), p(text("b"))]],
+	["a single newline is a line break", "a\nb", [p(text("a"), text("\n"), text("b"))]],
+	["quote keeps its lines", "> a\n> b", [{ t: "quote", children: [p(text("a"), text("\n"), text("b"))] }]],
+	["task items show their box", "- [ ] a\n- [x] b", [{ t: "list", items: [[p(text("☐ "), text("a"))], [p(text("☑ "), text("b"))]] }]],
 	["empty", "", []],
 ]
 

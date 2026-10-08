@@ -10,7 +10,9 @@ const SAFE_LINK = /^(https?|mailto):/i
 const MENTION = /(^|[^\w@/.-])@([a-z0-9-]{1,32})(?![\w-])/g
 
 export function parseRichText(markdown: string): RichText {
-	return blocks(Lexer.lex(markdown, { gfm: true }))
+	// `breaks`: a single newline is a line break. In a chat bubble a new line is meant, and
+	// joining the lines of a quote or a short list of facts into one run of text misreads it.
+	return blocks(Lexer.lex(markdown, { gfm: true, breaks: true }))
 }
 
 function blocks(tokens: readonly Token[]): Block[] {
@@ -35,7 +37,7 @@ function toBlock(token: Token): Block | null {
 		}
 		case "list": {
 			const t = token as Tokens.List
-			const items = t.items.map((item) => blocks(item.tokens))
+			const items = t.items.map((item) => (item.task ? ticked(blocks(item.tokens), item.checked === true) : blocks(item.tokens)))
 			return t.ordered ? { t: "list", start: t.start === "" ? 1 : t.start, items } : { t: "list", items }
 		}
 		case "blockquote":
@@ -61,6 +63,14 @@ function toBlock(token: Token): Block | null {
 		default:
 			return null // space, hr, def
 	}
+}
+
+/** A task item's box, drawn as a character at the start of its first line. */
+function ticked(item: Block[], checked: boolean): Block[] {
+	const box: Inline = { t: "text", text: checked ? "☑ " : "☐ " }
+	const [first, ...rest] = item
+	if (first?.t === "paragraph") return [{ ...first, children: [box, ...first.children] }, ...rest]
+	return [{ t: "paragraph", children: [box] }, ...item]
 }
 
 function inlines(tokens: readonly Token[]): Inline[] {

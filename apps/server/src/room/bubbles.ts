@@ -43,9 +43,11 @@ export class Bubbles {
 		const deleted = earlier.length ? this.log.deleteMessages(earlier, from) : null
 		if (deleted) events.push(deleted)
 		const { text, replyTo } = replyTag(block)
-		if (!text) return events
+		// A block with nothing to draw, such as a lone `---` the splitter cut out, is not a bubble.
+		const rich = parseRichText(text)
+		if (!text || !rich.length) return events
 		const target = replyTo && this.log.message(replyTo) ? { replyTo: replyTo as MessageId } : {}
-		const { event } = this.log.addMessage({ from, text, rich: parseRichText(text), run, tainted, ...target })
+		const { event } = this.log.addMessage({ from, text, rich, run, tainted, ...target })
 		if (event) events.push(event)
 		return events
 	}
