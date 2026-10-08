@@ -1,49 +1,25 @@
 import type { Envelope, Sender } from "./envelope"
 
-// Architecture section 7.3. The inbox stores every envelope the room delivers. Rows are not deleted
-// when they are drained, because the id is the dedupe key: a delivery repeated after its run finished
-// must still store nothing. A drained row carries the `request_id` of the input it went into, and
-// `submitted` turns 1 once `pi-durable` admitted that input. A submitted row is pruned after
-// `KEEP_SUBMITTED_MS`, long past any retry of the alarm or the queue (minutes), so the table stays bounded.
-//
-// Architecture section 23 (Rivet `actor/queue.rs`). A claimed batch is in flight from the moment a
-// run takes it until `submitted`. A batch in flight is not handed out again, unless the process that
-// took it is gone (a Durable Object has one live process, so another process's mark is a dead run)
-// or it has been in flight for `RECLAIM_MS`. `submitted` is a no-op the second time. The inbox holds
-// at most `MAX_OPEN` rows that wait or are claimed, and one row is at most `MAX_ENTRY_BYTES`. A
-// delivery past either cap is refused whole, as data, never as an exception.
-
-/** Human first, then system, then agent (architecture section 7.8). */
 const PRIORITY: Record<Sender["kind"], number> = { human: 0, system: 1, agent: 2 }
 
-/** A batch in flight this long is handed out again. */
 export const RECLAIM_MS = 5 * 60_000
-/** ASSUMPTION: the most rows that wait or are claimed. Submitted rows are kept for dedupe and do not count. */
 export const MAX_OPEN = 500
-/** ASSUMPTION: the largest envelope plus brief, in UTF-8 bytes. A message is at most 16,000 characters. */
 export const MAX_ENTRY_BYTES = 128 * 1024
 
-/** How long a submitted row is kept for dedupe. Retries come within minutes; a week is far past them. */
 export const KEEP_SUBMITTED_MS = 7 * 86_400_000
-/** The least time between two prunes. */
 const PRUNE_EVERY_MS = 3_600_000
 
-/** Why a delivery stored nothing. `full`: too many open rows. `too_large`: one entry is past the size cap. */
 export type Refusal = "full" | "too_large"
 
 export type Admission = {
-  /** Every id of the call when it was stored, none when it was refused. */
   admitted: string[]
-  /** The rows this call added. */
   inserted: number
   refused?: Refusal
 }
 
 export type Batch = {
-  /** A hash of the envelope ids, in drain order. `pi-durable` dedupes a repeated submit by it. */
   requestId: string
   envelopes: Envelope[]
-  /** The distinct briefs of the batch's deliveries, oldest first. */
   briefs: string[]
 }
 
@@ -51,7 +27,6 @@ type Row = { id: string; envelope: string; brief: string; request_id: string | n
 
 export class Inbox {
   private readonly sql: SqlStorage
-  /** Marks the rows this process took. Another process's mark belongs to a dead run. */
   private readonly process = crypto.randomUUID()
 
   constructor(
@@ -71,29 +46,21 @@ export class Inbox {
       in_flight_by TEXT
     ) STRICT`)
     this.sql.exec("CREATE INDEX IF NOT EXISTS inbox_open ON inbox (submitted, request_id, priority, arrival)")
-    // An inbox made before P1-13 has no in-flight columns.
     const columns = this.sql.exec<{ name: string }>("PRAGMA table_info(inbox)").toArray()
     if (!columns.some((c) => c.name === "in_flight_at")) {
       this.sql.exec("ALTER TABLE inbox ADD COLUMN in_flight_at INTEGER")
       this.sql.exec("ALTER TABLE inbox ADD COLUMN in_flight_by TEXT")
     }
-    // An inbox made before the prune has no time column. Its rows count from now.
     if (!columns.some((c) => c.name === "at")) {
       this.sql.exec("ALTER TABLE inbox ADD COLUMN at INTEGER")
       this.sql.exec("UPDATE inbox SET at = ?", this.now())
     }
-    // The arrival counter, so `admit` never scans the inbox for max(arrival). Seeded once from the rows.
     this.sql.exec("CREATE TABLE IF NOT EXISTS inbox_state (id INTEGER PRIMARY KEY CHECK (id = 1), arrival INTEGER NOT NULL, pruned_at INTEGER NOT NULL)")
     if (!this.sql.exec("SELECT 1 FROM inbox_state WHERE id = 1").toArray().length) {
       this.sql.exec("INSERT INTO inbox_state (id, arrival, pruned_at) SELECT 1, coalesce(max(arrival), 0), ? FROM inbox", this.now())
     }
   }
 
-  /**
-   * Stores each envelope whose id is new. Returns every id of the call, repeats included, because a
-   * receipt means "stored", and `inserted`, the count of rows this call added. A call that would pass
-   * a cap stores nothing and returns `refused` with no ids.
-   */
   admit(envelopes: readonly Envelope[], brief: string): Admission {
     return this.storage.transactionSync(() => {
       const fresh = new Map<string, Envelope>()
@@ -109,9 +76,6 @@ export class Inbox {
       const state = this.sql.exec<{ arrival: number; pruned_at: number }>("SELECT arrival, pruned_at FROM inbox_state WHERE id = 1").one()
       let arrival = state.arrival
       const now = this.now()
-      // The rows of one delivery always land in one batch, which reads each distinct brief once, so
-      // only the first row keeps it. A burst of a hundred messages stores its brief once, not a hundred times.
-      // A human row and the rest go in separate batches (`claim`), so each kind's first row keeps it.
       const briefed = new Set<boolean>()
       for (const envelope of fresh.values()) {
         const human = envelope.from.kind === "human"
@@ -132,21 +96,12 @@ export class Inbox {
     })
   }
 
-  /**
-   * Puts the waiting rows into batches and records their request ids, in one transaction: the human's
-   * rows in one, everything else in another, so a human message is placed on its own before any waiting
-   * agent mail (section 7.8). Then takes every claimed batch that is neither submitted nor in flight, the
-   * new ones included, and marks it in flight. A batch taken by a dead process, or in flight for
-   * `RECLAIM_MS`, is taken again with the same request id, so submitting it again is a no-op in `pi-durable`.
-   */
   async claim(): Promise<Batch[]> {
     const waiting = this.sql
-      // `submitted = 0` is always true of a waiting row; it lets the query use `inbox_open` instead of reading every row ever kept.
       .exec<Row & { priority: number }>("SELECT id, envelope, brief, request_id, priority FROM inbox WHERE submitted = 0 AND request_id IS NULL ORDER BY priority, arrival")
       .toArray()
     const groups = [waiting.filter((r) => r.priority === PRIORITY.human), waiting.filter((r) => r.priority !== PRIORITY.human)].filter((g) => g.length)
     const ids = await Promise.all(groups.map((g) => requestIdFor(g.map((row) => row.id))))
-    // Rows that arrived during the hash are left for the next claim. The ids are fixed above.
     if (groups.length) {
       this.storage.transactionSync(() => {
         groups.forEach((g, i) => {
@@ -179,7 +134,6 @@ export class Inbox {
     return [...batches.values()]
   }
 
-  /** Marks a batch as admitted by `pi-durable`. Returns false when it was marked before, so a repeat does nothing. */
   submitted(requestId: string): boolean {
     const cursor = this.sql.exec(
       "UPDATE inbox SET submitted = 1, in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ? AND submitted = 0",
@@ -188,47 +142,31 @@ export class Inbox {
     return cursor.rowsWritten > 0
   }
 
-  /**
-   * Hands one batch back without submitting it: the run is busy and the batch waits for it to answer
-   * (section 7.8). Its rows go back to waiting, so the next claim puts them and whatever arrived
-   * meanwhile into one batch: three teammate replies to a busy agent cost one run, not three. Only a
-   * batch `pi-durable` never admitted may be held. The host checks that first (`AgentHost.drain`), since
-   * a batch a dead process submitted keeps its request id and must be marked submitted, not re-batched.
-   */
   hold(requestId: string): void {
     this.sql.exec("UPDATE inbox SET request_id = NULL, in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ? AND submitted = 0", requestId)
   }
 
-  /** The envelope ids of one batch, in its order. */
   envelopeIds(requestId: string): string[] {
     return this.sql.exec<{ id: string }>("SELECT id FROM inbox WHERE request_id = ? ORDER BY priority, arrival", requestId).toArray().map((r) => r.id)
   }
 
-  /** Drops submitted rows older than `KEEP_SUBMITTED_MS`. `admit` calls it at most once an hour. Waiting and claimed rows are never dropped. */
   private prune(now: number): void {
     this.sql.exec("DELETE FROM inbox WHERE submitted = 1 AND at < ?", now - KEEP_SUBMITTED_MS)
     this.sql.exec("UPDATE inbox_state SET pruned_at = ? WHERE id = 1", now)
   }
 
-  /** True when a human envelope waits or is claimed and not yet submitted. */
   humanWaiting(): boolean {
     return this.sql.exec("SELECT 1 FROM inbox WHERE submitted = 0 AND priority = ? LIMIT 1", PRIORITY.human).toArray().length > 0
   }
 
-  /** True when a row waits or is claimed and not yet submitted. */
   hasOpen(): boolean {
     return this.sql.exec("SELECT 1 FROM inbox WHERE submitted = 0 LIMIT 1").toArray().length > 0
   }
 
-  /** Hands back every batch this process holds after a failed drain, so the next claim takes it at once. */
   release(): void {
     this.sql.exec("UPDATE inbox SET in_flight_at = NULL, in_flight_by = NULL WHERE submitted = 0 AND in_flight_by = ?", this.process)
   }
 
-  /**
-   * The human pressed stop (section 6.2). Every row not yet submitted is closed without a run. The
-   * rows stay, so a repeated delivery of a discarded envelope still stores nothing. Returns the count.
-   */
   discard(): number {
     return this.sql.exec(
       "UPDATE inbox SET request_id = coalesce(request_id, 'stopped'), submitted = 1, in_flight_at = NULL, in_flight_by = NULL WHERE submitted = 0",
@@ -251,31 +189,21 @@ export class Inbox {
 const encoder = new TextEncoder()
 const utf8 = (text: string) => encoder.encode(text).byteLength
 
-/** `inbox:` and the hex SHA-256 of the ids joined by newlines. */
 export async function requestIdFor(ids: readonly string[]): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ids.join("\n")))
   return `inbox:${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`
 }
 
-/** Escapes markup, so message text cannot close or forge a tag. */
 const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
 
-/**
- * The text of one submitted input. A new run opens with its `<memory>` block (section 13), then the
- * brief as a `<context>` block (section 7.4). Human text is plain. Agent and system text is wrapped and
- * escaped (section 16.2).
- */
 export function renderInput(batch: Pick<Batch, "envelopes" | "briefs">, memory?: string): string {
   const parts = [...(memory ? [memory] : []), ...batch.briefs.map((brief) => `<context>\n${brief.replaceAll("</context>", "&lt;/context>")}\n</context>`)]
   for (const { from, body, hop, tainted } of batch.envelopes) {
-    // A tainted envelope starts a tainted run: the trust extension reads this attribute (section 16.3).
     const taint = tainted ? ' tainted="true"' : ""
     if (from.kind === "human") parts.push(body)
     else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}"${taint}>\n${escape(body)}\n</agent-message>`)
     else parts.push(`<system-event reason="${from.reason}"${taint}>\n${escape(body)}\n</system-event>`)
   }
-  // The ids of the human's messages, so `[react:<emoji>:<id>]` and `[reply:<id>]` can name one. One
-  // message needs no preview to tell it apart.
   const human = batch.envelopes.filter((e) => e.from.kind === "human" && e.id.startsWith("human:"))
   if (human.length === 1) parts.push(`<context>message id: ${human[0]!.id.slice(6)}</context>`)
   if (human.length > 1) parts.push(`<context>\nmessage ids, oldest first:\n${human.map((e) => `${e.id.slice(6)}: ${escape(e.body.slice(0, 40))}`).join("\n")}\n</context>`)

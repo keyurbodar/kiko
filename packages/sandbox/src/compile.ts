@@ -23,39 +23,17 @@ import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
 import { markRunTainted } from "@kiko/agent/trust"
 import { type Bridge, ScriptError, ScriptVM, type Target } from "./vm"
 
-// Architecture section 24.4. A user extension becomes an ordinary pi-durable `Extension`: every
-// tool, section, hook, and wrap the manifest declares is a host function that calls into the
-// extension's VM. The manifest is the permission list, and the bridge below enforces it on every
-// call:
-//
-// - `kiko.call(tool)` reaches only tools in `calls`, only ones the agent has, never the caller
-//   itself, and only with an effect the caller's own effect covers. A tool whose result is outside
-//   content taints the run, the same as when the model calls it.
-// - `kiko.fetch` works in a tool or tool wrap. Any tool may GET; another method or a body needs an
-//   `external` tool. `UserDO` checks the host against `egress`, adds secrets, and fetches; the script
-//   never holds a key. A fetched result taints the run, so trust wraps the tool's result as untrusted
-//   and holds the run's next outside action for the human.
-// - `kiko.state` needs `state` in the manifest. Sections only read it.
-// - Hooks and sections cannot call tools or fetch.
-//
-// The factory selects these extensions after every built-in one and before `trust`, so trust's
-// hooks see the final arguments and results.
-
-/** What a script may reach outside the VM. `AgentDO` provides it, already bound to this user. */
 export type ScriptPorts = {
   wasm: () => WebAssembly.Module
   state: (extension: string, scope: ExtensionStateScope, op: "get" | "set" | "delete" | "list", key: string, value?: unknown) => Promise<unknown>
   fetch: (extension: string, request: GuestRequest) => Promise<GuestResponse>
-  /** Who and where, for `kiko.env`. */
   env: () => { agent: string; room?: string; timezone: string }
-  /** An extension failed to load or threw. Shown on its row in settings. */
   report: (extension: string, hash: string, error: string) => void
 }
 
 export type GuestRequest = { url: string; method?: string; headers?: Record<string, string>; body?: string; json?: unknown }
 export type GuestResponse = { status: number; headers: Record<string, string>; text: string; json?: unknown; truncated?: boolean }
 
-/** One installed extension as the agent receives it. */
 export type Installed = { name: string; hash: string; bundle: ExtensionBundle }
 
 const RANK: Record<Effect, Effect[]> = {
@@ -65,20 +43,16 @@ const RANK: Record<Effect, Effect[]> = {
   external: ["read", "write", "message", "external"],
 }
 
-/** A request that only reads: GET (the default) with no body. Any tool may send one to its egress hosts. */
 export const isPlainGet = (init: { method?: string; body?: unknown; json?: unknown } | undefined) =>
   (init?.method ?? "GET").toUpperCase() === "GET" && init?.body === undefined && init?.json === undefined
 
-/** Which effects a caller with `effect` may call. A `read` tool calls only reads. */
 export const mayCall = (caller: Effect, callee: Effect) => RANK[caller].includes(callee)
 
-/** One VM per extension version, per agent process. A broken VM is replaced on the next call. */
 export class VmPool {
   private readonly vms = new Map<string, Promise<ScriptVM>>()
 
   constructor(private readonly wasm: () => WebAssembly.Module) {}
 
-  /** A retired or broken VM disposes itself when its last call ends; the pool only stops handing it out. */
   get(installed: Installed): Promise<ScriptVM> {
     const cached = this.vms.get(installed.hash)
     if (cached) {
@@ -96,12 +70,10 @@ export class VmPool {
     return starting
   }
 
-  /** Disposes every VM: the agent is idle, and a VM restarts warm in a millisecond or two. */
   release(): void {
     this.retain(new Set())
   }
 
-  /** Disposes every VM whose version is not in `keep`. */
   retain(keep: ReadonlySet<string>): void {
     for (const [hash, vm] of this.vms) {
       if (keep.has(hash)) continue
@@ -113,13 +85,11 @@ export class VmPool {
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
-/** A guest value as a tool result: text as is, anything else as pretty JSON. */
 function asResult(value: unknown, logs: readonly string[]): ToolExecutionResult {
   const body = value === undefined || value === null ? "(no output)" : typeof value === "string" ? value : JSON.stringify(value, null, 2)
   return logs.length ? { content: text(body), details: { logs: [...logs] } } : { content: text(body) }
 }
 
-/** The text parts of a tool result, joined. */
 const resultText = (r: ToolExecutionResult) => (r.content ?? []).flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n")
 
 const MAX_LOGS = 50
@@ -139,7 +109,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
 
   const envFor = (extra: Record<string, unknown> = {}) => ({ ...ports.env(), extension: name, version: m.version, ...extra })
 
-  /** Runs one guest function. A load error is reported once and becomes a ScriptError. */
   const run = async (target: Target, args: unknown[], env: Record<string, unknown>, bridge: Bridge): Promise<unknown> => {
     let vm: ScriptVM
     try {
@@ -159,7 +128,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
     return ports.state(name, m.state, verb, String(payload[0] ?? ""), payload[1])
   }
 
-  /** The bridge for a tool, or for a wrap of a tool with `effect`. */
   const toolBridge = (effect: Effect, self: string, api: ToolExecutionApi, context: Context, logs: string[], next?: (args: Record<string, unknown>) => Promise<unknown>): Bridge => {
     return async (op, payload) => {
       if (op === "log") {
@@ -175,7 +143,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
         const [url, init] = payload as [string, Omit<GuestRequest, "url">]
         if (effect !== "external" && !isPlainGet(init)) throw new Error(`only a GET without a body works in a "${effect}" tool; ${self} needs "external" to send anything`)
         const response = await ports.fetch(name, { ...(init ?? {}), url })
-        // What came back is outside content: the run is tainted and trust wraps this call's result.
         markRunTainted(api, `extension:${name}`)
         return response
       }
@@ -199,14 +166,12 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
     }
   }
 
-  /** The bridge for a hook or a section: state and log only. */
   const quietBridge = (where: string, readOnly: boolean): Bridge => async (op, payload) => {
     if (op === "log") return undefined
     if (op.startsWith("state.")) return stateOp(op, payload, readOnly)
     throw new Error(`${where} can only use kiko.state and kiko.log`)
   }
 
-  // Tools.
   const tools: ToolRegistration[] = Object.entries(m.tools ?? {}).map(([toolName, t]) =>
     declareEffect(
       t.effect as Effect,
@@ -230,7 +195,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
     ),
   )
 
-  // Sections. A static one is text; a script one renders before each request and fails quietly.
   const sections: PromptSection[] = Object.entries(m.sections ?? {}).map(([id, s]) => {
     const key = id === name ? id : `${name}-${id}`
     if (s.text !== undefined) {
@@ -248,7 +212,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
     })
   })
 
-  // Hooks. A failing hook changes nothing: the call or the answer goes ahead as if it were absent.
   const wants = new Set(m.hooks ?? [])
   const hooks: HookRegistration[] = []
   const quiet = async (hookName: string, args: unknown[]): Promise<unknown> => {
@@ -295,7 +258,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
         ...(wants.has("onYield")
           ? {
               onYield: async (answer, api: HookApi) => {
-                // Continues in a row per conversation. A run that ends on its own starts the count over.
                 const key = String(api.conversationId)
                 const used = continues.get(key) ?? 0
                 const out = used >= MAX_CONTINUES ? undefined : ((await quiet("onYield", [{ text: answerText(answer) }])) as { continue?: unknown } | undefined)
@@ -319,7 +281,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
     )
   }
 
-  // Wraps. A tool wrap keeps the wrapped tool's effect; `kiko.next(args)` runs the original.
   const wraps: Wrap[] = []
   for (const target of m.wraps?.tools ?? []) {
     wraps.push(
@@ -366,5 +327,4 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
   return defineExtension({ name: extensionName(name), tools, sections, hooks, wraps })
 }
 
-/** The registry name of a user extension. The prefix keeps it apart from every built-in name. */
 export const extensionName = (name: string) => `ext:${name}`

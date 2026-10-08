@@ -10,13 +10,9 @@ import { WEB } from "../src/agent/extensions/web"
 import { SKILLS } from "../src/agent/extensions/skills"
 import { SECTION_ORDER } from "../src/agent/prompt"
 
-// The factory is the one place that configures an agent (architecture section 16). These tests run
-// a real `pi-durable` harness on the faux model and read the system prompt the model receives.
-
 const context = BACKGROUND_CONTEXT
 const FAUX = { provider: "faux", modelId: "faux-1" }
 
-/** Runs one input and returns the system prompt text the model saw, and the selected extension names. */
 async function firstRequest(input: BuildAgentInput, extra: Parameters<typeof defineExtension>[0][] = []) {
   const built = buildAgent(input)
   for (const extension of extra) built.registry.install(defineExtension(extension))
@@ -57,15 +53,12 @@ describe("buildAgent", () => {
     expect(at(system, "reactions")).toBeLessThan(at(system, "role"))
     expect(system).toContain("[react:👍]")
     expect(system).toContain("your job here: you plan trips.")
-    // The skills slot holds the built-in skills (P5-08), after the role. Memory lives in the input, not here.
     expect(at(system, "skills")).toBeGreaterThan(at(system, "role"))
     expect(system).toContain("<name>haiku</name>")
     expect(at(system, "profile")).toBe(-1)
   })
 
   test("a later extension fills the slots without changing the order", async () => {
-    // Selected after Base, as a real Self or Skills extension is. Its wraps fill in reverse
-    // order on purpose: the slot's position, not the extension's, decides where the text goes.
     const fill = {
       name: "fill",
       wraps: [
@@ -91,10 +84,8 @@ describe("buildAgent", () => {
     for (const list of lists) {
       expect(list).toEqual(lists[0])
       expect(list[0]).toBe(BASE)
-      // Architecture section 16: every agent selects Trust, last, so its hooks see final calls and results.
       expect(list.at(-1)).toBe(TRUST)
     }
-    // The stored selection is an exact list, and the registry holds exactly it.
     for (const input of inputs) {
       const built = buildAgent(input)
       expect(Array.isArray(built.agent.extensions)).toBe(true)

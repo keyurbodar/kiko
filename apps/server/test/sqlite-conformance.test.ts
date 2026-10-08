@@ -2,9 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Runs pi-durable's storage conformance suite inside workerd, on a real Durable Object, through
-// Miniflare. The worker is bundled from `sqlite-worker.ts` and `@kiko/agent/sqlite`, so the test
-// cannot drift from the source. Every case runs in a fresh Durable Object.
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -38,7 +35,6 @@ async function runSuite(suite: Suite) {
   return results
 }
 
-// pi-durable 1.0.0 ships 23 storage conformance cases. Fewer means cases were dropped.
 const CONFORMANCE_CASES = 23
 
 test("pi-durable storage conformance passes over ctx.storage.sql", async () => {

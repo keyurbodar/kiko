@@ -1,21 +1,10 @@
 import { EvalFlags, JSException, type JSValueHandle, QuickJS } from "quickjs-wasi"
 import type { ExtensionBundle } from "./manifest"
 
-// Architecture section 24.3. One QuickJS VM runs one extension's script inside the agent's object.
-// QuickJS is compiled to wasm and imported with the Worker, so no code is evaluated by V8: the
-// script is data for a bundled interpreter. The VM has no I/O of its own. Everything it can do
-// outside its own memory goes through `__host`, and the host side decides per call.
-//
-// Data crosses as JSON text only, so a guest object never becomes a host object.
-//
 // Limits:
 // - CPU: the interrupt handler counts. The Workers clock does not move during computation, so a
 //   time check would never fire. QuickJS calls the handler about once per 5,000 loop iterations;
 //   `SLICE_BUDGET` calls is about 100 ms of CPU, per entry into the VM.
-// - Memory: `MEMORY_LIMIT`. A guest that runs out gets `InternalError: out of memory`, and the VM
-//   is thrown away after the call.
-// - Wall time: an invocation that has not settled in `WALL_MS` (a promise that never resolves)
-//   fails.
 
 export const SLICE_BUDGET = 300
 export const MEMORY_LIMIT = 16 * 1024 * 1024
@@ -27,17 +16,14 @@ export const WALL_MS = 30_000
  */
 export const RETIRE_BYTES = 8 * 1024 * 1024
 
-/** What a script calls through `kiko`. The host builds one per invocation and decides what each may do. */
 export type Bridge = (op: string, payload: unknown[]) => Promise<unknown> | unknown
 
-/** What `invoke` runs: `tools.x`, `sections.x`, `hooks.x`, `wraps.tools.x`, or `wraps.sections.x`. */
 export type Target = { group: "tools" | "sections" | "hooks" | "wrapTools" | "wrapSections"; name: string }
 
 export type ExportShape = { tools: string[]; sections: string[]; hooks: string[]; wrapTools: string[]; wrapSections: string[] }
 
 export class ScriptError extends Error {}
 
-/** The guest half of the bridge. It runs before the extension's module, in the same realm. */
 const PRELUDE = `
 const host = globalThis.__host;
 const hostSync = globalThis.__hostSync;
@@ -80,7 +66,6 @@ globalThis.__shape = (mod) => {
 };
 `
 
-/** Resolves `./x.js` and `../x.js` against the importing module, inside the bundle. */
 function resolve(base: string, specifier: string): string {
   if (!specifier.startsWith("./") && !specifier.startsWith("../")) return specifier
   const parts = base.split("/").slice(0, -1)
@@ -91,7 +76,6 @@ function resolve(base: string, specifier: string): string {
   return parts.join("/")
 }
 
-/** A guest exception as one line the model and the human can read. */
 function describe(e: unknown): string {
   if (e instanceof JSException) {
     const msg = e.name && e.name !== "Error" ? `${e.name}: ${e.message}` : e.message || e.name
@@ -127,7 +111,6 @@ export class ScriptVM {
     readonly shape: ExportShape,
   ) {}
 
-  /** Starts a VM and evaluates the bundle's entry module. Throws `ScriptError` with the guest's error. */
   static async create(bundle: ExtensionBundle, wasm: WebAssembly.Module | BufferSource): Promise<ScriptVM> {
     const main = bundle.manifest.main ?? "main.js"
     let steps = 0
@@ -188,7 +171,6 @@ export class ScriptVM {
           try {
             void bridge(op!.toString(), JSON.parse(payload!.toString()) as unknown[])
           } catch {
-            // A log line that fails is dropped.
           }
         }
         return vm.undefined
@@ -216,18 +198,15 @@ export class ScriptVM {
     }
   }
 
-  /** Runs guest code with a fresh CPU slice. */
   private enter<T>(fn: () => T): T {
     this.steps = 0
     return fn()
   }
 
-  /** True after an out-of-memory or another failure that leaves the VM unsafe to reuse, or once retired. */
   get unusable(): boolean {
     return this.broken
   }
 
-  /** The VM's wasm linear memory, in bytes. */
   get memoryBytes(): number {
     try {
       return (this.vm as unknown as { _getMemory(): WebAssembly.Memory })._getMemory().buffer.byteLength
@@ -236,11 +215,6 @@ export class ScriptVM {
     }
   }
 
-  /**
-   * Calls one exported function with JSON arguments and the invocation's `kiko` environment. The
-   * result is the function's return value as JSON, or undefined. Throws `ScriptError` with the
-   * guest's error as one line.
-   */
   async invoke(target: Target, args: unknown[], env: Record<string, unknown>, bridge: Bridge): Promise<unknown> {
     if (this.broken) throw new ScriptError("the script stopped working; it restarts on the next call")
     const inv = `inv-${++this.invocations}-${crypto.randomUUID()}`
@@ -270,7 +244,6 @@ export class ScriptVM {
       this.bridges.delete(inv)
       for (const h of handles) h.dispose()
       promise?.dispose()
-      // A VM that grew too big takes no new calls, and frees its memory once the last call ends.
       if (this.memoryBytes > RETIRE_BYTES) this.broken = true
       if (this.broken && this.bridges.size === 0) this.dispose()
     }
@@ -286,7 +259,6 @@ export class ScriptVM {
       this.invoke$.dispose()
       this.vm.dispose()
     } catch {
-      // Already gone.
     }
   }
 }

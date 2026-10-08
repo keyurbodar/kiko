@@ -5,10 +5,6 @@ import { UserDO } from "../src/user/user-do"
 
 export { UserDO }
 
-// `/rpc/<user>` calls one real `UserDO` RPC method by name. `/vault/<user>` drives a
-// `CredentialVault` with a keyring the test chooses, so a rotation needs no restart.
-// Every result is logged, so the test's log grep would catch a key in any answer.
-
 type Env = { USER: DurableObjectNamespace<UserDO>; VAULT: DurableObjectNamespace<VaultDO> }
 
 type VaultCall = { keyring: Keyring; op: "connect" | "read" | "versions"; provider?: string; apiKey?: string }

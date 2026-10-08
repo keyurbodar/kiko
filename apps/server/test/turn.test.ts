@@ -7,9 +7,6 @@ import { debounce, deliverable, isFragment, MAX_DELIVERY_ENVELOPES } from "../sr
 import { MAX_ENTRY_BYTES, MAX_OPEN } from "@kiko/agent/inbox"
 import { AFTER, BEFORE } from "./turn-fixtures"
 
-// P1-11. The room's bubble store and the agent's outbox inside workerd, through Miniflare. The
-// agent is the real `AgentDO` with a faux model, its room calls recorded, and the real alarm drives
-// every run.
 let mf: Miniflare
 let origin: string
 
@@ -77,13 +74,11 @@ const ended = (calls: Call[]) => calls.some((c) => c.t === "end")
 test("the debounce follows the table in section 6.1", () => {
   expect(debounce("message", 10_000, 10_000)).toBe(11_000)
   expect(debounce("typing", 12_000, 10_000)).toBe(14_500)
-  // Pending for 8 seconds: now, and never later.
   expect(debounce("message", 17_000, 10_000)).toBe(18_000)
   expect(debounce("typing", 19_000, 10_000)).toBe(18_000)
 })
 
 test("a burst past the inbox caps goes out in deliveries the inbox admits, oldest first", () => {
-  // A burst the inbox refuses as full would wait forever, and one too large would be dropped.
   const many = Array.from({ length: 1_500 }, (_, i) => human(`message ${i}`))
   const first = deliverable(many)
   expect(first).toEqual(many.slice(0, MAX_DELIVERY_ENVELOPES))
@@ -93,7 +88,6 @@ test("a burst past the inbox caps goes out in deliveries the inbox admits, oldes
   expect(chunk.length).toBeGreaterThan(0)
   expect(chunk).toEqual(long.slice(0, chunk.length))
   expect(new TextEncoder().encode(JSON.stringify(chunk)).length).toBeLessThan(MAX_ENTRY_BYTES / 2)
-  // One message always goes, whatever its size.
   expect(deliverable([human("y".repeat(200_000))])).toHaveLength(1)
 })
 
@@ -112,7 +106,6 @@ test("a run posts each paragraph once, in order, then ends once", async () => {
 }, 30_000)
 
 test("a run started by a tainted envelope posts every bubble as tainted, and a human's run does not", async () => {
-  // Section 16.4: the room previews no link of a tainted run, so the outbox must say which runs are.
   const a = await agent()
   await a.receive([{ ...human("from a teammate"), id: `agent:t${n}`, from: { kind: "agent", slug: "scout" } as Envelope["from"], tainted: true }])
   const tainted = posts(await until(a.calls, ended))
@@ -139,10 +132,8 @@ test("a crash after a bubble reposts the run under the next attempt", async () =
   const all = posts(calls)
   const first = all.filter((p) => p.attempt === 0)
   expect(first.length).toBeGreaterThan(0)
-  // Posted before the crash: a prefix of the first answer, never all of it.
   expect(first.map((p) => p.block)).toEqual(blocksOf(BEFORE).slice(0, first.length))
   expect(first.length).toBeLessThan(blocksOf(BEFORE).length)
-  // After the crash the model wrote different text, so the room gets a new attempt from index 0.
   expect(all.filter((p) => p.attempt === 1).map((p) => [p.index, p.block])).toEqual(blocksOf(AFTER).map((b, i) => [i, b]))
   expect(all.every((p) => p.runId === all[0]!.runId)).toBe(true)
   expect(calls.filter((c) => c.t === "end")).toHaveLength(1)
@@ -181,13 +172,11 @@ test("a repeated post stores one message, and a higher attempt replaces the earl
     [0, 1, "second", 1],
   ])
   expect(await post(1, 0, "rewritten")).toBe(true)
-  // A late post from the earlier attempt stores nothing.
   expect(await post(0, 2, "late")).toBe(false)
   expect(await snapshot(roomId)).toEqual([[1, 0, "rewritten", 1]])
 }, 30_000)
 
 test.each([
-  // A short complete reply goes after the plain pause.
   ["yes", false],
   ["do it", false],
   ["sounds good", false],
@@ -197,7 +186,6 @@ test.each([
   ["what time is it?", false],
   ["ok 👍", false],
   ["planning a weekend in lisbon with friends", false],
-  // A thought still going: a comma, an ellipsis, or a word that cannot end it.
   ["so i was thinking,", true],
   ["maybe...", true],
   ["hmm…", true],

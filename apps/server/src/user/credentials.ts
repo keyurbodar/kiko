@@ -1,17 +1,9 @@
 import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai"
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 
-// Architecture sections 11.1 and 11.2. `UserDO` is the only owner of a user's provider
-// credentials. Each row is one provider, sealed with a key derived from the KEK and the
-// user id. This module never logs a credential, and nothing it returns to the Worker's
-// HTTP layer holds one: `listProviders` gives the provider id, the kind, and the last
-// four characters.
-
-/** What the client may know about a stored credential. */
 export interface ProviderInfo {
   provider: string
   kind: Credential["type"]
-  /** The last four characters of an API key. Empty for OAuth and for very short keys. */
   last4: string
 }
 
@@ -19,14 +11,12 @@ export class CredentialError extends Error {}
 
 const PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const MAX_KEY_LENGTH = 8192
-/** Below this length, four characters are too much of the key to show. */
 const MIN_KEY_FOR_LAST4 = 12
 
 export function isProviderId(value: unknown): value is string {
   return typeof value === "string" && PROVIDER_ID.test(value)
 }
 
-/** The checks every API key passes before it is sealed. Throws a message safe to show. */
 export function checkApiKey(value: unknown): string {
   if (typeof value !== "string") throw new CredentialError("api key must be a string")
   const key = value.trim()
@@ -35,7 +25,6 @@ export function checkApiKey(value: unknown): string {
   return key
 }
 
-/** The user id inside a `user:<id>` object name (lib/names.ts). */
 export function userIdFromObjectName(name: string | undefined): string {
   const match = name ? /^user:([A-Za-z0-9_-]{1,64})$/.exec(name) : null
   if (!match) throw new CredentialError("this object has no user name")
@@ -77,13 +66,9 @@ export class CredentialVault implements CredentialStore {
     migrate(sql)
   }
 
-  // pi-ai's CredentialStore.
-
   async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
     options?.signal?.throwIfAborted()
     const loaded = await this.load(providerId)
-    // A row sealed with the previous KEK is re-sealed with the current one, inside the
-    // write chain, so the old secret can be removed once every user has been read.
     if (loaded?.stale) await this.modify(providerId, async (current) => current)
     return loaded?.credential
   }
@@ -117,9 +102,6 @@ export class CredentialVault implements CredentialStore {
     })
   }
 
-  // The operations behind the RPC methods. None returns a secret.
-
-  /** Saves an API key for `provider`, replacing what was there. */
   async connect(provider: string, apiKey: unknown): Promise<ProviderInfo> {
     if (!isProviderId(provider)) throw new CredentialError("bad provider id")
     const key = checkApiKey(apiKey)
@@ -127,7 +109,6 @@ export class CredentialVault implements CredentialStore {
     return this.info(provider)!
   }
 
-  /** Deletes the provider's row at once. Returns true when there was one. */
   async disconnect(provider: string): Promise<boolean> {
     if (!isProviderId(provider)) return false
     const existed = this.info(provider) !== null
@@ -143,8 +124,6 @@ export class CredentialVault implements CredentialStore {
       .toArray()
       .map((r) => ({ provider: r.provider_id, kind: r.kind as ProviderInfo["kind"], last4: r.last4 }))
   }
-
-  // Internals.
 
   private info(provider: string): ProviderInfo | null {
     return this.listProviders().find((p) => p.provider === provider) ?? null
@@ -181,7 +160,6 @@ export class CredentialVault implements CredentialStore {
     )
   }
 
-  /** Runs `task` after every earlier task for the same provider has settled. */
   private enqueue<T>(providerId: string, task: () => Promise<T>): Promise<T> {
     const previous = this.chains.get(providerId) ?? Promise.resolve()
     const run = previous.catch(() => {}).then(task)

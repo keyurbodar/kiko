@@ -2,8 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Runs the real helper inside workerd through Miniflare. The worker is bundled
-// from @kiko/durable/alarm so the test cannot drift from the source.
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -20,7 +18,7 @@ afterAll(async () => {
   await mf?.dispose()
 })
 
-const B = 5e12 // far future, so the real alarm never fires during a test
+const B = 5e12
 let n = 0
 async function call(id: string, op: string, args: Record<string, unknown> = {}) {
   const ns = await mf.getDurableObjectNamespace("T")

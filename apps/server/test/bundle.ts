@@ -1,5 +1,3 @@
-// Bundles a test worker for Miniflare, the way wrangler bundles the real one.
-//
 // The build runs in its own `bun build` process. Bun.build inside `bun test` shares the test
 // process's module cache, so a source file the test also imports could come back with exports
 // missing, or a relative import would not resolve.

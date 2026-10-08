@@ -1,8 +1,3 @@
-// Account deletion (P9-02), architecture section 7.9. Each Durable Object wipes its own
-// storage through this helper. A wiped object keeps running until it is evicted, but its
-// tables are gone, so the object remembers the wipe in memory and answers later calls
-// with nothing.
-
 /**
  * The number of stored rows that hold user data. Bookkeeping that every start recreates
  * is left out: `meta`, SQLite and Cloudflare internals, and FTS indexes, which mirror a
@@ -24,21 +19,15 @@ export async function storedRows(storage: DurableObjectStorage): Promise<number>
 	return rows
 }
 
-/** Closes every socket the object holds. A socket that sent nothing more never wakes it again. */
 export function closeSockets(ctx: DurableObjectState): void {
 	for (const ws of ctx.getWebSockets()) {
 		try {
 			ws.close(1000, "account deleted")
 		} catch {
-			// already closed
 		}
 	}
 }
 
-/**
- * Closes every socket, clears the alarm, and deletes all storage. Returns the rows that
- * held data, so a second wipe of the same object reports 0. Safe to call twice.
- */
 export async function wipeStorage(ctx: DurableObjectState): Promise<number> {
 	const rows = await storedRows(ctx.storage)
 	closeSockets(ctx)

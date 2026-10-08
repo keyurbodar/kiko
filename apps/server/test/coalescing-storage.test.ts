@@ -2,8 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Experiment 3 (architecture section 17.5). Runs inside workerd, on a real Durable Object, through
-// Miniflare. The worker is bundled from `coalescing-worker.ts` and the source it imports.
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -40,7 +38,6 @@ async function runConformance(policy: string) {
   return results
 }
 
-// pi-durable 1.0.0 ships 23 storage conformance cases. Fewer means cases were dropped.
 const CONFORMANCE_CASES = 23
 
 test("the wrapper passes pi-durable storage conformance", async () => {
@@ -68,7 +65,6 @@ test("a coalesced turn writes fewer rows and gives the same answer", async () =>
     expect(m.answerChars).toBeGreaterThan(0)
   }
   expect(plain.held).toBe(0)
-  // The partials of a 4 s stream fall into two or three windows.
   expect(coalesced.held).toBeGreaterThan(10)
   expect(coalesced.rowsWritten).toBeLessThan(plain.rowsWritten / 2)
 }, 60_000)
@@ -83,7 +79,6 @@ type Crash = {
 test("a crash inside a window still resumes to a correct answer", async () => {
   const ns = await mf.getDurableObjectNamespace("T")
   const id = ns.newUniqueId()
-  // The object aborts itself mid-request, so this call fails.
   const crashed = await (await object(id)).fetch("http://do/", { method: "POST", body: JSON.stringify({ op: "crash" }) }).then(
     (res) => res.text(),
     (error: unknown) => String(error),
@@ -92,11 +87,9 @@ test("a crash inside a window still resumes to a correct answer", async () => {
   const result = await call<Crash>({ op: "resume" }, await object(id))
   const { info, messages, answer, recovered } = result
   console.log("crash inside a window:", info)
-  // The crash happened with held partials that were never written.
   expect(info.pending).toBeGreaterThan(0)
   expect(info.storedChars).toBeGreaterThan(0)
   expect(info.memoryChars).toBeGreaterThan(info.storedChars)
-  // Recovery kept the stored partial as an aborted entry and sent the request again.
   expect(messages).toHaveLength(2)
   expect(messages[0]!.stopReason).toBe("aborted")
   expect(messages[0]!.text).toBe(answer.slice(0, info.storedChars))

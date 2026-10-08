@@ -5,8 +5,6 @@ import { bundleWorker } from "./bundle"
 import { renderInput, requestIdFor } from "@kiko/agent/inbox"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 
-// The agent host (P1-06) inside workerd, through Miniflare. The worker is the real `AgentDO` with a
-// faux model, and the real alarm drives every run: nothing here calls the alarm handler directly.
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -60,7 +58,6 @@ async function until<T>(read: () => Promise<T>, done: (value: T) => boolean, ms 
   }
 }
 
-/** Opened by an alarm, every inbox row submitted, and no task left. */
 const settled = (submitted: number) => (s: Status) => s.open && s.tasks === 0 && s.submissions === 0 && s.inbox.submitted === submitted
 
 let n = 0
@@ -82,7 +79,6 @@ test("the same envelope delivered twice is submitted once", async () => {
   expect(await a.receive([e])).toEqual({ admitted: [e.id] })
   expect(await a.receive([e])).toEqual({ admitted: [e.id] })
   await until(a.status, settled(1))
-  // A repeat after the run finished stores nothing and wakes nothing.
   expect(await a.receive([e])).toEqual({ admitted: [e.id] })
   await Bun.sleep(500)
   const status = await a.status()
@@ -110,7 +106,6 @@ test("agent mail that arrives while a run works waits, then goes in as one input
   const a = await agent()
   await a.receive([human(`${SLOW} please`)])
   await until(a.status, (s) => s.tasks > 0)
-  // Three teammates answer one at a time while the run streams.
   for (const [slug, text] of [["ada", "one"], ["bob", "two"], ["cy", "three"]] as const) {
     await a.receive([envelope({ kind: "agent", slug: slug as never }, text)])
     await Bun.sleep(150)
@@ -122,7 +117,6 @@ test("agent mail that arrives while a run works waits, then goes in as one input
   expect(users[1]).toContain("two")
   expect(users[1]).toContain("three")
   expect(assistants).toHaveLength(2)
-  // Credentials load once per run, never for a held batch.
   expect((await a.call<{ begins: number }>({ op: "begins" })).begins).toBe(2)
 }, 40_000)
 
@@ -133,7 +127,6 @@ test("mail held for a human message that is on its way loads no credentials unti
   await Bun.sleep(1_500)
   expect((await a.call<{ begins: number }>({ op: "begins" })).begins).toBe(0)
   expect((await a.status()).inbox.submitted).toBe(0)
-  // The human message arrives: it is answered first, on its own, and the note goes after it.
   await a.receive([human("here i am")])
   await until(a.status, settled(2))
   const { users } = await a.transcript()
@@ -154,7 +147,6 @@ test("a message that joined a live run is left out of the next run's memory delt
   expect((await a.call<{ joined: number[] }>({ op: "joined" })).joined).toEqual([])
   await a.receive([human("next")])
   await until(a.status, settled(3))
-  // The run that joined is in the transcript, so the delta of the run after it skips its seq.
   expect((await a.call<{ joined: number[] }>({ op: "joined" })).joined).toEqual([joins.seq])
 }, 30_000)
 
@@ -166,18 +158,15 @@ test("with memory, a run wakes from the block once, goes on with deltas, starts 
   await until(a.status, done(1))
   await a.receive([human("two")])
   await until(a.status, done(2))
-  // The first run woke from the whole block; the second goes on with its transcript and only what is new.
   expect((await a.transcript()).users).toEqual([
     "<memory>\nchat:\n#0 human: earlier\n</memory>\n\none",
     "<memory>\nchat since your last turn:\n#9 human: new\n</memory>\n\ntwo",
   ])
-  // Past the context budget, the next run starts over from the block.
   await a.receive([human("x".repeat(61_000))])
   await until(a.status, done(3))
   await a.receive([human("after the budget")])
   await until(a.status, done(4))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter the budget"])
-  // Two fresh starts so far. Only fresh starts count toward the drop: runs that go on add nothing.
   expect((await a.call<{ n: number }>({ op: "fresh-starts" })).n).toBe(2)
   await a.call({ op: "fresh-starts", set: 48 })
   for (let i = 5; i <= 10; i++) {
@@ -191,21 +180,16 @@ test("with memory, a run wakes from the block once, goes on with deltas, starts 
   const grown = ((await a.call({ op: "entries" })) as { entries: number }).entries
   await a.receive([human("wake 50")])
   await until(a.status, done(12))
-  // Fifty fresh starts: the next alarm drops pi-durable's tables before it opens the harness, so the
-  // next run wakes from the block again, even though it arrives right after the fiftieth.
   await a.receive([human("after")])
   await until(a.status, done(13))
   expect((await a.transcript()).users).toEqual(["<memory>\nchat:\n#0 human: earlier\n</memory>\n\nafter"])
   expect(((await a.call({ op: "entries" })) as { entries: number }).entries).toBeLessThan(grown)
-  // Run ids are built from pi-durable's entry ids, which start over with the tables: the epoch moves
-  // on, so a new run's bubbles are never taken for repeats of an old run's.
   expect(((await a.call({ op: "epoch" })) as { epoch: number }).epoch).toBe(1)
 }, 180_000)
 
 test("the object restarts mid-run and the heartbeat finishes the run", async () => {
   const a = await agent()
   await a.receive([human(`${SLOW} please`)])
-  // The alarm opened the harness and the faux model is streaming.
   await until(a.status, (s) => s.open && s.tasks > 0)
   await Bun.sleep(1_500)
   const crashed = await a.call({ op: "crash" }).then(
@@ -213,12 +197,10 @@ test("the object restarts mid-run and the heartbeat finishes the run", async () 
     () => "crashed",
   )
   expect(crashed).toBe("crashed")
-  // A new process. Only the heartbeat alarm can open the harness again and resume the run.
   const status = await until(a.status, settled(1))
   expect(status.opens).toBe(2)
   const { users, assistants } = await a.transcript()
   expect(users).toEqual([`${SLOW} please`])
-  // The recovered request answers in full. A partial stored before the crash stays as an aborted entry.
   expect(assistants.at(-1)).toEqual({ text: LONG_ANSWER, stopReason: "stop" })
   expect(assistants.slice(0, -1).every((m) => m.stopReason === "aborted")).toBe(true)
 }, 40_000)
@@ -227,16 +209,13 @@ test("a run that kills its process every time is dropped after three resumes, no
   const a = await agent()
   await a.receive([human(`${SLOW} please`)])
   const crash = () => a.call({ op: "crash" }).catch(() => undefined)
-  // The first process starts the run; each of the next three resumes it and dies again.
   for (let opens = 1; opens <= 4; opens++) {
     await until(a.status, (s) => s.opens === opens && s.tasks > 0)
     await Bun.sleep(300)
     await crash()
   }
-  // The fifth process finds the same run unfinished a fourth time in a row and drops it.
   const status = await until(a.status, (s) => s.opens === 5 && s.tasks === 0 && s.submissions === 0)
   expect(status.gaveUp).toBe(1)
-  // Dropped, not answered again: nothing goes back in the inbox, and no model call is made.
   await Bun.sleep(1_500)
   expect((await a.status()).tasks).toBe(0)
   expect((await a.transcript()).assistants).toEqual([])
@@ -248,7 +227,6 @@ test("a run that dies once is resumed, and a later crash starts a fresh count", 
   await until(a.status, (s) => s.opens === 1 && s.tasks > 0)
   await a.call({ op: "crash" }).catch(() => undefined)
   await until(a.status, settled(1))
-  // The resumed run finished, so the count was cleared. Three more crashes of a new run still resume.
   await a.receive([human(`${SLOW} second`)])
   for (let opens = 2; opens <= 4; opens++) {
     await until(a.status, (s) => s.opens === opens && s.tasks > 0)
@@ -265,7 +243,6 @@ test("a failing alarm re-arms and the next one runs", async () => {
   await a.call({ op: "fail-open" })
   await a.receive([human("are you there")])
   const status = await until(a.status, settled(1))
-  // The first open threw before `onOpen`, so one open succeeded.
   expect(status.opens).toBe(1)
   expect((await a.transcript()).assistants).toEqual([{ text: "ok", stopReason: "stop" }])
 }, 30_000)

@@ -3,41 +3,31 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Op } from "@earendil-works/chord/delta"
 import { type DocumentId, LiveDoc, type Seq, type Storage, type StorageWrite } from "@earendil-works/pi-durable"
 
-/** One held write: a delta to one document. */
 type Delta = Extract<StorageWrite, { readonly type: "document.change" }> & {
   readonly content: { readonly kind: "delta"; readonly version: number; readonly ops: readonly Op[] }
 }
 
-/** Decides whether a single-delta commit may be held. `kind` is the stored kind of the changed document. */
 export type HoldPolicy = (write: Delta, kind: string) => boolean
 
 export type CoalescingOptions = {
-  /** How long the first held commit may wait before a later partial flushes it. Default 2000. */
   readonly intervalMs?: number
-  /** Default `Date.now`. Tests pass a fake clock. */
   readonly now?: () => number
-  /** Default `holdsPartialOutput`. */
   readonly holds?: HoldPolicy
 }
 
 export type CoalescingStats = {
-  /** Commits answered from memory. */
   readonly held: number
-  /** Commits that reached the inner storage, flushes included. */
   readonly written: number
-  /** Held commits not yet written. */
   readonly pending: number
 }
 
 export type CoalescingStorage = Storage & {
-  /** Write every held commit now. */
   flush(): Promise<void>
   stats(): CoalescingStats
 }
 
 const GENERATION = "generation"
 
-/** The path an op changes. `r` replaces the whole value, so it has none. */
 const opPath = (op: Op): readonly (string | number)[] | undefined => (op[0] === "r" ? undefined : op[1])
 
 /**
@@ -53,7 +43,6 @@ export const holdsPartialOutput: HoldPolicy = (write, kind) =>
 
 const isDelta = (write: StorageWrite): write is Delta => write.type === "document.change" && write.content.kind === "delta"
 
-/** Document ids a write names. A cached kind and version is dropped when a write that is not held touches it. */
 const touched = (write: StorageWrite): DocumentId | undefined => {
   switch (write.type) {
     case "document.create":
@@ -70,11 +59,9 @@ const touched = (write: StorageWrite): DocumentId | undefined => {
 type Known = { readonly kind: string; readonly version: number; readonly currentOnly: boolean } | null
 
 type Window = {
-  /** The seq the flush will get. Every held commit in the window returns it. */
   readonly seq: Seq
   readonly openedAt: number
   readonly count: number
-  /** Ops per document, in commit order. Concatenated ops apply exactly as the separate batches did. */
   readonly deltas: Map<DocumentId, { readonly version: number; readonly ops: Op[] }>
 }
 
@@ -105,10 +92,8 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
   let window: Window | undefined
   let held = 0
   let written = 0
-  // Stored kind and version per document, read once. `null` means the inner storage has no current incarnation.
   const known = new Map<DocumentId, Known>()
 
-  // Every call that may reach `inner.commit` runs on this chain, so a flush and a commit never interleave.
   let tail: Promise<unknown> = Promise.resolve()
   const serial = <T>(operation: () => Promise<T>): Promise<T> => {
     const result = tail.then(operation)
@@ -133,7 +118,6 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
       content: { kind: "delta", version, ops },
     }))
     const seq = await write(writes, context)
-    // The held commits already reported `open.seq`. A different seq means something else wrote to the database.
     if (seq !== open.seq) throw new Error(`coalesced flush got seq ${seq}, but its commits reported ${open.seq}`)
   }
 
@@ -142,15 +126,12 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
     if (cached !== undefined) return cached
     const stored = await inner.document(id, "current", context)
     const record = stored?.record
-    // The inner storage keeps no history for these, so no read can ask for a point inside a window.
     const currentOnly = record !== undefined && (record.scope.kind !== "conversation" || record.history === "latest")
     const found = stored === undefined ? null : { kind: stored.record.kind, version: stored.version, currentOnly }
     known.set(id, found)
     return found
   }
 
-  // Hold only a delta the inner storage would accept (its document exists and the version matches) to a
-  // document without history. Merging commits removes the points between them, which only history reads see.
   const holdable = async (writes: readonly StorageWrite[], context: Context): Promise<Delta | undefined> => {
     if (lastSeq === undefined || writes.length !== 1) return undefined
     const [only] = writes
@@ -185,7 +166,6 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
       return open.seq
     })
 
-  // Only documents can carry a held change, so only document reads flush first.
   const flushed = <T>(context: Context, read: () => Promise<T>) =>
     serial(async () => {
       await flushNow(context)

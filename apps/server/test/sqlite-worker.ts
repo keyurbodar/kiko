@@ -9,9 +9,6 @@ import {
 } from "@earendil-works/pi-durable/testing"
 import { openDurableObjectSqlite } from "@kiko/agent/sqlite"
 
-// Runs inside workerd. Each request runs one case in a Durable Object of its own, so every case
-// starts on an empty database. `sqlite-conformance.test.ts` drives it through Miniflare.
-
 type Suite = "fresh" | "reopen" | "facade"
 type Case = { name: string; run(): Promise<void> }
 
@@ -29,8 +26,6 @@ const show = (value: unknown) => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) && !ArrayBuffer.isView(value)
 
-// Structural equality with the semantics of Vitest's `toEqual` (subset=false) and `toMatchObject`
-// (subset=true): a property whose value is undefined counts as absent.
 function matches(actual: unknown, expected: unknown, subset: boolean): boolean {
   if (Object.is(actual, expected)) return true
   if (ArrayBuffer.isView(actual) && ArrayBuffer.isView(expected)) {
@@ -80,8 +75,6 @@ const fresh =
     }
   }
 
-// The storage is closed and opened again after every commit, as when a Durable Object is evicted
-// between two commits.
 const reopen =
   (storage: DurableObjectStorage): StorageConformanceProvider =>
   async (use) => {
@@ -133,7 +126,6 @@ function facade(storage: DurableObjectStorage): Case[] {
         const order: string[] = []
         const transaction = db.transaction(async (tx) => {
           await insert(tx, 1, "in transaction")
-          // Real time passes here. An operation that did not wait would run now.
           await scheduler.wait(20)
           order.push("transaction body ends")
         })
@@ -156,7 +148,6 @@ function facade(storage: DurableObjectStorage): Case[] {
           assertions.deepEqual(await tx.get("SELECT label FROM t WHERE n = ?", 1), { label: "rolled back" })
           throw failure
         })
-        // Queued behind the failing transaction. It must still run and must not be rolled back with it.
         const after = insert(db, 2, "kept")
         const error = await transaction.then(() => undefined, (e: unknown) => e)
         assertions.strictEqual(error, failure)

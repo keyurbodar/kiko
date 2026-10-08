@@ -8,37 +8,26 @@ import type { RoutineResult } from "../../user/routines"
 import { declareEffect } from "@kiko/agent/effects"
 import { isRunTainted, runAuthority } from "@kiko/agent/trust"
 
-// Architecture section 14, P5-06. Agents schedule reminders for the human, for themselves, or for a
-// teammate. `UserDO` owns the table and the alarm. When one fires, the room posts it, and a reminder
-// for an agent also wakes that agent with a `system` envelope (reason `reminder`, hop 0).
-
 export const REMINDERS = "reminders"
 
-/** The user's side, bound to this agent's room and slug. */
 export type RemindersPort = {
   create(input: { text: string; time: string; tz?: string; rrule?: string; target?: string }): Promise<{ ok: true; reminder: Reminder } | { ok: false; error: string }>
   list(): Promise<Reminder[]>
   cancel(id: string): Promise<{ ok: true } | { ok: false; error: string }>
-  /** Routines (architecture section 25). `target` defaults to this agent. */
   createRoutine(input: { name: string; instructions: string; trigger: Trigger; grant: string[]; target?: string; tainted: boolean }): Promise<RoutineResult>
   updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; grant?: string[]; status?: "active" | "paused" }): Promise<RoutineResult>
   runRoutine(id: string): Promise<RunDelivery | null>
   runs(id: string): Promise<RoutineRun[]>
-  /** The room's approval card for a call (section 25.3): the accepted card's id, or the text that ends the call. */
   ask(callKey: string, tool: string, args: Record<string, unknown>, summary: string): Promise<string | { refused: string } | null>
-  /** Where the human reaches this kiko, for a webhook's url. */
   origin(): Promise<string | null>
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
-/** What a call waiting for the human's card says, so the model cannot read it as done. */
 const NOT_YET = (card?: string) =>
   `not done yet: this needs the human's ok first${card ? ` (${card})` : ", and no card could be posted"}. tell the human in one line that it waits for them to accept the card. do not say it is set.`
 
-/** The most instruction characters a routine's card shows in full. */
 const CARD_INSTRUCTIONS = 240
 
-/** The trigger, or one line the model can fix. */
 function parseTrigger(value: unknown): Trigger | string {
   try {
     return decodeTrigger(value) as Trigger
@@ -52,7 +41,6 @@ const routineLine = (r: Reminder, runs: RoutineRun[]) =>
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
-/** `in_seconds` or `time_iso`, as the ISO time the store wants. Null when neither is usable. */
 export function whenOf(args: { time_iso?: string; in_seconds?: number }, now = Date.now()): string | null {
   if (typeof args.in_seconds === "number" && Number.isFinite(args.in_seconds) && args.in_seconds > 0) return new Date(now + args.in_seconds * 1000).toISOString()
   if (args.time_iso && !Number.isNaN(Date.parse(args.time_iso))) return args.time_iso
@@ -114,17 +102,11 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
             const grant = args.may ?? []
             let tainted = isRunTainted(api)
-            // Section 25.3. A human asking in this run is the ok. A routine nobody asked for waits for the
-            // human's card, and so does a standing permission outside kiko asked for by a run that read
-            // outside content. A tainted routine made without a card is stored tainted: it keeps no grant.
             if (runAuthority(api).origin !== "human" || (tainted && grant.length)) {
               const shown = args.instructions.length <= CARD_INSTRUCTIONS
               const summary = `routine "${args.name}": ${shown ? args.instructions : `${args.instructions.slice(0, CARD_INSTRUCTIONS)}…`} | ${JSON.stringify(trigger)}${grant.length ? ` | may use: ${grant.join(", ")}` : ""}`
               const answer = await user().ask(`${api.conversationId}:${api.callId}`, "create_routine", args as Record<string, unknown>, summary)
               if (answer === null || typeof answer === "object") return { content: text(NOT_YET(answer?.refused)) }
-              // The human read and accepted these instructions, so the routine is theirs, not the outside
-              // content's: its runs start clean and its grant works. Instructions longer than the card shows
-              // keep the run's taint: the human did not see all of them.
               if (shown) tainted = false
             }
             const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, grant, ...(args.agent ? { target: args.agent.replace(/^@/, "") } : {}), tainted })
@@ -154,8 +136,6 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
             const current = (await user().list()).find((r) => r.id === args.id && r.trigger)
             if (!current) return { content: text("no such routine in this chat"), isError: true }
-            // A tainted run that changes a routine holding a grant could steer what the grant does, so it
-            // needs the card too.
             const grants = (args.may ?? current.grant).length > 0
             const changes = args.name !== undefined || args.instructions !== undefined || trigger !== undefined || args.may !== undefined || args.status === "active"
             if (changes && (runAuthority(api).origin !== "human" || (isRunTainted(api) && grants))) {

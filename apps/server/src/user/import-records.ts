@@ -1,10 +1,6 @@
 import type { Life } from "@kiko/memory/life"
 import { capBytes, LINE_BYTES, oneLine } from "@kiko/memory/optmem"
 
-/**
- * One-time import of the records store the life log replaced: every dated bullet becomes a line, oldest
- * first, named by its record when that is not a profile, now, or todo. Returns the lines imported.
- */
 export function importRecords(sql: SqlStorage, life: Life): number {
   const has = sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'memory_records'").toArray().length > 0
   if (!has) return 0

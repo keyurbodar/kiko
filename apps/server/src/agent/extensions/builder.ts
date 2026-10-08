@@ -8,18 +8,12 @@ import type { CheckReport } from "@kiko/sandbox/check"
 import { extensionName } from "@kiko/sandbox/compile"
 import { isRunTainted } from "@kiko/agent/trust"
 
-// Architecture section 24.6. Agents write extensions as files in the chat, at
-// /extensions/<name>/extension.json plus the script, the same way skills live at
-// /skills/<name>/SKILL.md. `extension_check` loads and tests them in a sandbox, and
-// `extension_propose` sends one to the human, who installs it from settings. No agent can install.
-
 export const BUILDER = "extension-builder"
 const ROOT = "extensions"
 const TEXT_FILE = /\.(?:js|mjs|json|md|txt)$/i
 
 export type BuilderPorts = {
   fs: RoomFs
-  /** Runs `checkExtension` with the agent's own tools. */
   check: (bundle: unknown, tools: ReadonlyMap<string, Effect>) => Promise<CheckReport>
   propose: (bundle: unknown, tainted: boolean) => Promise<ExtensionResult>
   list: () => Promise<ExtensionInfo[]>
@@ -29,7 +23,6 @@ export type BuilderPorts = {
 const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError: true } : {}) })
 const NAME = Type.Object({ name: Type.String({ description: "the extension's folder name under /extensions" }) })
 
-/** Reads /extensions/<name>/ into a bundle. A missing or broken manifest is a plain error. */
 async function readBundle(fs: RoomFs, name: string): Promise<{ bundle: unknown } | { error: string }> {
   if (!/^[a-z][a-z0-9-]{1,31}$/.test(name)) return { error: `"${name}" is not an extension name: lowercase letters, digits, and dashes` }
   const dir = `${ROOT}/${name}`
@@ -54,7 +47,6 @@ async function readBundle(fs: RoomFs, name: string): Promise<{ bundle: unknown }
   return { bundle: { manifest, files } }
 }
 
-/** The agent's tools by effect, without the extension being checked (so an update does not clash with itself). */
 async function agentTools(api: ToolExecutionApi, context: Context, skip: string): Promise<Map<string, Effect>> {
   const agent = await api.agent(context)
   const own = new Set((agent.extensions.find((e) => e.name === extensionName(skip))?.tools ?? []).map((t) => t.name))

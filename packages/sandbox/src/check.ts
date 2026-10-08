@@ -3,16 +3,8 @@ import type { Effect } from "@kiko/agent/effects"
 import { isPlainGet, mayCall } from "./compile"
 import { ScriptError, ScriptVM } from "./vm"
 
-// Architecture section 24.6. What `extension_check` runs before an agent proposes an extension:
-// the manifest, the load, the exports against the manifest, and the manifest's own tests with every
-// call and fetch answered by mocks. Nothing leaves the VM, so a check is free and safe to repeat.
-
 export type CheckReport = { ok: boolean; lines: string[] }
 
-/**
- * `tools` maps the agent's tool names to their effects, so a `calls` entry that names a missing or
- * stronger tool fails here instead of at run time.
- */
 export async function checkExtension(input: unknown, wasm: WebAssembly.Module, tools: ReadonlyMap<string, Effect>): Promise<CheckReport> {
   const checked = checkBundle(input)
   if (!checked.ok) return { ok: false, lines: checked.problems.map((p) => `problem: ${p}`) }
@@ -79,7 +71,6 @@ export async function checkExtension(input: unknown, wasm: WebAssembly.Module, t
 
 type MockInput = { tools: ReadonlyMap<string, Effect>; effect: Effect; bundle: ExtensionBundle; test: ExtensionTest; logs: string[] }
 
-/** The same rules as the live bridge, with the test's mocks in place of tools, fetches, and state. */
 function mockBridge({ tools, effect, bundle, test, logs }: MockInput, state = new Map<string, unknown>()) {
   const m = bundle.manifest
   return async (op: string, payload: unknown[]): Promise<unknown> => {

@@ -1,12 +1,5 @@
 import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, Tree } from "./optmem"
 
-// Architecture section 13. The user's life log: what kiko knows about this human, across every chat.
-// One line per memory, append-only, at most 280 bytes. Lines come from an agent's `note` and from
-// rollups, where a chat's settled history becomes one line. A tree of summaries sits over it like a
-// room's, and every agent reads the same view at the start of every run. The human can pin a line,
-// so it heads the view, or redact one: its text is gone and the summaries above it are rebuilt.
-
-/** The most lines a human may pin. */
 export const MAX_PINS = 10
 
 const TILING_KEY = "life_tiling"
@@ -17,13 +10,8 @@ export type NoteResult = { ok: true; pos: number; duplicate?: true } | { ok: fal
 
 type Row = { pos: number; at: number; text: string; source: string; tainted: number; pinned: number; redacted: number }
 
-/** Words that never change what a line says. `s` is what is left of a possessive ("human's"). */
 const FILLER = new Set(["a", "an", "the", "is", "are", "was", "were", "s", "that", "now"])
 
-/**
- * The dedupe key of a line: case, punctuation, and filler words left out, so "The human's sister is
- * Maya." and "human's sister maya" are one fact. No model call.
- */
 export const norm = (text: string) =>
   text
     .toLowerCase()
@@ -57,7 +45,6 @@ export class Life {
     sql.exec("CREATE INDEX IF NOT EXISTS life_norm ON life (norm)")
     sql.exec("CREATE VIRTUAL TABLE IF NOT EXISTS life_fts USING fts5(text)")
     this.tree = new Tree(sql, "life_tree", LIFE_SHAPE, (lo, hi) => this.items(lo, hi))
-    // Lines stored before the filler words left the key get the new key once.
     if (settings.get(NORM_VERSION_KEY) !== NORM_VERSION) {
       transaction(() => {
         for (const r of sql.exec<{ pos: number; text: string }>("SELECT pos, text FROM life WHERE redacted = 0").toArray()) sql.exec("UPDATE life SET norm = ? WHERE pos = ?", norm(r.text), r.pos)
@@ -71,10 +58,6 @@ export class Life {
     return n === null ? 0 : n + 1
   }
 
-  /**
-   * One line. `source` says where it came from: `@ada` for an agent's note, `chat trip` for a rollup.
-   * A line the log already holds, up to case, punctuation, and filler words (`norm`), is not stored twice.
-   */
   append(text: string, source: string, tainted: boolean, at = Date.now()): NoteResult {
     const line = text.replace(/\s+/g, " ").trim()
     if (!line) return { ok: false, error: "empty. a memory is one line of text." }
@@ -97,7 +80,6 @@ export class Life {
       .map((r) => ({ pos: r.pos, at: r.at, text: r.redacted ? "(removed by the human)" : `${r.source ? `${r.source}: ` : ""}${r.text}`, tainted: r.tainted === 1 }))
   }
 
-  /** The view every agent reads: pinned lines, then the log, older lines compressed. Empty for a new user. */
   view(now: number): string {
     const pins = this.sql.exec<Row>("SELECT pos, text FROM life WHERE pinned = 1 AND redacted = 0 ORDER BY pos").toArray()
     const prev = this.settings.get(TILING_KEY)
@@ -106,7 +88,6 @@ export class Life {
     return [...pins.map((p) => `pinned: ${p.text}`), ...lines].join("\n")
   }
 
-  /** Lines that match, newest first. Word search, with a plain substring search when FTS finds nothing. */
   recall(query: string, limit = 10): LifeLine[] {
     const words = query.split(/\s+/).map((w) => w.replaceAll('"', "")).filter(Boolean).slice(0, 12)
     if (!words.length) return []
@@ -118,18 +99,15 @@ export class Life {
         limit,
       )
       .toArray()
-    // A part of a word FTS does not index ("4417" inside "4417b"): the longest word, escaped, as a substring.
     const longest = words.map((w) => w.replace(/[%_\\]/g, "")).sort((a, b) => b.length - a.length)[0]!.slice(0, 40)
     if (!rows.length && longest.length > 2) rows = this.sql.exec<Row>("SELECT * FROM life WHERE redacted = 0 AND text LIKE ? ORDER BY pos DESC LIMIT ?", `%${longest}%`, limit).toArray()
     return rows.map(toLine)
   }
 
-  /** A line, or a node opened into its halves (`64-127`). */
   zoom(span: Span, now: number): string[] {
     return this.tree.zoom(span, this.count(), now)
   }
 
-  /** The human's lines for the memory screen, newest first. */
   list(before: number | null, limit: number): LifeLine[] {
     return this.sql
       .exec<Row>("SELECT * FROM life WHERE pos < ? ORDER BY pos DESC LIMIT ?", before ?? Number.MAX_SAFE_INTEGER, Math.min(Math.max(limit, 1), 200))
@@ -137,7 +115,6 @@ export class Life {
       .map(toLine)
   }
 
-  /** Only the human. Pinned lines head every view. */
   pin(pos: number, pinned: boolean): { ok: true } | { ok: false; error: string } {
     const row = this.sql.exec<Row>("SELECT * FROM life WHERE pos = ?", pos).toArray()[0]
     if (!row || row.redacted) return { ok: false, error: "no such memory" }
@@ -148,7 +125,6 @@ export class Life {
     return { ok: true }
   }
 
-  /** Only the human. The text is gone for good, and every summary built from it is made again. */
   redact(pos: number): boolean {
     return this.transaction(() => {
       const done = this.sql.exec("UPDATE life SET text = '', norm = '', redacted = 1, pinned = 0 WHERE pos = ? AND redacted = 0", pos).rowsWritten > 0
@@ -159,18 +135,15 @@ export class Life {
     })
   }
 
-  /** Summaries that are needed now: a page is summarized only once it leaves the verbatim floor. */
   pending(limit: number): Span[] {
     return this.tree.pending(region(this.count(), LIFE_SHAPE), limit)
   }
 
-  /** The prompt for one summary, or null when its input went missing or needs no model. */
   prompt(span: Span): string | null {
     const input = this.tree.input(span)
     return input && this.tree.free(input) === null ? napPrompt(input, "memories") : null
   }
 
-  /** Stores a summary the model wrote for `span`, or the free one, or the model-free fallback when `text` is null. */
   settle(span: Span, text: string | null): void {
     const input = this.tree.input(span)
     if (input) this.tree.put(span, this.tree.nodeFor(input, text ?? this.tree.free(input) ?? this.tree.fallback(input)))

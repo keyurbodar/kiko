@@ -1,9 +1,5 @@
 import { ScriptError } from "./vm"
 
-// The QuickJS binary, compiled once per isolate by the runtime. Only the Worker entry imports the
-// `.wasm` file (`index.ts`), because a test bundle of one Durable Object has no wasm loader. Without
-// it, extensions fail with a plain error and the agent runs without them.
-
 let compiled: WebAssembly.Module | undefined
 
 export function setScriptWasm(module: WebAssembly.Module): void {

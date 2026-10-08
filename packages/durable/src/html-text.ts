@@ -1,5 +1,3 @@
-// The readable text of an HTML page, for `web_fetch` and for watched pages (section 25.4).
-
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }
 
 function decodeEntities(text: string): string {
@@ -14,12 +12,10 @@ function decodeEntities(text: string): string {
 
 const BLOCK = /<\/?(?:p|div|br|li|ul|ol|h[1-6]|tr|table|section|article|header|footer|nav|main|aside|blockquote|pre|hr|title|dd|dt)\b[^>]*>/gi
 
-/** The readable text of an HTML page: no scripts, styles, or tags, one line per block. Pure. */
 export function htmlToText(html: string): string {
   const body = html
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<(script|style|noscript|template|svg|head)\b[\s\S]*?<\/\1\s*>/gi, (whole, tag: string) =>
-      // The title is the one part of the head worth reading.
       tag.toLowerCase() === "head" ? (/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(whole)?.[1] ?? "") + "\n" : " ",
     )
     .replace(BLOCK, "\n")

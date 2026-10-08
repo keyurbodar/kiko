@@ -3,9 +3,6 @@ import { readFileSync } from "node:fs"
 import type { ExtensionBundle } from "@kiko/protocol"
 import { ScriptVM } from "@kiko/sandbox/vm"
 
-// The sandbox on its own, in Bun with the same wasm the Worker imports. The Worker path is covered
-// by `bun kiko verify extensions`.
-
 let wasm: WebAssembly.Module
 
 beforeAll(async () => {
@@ -134,7 +131,6 @@ test("a vm that grew past the retire size takes no new calls, and the pool start
   expect(first.unusable).toBe(true)
   const second = await pool.get(installed)
   expect(second).not.toBe(first)
-  // The fresh vm starts empty: the old one's data and memory are gone.
   expect(await second.invoke({ group: "tools", name: "go" }, [{ grow: false }], {}, noBridge)).toBe(0)
   pool.release()
   await Bun.sleep(0)

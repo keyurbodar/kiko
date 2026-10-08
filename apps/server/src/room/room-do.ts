@@ -41,42 +41,20 @@ import { applyTaskOp, RoomWorkspace, runCall, wakeEnvelope, type WorkspaceAnswer
 
 declare const process: { env: { NODE_ENV?: string } }
 
-// Architecture sections 4.1 and 9. One room per chat. This file holds the
-// socket entry points and the broadcast. The log is in log.ts, frames in socket.ts.
-
-/**
- * ASSUMPTION: a chat created without agents gets one member with this slug, as its lead. A chat
- * created with agents gets those, the first as lead (section 7.2).
- */
 export const DEFAULT_AGENT = "kiko" as AgentSlug
-/** The first retry after a failed delivery. ASSUMPTION: the number. */
 const DELIVERY_RETRY_MS = 2_000
-/** The wakeup key for `task_unblocked` deliveries that failed (section 7.6). */
 const WAKES_WAKEUP = "ws_wakes"
-/** Agent mail that waits for delivery: held behind a human burst, or retried after a failure. */
 const MAIL_WAKEUP = "mail"
-/** ASSUMPTION: the most files one agent message carries. */
 const MAX_SENT_FILES = 50
-/** Log memory (section 13): the summaries still to make, and a chat gone quiet. */
 const MEMORY_WAKEUP = "memory_naps"
 const QUIET_WAKEUP = "memory_quiet"
-/** ASSUMPTION: a chat this long without a run is quiet, and its new turns roll up into the user's life. */
 const QUIET_MS = 6 * 3_600_000
-/** Summaries per background pass, then it yields and the alarm comes back. */
 const NAPS_PER_PASS = 24
-/** Summaries in flight at once for this room. `UserDO` caps them per user, across rooms, at the same number. */
 const NAPS_AT_ONCE = 4
 
-/**
- * Who an agent is and where it lives. The room passes it with every delivery so the agent can reach
- * back. `role` and `lead` are the member row at that delivery; the agent builds its prompt from them.
- */
-
-/** What an agent learns about itself on every delivery. `private` is the chat's flag (section 7.10). */
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
 
 
-/** Stored events that can change the chat list row: its activity line, its unread counts, or its members. */
 const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed", "approval"])
 
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string; tainted: boolean }
@@ -106,17 +84,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	workspace!: RoomWorkspace
 	approvals!: RoomApprovals
 	private routines!: RoomRoutines
-	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
-	// change costs no write. Hibernation forgets it, and the next setTyping call
-	// sends the set as it is then.
 	private readonly typing = new Set<AgentSlug>()
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env)
 		instrument(ctx, "room")
-		// The client's liveness ping, answered by the runtime without waking this object.
 		ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
-		// Architecture section 23: the schema migration runs before any other work on every start.
 		void ctx.blockConcurrencyWhile(async () => {
 			migrate(ctx.storage)
 			this.log = new RoomLog(ctx.storage)
@@ -136,69 +109,53 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		})
 	}
 
-	/** The user and room the Worker named this object for. Set by the first socket. */
 	private home(): { userId: string; roomId: RoomId } | null {
 		const userId = this.log.meta("user_id")
 		const roomId = this.log.meta("room_id")
 		return userId && roomId ? { userId, roomId: roomId as RoomId } : null
 	}
 
-	/** The user's chat row for this room, or null when the room is not in the chat list. */
 	private async chat(home: { userId: string; roomId: RoomId }): Promise<Chat | null> {
-		// One row, not the whole chat list, so the hop costs the same for a user with a thousand chats.
 		const chat = await userStub(this.env.USER, home.userId).getChat(home.roomId)
 		if (chat) this.remember(chat)
 		return chat
 	}
 
-	/** Keeps what a delivery needs of the chat row, so agent mail and wakes never read the row again. */
 	private remember(chat: Chat): void {
 		this.setPrivate(chat.private ?? false)
 		if (this.log.meta("title") !== chat.title) this.log.setMeta("title", chat.title)
 	}
 
-	/** The chat's title as of the last read of its row: the room goal of a brief (section 7.4). */
 	private async title(home: { userId: string; roomId: RoomId }): Promise<string> {
 		return this.log.meta("title") ?? (await this.chat(home))?.title ?? ""
 	}
 
-	/** RPC from UserDO when the human toggles the chat's private flag, and on every read of the chat. */
 	setPrivate(value: boolean): void {
 		if ((this.log.meta("private") === "1") !== value) this.log.setMeta("private", value ? "1" : "0")
 	}
 
-	/** The home an agent is told on a delivery: who it is here, and whether the chat is private. */
 	private agentHome(home: { userId: string; roomId: RoomId }, slug: AgentSlug, member: { role?: string; lead: boolean }): AgentHome {
 		return { ...home, slug, role: member.role, lead: member.lead, private: this.log.meta("private") === "1" }
 	}
 
-	/**
-	 * Gives a new room its first members. A chat made without agents gets `DEFAULT_AGENT`. A chat
-	 * with one agent gets that agent alone. A group gets `DEFAULT_AGENT` as lead, then its agents. Runs once; a room that has had members is left alone.
-	 * ASSUMPTION: an agent id the user's list no longer has is skipped.
-	 */
 	private async seedMembers(home: { userId: string; roomId: RoomId }, chat: Chat): Promise<void> {
 		if (this.members.seeded()) return this.trySeedChatFile(home, chat.title)
 		let agents: NewMember[] = []
 		if (chat.agents?.length) {
 			const mine = await userStub(this.env.USER, home.userId).listAgents()
 			agents = chat.agents.flatMap((id): NewMember[] => {
-				// The built-in agent is not a stored record: the new-chat picker sends its slug as its id.
 				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: "kiko" }]
 				const a = mine.find((x) => x.id === id)
-				// Who the agent is lives in its soul (section 7.10); the member row keeps a tagline for teammates.
 				const role = tagline(a?.prompt ?? "")
 				return a ? [{ slug: a.slug, name: a.name, ...(role ? { role } : {}), model: a.model }] : []
 			})
 		}
 		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
-		// kiko is the chief of a group: first, so it leads. A chat with one agent stays one-to-one.
 		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: "kiko" }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
 		await this.trySeedChatFile(home, chat.title)
 	}
 
-	/** Stores /chat.md as `author` wrote it. `expect` "none" keeps a file that is already there. */
 	async writeChatFile(author: AgentSlug, text: string, expect?: "none"): Promise<boolean> {
 		const home = this.home()
 		if (!home) return false
@@ -208,18 +165,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const digest = await crypto.subtle.digest("SHA-256", body)
 		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
 		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
-		// The room writes this for the team, so it is nobody's act on the board (section 7.12).
 		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, ...(expect ? { expectSha256: expect } : {}) })
 		if (events.length) this.publish(events)
 		if (drop) await deleteFiles(this.env.FILES, drop)
 		return file !== null
 	}
 
-	// kiko makes agents and groups (section 7.11). A proposal is stored with the log's sequence, and
-	// create runs only once the human has written after it: kiko asks, the human answers, then it
-	// happens. A repeated create returns what the first one made.
-
-	/** RPC for kiko's propose tools. Returns the proposal's id, or why it is refused. */
 	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
 		const home = this.home()
 		if (!home) return { ok: false, error: "this chat is not set up yet" }
@@ -227,18 +178,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const checked = checkProposal(input, await userStub(this.env.USER, home.userId).listAgents())
 		if ("error" in checked) return { ok: false, error: checked.error }
 		const id = crypto.randomUUID().slice(0, 8)
-		// The human's answer is any message after the run that proposes began: one sent while kiko was still
-		// writing the proposal ("do fast") is their go, not a message kiko has to ask past.
 		const runStart = Number(this.log.meta(`live:${slug}`) ?? Number.NaN)
 		const proposal: Proposal = { ...checked, id, seq: Number.isFinite(runStart) ? Math.min(runStart, this.log.lastSeq()) : this.log.lastSeq() }
 		this.log.setMeta(`proposal:${id}`, JSON.stringify(proposal))
 		return { ok: true, id }
 	}
 
-	/**
-	 * kiko's newest proposal that is not made yet, as a line of its brief. A run starts from memory, not
-	 * from the tool result that saved the proposal (section 13), so the room says it is waiting.
-	 */
 	private openProposal(): string | null {
 		const id = this.newestProposal()
 		if (!id || this.log.meta(`created:${id}`)) return null
@@ -247,19 +192,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return `your proposal of ${what} waits for the human's answer. if they say yes, call create. if they want changes, propose again.`
 	}
 
-	/** The id of the newest stored proposal, or null. */
 	private newestProposal(): string | null {
 		const rows = this.ctx.storage.sql.exec<{ value: string }>("SELECT value FROM meta WHERE key LIKE 'proposal:%'").toArray()
 		const newest = rows.map((r) => JSON.parse(r.value) as Proposal).sort((a, b) => b.seq - a.seq)[0]
 		return newest?.id ?? null
 	}
 
-	/** RPC for kiko's create tool. Makes what was proposed, once the human has answered. */
 	async createProposal(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
 		const home = this.home()
 		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
-		// A run starts from memory, not from the last run's tool results (section 13), so kiko may not
-		// have the id. No id means the newest proposal.
 		id ||= this.newestProposal() ?? ""
 		const done = this.log.meta(`created:${id}`)
 		if (done) return { ok: true, text: done }
@@ -326,11 +267,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, text }
 	}
 
-	/**
-	 * RPC for the room kiko opened for a new agent: the agent hears it was made and says hi first.
-	 * The room learns its identity from the room that made it, which built both names from the
-	 * session's user. The envelope id is fixed, so a repeat wakes nobody twice.
-	 */
 	async introduce(userId: string, slug: AgentSlug, text: string): Promise<void> {
 		const home = this.adopt(userId)
 		if (!home) return
@@ -344,7 +280,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
 	}
 
-	/** RPC for a group kiko made outside a temporary chat: members, and kiko's /chat.md. */
 	async startGroup(userId: string, chatFile: string): Promise<void> {
 		const home = this.adopt(userId)
 		if (!home) return
@@ -355,7 +290,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.log.setMeta("chat_file", "1")
 	}
 
-	/** Records this room's identity when another room of the same user made it. */
 	private adopt(userId: string): { userId: string; roomId: RoomId } | null {
 		if (this.log.meta("user_id") === null) {
 			const name = this.ctx.id.name ?? ""
@@ -367,16 +301,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.home()
 	}
 
-	/** Never holds up a delivery: a failed seed is logged, and the next flush tries again. */
 	private async trySeedChatFile(home: { userId: string; roomId: RoomId }, title: string): Promise<void> {
 		await this.seedChatFile(home, title).catch((e: unknown) => console.error(`chat.md seed failed: ${e instanceof Error ? e.message : String(e)}`))
 	}
 
-	/**
-	 * A group starts with /chat.md (section 7.10): the goal, who does what, and decisions. The lead
-	 * fills it in and the team keeps it current. Written once, when the room first has two agents;
-	 * a failed write is tried again at the next flush, and a file the human deleted stays deleted.
-	 */
 	private async seedChatFile(home: { userId: string; roomId: RoomId }, title: string): Promise<void> {
 		if (this.log.meta("chat_file") !== null) return
 		const members = this.members.list()
@@ -388,7 +316,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.log.setMeta("chat_file", "1")
 	}
 
-	/** Architecture sections 6.1 and 7.2. The burst wakeup fired: deliver the pending human messages to their recipients. */
 	async alarm(): Promise<void> {
 		const due = await this.alarms.dueWakeups(Date.now())
 		await runDue(this.alarms, due, {
@@ -406,14 +333,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				await this.armApprovals()
 			},
 		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [ROUTINES_WAKEUP]: 5_000 } })
-		// A send's drain runs beside its RPC and is not awaited. Mail a drain left behind goes with any alarm.
 		if (!due.includes(MAIL_WAKEUP) && this.mail.queued()) await this.drainMail()
 	}
 
 	private async flush(): Promise<void> {
 		const home = this.home()
 		if (!home) return
-		// One more than a delivery takes, so `envelopes.length < pending.length` still says more remain.
 		const pending = this.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1)
 		const envelopes = deliverable(pending)
 		if (!envelopes.length) return
@@ -422,34 +347,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const out = await this.deliverBurst(home, envelopes)
 			if (out === "full") return await this.burst.retry(DELIVERY_RETRY_MS)
 			reached = out
-			// The rest of a burst too big for one delivery goes next, at once.
 			if (envelopes.length < pending.length) return await this.burst.retry(0)
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			return await this.burst.retry(DELIVERY_RETRY_MS)
 		}
-		// The burst is closed: delivered, refused by the day's limit, or dropped. Mail held behind it goes now
-		// (section 7.8), and a busy agent told a human message was coming that got none goes back to work.
 		this.closeWarnings(home, reached)
 		await this.drainMail()
 	}
 
-	/**
-	 * Hands one delivery of the burst to its recipients and takes it out of the burst. Returns the members
-	 * it reached, none when the room is gone or the day's turns are used, or "full" when an inbox refused it.
-	 */
 	private async deliverBurst(home: { userId: string; roomId: RoomId }, envelopes: Envelope[]): Promise<Set<AgentSlug> | "full"> {
-		// P9-01: one turn per burst, counted in UserDO against the plan record. A refused burst starts no
-		// run; the room says when the count resets. Once per burst: a retry after a failed delivery must not
-		// count the burst again. In a room already seen as a chat, both calls go to UserDO at once; a room
-		// never seen as one reads its row first, so a room that is no chat takes no turn.
 		const burstId = envelopes[0]!.id
 		const takeTurn = () => (this.log.meta("turn_taken") === burstId ? Promise.resolve({ ok: true } as const) : userStub(this.env.USER, home.userId).takeTurn())
 		const known = this.log.meta("title") !== null
 		const [chat, turn] = known ? await Promise.all([this.chat(home), takeTurn()]) : await this.chat(home).then(async (c) => [c, c ? await takeTurn() : ({ ok: true } as const)] as const)
-		// ASSUMPTION: a room that is not in the user's chat list (never created, or deleted) wakes no agent.
-		// Its messages stay in the log and are dropped from the burst. A deleted chat whose title the room
-		// remembers spends the turn taken beside the read; a deleted chat rarely gets a message.
 		if (!chat) {
 			this.burst.clear()
 			return new Set()
@@ -469,17 +380,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			return from?.kind === "agent" ? from.slug : undefined
 		}
 		const routes = route(envelopes, members, replyAuthor)
-		// A member's brief leaves out only its own envelopes, so a burst message addressed to someone else
-		// shows up in it. Reactions on the member's own messages come from reactions.ts (section 6.5).
 		const deliveries = [...routes].map(([slug, mine]) => this.delivery(members.find((m) => m.slug === slug)!, members, chat.title, mine))
-		// receive() only stores and returns, so these waits are short and cannot deadlock. A repeat after a
-		// partial failure or a full inbox is harmless: the agent's inbox ignores envelope ids it has.
 		const results = await Promise.allSettled(
 			deliveries.map(async ({ member, envelopes: mine, brief, reactionsUpTo }) => {
 				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, member.slug)
 				const { refused } = await agent.receive(mine, brief, this.agentHome(home, member.slug, member))
-				// ASSUMPTION (P1-13): a full inbox is backpressure, so the burst waits and tries again. An entry past
-				// the size cap can never fit, so it is dropped. The messages stay in the log either way.
 				if (refused === "full") return "full"
 				if (refused) console.error(`burst delivery to ${member.slug} refused: ${refused}`)
 				this.mail.delivered(member.slug, mine)
@@ -494,7 +399,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return new Set(routes.keys())
 	}
 
-	/** Busy agents told a human message is coming (`warnBusyAgents`), until the burst closes. Memory only: the hint expires by itself. */
 	#warned = new Set<AgentSlug>()
 
 	private closeWarnings(home: { userId: string; roomId: RoomId }, reached: ReadonlySet<AgentSlug>): void {
@@ -510,14 +414,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.#warned.clear()
 	}
 
-	/** True once this process looked for runs a restart may have left waiting. */
 	#woke = false
 
-	/**
-	 * The first socket of a new process wakes every agent the room last saw working. After a restart the
-	 * agent's run would otherwise wait for its heartbeat, up to 30 seconds, while the human watches. The
-	 * marker of an agent with no live run is dropped. Never awaited, so the socket opens at once.
-	 */
 	private wakeLiveAgents(userId: string, roomId: string): void {
 		if (this.#woke) return
 		this.#woke = true
@@ -537,7 +435,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** One member's envelopes with its brief (section 7.4). Reactions on the member's own messages come from reactions.ts. */
 	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) {
 		const envelopes = raw.map((e) => withContext(this.log, e))
 		const reactions = reactionBrief(this.log, this.ctx.storage.sql, member.slug)
@@ -549,12 +446,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 
-	/**
-	 * RPC for an agent's `send_message`, to one agent or to all (sections 7.5 and 7.7). Stores the message with
-	 * its addressee and queues one delivery per recipient, then returns: the sender never waits for another
-	 * agent's inbox. A repeated `send.id` stores and answers nothing new, and its deliveries carry the same
-	 * envelope ids, which the inboxes ignore. A tripped limit returns the error the tool shows the agent.
-	 */
 	async agentMessage(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
 		return this.sendMail(slug, send, null)
 	}
@@ -563,7 +454,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		const members = this.members.list()
 		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
-		// Files are handed over by reference: every agent in the room reads the same file space.
 		const files = send.files?.length ? this.files.refs(send.files.map((p) => p.replace(/^\/+|\/+$/g, "")), MAX_SENT_FILES) : []
 		if (!Array.isArray(files)) return { ok: false, error: `not sent: ${files.message}` }
 		const out = this.mail.send(slug, send, members, files)
@@ -571,16 +461,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.publish(out.events)
 		if (!out.ok) return out
 		if (askId) this.asks.sent(askId, out.send.messageId)
-		// The answer to a teammate's open ask goes to its waiting tool, not to a new run. Only a send_message
-		// answers, never a question sent with `ask`, and only the first time: a replayed send finds the ask
-		// it answered and pushes again. A lost push costs only time: the tool reads the stored answer when its wait ends.
 		const asked = askId || send.to === "all" ? null : out.fresh ? this.asks.answer(slug, send.to, send.text, send.id, send.tainted) : this.asks.answeredBy(send.id)
 		if (asked) {
 			this.pushAnswer(home, send.to as AgentSlug, asked, out.send.text, out.send.tainted)
 			return { ok: true, to: out.send.recipients }
 		}
-		// The mail is queued before any delivery, so a crash mid-broadcast leaves it to the next drain. A
-		// repeat delivers the same envelope ids, which the inboxes ignore.
 		this.mail.queue(slug, out.send)
 		this.ctx.waitUntil(this.drainMail())
 		return { ok: true, to: out.send.recipients }
@@ -594,12 +479,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		)
 	}
 
-	/**
-	 * RPC for an agent's `ask` (section 7.5): a message to one teammate whose answer the asking tool
-	 * waits for. The ask opens before the delivery, so even a fast answer is matched. A teammate that is
-	 * itself waiting on this agent's answer is not asked back: the two waits would hold each other until
-	 * both ran out, so the agent answers first.
-	 */
 	async ask(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
 		if (send.to === "all") return { ok: false, error: "not sent: ask one agent at a time" }
 		if (send.to === slug) return { ok: false, error: "not sent: you cannot ask yourself" }
@@ -612,21 +491,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
-	/** RPC for the asking tool: the ask's state and answer. */
 	async askState(id: string): Promise<AskState | null> {
 		return this.asks.get(id)
 	}
 
-	/** RPC for the asking tool when it stops waiting. A later reply is delivered as a message. */
 	async closeAsk(id: string): Promise<AskState | null> {
 		return this.asks.close(id)
 	}
 
-	/**
-	 * Section 7.5. A run ended that read teammates' questions it never answered with `send_message`: its
-	 * reply bubbles are the answer. An ask still open gets them pushed to its waiting tool. An ask whose
-	 * wait ran out gets them as mail, so the asker hears the answer it stopped waiting for.
-	 */
 	private answerAsks(home: { userId: string; roomId: RoomId }, slug: AgentSlug, runId: string, heard: readonly string[]): void {
 		const asks = this.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))
 		if (!asks.length) return
@@ -655,12 +527,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	#draining = false
 
-	/**
-	 * Delivers queued agent mail, in order for each recipient, to every recipient at once. The human
-	 * outranks every agent (section 7.8): mail to a member the pending burst addresses waits for that
-	 * burst, and the flush drains right after it; a wakeup is the net. A failed delivery stays queued and
-	 * the alarm tries again. One drain at a time; a send during a drain is picked up by it.
-	 */
 	private async drainMail(): Promise<void> {
 		const home = this.home()
 		if (!home || this.#draining) return
@@ -688,7 +554,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** The members the pending human burst goes to, by the same table as its delivery (section 7.2). Empty with no burst. */
 	private burstAddressed(home: { userId: string; roomId: RoomId }): Set<AgentSlug> {
 		if (!this.burst.pending()) return new Set()
 		const replyAuthor = (id: string) => {
@@ -698,11 +563,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return new Set(route(this.burst.envelopes(home.roomId), this.members.list(), replyAuthor).keys())
 	}
 
-	/**
-	 * Section 7.8. A busy agent that a human message is for learns at once that it is coming, so it holds
-	 * agent mail until the burst closes and stops a waiting `ask` to answer the human. Agents the message
-	 * is not for keep working.
-	 */
 	private async warnBusyAgents(messages: readonly { text: string; replyTo?: string }[]): Promise<void> {
 		const home = this.home()
 		if (!home) return
@@ -720,51 +580,35 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private async deliverMail(home: { userId: string; roomId: RoomId }, mail: QueuedMail): Promise<void> {
 		const members = this.members.list()
 		const member = members.find((m) => m.slug === mail.to)
-		// The human pressed stop while this send was delivering (section 7.8).
 		if (!member || this.mail.stopped(mail.send.rootId)) return
 		const d = this.delivery(member, members, await this.title(home), [this.mail.envelope(home.roomId, mail.from, mail.send, mail.to)])
 		const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, mail.to).receive(d.envelopes, d.brief, this.agentHome(home, mail.to, member))
-		// A full inbox is backpressure: the drain tries again. A message past the size cap never fits, so it
-		// is dropped; it stays in the log, and the next brief shows it.
 		if (refused === "full") throw new Error(`${mail.to}'s inbox is full`)
 		if (refused) return console.error(`agent message to ${mail.to} refused: ${refused}`)
 		this.mail.delivered(mail.to, d.envelopes)
 		markReactionsBriefed(this.log, mail.to, d.reactionsUpTo)
 	}
 
-	// Log memory (architecture section 13). The logic is in memory.ts and @kiko/memory/optmem.
-
-	/**
-	 * RPC for an agent starting a run: this chat as its <memory> block shows it, older turns compressed,
-	 * without the messages `seqs` that the run receives on their own. Never waits on a summary.
-	 */
 	async memoryView(seqs: number[]): Promise<{ text: string; count: number }> {
 		const text = this.memory.view(Date.now(), new Set(seqs))
 		await this.armMemory()
 		return { text, count: this.memory.count() }
 	}
 
-	/**
-	 * RPC for an agent going on with its transcript: the turns after `pos`, without its own and without
-	 * the messages `seqs` the run receives on their own. `count` is where the next delta starts.
-	 */
 	async memorySince(slug: AgentSlug, pos: number, seqs: number[]): Promise<{ text: string; count: number }> {
 		const out = this.memory.since(slug, pos, Date.now(), new Set(seqs))
 		await this.armMemory()
 		return out
 	}
 
-	/** RPC for an agent's `recall`: this chat's messages that match. */
 	async memoryRecall(query: string): Promise<string[]> {
 		return this.memory.recall(query.slice(0, 200), Date.now())
 	}
 
-	/** RPC for an agent's `zoom` on a chat id: `12` for one turn, `0-63` for a summary. */
 	async memoryZoom(id: string): Promise<string | null> {
 		return this.memory.zoom(id, Date.now())
 	}
 
-	/** Sets the summary pass when there is work, and pushes the quiet rollup back. */
 	private async armMemory(): Promise<void> {
 		if (this.memory.pending(1).length) await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 2_000)
 		if (this.log.meta("private") !== "1") await this.alarms.setWakeup(QUIET_WAKEUP, Date.now() + QUIET_MS)
@@ -772,24 +616,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	#napping = false
 
-	/**
-	 * The background pass. It never holds the alarm: a summary waits seconds on a model, and the burst
-	 * and mail wakeups share this alarm, so the pass runs beside it. Summaries are idempotent, so a pass
-	 * cut short by eviction loses nothing; the next one finds the same work.
-	 */
 	private async naps(): Promise<void> {
 		const home = this.home()
 		if (!home || this.#napping) return
 		this.#napping = true
-		// A pass that dies with its process (an eviction, a deploy) would leave the work until the room's
-		// next run. This wakeup brings it back; the pass moves or clears it when it ends.
 		await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 120_000)
 		const user = userStub(this.env.USER, home.userId)
 		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number) => user.lifeRollup(home.roomId, text, tainted, at)
 		const pass = async () => {
-			// Up to the most `compress` runs at once for one user; a refusal says when to try again.
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
-				// Background work never competes with a live reply for the human's model: it waits its turn.
 				if (this.members.list().some((m) => m.status !== "idle")) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))
 				const spans = this.memory.pending(NAPS_AT_ONCE)
 				if (!spans.length) return void (await this.alarms.clearWakeup(MEMORY_WAKEUP))
@@ -811,7 +646,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		)
 	}
 
-	/** The chat went quiet: its new turns become one line of the user's life. Private chats never roll up. */
 	private async rollupQuiet(): Promise<void> {
 		const home = this.home()
 		if (!home || this.log.meta("private") === "1") return
@@ -824,26 +658,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 			return new Response("expected a websocket upgrade", { status: 426 })
 		}
-		// The Worker sets both headers from the session. Later tasks need them to reach the user and the agents.
 		const userId = request.headers.get(USER_ID_HEADER)
 		const roomId = request.headers.get(ROOM_ID_HEADER)
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
 		if (this.#closed || this.#wiped) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
-			// The first socket records the room in the user's ledger, so account deletion finds a room that
-			// never became a chat. Once, not on every upgrade: later sockets save the Worker a hop to UserDO.
-			// A test worker without a user object has no ledger to write.
 			const recorded = this.env.USER ? await userStub(this.env.USER, userId).recordRoom(roomId as RoomId) : true
 			if (!recorded) return new Response("account deleted", { status: 410 })
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
 		}
-		// The human's handle follows the account's name, so agents can @ them (section 7.2).
 		const handle = request.headers.get(HANDLE_HEADER)
 		if (handle && handle !== this.log.meta(HUMAN_HANDLE)) this.log.setMeta(HUMAN_HANDLE, handle)
 		const home = this.home()
 		if (home && !this.members.seeded()) {
-			// The chat may not be in the list yet. The first burst seeds the members then.
 			const chat = await this.chat(home).catch(() => null)
 			if (chat) await this.seedMembers(home, chat).catch(() => undefined)
 		}
@@ -867,20 +695,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** Sends stored events to every socket that has said hello. `previews: false` reads only links a human sent. */
 	publish(events: readonly RoomEvent[], { previews = true, touch = true }: { previews?: boolean; touch?: boolean } = {}): void {
 		if (!events.length) return
 		this.broadcast({ t: "events", events })
 		if (touch && events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
 		this.matchRoutines(events)
 		if (events.some((e) => e.t === "task" || e.t === "task_removed")) this.ctx.waitUntil(this.tasksChanged())
-		// Every stored human message passes here once, so this is where a burst grows.
 		for (const e of events) if (e.t === "message" && e.from.kind === "human") this.ctx.waitUntil(this.burst.add(e))
-		// Section 7.8: a busy agent the message is for learns at once that it is coming, so it keeps holding
-		// agent mail until the burst closes and the human's message arrives first.
 		const human = events.flatMap((e) => (e.t === "message" && e.from.kind === "human" ? [e] : []))
 		if (human.length) this.ctx.waitUntil(this.warnBusyAgents(human))
-		// The card for a message's first link follows the message, in its own event.
 		for (const e of events) {
 			const target = previewTarget(e)
 			if (target && !previews && !humanWrote(this.ctx.storage.sql, target.url)) continue
@@ -890,10 +713,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	#touching = false
 
-	/**
-	 * Sends the chat list row to the user once the current step is done, so a burst of events in one
-	 * step costs one touch. A failed touch is logged; the next change sends the row again.
-	 */
 	private touchSoon(): void {
 		if (this.#touching) return
 		this.#touching = true
@@ -908,12 +727,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		)
 	}
 
-	/** Sends a frame that is not stored (typing, draft, status) to every ready socket. */
 	broadcast(frame: RoomToClient): void {
 		for (const ws of this.ctx.getWebSockets()) if (attachment(ws).ready) send(ws, frame)
 	}
 
-	/** The socket's search, and RPC for the Worker's search across chats (`room/search-route.ts`). */
 	search(query: string, options?: SearchOptions) {
 		return searchMessages(this.ctx.storage.sql, query, options)
 	}
@@ -922,22 +739,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return listCatalog(this.ctx.storage.sql, kind, before, limit)
 	}
 
-	/** RPC for the user's `UserDO`. Returns false when `id` was delivered before. */
 	async deliverReminder(id: string, reminder: ReminderDelivery): Promise<boolean> {
 		const event = this.deliveries.reminder(id, reminder)
 		if (event) this.publish([event])
-		// A reminder for an agent also wakes it (P5-06): a system envelope, reason `reminder`. The envelope id
-		// is the delivery id, so a repeat is ignored by the inbox. It carries the chain that set it (section
-		// 25.3): a reminder set in work the human asked for wakes with the human's authority, and a one-off
-		// keeps that work's root and hop, so its loop limits still hold. A recurring one starts its own root
-		// each time, so occurrences never add up against one root's limit.
-		// Lane A: an extension's trigger (`createdBy` "ext:<name>") runs as a routine granted that
-		// extension's tools; that envelope's origin is set here, from `reminder.createdBy`.
 		const home = this.home()
 		if (event && home && event.t === "message" && this.members.get(reminder.target as AgentSlug)) {
 			const own = `reminder:${id}`
-			// The authority comes from who made it: an extension's trigger is a routine granted its own tools
-			// (lane A), any other reminder keeps the chain that set it, and the human's own reminder is the human's.
 			const made = reminder.chain ?? (reminder.createdBy === "human" ? { rootId: own, hop: 0, authority: HUMAN } : null)
 			const kept = made && reminder.recurring ? { ...made, rootId: own, hop: 0 } : made
 			const chain = reminder.authority ? { rootId: kept?.rootId ?? own, hop: kept?.hop ?? 0, authority: reminder.authority } : kept
@@ -947,36 +754,22 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
-	/**
-	 * The root, hop, and authority of a wake nobody's message started: the chain that made it (section
-	 * 25.3), or a new `auto` chain at `own`. A root the human stopped starts over at `own`.
-	 */
 	private chained(chain: Chain | null, own: string): Pick<Envelope, "rootId" | "hop" | "origin" | "grant"> {
 		if (!chain) return { rootId: own, hop: 0, origin: "auto" }
 		const stopped = this.mail.stopped(chain.rootId)
 		return { rootId: stopped ? own : chain.rootId, hop: stopped ? 0 : chain.hop, ...stamp(chain.authority) }
 	}
 
-	/** RPC for an agent setting a reminder: the chain it works on now, which the reminder keeps. */
 	async chainOf(slug: AgentSlug): Promise<Chain> {
 		return this.mail.chain(slug)
 	}
 
-	// Routines (architecture section 25). UserDO owns them; the room delivers their runs, matches its
-	// events against its event routines, and reports how each run it delivered ended.
-
-	/** RPC from UserDO: this chat's event routines, after any change to one. */
 	async setRoutines(list: RoomRoutine[]): Promise<void> {
 		this.routines.set(list)
 	}
 
-	/**
-	 * RPC from UserDO: one routine run. A repeat of `deliveryId` delivers nothing. The envelope carries
-	 * the routine's grant, and the run counts against the day's budget like every run nobody asked for.
-	 */
 	async deliverRoutine(deliveryId: string, input: { target: string; body: string; tainted: boolean; grant: readonly string[] }): Promise<RunDelivery> {
 		const home = this.home()
-		// A room nobody opened yet has no members to run anything; the run fails and the routine stays.
 		if (!home) return "refused"
 		if (this.deliveries.seen(deliveryId)) return "duplicate"
 		const chat = await this.chat(home)
@@ -987,7 +780,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const id = `routine:${deliveryId}`
 		const seq = this.log.lastSeq()
 		const envelope: Envelope = { id, roomId: home.roomId, from: { kind: "system", reason: "routine" }, body: input.body, hop: 0, rootId: id, tainted: input.tainted, seq, origin: "routine", grant: input.grant }
-		// Followed before the agent can start it, so the run that carries it is the one reported.
 		const cut = deliveryId.indexOf(":")
 		const run = { routineId: deliveryId.slice(0, cut), occurrence: deliveryId.slice(cut + 1), slug, seq }
 		this.routines.follow(run)
@@ -1003,7 +795,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
-	/** Adds this step's events to the windows of the routines that look at them, and arms the flush. */
 	private matchRoutines(events: readonly RoomEvent[]): void {
 		const seqs = events.map((e) => e.seq)
 		let actors: Map<number, string> | null = null
@@ -1018,7 +809,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (closes !== null) this.ctx.waitUntil(this.alarms.setWakeup(ROUTINES_WAKEUP, closes))
 	}
 
-	/** Runs every routine whose event window closed. A failure leaves the window for the retry. */
 	private async flushRoutineEvents(): Promise<void> {
 		const home = this.home()
 		if (!home) return
@@ -1032,7 +822,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (next !== null) await this.alarms.setWakeup(ROUTINES_WAKEUP, next)
 	}
 
-	/** Reports to UserDO how routine runs ended. A run that posted nothing was quiet. */
 	private reportRuns(runs: readonly Inflight[], status: "ended" | "stopped" | "failed" | "timeout"): void {
 		const home = this.home()
 		if (!home || !runs.length) return
@@ -1044,7 +833,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** Tells UserDO this chat's open tasks when they changed, and keeps the stall sweep armed for the next stale moment. */
 	private async tasksChanged(): Promise<void> {
 		const home = this.home()
 		if (!home) return
@@ -1062,10 +850,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		else await this.alarms.setWakeup(LOOPS_WAKEUP, at)
 	}
 
-	/**
-	 * Section 25.6. Nudges each task that went stale, once per stretch of staleness, at most `MAX_NUDGES`
-	 * a day per room, through the budget like any run nobody asked for.
-	 */
 	private async sweepStalls(): Promise<void> {
 		const home = this.home()
 		const rows = openTasks(this.ctx.storage.sql)
@@ -1088,33 +872,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.armSweep(openTasks(this.ctx.storage.sql), now)
 	}
 
-	/** RPC for an agent: its run passed twice its budget and is being aborted (section 25.2). */
 	async runTimedOut(slug: AgentSlug): Promise<void> {
 		this.reportRuns(this.routines.dropped(slug), "timeout")
 	}
 
-	/**
-	 * RPC. One system line nobody's reply answers, such as the away notice of section 25.5. `id` makes a
-	 * repeat store nothing.
-	 */
 	async systemNotice(id: string, text: string, reason: SystemReason = "run_budget"): Promise<void> {
 		const event = this.deliveries.notice(id, text, reason)
 		if (event) this.publish([event])
 	}
 
-	/**
-	 * Architecture section 25.5. Every wake that no human message started comes through here: a routine,
-	 * an agent's reminder, a task wake, a stall nudge. It takes one of the room's runs for the day and one
-	 * of the user's, then hands the agent its envelope and records the chain, so a message the agent sends
-	 * inherits the envelope's authority. A retry of the same envelope pays once. `receive()` only stores,
-	 * so this cannot deadlock.
-	 */
 	private async deliverAuto(home: { userId: string; roomId: RoomId }, slug: AgentSlug, envelope: Envelope, { userPaid = false } = {}): Promise<"delivered" | "held" | "refused" | "gone"> {
 		const members = this.members.list()
 		const member = members.find((m) => m.slug === slug)
 		if (!member) return "gone"
 		const now = Date.now()
-		// The room's run is taken first, in one transaction, so two deliveries cannot both pass a full room.
 		const room = this.mail.reserve(now, envelope.id)
 		if (room === "full") return this.budgetHeld(now, "this chat")
 		if (room === "ok" && !userPaid) {
@@ -1137,16 +908,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return "delivered"
 	}
 
-	/** A wake held by the day's budget. The chat says so once a day; the human's next message frees the room's count. */
 	private budgetHeld(now: number, whose: string): "held" {
 		const event = this.deliveries.notice(`budget:${utcDay(now)}`, BUDGET_LINE(whose))
 		if (event) this.publish([event])
 		return "held"
 	}
 
-	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
 	async putFile(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
-		// An agent writes only where no teammate is working (section 7.12). The human is never refused.
 		const by = input.author.kind === "agent" ? input.author.slug : null
 		if (by) {
 			const held = this.held(by, [input.path])
@@ -1159,43 +927,32 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ...result, fresh, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
 	}
 
-	/** RPC for the attachment job. */
 	async fileMeta(id: string): Promise<FileMeta | null> {
 		return this.files.meta(id)
 	}
 
-	/** RPC for the attachment job. Fills empty fields only, so a second call returns false and stores nothing. */
 	async setFileMeta(id: string, patch: FileMetaPatch): Promise<boolean> {
 		const event = this.files.fillMeta(id, patch)
 		if (event) this.publish([event])
 		return event !== null
 	}
 
-	/** RPC for the agent file system. A file, a folder, or null. */
 	async fsStat(path: string): Promise<FsEntry | null> {
 		return this.files.stat(path)
 	}
 
-	/** RPC for the agent file system. What a folder holds; everything below it with `recursive`. */
 	async fsList(dir: string, recursive = false): Promise<FsEntry[] | FsFail> {
 		return this.files.list(dir, recursive)
 	}
 
-	/** RPC for the agent file system: `mv`. */
 	async fsMove(slug: AgentSlug, from: string, to: string): Promise<FsChange<RoomEvent> | FsFail> {
 		return this.guarded(slug, [from, to], `moving /${from}`, () => this.files.move(from, to, { kind: "agent", slug }))
 	}
 
-	/** RPC for the agent file system: `rm`. */
 	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange<RoomEvent> | FsFail> {
-		// A file on a message stays: the bubble would point at nothing. The human can still delete it.
 		return this.guarded(slug, paths, `deleting /${paths[0]}`, () => this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
 	}
 
-	/**
-	 * RPC for a bash command's changes (section 18.4): all of them in one transaction, or none.
-	 * Every path is checked against the leases first, and each change against the state it saw.
-	 */
 	async fsCommit(slug: AgentSlug, changes: readonly IndexChange[]): Promise<CommitResult<RoomEvent>> {
 		const paths = changes.flatMap(changePaths)
 		const held = this.held(slug, paths)
@@ -1207,27 +964,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, events: [], drop: [] }
 	}
 
-	/** RPC for an agent that changed the user's drive (section 18.3): one line in the chat says what. */
 	async homeNotice(slug: AgentSlug, text: string): Promise<void> {
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${slug} ${text}`.slice(0, 300) })
 		if (event) this.publish([event])
 	}
 
-	/** RPC for the agent file system: `mkdir -p`. */
 	async fsMkdir(slug: AgentSlug, path: string): Promise<FsChange<RoomEvent> | FsFail> {
 		return this.guarded(slug, [path], `setting up /${path}`, () => this.files.mkdir(path, { kind: "agent", slug }))
 	}
 
-	// The team board and leases (section 7.12). Every act an agent makes through the room says what it
-	// is doing and holds the paths it changed until its run ends; a teammate's act there is refused.
-
-	/** The refusal for `slug` touching `paths` a teammate holds, or null. */
 	private held(slug: AgentSlug, paths: readonly string[]): FsFail | null {
 		const h = this.team.holder(slug, paths, Date.now())
 		return h ? { ok: false, code: "invalid", message: Team.refusal(h) } : null
 	}
 
-	/** Records what `slug` is doing and the paths it now holds, and tells the human. */
 	private working(slug: AgentSlug, paths: readonly string[], doing: string): void {
 		const now = Date.now()
 		this.team.take(slug, paths, now)
@@ -1246,18 +996,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
-	/** RPC from an agent's presence hook: what its current tool call is about. Holds nothing. */
 	async reportDoing(slug: AgentSlug, doing: string): Promise<void> {
 		if (this.members.list().some((m) => m.slug === slug)) this.working(slug, [], doing.slice(0, 160))
 	}
 
-	/** RPC for an agent's `team` tool: what everyone is doing now, and what they hold. */
 	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {
 		const now = Date.now()
 		return this.members.list().map((m) => ({ slug: m.slug, name: m.name, status: m.status, doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }))
 	}
 
-	/** Why an agent may not delete these files: some sit on a live message. */
 	private attachedRefusal(ids: readonly string[]): string | null {
 		if (!ids.length) return null
 		// One JSON value, not one bound value per id: a query binds at most 100 (Durable Objects SQL
@@ -1274,7 +1021,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return `${names.join(", ")} ${names.length === 1 ? "is" : "are"} attached to a message in the chat, so it stays. move it instead, or ask the human to delete it.`
 	}
 
-	/** A human's `files` frame. Returns the refusal for the socket, or null. */
 	fileOp(op: FileOp): string | null {
 		const human = { kind: "human" } as const
 		const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
@@ -1285,7 +1031,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out.ok ? null : out.message
 	}
 
-	/** Publishes a change and deletes the R2 objects nothing points to any more. */
 	private applyFs<T extends FsChange<RoomEvent> | FsFail>(out: T): T {
 		if (!out.ok) return out
 		if (out.events.length) this.publish(out.events)
@@ -1293,12 +1038,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
-	/**
-	 * The human pressed stop (section 6.2). The pending burst is dropped, so nothing sent before the
-	 * stop starts a run, and the agent aborts its run and discards what waits in its inbox. The
-	 * messages stay in the log. The agent's `stop` only stores and returns, so this never waits on a run.
-	 * ASSUMPTION: a failed stop call is not retried. The human can press stop again.
-	 */
 	stop(): void {
 		const home = this.home()
 		if (!home) return
@@ -1306,7 +1045,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.mail.stop()
 		for (const member of this.members.list()) {
 			this.stopAgent(home, member.slug)
-			// The human stopped them: the routine runs they carried end quiet, not failed.
 			this.reportRuns(this.routines.dropped(member.slug), "stopped")
 		}
 	}
@@ -1321,15 +1059,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		)
 	}
 
-	/**
-	 * A human's `member` frame (sections 7.2 and 7.7). Returns the refusal for the socket, or null.
-	 * A removed member's run is stopped. Its object keeps its storage until account deletion.
-	 */
 	memberOp(op: MemberOp): MemberRefusal | null {
 		const name = op.op === "remove" ? this.members.get(op.slug)?.name : undefined
 		const result = this.members.apply(op)
 		if (!result.ok) return result.reason
-		// A newcomer sees every file the chat already has. The human is told, once, at the moment it happens.
 		const notice: RoomEvent[] = []
 		if (op.op === "add") {
 			const count = this.files.stat("")
@@ -1339,7 +1072,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (event) notice.push(event)
 			}
 		}
-		// The chat list says who joined or left. The files notice is part of the join, so the join stays the row's line.
 		if (op.op !== "rename" && result.events.length) {
 			const activity: MemberActivity = { seq: this.log.lastSeq(), at: result.events[0]!.at, kind: op.op === "add" ? "joined" : "left", name: op.op === "add" ? op.name : (name ?? op.slug) }
 			this.log.setMeta(MEMBER_ACTIVITY, JSON.stringify(activity))
@@ -1350,11 +1082,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return null
 	}
 
-	/**
-	 * RPC for the lead's `spawn_agent` (section 7.5). Adds a member, gives it a first task on the board,
-	 * and sends it that task as an agent message, so it wakes and starts. Lead rights come from the
-	 * member row. A replayed call finds the member and the task already there and sends nothing twice.
-	 */
 	async spawnAgent(by: AgentSlug, input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }> {
 		const members = this.members.list()
 		const me = members.find((m) => m.slug === by)
@@ -1362,7 +1089,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const slug = input.slug.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32)
 		if (!isAgentSlug(slug)) return { ok: false, error: `"${input.slug}" is not a usable handle. use lowercase letters, digits, and dashes.` }
 		const home = this.home()
-		// A spawned agent is a real agent of the user's, with a soul made from the role the lead gave it.
 		if (home) await userStub(this.env.USER, home.userId).seedSoul(slug, input.name?.trim() || slug, input.role)
 		if (!members.some((m) => m.slug === slug)) {
 			const refused = this.memberOp({ op: "add", slug, name: input.name?.trim() || slug, role: input.role, ...(me.model ? { model: me.model } : {}) })
@@ -1373,7 +1099,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return sent.ok ? { ok: true, slug } : sent
 	}
 
-	/** A human's `model` frame: the agents of this room use `ref` (provider/model) from their next run. */
 	setModel(ref: string, slug?: AgentSlug): void {
 		const home = this.home()
 		const at = ref.indexOf("/")
@@ -1383,30 +1108,21 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		for (const m of targets) this.ctx.waitUntil(agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).setModel(model).then(() => undefined))
 	}
 
-	/** A human's `task` frame (section 7.6). A refused op stores nothing; the client's patch expires. */
 	taskOp(op: TaskOp): void {
 		this.publish(applyTaskOp(this.workspace, op, this.members.list().map((m) => m.slug)))
 		this.ctx.waitUntil(this.deliverWakes())
 	}
 
-	/** RPC for an agent's workspace tools (section 7.5). Lead rights come from the member row, never from the agent. */
 	async workspaceCall(slug: AgentSlug, call: WorkspaceCall): Promise<WorkspaceAnswer> {
 		const members = this.members.list()
 		const member = members.find((m) => m.slug === slug)
 		if (!member) return { ok: false, error: "you are not a member of this room" }
-		// A task keeps the chain it was made on, so its wakes carry the authority of the work behind it (section 25.3).
 		const { answer, events } = runCall(this.workspace, slug, member.lead, call, members.map((m) => m.slug), this.mail.chain(slug))
 		this.publish(events)
 		this.ctx.waitUntil(this.deliverWakes())
 		return answer
 	}
 
-	/**
-	 * Section 7.6. Delivers one `task_unblocked` envelope, id `unblocked:<taskId>`, to the owner of each
-	 * task a finished dependency unblocked. A wake is recorded once the agent admits it, and the agent's
-	 * inbox ignores an id it has, so a repeat after a crash delivers nothing twice. A failure retries
-	 * from the alarm. `receive()` only stores, so this wait cannot deadlock.
-	 */
 	private async deliverWakes(): Promise<void> {
 		const home = this.home()
 		const wakes = this.workspace.pendingWakes()
@@ -1414,7 +1130,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		try {
 			if (!(await this.chat(home))) return
 			for (const wake of wakes) {
-				// A held or refused wake is not retried: the task stays unblocked on the board and its owner sees it in the next brief.
 				await this.deliverAuto(home, wake.owner, { ...wakeEnvelope(home.roomId, wake), ...this.chained(wake.chain, `unblocked:${wake.taskId}`) })
 				this.workspace.markWoken(wake.taskId)
 			}
@@ -1424,11 +1139,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/**
-	 * RPC for an agent's cards (sections 12.3, 16.3, 25.3): the trust gate, a routine tool, or Executor's
-	 * pause. Returns the accepted card's id, or the text that ends the call while a card waits for the
-	 * human. It never decides a card: only the human's socket does.
-	 */
 	async requestApproval(slug: AgentSlug, req: ApprovalRequest): Promise<ApprovalAnswer> {
 		if (!this.members.list().some((m) => m.slug === slug)) return { refused: "not run: you are not a member of this room." }
 		const { answer, event } = this.approvals.request(slug, req)
@@ -1439,7 +1149,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return answer
 	}
 
-	/** A human's `approve` frame. A card that is not pending changes nothing. */
 	approve(id: string, action: "accept" | "decline"): void {
 		const event = this.approvals.decide(id, action)
 		if (!event) return
@@ -1447,17 +1156,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.ctx.waitUntil(this.deliverApprovals())
 	}
 
-	/** Sets the approvals wakeup to the next expiry, or clears it. */
 	private async armApprovals(): Promise<void> {
 		const at = this.approvals.nextExpiry()
 		if (at === null) await this.alarms.clearWakeup(APPROVALS_WAKEUP)
 		else await this.alarms.setWakeup(APPROVALS_WAKEUP, at)
 	}
 
-	/**
-	 * Delivers each decided card's `approval_result` envelope (id `approval:<id>`) to its agent. The
-	 * inbox ignores an id it has, so a repeat delivers nothing twice. A failure retries from the alarm.
-	 */
 	private async deliverApprovals(): Promise<void> {
 		const home = this.home()
 		if (!home) return
@@ -1477,7 +1181,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const { refused } = await agent.receive([envelope], brief, this.agentHome(home, slug, member))
 				if (refused === "full") throw new Error("inbox full")
 				if (refused) console.error(`approval_result delivery to ${slug} refused: ${refused}`)
-				// The human's answer carries the human's authority into the run it starts, like any delivery.
 				else this.mail.delivered(slug, [envelope])
 				this.approvals.markDelivered(id)
 			}
@@ -1487,41 +1190,22 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** Extends a pending burst (section 6.1). Nothing is sent. */
 	humanTyping(): void {
 		this.ctx.waitUntil(this.burst.typing())
 	}
 
-	/**
-	 * RPC for an agent in this room (section 6.3). Stores one closed block of a run's answer. A repeated
-	 * `(runId, attempt, index)` stores nothing. A higher attempt deletes the bubbles of earlier attempts.
-	 * Returns true when this call stored the bubble. A bubble of a `tainted` run gets a link card only
-	 * for a link a human message holds: any other link may carry what outside content made the run
-	 * write, so the room never fetches it (section 16.4).
-	 */
 	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string, tainted = false): Promise<boolean> {
 		const events = this.bubbles.post(slug, { runId, attempt, index }, block, tainted)
-		// The chat list row is touched once, when the run ends (`endRun`), not once per bubble.
 		this.publish(events, { previews: !tainted, touch: false })
 		return events.some((e) => e.t === "message")
 	}
 
-	/**
-	 * RPC for an agent (section 6.5). Stores the agent's reaction on `messageId`, or on the last human
-	 * message handed to the agents. An emoji off the allowlist is dropped. Starts no run. Returns
-	 * true when this call changed the reaction.
-	 */
 	async react(slug: AgentSlug, emoji: string, messageId?: string): Promise<boolean> {
 		const event = agentReact(this.log, this.ctx.storage.sql, slug, emoji, messageId)
 		if (event) this.publish([event])
 		return event !== null
 	}
 
-	/**
-	 * RPC for an agent (section 11.3). The agent's run could not start because the user has no
-	 * credential for `provider`. Stores one `no_provider` event per agent and input, so a repeated
-	 * call after a crash stores nothing. The human's messages stay in the log for a resend.
-	 */
 	async noProvider(slug: AgentSlug, provider: string, requestId: string, heard: readonly string[] = []): Promise<boolean> {
 		const key = `no_provider:${slug}:${requestId}`
 		const event = this.ctx.storage.transactionSync(() => {
@@ -1530,7 +1214,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			return this.log.append(`agent:${slug}`, { t: "no_provider", slug, provider })
 		})
 		if (event) this.publish([event])
-		// A teammate's question in the dropped batch gets this as its answer, so its asker stops waiting (section 7.5).
 		const home = this.home()
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
@@ -1538,15 +1221,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (this.asks.settle(ask.id, why, false) && ask.state === "open") this.pushAnswer(home, ask.asker, ask.id, why, false)
 			}
 		}
-		// No credential, no run: the routine runs handed to this agent failed.
 		this.reportRuns(this.routines.dropped(slug), "failed")
 		return event !== null
 	}
 
-	/**
-	 * RPC for an agent whose run kept killing its process and was dropped (the host's breaker). The
-	 * human sees why the agent went quiet, and the agent shows idle.
-	 */
 	async runDropped(slug: AgentSlug): Promise<void> {
 		this.reportRuns(this.routines.dropped(slug), "failed")
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text: `@${slug} stopped: its reply kept crashing, so it was dropped. send a message to try again.` })
@@ -1554,39 +1232,21 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.setStatus(slug, "idle")
 	}
 
-	/** RPC for an agent. A growing block past the draft threshold. Sent, never stored. */
 	async draft(slug: AgentSlug, runId: string, index: number, text: string): Promise<void> {
 		this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
 	}
 
-	/**
-	 * RPC for an agent. Stores the member's latest state (only the latest) and sends the change, and
-	 * the typing set with it. A slug that is not a member stores and sends nothing.
-	 */
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
-		// A run that ended lets go of everything it held (section 7.12), whatever the member row says.
 		if (state === "idle") this.team.clear(slug)
-		// A run began: the routine runs handed to this agent are in it (section 25.2).
 		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug)
 		if (!this.members.setStatus(slug, state)) return
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now())
 		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
-		// Typing covers the whole run, tools included: only a run's start and end change it, so a tool round
-		// costs the user's chat list nothing. The status frame says whether the agent writes or works.
 		await this.setTyping(slug, state !== "idle")
-		// A marker that outlives the process, so a room that starts after a restart knows a run was live.
-		// Written once per run, not on every typing and working change. It holds the log's sequence when
-		// the run began, so a human message sent during the run counts as an answer to it (`propose`).
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
 		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, String(this.log.lastSeq()))
 	}
 
-	/**
-	 * RPC for an agent. The run answered or failed. Touches the user's chat list once per run, the only
-	 * touch a run's bubbles cause: a repeat after a crash finds the run ended, and `touchChat` ignores a
-	 * `lastSeq` it already has. `heard` holds the ids of the agent envelopes the run read: a teammate's
-	 * question among them that the run never answered with `send_message` is answered by its bubbles.
-	 */
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = []): Promise<void> {
 		const home = this.home()
 		const first = !this.bubbles.ended(runId)
@@ -1594,7 +1254,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.memory.trace(slug, runId, Date.now())
 			this.answerAsks(home, slug, runId, heard)
 		}
-		// The chain of the mail held for the next run takes over (mail.ts).
 		this.mail.runEnded(slug)
 		await this.setStatus(slug, "idle")
 		this.reportRuns(this.routines.ended(slug), "ended")
@@ -1604,14 +1263,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.bubbles.markEnded(runId)
 	}
 
-	/** RPC for an agent in this room. Broadcasts who is typing, without storing it. */
 	async setTyping(slug: AgentSlug, typing: boolean): Promise<void> {
 		const had = this.typing.has(slug)
 		if (typing === had) return
 		if (typing) this.typing.add(slug)
 		else this.typing.delete(slug)
 		this.broadcast({ t: "typing", who: [...this.typing] })
-		// The chat list shows who is typing in a chat that is not open. Once per change, never per keystroke.
 		const home = this.home()
 		if (home) {
 			const names = [...this.typing].map((s) => this.members.get(s)?.name ?? s)
@@ -1623,20 +1280,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	// Account deletion (P9-02). The job in jobs/delete-account.ts calls these.
 	#wiped = false
 
-	/**
-	 * Closes every socket and refuses new ones until the object is evicted. After that the
-	 * Worker's tombstone check keeps the deleted user out.
-	 */
 	async close(): Promise<void> {
 		this.#closed = true
 		closeSockets(this.ctx)
 	}
 	#closed = false
 
-	/** Every agent that was ever a member of this room, removed ones included, and the R2 keys its file index holds. */
 	async inventory(): Promise<{ agents: AgentSlug[]; keys: string[] }> {
 		if (this.#wiped) return { agents: [], keys: [] }
 		const sql = this.ctx.storage.sql
@@ -1645,7 +1296,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { agents, keys }
 	}
 
-	/** Deletes all of the room's storage. Returns the rows that held data, 0 on a repeat. */
 	async deleteAll(): Promise<number> {
 		if (this.#wiped) return 0
 		const rows = await wipeStorage(this.ctx)
@@ -1657,7 +1307,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.#wiped ? 0 : storedRows(this.ctx.storage)
 	}
 
-	/** Development only. Writes `turns` into the log with no burst and no run (`verify memory-eval`). Returns the turn count. */
 	async devSeed(turns: { from: string; text: string }[]): Promise<number> {
 		if (process.env.NODE_ENV !== "development") throw new Error("not found")
 		for (const [i, t] of turns.entries()) {
@@ -1669,7 +1318,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return count
 	}
 
-	/** Development only. The room's log memory: turns, summaries still to make, and the view. */
 	async devMemory(): Promise<{ turns: number; pending: number; view: string }> {
 		if (process.env.NODE_ENV !== "development") throw new Error("not found")
 		const view = this.memory.view(Date.now())
@@ -1678,8 +1326,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { turns: this.memory.count(), pending, view }
 	}
 
-	/** Development only. Makes `slug` a member and stores one message from it, for the deletion check. */
-	/** Development only. Ages every open task by `ms` and runs the stall sweep now (`verify stalls`). */
 	async devAge(ms: number): Promise<number> {
 		if (process.env.NODE_ENV !== "development") throw new Error("not found")
 		this.ctx.storage.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)

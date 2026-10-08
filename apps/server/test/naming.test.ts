@@ -40,7 +40,6 @@ describe("names", () => {
   })
 })
 
-// The router runs in workerd with objects that report who they are.
 let mf: Miniflare
 let origin: string
 let tmp: string

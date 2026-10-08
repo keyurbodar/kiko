@@ -10,57 +10,18 @@ import type { AgentSetup } from "@kiko/agent/host"
 import type { RoleInput } from "./prompt"
 import type { WorkspacePort } from "./extensions/workspace"
 
-// DEV AND TESTS ONLY. A scripted agent for `bun kiko verify mid-run` (P1-12): pi-ai's faux provider
-// answers from the transcript, and one slow tool makes "a tool is running" last long enough to
-// test. It spends no tokens and is deterministic. `AgentDO` uses it only in a development build and
-// only for an agent the dev route marked. The markers in the human's text pick the script:
-//
-//   [slow]      the answer is one long paragraph, about six seconds with no bubble
-//   [two-part]  a short first bubble, then a long second paragraph, about six seconds
-//   [tool]      the model calls `slow_tool` first, which sleeps SLOW_TOOL_MS
-//   [reply] x   the answer is exactly `x`, such as `[react:👍]` (P6-07). A tag such as `@all` may come first
-//   [brief]     the answer is the reaction lines of the room's brief, or `brief: none` (P6-07)
-//   [missed]    the answer ends with `; missed: <the chat lines of its <memory> block, joined by " | ">` (section 13)
-//   [fetch] x   the model calls `fake_fetch` with page `x`, outside content (P7-01)
-//   [mark] x    the model calls `fake_mark`, which returns `x` and marks the run tainted (P7-01)
-//   [call t]    the model calls trust tool `t`, from a user turn or from a tool result, which is
-//               how a fooled model obeys an injected instruction (P7-01)
-//   [ws t {json}] the model calls workspace tool `t` with the JSON arguments (P6-02)
-//   [send s] x  the model calls `send_message` to `s` with `x` (P6-03)
-//   [echo]      in a teammate's message: the model sends `[echo]` back to that teammate, forever (P6-03)
-//   [shout]     the model calls `send_message` to all with `[shout]`, from a human or a teammate, forever (P6-03)
-//   [team]      the model calls `team` (section 7.12)
-//   [ask s] q   the model calls `ask` with teammate `s` and question `q` (section 7.5)
-//   [question]  in a teammate's message: the model answers that teammate with `[answer] 42`
-//   [tool name {json}] the model calls any tool `name` with the JSON arguments, once, also from a fetched page (section 25)
-//   [quiet]     the answer is `[skip]`, which posts nothing (section 25.2)
-//   [later s] x the model runs `slow_tool` for three seconds, then calls `send_message` to `s` with `x`
-//
-// An `approval_result` that says `the human accepted t` makes the model call trust tool `t` again (P7-02),
-// or any other tool `t` again with the arguments of its last call of `t` (section 25.3), as a real model
-// picks up the task the card paused.
-//
-// After trust tools ran, the answer is `tools: <name> ran|ran tainted|blocked, ...` (P7-01).
-//
-// Every answer is `heard: <the user turns since the last answer, joined by " | ">`, plus
-// `; tool: <result>` when a tool ran since then. The text shows which turns one run answered.
-
 export const FAKE_MODEL = { provider: "faux", modelId: "faux-1" } as const
 export const SLOW_TOOL = "slow_tool"
 export const SLOW_TOOL_MS = 5_000
-/** How long `[later s] x` works before it sends. */
 const LATER_MS = 3_000
-/** Faux tokens are about four characters. 25 a second is about 100 characters a second. */
 const TOKENS_PER_SECOND = 25
 const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
 
 type Part = { type: string; text?: string }
 type Message = { role?: string; content?: string | Part[]; stopReason?: string; toolName?: string }
 
-/** The whole text of a message, the room's `<context>` brief included. */
 const rawOf = (m: Message) => (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join(""))
 
-/** The chat lines of the <memory> block in `raw`, as `<who>: <text>`, without positions, ages, or message ids. */
 function missedOf(raw: string): string[] {
   const memory = /<memory>([\s\S]*?)<\/memory>/.exec(raw)?.[1] ?? ""
   const chat = memory.slice(memory.search(/(^|\n)chat[^\n]*:\n/) + 1)
@@ -70,7 +31,6 @@ function missedOf(raw: string): string[] {
     .map((line) => line.replace(/^#\S+ (?:[a-z]{3} \d+ (?:\d{4} )?)?\d\d:\d\d /, "").replace(/\[[0-9a-f-]{36}\] /g, ""))
 }
 
-/** The text of a message without the run's <memory> block and the room's `<context>` brief. */
 const textOf = (m: Message) =>
   rawOf(m)
     .replace(/<memory>[\s\S]*?<\/memory>\s*/g, "")
@@ -78,9 +38,7 @@ const textOf = (m: Message) =>
     .trim()
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
 
-/** One scripted reply to the transcript so far. Pure, so the suite can predict every answer. */
 export function fakeReply(transcript: readonly Message[]) {
-  // The prompt and the tool list travel as system messages, and one may follow the newest turn.
   const messages = transcript.filter((m) => m.role !== "system")
   const answered = messages.findLastIndex((m) => m.role === "assistant" && !callsTool(m) && m.stopReason !== "aborted")
   const since = messages.slice(answered + 1)
@@ -89,8 +47,6 @@ export function fakeReply(transcript: readonly Message[]) {
   const last = messages.at(-1)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
-  // A fooled model also obeys `[tool name {json}]` inside a fetched page. A `[fetch]` turn fetches
-  // first, so the line it carries is read from the page.
   const fetchFirst = last?.role === "user" && /^\[(fetch|mark)\]/.test(textOf(last))
   const page = last?.role === "toolResult" && (last.toolName === "fake_fetch" || last.toolName === "fake_mark")
   const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!), messages) : null
@@ -114,7 +70,6 @@ export function fakeReply(transcript: readonly Message[]) {
   const scripted = /(?:^|\s)\[reply\]\s*([\s\S]*)$/.exec(newest)
   if (scripted) return fauxAssistantMessage(scripted[1]!)
   if (newest.includes("[brief]")) {
-    // The reaction lines of the room's brief (section 7.4), which `textOf` strips.
     const raw = typeof last?.content === "string" ? last.content : (last?.content ?? []).map((p) => p.text ?? "").join("")
     const lines = raw.split("\n").filter((l) => l.startsWith("- ") && l.includes(" reacted "))
     return fauxAssistantMessage(lines.length ? `brief: ${lines.map((l) => l.slice(2)).join(" | ")}` : "brief: none")
@@ -125,12 +80,6 @@ export function fakeReply(transcript: readonly Message[]) {
   return fauxAssistantMessage(heard)
 }
 
-/**
- * `[tool name {json}]` in a user turn, or an approval result that accepts a tool other than a trust
- * tool: that tool again, with the arguments of its last call in the transcript. The JSON runs to the
- * end of its line, so it may hold brackets. The system event's escaping (`&lt;`/`&gt;`/`&amp;`) is
- * undone first.
- */
 function anyToolCall(raw: string, messages: readonly Message[]) {
   const text = raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
   const accepted = /reason="approval_result"[^>]*>\s*the human accepted (\w+) \(card /.exec(text)
@@ -143,7 +92,6 @@ function anyToolCall(raw: string, messages: readonly Message[]) {
   return direct ? fauxToolCall(direct[1]!, JSON.parse(direct[2]!)) : null
 }
 
-/** Sleeps, and stops sleeping when the run is aborted. Effect: read (it touches nothing). */
 const slowTool = defineTool({
   name: SLOW_TOOL,
   description: "waits a few seconds, then says slept.",
@@ -156,11 +104,7 @@ const slowTool = defineTool({
 
 export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [declareEffect("read", slowTool)] })
 
-// P7-01, architecture section 16. Fake tools, one per effect, for `bun kiko verify injection`.
-// `fake_send` stands for any action outside kiko. The trust gate stops it in a run nobody asked for.
-
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] })
-/** `x`, or `x (tainted)` when the trust extension says the run is tainted. */
 const flagged = (word: string, api: Parameters<typeof isRunTainted>[0]) => text(isRunTainted(api) ? `${word} (tainted)` : word)
 const page = Type.Object({ page: Type.String() })
 
@@ -204,7 +148,6 @@ export const TRUST_TOOLS_EXTENSION: Extension = defineExtension({ name: "test-tr
 
 const isTrustTool = (name: string): name is keyof typeof TRUST_TOOLS => Object.hasOwn(TRUST_TOOLS, name)
 
-/** The trust tool calls the newest turn asks for: a user turn, or the tool results since the last call. */
 function trustCalls(messages: readonly Message[]) {
   const last = messages.at(-1)
   if (last?.role === "user") {
@@ -223,7 +166,6 @@ function trustCalls(messages: readonly Message[]) {
 const directives = (text: string) =>
   [...text.matchAll(/\[call (\w+)\]/g)].flatMap(([, name]) => (isTrustTool(name!) && name !== "fake_fetch" && name !== "fake_mark" ? [fauxToolCall(name!, {})] : []))
 
-/** `tools: fake_fetch ran, fake_send blocked`, or null when no trust tool ran this run. */
 function trustResults(since: readonly Message[]): string | null {
   const results = since.filter((m) => m.role === "toolResult" && isTrustTool(m.toolName ?? ""))
   if (!results.length) return null
@@ -231,8 +173,6 @@ function trustResults(since: readonly Message[]): string | null {
   return `tools: ${results.map((m) => `${m.toolName} ${state(textOf(m))}`).join(", ")}`
 }
 
-/** The fake agent's setup. The factory builds it, with the slow tool as a test extension. */
-/** The team tool call a user turn asks for (P6-03), or null. A teammate's `[echo]` goes back to that teammate. */
 function teamCall(turn: string) {
   const agent = [...turn.matchAll(/<agent-message from="([^"]+)"[^>]*>([\s\S]*?)<\/agent-message>/g)].at(-1)
   if (agent && agent[2]!.includes("[question]")) return fauxToolCall("send_message", { to: agent[1]!, text: "[answer] 42" })

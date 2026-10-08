@@ -3,8 +3,6 @@ import type { Envelope } from "@kiko/protocol"
 import { Inbox } from "@kiko/agent/inbox"
 import { createAlarms } from "@kiko/durable/alarm"
 
-// The real inbox and wakeup helpers in workerd, with a clock the test sets. `restart` swaps in a
-// new `Inbox`, the way a new process after a crash would construct one.
 export class H extends DurableObject {
   clock = 1_000_000
   inbox = new Inbox(this.ctx.storage, () => this.clock)
@@ -28,7 +26,6 @@ export class H extends DurableObject {
       case "counts":
         return Response.json(this.inbox.counts())
       case "wakeups": {
-        // Sets `count` new keys far in the future; returns how many were stored before the first refusal.
         let stored = 0
         try {
           for (let i = 0; i < b.count; i++) {

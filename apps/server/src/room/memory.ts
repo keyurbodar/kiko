@@ -2,26 +2,11 @@ import type { AgentSlug, Sender } from "@kiko/protocol"
 import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
 import { searchMessages } from "./search"
 
-// Architecture section 13. A room's log memory. The log is the room's own messages, read as turns:
-// a human burst, one agent's whole reply with a line of what it did, one agent-to-agent message, or
-// one system event. Bubbles are what the chat shows; turns are what memory counts, so a page of 8 is
-// 8 things that happened, not half a reply. The turns are an index over `messages`, built lazily and
-// only ever appended to, so a turn's position never changes.
-//
-// Every agent in the room reads the same view, so a teammate that joins late sees the whole past,
-// compressed. Summaries are made in the background (`nap`), never while anyone waits.
-
-/** A human's messages more than this apart are two turns. */
 const HUMAN_GAP_MS = 30 * 60_000
-/** At most this many past turns go into one quiet-chat rollup. */
 const ROLLUP_MAX = 64
-/** A rollup of a quiet chat needs at least this many new turns. */
 const ROLLUP_MIN = 4
-/** A level-3 node (8 pages, 64 turns) settling becomes one line of the user's life. */
 const ROLLUP_SIZE = ROOM_SHAPE.page * 8
-/** A `recall` hit is cut here, as a view's verbatim line is. */
 const RECALL_CUT = 300
-/** The most distinct acts a run's trace keeps. */
 const TRACE_MAX = 6
 
 const TILING = "mem_tiling"
@@ -31,9 +16,7 @@ const ROLLED = "mem_rolled"
 
 type TurnRow = { pos: number; key: string; first_seq: number | null; last_seq: number | null; at: number; at_last: number; trace: string | null }
 
-/** What a nap needs from outside the room: one summary line, or when to try again. */
 export type Compress = (prompt: string) => Promise<{ text: string } | { retryAt: number } | { error: string }>
-/** A line for the user's life log. */
 export type Rollup = (text: string, tainted: boolean, at: number) => Promise<void>
 
 export class RoomMemory {
@@ -59,17 +42,11 @@ export class RoomMemory {
     this.tree = new Tree(this.sql, "mem_tree", ROOM_SHAPE, (lo, hi) => this.items(lo, hi))
   }
 
-  /** How many turns the index has. `sync` first to include the newest messages. */
   count(): number {
     const n = this.sql.exec<{ n: number | null }>("SELECT max(pos) AS n FROM mem_turns").one().n
     return n === null ? 0 : n + 1
   }
 
-  /**
-   * Brings the turn index up to the log: new messages join the last turn or start one, and an edit or
-   * delete of a message drops the summaries above its turn, to be built again without it. Cheap when
-   * nothing changed. Returns the turn count.
-   */
   sync(): number {
     return this.storage.transactionSync(() => {
       const synced = Number(this.meta.get(SYNCED) ?? 0)
@@ -95,7 +72,6 @@ export class RoomMemory {
     })
   }
 
-  /** Edits and deletes since the last sync drop the summaries above the turns they touched. */
   private forgetChanged(): void {
     const from = Number(this.meta.get(EVENTS) ?? 0)
     const events = this.sql
@@ -120,7 +96,6 @@ export class RoomMemory {
     )
   }
 
-  /** The turns `[lo, hi)` as memory items, without the messages `skip` (by seq). A turn left empty is left out. */
   items(lo: number, hi: number, skip: ReadonlySet<number> = new Set()): Item[] {
     const rows = this.sql
       .exec<{ pos: number; at: number; trace: string | null; seq: number | null; id: string | null; sender: string | null; text: string | null; files: string | null; deleted_at: number | null; tainted: number | null; key: string }>(
@@ -146,7 +121,6 @@ export class RoomMemory {
       g.who = who(from)
       const files = r.files ? ` (files: ${(JSON.parse(r.files) as { name: string }[]).map((f) => `/${f.name}`).join(", ")})` : ""
       g.parts.push(`${r.text}${files}`)
-      // A human message keeps its id in a view, so `[react:..:id]` and `[reply:id]` can name it.
       g.shown.push(from.kind === "human" ? `[${r.id}] ${r.text}${files}` : `${r.text}${files}`)
     }
     return groups.map(({ item, who: name, parts, shown, trace }) => {
@@ -155,11 +129,6 @@ export class RoomMemory {
     })
   }
 
-  /**
-   * The room as an agent reads it at the start of a run: older turns compressed, the newest 40
-   * verbatim. Turns made only of `skip` messages (the burst the run answers, which arrives on its
-   * own) are left out. The tiling is kept, so the next view repeats the old lines exactly.
-   */
   view(now: number, skip: ReadonlySet<number> = new Set()): string {
     const count = this.sync()
     const prev = this.meta.get(TILING)
@@ -168,7 +137,6 @@ export class RoomMemory {
     return lines.join("\n")
   }
 
-  /** The turns after `pos`, as verbatim lines, without `slug`'s own turns and the messages `skip`. */
   since(slug: AgentSlug, pos: number, now: number, skip: ReadonlySet<number>): { text: string; count: number } {
     const count = this.sync()
     const own = new Set(
@@ -188,7 +156,6 @@ export class RoomMemory {
     return { text: lines.join("\n"), count }
   }
 
-  /** `zoom`: `t12` for one turn in full, or `12-19` / `0-63` for a node opened into its halves. */
   zoom(id: string, now: number): string | null {
     const count = this.sync()
     const one = /^t?(\d+)$/.exec(id)
@@ -202,11 +169,6 @@ export class RoomMemory {
     return lines.length ? lines.join("\n") : null
   }
 
-  /**
-   * `recall` in this room: messages that match every word, newest first, each with its turn. When none
-   * matches every word, the messages that match any of the longest words: "trip money" still finds
-   * "the budget for the whole trip".
-   */
   recall(query: string, now: number, limit = 10): string[] {
     this.sync()
     let hits = searchMessages(this.sql, query, { limit }).results
@@ -216,7 +178,6 @@ export class RoomMemory {
       for (const w of words) for (const h of searchMessages(this.sql, w, { limit }).results) seen.set(h.id, h)
       hits = [...seen.values()].sort((a, b) => b.seq - a.seq).slice(0, limit)
     }
-    // The message itself, not FTS's 16-token snippet, so a hit is usually enough without a zoom.
     const texts = new Map(
       this.sql
         .exec<{ id: string; text: string | null }>("SELECT id, text FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(hits.map((h) => h.id)))
@@ -231,16 +192,11 @@ export class RoomMemory {
     })
   }
 
-  /** Something an agent did during its run, for the run's trace (section 7.12's board, kept). */
   did(slug: AgentSlug, doing: string, now: number): void {
     if (doing === "writing a reply") return
     this.sql.exec("INSERT OR IGNORE INTO mem_did (slug, doing, at) VALUES (?, ?, ?)", slug, doing.slice(0, 160), now)
   }
 
-  /**
-   * The run ended: what the agent did joins its reply turn as one line. A run that did things and said
-   * nothing gets a turn of its own, so teammates and its own next run still see it.
-   */
   trace(slug: AgentSlug, runId: string, now: number): void {
     const acts = this.sql.exec<{ doing: string }>("SELECT doing FROM mem_did WHERE slug = ? ORDER BY at LIMIT ?", slug, TRACE_MAX).toArray().map((r) => r.doing)
     this.sql.exec("DELETE FROM mem_did WHERE slug = ?", slug)
@@ -255,19 +211,10 @@ export class RoomMemory {
     this.sql.exec("INSERT OR IGNORE INTO mem_turns (pos, key, first_seq, last_seq, at, at_last, trace) VALUES (?, ?, NULL, NULL, ?, ?, ?)", count, `trace:${slug}:${runId}`, now, now, trace)
   }
 
-  /**
-   * Summaries that are needed now: a page is summarized only once it leaves the verbatim floor, so a
-   * chat shorter than the floor makes no summary calls at all, and a reply that is still growing is
-   * never summarized half done.
-   */
   pending(limit: number): Span[] {
     return this.tree.pending(region(this.sync(), ROOM_SHAPE), limit)
   }
 
-  /**
-   * One summary: reads the input, asks `compress`, stores the line. A settled 64-turn node also becomes
-   * a line of the user's life (`rollup`), once. Returns when to try again after a refusal.
-   */
   async nap(span: Span, compress: Compress, rollup: Rollup | null): Promise<{ retryAt?: number }> {
     const input = this.tree.input(span)
     if (!input) return {}
@@ -284,10 +231,6 @@ export class RoomMemory {
     return {}
   }
 
-  /**
-   * The chat went quiet: the turns since the last rollup become one line of the user's life, so a slow
-   * chat reaches it without waiting for 64 turns. Returns false when there was too little.
-   */
   async rollupQuiet(compress: Compress, rollup: Rollup): Promise<{ done: boolean; retryAt?: number }> {
     const count = this.sync()
     const rolled = Number(this.meta.get(ROLLED) ?? 0)
@@ -303,13 +246,11 @@ export class RoomMemory {
     return { done: true }
   }
 
-  /** For tests and the CLI. */
   node(span: Span): Node | null {
     return this.tree.node(span)
   }
 }
 
-/** Which turn a message belongs to: a human's burst, one agent run, or one message on its own. */
 function turnKey(from: Sender, runId: string | null, id: string): string {
   if (from.kind === "human") return "human"
   if (from.kind === "agent") return `agent:${from.slug}:${runId ?? id}`

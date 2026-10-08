@@ -22,7 +22,6 @@ test("the human writing ends every wait with no answer", async () => {
   const b = w.wait("q2", 10_000)
   w.interrupt()
   expect(await Promise.all([a, b])).toEqual([null, null])
-  // A late answer after the interrupt waits for a replayed call, and never reaches the old one.
   w.answer("q1", { text: "late", tainted: true })
   expect(await w.wait("q1", 10)).toEqual({ text: "late", tainted: true })
 })

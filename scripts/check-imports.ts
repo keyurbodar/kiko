@@ -1,9 +1,3 @@
-/*
- * The package layering. Each reusable package may import only the @kiko packages listed for it, and
- * never the apps or a file outside its own directory. Fails with every offending import.
- *
- *   bun scripts/check-imports.ts
- */
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 

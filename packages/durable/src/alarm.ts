@@ -1,15 +1,6 @@
-// One Durable Object has one alarm. This helper multiplexes it: many named
-// wakeups live in a table and the alarm always points at the earliest row.
-// Architecture section 23 (Rivet `actor/schedule.rs`): due wakeups are claimed in one
-// transaction, one object holds at most `MAX_WAKEUPS` keys, and the last
-// `HISTORY_LIMIT` fired keys are kept with their times for debugging.
-
-/** The most wakeup keys one object may hold. Moving an existing key is always allowed. */
 export const MAX_WAKEUPS = 1_000
-/** Fired wakeups kept for debugging. */
 export const HISTORY_LIMIT = 100
 
-/** Thrown by `setWakeup` for a new key when the object already holds `MAX_WAKEUPS`. */
 export class WakeupLimitError extends Error {
   constructor() {
     super(`too many wakeups (limit ${MAX_WAKEUPS})`)
@@ -17,17 +8,12 @@ export class WakeupLimitError extends Error {
   }
 }
 
-/** One fired wakeup: when it was due and when the alarm claimed it. */
 export type FiredWakeup = { key: string; at: number; firedAt: number }
 
 export interface Alarms {
-  /** Sets or moves the wakeup for `key` to `at` (ms since epoch). Throws `WakeupLimitError` for a new key past the cap. */
   setWakeup(key: string, at: number): Promise<void>
-  /** Removes the wakeup for `key`, if any. */
   clearWakeup(key: string): Promise<void>
-  /** Returns keys with `at <= now` and removes them in one transaction. Re-arms the alarm for what remains. */
   dueWakeups(now: number): Promise<string[]>
-  /** The last fired wakeups, newest first. */
   history(): FiredWakeup[]
 }
 
@@ -87,14 +73,8 @@ export function createAlarms(ctx: DurableObjectState): Alarms {
   }
 }
 
-/** How long a failed wakeup waits before it runs again. */
 export const WAKEUP_RETRY_MS = 30_000
 
-/**
- * Runs the handler of each due key on its own. `dueWakeups` has already claimed the keys, so a
- * handler that throws would otherwise lose its wakeup (the runtime's alarm retry finds nothing due)
- * and skip every handler after it. A failed key is set again `WAKEUP_RETRY_MS` later.
- */
 export async function runDue(
   alarms: Alarms,
   due: readonly string[],

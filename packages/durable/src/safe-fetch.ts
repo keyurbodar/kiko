@@ -1,15 +1,9 @@
-// The one function that fetches a URL someone else chose. Architecture section 18.2.
-//
-// Every module that fetches a user-supplied or model-supplied URL calls safeFetch.
-// Nothing else in the server may call fetch on such a URL.
-//
 // Known limit: the runtime resolves the host again when it connects, and a Worker
 // cannot pin the address it checked. A DNS record that changes between the check
 // and the connection is not caught here.
 
 const MAX_REDIRECTS = 3
 const TIMEOUT_MS = 3000
-// ASSUMPTION: 1 MB means 1024 * 1024 bytes, counted after decompression.
 const MAX_BYTES = 1024 * 1024
 const DOH_URL = "https://cloudflare-dns.com/dns-query"
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
@@ -28,42 +22,29 @@ export type SafeFetchRefusal =
 export type SafeFetchResult =
   | {
       ok: true
-      /** The URL that answered, after redirects. */
       url: string
       status: number
       headers: Headers
-      /** At most `maxBytes`, 1 MB by default. ASSUMPTION: a longer body is cut, not refused. */
       body: Uint8Array
-      /** True when the body was cut at `maxBytes` or `stop` ended the read early. */
       truncated: boolean
     }
   | {
       ok: false
       reason: SafeFetchRefusal
-      /** The URL that was refused. After a redirect it is the hop that failed, not the first URL. */
       url: string
     }
 
 type Refusal = Extract<SafeFetchResult, { ok: false }>
 
-/** The part of `fetch` this module uses. Tests pass their own. */
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>
 
 const globalFetcher: Fetcher = (url, init) => fetch(url, init)
 
 export type SafeFetchOptions = {
-  /** The most bytes kept. Defaults to 1 MB. */
   maxBytes?: number
-  /**
-   * Called with each chunk as it arrives. Returning true keeps what was read and cancels the rest,
-   * so a preview reads a page's head and never downloads its body.
-   */
   stop?: (chunk: Uint8Array) => boolean
-  /** Sent as `user-agent`. The only header a caller may choose. */
   userAgent?: string
-  /** The one deadline for DNS, every hop, and the body. Defaults to 3 seconds. */
   timeoutMs?: number
-  /** Keep DNS answers for their TTL. On by default for the real `fetch`; a test with its own fetcher opts in. */
   dnsCache?: boolean
 }
 
@@ -72,7 +53,6 @@ export async function safeFetch(
   fetcher: Fetcher = globalFetcher,
   options: SafeFetchOptions = {},
 ): Promise<SafeFetchResult> {
-  // One deadline covers DNS, every hop, and the body.
   const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS)
   try {
     return await follow(rawUrl, fetcher, signal, options)
@@ -93,8 +73,6 @@ async function follow(
     const url = await check(next, base, fetcher, signal, cacheFor(fetcher, options))
     if (!(url instanceof URL)) return url
 
-    // No cookie and no authorization header: the caller chooses only the user agent,
-    // check() strips the user and password, and nothing carries state between hops.
     const headers: Record<string, string> = { accept: "*/*" }
     if (options.userAgent) headers["user-agent"] = options.userAgent
     const response = await untilAbort(
@@ -113,16 +91,10 @@ async function follow(
 
 export type SafeRequest = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
-  /** The caller's headers, such as an extension's authorization header. Sent to this one URL only. */
   headers: Record<string, string>
   body?: string
 }
 
-/**
- * Architecture section 24.7. One request with a method, headers, and a body, for an extension's
- * `kiko.fetch`. The address checks are `safeFetch`'s. A redirect is never followed: it comes back as
- * the response, so headers chosen for one host never reach another. Only `https` is allowed.
- */
 export async function safeRequest(rawUrl: string, request: SafeRequest, fetcher: Fetcher = globalFetcher, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
   const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS)
   try {
@@ -138,7 +110,6 @@ export async function safeRequest(rawUrl: string, request: SafeRequest, fetcher:
   }
 }
 
-/** Returns the URL to fetch, or the reason it must not be fetched. */
 async function check(
   raw: string,
   base: URL | undefined,
@@ -220,7 +191,6 @@ const DNS_MIN_TTL_S = 30
 const DNS_MAX_TTL_S = 300
 const DNS_MAX_HOSTS = 500
 
-/** Every A and AAAA address of the host. Null when either lookup fails, so the caller refuses. */
 async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal, cached: boolean): Promise<string[] | null> {
   let cache = cached ? DNS_CACHE.get(fetcher) : undefined
   if (cached && !cache) DNS_CACHE.set(fetcher, (cache = new Map()))
@@ -258,8 +228,6 @@ async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal, cach
   return addresses
 }
 
-// Addresses.
-
 function isIpLiteral(host: string): boolean {
   if (host.startsWith("[")) return true
   const lastLabel = host.slice(host.lastIndexOf(".") + 1)
@@ -267,7 +235,6 @@ function isIpLiteral(host: string): boolean {
   return /^(\d+|0x[0-9a-f]*)$/.test(lastLabel)
 }
 
-// Each row is a network and its prefix length. An address inside any row is refused.
 const BLOCKED_IPV4: ReadonlyArray<readonly [network: string, bits: number]> = [
   ["0.0.0.0", 8], // this network
   ["10.0.0.0", 8], // private
@@ -284,7 +251,6 @@ const BLOCKED_IPV4: ReadonlyArray<readonly [network: string, bits: number]> = [
   ["224.0.0.0", 3], // multicast, reserved, and broadcast
 ]
 
-/** False for anything that is not a plain public unicast address, and for anything unparseable. */
 function isPublicAddress(address: string): boolean {
   const v4 = parseIpv4(address)
   if (v4 !== null) {
@@ -313,7 +279,6 @@ function parseIpv4(text: string): number | null {
   return octets.reduce((sum, octet) => sum * 256 + octet, 0)
 }
 
-/** Eight 16-bit groups. A form with a dotted IPv4 tail is not parsed, so it is refused. */
 function parseIpv6(text: string): number[] | null {
   const halves = text.split("::")
   if (halves.length > 2) return null
@@ -327,8 +292,6 @@ function parseIpv6(text: string): number[] | null {
   return all.map((group) => parseInt(group, 16))
 }
 
-// Helpers.
-
 function refuse(reason: SafeFetchRefusal, url: string): Refusal {
   return { ok: false, reason, url }
 }
@@ -337,7 +300,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
 
-/** Rejects when the deadline passes, even if the work itself never settles. */
 function untilAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     if (signal.aborted) reject(signal.reason)
@@ -346,7 +308,6 @@ function untilAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   })
 }
 
-/** Cancelling a body is best effort. Its failure changes nothing. */
 function discard(work: Promise<void> | undefined): void {
   work?.catch(() => {})
 }

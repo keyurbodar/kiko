@@ -8,17 +8,11 @@ import { openDurableObjectSqlite } from "@kiko/agent/sqlite"
 import { assistantMessages, FAUX_MODEL, fauxModels, measureTurn, openDurable, streamedText } from "../src/experiments/coalescing"
 import { assertions } from "./sqlite-worker"
 
-// Runs inside workerd. `coalescing-storage.test.ts` drives it through Miniflare. Every request that
-// starts a case uses a Durable Object of its own, so each case starts on an empty database.
-
 const context = BACKGROUND_CONTEXT
 const fail = (message: string): never => {
   throw new Error(message)
 }
 
-// "aggressive" holds every single-delta commit the inner storage would accept, so the suite's own
-// document cases go through the held path. The default policy holds only pi.live generation deltas,
-// which the suite never writes.
 const policies: Record<string, HoldPolicy | undefined> = { default: undefined, aggressive: () => true }
 
 const conformance = (storage: DurableObjectStorage, holds: HoldPolicy | undefined) => {
@@ -65,8 +59,6 @@ export class T extends DurableObject {
     return this.resume()
   }
 
-  // Streams a long answer through the wrapper and kills the object while a window holds partials
-  // that were never written, after at least one earlier window was written.
   private async crash(): Promise<Response> {
     const { durable, coalescing } = await openDurable(this.ctx.storage, true)
     const harness = await Harness.open(durable, { models: fauxModels([CRASH_ANSWER]), registry: createRegistry() }, context)
@@ -79,7 +71,6 @@ export class T extends DurableObject {
       if (Date.now() > deadline) return Response.json({ error: "no window opened", stats }, { status: 500 })
       await scheduler.wait(10)
     }
-    // What the session holds in memory, and what a second storage over the same database can read.
     const memory = text((await harness.snapshot(LiveDoc, ROOT_CONVERSATION_ID, context))?.generation?.message)
     const raw = await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage))
     const address = { kind: LiveDoc.definition.kind, scope: { kind: "conversation", conversationId: ROOT_CONVERSATION_ID } } as const
@@ -91,7 +82,6 @@ export class T extends DurableObject {
       storedChars: text(stored?.generation?.message).length,
     }
     await this.ctx.storage.put("crash", info)
-    // Wait until everything written so far is durable, then the process dies. Nothing held in memory survives.
     await this.ctx.storage.sync()
     this.ctx.abort("simulated crash")
     return Response.json({ error: "still alive" }, { status: 500 })

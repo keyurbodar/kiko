@@ -1,60 +1,39 @@
-// Architecture section 24. A user extension is a manifest and a few JavaScript files. The manifest
-// says what the extension is and what it may do; the server enforces exactly that. The script
-// runs in a QuickJS sandbox inside the agent's object.
-//
-// This file is pure and has no runtime dependency, so the server, the CLI, and the client's
-// editor check a manifest the same way.
-
-/** The manifest format this server reads. A breaking change is a new number. */
 export const EXTENSION_SDK = 1
 
-/** What a tool does outside the model's head. The same table as the trust gate's (section 16.3). */
 export type ExtensionEffect = "read" | "write" | "message" | "external"
 export const EXTENSION_EFFECTS: readonly ExtensionEffect[] = ["read", "write", "message", "external"]
 
-/** The pi-durable hooks an extension may add. `beforeRequest` and `beforeCompact` are kept for kiko. */
 export type ExtensionHook = "beforeTool" | "afterTool" | "onYield" | "afterResponse"
 export const EXTENSION_HOOKS: readonly ExtensionHook[] = ["beforeTool", "afterTool", "onYield", "afterResponse"]
 
-/** Where `kiko.state` keeps an extension's data. */
 export type ExtensionStateScope = "user" | "room" | "agent"
 
 export type ExtensionTool = {
 	description: string
 	effect: ExtensionEffect
-	/** A JSON Schema object for the arguments. Absent means no arguments. */
 	parameters?: Record<string, unknown>
 }
 
 export type ExtensionSection = {
-	/** Static text. Without it the script's `sections[id]` renders the section. */
 	text?: string
 }
 
 export type ExtensionSecret = {
-	/** The only hosts this secret is ever sent to. Each must be in `egress`. */
 	hosts: readonly string[]
 	description?: string
 }
 
-/** Messages the extension's agent on a schedule, as a reminder (section 14). */
 export type ExtensionTrigger = {
 	id: string
-	/** An RFC 5545 rule, such as `FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0`. Wall time in the user's zone. */
 	rrule: string
-	/** What the agent is told. */
 	send: string
 }
 
-/** One check `extension_check` runs, with the calls and fetches it makes answered by mocks. */
 export type ExtensionTest = {
 	tool: string
 	args?: Record<string, unknown>
-	/** What `kiko.call(name)` returns, by tool name. */
 	calls?: Record<string, unknown>
-	/** What every `kiko.fetch` returns. */
 	fetch?: { status?: number; body?: unknown }
-	/** The result must contain this text. */
 	expect?: string
 }
 
@@ -63,15 +42,12 @@ export type ExtensionManifest = {
 	name: string
 	version: string
 	description: string
-	/** The entry module. Default `main.js`. Only read when the extension has script parts. */
 	main?: string
 	tools?: Record<string, ExtensionTool>
 	sections?: Record<string, ExtensionSection>
 	hooks?: readonly ExtensionHook[]
 	wraps?: { tools?: readonly string[]; sections?: readonly string[] }
-	/** The tools the script may call with `kiko.call`. */
 	calls?: readonly string[]
-	/** The hosts `kiko.fetch` may reach. `*.example.com` covers every subdomain. */
 	egress?: readonly string[]
 	secrets?: Record<string, ExtensionSecret>
 	state?: ExtensionStateScope
@@ -79,14 +55,10 @@ export type ExtensionManifest = {
 	tests?: readonly ExtensionTest[]
 }
 
-/** An extension as it travels and is stored: the manifest and every file by path. */
 export type ExtensionBundle = {
 	manifest: ExtensionManifest
 	files: Record<string, string>
 }
-
-// ---------------------------------------------------------------------------------------------
-// Limits and checks.
 
 export const EXTENSION_LIMITS = {
 	files: 16,
@@ -111,23 +83,19 @@ const HOST = /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 const PATH = /^(?:[a-z0-9_-][a-z0-9._-]{0,63}\/){0,3}[a-z0-9_-][a-z0-9._-]{0,63}\.(?:js|mjs|json|md|txt)$/i
 const RRULE = /^(?:DTSTART[^\n]*\n)?(?:RRULE:)?FREQ=(?:MINUTELY|HOURLY|DAILY|WEEKLY|MONTHLY|YEARLY)(?:;[A-Z]+=[A-Z0-9,+-]+)*$/
 
-/** The prompt sections an extension may not wrap: the rules that say what untrusted data is. */
 export const PROTECTED_SECTIONS: readonly string[] = ["kiko", "reactions", "role"]
 
-/** Every key the manifest format knows. An unknown key is a mistake, never ignored. */
 const KEYS = new Set(["$schema", "kiko", "name", "version", "description", "main", "tools", "sections", "hooks", "wraps", "calls", "egress", "secrets", "state", "triggers", "tests"])
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
 const byteLength = (s: string) => new TextEncoder().encode(s).length
 
-/** True when `host` matches one of `patterns`, where `*.x.y` covers every subdomain of `x.y`. */
 export function hostAllowed(host: string, patterns: readonly string[]): boolean {
 	const h = host.toLowerCase()
 	return patterns.some((p) => (p.startsWith("*.") ? h.endsWith(p.slice(1)) && h.length > p.length - 1 : h === p))
 }
 
-/** True when the extension has parts the script provides, so it needs an entry module. */
 export function needsScript(m: ExtensionManifest): boolean {
 	return (
 		Object.keys(m.tools ?? {}).length > 0 ||
@@ -140,7 +108,6 @@ export function needsScript(m: ExtensionManifest): boolean {
 
 export type ManifestCheck = { ok: true; manifest: ExtensionManifest } | { ok: false; problems: string[] }
 
-/** Checks a parsed `extension.json`. Every problem is one plain line, so an agent can fix them all at once. */
 export function checkManifest(value: unknown): ManifestCheck {
 	const problems: string[] = []
 	const bad = (line: string) => problems.push(line)
@@ -297,7 +264,6 @@ export function checkManifest(value: unknown): ManifestCheck {
 
 export type BundleCheck = { ok: true; bundle: ExtensionBundle } | { ok: false; problems: string[] }
 
-/** Checks a whole bundle: the manifest, the files, and that the entry module exists when it is needed. */
 export function checkBundle(value: unknown): BundleCheck {
 	if (!isObject(value)) return { ok: false, problems: ["the bundle must be { manifest, files }"] }
 	const m = checkManifest(value.manifest)
@@ -322,9 +288,6 @@ export function checkBundle(value: unknown): BundleCheck {
 	return problems.length ? { ok: false, problems } : { ok: true, bundle: { manifest: m.ok ? m.manifest : (value.manifest as ExtensionManifest), files: files as Record<string, string> } }
 }
 
-// ---------------------------------------------------------------------------------------------
-// The review: what an extension can do, in plain lowercase lines, for the install card.
-
 const EFFECT_WORDS: Record<ExtensionEffect, string> = {
 	read: "only reads",
 	write: "changes things in kiko",
@@ -341,7 +304,6 @@ const HOOK_WORDS: Record<ExtensionHook, string> = {
 
 export type ReviewLine = { text: string; level: "info" | "notice" | "warning" }
 
-/** Every power the manifest asks for, one line each, the riskiest marked. */
 export function describeManifest(m: ExtensionManifest): ReviewLine[] {
 	const lines: ReviewLine[] = []
 	for (const [name, t] of Object.entries(m.tools ?? {})) {

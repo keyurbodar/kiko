@@ -4,9 +4,6 @@ import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-dura
 import { htmlToText, WEB_TOOL_EFFECTS, webExtension } from "../src/agent/extensions/web"
 import type { Fetcher } from "@kiko/durable/safe-fetch"
 
-// P8-05, architecture section 18.2: the safe fetcher behind `web_fetch`. The file tools are in
-// room-fs.test.ts, against the real room and R2.
-
 const context = BACKGROUND_CONTEXT
 
 const api = { agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }) } as unknown as ToolExecutionApi
@@ -25,7 +22,6 @@ test("web_fetch declares a read effect", () => {
 })
 
 describe("web_fetch", () => {
-  // A fetcher that answers DNS with a public address and serves one page.
   const page = `<html><head><title>fixture page</title><style>p{}</style></head><body><script>steal()</script><h1>hello</h1><p>the word is <b>tangerine</b> &amp; more</p></body></html>`
   const fetcher: Fetcher = async (url) => {
     const u = new URL(url)

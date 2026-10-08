@@ -1,18 +1,8 @@
 import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 
-// Preview images on kiko's origin. Architecture section 18.2.
-//
-// The client never loads a third-party image. A preview names its image by a token: the
-// image's URL sealed with AES-GCM under a key derived from the Worker's secret. The token
-// hides the URL from the client and proves the Worker issued it, so the image route needs
-// no table to look the URL up. The first request fetches the image through safeFetch,
-// answers with it, and copies it into R2 in the background. Later requests read R2.
-
 export const IMAGE_PREFIX = "previews/"
 const IMAGE_ROUTE = "/api/preview-image/"
-// Most og:images are under 1 MB. A larger one is refused rather than stored cut.
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024
-// A reader is already looking at the card, so an image gets longer than a page.
 const IMAGE_TIMEOUT_MS = 8000
 // SVG is left out on purpose. It can carry script.
 const IMAGE_TYPES = new Set([
@@ -25,7 +15,6 @@ const IMAGE_TYPES = new Set([
   "image/vnd.microsoft.icon",
 ])
 const IMAGE_HEADERS = {
-  // The token names one image forever, so the browser may keep it.
   "cache-control": "private, max-age=604800, immutable",
   "x-content-type-options": "nosniff",
   "content-security-policy": "default-src 'none'; sandbox",
@@ -69,10 +58,6 @@ function fromBase64Url(text: string): Uint8Array | null {
   }
 }
 
-/**
- * The image's path on kiko's origin. The IV is a MAC of the URL, so one URL always gets one
- * path: the browser cache, R2, and every preview that names the image agree on it.
- */
 export async function imagePath(secret: string, url: string): Promise<string> {
   const { seal, iv } = await keys(secret)
   const plain = new TextEncoder().encode(url)
@@ -84,7 +69,6 @@ export async function imagePath(secret: string, url: string): Promise<string> {
   return IMAGE_ROUTE + toBase64Url(token)
 }
 
-/** The image URL a token seals, or null when the Worker did not issue it. */
 export async function openToken(secret: string, token: string): Promise<string | null> {
   const bytes = fromBase64Url(token)
   if (!bytes || bytes.length <= 12 + 16) return null
@@ -102,10 +86,6 @@ export async function imageHash(url: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
 }
 
-/**
- * Fetches a third-party image and checks it is a small raster image. "failed" is a timeout or a
- * server error, which may pass; null is an answer that will not change.
- */
 export async function fetchImage(url: string, fetcher?: Fetcher): Promise<{ type: string; body: Uint8Array } | "failed" | null> {
   const result = await safeFetch(url, fetcher, { maxBytes: MAX_IMAGE_BYTES, timeoutMs: IMAGE_TIMEOUT_MS })
   if (!result.ok) return result.reason === "timeout" || result.reason === "fetch-failed" ? "failed" : null
@@ -117,11 +97,6 @@ export async function fetchImage(url: string, fetcher?: Fetcher): Promise<{ type
 
 export type ImageEnv = { FILES: R2Bucket; BETTER_AUTH_SECRET: string }
 
-/**
- * Answers `/api/preview-image/<token>`. R2 first; on a miss the image is fetched now and stored
- * in the background, so a preview's image works the moment the preview does. Safe to run twice:
- * the R2 key is the hash of the URL, and a second put writes the same bytes.
- */
 export async function serveImage(
   env: ImageEnv,
   token: string,
@@ -138,7 +113,6 @@ export async function serveImage(
     })
   }
   const image = await fetchImage(url, fetcher)
-  // A failure is not kept, so the next look tries again. A refusal is kept a little while.
   if (image === "failed") return new Response(null, { status: 503, headers: { "cache-control": "no-store" } })
   if (!image) return new Response(null, { status: 404, headers: { "cache-control": "private, max-age=300" } })
   waitUntil(

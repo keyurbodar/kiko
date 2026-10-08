@@ -26,7 +26,6 @@ import { searchRoute } from "./room/search-route"
 import { setScriptWasm } from "@kiko/sandbox/wasm"
 import quickjsWasm from "quickjs-wasi/quickjs.wasm"
 
-// Extensions run in QuickJS (architecture section 24.3). The runtime compiles the binary once per isolate.
 setScriptWasm(quickjsWasm)
 
 export { AgentDO } from "./agent/agent-do"
@@ -40,7 +39,6 @@ export interface Env {
   USER: DurableObjectNamespace<UserDO>
   ROOM: DurableObjectNamespace<RoomDO>
   AGENT: DurableObjectNamespace<AgentDO>
-  /** CPU-heavy job work (section 17.3). Absent in tests that bundle one object. */
   WORK?: DurableObjectNamespace<WorkDO>
   AUTH_DB: D1Database
   FILES: R2Bucket
@@ -51,7 +49,6 @@ export interface Env {
   CREDENTIALS_KEK_VERSION?: string
   CREDENTIALS_KEK_PREVIOUS?: string
   BETTER_AUTH_SECRET: string
-  /** "on" turns on subscription sign-in (architecture 11.4). Off when unset. */
   PROVIDER_OAUTH?: string
 }
 
@@ -90,13 +87,11 @@ export default {
     if (url.pathname === "/api/me") {
       const user = await getSessionUser(request, env)
       if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-      // Every account has its kiko chat. The client asks once per page load, and the call is idempotent.
       await userStub(env.USER, user.id).ensureHome()
       return Response.json({ user })
     }
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
-    // They name an AgentDO from a query parameter, so only a development server answers them.
     if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
     if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/coalescing") return experimentCoalescingRoute(request, env)
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })

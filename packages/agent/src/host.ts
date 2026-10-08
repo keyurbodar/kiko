@@ -11,45 +11,20 @@ import type { Envelope } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
 import { AUTO, type Authority, authorityOfAll, combine } from "./authority"
 
-// Architecture sections 4.4 and 7.3. The host owns one agent's `pi-durable` harness inside its
-// `AgentDO`. `receive()` only stores. The alarm does the work: it opens the harness, resumes what a
-// dead process left unfinished, submits the inbox, and keeps a heartbeat while a task is live. The
-// heartbeat never waits for a run and never resumes a run this process is already running.
-
 const context = BACKGROUND_CONTEXT
 
-/** Wakeup keys in `@kiko/durable/alarm`. */
 export const INBOX_WAKEUP = "inbox"
 export const HEARTBEAT_WAKEUP = "heartbeat"
-/** Architecture section 4.4: at most 30 seconds ahead. */
 export const HEARTBEAT_MS = 30_000
-/** The first retry after a failed alarm. It doubles up to the heartbeat. */
 const RETRY_MS = 1_000
-/**
- * Section 13, after OptMem: an agent wakes from memory once, then works in an ordinary transcript, which
- * the provider caches because it only grows. When the transcript passes this many characters (about
- * 15,000 tokens), the next run starts over from the <memory> block: the log is the memory, so nothing
- * is lost, and no request grows without bound.
- */
 export const CONTEXT_BUDGET_CHARS = 60_000
-/**
- * A working task (a transcript that is mostly tool output, with a run in the last `TASK_IDLE_MS`) goes
- * on past `CONTEXT_BUDGET_CHARS` up to this, so the agent does not forget what its tools showed it and
- * fetch it all again at every step. Plain chat never qualifies, so its cost is unchanged.
- */
 export const TASK_BUDGET_CHARS = 240_000
 export const TASK_IDLE_MS = 15 * 60_000
 
-/** The transcript a new run would go on with, measured. */
 export type Transcript = { inputs: number; chars: number; toolChars: number; idleMs: number }
 
 type ModelMessage = { role?: string; content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[] }
 
-/**
- * Measures a transcript for `startsFresh`. The <memory> block the first input opens with is left out:
- * it is the chat's own bounded view, so a long chat's block must not use up the budget of the work
- * after it and restart a task halfway.
- */
 export function measure(entries: readonly { kind: string; model?: readonly unknown[] }[], idleMs: number): Transcript {
   const t: Transcript = { inputs: 0, chars: 0, toolChars: 0, idleMs }
   for (const entry of entries) {
@@ -66,19 +41,12 @@ export function measure(entries: readonly { kind: string; model?: readonly unkno
   return t
 }
 
-/** The length of the <memory> block a text opens with, or 0. */
 function opening(text: string): number {
   if (!text.startsWith("<memory>")) return 0
   const end = text.indexOf("</memory>")
   return end < 0 ? 0 : end + "</memory>".length
 }
 
-/**
- * Section 7.4. The brief a submitted input shows: only the newest of the batch, and none when it is the
- * one the transcript already holds. A run that starts fresh always shows it, in full. Otherwise the long
- * line about @-mentioning the human is left out, since the fresh run's brief said it. `last` is the key
- * of the brief shown last; the result's `key` is the one to keep.
- */
 export function briefToShow(
   briefs: readonly string[],
   fresh: boolean,
@@ -93,90 +61,49 @@ export function briefToShow(
   return { brief: fresh ? newest : short, key }
 }
 
-/** FNV-1a, 32 bits, in hex. Enough to tell one brief from the last. */
 function hashText(text: string): string {
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
   return (h >>> 0).toString(16)
 }
 
-/** Whether a new run starts over from the <memory> block (section 13). */
 export function startsFresh(t: Transcript): boolean {
   if (t.inputs === 0) return true
   if (t.chars <= CONTEXT_BUDGET_CHARS) return false
   const working = t.toolChars * 2 > t.chars && t.idleMs < TASK_IDLE_MS
   return !working || t.chars > TASK_BUDGET_CHARS
 }
-/**
- * A fresh start leaves old pi-durable entries in storage that are never read again. Every this many fresh
- * starts, an idle agent drops pi-durable's tables, so storage stays bounded; its next run starts fresh.
- * Counting every run instead made a short chat start cold every 50 runs for nothing.
- */
 export const COMPACT_EVERY_RUNS = 50
-/** Runs that started fresh since the last drop. A run that goes on with its transcript leaves no dead entries behind. */
 export const RUNS_KEY = "runs:since-compact"
-/** When the last run started, for `startsFresh`. */
 const LAST_RUN_KEY = "runs:last-at"
 const COMPACT_DUE_KEY = "compact:due"
-/** Storage keys of the mid-run rules (section 6.2). */
 const STOP_KEY = "mid-run:stop"
 const RESTARTS_KEY = "mid-run:restarts"
-/** The key of the brief the transcript shows last, with the harness epoch it was shown in. */
 const BRIEF_KEY = "brief:last"
-/**
- * The seqs of messages that joined a live run (a steer, a queued input). The transcript holds them, so
- * the next run's memory delta leaves them out.
- */
 const JOINED_KEY = "memory:joined"
 
-/** What the agent factory (P1-10) decides. The host calls it once per process, when it opens the harness. */
 export type AgentSetup = {
   models: Models
   registry: RegistryReader
-  /** Applied when the root conversation is created. */
   agent: AgentChange
   settings?: HarnessSettings
-  /** The file system `pi-durable`'s file tools run on: the room's files. */
   env?: ExecutionEnv
-  /**
-   * Called once before a batch starts a new run (architecture section 11.3), never for a batch that
-   * joins a live run. It loads the run's credentials. False means the run may not start: the batch is
-   * dropped and nothing is submitted. Absent means every run may start.
-   */
   beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
-  /** One more `<context>` block for each submitted input, after the briefs: the clock and run notes. */
   inputContext?: () => Promise<string | undefined>
-  /**
-   * Section 13. Called when a batch starts a run, never for one that joins a live run. With `fresh`, or
-   * when it decides the agent missed too much, it returns the whole <memory> block and `fresh: true`,
-   * and the host starts the context over. Otherwise it returns only what is new in the chat since the
-   * agent's last run, and the transcript goes on. `joined` are the seqs of messages that joined the
-   * last run while it was live: the transcript has them, so the delta leaves them out.
-   */
   inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
-  /** pi-durable's tables are about to be dropped: the agent keeps what it needs from them (its token count). */
   beforeCompact?: (harness: Harness) => Promise<void>
 }
 
 export type HostOptions = {
   setup: () => AgentSetup | Promise<AgentSetup>
-  /** Runs once per process after the harness opens and before it resumes, so a watcher sees the resumed run. */
   onOpen?: (opened: Opened) => void | Promise<void>
-  /** The breaker dropped a run that kept killing its process. The agent tells the room. */
   onGiveUp?: () => void | Promise<void>
-  /** Default `HEARTBEAT_MS`. Tests pass less. Never more than `HEARTBEAT_MS`. */
   heartbeatMs?: number
-  /** What the run in flight has shown so far: bubbles and tools. The outbox knows. Null before it saw the run start. */
   progress?: () => RunProgress | null
-  /** The harness went idle: no task and no submission. The agent frees what only a run needs. */
   onIdle?: () => void
-  /** A run that no human started passed twice its budget and was aborted (section 25.2). */
   onTimeout?: () => void | Promise<void>
-  /** The brief a run that goes on shows: the fresh run already showed the rest. */
   shortBrief?: (brief: string) => string
-  /** The harness tables were dropped: the agent forgets the run state it keeps beside them. */
   onReset?: () => void
-  /** The budget of a run no human started. Default `AUTO_RUN_BUDGET_MS`; the dev route shortens it. */
   autoBudgetMs?: () => Promise<number>
 }
 
@@ -197,31 +124,15 @@ export type HostStatus = {
   submissions: number
 }
 
-/** A row key in the wakeups table that is not a wakeup: the time until which a human message is expected. */
 const HUMAN_COMING = "human-coming"
-/** The longest a burst stays open (MAX_BURST_MS) plus a margin. */
 const HUMAN_COMING_MS = 10_000
 
-/**
- * Architecture section 25.2. A run no human message started gets this long. Past it the run is told
- * once to post what it has and stop; at twice it is aborted. A human message joining the run lifts it.
- */
 export const AUTO_RUN_BUDGET_MS = 10 * 60_000
 
-/** Consecutive failures of one kind before the harness state is rebuilt. */
 const RESET_AFTER = 3
-/** Failures that come from stored harness state, not from the provider or the network. */
 const UNRECOVERABLE = /unresolvable path|unsafe path|sqlite database is closed|malformed/i
-/**
- * Processes in a row that opened to unfinished work without the harness going idle in between. A run
- * that kills its process every time (past the memory limit, say) would otherwise resume forever, and
- * every resume calls the model again on the user's key. The count is stored because the process that
- * would count it in memory is the one that dies. Borrowed from the Agents SDK's alarm breaker
- * (cloudflare/agents#1825).
- */
 const MAX_RESUMES = 3
 const RESUMES_KEY = "crash:resumes"
-/** The tables `pi-durable`'s SQLite storage creates (its migrations.ts). Kiko's own tables are kept. */
 const PI_DURABLE_TABLES = ["document_revisions", "documents", "submissions", "tasks", "entries", "conversations", "record_ids", "durable_metadata", "durable_schema"]
 
 export class AgentHost {
@@ -231,7 +142,6 @@ export class AgentHost {
   private opened?: Promise<Opened>
   private failures = 0
   private watchingIdle = false
-  /** This process resumed a dead one's work, so the stored resume count is cleared once idle. */
   private resumed = false
 
   constructor(
@@ -239,19 +149,12 @@ export class AgentHost {
     private readonly options: HostOptions,
   ) {
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)")
-    // Section 25.3: the authority of the run chain in flight, kept until the harness goes idle.
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_authority (id INTEGER PRIMARY KEY CHECK (id = 1), authority TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
     this.inbox = new Inbox(ctx.storage)
     this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
   }
 
-  /**
-   * Stores the envelopes and sets the inbox wakeup to now. It touches only this object's own storage,
-   * so it cannot wait on another Durable Object or a model. Returns every id of the call: a receipt
-   * means "stored", and a repeated id was stored before. A delivery past the inbox caps stores
-   * nothing and comes back with `refused`, never as an exception.
-   */
   async receive(envelopes: readonly Envelope[], brief: string): Promise<{ admitted: string[]; refused?: Refusal }> {
     const { admitted, inserted, refused } = this.inbox.admit(envelopes, brief)
     if (refused) return { admitted, refused }
@@ -259,10 +162,6 @@ export class AgentHost {
     return { admitted }
   }
 
-  /**
-   * The human pressed stop (section 6.2). Discards every input not yet submitted and asks the alarm
-   * to abort the run. Like `receive()`, it touches only this object's storage and returns.
-   */
   async stop(): Promise<{ discarded: number }> {
     const discarded = this.inbox.discard()
     await this.ctx.storage.put(STOP_KEY, true)
@@ -270,14 +169,8 @@ export class AgentHost {
     return { discarded }
   }
 
-  /**
-   * The `AgentDO` alarm. Alarms arrive at least once, and every step here is idempotent: the inbox
-   * claim is a transaction, and a repeated submit with the same request id is a no-op. A failure
-   * re-arms with backoff and returns, so the runtime's six alarm retries are never spent.
-   */
   async alarm(): Promise<void> {
     try {
-      // The keys only say why the alarm fired. The inbox table and the live tasks say what to do.
       await this.alarms.dueWakeups(Date.now())
       await this.compactIfDue()
       const opened = await this.open()
@@ -287,36 +180,25 @@ export class AgentHost {
       this.failures = 0
     } catch (error) {
       this.failures++
-      // Only the message: a provider error never carries the key, and nothing else is logged.
       const message = error instanceof Error ? error.message : String(error)
       console.error(`agent alarm failed (${this.failures}): ${message}`)
       await this.drop()
-      // A harness whose stored state cannot replay (a write lost under SQLITE_BUSY leaves a streaming
-      // document that no later delta applies to) fails the same way on every retry, and the agent goes
-      // silent for good. After three such failures the harness state is rebuilt and the newest batch is
-      // answered again. The room log keeps the transcript, so the agent loses only its private history.
       if (this.failures >= RESET_AFTER && UNRECOVERABLE.test(message)) {
         this.reset()
         this.failures = 0
       }
-      // The batches this drain took go back, so the retry submits them at once.
       this.inbox.release()
       const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), this.heartbeatMs)
       await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + delay)
     }
   }
 
-  /**
-   * Opens the harness once per process. Opening resumes, because a fresh process may hold tasks that a
-   * dead one left unfinished. A live process is never resumed again.
-   */
   open(): Promise<Opened> {
     if (this.opened) return this.opened
     const opening = (async () => {
       const setup = await this.options.setup()
       let opened = await this.openHarness(setup)
       if (await this.crashLooping(opened.harness)) {
-        // The run is dropped, not resumed. The room log keeps the transcript.
         await opened.harness.close(context).catch(() => {})
         this.reset(false)
         opened = await this.openHarness(setup)
@@ -326,7 +208,6 @@ export class AgentHost {
       opened.harness.resume()
       return opened
     })()
-    // A failed open is not cached, so the next alarm tries again.
     opening.catch(() => {
       if (this.opened === opening) this.opened = undefined
     })
@@ -341,10 +222,6 @@ export class AgentHost {
     return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact }
   }
 
-  /**
-   * Called before `resume()`. Live tasks at open were left by a dead process. True once more than
-   * `MAX_RESUMES` processes in a row opened to such work: the caller drops it instead of resuming.
-   */
   private async crashLooping(harness: Harness): Promise<boolean> {
     const live = await harness.inspect(context)
     if (live.tasks.length === 0) {
@@ -362,7 +239,6 @@ export class AgentHost {
     return false
   }
 
-  /** The harness went idle: the run chain finished, so the resume count starts over. */
   private async idle(): Promise<void> {
     this.ctx.storage.sql.exec("DELETE FROM run_authority")
     if (this.resumed) {
@@ -372,16 +248,10 @@ export class AgentHost {
     await this.compact()
   }
 
-  /**
-   * Marks the drop of pi-durable's tables as due once `COMPACT_EVERY_RUNS` fresh starts have passed. It runs at
-   * the start of the next alarm, before the harness opens, so a delivery that arrives meanwhile can
-   * never open a harness on tables about to be dropped.
-   */
   private async compact(): Promise<void> {
     if (((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) >= COMPACT_EVERY_RUNS) await this.ctx.storage.put(COMPACT_DUE_KEY, true)
   }
 
-  /** The drop itself, in the alarm, while nothing runs: no live task, nothing claimed. */
   private async compactIfDue(): Promise<void> {
     if (!(await this.ctx.storage.get<boolean>(COMPACT_DUE_KEY))) return
     const opened = await this.open()
@@ -394,7 +264,6 @@ export class AgentHost {
     await this.ctx.storage.delete(COMPACT_DUE_KEY)
   }
 
-  /** The child conversations of the root, with the task that owns each (P6-05). Opens the harness. */
   async children(): Promise<{ id: string; taskId: string }[]> {
     const { root, storage } = await this.open()
     const page = await storage.scanConversations({ ownerConversationId: root.id }, 100, undefined, context)
@@ -409,21 +278,12 @@ export class AgentHost {
     return { open: true, inbox, tasks: live.tasks.length, submissions: live.submissions.length }
   }
 
-  /**
-   * Applies a pending stop, then submits every claimed batch as one input each. The mid-run rules
-   * (section 6.2) pick how: a restart aborts the run first, a steer joins it after the current tool
-   * round, and a queue waits for its answer. A batch claimed before a crash is submitted again with
-   * the same request id, which `pi-durable` ignores.
-   */
   private async drain({ harness, root, storage, beginRun, inputContext, inputMemory }: Opened): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
-      // Withdraws every queued input and aborts the run's tasks, then waits until the conversation is idle.
       await root.abort(context)
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
     }
     for (const batch of await this.inbox.claim()) {
-      // A batch a dead process submitted before it could mark it: `pi-durable` has it, so it is done. Only a
-      // batch `pi-durable` never saw may be held, because a hold puts its rows back into the next batch.
       if (await storage.submissionByRequest(root.id, batch.requestId, context)) {
         this.inbox.submitted(batch.requestId)
         continue
@@ -431,40 +291,28 @@ export class AgentHost {
       const arrival = arrivalOf(batch)
       const run = await this.runState(harness, root)
       const action = decide(run, arrival)
-      // Every check that holds a batch runs before `beginRun`, so a held batch loads no credential and
-      // syncs no extension, however often it is held.
       const humanSoon = this.humanComingUntil() > Date.now()
       if (arrival.kind === "human") this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
-      // A human message is on its way (the room's burst is still open): agent and system mail waits for it.
       if (humanSoon && arrival.kind !== "human") {
         this.inbox.hold(batch.requestId)
         await this.alarms.setWakeup(INBOX_WAKEUP, this.humanComingUntil())
         continue
       }
-      // Only a running root turn holds a batch. Background tasks alone (a subagent) do not.
       if (action === "hold" && (await this.rootPlaced(harness, root))) {
-        // The batch waits in the inbox. `watchIdle` sets the inbox wakeup when the run answers.
         this.inbox.hold(batch.requestId)
         continue
       }
-      // A batch for an idle conversation starts a run. Without credentials it starts nothing.
       if (!run && beginRun && !(await beginRun(batch, root))) {
         this.inbox.submitted(batch.requestId)
         continue
       }
-      // The restart count belongs to the run chain. A submit to an idle conversation starts a new one.
       let restarts = run?.restarts ?? 0
       if (action === "restart") {
-        // The run showed nothing yet. The aborted partial is dropped and its input stays in the
-        // transcript, so the model answers both turns at once.
         await root.abort(context)
         restarts++
       }
       await this.ctx.storage.put(RESTARTS_KEY, restarts)
       const whenBusy = action === "steer" ? ({ whenBusy: "steer" } as const) : {}
-      // Section 13. A new run either goes on with the transcript plus what is new in the chat, or, when
-      // the transcript is empty or past its budget, starts over from the <memory> block. A restart and a
-      // steer keep their context, since the aborted burst must stay in view.
       let memory: string | undefined
       let fresh = false
       if (!run && inputMemory) {
@@ -478,8 +326,6 @@ export class AgentHost {
         await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
       }
-      // A batch the root is not answering starts a new turn, so it starts its own authority, even while a
-      // background task (a subagent) of an earlier run is still live (section 25.3).
       this.joinAuthority(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
       const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
@@ -487,16 +333,10 @@ export class AgentHost {
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
       if (shown.key) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
-      // A batch that joined a live run is in the transcript, so the next delta leaves it out.
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
   }
 
-  /**
-   * Section 25.3. The run's authority. A batch that starts a root turn sets it; a batch that joins a
-   * turn in progress (a steer, a queued follow-up) combines with it, so a human message gives the turn
-   * the human's authority and anything else can only narrow it.
-   */
   private joinAuthority(batch: Batch, fresh: boolean): void {
     const incoming = authorityOfAll(batch.envelopes) ?? AUTO
     const row = this.ctx.storage.sql.exec<{ authority: string }>("SELECT authority FROM run_authority WHERE id = 1").toArray()[0]
@@ -511,16 +351,11 @@ export class AgentHost {
     this.ctx.storage.sql.exec("UPDATE run_authority SET authority = ? WHERE id = 1", JSON.stringify(combine(JSON.parse(row.authority) as Authority, incoming)))
   }
 
-  /** The authority of the run in flight. With no record, as after a crash before one was written, `auto`: fail closed. */
   authority(): Authority {
     const row = this.ctx.storage.sql.exec<{ authority: string }>("SELECT authority FROM run_authority WHERE id = 1").toArray()[0]
     return row ? (JSON.parse(row.authority) as Authority) : AUTO
   }
 
-  /**
-   * Section 25.2. A run that no human started and that passed its budget is told once to wrap up, as a
-   * steer after its current tool round. Past twice the budget it is aborted. Checked on every heartbeat.
-   */
   private async enforceBudget({ harness, root }: Opened): Promise<void> {
     const row = this.ctx.storage.sql.exec<{ authority: string; started_at: number; steered: number }>("SELECT authority, started_at, steered FROM run_authority WHERE id = 1").toArray()[0]
     if (!row || (JSON.parse(row.authority) as Authority).origin === "human") return
@@ -529,7 +364,6 @@ export class AgentHost {
     if (age < budget) return
     if (!(await this.runState(harness, root))) return
     if (age >= 2 * budget) {
-      // Told first, so the run's end is reported as a timeout, not as an answer.
       await this.options.onTimeout?.()
       await root.abort(context)
       this.ctx.storage.sql.exec("DELETE FROM run_authority")
@@ -541,18 +375,15 @@ export class AgentHost {
     await root.submit({ type: "input", content, requestId: `budget:${row.started_at}`, whenBusy: "steer" }, context)
   }
 
-  /** Whether the next run starts over from the <memory> block: see `startsFresh`. */
   private async contextFull(root: Conversation): Promise<boolean> {
     const view = await root.context(context)
     return startsFresh(measure(view.entries, Date.now() - ((await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0)))
   }
 
-  /** The seqs of messages that joined a live run since the last run started (`JOINED_KEY`). */
   async joinedSeqs(): Promise<number[]> {
     return (await this.ctx.storage.get<number[]>(JOINED_KEY)) ?? []
   }
 
-  /** The root conversation's run, or null when it is idle. */
   private async runState(harness: Harness, root: Conversation): Promise<RunState | null> {
     const live = await harness.inspect(context)
     const mine = live.submissions.filter((s) => s.conversationId === root.id)
@@ -564,27 +395,19 @@ export class AgentHost {
     }
   }
 
-  /**
-   * Section 7.8. The room says a human message is in its burst window. Until it arrives (or
-   * `HUMAN_COMING_MS` passes), no agent or system batch is placed. Stored as a row in the wakeups
-   * table's sibling key so it survives eviction; it is a hint, so a lost one only costs ordering.
-   */
   humanComing(): void {
     this.ctx.storage.sql.exec("INSERT OR REPLACE INTO wakeups (key, at) VALUES (?, ?)", HUMAN_COMING, Date.now() + HUMAN_COMING_MS)
   }
 
-  /** The room's burst closed with no message for this agent: the mail the hint held goes now. */
   async humanGone(): Promise<void> {
     if (!this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING).rowsWritten) return
     if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
   }
 
-  /** How many times pi-durable's tables were dropped. Part of every run id after the first time. */
   epoch(): number {
     return this.ctx.storage.sql.exec<{ n: number }>("SELECT n FROM harness_epoch WHERE id = 1").toArray()[0]?.n ?? 0
   }
 
-  /** A human message waits in the inbox or in the room's open burst. A waiting tool stops for it (section 7.8). */
   humanWaiting(): boolean {
     return this.inbox.humanWaiting() || this.humanComingUntil() > Date.now()
   }
@@ -593,20 +416,17 @@ export class AgentHost {
     return this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HUMAN_COMING).toArray()[0]?.at ?? 0
   }
 
-  /** True while a root input is placed, that is, while the root conversation is answering. */
   private async rootPlaced(harness: Harness, root: Conversation): Promise<boolean> {
     const live = await harness.inspect(context)
     return live.submissions.some((s) => s.conversationId === root.id && s.status === "placed")
   }
 
-  /** Keeps the heartbeat while any task or submission is live, and removes it once the harness is idle. */
   private async pulse(harness: Harness): Promise<void> {
     const live = await harness.inspect(context)
     if (live.tasks.length === 0 && live.submissions.length === 0) {
       await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
       await this.idle()
       this.options.onIdle?.()
-      // The run answered between the drain's check and now, so a batch it held is placed at once.
       if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
       return
     }
@@ -614,11 +434,6 @@ export class AgentHost {
     this.watchIdle(harness)
   }
 
-  /**
-   * Removes the heartbeat when the run ends, which saves the one alarm that would only find the harness
-   * idle. It checks again before clearing, and the clear runs in the same turn as that check, so a
-   * submit that landed in between keeps its heartbeat.
-   */
   private watchIdle(harness: Harness): void {
     if (this.watchingIdle) return
     this.watchingIdle = true
@@ -627,7 +442,6 @@ export class AgentHost {
       .then(async () => {
         this.watchingIdle = false
         const live = await harness.inspect(context)
-        // A held agent or system batch is placed now that the run answered (section 7.8).
         if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
         if (live.tasks.length === 0 && live.submissions.length === 0) {
           await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
@@ -636,22 +450,13 @@ export class AgentHost {
         } else this.watchIdle(harness)
       })
       .catch(() => {
-        // The harness closed or failed. The heartbeat stays armed and the next alarm reopens it.
         this.watchingIdle = false
       })
   }
 
-  /**
-   * Drops every `pi-durable` table and the outbox's run state. With `requeue`, the newest batch goes
-   * back in the inbox to be answered again; the breaker passes false, since that batch is the one
-   * that kept failing.
-   */
   private reset(requeue = true): void {
     const sql = this.ctx.storage.sql
     for (const table of PI_DURABLE_TABLES) sql.exec(`DROP TABLE IF EXISTS ${table}`)
-    // pi-durable's entry ids start over with its tables, and a run id is built from one, so the epoch
-    // goes into every run id from now on. Without it, the room takes a new run's bubbles for repeats of
-    // an old run's and stores none of them.
     sql.exec("INSERT INTO harness_epoch (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1")
     this.options.onReset?.()
     if (!requeue) return
@@ -662,10 +467,6 @@ export class AgentHost {
     console.error("agent harness reset after repeated unrecoverable failures")
   }
 
-  /**
-   * Account deletion. Aborts the run and closes the harness before the storage under it is deleted. A
-   * harness left running on deleted tables kept the isolate busy for good, so no other request was served.
-   */
   async shutdown(): Promise<void> {
     const opened = await this.opened?.catch(() => undefined)
     this.opened = undefined
@@ -674,7 +475,6 @@ export class AgentHost {
     await opened.harness.close(context).catch(() => {})
   }
 
-  /** Forgets the harness after a failure. A fatal storage error poisons the session, so it is never reused. */
   private async drop(): Promise<void> {
     const opened = this.opened
     this.opened = undefined
@@ -683,7 +483,6 @@ export class AgentHost {
   }
 }
 
-/** A batch with any human envelope is a human arrival. */
 function arrivalOf(batch: Batch): Arrival {
   return { kind: batch.envelopes.some((e) => e.from.kind === "human") ? "human" : (batch.envelopes[0]?.from.kind ?? "system") }
 }

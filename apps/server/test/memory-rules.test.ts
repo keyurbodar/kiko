@@ -9,8 +9,6 @@ import { buildBrief, shortBrief } from "../src/room/brief"
 import type { MemberRow } from "../src/room/members"
 import { norm } from "@kiko/memory/life"
 
-// Section 13.4 and 7.4: the small rules that keep a run from paying twice for what it already has.
-
 const zoomCases: [string, ReturnType<typeof parseZoomId>][] = [
   ["chat:12", { log: "chat", id: "12" }],
   ["#12", { log: "chat", id: "12" }],
@@ -65,13 +63,10 @@ test("only the newest brief shows, once, until it changes or the run starts fres
   const b = brief(null, "reading a web page")
   const first = briefToShow([a], true, undefined, shortBrief)
   expect(first.brief).toBe(a)
-  // The same brief again, on a run that goes on: the transcript has it.
   expect(briefToShow([a], false, first.key, shortBrief)).toEqual({ key: first.key })
-  // A batch with two briefs shows only the newest, without the long line.
   const next = briefToShow([a, b], false, first.key, shortBrief)
   expect(next.brief).toBe(shortBrief(b))
   expect(next.key).not.toBe(first.key)
-  // A fresh run shows it in full even when unchanged, since the transcript starts over.
   expect(briefToShow([b], true, next.key, shortBrief).brief).toBe(b)
   expect(briefToShow([], false, next.key, shortBrief)).toEqual({})
 })
@@ -101,7 +96,6 @@ test("the prompt reads a file once per run, and again when the run changes", asy
   expect(await read()).toBe(1)
   run = 2
   expect(await read()).toBe(2)
-  // Without a stamp, every request reads.
   const every = perRun(async () => ++reads)
   await every()
   await every()

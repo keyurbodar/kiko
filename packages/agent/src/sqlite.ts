@@ -19,8 +19,6 @@ export function openDurableObjectSqlite(storage: DurableObjectStorage): SqliteDa
   let closed = false
 
   let pending = 0
-  // A statement runs at once when nothing waits, so the common case costs no promise hop. While a
-  // transaction is open, it and everything after it wait their turn (the Agents SDK's adapter does the same).
   const now = <T>(operation: () => T): Promise<T> => {
     if (pending > 0) return held(operation)
     try {
@@ -73,8 +71,6 @@ export function openDurableObjectSqlite(storage: DurableObjectStorage): SqliteDa
           }
         }),
       ),
-    // The Durable Object owns the database, so there is nothing to release. Closing only stops
-    // later calls, after everything already queued has finished.
     close: () =>
       held(() => {
         closed = true
