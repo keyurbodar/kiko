@@ -627,6 +627,9 @@ export function VirtualThread(props: {
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
     const onViewportResize = () => {
+      // The composer grew (a reply bar, a second line, an attachment) or the window shrank. A
+      // reader at the latest message stays there; the committed state is still the old size.
+      if (isAtLatest()) scroller.scrollTop = scroller.scrollHeight
       seedAnchor()
       commitState(readState())
     }
