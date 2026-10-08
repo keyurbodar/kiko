@@ -1,3 +1,4 @@
+import { createSignal, type Setter } from "solid-js";
 import type { ChatMessage } from "../../lib/types";
 import { startsTimeBreak } from "./time-label";
 
@@ -262,18 +263,70 @@ function sameItem(a: TimelineItem, b: TimelineItem): boolean {
   return true;
 }
 
+type MessageItem = TimelineItem & { kind: "message" };
+type Run = Pick<MessageItem, "runKey" | "runIndex" | "runSize" | "isRunStart" | "isRunEnd" | "hasRunGapBefore">;
+
+const runOf = (item: MessageItem): Run => ({
+  runKey: item.runKey,
+  runIndex: item.runIndex,
+  runSize: item.runSize,
+  isRunStart: item.isRunStart,
+  isRunEnd: item.isRunEnd,
+  hasRunGapBefore: item.hasRunGapBefore,
+});
+
+const sameRun = (a: Run, b: Run) =>
+  a.runKey === b.runKey &&
+  a.runIndex === b.runIndex &&
+  a.runSize === b.runSize &&
+  a.isRunStart === b.isRunStart &&
+  a.isRunEnd === b.isRunEnd &&
+  a.hasRunGapBefore === b.hasRunGapBefore;
+
+/** The setter of each message row's run fields, so a row can move inside its run in place. */
+const moves = new WeakMap<TimelineItem, Setter<Run>>();
+
+/** A message row whose run fields are reactive. */
+function live(item: MessageItem): MessageItem {
+  const [run, setRun] = createSignal(runOf(item), { equals: sameRun });
+  const out: MessageItem = {
+    kind: "message",
+    key: item.key,
+    message: item.message,
+    get runKey() { return run().runKey; },
+    get runIndex() { return run().runIndex; },
+    get runSize() { return run().runSize; },
+    get isRunStart() { return run().isRunStart; },
+    get isRunEnd() { return run().isRunEnd; },
+    get hasRunGapBefore() { return run().hasRunGapBefore; },
+  };
+  moves.set(out, setRun);
+  return out;
+}
+
 /**
  * `next` with every item that did not change replaced by the object it had last time.
  *
  * The virtual list keys its rows by object, so a new object for an unchanged message is a
- * row torn down and built again: its menu, its swipe, its bubble. Without this, every frame
- * that touched the transcript (a typing change, one new message) rebuilt
- * every visible row. `previous` maps key to item and is updated in place.
+ * row torn down and built again: its menu, its swipe, its bubble, and the entry animation of
+ * a bubble that just arrived. Without this, every frame that touched the transcript (a typing
+ * change, one new message) rebuilt every visible row.
+ *
+ * A message whose only change is its place in its run keeps its object too, and its run
+ * fields update in place. An agent posts a reply as several bubbles, and each one moves the
+ * bubbles above it inside the run; rebuilding them replayed their entry animation, which read
+ * as the agent's earlier messages arriving again. `previous` maps key to item and is updated
+ * in place.
  */
 export function keepUnchanged(previous: Map<string, TimelineItem>, next: TimelineItem[]): TimelineItem[] {
   const out = next.map((item) => {
     const old = previous.get(item.key);
-    return old && sameItem(old, item) ? old : item;
+    if (old && sameItem(old, item)) return old;
+    if (item.kind !== "message") return item;
+    const move = old?.kind === "message" && old.message === item.message ? moves.get(old) : undefined;
+    if (!move) return live(item);
+    move(runOf(item));
+    return old!;
   });
   previous.clear();
   for (const item of out) previous.set(item.key, item);

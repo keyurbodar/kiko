@@ -294,14 +294,19 @@ describe("keepUnchanged", () => {
     second.forEach((item, i) => expect(item).toBe(first[i]));
   });
 
-  test("a row whose run changed or whose message changed is a new object", () => {
+  test("a row that only moved inside its run keeps its object, and its run fields follow", () => {
     const seen = new Map<string, TimelineItem>();
     const [, rowB] = messageRows(keepUnchanged(seen, buildTimelineItems([a, b], null)));
-    const [rowA, rowB2, rowC] = messageRows(keepUnchanged(seen, buildTimelineItems([a, b, c], null)));
-    // b ended the run and now sits inside it, so it renders again. c is new.
-    expect(rowB2).not.toBe(rowB);
+    const [, rowB2, rowC] = messageRows(keepUnchanged(seen, buildTimelineItems([a, b, c], null)));
+    // b ended the run and now sits inside it. Rebuilding it would replay its entry animation.
+    expect(rowB2).toBe(rowB);
     expect(rowB2.isRunEnd).toBe(false);
     expect(rowC.message).toBe(c);
+  });
+
+  test("a row whose message changed is a new object", () => {
+    const seen = new Map<string, TimelineItem>();
+    const [rowA] = messageRows(keepUnchanged(seen, buildTimelineItems([a, b, c], null)));
     const edited = { ...a, body: "edited" };
     const [rowA2] = messageRows(keepUnchanged(seen, buildTimelineItems([edited, b, c], null)));
     expect(rowA2).not.toBe(rowA);
