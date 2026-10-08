@@ -2,7 +2,7 @@ import type { McpOAuthState, McpOAuthStateStore } from "@earendil-works/pi-mcp/o
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 
 // Architecture section 12.1. A user's Executor Cloud secrets, sealed in `UserDO` SQLite with
-// the same envelope encryption as provider credentials (lib/crypto.ts, P4-01). Each row is
+// the same envelope encryption as provider credentials (@kiko/durable/crypto, P4-01). Each row is
 // one named secret. The name is part of the AAD, so a row cannot be moved to another name
 // or another user. Nothing here logs a value or puts one in an error.
 

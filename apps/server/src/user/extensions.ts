@@ -14,7 +14,7 @@ import {
 } from "@kiko/protocol"
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import { type Fetcher, safeRequest, type SafeRequest } from "@kiko/durable/safe-fetch"
-import type { GuestRequest, GuestResponse } from "../agent/script/compile"
+import type { GuestRequest, GuestResponse } from "@kiko/sandbox/compile"
 
 // Architecture section 24.2. A user's extensions live in their `UserDO`, as data: the bundle by
 // content hash, the switches, the secrets (sealed like provider keys), and each extension's state.

@@ -732,7 +732,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		markReactionsBriefed(this.log, mail.to, d.reactionsUpTo)
 	}
 
-	// Log memory (architecture section 13). The logic is in memory.ts and lib/optmem.ts.
+	// Log memory (architecture section 13). The logic is in memory.ts and @kiko/memory/optmem.
 
 	/**
 	 * RPC for an agent starting a run: this chat as its <memory> block shows it, older turns compressed,

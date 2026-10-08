@@ -42,7 +42,7 @@ import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "./recurrence"
 import { CHIEF } from "../room/chief"
 import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
-import type { GuestRequest, GuestResponse } from "../agent/script/compile"
+import type { GuestRequest, GuestResponse } from "@kiko/sandbox/compile"
 import { closeSockets, storedRows, wipeStorage } from "@kiko/durable/wipe"
 import type { Authority } from "@kiko/agent/authority"
 
@@ -611,7 +611,7 @@ export class UserDO extends DurableObject<Env> {
     return this.saveTheme(theme)
   }
 
-  // Memory: the user's life log (architecture section 13). The logic is in life.ts and lib/optmem.ts.
+  // Memory: the user's life log (architecture section 13). The logic is in @kiko/memory.
 
   private setting(key: string): string | null {
     return this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null

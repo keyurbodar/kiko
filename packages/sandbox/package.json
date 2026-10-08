@@ -1,0 +1,20 @@
+{
+  "name": "@kiko/sandbox",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": { "./*": "./src/*.ts" },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@earendil-works/chord": "1.0.0",
+    "@earendil-works/pi-ai": "^1.0.0",
+    "@earendil-works/pi-durable": "^1.0.0",
+    "@kiko/agent": "workspace:*",
+    "quickjs-wasi": "3.6.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5.9.0"
+  }
+}

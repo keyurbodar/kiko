@@ -3,7 +3,7 @@ import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
 // Runs pi-durable's storage conformance suite inside workerd, on a real Durable Object, through
-// Miniflare. The worker is bundled from `sqlite-worker.ts` and `src/agent/sqlite.ts`, so the test
+// Miniflare. The worker is bundled from `sqlite-worker.ts` and `@kiko/agent/sqlite`, so the test
 // cannot drift from the source. Every case runs in a fresh Durable Object.
 let mf: Miniflare
 

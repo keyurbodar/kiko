@@ -21,7 +21,7 @@ const BURST_MS = 1_000
 const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
 const RESTART = process.env.KIKO_LATENCY_RESTART
 const RESTART_RUNS = Number(process.env.KIKO_LATENCY_RESTART_RUNS ?? 3)
-/** Well under the agent's 30 s heartbeat (agent/host.ts HEARTBEAT_MS). */
+/** Well under the agent's 30 s heartbeat (@kiko/agent/host HEARTBEAT_MS). */
 const ALIVE_LIMIT_MS = 15_000
 
 type Status = Extract<RoomToClient, { t: "status" }>

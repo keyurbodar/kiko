@@ -23,7 +23,7 @@ import { routinesRoute } from "./user/routines-route"
 import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
-import { setScriptWasm } from "./agent/script/wasm"
+import { setScriptWasm } from "@kiko/sandbox/wasm"
 import quickjsWasm from "quickjs-wasi/quickjs.wasm"
 
 // Extensions run in QuickJS (architecture section 24.3). The runtime compiles the binary once per isolate.

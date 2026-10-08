@@ -18,7 +18,7 @@ import { AUTO, type Authority, authorityOfAll, combine } from "./authority"
 
 const context = BACKGROUND_CONTEXT
 
-/** Wakeup keys in `lib/alarm.ts`. */
+/** Wakeup keys in `@kiko/durable/alarm`. */
 export const INBOX_WAKEUP = "inbox"
 export const HEARTBEAT_WAKEUP = "heartbeat"
 /** Architecture section 4.4: at most 30 seconds ahead. */

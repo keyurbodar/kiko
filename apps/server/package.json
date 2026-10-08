@@ -26,6 +26,7 @@
     "@kiko/durable": "workspace:*",
     "@kiko/memory": "workspace:*",
     "@kiko/protocol": "workspace:*",
+    "@kiko/sandbox": "workspace:*",
     "better-auth": "^1.7.7",
     "effect": "4.0.0",
     "fast-png": "^8.0.0",

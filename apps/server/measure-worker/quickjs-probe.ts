@@ -1,4 +1,4 @@
-import { ScriptVM } from "../src/agent/script/vm"
+import { ScriptVM } from "@kiko/sandbox/vm"
 // @ts-ignore wrangler imports .wasm as a compiled module
 import wasm from "quickjs-wasi/quickjs.wasm"
 

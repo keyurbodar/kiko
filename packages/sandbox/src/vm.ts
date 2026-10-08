@@ -1,5 +1,5 @@
 import { EvalFlags, JSException, type JSValueHandle, QuickJS } from "quickjs-wasi"
-import type { ExtensionBundle } from "@kiko/protocol"
+import type { ExtensionBundle } from "./manifest"
 
 // Architecture section 24.3. One QuickJS VM runs one extension's script inside the agent's object.
 // QuickJS is compiled to wasm and imported with the Worker, so no code is evaluated by V8: the

@@ -18,7 +18,7 @@ import {
   wrapSection,
   wrapTool,
 } from "@earendil-works/pi-durable"
-import type { ExtensionBundle, ExtensionManifest, ExtensionStateScope } from "@kiko/protocol"
+import type { ExtensionBundle, ExtensionManifest, ExtensionStateScope } from "./manifest"
 import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
 import { markRunTainted } from "@kiko/agent/trust"
 import { type Bridge, ScriptError, ScriptVM, type Target } from "./vm"

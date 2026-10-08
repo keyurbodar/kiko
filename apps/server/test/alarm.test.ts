@@ -3,7 +3,7 @@ import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
 // Runs the real helper inside workerd through Miniflare. The worker is bundled
-// from src/lib/alarm.ts so the test cannot drift from the source.
+// from @kiko/durable/alarm so the test cannot drift from the source.
 let mf: Miniflare
 
 beforeAll(async () => {

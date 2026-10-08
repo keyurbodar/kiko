@@ -4,8 +4,8 @@ import { defineExtension, defineTool, type Extension, type ToolExecutionApi } fr
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult } from "@kiko/protocol"
 import type { RoomFs } from "../../files/room-fs"
 import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
-import type { CheckReport } from "../script/check"
-import { extensionName } from "../script/compile"
+import type { CheckReport } from "@kiko/sandbox/check"
+import { extensionName } from "@kiko/sandbox/compile"
 import { isRunTainted } from "@kiko/agent/trust"
 
 // Architecture section 24.6. Agents write extensions as files in the chat, at

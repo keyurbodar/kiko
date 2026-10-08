@@ -6,7 +6,7 @@ import type { Alarms } from "@kiko/durable/alarm"
 // only after the recipient admitted them, so a failed or repeated alarm delivers again, and
 // the stable envelope ids make the repeat a no-op in the agent's inbox.
 
-/** The wakeup key in `lib/alarm.ts`. */
+/** The wakeup key in `@kiko/durable/alarm`. */
 export const BURST_WAKEUP = "burst"
 
 // ASSUMPTION: the three numbers of the table in section 6.1. A per-user reply speed may override them later.
@@ -49,7 +49,7 @@ export function debounce(event: "message" | "typing" | "fragment", now: number, 
 
 /**
  * The most of a burst one delivery carries. An agent's inbox refuses a delivery past 500 open rows or
- * 128 KB in one entry (agent/inbox.ts), and a refused burst would wait forever or be dropped. A burst
+ * 128 KB in one entry (@kiko/agent/inbox), and a refused burst would wait forever or be dropped. A burst
  * past either cap goes out in order, in several deliveries. ASSUMPTION: the numbers, well under the caps.
  */
 export const MAX_DELIVERY_ENVELOPES = 100

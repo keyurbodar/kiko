@@ -21,7 +21,7 @@ import type { SoulPort } from "../files/room-fs"
 import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
-import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "./script/compile"
+import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@kiko/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
 
 // Architecture sections 2 and 16. This file is the only place that installs extensions and chooses

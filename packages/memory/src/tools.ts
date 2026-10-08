@@ -5,7 +5,7 @@ import { isRunTainted } from "@kiko/agent/trust"
 
 // Architecture section 13. Memory is not a tool an agent must remember to use: every run opens with a
 // <memory> block, the user's life log and this chat, each a log with older lines compressed (see
-// lib/optmem.ts). The tools are for what the block does not show: `recall` searches every word ever
+// optmem.ts). The tools are for what the block does not show: `recall` searches every word ever
 // said, `zoom` opens a summary line, and `note` adds one lasting fact to the life log.
 
 export const MEMORY = "memory"
