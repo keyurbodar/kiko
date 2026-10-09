@@ -1,4 +1,5 @@
 import { defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
+import { count } from "../../lib/dev-stats"
 
 // Architecture section 7.12. The room sees file changes and messages itself; everything else an
 // agent does happens inside it: integrations through Executor, web pages, subagents, reminders.
@@ -71,6 +72,7 @@ export function presenceExtension(report: (doing: string) => Promise<unknown>): 
     hooks: [
       hook(ToolTask, {
         beforeTool: async (call) => {
+          count(`tool.${call.name}`)
           const doing = describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>)
           // Fire and forget: the board is a picture, never a gate.
           if (doing) void report(doing).catch(() => undefined)

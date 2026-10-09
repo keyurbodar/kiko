@@ -23,6 +23,7 @@ import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
+import { count } from "../lib/dev-stats"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
@@ -159,12 +160,16 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of builtinProviders()) {
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
-    const routed = egress
-      ? {
-          stream: ((model, context, options) => provider.stream(model, context, via(model, options) as never)) as typeof provider.stream,
-          streamSimple: ((model, context, options) => provider.streamSimple(model, context, via(model, options) as never)) as typeof provider.streamSimple,
-        }
-      : {}
+    const routed = {
+      stream: ((model, context, options) => {
+        count("model.turns")
+        return provider.stream(model, context, via(model, options) as never)
+      }) as typeof provider.stream,
+      streamSimple: ((model, context, options) => {
+        count("model.turns")
+        return provider.streamSimple(model, context, via(model, options) as never)
+      }) as typeof provider.streamSimple,
+    }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }
   return { models, settings: { stream: { headers: { "x-opencode-session": sessionId } } } }

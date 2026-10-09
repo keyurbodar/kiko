@@ -31,6 +31,9 @@ const fake = {
   paused: new Map<string, string>(),
   /** `initialize` requests, one per session opened. */
   opened: 0,
+  /** `tools/list` requests, and whether the discovery program fails. */
+  listed: 0,
+  discoveryFails: false,
 }
 let n = 0
 
@@ -128,10 +131,16 @@ async function executor(request: Request): Promise<Response> {
       )
     }
     if (msg.method === "tools/list") {
+      fake.listed++
       return json({ jsonrpc: "2.0", id: msg.id, result: { tools: [{ name: "execute", inputSchema: { type: "object" } }] } })
     }
     if (msg.method === "tools/call") {
       const text = (value: unknown) => json({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })
+      const code = String(msg.params?.arguments?.code ?? "")
+      if (msg.params?.name === "execute" && code.includes("tools.search")) {
+        if (fake.discoveryFails) return text({ status: "completed", execution: { ok: false, error: { message: "boom" } } })
+        return text({ status: "completed", execution: { ok: true, value: [{ path: 'tools.github.profiles["ins_1"]', accounts: ["acc_1"], tools: [{ name: "get_me", input: "{}" }] }] }, unavailableApps: [] })
+      }
       if (msg.params?.name === "execute" && msg.params.arguments?.code === "return 1") return text({ status: "completed", execution: { ok: true, value: 1 } })
       if (msg.params?.name === "execute") {
         const requestId = `apr_${crypto.randomUUID().slice(0, 8)}`
@@ -418,5 +427,31 @@ test("a session executor forgot is opened again, and the call runs once", async 
   const out = (await rpc(user, "executorCall", "execute", { code: "return 1" })) as { content: { text: string }[] }
   expect(JSON.parse(out.content[0]!.text)).toMatchObject({ status: "completed" })
   expect(fake.opened).toBe(before + 1)
+  ws.close()
+})
+
+test("agents get the user's apps in execute's description, from a listing that does not wait", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+  const execute = tools.find((t) => t.name === "execute")!
+  expect(execute.description).toContain('tools.github.profiles["ins_1"].<tool>({ accountId: "acc_1", input })')
+  const listed = fake.listed
+  await rpc(user, "executorTools")
+  expect(fake.listed).toBe(listed)
+  ws.close()
+})
+
+test("a discovery that fails keeps executor's own description", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  fake.discoveryFails = true
+  try {
+    const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+    expect(tools.map((t) => t.name)).toContain("execute")
+    expect(tools.find((t) => t.name === "execute")?.description ?? "").not.toContain("tools.github")
+  } finally {
+    fake.discoveryFails = false
+  }
   ws.close()
 })

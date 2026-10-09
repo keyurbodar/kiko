@@ -1,6 +1,7 @@
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { spill } from "../../agent/extensions/spill"
+import { count } from "../../lib/dev-stats"
 import type { RoomFs } from "../../files/room-fs"
 import { acceptResponse, type ApprovalGate, pendingInteraction, RESUME_TOOL } from "./approval"
 
@@ -31,6 +32,7 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
           replay: t.readOnly ? "safe" : "unsafe",
           execute: async (args, api) => {
             const input = (args ?? {}) as Record<string, unknown>
+            count(`executor.call.${t.name}`)
             try {
               if (t.name === RESUME_TOOL) {
                 const requestId = String(input.requestId ?? "")

@@ -1,9 +1,11 @@
 import type { ExecutorStatus } from "@yuki/protocol"
 import { McpClient, McpSessionExpiredError, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
+import { DISCOVER_PROGRAM, describeExecute, parseCatalog } from "./catalog"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
+import { count } from "../../lib/dev-stats"
 import { userStub } from "../../lib/names"
 import type { SessionLookup } from "../../router"
 import { checkApiKey, CredentialError } from "../../user/credentials"
@@ -28,6 +30,8 @@ const SCOPE = "mcp offline_access"
 const MAX_HELD = 20
 /** A token this close to expiry is refreshed before it is used. */
 const REFRESH_EARLY_MS = 60_000
+/** A tool listing older than this is still served, and a new one loads behind it. */
+const LISTING_FRESH_MS = 60_000
 
 export class ExecutorError extends Error {}
 
@@ -56,6 +60,8 @@ export class ExecutorConnection {
    * Lost with this object. A session Executor has forgotten is opened again on the next call.
    */
   private shared: Promise<McpClient> | undefined
+  /** The tools agents get, with the user's apps in execute's description. Lost with this object. */
+  private listing: { at: number; tools: Promise<ExecutorTool[]> } | undefined
   /**
    * Executor v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only
    * from that session. A held session is never closed until its program is resumed or expires, even
@@ -64,10 +70,22 @@ export class ExecutorConnection {
    */
   private readonly held = new Map<string, { client: McpClient; expiresAt: number }>()
 
+  private readonly fetcher: typeof fetch
+
   constructor(
     private readonly store: ExecutorTokenStore,
-    private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
-  ) {}
+    fetcher: typeof fetch = (input, init) => fetch(input, init),
+  ) {
+    this.fetcher = async (input, init) => {
+      const t = performance.now()
+      try {
+        return await fetcher(input, init)
+      } finally {
+        count("executor.http")
+        count("executor.httpMs", Math.round(performance.now() - t))
+      }
+    }
+  }
 
   /** Begins an OAuth sign-in. Returns the URL the browser opens. */
   async start(origin: string): Promise<string> {
@@ -91,6 +109,7 @@ export class ExecutorConnection {
 
   /** Exchanges the code from the callback for tokens. A pasted key, if any, is replaced. */
   async finish(params: CallbackParams): Promise<ExecutorStatus> {
+    this.listing = undefined
     const generation = this.store.generation
     const state = await this.store.get<StoredState>("oauth")
     const redirectUrl = await this.store.get<string>("redirect")
@@ -119,6 +138,7 @@ export class ExecutorConnection {
   /** Stores a pasted API key in place of any OAuth grant. */
   async connectApiKey(apiKey: unknown): Promise<ExecutorStatus> {
     const key = checkApiKey(apiKey)
+    this.listing = undefined
     this.store.clear()
     await this.store.put("api_key", key)
     return this.status()
@@ -127,6 +147,7 @@ export class ExecutorConnection {
   /** Deletes every Executor row for the user. Returns how many there were. */
   disconnect(): number {
     this.refreshing = undefined
+    this.listing = undefined
     const shared = this.shared
     this.shared = undefined
     void shared?.then((c) => c.close()).catch(() => {})
@@ -161,16 +182,36 @@ export class ExecutorConnection {
     return (await this.tools()).map((t) => t.name)
   }
 
-  /** Every tool Executor offers this user, as plain data for the agent (P7-04). */
-  async tools(): Promise<ExecutorTool[]> {
-    return this.inSession(async (client) =>
-      (await client.listTools()).map((t) => ({
-        name: t.name,
-        ...(t.description ? { description: t.description } : {}),
-        inputSchema: t.inputSchema,
-        ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
-      })),
-    )
+  /**
+   * Every tool Executor offers this user, as plain data for the agent (P7-04). A run never waits
+   * for Executor once a listing exists: an old one is served while a new one loads.
+   */
+  async tools(now = Date.now()): Promise<ExecutorTool[]> {
+    const kept = this.listing
+    if (kept && now - kept.at < LISTING_FRESH_MS) return kept.tools
+    const loading = this.discover()
+    const next = { at: now, tools: loading }
+    this.listing = next
+    loading.catch(() => {
+      if (this.listing === next) this.listing = kept
+    })
+    return kept ? kept.tools : loading
+  }
+
+  /** Lists the tools, and the user's apps for execute's description. Without the apps, Executor's own description stays. */
+  private async discover(): Promise<ExecutorTool[]> {
+    const [listed, catalog] = await Promise.all([
+      this.inSession((client) => client.listTools()),
+      this.call("execute", { code: DISCOVER_PROGRAM })
+        .then((out) => parseCatalog(out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")))
+        .catch(() => null),
+    ])
+    return listed.map((t) => ({
+      name: t.name,
+      ...(t.name === "execute" && catalog ? { description: describeExecute(catalog) } : t.description ? { description: t.description } : {}),
+      inputSchema: t.inputSchema,
+      ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
+    }))
   }
 
   /**
