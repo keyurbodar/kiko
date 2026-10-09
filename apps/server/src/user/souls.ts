@@ -70,14 +70,14 @@ export class Souls {
     return soul
   }
 
-  /** Replaces the soul. `expectSha` refuses the write when someone changed it since it was read. */
-  async set(slug: string, body: string, expectSha?: string): Promise<SoulWrite> {
+  /** Replaces the soul. `expectSha` is the soul the writer read; any other soul refuses the write. */
+  async set(slug: string, body: string, expectSha: string): Promise<SoulWrite> {
     if (!body.trim()) return { ok: false, code: "invalid", message: "a soul cannot be empty" }
     if (body.length > MAX_SOUL) {
       return { ok: false, code: "invalid", message: `that is ${body.length} characters; a soul holds ${MAX_SOUL}. tighten it: merge lessons, drop what no longer matters.` }
     }
     const current = await this.get(slug)
-    if (expectSha && current.sha !== expectSha) return { ok: false, code: "conflict", message: "your soul changed since you read it (the human edited it). read it again." }
+    if (current.sha !== expectSha) return { ok: false, code: "conflict", message: "your soul changed since you read it (the human edited it). read it again." }
     const soul = { body, sha: await sha(body), at: Date.now() }
     this.sql.exec("UPDATE souls SET body = ?, sha = ?, at = ? WHERE slug = ?", soul.body, soul.sha, soul.at, slug)
     return { ok: true, soul }

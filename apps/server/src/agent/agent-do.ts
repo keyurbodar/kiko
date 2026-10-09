@@ -17,10 +17,10 @@ import { imageReader } from "./extensions/files"
 import type { ChiefPort } from "./extensions/chief"
 import { shortBrief } from "../room/brief"
 import { CHIEF } from "../room/chief"
-import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, type SoulPort, withMount, withSoul } from "../files/room-fs"
+import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@yuki/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
-import type { Approvals } from "@yuki/agent/trust"
+import { type Approvals, isRunTainted } from "@yuki/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
 import type { ExecutorTool } from "../integrations/executor/tools"
@@ -313,16 +313,18 @@ export class AgentDO extends DurableObject<Env> {
     }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
     const backend = withMount(roomBackend(this.env, where, cache), HOME_PATH, homeBackend(this.env, where, notice, cache, locked))
-    const fs = new RoomFs(`room-files:${this.ctx.id.toString()}`, withSoul(backend, soul))
-    const files = { fs, acceptsImages: imageReader(user.models) }
+    const id = `room-files:${this.ctx.id.toString()}`
+    const space = withSoul(backend, soul)
+    const views = roomViews(id, space, (conversationId) => isRunTainted({ registry: built.registry.snapshot(), conversationId }))
+    const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts(fs) } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
-      env: fs,
+      env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
         if (!(await this.beginRun(batch.requestId, root))) return false
@@ -504,14 +506,13 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  private builderPorts(fs: RoomFs): BuilderPorts {
+  private builderPorts(): BuilderPorts {
     const where = () => {
       const home = this.home()
       if (!home) throw new Error("this agent has no room yet")
       return home
     }
     return {
-      fs,
       check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
       propose: async (bundle, tainted) => {
         const home = where()

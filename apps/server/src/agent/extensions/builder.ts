@@ -2,7 +2,7 @@ import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult } from "@yuki/protocol"
-import type { RoomFs } from "../../files/room-fs"
+import { filesOf, type RoomFs } from "../../files/room-fs"
 import { declareEffect, type Effect, effectOf } from "@yuki/agent/effects"
 import type { CheckReport } from "@yuki/sandbox/check"
 import { extensionName } from "@yuki/sandbox/compile"
@@ -13,7 +13,6 @@ const ROOT = "extensions"
 const TEXT_FILE = /\.(?:js|mjs|json|md|txt)$/i
 
 export type BuilderPorts = {
-  fs: RoomFs
   check: (bundle: unknown, tools: ReadonlyMap<string, Effect>) => Promise<CheckReport>
   propose: (bundle: unknown, tainted: boolean) => Promise<ExtensionResult>
   list: () => Promise<ExtensionInfo[]>
@@ -67,7 +66,7 @@ export function builderExtension(ports: BuilderPorts): Extension {
             "check the extension in /extensions/<name>/: the manifest, the script, and its tests, in a sandbox with mocks. run it until it says ok, then extension_propose. read the build-an-extension skill first.",
           parameters: NAME,
           execute: async ({ name }, api, context) => {
-            const read = await readBundle(ports.fs, name)
+            const read = await readBundle(filesOf(api), name)
             if ("error" in read) return text(read.error, true)
             const report = await ports.check(read.bundle, await agentTools(api, context, name))
             return text(report.lines.join("\n"), !report.ok)
@@ -82,7 +81,7 @@ export function builderExtension(ports: BuilderPorts): Extension {
             "send the extension in /extensions/<name>/ to the human to review and install. it must pass extension_check. you cannot install it; tell the human it waits in settings → extensions.",
           parameters: NAME,
           execute: async ({ name }, api, context) => {
-            const read = await readBundle(ports.fs, name)
+            const read = await readBundle(filesOf(api), name)
             if ("error" in read) return text(read.error, true)
             const report = await ports.check(read.bundle, await agentTools(api, context, name))
             if (!report.ok) return text(`not proposed: fix these first.\n${report.lines.join("\n")}`, true)
@@ -121,13 +120,13 @@ export function builderExtension(ports: BuilderPorts): Extension {
           name: "extension_open",
           description: "copy an installed extension's files into /extensions/<name>/ so you can change it, then check and propose the new version",
           parameters: NAME,
-          execute: async ({ name }) => {
+          execute: async ({ name }, api) => {
             const bundle = await ports.source(name)
             if (!bundle) return text(`no installed extension named ${name}`, true)
             const dir = `/${ROOT}/${name}`
             const write = async (path: string, body: string) => {
-              const out = await ports.fs.writeFile(path, body)
-              if (!out.ok) throw new Error(`could not write ${path}`)
+              const out = await filesOf(api).writeFile(path, body)
+              if (!out.ok) throw new Error(`could not write ${path}: ${out.error.message}`)
             }
             try {
               await write(`${dir}/extension.json`, `${JSON.stringify(bundle.manifest, null, 2)}\n`)

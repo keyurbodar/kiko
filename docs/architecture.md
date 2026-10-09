@@ -431,6 +431,7 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 - The tool declares `replay: "safe"`. After a crash it finds the same child through the ownership index.
 - The child runs with the parent's model. The child has no `Subagent` extension and no messaging tools, so depth is 1.
 - Several calls in one reply run side by side, since `pi-durable` runs a round's tool calls in parallel by default. One agent runs at most 3 helpers at once (`MAX_HELPERS`) and the rest wait for a slot, because every helper uses the human's one key. The slots are per agent, so the designer's helpers never wait on the writer's. A waiting call whose run is aborted leaves the queue. ASSUMPTION: the number 3.
+- Each helper has its own view of the chat's files (section 18.1), so helpers that race on one file never overwrite each other unseen.
 - The child can `recall` and `zoom` the chat's memory, but has no `note`: it cannot judge what is already known (section 13). It starts with no `<memory>` block and finds what it needs with `recall`. OptChat sends a subagent the whole view first. Yuki does not: that costs a block of tokens on every helper, and the read tools cost nothing until used.
 - Aborting the parent aborts the child. `pi-durable` owns that rule.
 
@@ -991,7 +992,19 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - The protocol dropped `LinkPreview`, `Message.preview`, the `preview` event, `CatalogItem`, the `catalog` frames, and `FileRef`'s `width`, `height`, `thumbhash`, and `thumb`. A schema ignores keys it does not know, so a stored message that still has them decodes. The room socket ignores a retired `catalog` frame from an older client rather than close (`room/socket.ts`), and the client store ignores an event tag it does not know, such as an old `preview`.
 - The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
 - `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
-- R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again. A write carries the hash of the bytes the agent last read at that path, and the room refuses it if the file changed since, so a whole-file `write` never drops a teammate's edit. `edit` reads the file itself, so it lands on top.
+- R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again.
+- **No writer replaces bytes it did not see.** Every write to `/`, `/home`, and `/me/soul.md` names what the writer saw at the path: the SHA-256 of the bytes it read, or `none`. The index refuses anything else (`NewFile.expectSha256`, required). The writers:
+
+  | Writer | What it saw |
+  | --- | --- |
+  | an agent's run, and each of its helpers | its own record of what it read or wrote. pi-durable builds an env per conversation (`HarnessOptions.env`), and yuki gives each conversation its own `RoomFs` (`roomViews`). A tool reaches it as `api.env` (`filesOf`). A path the conversation never read is `none`, so a blind `write` over an existing file is refused with "already exists, and you have not read it" |
+  | a `bash` command | the snapshot it started from (section 18.4) |
+  | the human's file editor | the header `x-yuki-if-sha256`, required on `PUT /api/files/<room>`, and `expect` on a multipart upload. Without it the Worker answers 400 before it stores anything |
+  | the human's soul editor | `expectSha`, required on `PUT /api/souls/<slug>` |
+  | an attachment claim and the room's own `/chat.md` | `none`. The team's `/chat.md`, once it exists, is never replaced |
+
+  So two helpers of one agent that create the same file, or that read one file and both rewrite it, cannot both win: the second is refused and reads again. `edit` reads the file itself, so it lands on top. The taint of a run (section 16.3) reaches the file code the same way, from the conversation's own view. The `AsyncLocalStorage` that carried it is removed.
+- `rm` and `mv` act on the path they name. Between agents, leases (section 7.12) hold them off a teammate's work. ASSUMPTION: a delete or a move by name is what the writer means, so neither checks a hash.
 
 `pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Yuki's `exec` is just-bash (section 18.4), so pi's `bash` tool runs on the same files as the rest.
 

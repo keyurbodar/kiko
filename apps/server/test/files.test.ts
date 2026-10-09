@@ -28,14 +28,20 @@ const as = (user: string) => ({ "x-test-user": user })
 
 type FileBody = { file: { id: string; name: string; size: number; type: string } }
 
-async function put(room: string, path: string, body: string, user = "alice") {
+/** A PUT that says what the writer saw at the path: the sha256 of its bytes, or "none". */
+async function put(room: string, path: string, body: string, expect = "none") {
 	const res = await fetch(`${origin}/api/files/${room}?path=${encodeURIComponent(path)}`, {
 		method: "PUT",
-		headers: { ...as(user), "content-type": "text/plain" },
+		headers: { ...as("alice"), "content-type": "text/plain", "x-yuki-if-sha256": expect },
 		body,
 	})
 	return { status: res.status, body: (await res.json()) as FileBody }
 }
+
+const sha = async (text: string) =>
+	Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) =>
+		b.toString(16).padStart(2, "0"),
+	).join("")
 
 const keys = async (room: string) =>
 	((await (await fetch(`${origin}/keys`)).json()) as string[]).filter((k) => k.includes(room))
@@ -43,7 +49,7 @@ const keys = async (room: string) =>
 test("the same bytes at the same path store one object", async () => {
 	const room = fresh()
 	const first = await put(room, "notes/a.txt", "hello")
-	const second = await put(room, "notes/a.txt", "hello")
+	const second = await put(room, "notes/a.txt", "hello", await sha("hello"))
 	expect(first.status).toBe(200)
 	expect(second.body.file).toEqual(first.body.file)
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${first.body.file.id}`])
@@ -52,7 +58,7 @@ test("the same bytes at the same path store one object", async () => {
 test("new bytes at a path replace the row and delete the old object", async () => {
 	const room = fresh()
 	const first = await put(room, "a.txt", "one")
-	const second = await put(room, "a.txt", "two!")
+	const second = await put(room, "a.txt", "two!", await sha("one"))
 	expect(second.body.file.id).not.toBe(first.body.file.id)
 	expect(second.body.file).toMatchObject({ name: "a.txt", size: 4, type: "text/plain" })
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${second.body.file.id}`])
@@ -86,44 +92,39 @@ test("bad paths and oversized declarations are refused", async () => {
 	const res = await fetch(`${origin}/api/files/${room}/uploads`, {
 		method: "POST",
 		headers: { ...as("alice"), "content-type": "application/json" },
-		body: JSON.stringify({ path: "big.bin", type: "application/octet-stream", size: 2 ** 40 }),
+		body: JSON.stringify({ path: "big.bin", type: "application/octet-stream", size: 2 ** 40, expect: "none" }),
 	})
 	expect(res.status).toBe(413)
 	await res.body?.cancel()
 })
 
-const sha = async (text: string) =>
-	Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("")
-
-async function edit(room: string, path: string, body: string, expect: string) {
-	const res = await fetch(`${origin}/api/files/${room}?path=${encodeURIComponent(path)}`, {
-		method: "PUT",
-		headers: { ...as("alice"), "content-type": "text/plain", "x-yuki-if-sha256": expect },
-		body,
-	})
-	return { status: res.status, body: (await res.json()) as FileBody }
-}
 
 test("an edit with a stale sha is refused and never overwrites the other writer", async () => {
 	const room = fresh()
 	await put(room, "a.txt", "one")
-	const theirs = await put(room, "a.txt", "agent wrote this")
-	const stale = await edit(room, "a.txt", "mine", await sha("one"))
+	const theirs = await put(room, "a.txt", "agent wrote this", await sha("one"))
+	const stale = await put(room, "a.txt", "mine", await sha("one"))
 	expect(stale.status).toBe(409)
 	expect(stale.body.file.id).toBe(theirs.body.file.id)
 	// Only the winner's object is left in R2, and the refused bytes are gone.
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${theirs.body.file.id}`])
-	const fresher = await edit(room, "a.txt", "mine", await sha("agent wrote this"))
+	const fresher = await put(room, "a.txt", "mine", await sha("agent wrote this"))
 	expect(fresher.status).toBe(200)
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${fresher.body.file.id}`])
 })
 
+test("a write that does not say what it saw at the path is refused before anything is stored", async () => {
+	const room = fresh()
+	const res = await fetch(`${origin}/api/files/${room}?path=a.txt`, { method: "PUT", headers: { ...as("alice"), "content-type": "text/plain" }, body: "x" })
+	expect(res.status).toBe(400)
+	await res.body?.cancel()
+	expect(await keys(room)).toEqual([])
+})
+
 test("none creates a file only when the path is empty", async () => {
 	const room = fresh()
-	expect((await edit(room, "new.txt", "", "none")).status).toBe(200)
-	expect((await edit(room, "new.txt", "again", "none")).status).toBe(409)
+	expect((await put(room, "new.txt", "", "none")).status).toBe(200)
+	expect((await put(room, "new.txt", "again", "none")).status).toBe(409)
 })
 
 test("a file has no still route, and new bytes at its path drop the old object", async () => {
@@ -137,6 +138,6 @@ test("a file has no still route, and new bytes at its path drop the old object",
 	expect(get404.status).toBe(404)
 	await get404.body?.cancel()
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${id}`])
-	const second = await put(room, "a.txt", "two!")
+	const second = await put(room, "a.txt", "two!", await sha("one"))
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${second.body.file.id}`])
 })

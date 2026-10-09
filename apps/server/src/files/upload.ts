@@ -11,8 +11,8 @@ import { pendingRoute } from "./pending"
 // `<roomId>` may be `home`, the user's drive (section 18.3): its index is in UserDO.
 //
 //   PUT    /api/files/<roomId>?path=<path>                     one request, up to MAX_SINGLE_PUT_BYTES
-//          x-yuki-if-sha256: <sha256 | none> makes it an edit: 409 { error, file } when the path holds other bytes
-//   POST   /api/files/<roomId>/uploads                         { path, type, size } -> { fileId, uploadId }
+//          x-yuki-if-sha256: <sha256 | none> is required: what the writer saw at the path. 409 { error, file } when it holds other bytes
+//   POST   /api/files/<roomId>/uploads                         { path, type, size, expect } -> { fileId, uploadId }. `expect` as the header above
 //   PUT    /api/files/<roomId>/uploads/<fileId>/<part>?uploadId=  -> { partNumber, etag }
 //   POST   /api/files/<roomId>/uploads/<fileId>?uploadId=      { parts } -> { file }
 //   DELETE /api/files/<roomId>/uploads/<fileId>?uploadId=      aborts
@@ -38,6 +38,10 @@ const MAX_PATH = 512
 const FILE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const FILES_PATH = /^\/api\/files\/([^/]+)(?:\/(.*))?$/
 const HUMAN: Actor = { kind: "human" }
+
+/** What a writer saw at the path: a SHA-256, or "none" for a path that must be empty. Null when malformed. */
+const expectOf = (value: unknown): string | null => (typeof value === "string" && /^(none|[0-9a-f]{64})$/.test(value) ? value : null)
+const EXPECT_ERROR = "say what you saw at the path: the sha256 of its bytes, or none for a new file"
 
 export const userPrefix = (userId: string) => `u/${userId}/`
 
@@ -160,6 +164,8 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	const length = contentLength(request)
 	if (length === null) return error(411, "content-length required")
 	if (length > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
+	const expectSha256 = expectOf(request.headers.get("x-yuki-if-sha256"))
+	if (!expectSha256) return error(400, EXPECT_ERROR)
 	const refused = await refuse(env.FILES, userId, length)
 	if (refused) return refused
 	const id = crypto.randomUUID()
@@ -173,11 +179,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 		}),
 		sha256Of(toHash),
 	])
-	// An edit names the SHA-256 it started from, so a write that landed meanwhile is never overwritten.
-	const expect = request.headers.get("x-yuki-if-sha256")
-	const expectSha256 = expect && /^(none|[0-9a-f]{64})$/.test(expect) ? expect : undefined
-	if (expect && !expectSha256) return error(400, "bad x-yuki-if-sha256")
-	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...(expectSha256 ? { expectSha256 } : {}) })
+	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, expectSha256 })
 }
 
 async function create(request: Request, env: Env, userId: string, roomId: string): Promise<Response> {
@@ -187,12 +189,14 @@ async function create(request: Request, env: Env, userId: string, roomId: string
 	if (!path) return error(400, "bad path")
 	const size = body.size
 	if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 0) return error(400, "bad size")
+	const expect = expectOf(body.expect)
+	if (!expect) return error(400, EXPECT_ERROR)
 	const refused = await refuse(env.FILES, userId, size)
 	if (refused) return refused
 	const fileId = crypto.randomUUID()
 	const upload = await env.FILES.createMultipartUpload(fileKey(userId, roomId, fileId), {
 		httpMetadata: { contentType: mime(body.type) },
-		customMetadata: { path },
+		customMetadata: { path, expect },
 	})
 	return Response.json({ fileId, uploadId: upload.uploadId })
 }
@@ -250,7 +254,9 @@ async function complete(
 	// R2 cannot hash across parts for us, so the Worker reads the object once.
 	const sha256 = await sha256Of(object.body)
 	const type = mime(object.httpMetadata?.contentType)
-	return index(env, userId, roomId, { id: fileId, path, r2Key: key, size: object.size, type, sha256, author: HUMAN })
+	const expectSha256 = expectOf(object.customMetadata?.expect)
+	if (!expectSha256) return error(400, EXPECT_ERROR)
+	return index(env, userId, roomId, { id: fileId, path, r2Key: key, size: object.size, type, sha256, author: HUMAN, expectSha256 })
 }
 
 /** Answers the upload routes. Null for any other request. */

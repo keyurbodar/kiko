@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from "node:async_hooks"
 import type { Context } from "@earendil-works/chord"
 import {
   err,
@@ -13,6 +12,7 @@ import {
   type ShellExecResult,
   type TextLineReader,
 } from "@earendil-works/pi-durable/env"
+import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { AgentSlug } from "@yuki/protocol"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
@@ -30,10 +30,14 @@ import type { CommitResult, IndexChange, NewFile } from "./file-index"
 // Folders are real, as on Linux: mkdir makes one, writing `a/b/c.md` makes `a` and `a/b`, and an
 // emptied folder stays. The R2 key comes from the agent's home, never from the model.
 //
+// One `RoomFs` per conversation. pi-durable builds a conversation's env at each use (`roomViews`), so
+// an agent's run and each of its helpers has its own record of what it read. A write carries the hash
+// this conversation last saw at the path, or "none" when it saw nothing there, so it never overwrites
+// bytes it did not read: a teammate's, a helper's, or the human's. The room refuses it, and the agent
+// reads and tries again.
+//
 // Speed. A stored object never changes (a write makes a new key), so bytes are cached by key with
-// no invalidation: an `edit` right after a `read` fetches nothing from R2. Each write carries the
-// hash of the bytes this agent last saw at the path, so an edit never overwrites a teammate's change
-// it did not read; the room refuses it and the agent reads again.
+// no invalidation: an `edit` right after a `read` fetches nothing from R2.
 
 /** ASSUMPTION: the largest file an agent writes. */
 export const MAX_WRITE_BYTES = 1024 * 1024
@@ -50,8 +54,8 @@ export interface FilesBackend {
   list(dir: string, recursive: boolean): Promise<FsEntry[] | FsFail>
   /** The object's bytes, or its first `maxBytes`. */
   bytes(r2Key: string, maxBytes?: number): Promise<Uint8Array | null>
-  /** Stores bytes at a path. `expectSha256` is the precondition: "none" for a path that must be empty. */
-  write(path: string, bytes: Uint8Array, type: string, expectSha256?: string): Promise<{ ok: true; entry: FsEntry & { kind: "file" } } | FsFail | { ok: false; code: "conflict"; message: string }>
+  /** Stores bytes at a path. `expectSha256` is what the writer saw there: a hash, or "none". */
+  write(path: string, bytes: Uint8Array, type: string, expectSha256: string): Promise<{ ok: true; entry: FsEntry & { kind: "file" } } | FsFail | { ok: false; code: "conflict"; message: string }>
   move(from: string, to: string): Promise<FsChange | FsFail>
   remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
   /** `mkdir -p`. */
@@ -114,12 +118,6 @@ export function typeForPath(path: string): string {
   return MIME_BY_EXTENSION[ext] ?? "text/plain"
 }
 
-/** The taint of the run whose tool call is in flight (section 16). Absent outside a tool call. */
-const RUN_TAINT = new AsyncLocalStorage<boolean>()
-
-/** Runs one tool call as part of a run that is `tainted` or not, so the writes below can check it. */
-export const asRun = <T>(tainted: boolean, fn: () => Promise<T>): Promise<T> => RUN_TAINT.run(tainted, fn)
-
 /** The soul, the chat's skills, and its extensions reach every later system prompt. */
 export const shapesPrompts = (rel: string): boolean => rel === SOUL_PATH || /^(skills|extensions)(\/|$)/.test(rel)
 
@@ -127,15 +125,15 @@ export const shapesPrompts = (rel: string): boolean => rel === SOUL_PATH || /^(s
  * A run that read outside content cannot change what shapes every later run (section 16.3). Returns
  * the one line the agent gets, or null.
  */
-function promptGuard(rels: readonly string[]): FileError | null {
-  if (RUN_TAINT.getStore() !== true) return null
+function promptGuard(rels: readonly string[], tainted: boolean): FileError | null {
+  if (!tainted) return null
   const hit = rels.find(shapesPrompts)
   return hit === undefined ? null : new FileError("invalid", `/${hit} was not changed: this run read outside content, and that file shapes every later run. the human can ask you to change it.`, `/${hit}`)
 }
 
 export class RoomFs implements ExecutionEnv {
   readonly cwd = "/"
-  /** The hash this agent last read or wrote at each room path. */
+  /** The hash this conversation last read or wrote at each room path. */
   private readonly seen = new Map<string, string>()
   /**
    * Stats reused inside one `within` call, null for a missing path. pi's `read` checks a path exists
@@ -146,8 +144,11 @@ export class RoomFs implements ExecutionEnv {
   private depth = 0
 
   constructor(
+    /** pi-durable's file mutation queue keys on it, so every view of one agent shares it. */
     readonly id: string,
     private readonly backend: FilesBackend,
+    /** Whether this conversation's run read outside content (section 16.3). */
+    private readonly tainted: () => boolean = () => false,
   ) {}
 
   /** The room path (no leading slash) of a tool path, or a refusal. */
@@ -221,18 +222,24 @@ export class RoomFs implements ExecutionEnv {
     })
   }
 
-  /** Bytes at a path. Refused when another writer changed the file since this agent last saw it. */
+  /** Bytes at a path. Refused when the path holds bytes this conversation did not read or write. */
   async write(path: string, bytes: Uint8Array, type = typeForPath(path)): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
     const refused = this.unwritable(rel.value, bytes.length, path)
     if (refused) return err(refused)
-    const out = await this.backend.write(rel.value, bytes, type, this.seen.get(rel.value))
+    const expect = this.seen.get(rel.value) ?? "none"
+    const out = await this.backend.write(rel.value, bytes, type, expect)
     // A new file changes its folders too.
     this.stats.clear()
     if (!out.ok) {
-      if (out.code === "conflict") this.seen.delete(rel.value)
-      return err(out.code === "conflict" ? new FileError("unknown", out.message, path) : this.fail(out, path))
+      if (out.code !== "conflict") return err(this.fail(out, path))
+      this.seen.delete(rel.value)
+      const why =
+        expect === "none"
+          ? `${path} already exists, and you have not read it. read it, then write your change into what is there.`
+          : `${path} changed since you last read it (a teammate, a helper, or the human edited it). read it again, then make your change.`
+      return err(new FileError("unknown", why, path))
     }
     this.seen.set(rel.value, out.entry.sha256)
     return ok(out.entry)
@@ -241,7 +248,7 @@ export class RoomFs implements ExecutionEnv {
   /** Why `bytes` bytes cannot go at a room path, or null. */
   private unwritable(rel: string, bytes: number, path: string): FileError | null {
     if (rel === "") return new FileError("is_directory", "/ is a folder", path)
-    const guarded = promptGuard([rel])
+    const guarded = promptGuard([rel], this.tainted())
     if (guarded) return guarded
     if (rel === CHAT_PATH && bytes > MAX_CHAT) {
       return new FileError("invalid", `/chat.md would be ${bytes} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path)
@@ -277,7 +284,7 @@ export class RoomFs implements ExecutionEnv {
             return { ...c, path: rel(c.path) }
         }
       })
-      const guarded = promptGuard(mapped.flatMap(batchPaths))
+      const guarded = promptGuard(mapped.flatMap(batchPaths), this.tainted())
       if (guarded) throw guarded
       const out = await this.backend.commit(mapped)
       this.stats.clear()
@@ -321,7 +328,7 @@ export class RoomFs implements ExecutionEnv {
     if (!a.ok) return a
     const b = this.roomPath(to)
     if (!b.ok) return b
-    const guarded = promptGuard([a.value, b.value])
+    const guarded = promptGuard([a.value, b.value], this.tainted())
     if (guarded) return err(guarded)
     const out = await this.backend.move(a.value, b.value)
     this.stats.clear()
@@ -346,7 +353,7 @@ export class RoomFs implements ExecutionEnv {
       if (!rel.ok) return rel
       rels.push(rel.value)
     }
-    const guarded = promptGuard(rels)
+    const guarded = promptGuard(rels, this.tainted())
     if (guarded) return err(guarded)
     const out = await this.backend.remove(rels, recursive)
     this.stats.clear()
@@ -402,7 +409,7 @@ export class RoomFs implements ExecutionEnv {
   async mkdir(path: string): Promise<Result<FsChange, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
-    const guarded = promptGuard([rel.value])
+    const guarded = promptGuard([rel.value], this.tainted())
     if (guarded) return err(guarded)
     const out = await this.backend.mkdir(rel.value)
     this.stats.clear()
@@ -428,6 +435,25 @@ export class RoomFs implements ExecutionEnv {
   }
 
   async cleanup(_context?: Context): Promise<void> {}
+}
+
+/**
+ * One view of an agent's files per conversation, for pi-durable's `env` option, which builds a
+ * conversation's env at each use. `tainted` reads that conversation's run.
+ */
+export function roomViews(id: string, backend: FilesBackend, tainted: (conversationId: ConversationId) => boolean): (conversationId: ConversationId) => RoomFs {
+  const views = new Map<ConversationId, RoomFs>()
+  return (conversationId) => {
+    let view = views.get(conversationId)
+    if (!view) views.set(conversationId, (view = new RoomFs(id, backend, () => tainted(conversationId))))
+    return view
+  }
+}
+
+/** The calling conversation's view of the chat's files: the env pi-durable built for this call. */
+export function filesOf(api: Pick<ToolExecutionApi, "env">): RoomFs {
+  if (api.env instanceof RoomFs) return api.env
+  throw new Error("this agent has no chat files")
 }
 
 /** An LRU of immutable R2 objects by key. */
@@ -490,10 +516,10 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
       const r2Key = fileKey(h.userId, at.space, id)
       const sha256 = hex(await crypto.subtle.digest("SHA-256", bytes))
       await env.FILES.put(r2Key, bytes, { httpMetadata: { contentType: type } })
-      const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, ...(expectSha256 ? { expectSha256 } : {}) })
+      const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256 })
       if (out.drop) await deleteFiles(env.FILES, out.drop)
       if (out.refused) return out.refused
-      if (out.conflict) return { ok: false, code: "conflict", message: `${path} changed since you last read it (a teammate or the human edited it). read it again, then make your change.` }
+      if (out.conflict) return { ok: false, code: "conflict", message: `${path} holds other bytes` }
       const entry = out.entry
       if (!entry || entry.kind !== "file") return { ok: false, code: "invalid", message: `could not store ${path}` }
       cache.set(entry.r2Key, bytes)
@@ -696,7 +722,7 @@ export interface SoulPort {
   get(): Promise<{ body: string; sha: string; at: number }>
   /** The soul for the system prompt, which may come from the run's start. Default `get`. */
   forPrompt?(): Promise<{ body: string }>
-  set(body: string, expectSha?: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>
+  set(body: string, expectSha: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>
 }
 
 const ME = "me"
@@ -739,6 +765,8 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
     },
     async write(path, bytes, type, expectSha256) {
       if (path !== SOUL_PATH) return mine(path) ? refuse("only /me/soul.md lives in /me") : base.write(path, bytes, type, expectSha256)
+      // The soul always exists, so a write that read nothing there is a write over it.
+      if (expectSha256 === "none") return { ok: false, code: "conflict", message: `${SOUL_PATH} holds other bytes` }
       const out = await soul.set(new TextDecoder().decode(bytes), expectSha256)
       if (!out.ok) return out.code === "conflict" ? { ok: false, code: "conflict", message: out.message } : refuse(out.message)
       return { ok: true, entry: await entry() }

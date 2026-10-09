@@ -28,10 +28,11 @@ export type NewFile = {
   sha256: string
   author: Actor
   /**
-   * A precondition for an edit. A SHA-256 means the path must hold exactly those bytes,
-   * and "none" means the path must be empty. Anything else is a conflict and nothing is written.
+   * What the writer saw at the path: a SHA-256 means the path must hold exactly those bytes, and
+   * "none" means it must be empty. Anything else is a conflict and nothing is written, so no writer
+   * ever replaces bytes it did not see.
    */
-  expectSha256?: string
+  expectSha256: string
 }
 
 /** One entry of a file space. */
@@ -217,7 +218,7 @@ export class FileIndex<E> {
       const same = this.row("id", input.id)
       if (same) return { file: toRef(same), drop: null, events: [] }
       const current = this.row("path", input.path)
-      if (input.expectSha256 !== undefined && (current?.sha256 ?? "none") !== input.expectSha256) {
+      if ((current?.sha256 ?? "none") !== input.expectSha256) {
         return { file: current ? toRef(current) : null, drop: input.r2Key, events: [], conflict: true }
       }
       if (!current) {

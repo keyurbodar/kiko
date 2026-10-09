@@ -194,6 +194,11 @@ export interface Session {
   connectProvider(provider: string, apiKey: string): Promise<void>
   /** `DELETE /api/credentials/<provider>`. */
   disconnectProvider(provider: string): Promise<void>
+  /**
+   * `PUT /api/files/<roomId>?path=`, as the human's file editor writes. `expect` is what the writer saw
+   * at the path: the sha256 of its bytes, or "none" for a new file. Any other bytes there answer 409.
+   */
+  putFile(roomId: string, path: string, body: BodyInit, options?: { expect?: string; type?: string }): Promise<Response>
 }
 
 /** The test provider of architecture section 11.6. */
@@ -304,6 +309,13 @@ export function createVerifier(url: string, options: { fake?: boolean } = {}): V
         },
         async disconnectProvider(provider) {
           await credentials(cookie, "DELETE", provider)
+        },
+        putFile(roomId, path, body, options = {}) {
+          return fetch(new URL(`api/files/${roomId}?path=${encodeURIComponent(path)}`, withSlash(url)), {
+            method: "PUT",
+            headers: { cookie, "content-type": options.type ?? "text/plain", "x-yuki-if-sha256": options.expect ?? "none" },
+            body,
+          })
         },
       }
     },

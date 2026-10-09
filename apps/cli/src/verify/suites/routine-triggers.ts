@@ -63,8 +63,7 @@ const suite: Suite = {
       const { roomId, room } = await newRoom(s, "triggers: files")
       await fake(v, s, roomId)
       const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "report reader", instructions: "[quiet]", trigger: { on: "file", path: "reports" } })
-      const put = (path: string) =>
-        fetch(new URL(`api/files/${roomId}/?path=${encodeURIComponent(path)}`, base(url)), { method: "PUT", headers: { cookie: s.cookie, "content-type": "text/plain" }, body: `hello ${path}` })
+      const put = (path: string) => s.putFile(roomId, path, `hello ${path}`)
       const elsewhere = await put("notes/a.txt")
       if (!elsewhere.ok) throw new VerifyError(`upload answered ${elsewhere.status}`)
       const inside = await put("reports/q3.txt")

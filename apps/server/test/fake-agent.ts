@@ -194,7 +194,7 @@ export default {
     if (kind === "index") {
       // Indexes a file with no bytes behind it: the room keeps only the row.
       const path = new URL(request.url).searchParams.get("path")!
-      return Response.json(await room.putFile({ id: crypto.randomUUID(), path, r2Key: `k/${path}`, size: 2048, type: "text/markdown", sha256: path, author: { kind: "human" } }))
+      return Response.json(await room.putFile({ id: crypto.randomUUID(), path, r2Key: `k/${path}`, size: 2048, type: "text/markdown", sha256: path, author: { kind: "human" }, expectSha256: "none" }))
     }
     if (kind === "rm") {
       const { paths, by } = (await request.json()) as { paths: string[]; by: "agent" | "human" }

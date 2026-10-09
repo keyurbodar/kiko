@@ -151,7 +151,7 @@ export function claim(
 		if (row.type !== a.type) throw refuse("attachment type does not match the upload")
 		const path = attachmentPath(row.name, now, (p) => used.has(p) || files.stat(p) !== null)
 		used.add(path)
-		const out = files.put({ id: row.id, path, r2Key: row.r2_key, size: row.size, type: row.type, sha256: row.sha256, author: { kind: "human" } })
+		const out = files.put({ id: row.id, path, r2Key: row.r2_key, size: row.size, type: row.type, sha256: row.sha256, author: { kind: "human" }, expectSha256: "none" })
 		if (!out.file || out.refused || out.drop) throw refuse(out.refused?.message ?? "the chat's files refused it")
 		refs.push(out.file)
 		events.push(...out.events)

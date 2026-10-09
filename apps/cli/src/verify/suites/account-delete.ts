@@ -100,7 +100,7 @@ const suite: Suite = {
 			const room = await s.room(roomId)
 			await room.expect({ t: "events" })
 			room.send(`hello ${i}`)
-			const put = await call(s.cookie, "PUT", `api/files/${roomId}?path=notes%2F${i}.txt`, undefined, `file ${i}`)
+			const put = await s.putFile(roomId, `notes/${i}.txt`, `file ${i}`)
 			expectEqual(put.status, 200, `upload ${i} status`)
 		}
 		const stray = await s.room(rooms[2])

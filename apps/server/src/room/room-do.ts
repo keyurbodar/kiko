@@ -158,7 +158,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.trySeedChatFile(home, chat.title)
 	}
 
-	async writeChatFile(author: AgentSlug, text: string, expect?: "none"): Promise<boolean> {
+	/** Writes /chat.md where there is none. The team's own file, once it has one, is never replaced. */
+	async writeChatFile(author: AgentSlug, text: string): Promise<boolean> {
 		const home = this.home()
 		if (!home) return false
 		const body = new TextEncoder().encode(text)
@@ -167,7 +168,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const digest = await crypto.subtle.digest("SHA-256", body)
 		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
 		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
-		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, ...(expect ? { expectSha256: expect } : {}) })
+		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, expectSha256: "none" })
 		if (events.length) this.publish(events)
 		if (drop) await deleteFiles(this.env.FILES, drop)
 		return file !== null
@@ -314,7 +315,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (this.files.stat(CHAT_PATH)) return this.log.setMeta("chat_file", "1")
 		const team = members.map((m) => `- @${m.slug}: ${[m.lead ? "leads" : "", m.role ?? ""].filter(Boolean).join(". ")}`.trimEnd()).join("\n")
 		const lead = members.find((m) => m.lead) ?? members[0]!
-		await this.writeChatFile(lead.slug, `# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`, "none")
+		await this.writeChatFile(lead.slug, `# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`)
 		this.log.setMeta("chat_file", "1")
 	}
 

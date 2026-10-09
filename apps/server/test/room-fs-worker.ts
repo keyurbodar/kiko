@@ -52,7 +52,7 @@ export class UserDO extends DurableObject {
   soul(slug: string) {
     return this.souls.get(slug)
   }
-  setSoul(slug: string, body: string, expectSha?: string) {
+  setSoul(slug: string, body: string, expectSha: string) {
     return this.souls.set(slug, body, expectSha)
   }
 }
@@ -117,7 +117,7 @@ export default {
       // A stub per call: a stub made in one request cannot be used from another, as in AgentDO.
       const users = (env as unknown as { USER: DurableObjectNamespace<UserDO> }).USER
       const user = () => users.get(users.idFromName("user:alice"))
-      const soul = { get: () => user().soul(slug!), set: (body: string, expect?: string) => user().setSoul(slug!, body, expect) }
+      const soul = { get: () => user().soul(slug!), set: (body: string, expect: string) => user().setSoul(slug!, body, expect) }
       const drive = homeBackend(env, () => home, async (text) => void notices.push(`@${slug} ${text}`), undefined, () => (slug === "quiet" ? "this chat is private" : null))
       fs = new RoomFs(`test:${key}`, withSoul(withMount(counted(key, roomBackend(env, () => home), env), HOME_PATH, drive), soul))
       systems.set(key, fs)

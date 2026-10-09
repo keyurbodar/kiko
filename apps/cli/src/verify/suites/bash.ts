@@ -48,7 +48,7 @@ const suite: Suite = {
     const room = await s.room(roomId)
     await room.expect((f) => f.t === "events")
     const put = async (path: string, body: string) => {
-      const res = await fetch(new URL(`?path=${encodeURIComponent(path)}`, base), { method: "PUT", headers: { cookie: s.cookie, "content-type": "text/plain" }, body })
+      const res = await s.putFile(roomId, path, body)
       if (!res.ok) throw new VerifyError(`put ${path} failed with ${res.status}: ${await res.text()}`)
     }
 

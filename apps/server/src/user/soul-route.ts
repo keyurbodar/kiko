@@ -25,7 +25,8 @@ export async function soulRoute(request: Request, env: Env): Promise<Response | 
   if (!request.headers.get("content-type")?.includes("application/json")) return Response.json({ error: "expected json" }, { status: 415 })
   const input = (await request.json().catch(() => null)) as { body?: unknown; expectSha?: unknown } | null
   if (typeof input?.body !== "string") return Response.json({ error: "expected a body" }, { status: 400 })
-  const out = await stub.setSoul(slug, input.body, typeof input.expectSha === "string" ? input.expectSha : undefined)
+  if (typeof input.expectSha !== "string") return Response.json({ error: "expected expectSha, the sha of the soul this edit started from" }, { status: 400 })
+  const out = await stub.setSoul(slug, input.body, input.expectSha)
   if (out.ok) return Response.json({ body: out.soul.body, sha: out.soul.sha })
   if (out.code === "conflict") {
     const now = await stub.soul(slug)

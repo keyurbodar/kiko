@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import type { RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -57,7 +58,7 @@ const suite: Suite = {
 			await call("uploads", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ path: "media/big.bin", type: "application/octet-stream", size: SIZE }),
+				body: JSON.stringify({ path: "media/big.bin", type: "application/octet-stream", size: SIZE, expect: "none" }),
 			}),
 			"create",
 		)
@@ -100,10 +101,10 @@ const suite: Suite = {
 
 		// the same bytes at the same path keep the first file and send no event
 		const small = new TextEncoder().encode("same bytes")
-		const put = () => call("?path=notes%2Fa.txt", { method: "PUT", headers: { "content-type": "text/plain" }, body: small })
-		const first = await ok<{ file: FileRef }>(await put(), "the first small upload")
+		const first = await ok<{ file: FileRef }>(await alice.putFile(roomId, "notes/a.txt", small), "the first small upload")
 		await room.expect((f) => f.t === "events" && f.events.some((e) => e.t === "file" && e.file.id === first.file.id))
-		const second = await ok<{ file: FileRef }>(await put(), "the second small upload")
+		const seen = createHash("sha256").update(small).digest("hex")
+		const second = await ok<{ file: FileRef }>(await alice.putFile(roomId, "notes/a.txt", small, { expect: seen }), "the second small upload")
 		expectEqual(second.file, first.file, "the repeated upload")
 		await room.expectNone((f) => f.t === "events" && f.events.some((e) => e.t === "file"), 500)
 	},

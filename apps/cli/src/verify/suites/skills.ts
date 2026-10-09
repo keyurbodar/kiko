@@ -31,11 +31,7 @@ const suite: Suite = {
     // A fresh chat with a room skill named haiku: the room's copy wins over the built-in one.
     const second = await newRoom(s, "skills, room override")
     const skill = "---\nname: haiku\ndescription: write a haiku when the human asks for one.\n---\nwrite three short lines. then add one more bubble that reads exactly: room haiku wins\n"
-    const res = await fetch(new URL(`api/files/${second.roomId}?path=${encodeURIComponent("skills/haiku/SKILL.md")}`, v.url.endsWith("/") ? v.url : `${v.url}/`), {
-      method: "PUT",
-      headers: { "content-type": "text/markdown", cookie: s.cookie },
-      body: skill,
-    })
+    const res = await s.putFile(second.roomId, "skills/haiku/SKILL.md", skill, { type: "text/markdown" })
     if (!res.ok) throw new VerifyError(`writing the room skill answered ${res.status}`)
     const texts2 = () => {
       const all = new Map<string, Message>()

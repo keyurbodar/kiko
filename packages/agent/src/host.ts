@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai"
-import { type AgentChange, type Conversation, Harness, type HarnessSettings, type RegistryReader } from "@earendil-works/pi-durable"
+import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type RegistryReader } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { type Alarms, createAlarms } from "@yuki/durable/alarm"
@@ -87,7 +87,8 @@ export type AgentSetup = {
   registry: RegistryReader
   agent: AgentChange
   settings?: HarnessSettings
-  env?: ExecutionEnv
+  /** The env of one conversation. pi-durable asks for it at each use, so each run and each helper can have its own. */
+  env?: (conversationId: ConversationId) => ExecutionEnv
   beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
   inputContext?: () => Promise<string | undefined>
   inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
@@ -217,7 +218,7 @@ export class AgentHost {
 
   private async openHarness(setup: AgentSetup): Promise<Opened> {
     const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
-    const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(setup.env ? { env: () => setup.env } : {}) }, context)
+    const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(setup.env ? { env: (target) => setup.env!(target.conversationId) } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
     return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact }
   }

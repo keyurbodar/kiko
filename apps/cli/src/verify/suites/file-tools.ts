@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import type { RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
@@ -96,12 +97,8 @@ const suite: Suite = {
       await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
       const room = await s.room(roomId)
       await room.expect((f) => f.t === "events")
-      const put = async (path: string, body: string) => {
-        const res = await fetch(new URL(`?path=${encodeURIComponent(path)}`, base), {
-          method: "PUT",
-          headers: { cookie: s.cookie, "content-type": "text/plain" },
-          body,
-        })
+      const put = async (path: string, body: string, expect = "none") => {
+        const res = await s.putFile(roomId, path, body, { expect })
         if (!res.ok) throw new VerifyError(`put ${path} failed with ${res.status}: ${await res.text()}`)
       }
 
@@ -117,7 +114,8 @@ const suite: Suite = {
       const file = written.events.find((e) => e.t === "file")!.file as FileRef
       const download = await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })
       expectEqual(download.status, 200, "the download of the agent's file")
-      expectEqual((await download.text()).trim(), first, "the content the agent wrote")
+      const loaded = new Uint8Array(await download.arrayBuffer())
+      expectEqual(new TextDecoder().decode(loaded).trim(), first, "the content the agent wrote")
       expectEqual(file.type, "text/markdown", "the type of notes/plan.md")
       await answer(room, from, ["saved"])
       console.log(`  turn one: the agent wrote notes/plan.md (${file.size} bytes) in ${Date.now() - t0} ms`)
@@ -125,7 +123,8 @@ const suite: Suite = {
       // The human changes the plan and adds a file. Only a real read and a real list can see these.
       const second = word("revised-")
       const extra = `notes/${word("extra-")}.txt`
-      await put("notes/plan.md", second)
+      // As the human's editor does: it names the bytes it loaded, the agent's plan.
+      await put("notes/plan.md", second, createHash("sha256").update(loaded).digest("hex"))
       await put(extra, "an extra file")
 
       // Turn two: read, list, fetch.

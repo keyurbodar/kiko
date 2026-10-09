@@ -17,7 +17,7 @@ import { skillsExtension } from "./extensions/skills"
 import { selfExtension } from "./extensions/self"
 import { type ChiefPort, chiefExtension } from "./extensions/chief"
 import { presenceExtension } from "./extensions/presence"
-import type { SoulPort } from "../files/room-fs"
+import type { RoomFs, SoulPort } from "../files/room-fs"
 import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
@@ -26,7 +26,8 @@ import { type BuilderPorts, builderExtension } from "./extensions/builder"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
-  files?: FilesOptions
+  /** `fs` reads the chat's files outside a tool call, for the prompt and for saved results. Tools use `filesOf(api)`. */
+  files?: FilesOptions & { fs: RoomFs }
   soul?: SoulPort
   runStamp?: () => number
   chief?: ChiefPort

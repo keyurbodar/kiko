@@ -426,7 +426,7 @@ export class UserDO extends DurableObject<Env> {
     return this.souls.get(slug)
   }
 
-  async setSoul(slug: string, body: string, expectSha?: string): Promise<SoulWrite> {
+  async setSoul(slug: string, body: string, expectSha: string): Promise<SoulWrite> {
     return this.souls.set(slug, body, expectSha)
   }
 

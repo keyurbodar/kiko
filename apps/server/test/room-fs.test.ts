@@ -106,10 +106,15 @@ test("a write never overwrites a teammate's change it did not read; an edit appl
   // An edit reads the file itself, so it lands on top of ada's change.
   expect((await bob.run("edit", { path: "doc.md", edits: [{ oldText: "beta", newText: "BETA" }] })).ok).toBe(true)
   expect(await ada.read("doc.md")).toBe("ALPHA\nBETA\n")
-  // Held by bob now; once his run ends, a write by an agent that never read it is a plain overwrite, as on linux.
-  expect((await agent(room, "cy").write("doc.md", "fresh")).text).toContain("@bob is working on /doc.md")
+  // Held by bob now. Once his run ends, an agent that never read the file still may not write over it.
+  const cy = agent(room, "cy")
+  expect((await cy.write("doc.md", "fresh")).text).toContain("@bob is working on /doc.md")
   await fetch(`${origin}/idle/${room}/bob`)
-  expect((await agent(room, "cy").write("doc.md", "fresh")).ok).toBe(true)
+  const blind = await cy.write("doc.md", "fresh")
+  expect(blind.ok).toBe(false)
+  expect(blind.text).toContain("already exists, and you have not read it")
+  expect(await cy.read("doc.md")).toBe("ALPHA\nBETA\n")
+  expect((await cy.write("doc.md", "fresh")).ok).toBe(true)
 })
 
 test("mv renames, moves into a folder, moves a whole folder, and replaces a file, as on linux", async () => {
