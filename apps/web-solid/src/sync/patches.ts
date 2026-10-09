@@ -29,7 +29,7 @@ import type {
 } from "@kiko/protocol"
 
 /** The room frames that change state. `hello`, `typing`, and `stop` change nothing to show. */
-export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "catalog" } | { t: "history" } | { t: "model" }>
+export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "history" } | { t: "model" }>
 export type SendFrame = Extract<ClientToRoom, { t: "send" }>
 
 export type RoomPatch = {
@@ -51,7 +51,7 @@ export type RoomPatch = {
 }
 
 /** An attachment drawn from a local blob URL until its upload lands. */
-export type LocalAttachment = { src: string; name: string; mime: string; width?: number; height?: number }
+export type LocalAttachment = { src: string; name: string; type: string; size: number }
 
 export type UserPatch = {
 	clientId: string

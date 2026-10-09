@@ -33,14 +33,13 @@ describe("fixture round trip", () => {
 	test("the fixtures hold every frame and event tag", () => {
 		const tags = (frames: readonly { t: string }[]) => new Set(frames.map((frame) => frame.t))
 		expect(tags(F.clientToRoom)).toEqual(
-			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "approve", "task", "member", "search", "catalog", "history"]),
+			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "approve", "task", "member", "search", "history"]),
 		)
-		expect(tags(F.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "search", "catalog", "history"]))
+		expect(tags(F.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "search", "history"]))
 		expect(tags(F.roomEvents)).toEqual(
 			new Set([
 				"message",
 				"edit",
-				"preview",
 				"delete",
 				"react",
 				"read",
@@ -89,5 +88,22 @@ describe("the client entry", () => {
 		const output = await result.outputs[0]!.text()
 		expect(output).toContain("[a-z0-9-]{1,32}")
 		expect(output.length).toBeLessThan(300)
+	})
+})
+
+describe("messages stored before the media cleanup", () => {
+	test("a message with a link preview and sized files decodes to today's shape", () => {
+		const stored = F.roomSnapshot.messages[0]!
+		const old = {
+			...stored,
+			files: [{ ...F.file, width: 1280, height: 720, thumbhash: "1QcSHQRnh493V4dIh4eXh1h4kJUI", thumb: true }],
+			preview: { url: "https://example.com/", title: "example" },
+		}
+		const decoded = Schema.decodeUnknownSync(S.Message)(JSON.parse(JSON.stringify(old)))
+		expect(decoded).toEqual({ ...stored, files: [F.file] })
+	})
+
+	test("a retired frame tag no longer decodes", () => {
+		expect(() => Schema.decodeUnknownSync(S.ClientToRoom)({ t: "catalog", kind: "media" })).toThrow()
 	})
 })

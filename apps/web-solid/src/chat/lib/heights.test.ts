@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ChatMessage, MediaItem } from "../../lib/types";
+import type { ChatMessage, MessageFile } from "../../lib/types";
 import type { TimelineItem } from "./grouping";
 import { buildTimelineItems } from "./grouping";
 import { estimateRowHeight } from "./heights";
@@ -19,7 +19,7 @@ function bot(id: string, sentAt: Date, extra: Partial<ChatMessage> = {}): ChatMe
   };
 }
 
-/** The same message from the human side, which draws media differently. */
+/** The same message from the human side. */
 function me(id: string, sentAt: Date, extra: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id,
@@ -132,84 +132,37 @@ describe("estimateRowHeight on bubbles", () => {
   });
 });
 
-/** A picture at the given intrinsic size. */
-function photo(width: number, height: number): MediaItem {
-  return { kind: "photo", src: "/media/photo-square.jpg", width, height, alt: "a test card" };
-}
+const picture = (name = "a.png"): MessageFile => ({ name, size: 10, type: "image/png", src: `/${name}` });
+const pdf = (name = "a.pdf"): MessageFile => ({ name, size: 10, type: "application/pdf", src: `/${name}` });
 
-/** A video at the given intrinsic size; it occupies a grid tile like a photo. */
-function video(width: number, height: number): MediaItem {
-  return { kind: "video", src: "/media/clip.mp4", width, height, alt: "a test clip" };
-}
-
-describe("estimateRowHeight on media", () => {
-  test("a picture reserves its fitted box, not a text bubble's 45px", () => {
-    const text = heightOf(bot("a", at(0), { body: "short" }));
-    // 1600x900 fitted into the 420x400 box is 420x236 - over four times the
-    // height of the one-line bubble beside it, which is why an estimate that
-    // ignored media could not be corrected into place.
-    const picture = heightOf(bot("b", at(0), { body: "", media: [photo(1600, 900)] }));
-
-    expect(picture).toBeGreaterThan(text * 4);
+describe("estimateRowHeight on attachments", () => {
+  test("a lone picture reserves a 210px wide 4:3 tile inside the bubble's padding", () => {
+    // 16px of bubble padding, a 157.5px tile, the row gaps: 16 run gap and 1 below.
+    expect(heightOf(me("a", at(0), { body: "", files: [picture()] }))).toBe(Math.ceil(16 + 157.5 + 16 + 1));
   });
 
-  test("an album reserves the layouter's own height, not the sum of its cells", () => {
-    const one = heightOf(bot("a", at(0), { body: "", media: [photo(1000, 1000)] }));
-    const two = heightOf(
-      bot("b", at(0), { body: "", media: [photo(1000, 1000), photo(1000, 1000)] }),
-    );
-
-    // A lone square fits into 400x400; two squares lay out as 420x210, which is
-    // SHORTER. Summing the cells would get this backwards.
+  test("two pictures share one row of half-width tiles, so they are shorter than one", () => {
+    const one = heightOf(me("a", at(0), { body: "", files: [picture()] }));
+    const two = heightOf(me("b", at(0), { body: "", files: [picture(), picture("b.png")] }));
+    const three = heightOf(me("c", at(0), { body: "", files: [picture(), picture("b.png"), picture("c.png")] }));
     expect(two).toBeLessThan(one);
+    // A third picture opens a second row: one more 75.75px tile and the 8px gap, 83.75px, rounded up.
+    expect(three - two).toBe(84);
   });
 
-  test("a caption pays the caption block, and a media-only row pays nothing", () => {
-    const bare = heightOf(bot("a", at(0), { body: "", media: [photo(1000, 1000)] }));
-    const captioned = heightOf(
-      bot("b", at(0), { body: "short", media: [photo(1000, 1000)] }),
-    );
-
-    // 8px of padding above and below (`py-2`), plus one 20px line box.
-    expect(captioned - bare).toBe(36);
+  test("text under attachments pays the 8px gap and its line", () => {
+    const bare = heightOf(me("a", at(0), { body: "", files: [pdf()] }));
+    const captioned = heightOf(me("b", at(0), { body: "short", files: [pdf()] }));
+    expect(captioned - bare).toBe(8 + 20);
   });
 
-  test("a card on a media-only message still pays the caption block's padding", () => {
-    const bare = heightOf(bot("a", at(0), { body: "", media: [photo(1000, 1000)] }));
-    const carded = heightOf(
-      bot("b", at(0), {
-        body: "",
-        media: [photo(1000, 1000)],
-        webPage: { url: "https://example.com", title: "a page" },
-      }),
-    );
-
-    expect(carded).toBeGreaterThan(bare);
-  });
-});
-
-describe("estimateRowHeight on user media", () => {
-  test("user and assistant media of the same photo reserve the same box", () => {
-    const mine = heightOf(me("a", at(0), { body: "", media: [photo(1000, 1000)] }));
-    const theirs = heightOf(bot("b", at(0), { body: "", media: [photo(1000, 1000)] }));
-
-    expect(mine).toBe(theirs);
+  test("each file row reserves 28px and the 4px between rows", () => {
+    const one = heightOf(me("a", at(0), { body: "", files: [pdf()] }));
+    const two = heightOf(me("b", at(0), { body: "", files: [pdf(), pdf("b.pdf")] }));
+    expect(two - one).toBe(32);
   });
 
-  test("a video reserves the same album box as an image", () => {
-    const clip = heightOf(me("a", at(0), { body: "", media: [video(1000, 1000), video(1000, 1000)] }));
-    const picture = heightOf(me("b", at(0), { body: "", media: [photo(1000, 1000), photo(1000, 1000)] }));
-
-    expect(clip).toBe(picture);
-  });
-});
-
-describe("estimateRowHeight on documents", () => {
-  test("each document row reserves 64px", () => {
-    const doc = { name: "a.pdf", size: 10, mime: "application/pdf", src: "/a.pdf" };
-    const one = heightOf(me("a", at(0), { body: "", documents: [doc] }));
-    const two = heightOf(me("b", at(0), { body: "", documents: [doc, doc] }));
-
-    expect(two - one).toBe(64);
+  test("an old agent message with files reserves the same box as the human's", () => {
+    expect(heightOf(bot("a", at(0), { body: "", files: [picture(), pdf()] }))).toBe(heightOf(me("b", at(0), { body: "", files: [picture(), pdf()] })));
   });
 });

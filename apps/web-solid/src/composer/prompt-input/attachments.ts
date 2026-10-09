@@ -1,64 +1,13 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { admit, attachmentType } from "../../lib/attachments"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
-const accepted = [
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "application/pdf",
-  "text/*",
-  "application/json",
-  "application/ld+json",
-  "application/toml",
-  "application/x-toml",
-  "application/x-yaml",
-  "application/xml",
-  "application/yaml",
-  ".c",
-  ".cc",
-  ".cjs",
-  ".conf",
-  ".cpp",
-  ".css",
-  ".csv",
-  ".cts",
-  ".env",
-  ".go",
-  ".gql",
-  ".graphql",
-  ".h",
-  ".hh",
-  ".hpp",
-  ".htm",
-  ".html",
-  ".ini",
-  ".java",
-  ".js",
-  ".json",
-  ".jsx",
-  ".log",
-  ".md",
-  ".mdx",
-  ".mjs",
-  ".mts",
-  ".py",
-  ".rb",
-  ".rs",
-  ".sass",
-  ".scss",
-  ".sh",
-  ".sql",
-  ".toml",
-  ".ts",
-  ".tsx",
-  ".txt",
-  ".xml",
-  ".yaml",
-  ".yml",
-  ".zsh",
-]
+/*
+ * Files into the composer: the attach button's picker, a paste, and a drop anywhere on the page.
+ * Any file is taken. Pictures and other files differ only in how the strip and the bubble draw
+ * them (`lib/attachments.ts`), which also holds the limits; a refused file is said in a toast.
+ */
 
 type PromptTarget = {
   current: () => PromptInputV2Prompt
@@ -67,18 +16,8 @@ type PromptTarget = {
 }
 
 export type PromptInputV2AttachmentConfig = {
-  picker?: (
-    options: { defaultPath?: string; multiple?: boolean; accept?: string[] },
-    onFile: (file: File) => Promise<unknown>,
-  ) => Promise<void>
-  directory: () => string
-  isDialogActive: () => boolean
-  warn: () => void
-  duplicate: () => void
-  onError: (error: unknown) => void
-  readClipboardImage?: () => Promise<File | null>
-  getPathForFile?: (file: File) => string
-  store?: (file: File) => Promise<{ id: string; url: string }>
+  /** Says why files were left out: too large, or past the count. */
+  refuse: (reasons: string[]) => void
 }
 
 export function createPromptInputV2Attachments(
@@ -87,64 +26,38 @@ export function createPromptInputV2Attachments(
     editor: () => HTMLElement | undefined
     focusEditor: () => void
     addPart: (part: PromptInputV2Prompt[number]) => boolean
-    setDraggingType: (type: "image" | "@mention" | null) => void
+    setDragging: (dragging: boolean) => void
   },
 ) {
-  const capture = () => {
+  const capture = (): PromptTarget => {
     const prompt = input.capture()
     const editor = input.editor()
-    if (!editor) return
-    return { prompt, cursor: prompt.cursor() ?? cursorPosition(editor) }
+    return { ...prompt, cursor: () => prompt.cursor() ?? (editor ? cursorPosition(editor) : undefined) }
   }
-  const add = async (file: File, toast = true, target = capture(), clipboard = false) => {
-    if (!target) return false
-    const mime = await attachmentMime(file)
-    if (!mime) {
-      if (toast) input.warn()
-      return false
+  const addAttachments = async (files: File[], target = capture()) => {
+    const held = target.current().filter((part) => part.type === "image")
+    const { accepted, refusals } = admit(held.length, files)
+    if (refusals.length) input.refuse(refusals)
+    const added: PromptInputV2Attachment[] = []
+    for (const file of accepted) {
+      const id = await blobId(file)
+      // The same bytes twice, as a double paste makes, are attached once.
+      if ([...held, ...added].some((part) => part.blob.id === id)) continue
+      added.push({
+        type: "image",
+        id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2),
+        filename: file.name || "file",
+        mime: attachmentType(file),
+        size: file.size,
+        blob: { id, url: URL.createObjectURL(file) },
+      })
     }
-    const blob = input.store ? await input.store(file) : await blobReference(file)
-    const sourcePath = input.getPathForFile?.(file) || undefined
-    // Native clipboard images arrive with a fresh timestamped filename on every paste, so identical
-    // clipboard content is matched on bytes alone.
-    const duplicate = target.prompt
-      .current()
-      .some(
-        (part) =>
-          part.type === "image" &&
-          part.blob.id === blob.id &&
-          (sourcePath
-            ? part.sourcePath === sourcePath
-            : !part.sourcePath && (clipboard || part.filename === file.name)),
-      )
-    if (duplicate) {
-      input.duplicate()
-      return true
-    }
-    const attachment: PromptInputV2Attachment = {
-      type: "image",
-      id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2),
-      filename: file.name,
-      sourcePath,
-      mime,
-      blob,
-    }
-    target.prompt.set([...target.prompt.current(), attachment], target.cursor)
-    return true
-  }
-  const addAttachments = async (files: File[], toast = true, target = capture()) => {
-    const found = await files.reduce(async (result, file) => {
-      const previous = await result
-      return (await add(file, false, target)) || previous
-    }, Promise.resolve(false))
-    if (!found && files.length > 0 && toast) input.warn()
-    return found
+    if (added.length) target.set([...target.current(), ...added], target.cursor())
   }
   const handlePaste = async (event: ClipboardEvent) => {
     const clipboardData = event.clipboardData
     if (!clipboardData) return
     const target = capture()
-    if (!target) return
     event.preventDefault()
     event.stopPropagation()
     const files = Array.from(clipboardData.items).flatMap((item) => {
@@ -152,15 +65,8 @@ export function createPromptInputV2Attachments(
       const file = item.getAsFile()
       return file ? [file] : []
     })
-    if (files.length > 0) {
-      await addAttachments(files, true, target)
-      return
-    }
+    if (files.length > 0) return addAttachments(files, target)
     const plainText = clipboardData.getData("text/plain") ?? ""
-    if (input.readClipboardImage && !plainText) {
-      const file = await input.readClipboardImage()
-      if (file && (await add(file, true, target, true))) return
-    }
     if (!plainText) return
     const text = plainText.includes("\r") ? plainText.replace(/\r\n?/g, "\n") : plainText
     const put = () => {
@@ -176,9 +82,8 @@ export function createPromptInputV2Attachments(
     put()
   }
   const handleDrop = async (event: DragEvent) => {
-    if (input.isDialogActive()) return
     event.preventDefault()
-    input.setDraggingType(null)
+    input.setDragging(false)
     const plainText = event.dataTransfer?.getData("text/plain")
     if (plainText?.startsWith("file:")) {
       const path = plainText.slice("file:".length)
@@ -187,39 +92,26 @@ export function createPromptInputV2Attachments(
       return
     }
     const files = event.dataTransfer?.files
-    if (files) await addAttachments(Array.from(files))
+    if (files?.length) await addAttachments(Array.from(files))
   }
 
+  // A drop anywhere on the page attaches, so the overlay shows while files are dragged over it.
   onMount(() => {
     makeEventListener(document, "dragover", (event) => {
-      if (input.isDialogActive()) return
+      if (!event.dataTransfer?.types.includes("Files")) return
       event.preventDefault()
-      if (event.dataTransfer?.types.includes("Files")) input.setDraggingType("image")
-      else if (event.dataTransfer?.types.includes("text/plain")) input.setDraggingType("@mention")
+      input.setDragging(true)
     })
     makeEventListener(document, "dragleave", (event) => {
-      if (!input.isDialogActive() && !event.relatedTarget) input.setDraggingType(null)
+      if (!event.relatedTarget) input.setDragging(false)
     })
+    // A drag cancelled with Escape can end without a dragleave.
+    makeEventListener(window, "dragend", () => input.setDragging(false))
     makeEventListener(document, "drop", handleDrop)
   })
 
-  return {
-    addAttachments,
-    handlePaste,
-    handleDrop,
-    pick(fallback: () => void) {
-      if (!input.picker) {
-        fallback()
-        return
-      }
-      void input
-        .picker({ defaultPath: input.directory(), multiple: true, accept: accepted }, (file) => add(file))
-        .catch(input.onError)
-    },
-  }
+  return { addAttachments, handlePaste, handleDrop }
 }
-
-const imageMimes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
 
 /** How much of each end of a file the duplicate check reads. */
 const EDGE_BYTES = 64 * 1024
@@ -241,10 +133,6 @@ export async function blobId(file: Blob): Promise<string> {
     .join("")
 }
 
-async function blobReference(file: File) {
-  return { id: await blobId(file), url: URL.createObjectURL(file) }
-}
-
 /**
  * Frees an attachment's object URL. The composer calls it when an attachment is removed or the
  * composer goes away; a sent attachment belongs to its message, and the room store frees it once
@@ -252,39 +140,6 @@ async function blobReference(file: File) {
  */
 export function releaseBlobUrl(url: string | undefined): void {
   if (url?.startsWith("blob:")) URL.revokeObjectURL(url)
-}
-const imageExtensions = new Map([
-  ["gif", "image/gif"],
-  ["jpeg", "image/jpeg"],
-  ["jpg", "image/jpeg"],
-  ["png", "image/png"],
-  ["webp", "image/webp"],
-])
-const textMimes = new Set([
-  "application/json",
-  "application/ld+json",
-  "application/toml",
-  "application/x-toml",
-  "application/x-yaml",
-  "application/xml",
-  "application/yaml",
-])
-
-async function attachmentMime(file: File) {
-  const type = file.type.split(";", 1)[0]?.trim().toLowerCase() ?? ""
-  if (imageMimes.has(type) || type === "application/pdf") return type
-  const index = file.name.lastIndexOf(".")
-  const suffix = index === -1 ? "" : file.name.slice(index + 1).toLowerCase()
-  const fallback = imageExtensions.get(suffix) ?? (suffix === "pdf" ? "application/pdf" : undefined)
-  if ((!type || type === "application/octet-stream") && fallback) return fallback
-  if (type.startsWith("text/") || textMimes.has(type) || type.endsWith("+json") || type.endsWith("+xml")) {
-    return "text/plain"
-  }
-  const bytes = new Uint8Array(await file.slice(0, 4096).arrayBuffer())
-  if (bytes.some((byte) => byte === 0)) return
-  const control = bytes.filter((byte) => byte < 9 || (byte > 13 && byte < 32)).length
-  if (bytes.length > 0 && control / bytes.length > 0.3) return
-  return "text/plain"
 }
 
 function cursorPosition(editor: HTMLElement) {
@@ -295,7 +150,7 @@ function cursorPosition(editor: HTMLElement) {
   const before = range.cloneRange()
   before.selectNodeContents(editor)
   before.setEnd(range.startContainer, range.startOffset)
-  return before.toString().replace(/\u200B/g, "").length
+  return before.toString().replace(/​/g, "").length
 }
 
 function largePaste(text: string) {

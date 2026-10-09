@@ -5,8 +5,8 @@
  * Every selector is scoped under `.media-viewer`. `.media-viewer` is the modal
  * content and only exists while a viewer is open, but the rest of these names
  * (`-topbar`, `-caption`, `-counter`, `-sibling`) are generic enough to collide
- * with the transcript and the composer, and this file ships alongside both in
- * one global namespace, so an unscoped rule would reach them.
+ * with the rest of the app, and this file ships in one global namespace with
+ * it, so an unscoped rule would reach them.
  *
  * MOTION IS THE FLIGHT AND NOTHING ELSE. The picture moves between its
  * thumbnail and its fitted place, and the backdrop and chrome fade, both from

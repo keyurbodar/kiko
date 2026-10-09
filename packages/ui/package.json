@@ -40,8 +40,7 @@
     "fuzzysort": "3.1.0",
     "motion": "12.34.5",
     "remeda": "2.26.0",
-    "solid-list": "0.3.0",
-    "solid-sonner": "0.3.1"
+    "solid-list": "0.3.0"
   },
   "peerDependencies": {
     "@solid-primitives/event-listener": "2.4.5",

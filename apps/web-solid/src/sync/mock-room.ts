@@ -9,7 +9,6 @@
 // `seq`. Production code must not import this file.
 
 import type {
-	CatalogItem,
 	Chat,
 	ClientToRoom,
 	ClientToUser,
@@ -232,29 +231,6 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			const older = f.before ? sorted.filter((m) => m.seq < f.seq).slice(-f.before) : []
 			const newer = sorted.filter((m) => m.seq >= f.seq).slice(0, f.after)
 			peer.push({ t: "history", seq: f.seq, before: f.before, after: f.after, messages: structuredClone([...older, ...newer]) })
-		},
-		catalog(peer, f) {
-			const size = Math.min(f.limit || 30, 100)
-			const items: CatalogItem[] = []
-			let next: number | null = null
-			const newest = data.messages.filter((m) => m.seq < (f.before ?? Infinity)).sort((a, b) => b.seq - a.seq)
-			const linksOf = (m: Message) => m.text.match(/https?:\/\/[^\s<>"']+/g) ?? []
-			const mediaOf = (m: Message) => (m.files ?? []).filter((x) => /^(image|video)\//.test(x.type))
-			const has = (m: Message) => (f.kind === "links" ? linksOf(m).length : mediaOf(m).length) > 0
-			for (const [i, m] of newest.entries()) {
-				if (f.kind === "links") {
-					for (const url of linksOf(m)) {
-						items.push({ kind: "link", url, site: new URL(url).hostname.replace(/^www\./, ""), messageId: m.id, seq: m.seq, at: m.at })
-					}
-				} else {
-					for (const file of mediaOf(m)) items.push({ kind: "media", file, messageId: m.id, seq: m.seq, at: m.at })
-				}
-				if (items.length >= size) {
-					next = newest.slice(i + 1).some(has) ? m.seq : null
-					break
-				}
-			}
-			peer.push({ t: "catalog", kind: f.kind, ...(f.before !== undefined ? { before: f.before } : {}), items, next })
 		},
 		// The server's rules in files/file-index.ts, through the same overlay the client draws with.
 		files(peer, f) {

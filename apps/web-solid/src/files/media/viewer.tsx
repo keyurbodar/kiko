@@ -3,7 +3,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, MinusIcon, PlusIcon, ScanIcon } from "@kiko/ui/icons"
 import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js"
-import type { MediaItem } from "../../lib/types"
+import type { ViewerItem } from "./mediaViewer"
 import {
   ZOOM_FIT,
   ZOOM_MAX,
@@ -90,7 +90,7 @@ interface Drag {
 }
 
 export default function MediaViewer(props: {
-  items: readonly MediaItem[]
+  items: readonly ViewerItem[]
   index: number
   caption?: string
   /** The thumbnail that was opened, so the picture can fly from it and back. */
@@ -359,13 +359,7 @@ export default function MediaViewer(props: {
 
   /** --- flight ---------------------------------------------------------- */
 
-  const thumbFor = (index: number): Element | undefined => {
-    const origin = props.origin
-    if (!origin) return undefined
-    const album = origin.closest('[data-component="chat-media"]')
-    if (!album) return index === openedAt ? origin : undefined
-    return album.querySelectorAll('[data-component="chat-media-cell"]')[index]
-  }
+  const thumbFor = (index: number): Element | undefined => (index === openedAt ? props.origin : undefined)
 
   const fades = () => (root ? [...root.querySelectorAll("[data-viewer-fade]")] : [])
 

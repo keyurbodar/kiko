@@ -829,14 +829,13 @@
   --menu-v2-hover: var(--selected-bg);
 }
 
-/* Every floating surface is frosted glass in dark: dialogs, the palette, search, tooltips,
-   toasts. Menus and hover cards set it themselves through --popover-blur. */
+/* Every floating surface is frosted glass in dark: dialogs, the palette, search, tooltips.
+   Toasts draw their own glass (toast-v2.css). Menus and hover cards set it themselves through --popover-blur. */
 .bg-menu,
 .palette-panel,
 .search-panel,
 .search-bar,
-[data-component="tooltip-v2"],
-.toast-v2 {
+[data-component="tooltip-v2"] {
   -webkit-backdrop-filter: var(--surface-blur);
   backdrop-filter: var(--surface-blur);
 }

@@ -6,7 +6,7 @@ import { createSignal, For, lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
 import { recentEmoji, recordRecent, warmEmoji } from "../../lib/emoji-data"
-import { draftLinkUrl } from "../../composer/link-draft"
+import { richTextSegments } from "../lib/richtext/segments"
 
 /* The picker loads when a menu opens, not with the transcript. */
 const pickerModule = () => import("./EmojiPicker")
@@ -60,8 +60,8 @@ const QUICK_COUNT = 5
  */
 export function MessageMenu(props: MessageMenuProps) {
   const [pickerOpen, setPickerOpen] = createSignal(false)
-  // The message's first link, the one its card shows.
-  const link = () => props.message.webPage?.url ?? draftLinkUrl(props.message.body)
+  // The message's first link, as the transcript draws links. A masked one (its text names another host) is skipped.
+  const link = () => richTextSegments(props.message.body).find((s) => s.kind === "url" && !s.suspicious && s.href)?.href ?? null
   const openLink = () => {
     const url = link()
     if (url) window.open(url, "_blank", "noopener,noreferrer")

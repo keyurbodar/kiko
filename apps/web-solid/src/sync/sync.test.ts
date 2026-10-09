@@ -15,6 +15,8 @@ import { createUserStore, newRoomId, OPEN_DEBOUNCE_MS } from "./user-store"
 import { createUserChannel } from "./user-channel"
 
 const roomId = fixtures.roomId
+/** The seq the fixture room ends on. */
+const LAST = fixtures.roomSnapshot.seq
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 async function until(check: () => boolean, ms = 2000) {
@@ -85,15 +87,23 @@ describe("the reducer", () => {
 		expect(data.messages).toHaveLength(1)
 	})
 
-	test("new bytes at a path replace the file, and a metadata fill keeps it", () => {
+	test("new bytes at a path replace the file, and a later version of it replaces its row", () => {
 		const data = emptyRoom()
 		const at = (seq: number, id: string, extra = {}): RoomEvent =>
 			({ t: "file", seq, at: seq, by: { kind: "human" }, file: { id, name: "a.txt", size: 1, type: "text/plain", ...extra } }) as RoomEvent
 		applyRoomEvent(data, at(1, "v1"))
 		applyRoomEvent(data, at(2, "v2"))
 		expect(data.files.map((f) => f.id)).toEqual(["v2"])
-		applyRoomEvent(data, at(3, "v2", { width: 4 }))
-		expect(data.files).toEqual([{ id: "v2", name: "a.txt", size: 1, type: "text/plain", width: 4 }])
+		applyRoomEvent(data, at(3, "v2", { size: 4 }))
+		expect(data.files).toEqual([{ id: "v2", name: "a.txt", size: 4, type: "text/plain" }])
+	})
+
+	test("an event tag this client does not know, such as an old preview, changes nothing and moves the seq", () => {
+		const data = emptyRoom()
+		const old = { t: "preview", seq: 1, at: 1, messageId: "m1", preview: { url: "https://a.dev" } } as unknown as RoomEvent
+		expect(applyRoomEvent(data, old)).toEqual({})
+		expect(data.seq).toBe(1)
+		expect(data.messages).toEqual([])
 	})
 })
 
@@ -206,7 +216,7 @@ describe("the room store", () => {
 	test("a member change shows at once, and a refusal rolls it back and is reported", async () => {
 		const { make } = setup({ resetAfter: 0 }) // a snapshot, which carries the members
 		const { store } = await make()
-		await until(() => store.state.connection === "open" && store.state.seq === 18)
+		await until(() => store.state.connection === "open" && store.state.seq === LAST)
 		const refused: string[] = []
 		store.onMemberRefused((op, reason) => refused.push(`${op.op} ${op.slug} ${reason}`))
 		const slugs = () => store.members().map((m) => `${m.slug}:${m.name}`)
@@ -230,45 +240,26 @@ describe("the room store", () => {
 		store.close()
 	})
 
-	test("catalog asks the room for links and pages by the cursor it gave", async () => {
-		const { mock, make } = setup()
-		const { store } = await make()
-		await until(() => store.state.connection === "open")
-		store.send("one https://a.dev/1")
-		store.send("two https://b.dev/2")
-		store.send("no link here")
-		await until(() => store.state.messages.filter((m) => m.from.kind === "human").length >= 3)
-		const first = await store.catalog("links", undefined, 1)
-		expect(first?.items.map((i) => (i.kind === "link" ? i.url : ""))).toEqual(["https://b.dev/2"])
-		expect(first?.next).not.toBeNull()
-		const rest = await store.catalog("links", first!.next!, 1)
-		expect(rest?.items.map((i) => (i.kind === "link" ? i.url : ""))).toEqual(["https://a.dev/1"])
-		expect(rest?.next).toBeNull()
-		expect((await store.catalog("media"))?.items.map((i) => i.kind)).toEqual(["media"])
-		store.close()
-		expect(await store.catalog("links")).toBeNull()
-	})
-
 	test("paints from the warm tier, then says hello with its lastSeq", async () => {
 		const { mock, make } = setup()
 		const warm = await freshWarm()
-		// The device has synced to seq 18 before.
+		// The device has synced to the snapshot's seq before.
 		const snap = fixtures.roomSnapshot
 		putMessages(warm, roomId, snap.messages)
 		setLastSeq(warm, roomId, snap.seq)
 		warm.put("meta", `room:${roomId}`, { readSeq: snap.readSeq, members: snap.members, tasks: snap.tasks, approvals: snap.approvals, files: snap.files })
 		await warm.flush()
-		mock.store({ t: "message", id: "m19" as MessageId, from: { kind: "agent", slug: fixtures.ada }, text: "later" })
+		mock.store({ t: "message", id: "m-later" as MessageId, from: { kind: "agent", slug: fixtures.ada }, text: "later" })
 
 		const { store } = await make(warm)
 		await store.ready
 		expect(store.state.messages.map((m) => m.text)).toEqual(snap.messages.map((m) => m.text))
 		expect(store.state.tasks).toEqual(snap.tasks as never)
-		await until(() => store.state.seq === 19)
-		expect(mock.received[0]).toEqual({ t: "hello", lastSeq: 18 })
+		await until(() => store.state.seq === LAST + 1)
+		expect(mock.received[0]).toEqual({ t: "hello", lastSeq: LAST })
 		expect(store.messages().at(-1)?.text).toBe("later")
 		await warm.flush()
-		expect(await getLastSeq(warm, roomId)).toBe(19)
+		expect(await getLastSeq(warm, roomId)).toBe(LAST + 1)
 		store.close()
 	})
 
@@ -276,14 +267,14 @@ describe("the room store", () => {
 		const { mock, make } = setup()
 		const { store } = await make()
 		await store.ready
-		await until(() => store.state.connection === "open" && store.state.seq === 18)
+		await until(() => store.state.connection === "open" && store.state.seq === LAST)
 		const before = mock.received.length
 		const m1 = fixtures.roomSnapshot.messages[0].id
 		const results = [
 			store.send("hello there"),
 			store.react(m1, "🎉"),
 			store.edit(m1, "edited"),
-			store.markRead(18),
+			store.markRead(LAST),
 			store.approve("a1", "accept"),
 			store.task({ op: "create", id: "t9", title: "ship" }),
 		]
@@ -294,7 +285,7 @@ describe("the room store", () => {
 		expect(view.at(-1)).toMatchObject({ text: "hello there", pending: true })
 		expect(view[0]).toMatchObject({ text: "edited" })
 		expect(view[0].reactions?.some((r) => r.by.kind === "human" && r.emoji === "🎉")).toBe(true)
-		expect(store.readSeq()).toBe(18)
+		expect(store.readSeq()).toBe(LAST)
 		expect(store.approvals()[0].state).toBe("accepted")
 		expect(store.tasks().map((t) => t.id)).toContain("t9")
 
@@ -509,8 +500,8 @@ describe("the room store", () => {
 			await store.ready
 			let land!: (files: never[]) => void
 			const uploads = new Promise<never[]>((r) => (land = r))
-			store.send("pic", { local: [{ src: "blob:one", name: "a.png", mime: "image/png" }], uploads })
-			store.send("held", { local: [{ src: "blob:two", name: "b.png", mime: "image/png" }], uploads: new Promise(() => {}) })
+			store.send("pic", { local: [{ src: "blob:one", name: "a.png", type: "image/png", size: 1 }], uploads })
+			store.send("held", { local: [{ src: "blob:two", name: "b.png", type: "image/png", size: 1 }], uploads: new Promise(() => {}) })
 			expect(revoked).toEqual([])
 			land([])
 			await uploads
@@ -546,7 +537,7 @@ describe("the room store", () => {
 		const { schedule, durations } = timedSchedule()
 		const { mock, make } = setup({ schedule, resetAfter: 5000 }, { schedule })
 		const { store } = await make()
-		await until(() => store.state.seq === 18)
+		await until(() => store.state.seq === LAST)
 
 		// 1,000 events in one frame on resume, then 1,000 more one frame each.
 		const many = (from: number) =>
@@ -562,7 +553,7 @@ describe("the room store", () => {
 		Bun.gc(true)
 		durations.length = 0
 		mock.online = true
-		await until(() => store.state.seq === 1018, 10_000)
+		await until(() => store.state.seq === LAST + 1000, 10_000)
 		await store.settled()
 		const replay = Math.max(...durations)
 
@@ -572,7 +563,7 @@ describe("the room store", () => {
 			const { seq: _, at: __, ...rest } = e
 			mock.store(rest as never)
 		}
-		await until(() => store.state.seq === 2018, 10_000)
+		await until(() => store.state.seq === LAST + 2000, 10_000)
 		await store.settled()
 		const live = Math.max(...durations)
 
@@ -588,7 +579,7 @@ describe("the room store", () => {
 	test("typing and status are shown, and cleared when the socket drops", async () => {
 		const { mock, make } = setup()
 		const { store } = await make()
-		await until(() => store.state.seq === 18)
+		await until(() => store.state.seq === LAST)
 		mock.broadcast({ t: "typing", who: [fixtures.ada] })
 		mock.broadcast({ t: "status", slug: fixtures.ada, state: "typing" })
 		await until(() => store.state.status[fixtures.ada] === "typing")

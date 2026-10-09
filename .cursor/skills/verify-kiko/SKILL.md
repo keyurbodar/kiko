@@ -17,7 +17,7 @@ Every check below is read-only except the launch itself. Never edit a source fil
 
 Colour comes from one stylesheet, `packages/ui/src/styles/kat.css`, pulled in by `apps/web-solid/src/styles/app.css`. The app has **no theme switch and no light mode** — a run that goes looking for either is hunting a bug that is not there. It does have a **sidebar**: a rail-and-panel conversation column down the left edge of `/`, with its own feature file at [Sidebar](./features/sidebar.md).
 
-**There is no `chat.css` in the chat slice.** It was deleted with the previous implementation. Styling is inline Tailwind utilities on the component that renders the element, plus the token layer. `apps/web-solid/src/styles/` holds exactly one file, `app.css`, which is a `@layer` order declaration and four `@import` lines and nothing else. The only other project-authored stylesheets in the app are `apps/web-solid/src/sidebar/sidebar.css`, `apps/web-solid/src/composer/composer.css` and `apps/web-solid/src/chat/media/mediaViewer.css`, none of which reaches a message bubble. **A `.chat-*` class name is a QA handle, not a style hook** — many of them exist only so a probe can find the element, and several components say so in their own source comments. Assert computed values; never conclude a value holds "because the class is applied".
+**There is no `chat.css` in the chat slice.** It was deleted with the previous implementation. Styling is inline Tailwind utilities on the component that renders the element, plus the token layer. `apps/web-solid/src/styles/` holds exactly one file, `app.css`, which is a `@layer` order declaration and four `@import` lines and nothing else. The only other project-authored stylesheets in the app are `apps/web-solid/src/sidebar/sidebar.css`, `apps/web-solid/src/composer/composer.css` and `apps/web-solid/src/files/media/mediaViewer.css` (the files tab's picture viewer), none of which reaches a message bubble. **A `.chat-*` class name is a QA handle, not a style hook** — many of them exist only so a probe can find the element, and several components say so in their own source comments. Assert computed values; never conclude a value holds "because the class is applied".
 
 ## Launch
 
@@ -140,7 +140,7 @@ EOF
 
 `ego-browser` writes its result to **stderr**, not stdout. The `2>&1` before the pipe is what makes `doctor.txt` non-empty; without it `tee` captures nothing and leaves a zero-byte file that looks like a pass.
 
-**Editing `apps/web-solid/vite.config.ts` requires killing and relaunching this dev server.** The link-preview endpoint lives in that file, and a running Vite does not always pick the change up on its own: measured once, `curl` against `/api/link-preview` returned `204` for every URL until the server was restarted by hand. If every preview is empty, restart before believing the parser is broken.
+**Editing `apps/web-solid/vite.config.ts` requires killing and relaunching this dev server.** A running Vite does not always pick a config change up on its own. There are no link previews any more (removed 2026-10-09), so no endpoint in that file serves one.
 
 The heredoc delimiter is unquoted so the shell substitutes `$KIKO_PORT` into the script. `ego-browser nodejs` does **not** inherit the parent environment: `process.env.KIKO_PORT` is `null` inside the script, and a `page.goto` built from it fails with `Cannot navigate to invalid URL`. Read that error as a port that never reached the script, not as a bad URL. For the same reason keep backticks and `${}` out of these scripts so the shell does not eat them.
 
@@ -207,8 +207,8 @@ Every setter drives the same reactive path a user action takes. None is a test-o
 | `setReplyTarget(messageId)` | a message id, or `null` | Arms a reply so the next send quotes that message. Returns the id or `null` |
 | `openMenu(messageId)` | a message id | Dispatches a real `contextmenu` on that row. Returns whether a menu appeared |
 | `openPicker(messageId)` | a message id | Dispatches `pointerdown`+`pointerup`+`click` on the row's add-reaction control. Returns whether a picker appeared |
-| `openMedia(messageId, index = 0)` | a message id and an album index | Clicks a media cell. Returns whether a viewer appeared |
-| `closeMedia()` | none | Dispatches `Escape` on the document. Returns whether the viewer went away |
+| `openMedia(messageId, index = 0)` | a message id and a picture index | Clicks that picture tile. Async: resolves to whether the image dialog appeared within a second (its body loads on first open) |
+| `closeMedia()` | none | Dispatches `Escape` on the document. Returns whether the image dialog went away |
 | `probe()` | none | Returns the whole observation object, below |
 | `state()` | none | The current fixture slug |
 | `messages` | — | The current state's message array |
@@ -217,7 +217,7 @@ Every setter drives the same reactive path a user action takes. None is a test-o
 
 There is **no `now()` probe.** An earlier version of this map listed one; it does not exist, and `typeof window.__chat.now` is `undefined`. Read the clock through `getComputedStyle` on the rendered chip instead.
 
-`probe()` returns `{ state, rows, bubbles, dateChip, dayLabels, unreadRule, runs, typing, overlay, replyTarget, media, mediaCells, viewer, tokens }`:
+`probe()` returns `{ state, rows, bubbles, dateChip, dayLabels, unreadRule, runs, typing, overlay, replyTarget, images, files, viewer, tokens }`:
 
 - `rows` — `[data-component="chat-vrow"]` **in the DOM**, which is the viewport and not the message total.
 - `bubbles` — elements carrying `data-message-id`.
@@ -228,10 +228,9 @@ There is **no `now()` probe.** An earlier version of this map listed one; it doe
 - `typing` — `[data-component="chat-typing-row"]` is present.
 - `overlay` — `"menu"`, `"picker"` or `null`.
 - `replyTarget` — the armed reply id or `null`.
-- `media` / `mediaCells` — `[data-component="chat-media"]` and `[data-component="chat-media-cell"]`. **A lone picture renders one `media` and zero cells; an album renders one `media` and a cell per item.** Measured: `media-only` and `photo-caption` report `1`/`0`, while `album-2`, `album-4`, `album-5` report `1`/`2`, `1`/`4`, `1`/`5` and `album-pano` reports `1`/`3`. **Both senders now use the album layouter**: the old viewer-side 210px grid (`GridMedia`) is gone, so a viewer album reports cells too.
-- `documents` — `[data-component="chat-document"]` rows in the DOM. Measured `1` on `document-single` and `4` on `document-group` (three from the agent, one from the viewer).
-- `webpages` — `[data-component="chat-webpage"]` cards in the DOM. Measured `1` on `link-large`, `link-small` and `link-text-only`, and `0` on `link-bare`.
-- `viewer` — `true` while `.media-viewer` is mounted. Both `openMedia` and `closeMedia` are honest now: measured on `media-only`, `openMedia("m-06", 0)` returns `true` with `.media-viewer` present, and `closeMedia()` returns `true` with it gone. (An earlier version of this map reported them always `false`; that probe bug is fixed.)
+- `images` — `[data-component="chat-attachment-image"]` picture tiles in the DOM, across every message.
+- `files` — `[data-component="chat-attachment-file"]` file rows in the DOM, across every message.
+- `viewer` — `true` while `[data-component="image-dialog"]` is mounted. That handle is on the dialog's inner column, because `ModalV2.Content` overwrites a `data-component` passed to it.
 - `tokens` — the resolved `--user-bubble`, `--assistant-bubble`, `--font-base` and `--radius-bubble`. Measured on the harness after the Sakura theme: `oklch(0.51 0.062 356)`, `oklch(0.278 0 6)`, `14px`, `18px`. Structural backgrounds are chroma 0; mauve appears only on the own bubble and accent marks.
 
 `setState`, `setTyping` and `setReplyTarget` return the value they resolved to, so a caller can assert the result in the same round. `openMenu`, `openPicker`, `openMedia` and `closeMedia` return a boolean saying whether a dialog actually opened — read it, because a stale overlay left on screen makes a no-op look like an open menu. `openMenu` returning `true` is an **observation, not a guarantee**: it tests `[role='menu'], [data-component*='menu']`, which matches the menu's `menu-v2-content`. Measured on `today`: `openMenu` returns `true` for `a-35`, `a-36` and `a-37` with `probe().overlay === "menu"`, but `[data-component="chat-menu"]` is `0` even while the menu is open — see the selector note below.
@@ -244,7 +243,7 @@ The harness chrome itself is `harness-root`, `harness-bar`, `harness-title`, `ha
 
 ### Fixture slugs
 
-`Object.keys(FIXTURE_STATES)` returns exactly these thirty, and this list is authoritative — read it from `apps/web-solid/src/lib/fixtures.ts` or call `window.__chat.states()`.
+`Object.keys(FIXTURE_STATES)` returns exactly these thirty-six, and this list is authoritative — read it from `apps/web-solid/src/lib/fixtures.ts` or call `window.__chat.states()`.
 
 | Slug | State |
 | --- | --- |
@@ -255,25 +254,24 @@ The harness chrome itself is `harness-root`, `harness-bar`, `harness-title`, `ha
 | `jumbo-single` | one jumbo-sized pure-emoji body |
 | `jumbo-group` | a run of jumbo emoji |
 | `jumbo-prose` | a jumbo run that also contains prose |
-| `link` | a bare URL, rendered as a link only |
-| `link-card` | a URL that earns a webpage card below the bubble |
+| `link` | links in the body: the text draws them and nothing else |
 | `reply-text` | a reply to a text message |
-| `reply-image` | a reply to an image message, so the quote carries a thumbnail |
-| `album-2` / `album-3` / `album-4` / `album-5` | the album layouter at four counts; two and three are the shapes a symmetric grid cannot express, four is the one it can |
-| `album-pano` | the panorama branch, the other complex layouter |
-| `media-only` | a single photo with no body at all |
-| `photo-caption` | the same photo with a caption |
-| `video` / `video-caption` / `video-portrait` | a clip with no body, with one, and the portrait clip whose box is bounded by height |
-| `media-card` | media and a webpage card in one row |
+| `reply-image` | a reply to a message with a picture, so the quote carries a thumbnail |
+| `grid-2` / `grid-3` / `grid-4` / `grid-5` | the picture grid at four counts; an odd count leaves one tile on the last row |
+| `grid-shapes` | a pano, a square and a portrait, all cropped to the same 4:3 tile |
+| `picture-only` | a single picture with no body at all; it spans both columns |
+| `picture-caption` | one picture with a line of text under it |
+| `video` | clips, which are file rows like any other file |
+| `picture-link` | a picture and a link in one message |
 | `rich-text` | every run the body parser has to tell apart on one line |
 | `reactions` | a cluster: one chip the viewer has pressed beside a counted chip they are not part of |
 | `edited` | the edited marker on a body that was not rewritten |
 | `pinned` | a pinned message, plus the reply that follows it |
 | `three-days-ago` / `yesterday` / `today` | the day boundaries, for the date chip |
 | `unread` | an unread division with a rule before the first unread incoming message, and rows above **and** below it |
-| `document-single` / `document-group` | one PDF with a caption; three documents from the agent plus a docx from the viewer |
-| `user-album-3` / `user-album-2-reply` / `user-photo` | the viewer's own albums, an album sent as a reply, and a lone picture |
-| `link-large` / `link-small` / `link-text-only` / `link-bare` | a YouTube card with a large image, a profile card with a 48px thumbnail, a text-only card, and a URL that renders no card |
+| `file-single` / `file-group` | one PDF with a caption; three files on an old agent message plus a docx from the viewer |
+| `user-grid-3` / `user-grid-2-reply` / `user-picture` | the viewer's own pictures, pictures sent as a reply, and a lone picture |
+| `link-only` | messages that are only a link; they draw as ordinary bubbles |
 | `grouped-own` | three consecutive viewer messages in one run (ids `run-01`..`run-05`), then a two-message agent run |
 
 A slug that `setState` rejects is a fixture gap to report, not a typo to work around by picking another state.
@@ -302,13 +300,11 @@ These were read out of a live page on both entry points, not inferred from sourc
 - `loc=css:.chat-calendar` — the month grid the chip opens, with `.chat-calendar__day` cells and a `.chat-calendar__title` that swaps days for months.
 - `loc=css:[data-component="chat-unread-rule"]` — the new-messages rule, with `.chat-unread__label`.
 - `loc=css:[data-component="chat-quote"]` — the reply quote, with `.chat-quote__label`, `.chat-quote__text` and an optional `.chat-quote__thumb`.
-- `loc=css:[data-component="chat-media"]` — one message's media block, carrying `data-count`. Also `.chat-media`.
-- `loc=css:[data-component="chat-media-cell"]` — one album cell, carrying `aria-label="Open <alt>"` and an absolute percentage rect.
-- `loc=css:[data-component="chat-media-duration"]` — a clip's `m:ss` badge.
-- `loc=css:[data-component="chat-webpage"]` — the webpage card, an `<a target="_blank">`.
+- `loc=css:[data-component="chat-attachments"]` — one message's attachments, inside its bubble above the text.
+- `loc=css:[data-component="chat-attachment-image"]` — one picture tile, a `<button aria-label="Preview <name>">` in a `grid max-w-[210px] grid-cols-2 gap-2`; a lone tile has `col-span-2`.
+- `loc=css:[data-component="chat-attachment-file"]` — one file row: icon, name, eye (`aria-label="Preview <name>"`) and a download link (`[data-action="download"]`, `download` attribute).
 - `loc=css:[data-component="chat-masked-link"]` — a homograph host: text kept, `href` dropped, `role="link"`, and a confirm dialog on click.
-- `loc=css:[data-component="chat-document"]` — one file attachment row in a bubble, inside `[data-component="chat-documents"]`.
-- `loc=css:[data-component="chat-media-time"]` — the floating time pill over a media-only message. There is **no `chat-row-time`** and no hover-revealed timestamp: text bubbles show no time at all.
+There is **no `chat-row-time`** and no hover-revealed timestamp: text bubbles show no time at all.
 - `loc=css:[data-component="chat-actions"]` — a row's hover actions (`[data-action="react"]`, `reply`, `more`), shown on row hover or focus on a pointer device only. There is no swipe to reply.
 - `loc=css:[data-component="reaction-popover"]` — the quick reactions the react button opens; `[data-action="more-emoji"]` swaps in `[data-component="emoji-picker"]`.
 - `loc=css:[data-component="emoji-shortcodes"]` — the composer's `:shortcode` list, one `[data-component="emoji-shortcode"]` row per match.
@@ -317,9 +313,9 @@ These were read out of a live page on both entry points, not inferred from sourc
 - `loc=css:[data-component="chat-jump-latest"]` / `chat-jump` — the jump-to-latest control, carrying `data-visible` and `data-arrivals`.
 - `loc=css:[data-component="chat-empty"]` — the empty-thread state: the dim kiko bird with a heart, no text.
 - `loc=css:.menu-v2-content` — **the** handle for a Kobalte menu's content element. `MenuV2.Context.Content` overwrites any `data-component` passed to it with its own. Measured: the message menu is open with `[data-component="chat-menu"]` at `0` and `[data-component="menu-v2-content"]` at `1`, while the class `.chat-menu` is present on the same element. So **scope the menu by `.chat-menu` or `[data-component="menu-v2-content"]`; `[data-component="chat-menu"]` matches nothing.** Read its `[data-component="menu-v2-item"]` children for the action list.
-- `loc=css:.media-viewer` — the full-screen media viewer, a Kobalte modal. **Not `[data-component="media-viewer"]`**, which is what `probe().viewer` looks for.
+- `loc=css:[data-component="image-dialog"]` — the image dialog's column (picture, close button, caption `[data-component="image-dialog-caption"]`), inside a Kobalte modal. The files tab's picture viewer is a different modal, `.media-viewer`.
 
-**Composer** (composed app only): `[data-component="composer-dock"]`, `composer-scroll-down`, `composer-reply-bar` (classes `.reply-bar`, `.reply-bar-jump`), `composer-attachment` (class `.attachment-chip`), `[data-component="prompt-input"]`, `prompt-input-box`, `prompt-input-v2`.
+**Composer** (composed app only): `[data-component="composer-dock"]`, `composer-scroll-down`, `composer-reply-bar` (classes `.reply-bar`, `.reply-bar-jump`), `composer-attachment` (a thumbnail with `data-image`, or a file row), `composer-drop-overlay` (while files are dragged over the page), `[data-component="prompt-input"]`, `prompt-input-box`, `prompt-input-v2`.
 
 **Sidebar:** `[data-component="sidebar"]`, `sidebar-rail`, `sidebar-rail-tab`, `sidebar-row`, `sidebar-pin-tile`, `sidebar-unread-count`, `sidebar-resize`, `sidebar-add`, `sidebar-chats`, `sidebar-panel-empty`, and `[data-component="hover-card-v2-content"]`.
 
@@ -350,7 +346,7 @@ Proof artifacts go under `/tmp/kiko-verify-evidence/`, which survives cleanup. T
 - `/tmp/kiko-verify-evidence/reactions.json` — badge geometry and the toggle result.
 - `/tmp/kiko-verify-evidence/typing.json` — the typing bubble's dot count and the `aria-live` label.
 - `/tmp/kiko-verify-evidence/picker.json` — the picker's search result count and its shortcode footer.
-- `/tmp/kiko-verify-evidence/media.json` — album cell rects, the fitted box of a lone item, and the viewer's open/zoom/close state.
+- `/tmp/kiko-verify-evidence/media.json` — picture tile rects, file rows, and the image dialog's open, step and close state.
 - `/tmp/kiko-verify-evidence/rich-text.json` — which runs became anchors, which stayed prose, and the homograph flag.
 - `/tmp/kiko-verify-evidence/sidebar.json` and `sidebar.png` — the rail, panel and tile/row geometry, the pinned grid's column count at two panel widths, and the before/after pairs for the row menu's `pin`, `mark as read` and `mark as unread` items.
 

@@ -18,16 +18,6 @@ export type FileRef = {
 	size: number
 	/** MIME type. */
 	type: string
-	/** Intrinsic pixels, for images and video. */
-	width?: number
-	height?: number
-	thumbhash?: string
-	/**
-	 * True when a small still of the file is stored beside it, at `GET /api/files/<room>/<id>/thumb`:
-	 * a picture scaled to fit 840 px, or a video's first frame. The transcript draws it; only the
-	 * media viewer loads the original.
-	 */
-	thumb?: boolean
 }
 
 /** One actor has at most one reaction on a message. */
@@ -35,24 +25,6 @@ export type Reaction = { by: Actor; emoji: string }
 
 /** The key that makes an agent bubble idempotent. Architecture section 6.3. */
 export type RunRef = { runId: string; attempt: number; index: number }
-
-/**
- * The card for the first link in a message, read by the Worker from the page's head. Image paths
- * are on kiko's origin, so the reader's browser never contacts the third party. Agents never see it.
- */
-export type LinkPreview = {
-	/** The link as the message wrote it, normalized. */
-	url: string
-	title?: string
-	description?: string
-	siteName?: string
-	/** A path on kiko's origin. */
-	image?: string
-	/** A path on kiko's origin. */
-	favicon?: string
-	/** The page's `theme-color`, a hint for the card's colour when the image has none. */
-	themeColor?: string
-}
 
 /** A message as the human sees it, with every later edit and reaction applied. */
 export type Message = {
@@ -75,8 +47,6 @@ export type Message = {
 	goto?: RoomId
 	/** The words of `replyTo` the sender picked to answer, as Telegram's quote does. */
 	quote?: string
-	/** The card for the message's first link. It arrives a moment after the message, in a `preview` event. */
-	preview?: LinkPreview
 }
 
 export type Member = {
@@ -161,8 +131,6 @@ export type RoomEvent =
 	/** A new message. `clientId` echoes the `send` that made it, so the sender drops its pending patch. */
 	| ({ t: "message"; clientId?: string } & Message)
 	| (Stored & { t: "edit"; messageId: MessageId; text: string; rich?: RichText })
-	/** The server read the message's first link. Replaces any earlier preview of the message. */
-	| (Stored & { t: "preview"; messageId: MessageId; preview: LinkPreview })
 	/** More than one id when a new attempt replaces an earlier attempt's bubbles. */
 	| (Stored & { t: "delete"; messageIds: readonly MessageId[] })
 	/** `emoji` is null when the actor removes its reaction. */
@@ -217,11 +185,6 @@ export type ChatSearchHit = SearchHit & { roomId: RoomId }
  */
 export type ChatSearchPage = { results: readonly ChatSearchHit[]; next: number | null; partial: boolean }
 
-/** One link or one picture or clip sent in the chat. `seq` is the message it came from. */
-export type CatalogItem =
-	| { kind: "link"; url: string; site: string; messageId: MessageId; seq: number; at: number }
-	| { kind: "media"; file: FileRef; messageId: MessageId; seq: number; at: number }
-
 export type ClientToRoom =
 	| { t: "hello"; lastSeq: number }
 	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; files?: readonly FileRef[] }
@@ -239,8 +202,6 @@ export type ClientToRoom =
 	| { t: "files"; op: FileOp }
 	/** Searches this room's live messages, newest first. `before` is the `next` of the previous page. */
 	| { t: "search"; query: string; before?: number; limit?: number }
-	/** The links or the media sent in this room, newest first. `before` is the `next` of the previous page. */
-	| { t: "catalog"; kind: "links" | "media"; before?: number; limit?: number }
 	/**
 	 * A window of live messages around `seq`: up to `before` messages older than `seq`, then up to
 	 * `after` messages at or after it. For jumping to a message the client does not hold, and for paging
@@ -268,7 +229,5 @@ export type RoomToClient =
 	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
 	/** Not stored. The answer to `search` for one socket. `next` is the `before` for the following page, or null at the end. */
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
-	/** Not stored. The answer to `catalog` for one socket. `next` is the `before` for the following page, or null at the end. */
-	| { t: "catalog"; kind: "links" | "media"; before?: number; items: readonly CatalogItem[]; next: number | null }
 	/** Not stored. The answer to `history` for one socket, oldest first. Fewer than asked for means that end of the room was reached. */
 	| { t: "history"; seq: number; before: number; after: number; messages: readonly Message[] }

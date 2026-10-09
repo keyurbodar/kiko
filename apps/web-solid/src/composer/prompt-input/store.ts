@@ -1,11 +1,9 @@
-import { reorderById } from "../../chat/lib/album"
 import { releaseBlobUrl } from "./attachments"
 import { batch, type Accessor } from "solid-js"
 import type { SetStoreFunction, Store } from "solid-js/store"
 import type {
   PromptInputV2AgentPart,
   PromptInputV2Attachment,
-  PromptInputV2Comment,
   PromptInputV2FilePart,
   PromptInputV2Model,
   PromptInputV2PersistedState,
@@ -68,13 +66,6 @@ export function createPromptInputV2Store(input: PromptInputV2StoreInput) {
     setVariant(variant: string | null) {
       if (store().model) setStore()("model", "variant", variant)
     },
-    addContext(item: PromptInputV2Comment) {
-      if (store().context.items.some((entry) => entry.key === item.key)) return
-      setStore()("context", "items", (items) => [...items, item])
-    },
-    removeContext(key: string) {
-      setStore()("context", "items", (items) => items.filter((item) => item.key !== key))
-    },
     addMention(mention: PromptInputV2FilePart | PromptInputV2AgentPart) {
       const text = store()
         .prompt.map((part) => ("content" in part ? part.content : ""))
@@ -86,15 +77,6 @@ export function createPromptInputV2Store(input: PromptInputV2StoreInput) {
     },
     addAttachment(attachment: PromptInputV2Attachment) {
       setStore()("prompt", (prompt) => [...prompt, attachment])
-    },
-    /** Moves attachment `id` into the slot `toId` holds; the strip's order is the album's order. */
-    reorderAttachment(id: string, toId: string) {
-      setStore()("prompt", (parts) => {
-        const images = parts.filter((part): part is PromptInputV2Attachment => part.type === "image")
-        const order = reorderById(images, id, toId)
-        let next = 0
-        return parts.map((part) => (part.type === "image" ? order[next++] : part))
-      })
     },
     removeAttachment(id: string) {
       const gone = store().prompt.find((part) => part.type === "image" && part.id === id)

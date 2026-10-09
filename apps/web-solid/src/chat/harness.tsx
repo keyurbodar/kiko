@@ -206,13 +206,11 @@ export interface ChatProbe {
   overlay: "menu" | "picker" | null;
   /** The message the reply gesture is currently aimed at. */
   replyTarget: string | null;
-  /** Media blocks in the DOM, one per message that carries media. */
-  media: number;
-  /** Album cells, which is the sum of every rendered album's item count. */
-  mediaCells: number;
-  documents: number;
-  webpages: number;
-  /** Whether the media viewer's modal is mounted. */
+  /** Picture tiles in the DOM, across every message. */
+  images: number;
+  /** File rows in the DOM, across every message. */
+  files: number;
+  /** Whether the image dialog is open. */
   viewer: boolean;
   /** Resolved design tokens. */
   tokens: Record<string, string>;
@@ -240,22 +238,9 @@ function probe(): ChatProbe {
     typing: qa("[data-component='chat-typing-row']").length > 0,
     overlay: openOverlay(),
     replyTarget: replyTargetId(),
-    // A lone picture renders one `chat-media` and no cells; an album renders
-    // one `chat-media` and a cell per item. Counting both is what tells the two
-    // apart without reading the fixture.
-    media: qa("[data-component='chat-media']").length,
-    mediaCells: qa("[data-component='chat-media-cell']").length,
-    documents: qa("[data-component='chat-document']").length,
-    webpages: qa("[data-component='chat-webpage']").length,
-    // `.media-viewer` rather than a `data-component`, and that is not an
-    // oversight: the viewer's root IS `ModalV2.Content`, which hardcodes
-    // `data-component="modal-v2-content"` AFTER spreading the caller's props, so
-    // an attribute passed down to it is overwritten and a probe keyed on one can
-    // never pass. The class is the viewer's own identity — every rule in
-    // `mediaViewer.css` is scoped by it — so it is the handle that cannot be
-    // taken away. Same arrangement as `.chat-chip`, which is likewise a handle
-    // rather than a style.
-    viewer: q(".media-viewer") !== null,
+    images: qa("[data-component='chat-attachment-image']").length,
+    files: qa("[data-component='chat-attachment-file']").length,
+    viewer: q("[data-component='image-dialog']") !== null,
     tokens: readTokens(),
   };
 }
@@ -332,41 +317,23 @@ async function openPicker(messageId: string): Promise<boolean> {
 }
 
 /**
- * Open the media viewer on one item of a message.
- *
- * A dispatched `click` on the cell the reader would have pressed, for the
- * reason `openMenu` gives: the row's own handler is the thing under test, and
- * a probe that called the viewer's `open` directly would prove only that the
- * viewer works, not that anything reaches it.
- *
- * The cell is preferred over the block because an album's block is a
- * positioned container with no click of its own; a lone picture has no cell,
- * so the block is the fallback. Returns whether a viewer actually mounted, so
- * an unbuilt viewer reads as false rather than passing silently.
+ * Open the image dialog on one picture of a message, with a dispatched click on the tile a reader
+ * would press, so the row's own handler is what is tested. The dialog body loads on first open,
+ * so this resolves once it is mounted, or false after a second.
  */
-function openMedia(messageId: string, index = 0): boolean {
-  const row = rowFor(messageId);
-  if (!row) return false;
-  const cell = row.querySelectorAll<HTMLElement>("[data-component='chat-media-cell']")[index];
-  const target = cell ?? row.querySelector<HTMLElement>("[data-component='chat-media']");
-  if (!target) return false;
-  target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-  return q(".media-viewer") !== null;
+async function openMedia(messageId: string, index = 0): Promise<boolean> {
+  const tile = rowFor(messageId)?.querySelectorAll<HTMLElement>("[data-component='chat-attachment-image']")[index];
+  if (!tile) return false;
+  tile.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  for (let i = 0; i < 20 && !q("[data-component='image-dialog']"); i++) await new Promise((r) => setTimeout(r, 50));
+  return q("[data-component='image-dialog']") !== null;
 }
 
-/**
- * Close the media viewer with the key a reader would press.
- *
- * Escape is the modal shell's, not the viewer's: Kobalte's Dialog listens for
- * it and calls `onOpenChange`. Dispatching it on the document is the same path
- * a real keypress takes.
- */
+/** Close the image dialog with Escape, the key a reader would press. Kobalte's dialog owns it. */
 function closeMedia(): boolean {
-  if (!q(".media-viewer")) return false;
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
-  );
-  return q(".media-viewer") === null;
+  if (!q("[data-component='image-dialog']")) return false;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  return q("[data-component='image-dialog']") === null;
 }
 
 /** The harness's window handle. Named for the page it is on. */

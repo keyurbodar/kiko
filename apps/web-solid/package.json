@@ -33,7 +33,6 @@
     "solid-js": "1.9.10",
     "sugar-high": "^2.5.1",
     "tailwind-merge": "^3.7.0",
-    "thumbhash": "0.1.1",
     "virtua": "0.52.9"
   },
   "devDependencies": {

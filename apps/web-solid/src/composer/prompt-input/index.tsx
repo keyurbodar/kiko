@@ -1,5 +1,8 @@
-import { createEffect, createSignal, lazy, onMount, Show, Suspense, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, lazy, onMount, Show, Suspense, type JSX } from "solid-js"
+import { Portal } from "solid-js/web"
 import { Icon } from "@kiko/ui/icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { AttachIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -10,7 +13,6 @@ import { createComposerEmoji, createShortcodes } from "../emoji"
 
 export type {
   PromptInputV2Attachment,
-  PromptInputV2Comment,
   PromptInputV2Option,
   PromptInputV2PersistedState,
   PromptInputV2Suggestion,
@@ -50,6 +52,14 @@ export function PromptInputV2(props: PromptInputV2Props) {
     props.controller.onCursor(promptInputV2Cursor(editor))
   }
   const shortcodes = createShortcodes(() => editor)
+  // The chat column's box, inset 8px, while files are dragged over the page.
+  const dropArea = createMemo(() => {
+    if (state.drag !== "active") return null
+    const column = editor?.closest('[data-component="chat-shell"]') ?? editor?.closest("form")
+    const box = column?.getBoundingClientRect()
+    if (!box) return null
+    return { top: `${box.top + 8}px`, left: `${box.left + 8}px`, width: `${box.width - 16}px`, height: `${box.height - 16}px` }
+  })
   const emoji = createComposerEmoji(() => editor, () => !!props.disabled || !!props.readOnly)
 
   // The first attachment or popover should not wait on the network.
@@ -76,7 +86,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
         ref={props.controller.setFileInput}
         type="file"
         multiple
-        accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/*,application/json,application/toml,application/x-toml,application/x-yaml,application/xml,application/x-xml,.yaml,.yml,.csv,.tsv,.env,.gql,.graphql,.h,.hpp,.html,.ini,.java,.js,.json,.jsx,.log,.md,.mdx,.mjs,.mts,.py,.rb,.rs,.sass,.scss,.sh,.sql,.toml,.ts,.tsx,.txt,.vue,.yaml,.yml,.zsh,.go"
+        aria-label="Attach files"
         class="hidden"
         onChange={(event) => {
           const files = Array.from(event.currentTarget.files ?? [])
@@ -115,6 +125,24 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
         </Suspense>
       </Show>
+      {/* t3code's drop overlay, over the chat column. A drop anywhere attaches. The column is
+          measured once when a drag starts, so the overlay needs no positioned ancestor. */}
+      <Show when={dropArea()}>
+        {(area) => (
+          <Portal>
+            <div
+              class="pointer-events-none fixed z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent/60 bg-accent/[0.035]"
+              style={area()}
+              data-component="composer-drop-overlay"
+            >
+              <div role="status" class="flex items-center gap-2 rounded-full border border-accent/25 bg-bg/95 px-4 py-2.5 text-sm font-medium text-text shadow-lg">
+                <HugeIcon icon={AttachIcon} class="size-4 text-accent" />
+                {i18n.t("ui.promptInput.dropFiles")}
+              </div>
+            </div>
+          </Portal>
+        )}
+      </Show>
       <form
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
@@ -123,34 +151,14 @@ export function PromptInputV2(props: PromptInputV2Props) {
           event.preventDefault()
           if (!props.disabled) props.controller.submit()
         }}
-        onDragEnter={props.controller.onDragEnter}
-        onDragOver={props.controller.onDragOver}
-        onDragLeave={props.controller.onDragLeave}
-        onDrop={props.controller.onDrop}
       >
         <div class="composer-row">
-          <Show when={state.drag === "active"}>
-            <div class="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-lg bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-sm text-[color-mix(in_oklab,var(--text)_70%,transparent)] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--accent)_50%,transparent)]">
-              {i18n.t("ui.promptInput.dropFiles")}
-            </div>
-          </Show>
-          <Show
-            when={
-              state.mode === "normal" &&
-              (props.controller.attachments().length > 0 || props.controller.comments().length > 0)
-            }
-          >
+          <Show when={state.mode === "normal" && props.controller.attachments().length > 0}>
             <Suspense>
               <PromptInputV2Attachments
                 attachments={props.controller.attachments()}
-                comments={props.controller.comments()}
-                activeCommentID={state.activeContextID}
-                removeLabel={i18n.t("ui.promptInput.removeAttachment")}
-                onAttachmentClick={props.controller.openAttachment}
-                onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
-                onAttachmentReorder={(id, toId) => props.controller.reorderAttachment(id, toId)}
-                onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
-                onCommentRemove={(item) => props.controller.removeContext(item.key)}
+                onImageClick={props.controller.openAttachment}
+                onRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
               />
             </Suspense>
           </Show>
@@ -161,6 +169,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             data-hint-side="left"
             disabled={state.mode === "shell"}
             title={i18n.t("ui.promptInput.add")}
+            aria-label={i18n.t("ui.promptInput.add")}
             onClick={() => props.controller.attach()}
           >
             <IconV2 name="plus" class="size-4" />

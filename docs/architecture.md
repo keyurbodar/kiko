@@ -961,6 +961,13 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - Upload goes from the client through the Worker to R2 as a stream. Large files use R2 multipart upload.
 - Download is a Worker route that checks the session, supports `Range`, and sets an immutable cache header keyed by content hash. Video seeks with `Range`, so no service worker is needed for streaming.
 - A file the human attaches is uploaded like any other, to `attachments/` in the chat's files, and the message carries its `FileRef` (`id`, `name`, `size`, `type`). The agent's envelope lists each one with `attachedLine` (`room/deliver.ts`), and `read` opens it. Agents send no files on messages: an agent names a path in its text. DEVIATION (2026-10-09): the old media system is removed. There are no stills, no thumbhash, no dimensions, no attachment job, no media catalog, and no `send_message` files. The owner chose t3code's simpler model, where a message carries its attachments and the assistant sends none. Stills already in R2 at `<key>/thumb` are no longer served; account deletion removes them with the rest of the user's prefix.
+- The client follows t3code too. DEVIATION (2026-10-09) from the album, document rows, and media viewer this section used to describe:
+  - The composer takes any file from the attach button, a paste, or a drop anywhere on the page. A file is a picture when its type is GIF, JPEG, PNG, or WebP (or its name says so and the type is empty), and anything else is a file row (`lib/attachments.ts`, one table for the composer and the bubble). Limits: 10 files a message, 10 MB a picture, 50 MB any other file, refused with a toast. ASSUMPTION: these limits are t3code's order of size, not measured. A file over 32 MB uploads as R2 multipart in 16 MB parts (`sync/uploads.ts`). The client sends the bytes unchanged: no downscale, no still.
+  - Optimistic as before: the message shows at once from blob URLs, its frame leaves when every upload landed, and then it reads the server's URLs.
+  - A message draws its pictures as a grid of 4:3 tiles, at most 210 px wide in two columns (a lone picture spans both), and its other files as rows with preview and download (`chat/ui/Attachments.tsx`). Preview opens the files tab when its viewer can show the file, else the file in a new tab. A file's type decides, so a message stored with the old media fields draws the same way, and the client ignores the fields it no longer knows.
+  - A picture opens in one image dialog per surface (`chat/ui/ImageDialog.tsx`, lazy). It opens and closes with no animation, as section 19.5 asks of overlays, and has no zoom.
+  - The files tab keeps the old viewer for a picture it opens, with its zoom and gestures, moved to `files/media/`.
+- The protocol dropped `LinkPreview`, `Message.preview`, the `preview` event, `CatalogItem`, the `catalog` frames, and `FileRef`'s `width`, `height`, `thumbhash`, and `thumb`. A schema ignores keys it does not know, so a stored message that still has them decodes. The room socket ignores a retired `catalog` frame from an older client rather than close (`room/socket.ts`), and the client store ignores an event tag it does not know, such as an old `preview`.
 - The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
 - `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
 - R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again. A write carries the hash of the bytes the agent last read at that path, and the room refuses it if the file changed since, so a whole-file `write` never drops a teammate's edit. `edit` reads the file itself, so it lands on top.
@@ -1052,6 +1059,7 @@ Memory limits. RAM holds the open chat's window, the chat list, and presence. Ev
 - Hover previews keep 20 chats. The memory twin of IndexedDB, used only when the browser refuses it, keeps 2,000 rows per store. Opening IndexedDB may take 10 seconds before the twin takes over.
 - The transcript's rows are one shared memo of stored rows, each rebuilt only when its cheap signature changes (it never copies the text).
 - Attachment object URLs are revoked when the attachment is removed, when its upload lands, and when the composer or the room closes.
+- Schema version 3 (2026-10-09) dropped the `previews` and `media` stores. Like any version change it empties the warm tier, and the server refills it.
 - The screen snapshot (`lib/snapshot.ts`) keeps a linked stylesheet as its URL, not its text, and skips a save when the screen did not change.
 
 Each stored value carries a schema version. A version mismatch drops the warm tier and reloads from the server.
@@ -1087,7 +1095,7 @@ Effect v4 does not ship in tiers 1 to 3. See section 20.
 
 ### 19.5 Motion
 
-Navigation, buttons, menus, tabs, the composer, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
+Navigation, buttons, menus, tabs, the composer, the image dialog, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
 
 The typing indicator is a port of [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx) with no React and no `motion` in tier 2.
 

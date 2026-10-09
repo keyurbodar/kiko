@@ -51,6 +51,20 @@ export const MAX_HISTORY = 100
 
 const decode = Schema.decodeUnknownSync(ClientToRoomSchema)
 
+/** Tags the protocol dropped. An older client may still send one, so it is ignored, not a reason to close. */
+const RETIRED = new Set(["catalog"])
+
+/** True for a frame whose tag the protocol no longer has. */
+export function retired(raw: string | ArrayBuffer): boolean {
+	if (typeof raw !== "string" || raw.length > MAX_FRAME) return false
+	try {
+		const t = (JSON.parse(raw) as { t?: unknown } | null)?.t
+		return typeof t === "string" && RETIRED.has(t)
+	} catch {
+		return false
+	}
+}
+
 export function attachment(ws: WebSocket): Attachment {
 	return (ws.deserializeAttachment() as Attachment | null) ?? { ready: false }
 }
@@ -91,7 +105,7 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 export function handleFrame(room: SocketRoom, ws: WebSocket, raw: string | ArrayBuffer): void {
 	const frame = parse(raw)
 	if (!frame) {
-		ws.close(BAD_FRAME, "bad frame")
+		if (!retired(raw)) ws.close(BAD_FRAME, "bad frame")
 		return
 	}
 	const event = apply(room, ws, frame)
@@ -139,10 +153,6 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			send(ws, { t: "search", query: frame.query, ...(frame.before !== undefined ? { before: frame.before } : {}), ...page })
 			return null
 		}
-		case "catalog":
-			// The media catalog is gone. An older client still asks, so it gets an empty last page. The protocol phase removes the frame.
-			send(ws, { t: "catalog", kind: frame.kind, ...(frame.before !== undefined ? { before: frame.before } : {}), items: [], next: null })
-			return null
 		case "history": {
 			const messages = log.around(frame.seq, Math.min(frame.before, MAX_HISTORY), Math.min(frame.after, MAX_HISTORY))
 			send(ws, { t: "history", seq: frame.seq, before: frame.before, after: frame.after, messages })

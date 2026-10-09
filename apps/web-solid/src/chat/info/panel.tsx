@@ -5,8 +5,6 @@ import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { openBirdPicker } from "../../mascot/picker-state"
 import { useApp } from "../../lib/store"
 import { chatModel } from "../../settings/chat-model"
-import { createCatalog } from "./catalog"
-import { SharedContent } from "./lists"
 import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
@@ -122,11 +120,11 @@ function AgentPage(props: { slug: string; chatId: string }) {
 }
 
 /*
- * The panel's home: who and when, the members, memory, what the chat has shared, and delete.
+ * The panel's home: who and when, the members, memory, and delete.
  * Each thing has one way in. The model is the chip in the top bar, files are the files tab,
  * and pin, mute and private are the chat's menu in the list.
  */
-function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; media: ReturnType<typeof createCatalog> }) {
+function Home(props: { chatId: string }) {
   const members = roomMembers
   const memory = useMemoryStore()
   const memoryCount = () => count(memory()?.state.lines.filter((l) => !l.redacted).length ?? 0)
@@ -171,7 +169,6 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
           <NavRow id="tasks" label="Tasks" description="Work the lead split up for the team." count={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
         </Show>
       </NavRows>
-      <SharedContent media={props.media} links={props.links} />
       <For each={extras()}>
         {(section) => (
           <Card id={section.id} title={section.title}>
@@ -252,7 +249,7 @@ const iconButton = "grid size-7 shrink-0 place-items-center rounded-md text-mute
  */
 export default function InfoPanel(props: { chatId: string }) {
   // Escape steps back one level: an open file closes to its tree, then the panel closes. It is a
-  // command like every shortcut, and a dialog above the panel (the media viewer, a picker) keeps
+  // command like every shortcut, and a dialog above the panel (the image dialog, a picker) keeps
   // its own Escape. Whether a dialog was open is read before anyone handles the key, because the
   // dialog closes itself on the same keydown, before this command runs.
   const DIALOG = '[role="dialog"], [role="alertdialog"], [aria-modal="true"]'
@@ -277,8 +274,6 @@ export default function InfoPanel(props: { chatId: string }) {
       },
     },
   ])
-  const links = createCatalog("links")
-  const media = createCatalog("media")
   let scroller: HTMLDivElement | undefined
   const key = () => `${props.chatId}:${infoView().kind}`
 
@@ -383,7 +378,7 @@ export default function InfoPanel(props: { chatId: string }) {
           >
             <Switch>
               <Match when={view().kind === "home"}>
-                <Home chatId={props.chatId} links={links} media={media} />
+                <Home chatId={props.chatId} />
               </Match>
               <Match when={view().kind === "memory"}>
                 <MemoryViews />

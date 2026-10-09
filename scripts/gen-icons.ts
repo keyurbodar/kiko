@@ -80,6 +80,7 @@ const ICONS = {
   eye: "EyeIcon",
   smile: "SmileIcon",
   "heart-add": "HeartAddIcon",
+  download: "Download04Icon",
 } as const
 
 /* The svg element carries these, so each glyph keeps only its geometry and any exception. */

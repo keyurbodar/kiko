@@ -84,10 +84,6 @@ export const FileRef = Schema.Struct({
 	name: Schema.String,
 	size: Count,
 	type: Schema.String,
-	width: Schema.optionalKey(Count),
-	height: Schema.optionalKey(Count),
-	thumbhash: Schema.optionalKey(Schema.String),
-	thumb: Schema.optionalKey(Schema.Boolean),
 })
 
 export const Reaction = Schema.Struct({ by: Actor, emoji: Schema.String })
@@ -95,16 +91,6 @@ export const Reaction = Schema.Struct({ by: Actor, emoji: Schema.String })
 export const RunRef = Schema.Struct({ runId: Id, attempt: Count, index: Count })
 
 const stored = { seq: Count, at: Count }
-
-export const LinkPreview = Schema.Struct({
-	url: Schema.String,
-	title: Schema.optionalKey(Schema.String),
-	description: Schema.optionalKey(Schema.String),
-	siteName: Schema.optionalKey(Schema.String),
-	image: Schema.optionalKey(Schema.String),
-	favicon: Schema.optionalKey(Schema.String),
-	themeColor: Schema.optionalKey(Schema.String),
-})
 
 export const Message = Schema.Struct({
 	id: MessageId,
@@ -119,7 +105,6 @@ export const Message = Schema.Struct({
 	reactions: Schema.optionalKey(Schema.Array(Reaction)),
 	goto: Schema.optionalKey(RoomId),
 	quote: Schema.optionalKey(Schema.String),
-	preview: Schema.optionalKey(LinkPreview),
 })
 
 export const Member = Schema.Struct({
@@ -216,7 +201,6 @@ export const RoomEvent = Schema.Union([
 		text: Schema.String,
 		rich: Schema.optionalKey(RichText),
 	}),
-	Schema.Struct({ ...stored, t: Schema.Literal("preview"), messageId: MessageId, preview: LinkPreview }),
 	Schema.Struct({ ...stored, t: Schema.Literal("delete"), messageIds: Schema.Array(MessageId) }),
 	Schema.Struct({
 		...stored,
@@ -286,17 +270,7 @@ export const ClientToRoom = Schema.Union([
 		before: Schema.optionalKey(Count),
 		limit: Schema.optionalKey(Count),
 	}),
-	Schema.Struct({
-		t: Schema.Literal("catalog"),
-		kind: Schema.Literals(["links", "media"]),
-		before: Schema.optionalKey(Count),
-		limit: Schema.optionalKey(Count),
-	}),	Schema.Struct({ t: Schema.Literal("history"), seq: Count, before: Count, after: Count }),
-])
-
-export const CatalogItem = Schema.Union([
-	Schema.Struct({ kind: Schema.Literal("link"), url: Schema.String, site: Schema.String, messageId: MessageId, seq: Count, at: Count }),
-	Schema.Struct({ kind: Schema.Literal("media"), file: FileRef, messageId: MessageId, seq: Count, at: Count }),
+	Schema.Struct({ t: Schema.Literal("history"), seq: Count, before: Count, after: Count }),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -320,12 +294,6 @@ export const RoomToClient = Schema.Union([
 		next: Schema.NullOr(Count),
 	}),
 	Schema.Struct({
-		t: Schema.Literal("catalog"),
-		kind: Schema.Literals(["links", "media"]),
-		before: Schema.optionalKey(Count),
-		items: Schema.Array(CatalogItem),
-		next: Schema.NullOr(Count),
-	}),	Schema.Struct({
 		t: Schema.Literal("history"),
 		seq: Count,
 		before: Count,

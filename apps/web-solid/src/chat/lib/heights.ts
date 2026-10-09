@@ -1,8 +1,7 @@
-import type { ChatMessage, WebPagePreview } from "../../lib/types";
-import { albumLayout, singleMediaBox } from "./album";
+import type { ChatMessage } from "../../lib/types";
+import { splitFiles } from "../../lib/attachments";
 import type { TimelineItem } from "./grouping";
 import { graphemes, jumboEmojiClass } from "./reply";
-import { CARD_IMAGE_ASPECT, CARD_WIDTH, hasWebPageContent, isLinkOnly } from "./linkPreview";
 
 const FONT_BASE = 14;
 // A bubble's line is the font size plus 6px (bubble.tsx).
@@ -26,50 +25,23 @@ const QUOTE_CHROME_Y = 5 + 5 + 4;
 const JUMBO_SINGLE_PX = 42 * 1.25;
 const JUMBO_GROUP_PX = 31 * 1.25;
 
-const CAPTION_PAD_Y = 8 + 8;
+// The picture grid (chat/ui/Attachments.tsx): 210px wide, two columns 8px apart, 4:3 tiles. A lone picture spans both.
+const GRID_WIDTH = 210;
+const GRID_GAP = 8;
+// A file row is a 20px line with 4px above and below; rows sit 4px apart.
+const FILE_ROW_PX = 28;
+const FILE_ROW_GAP = 4;
+// The gap between the grid and the rows, and between the attachments and the text.
+const ATTACHMENT_GAP = 8;
 
-const DOCUMENT_ICON_PX = 48;
-const DOCUMENT_ROW_PAD_Y = 8;
-const DOCUMENT_ROW_PX = DOCUMENT_ICON_PX + DOCUMENT_ROW_PAD_Y * 2;
-
-// The link card under the bubble: a 4px gap, 10 + 12 px padding, then 18px site, 20px title, and 19px text lines.
-const CARD_CHROME_Y = 4 + 10 + 12;
-const CARD_SITE_LINE = 18;
-const CARD_TITLE_LINE = 20;
-const CARD_TEXT_LINE = 19;
-const CARD_MAX_LINES = 2;
-const CARD_CHARS_PER_LINE = 40;
-
-function mediaBlockHeight(message: ChatMessage): number {
-  const media = message.media;
-  if (media === undefined || media.length === 0) return 0;
-  const hasText = message.body.trim().length > 0;
-  if (media.length === 1) {
-    const only = media[0];
-    return singleMediaBox(
-      { w: only.width, h: only.height },
-      { hasText, isVideo: only.kind === "video" },
-    ).height;
-  }
-  return albumLayout(media.map((item) => ({ w: item.width, h: item.height }))).height;
-}
-
-function clampedLines(text: string | undefined): number {
-  const length = text?.trim().length ?? 0;
-  if (length === 0) return 0;
-  return Math.min(CARD_MAX_LINES, Math.ceil(length / CARD_CHARS_PER_LINE));
-}
-
-function cardHeight(page: WebPagePreview | undefined): number {
-  if (page === undefined || !hasWebPageContent(page)) return 0;
-  const image = page.media !== undefined && page.mediaSize !== "small" ? CARD_WIDTH / CARD_IMAGE_ASPECT : 0;
-  return (
-    CARD_CHROME_Y +
-    image +
-    CARD_SITE_LINE +
-    clampedLines(page.title) * CARD_TITLE_LINE +
-    clampedLines(page.description) * CARD_TEXT_LINE
-  );
+/** The height of a message's attachments, without the gap to its text. */
+function attachmentsHeight(message: ChatMessage): number {
+  const { images, others } = splitFiles(message.files ?? []);
+  const rows = Math.ceil(images.length / 2);
+  const tile = images.length === 1 ? GRID_WIDTH : (GRID_WIDTH - GRID_GAP) / 2;
+  const grid = rows === 0 ? 0 : (rows * tile * 3) / 4 + (rows - 1) * GRID_GAP;
+  const list = others.length === 0 ? 0 : others.length * FILE_ROW_PX + (others.length - 1) * FILE_ROW_GAP;
+  return grid + list + (grid && list ? ATTACHMENT_GAP : 0);
 }
 
 function bubbleTextLines(body: string): number {
@@ -84,25 +56,18 @@ export function estimateRowHeight(item: TimelineItem): number {
   if (item.kind === "thread") return RUN_GAP_PX + 28 + 2;
 
   const { message } = item;
-  const attachments =
-    mediaBlockHeight(message) + (message.documents?.length ?? 0) * DOCUMENT_ROW_PX;
-  const caption = message.body.trim().length > 0;
-  const captionBlock = message.body.length > 0 || hasWebPageContent(message.webPage);
+  const attachments = attachmentsHeight(message);
+  const hasText = message.body.length > 0;
   const jumbo = attachments > 0 ? undefined : jumboEmojiClass(message.body);
-  const text = bubbleTextLines(message.body);
-  const cardOnly = attachments === 0 && message.replyToId === undefined && isLinkOnly(message.body, message.webPage);
-  const bubble = cardOnly
-    ? 0
-    : attachments > 0
-      ? attachments + (captionBlock ? CAPTION_PAD_Y + (caption ? LINE_BOX * text : 0) : 0)
-      : jumbo === "jumbo-single"
-        ? JUMBO_SINGLE_PX
-        : jumbo === "jumbo-group"
-          ? JUMBO_GROUP_PX
-          : BUBBLE_PAD_Y + LINE_BOX * text;
-  const card = cardHeight(message.webPage);
+  const text = hasText || attachments === 0 ? LINE_BOX * bubbleTextLines(message.body) : 0;
+  const bubble =
+    jumbo === "jumbo-single"
+      ? JUMBO_SINGLE_PX
+      : jumbo === "jumbo-group"
+        ? JUMBO_GROUP_PX
+        : BUBBLE_PAD_Y + attachments + (attachments && hasText ? ATTACHMENT_GAP : 0) + text;
   const quote = message.replyToId === undefined ? 0 : QUOTE_LINE * QUOTE_LINES + QUOTE_CHROME_Y;
 
   const rowPadTop = item.hasRunGapBefore ? RUN_GAP_PX : ROW_GAP_PX;
-  return Math.ceil(bubble + card + quote + rowPadTop + ROW_GAP_PX);
+  return Math.ceil(bubble + quote + rowPadTop + ROW_GAP_PX);
 }

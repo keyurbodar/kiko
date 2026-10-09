@@ -29,7 +29,7 @@ import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
-import { createMediaViewer } from "../chat/media/mediaViewer"
+import { createImageDialog } from "./ui/image-dialog"
 import type { DraftBook } from "../warm/drafts"
 
 /**
@@ -745,21 +745,11 @@ export function VirtualThread(props: {
   )
 
   /**
-   * One media viewer for the whole transcript, not one per row.
-   *
-   * It has to outlive the row that opened it: the transcript is virtualized, so
-   * a per-row viewer would be destroyed the moment its message scrolled out of
-   * the buffer, taking an open dialog with it. `menu.view` is per row for
-   * exactly the opposite reason — a menu belongs to one message and should die
-   * with it.
-   *
-   * The row hands up the whole album and the index that was clicked, not a
-   * single source: a viewer is a slideshow over a message's media, and a
-   * callback that flattened it to one item could not offer the next picture.
-   * The body travels with it as the caption, which is the only place it can
-   * come from — the viewer has no access to the transcript's items.
+   * One image dialog for the whole transcript, not one per row. The transcript is virtualized, so
+   * a per-row dialog would close the moment its message scrolled out of the buffer. A row hands up
+   * all of its pictures and the one clicked, so the arrows can move through the rest.
    */
-  const viewer = createMediaViewer()
+  const viewer = createImageDialog()
 
   /**
    * One message row: the bubble, its hover actions, and the menu that belongs
@@ -822,7 +812,7 @@ export function VirtualThread(props: {
             menu.openAt(message.id, box.left, box.bottom)
           }}
           onContextMenu={menu.onContextMenu}
-          onOpenMedia={(media, index) => viewer.open(media, index, message.body)}
+          onOpenImages={(images, index) => viewer.open(images, index)}
         />
         {menu.view}
       </>

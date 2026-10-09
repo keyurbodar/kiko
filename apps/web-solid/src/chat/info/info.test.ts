@@ -1,11 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import type { CatalogItem } from "@kiko/protocol"
 import { newRoomId } from "../../sync/user-store"
-import { mergeCatalog } from "./catalog"
 import { formatBytes, shortDate, startedAt } from "./format"
 import { clampWidth, closeFile, closeInfo, DEFAULT_WIDTH, FILE_DEFAULT_WIDTH, infoOpen, infoSections, infoTab, infoView, openFile, openFilePath, openInfo, panelWidth, popInfo, pushInfo, registerInfoSection, toggleFiles, toggleInfo } from "./state"
-
-const link = (seq: number): CatalogItem => ({ kind: "link", url: `https://a.dev/${seq}`, site: "a.dev", messageId: `m${seq}` as never, seq, at: seq })
 
 describe("header text", () => {
   test("a room id carries its start time", () => {
@@ -23,25 +19,6 @@ describe("header text", () => {
 
   test("sizes", () => {
     expect([formatBytes(12), formatBytes(3482), formatBytes(2_500_000)]).toEqual(["12 B", "3.4 KB", "2.4 MB"])
-  })
-})
-
-describe("catalog merge", () => {
-  test("a fresh page replaces the newest items and keeps the older ones with their cursor", () => {
-    const held = [link(9), link(8), link(7), link(6)]
-    const first = { items: [link(10), link(9)], next: 9 }
-    expect(mergeCatalog(held, 6, first)).toEqual({ items: [link(10), link(9), link(8), link(7), link(6)], next: 6 })
-  })
-
-  test("a deleted item leaves the page it was on", () => {
-    expect(mergeCatalog([link(3), link(2), link(1)], null, { items: [link(3), link(1)], next: null })).toEqual({
-      items: [link(3), link(1)],
-      next: null,
-    })
-  })
-
-  test("a short list takes the page's cursor", () => {
-    expect(mergeCatalog([link(2)], null, { items: [link(3), link(2)], next: 2 })).toEqual({ items: [link(3), link(2)], next: 2 })
   })
 })
 

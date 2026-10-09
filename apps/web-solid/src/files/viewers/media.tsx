@@ -1,7 +1,7 @@
-import { AudioBubble } from "../../chat/media/player/AudioBubble"
-import { VideoPlayer } from "../../chat/media/player/VideoPlayer"
+import { AudioBubble } from "../media/player/AudioBubble"
+import { VideoPlayer } from "../media/player/VideoPlayer"
 
-/* Audio and video files play in the chat's own players, so a file and a message sound the same. */
+/* Audio and video files play in kiko's own players. */
 
 export function AudioView(props: { src: string; title: string }) {
 	return (

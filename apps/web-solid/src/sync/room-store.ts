@@ -24,7 +24,6 @@ import type {
 	AgentSlug,
 	AgentState,
 	Approval,
-	CatalogItem,
 	ClientToRoom,
 	FileRef,
 	Member,
@@ -189,12 +188,6 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			else delete m.rich
 			return { put: raw(m) }
 		}
-		case "preview": {
-			const i = findMessage(data.messages, e.messageId)
-			if (i === -1) return {}
-			data.messages[i].preview = e.preview
-			return { put: raw(data.messages[i]) }
-		}
 		case "delete": {
 			const deleted: Message[] = []
 			for (const id of e.messageIds) {
@@ -253,6 +246,9 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			// The full connect card is P4-06. Until then the chat shows a one-line notice from this.
 			data.noProvider = { slug: e.slug, provider: e.provider }
 			return { meta: true }
+		default:
+			// A tag this client does not know, such as a link preview an older room logged. It changes nothing.
+			return {}
 	}
 }
 
@@ -274,7 +270,7 @@ export function mergeBySeq(a: readonly Message[], b: readonly Message[]): Messag
 }
 
 /**
- * Applies a live event to a jumped-to window: an edit, reaction, preview, or delete of a message it
+ * Applies a live event to a jumped-to window: an edit, reaction, or delete of a message it
  * holds, and a newer version of one. A new message is not added: it belongs to the live end.
  */
 export function applyToHistory(history: Message[], e: RoomEvent): void {
@@ -283,7 +279,7 @@ export function applyToHistory(history: Message[], e: RoomEvent): void {
 		if (i !== -1) history[i] = toMessage(e)
 		return
 	}
-	if (e.t !== "edit" && e.t !== "react" && e.t !== "preview" && e.t !== "delete") return
+	if (e.t !== "edit" && e.t !== "react" && e.t !== "delete") return
 	applyRoomEvent({ ...emptyRoom(), seq: e.seq - 1, messages: history }, e)
 }
 
@@ -328,10 +324,9 @@ export type RoomStoreOptions = {
 	ttlMs?: number
 }
 
-export type CatalogPage = { items: readonly CatalogItem[]; next: number | null }
 export type SearchPage = { results: readonly SearchHit[]; next: number | null }
 
-/** How long a question to the room (catalog, search, history) waits for its answer. */
+/** How long a question to the room (search, history) waits for its answer. */
 const ASK_TIMEOUT_MS = 8000
 /** Messages on each side of a jump target, and in each page past what the disk holds. */
 export const HISTORY_PAGE = 30
@@ -386,11 +381,6 @@ export type RoomStore = {
 	/** `rm` or `mv` on the room's files, applied at once. A refusal drops the patch and calls every `onFilesRefused` listener. */
 	fileOp(op: FileOp): void
 	onFilesRefused(listener: (op: FileOp, reason: string) => void): () => void
-	/**
-	 * Asks the room for the links or the media sent in it, newest first. `before` is the `next` of the
-	 * previous page. Resolves to null when the socket is down or the room does not answer.
-	 */
-	catalog(kind: "links" | "media", before?: number, limit?: number): Promise<CatalogPage | null>
 	/** Searches the room's messages, newest first. `before` is the `next` of the previous page. Null when the room does not answer. */
 	search(query: string, before?: number, limit?: number): Promise<SearchPage | null>
 	/**
@@ -461,9 +451,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	})
 
 	let socket: SyncSocket | null = null
-	/** Questions waiting for their answer (catalog, search, history), by a key the answer repeats. */
+	/** Questions waiting for their answer (search, history), by a key the answer repeats. */
 	const asked = new Map<string, ((answer: unknown) => void)[]>()
-	const catalogKey = (kind: string, before: number | undefined) => `catalog:${kind}:${before ?? ""}`
 	const searchKey = (query: string, before: number | undefined) => `search:${before ?? ""}:${query}`
 	const historyKey = (seq: number, before: number, after: number) => `history:${seq}:${before}:${after}`
 	/** Resolved when the socket opens, for a question asked while it connects. */
@@ -689,7 +678,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			}),
 		// Answers to one socket's questions. Nothing stores them.
 		search: (f) => answer(searchKey(f.query, f.before), { results: f.results, next: f.next }),
-		catalog: (f) => answer(catalogKey(f.kind, f.before), { items: f.items, next: f.next }),
 		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages),
 		// A reply lands as whole bubbles. While a long one grows, its agent shows as typing.
 		draft: () => {},
@@ -878,14 +866,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		onFilesRefused(listener) {
 			fileRefusalListeners.add(listener)
 			return () => fileRefusalListeners.delete(listener)
-		},
-		catalog(kind, before, limit) {
-			return ask<CatalogPage>(catalogKey(kind, before), {
-				t: "catalog",
-				kind,
-				...(before !== undefined ? { before } : {}),
-				...(limit !== undefined ? { limit } : {}),
-			})
 		},
 		search(query, before, limit) {
 			return ask<SearchPage>(searchKey(query, before), {

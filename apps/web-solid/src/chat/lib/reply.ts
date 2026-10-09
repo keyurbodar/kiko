@@ -1,10 +1,10 @@
 import type { ChatMessage } from "../../lib/types";
-import { mediaThumbnail } from "./media";
+import { splitFiles } from "../../lib/attachments";
 
 export type ReplySummary = {
   text: string;
   thumb?: string;
-  glyph?: "document" | "link";
+  glyph?: "document";
 };
 
 const REPLY_QUOTE_MAX_CHARS = 140;
@@ -16,7 +16,6 @@ const EMOJI_VARIATION = /[\uFE0E\uFE0F]/gu;
 const SKIN_TONE = /[\u{1F3FB}-\u{1F3FF}]/gu;
 const ZERO_WIDTH_JOINER = /\u200D/u;
 const KEYCAP = /\u20E3/u;
-const URL_ONLY = /^https?:\/\/\S+$/i;
 
 export function graphemes(value: string): string[] {
   return Array.from(GRAPHEMES.segment(value), (part) => part.segment);
@@ -35,14 +34,11 @@ export function replyQuoteText(parent: string | null | undefined): string {
   return `${out}…`;
 }
 
-function mediaLabel(media: NonNullable<ChatMessage["media"]>): string {
-  if (media.length > 1) return "Album";
-  return media[0]?.kind === "video" ? "Video" : "Photo";
-}
-
-function documentLabel(documents: NonNullable<ChatMessage["documents"]>): string {
-  const first = documents[0]?.name ?? "";
-  return documents.length > 1 ? `${first} and ${documents.length - 1} more` : first;
+/** What a message of only attachments is called in a quote: `Photo`, `3 photos`, or its first file. */
+function filesLabel(images: number, others: readonly { name: string }[]): string {
+  if (others.length === 0) return images > 1 ? `${images} photos` : "Photo";
+  const rest = images + others.length - 1;
+  return rest > 0 ? `${others[0]!.name} and ${rest} more` : others[0]!.name;
 }
 
 /** The reply header for a quote: the words the sender picked, in quote marks, cut like any reply. */
@@ -51,24 +47,12 @@ export function quoteSummary(quote: string): ReplySummary {
 }
 
 export function replySummary(message: ChatMessage): ReplySummary {
-  const thumb = mediaThumbnail(message.media?.[0]);
-  const media = message.media ?? [];
-  const documents = message.documents ?? [];
-  const webPage = message.webPage;
+  const { images, others } = splitFiles(message.files ?? []);
   const body = message.body.trim();
-  const linkOnly = webPage !== undefined && (body === "" || URL_ONLY.test(body));
-
-  let text = "";
-  // A link-only message is quoted by its link, as kat does.
-  if (linkOnly) text = replyQuoteText(body || webPage.url);
-  else if (body !== "") text = replyQuoteText(body);
-  else if (media.length > 0) text = mediaLabel(media);
-  else if (documents.length > 0) text = documentLabel(documents);
-
+  const text = body !== "" ? replyQuoteText(body) : images.length + others.length > 0 ? filesLabel(images.length, others) : "";
   const summary: ReplySummary = { text };
-  if (thumb) summary.thumb = thumb;
-  else if (documents.length > 0) summary.glyph = "document";
-  else if (linkOnly) summary.glyph = "link";
+  if (images[0]) summary.thumb = images[0].src;
+  else if (others.length > 0) summary.glyph = "document";
   return summary;
 }
 

@@ -1,139 +1,81 @@
-import { createSignal, For, Show } from "solid-js"
+import { For, Show } from "solid-js"
 import { FileIcon } from "@kiko/ui/file-icon"
-import { Icon as IconV2 } from "@kiko/ui/v2/icon"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { CommentCardV2 } from "../comment-card-v2"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { CloseIcon } from "@kiko/ui/icons"
+import { formatBytes } from "../../chat/info/format"
+import { isImage } from "../../lib/attachments"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-import type { PromptInputV2Attachment, PromptInputV2Comment, PromptInputV2Suggestion } from "./types"
+import type { PromptInputV2Attachment, PromptInputV2Suggestion } from "./types"
 
 /*
  * The parts of the composer that only show once there is something in them: the attachment
  * strip and the @ and / popover. index.tsx loads this module lazily, so they and FileIcon stay
  * out of first paint. The composer preloads it on idle.
+ *
+ * The strip is t3code's: pictures as 64px square thumbnails that open the image dialog, each with
+ * a remove button on its corner, and other files as rows under them with their size.
  */
-
-/** Carries the id of a chip being reordered. Not `text/plain`, which the dock reads as an @mention drop. */
-const REORDER_TYPE = "application/x-kiko-attachment"
 
 export function PromptInputV2Attachments(props: {
   attachments: PromptInputV2Attachment[]
-  comments?: PromptInputV2Comment[]
-  activeCommentID?: string
-  removeLabel: string
-  onAttachmentClick?: (attachment: PromptInputV2Attachment) => void
-  onAttachmentRemove: (attachment: PromptInputV2Attachment) => void
-  onAttachmentReorder?: (id: string, toId: string) => void
-  onCommentClick?: (comment: PromptInputV2Comment) => void
-  onCommentRemove?: (comment: PromptInputV2Comment) => void
+  onImageClick?: (attachment: PromptInputV2Attachment) => void
+  onRemove: (attachment: PromptInputV2Attachment) => void
 }) {
-  const [dropTarget, setDropTarget] = createSignal<string>()
+  const picture = (a: PromptInputV2Attachment) => isImage({ name: a.filename, type: a.mime })
+  const images = () => props.attachments.filter(picture)
+  const others = () => props.attachments.filter((a) => !picture(a))
   return (
-    <Show when={props.attachments.length > 0 || (props.comments?.length ?? 0) > 0}>
-      <div data-component="prompt-input-v2-attachments" data-slot="prompt-attachments" class="attachment-strip">
-        <For each={props.comments ?? []}>
-          {(comment) => (
-            <div class="relative shrink-0">
-              <TooltipV2
-                value={comment.comment}
-                placement="top"
-                openDelay={800}
-                contentClass="max-w-[300px] break-words"
-              >
-                <CommentCardV2
-                  comment={comment.comment ?? ""}
-                  path={comment.path}
-                  selection={comment.selection}
-                  active={comment.key === props.activeCommentID}
-                  onClick={() => props.onCommentClick?.(comment)}
-                />
-              </TooltipV2>
-              <button
-                type="button"
-                onClick={() => props.onCommentRemove?.(comment)}
-                class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center"
-                aria-label={props.removeLabel}
-              >
-                <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
-              </button>
-            </div>
-          )}
-        </For>
-        <For each={props.attachments}>
-          {(attachment) => {
-            const isImage = () => attachment.mime.startsWith("image/")
-            return (
-              /* The tooltip wraps the chip rather than living inside it: its
-               * trigger is a wrapper element, and a wrapper inside the chip
-               * would become the flex item that kat's `gap: 6px` measures
-               * between the icon and the name. */
-              <TooltipV2 value={attachment.filename} placement="top" contentClass="break-all">
-                <div
-                  class="attachment-chip"
-                  data-component="composer-attachment"
-                  data-image={isImage() ? "" : undefined}
-                  data-id={attachment.id}
-                  data-drop={dropTarget() === attachment.id ? "" : undefined}
-                  draggable={props.onAttachmentReorder !== undefined && props.attachments.length > 1}
-                  onDragStart={(event) => {
-                    event.dataTransfer?.setData(REORDER_TYPE, attachment.id)
-                    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-                  }}
-                  onDragOver={(event) => {
-                    if (!event.dataTransfer?.types.includes(REORDER_TYPE)) return
-                    event.preventDefault()
-                    setDropTarget(attachment.id)
-                  }}
-                  onDragLeave={() => setDropTarget(undefined)}
-                  onDragEnd={() => setDropTarget(undefined)}
-                  onDrop={(event) => {
-                    const id = event.dataTransfer?.getData(REORDER_TYPE)
-                    setDropTarget(undefined)
-                    if (!id) return
-                    event.preventDefault()
-                    event.stopPropagation()
-                    props.onAttachmentReorder?.(id, attachment.id)
-                  }}
+    <div data-component="prompt-input-v2-attachments" data-slot="prompt-attachments" class="flex flex-[0_0_100%] flex-col gap-2 px-1 pt-0.5">
+      <Show when={images().length > 0}>
+        <div class="flex max-w-full flex-wrap gap-2">
+          <For each={images()}>
+            {(attachment) => (
+              <div class="relative size-16 shrink-0 overflow-hidden rounded-lg border border-hairline/80 bg-bg" data-component="composer-attachment" data-image="" data-id={attachment.id}>
+                <button
+                  type="button"
+                  class="size-full cursor-zoom-in"
+                  aria-label={`Preview ${attachment.filename}`}
+                  onClick={() => props.onImageClick?.(attachment)}
                 >
-                  <Show
-                    when={isImage()}
-                    fallback={
-                      <>
-                        <FileIcon
-                          node={{ path: attachment.filename, type: "file" }}
-                          class="attachment-file-icon"
-                        />
-                        <span class="attachment-filename">{attachment.filename}</span>
-                      </>
-                    }
-                  >
-                    <button
-                      type="button"
-                      class="attachment-thumb-button"
-                      onClick={() => props.onAttachmentClick?.(attachment)}
-                      aria-label={`Open ${attachment.filename}`}
-                    >
-                      <img
-                        src={attachment.blob.url}
-                        alt={attachment.filename}
-                        class="attachment-thumb"
-                      />
-                    </button>
-                  </Show>
-                  <button
-                    type="button"
-                    class="attachment-remove"
-                    onClick={() => props.onAttachmentRemove(attachment)}
-                    aria-label={props.removeLabel}
-                  >
-                    <IconV2 name="outline-xmark" />
-                  </button>
-                </div>
-              </TooltipV2>
-            )
-          }}
-        </For>
-      </div>
-    </Show>
+                  <img src={attachment.blob.url} alt={attachment.filename} class="size-full object-cover" draggable={false} />
+                </button>
+                <button
+                  type="button"
+                  class="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80 focus-visible:ring-white"
+                  aria-label={`Remove ${attachment.filename}`}
+                  onClick={() => props.onRemove(attachment)}
+                >
+                  <HugeIcon icon={CloseIcon} size={12} />
+                </button>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+      <Show when={others().length > 0}>
+        <div class="flex flex-col gap-1">
+          <For each={others()}>
+            {(attachment) => (
+              <div class="flex min-w-0 items-center gap-2 py-1 text-sm text-text" data-component="composer-attachment" data-id={attachment.id}>
+                <FileIcon node={{ path: attachment.filename, type: "file" }} class="size-4 shrink-0" />
+                <span class="min-w-0 flex-1 truncate" title={attachment.filename}>
+                  {attachment.filename}
+                </span>
+                <span class="shrink-0 text-xs text-muted">{formatBytes(attachment.size)}</span>
+                <button
+                  type="button"
+                  class="grid size-6 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-text"
+                  aria-label={`Remove ${attachment.filename}`}
+                  onClick={() => props.onRemove(attachment)}
+                >
+                  <HugeIcon icon={CloseIcon} size={14} />
+                </button>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+    </div>
   )
 }
 

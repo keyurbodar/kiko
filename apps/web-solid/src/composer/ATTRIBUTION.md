@@ -18,23 +18,12 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
 | `prompt-input/store.ts` | `packages/session-ui/src/v2/components/prompt-input/store.ts` |
 | `prompt-input/types.ts` | `packages/session-ui/src/v2/components/prompt-input/types.ts` |
 | `prompt-input/attachments.ts` | `packages/session-ui/src/v2/components/prompt-input/attachments.ts` |
-| `attachment-card-v2.tsx` | `packages/session-ui/src/v2/components/attachment-card-v2.tsx` |
-| `comment-card-v2.tsx` | `packages/session-ui/src/v2/components/comment-card-v2.tsx` |
-| `path.ts` | `packages/core/src/util/path.ts` |
 
 ## What was changed
 
-- Import specifiers repointed from `@opencode-ai/*` to `@kiko/ui/*`, except
-  `@opencode-ai/core/util/path` in `comment-card-v2.tsx`, which points at the
-  local `./path` instead.
+- Import specifiers repointed from `@opencode-ai/*` to `@kiko/ui/*`.
 - `FilePartSource`, previously imported from `@opencode-ai/sdk/v2/client`, is
   declared locally in `prompt-input/types.ts`. Kiko has no SDK.
-- `getFilename` and `getFilenameTruncated` in `path.ts` are local
-  implementations of `@opencode-ai/core/util/path`, which Kiko does not vendor.
-  `getFilenameTruncated` is not behaviourally equivalent: upstream keeps the
-  extension and cuts from the front (`verylo…name.ts`), this cuts from the tail
-  behind a leading ellipsis (`…name.ts`). Its only caller is
-  `comment-card-v2.tsx`, which renders only when the host passes `comments`.
 - `composer.tsx` is Kiko-authored. It builds the controller against fixtures and
   Kiko's frozen contract instead of the opencode SDK.
 - `prompt-input/index.tsx` was restyled to a single-row Discord-like layout:
@@ -51,18 +40,16 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
   advertises `/` for commands and `@` for context, and Kiko has no commands. A
   host that passes `view.placeholder` — Kiko does — never reaches that fallback.
 
-Byte-identical to upstream: `prompt-input/machine.ts`, `prompt-input/store.ts`
-and `prompt-input/attachments.ts`. The
-controller, reducer, part store and DOM reconciliation are upstream's.
+- On 2026-10-09 the attachments moved to t3code's design. `prompt-input/attachments.ts`
+  is now Kiko-authored: it takes any file, applies Kiko's limits, and drops the
+  native picker, the clipboard reader and the reorder. The context comments
+  (`comment-card-v2.tsx`, `attachment-card-v2.tsx`, `path.ts`, the `context`
+  part of the store and the machine's `context.active`) are removed, because
+  nothing in Kiko ever created a comment. The strip in `prompt-input/extras.tsx`
+  is Kiko's.
 
-`attachment-card-v2.tsx` is NOT byte-identical: an interactive card is a native
-`<button>`, where upstream shipped a `<div onClick>` with no role and no
-keyboard path. A card with no `onClick` is still a `<div>`.
-
-`comment-card-v2.tsx` is NOT byte-identical either. Its imports differ as
-described above, and it observes with `createResizeObserver` from
-`@solid-primitives/resize-observer` rather than a raw `new ResizeObserver`, so
-the observer's teardown is owned by the primitive.
+The controller, reducer, part store and DOM reconciliation are still upstream's,
+less the parts named above.
 
 ## License
 

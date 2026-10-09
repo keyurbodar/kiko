@@ -31,9 +31,8 @@ import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
-import { attachPreviewShelf, fromServer, rememberPreview, warmCardColor } from "../chat/lib/linkPreview"
 import { newestMessages } from "../warm/messages"
-import type { BotPresence, ChatMessage, DocumentItem, MediaItem, OutgoingMessage, Reaction, RosterBot } from "./types"
+import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "./types"
 import { resumeChat, rosterChats } from "./chats"
 import { dmFor } from "@kiko/protocol"
 
@@ -50,17 +49,6 @@ export const urls = {
   room: (roomId: RoomId) => `${wsOrigin()}/api/ws/room/${roomId}`,
   // ASSUMPTION: the download route. P8-03 builds it and may change this line.
   file: (roomId: string, fileId: string) => `/api/files/${roomId}/${encodeURIComponent(fileId)}`,
-  /** A file's small still, when `FileRef.thumb` says it has one. */
-  thumb: (roomId: string, fileId: string) => `/api/files/${roomId}/${encodeURIComponent(fileId)}/thumb`,
-}
-
-/**
- * What a small surface (a transcript cell, a grid tile) draws for a file: its still, or the
- * original picture when it has none. Undefined for a clip without a still: draw its thumbhash.
- */
-export function stillOf(roomId: string, f: FileRef): string | undefined {
-  if (f.thumb) return urls.thumb(roomId, f.id)
-  return f.type.startsWith("video/") ? undefined : urls.file(roomId, f.id)
 }
 
 /** How the stores reach the server. The browser's `WebSocket` unless a test or the dev mock says otherwise. */
@@ -103,8 +91,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 export function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
-  const preview = m.preview ? `${m.preview.url}:${m.preview.title ?? ""}:${m.preview.image ?? ""}` : ""
-  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${preview}`
+  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}`
 }
 
 /** The transcript's view of one protocol message. */
@@ -123,32 +110,11 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.editedAt !== undefined) out.edited = true
   if (m.goto) out.goto = m.goto
   if (m.quote) out.quote = m.quote
-  const page = m.preview ? fromServer(m.preview) : null
-  if (page) {
-    out.webPage = page
-    rememberPreview(page)
-    warmCardColor(page)
-  }
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
-  if (m.files?.length) {
-    // Pictures and video with known dimensions are media; everything else is a document row.
-    const visual = (f: FileRef) => (f.type.startsWith("image/") || f.type.startsWith("video/")) && !!f.width && !!f.height
-    const media = m.files.filter(visual).map((f): MediaItem => {
-      const item: MediaItem = { kind: f.type.startsWith("video/") ? "video" : "photo", src: urls.file(roomId, f.id), width: f.width!, height: f.height!, alt: attachmentName(f.name) }
-      if (f.thumb) item.thumb = urls.thumb(roomId, f.id)
-      if (f.thumbhash) item.thumbhash = f.thumbhash
-      return item
-    })
-    const docs = m.files.filter((f) => !visual(f)).map((f): DocumentItem => ({ name: attachmentName(f.name), size: f.size, mime: f.type, src: urls.file(roomId, f.id) }))
-    if (media.length) out.media = media
-    if (docs.length) out.documents = docs
-  } else if (m.local?.length) {
-    const media = m.local.filter((f) => f.width && f.height).map((f): MediaItem => ({ kind: "photo", src: f.src, width: f.width!, height: f.height!, alt: f.name }))
-    const docs = m.local.filter((f) => !(f.width && f.height)).map((f): DocumentItem => ({ name: f.name, size: 0, mime: f.mime, src: f.src }))
-    if (media.length) out.media = media
-    if (docs.length) out.documents = docs
-  }
+  // A stored file keeps only what today's bubble reads, so an old message's media fields fall away here.
+  if (m.files?.length) out.files = m.files.map((f) => ({ name: attachmentName(f.name), path: f.name, size: f.size, type: f.type, src: urls.file(roomId, f.id) }))
+  else if (m.local?.length) out.files = m.local.map((f) => ({ name: f.name, size: f.size, type: f.type, src: f.src }))
   if (m.from.kind === "human") out.status = m.failed ? "failed" : m.pending ? "sending" : "sent"
   return out
 }
@@ -202,7 +168,7 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRo
 
 /** The activity a view message is, for the open room's row before the server's touch. */
 export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLast {
-  const files = m.files ?? m.local?.map((f) => ({ name: f.name, type: f.mime || (f.width && f.height ? "image/" : "") }))
+  const files = m.files ?? m.local
   return messageLast({ from: m.from.kind, ...(m.from.kind === "agent" ? { name: name(m.from.slug) } : {}), text: m.text, ...(files ? { files } : {}), at: m.at })
 }
 
@@ -519,14 +485,11 @@ export function createApp(options: AppOptions = {}) {
 
     function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {
       const r = room()
-      const local: LocalAttachment[] = [
-        ...(message.media ?? []).map((m) => ({ src: m.src, name: m.alt || "photo", mime: "", width: m.width, height: m.height })),
-        ...(message.documents ?? []).map((d) => ({ src: d.src, name: d.name, mime: d.mime })),
-      ]
+      const local: LocalAttachment[] = (message.files ?? []).map((f) => ({ src: f.src, name: f.name, type: f.type, size: f.size }))
       if (!r || (message.body.trim().length === 0 && local.length === 0)) return undefined
       const stored = replyTo !== undefined && !replyTo.startsWith("local:")
       const opts: SendOptions = stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}
-      // Attachments show at once from their blob URLs and upload in the background (P8-06).
+      // Attachments show at once from their blob URLs and upload in the background.
       if (local.length) Object.assign(opts, { local, uploads: uploadAll(r.state.roomId, local) })
       const clientId = r.send(message.body, opts)
       return `local:${clientId}`
@@ -549,9 +512,6 @@ export function createApp(options: AppOptions = {}) {
             openWarm({ ...options.warm, userId }),
             (options.transport ?? defaultTransport)(),
           ])
-          if (bootUser !== userId) return void warm.close()
-          // Cards and their colours are in memory before the first room paints.
-          await attachPreviewShelf(warm)
           if (bootUser !== userId) return void warm.close()
           session = { userId, warm, transport }
           batch(() => {

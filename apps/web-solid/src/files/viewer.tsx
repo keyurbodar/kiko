@@ -1,6 +1,6 @@
 import type { FileRef } from "@kiko/protocol"
 import { createMemo, createSignal, lazy, Match, Show, Suspense, Switch } from "solid-js"
-import { createMediaViewer } from "../chat/media/mediaViewer"
+import { createMediaViewer } from "./media/mediaViewer"
 import { formatBytes } from "../chat/info/format"
 import { urls } from "../lib/store"
 import type { EditorState } from "./editor"
@@ -69,7 +69,7 @@ export function FileViewer(props: { roomId: string; path: string; file: FileRef 
 										class="fv-image"
 										aria-label={`Open ${baseName(ref().name)}`}
 										onClick={() =>
-											media.open([{ kind: "photo", src: src(ref()), width: ref().width ?? 1600, height: ref().height ?? 900, alt: ref().name }], 0)
+											media.open([{ kind: "photo", src: src(ref()), width: 0, height: 0, alt: ref().name }], 0)
 										}
 									>
 										<img src={src(ref())} alt={ref().name} onError={() => setBroken(ref().id)} />

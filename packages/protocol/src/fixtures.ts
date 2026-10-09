@@ -6,7 +6,7 @@
 import type { Envelope } from "./envelope"
 import type { AgentSlug, MessageId, RoomId, UserId } from "./ids"
 import type { RichText } from "./rich-text"
-import type { Approval, ClientToRoom, FileRef, LinkPreview, Member, Message, RoomEvent, RoomSnapshot, RoomToClient, Task } from "./room"
+import type { Approval, ClientToRoom, FileRef, Member, Message, RoomEvent, RoomSnapshot, RoomToClient, Task } from "./room"
 import type { Chat, ClientToUser, UserToClient } from "./user"
 
 export const userId = "user_fixture" as UserId
@@ -30,9 +30,6 @@ export const file: FileRef = {
 	name: "plan.png",
 	size: 48_211,
 	type: "image/png",
-	width: 1280,
-	height: 720,
-	thumbhash: "1QcSHQRnh493V4dIh4eXh1h4kJUI",
 }
 
 /** One of every block and inline node. */
@@ -115,8 +112,6 @@ export const approval: Approval = {
 	expiresAt: at(9) + 240_000,
 }
 
-const linkPreview: LinkPreview = { url: "https://example.com/", title: "example", image: "/api/preview-image/abc", themeColor: "#d64040" }
-
 /** One of every stored event, in `seq` order. */
 export const roomEvents: readonly RoomEvent[] = [
 	{ t: "message", clientId: "c1", ...humanMessage },
@@ -136,12 +131,11 @@ export const roomEvents: readonly RoomEvent[] = [
 	{ seq: 15, at: at(15), t: "task_removed", id: "t2" },
 	{ seq: 16, at: at(16), t: "approval", approval },
 	{ seq: 17, at: at(17), t: "file", file },
-	{ seq: 18, at: at(18), t: "preview", messageId: messageId(1), preview: linkPreview },
 ]
 
 /** The room after `roomEvents`. */
 export const roomSnapshot: RoomSnapshot = {
-	seq: 18,
+	seq: 17,
 	readSeq: 9,
 	members,
 	messages: [
@@ -150,7 +144,6 @@ export const roomSnapshot: RoomSnapshot = {
 			text: "can you two plan the wire protocol package?",
 			editedAt: at(7),
 			reactions: [{ by: { kind: "agent", slug: ada }, emoji: "👍" }],
-			preview: linkPreview,
 		},
 		{
 			...agentMessage,
@@ -187,8 +180,6 @@ export const clientToRoom: readonly ClientToRoom[] = [
 	{ t: "member", op: { op: "remove", slug: "cy" as AgentSlug } },
 	{ t: "search", query: "protocol" },
 	{ t: "search", query: "protocol", before: 9, limit: 20 },
-	{ t: "catalog", kind: "links" },
-	{ t: "catalog", kind: "media", before: 9, limit: 20 },
 	{ t: "history", seq: 9, before: 30, after: 30 },
 ]
 
@@ -205,8 +196,6 @@ export const roomToClient: readonly RoomToClient[] = [
 	{ t: "member_refused", op: { op: "add", slug: "cy" as AgentSlug, name: "cy" }, reason: "limit" },
 	{ t: "search", query: "protocol", results: [{ id: messageId(1), seq: 1, at: 1, from: { kind: "human" }, snippet: "plan the \u0002protocol\u0003 package" }], next: null },
 	{ t: "search", query: "plan", before: 9, results: [], next: null },
-	{ t: "catalog", kind: "links", items: [{ kind: "link", url: "https://example.com/a", site: "example.com", messageId: messageId(1), seq: 1, at: 1 }], next: null },
-	{ t: "catalog", kind: "media", before: 9, items: [], next: null },
 	{ t: "history", seq: 1, before: 30, after: 30, messages: roomSnapshot.messages },
 	{ t: "history", seq: 9, before: 50, after: 0, messages: [] },
 ]

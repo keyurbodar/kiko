@@ -225,6 +225,18 @@ test("a socket gets no broadcast before hello", async () => {
 	a.close()
 })
 
+test("an older client's retired catalog frame is ignored and the socket stays open", async () => {
+	const room = fresh()
+	const a = await Client.open(room)
+	a.send({ t: "catalog", kind: "media" })
+	a.send({ t: "send", clientId: "after", text: "still here" })
+	const ack = await a.next((f) => f.t === "ack")
+	expect(ack).toMatchObject({ clientId: "after" })
+	expect(a.closed).toBeNull()
+	expect(a.frames.some((f) => (f as { t: string }).t === "catalog")).toBe(false)
+	a.close()
+})
+
 test.each([
 	["not json", "{"],
 	["an unknown frame", { t: "nope" }],

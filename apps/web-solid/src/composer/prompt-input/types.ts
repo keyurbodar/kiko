@@ -34,12 +34,14 @@ export type PromptInputV2AgentPart = PromptInputV2PartBase & {
   name: string
 }
 
+/** A file in the composer. `type` is "image" for every file; `mime` tells a picture from the rest. */
 export type PromptInputV2Attachment = {
   type: "image"
   id: string
   filename: string
-  sourcePath?: string
   mime: string
+  /** Bytes. */
+  size: number
   blob: { id: string; url: string }
 }
 
@@ -63,24 +65,10 @@ export type PromptInputV2Selection = {
   endChar: number
 }
 
-export type PromptInputV2Comment = {
-  type: "file"
-  key: string
-  path: string
-  selection?: PromptInputV2Selection
-  comment?: string
-  commentID?: string
-  commentOrigin?: "review" | "file"
-  preview?: string
-}
-
 export type PromptInputV2PersistedState = {
   prompt: PromptInputV2Prompt
   cursor?: number
   model?: PromptInputV2Model
-  context: {
-    items: PromptInputV2Comment[]
-  }
 }
 
 export type PromptInputV2HistoryEntry = {

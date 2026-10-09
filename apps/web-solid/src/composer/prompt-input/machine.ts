@@ -9,7 +9,6 @@ export type PromptInputV2InteractionState = {
     | { type: "command-menu"; query: string; activeID?: string }
   drag: "idle" | "active"
   focus: "editor" | "command-search" | "external"
-  activeContextID?: string
   historyIndex: number
   savedHistory?: PromptInputV2HistoryEntry
 }
@@ -30,7 +29,6 @@ export type PromptInputV2InteractionEvent =
   | { type: "drag.leave" }
   | { type: "focus.editor" }
   | { type: "focus.external" }
-  | { type: "context.active"; id: string }
 
 export type PromptInputV2InteractionCommand =
   | { type: "draft.setText"; value: string }
@@ -75,9 +73,6 @@ export function transitionPromptInputV2(
   if (event.type === "drag.enter") return changed({ ...state, drag: "active" })
   if (event.type === "drag.leave") return changed({ ...state, drag: "idle" })
   if (event.type === "focus.editor") return changed({ ...state, focus: "editor" })
-  if (event.type === "context.active") {
-    return changed({ ...state, activeContextID: state.activeContextID === event.id ? undefined : event.id })
-  }
   return changed({ ...state, focus: "external" })
 }
 
@@ -234,7 +229,6 @@ function promptText(persisted: PromptInputV2PersistedState) {
 function populated(persisted: PromptInputV2PersistedState) {
   return (
     !!promptText(persisted).trim() ||
-    persisted.context.items.length > 0 ||
     persisted.prompt.some((part) => part.type === "file" || part.type === "image")
   )
 }

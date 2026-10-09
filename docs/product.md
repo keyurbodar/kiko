@@ -91,6 +91,9 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - A message keeps the files the human attached, and agents read them. Agents attach nothing: they name a path in their text, as t3code's assistant does.
 - The files route shows a file tree that looks and behaves like kat's tree, and a viewer and editor for text files.
 - DEVIATION (2026-10-09): there is no media viewer, album, thumbnail, or media and links catalog. The owner chose t3code's simpler attachments.
+- Attaching works as in t3code. The attach button, a paste, or a drop anywhere on the chat adds files to the composer; while files are dragged over the page a dashed overlay says "Drop files to attach". Pictures (GIF, JPEG, PNG, WebP) show as 64 px thumbnails with a remove button on the corner, and a click previews one. Any other file shows as a row with its name, size, and a remove button. Up to 10 files go on one message, a picture up to 10 MB and any other file up to 50 MB; a toast says why a file was left out.
+- A sent message shows its pictures as a small grid of 4:3 tiles above its text, and its other files as rows with a preview (the files tab when it can show the file, else a new browser tab) and a download button. A message of only files shows only them. A message is shown at once from the local copies and switches to the stored files when the upload lands.
+- A picture opens in an image dialog: the picture over a dark backdrop, its name and place (`photo.png (2/3)`) under it, arrows and the arrow keys to move, and Escape or a click outside to close. It opens with no animation.
 
 ### Skills
 
@@ -110,7 +113,7 @@ Kiko keeps what already works in `apps/web-solid` and adds or fixes the followin
 | Collapsed long messages ("read more") | missing | build, with fade and chevron as in kat |
 | Markdown and code blocks | missing | build, code via sugar-high |
 | Link previews | removed 2026-10-09 | none: a link is a link (DEVIATION, t3code's model) |
-| Lightbox, albums, multi-file attachments | removed 2026-10-09 | attachments as t3code shows them (DEVIATION) |
+| Lightbox, albums, multi-file attachments | replaced 2026-10-09 | attachments as t3code shows them: a picture grid, file rows, and an image dialog (DEVIATION, see Files) |
 | Audio and video player | native controls only | build |
 | Date divider, unread divider, system events | divider and unread rule present, system events missing | port the astryx `ChatSystemMessage` pattern |
 | Typing indicator | basic row | port the reference component (see the note below) |
@@ -150,7 +153,7 @@ The layout follows the kat screenshots in `~/kat-images`. A 60 px icon rail, a 2
 | `/memory`, `/memory/:id` | none | none | redirects to the active chat with the info panel open on memory (P2-19) |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
-Overlays: command palette, calendar jump, context menus, approval card, onboarding. The media viewer was removed on 2026-10-09 (DEVIATION).
+Overlays: command palette, calendar jump, context menus, approval card, onboarding, and the image dialog. The media viewer left the chat on 2026-10-09 (DEVIATION); the files tab still opens a picture in it.
 
 ### What replaces kat's terminal and browser panels
 

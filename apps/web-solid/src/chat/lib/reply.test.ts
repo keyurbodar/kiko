@@ -3,40 +3,32 @@ import type { ChatMessage } from "../../lib/types";
 import { jumboEmojiClass, replyQuoteText, replySummary } from "./reply";
 
 const base: ChatMessage = { id: "m", threadId: "t", sender: "bot", body: "", sentAt: 0 };
-const photo = (src: string) => ({ kind: "photo" as const, src, width: 850, height: 600, alt: "" });
-const doc = (name: string) => ({ name, size: 1, mime: "application/pdf", src: `/${name}` });
+const img = (src: string) => ({ name: src.slice(1), size: 1, type: "image/jpeg", src });
+const doc = (name: string) => ({ name, size: 1, type: "application/pdf", src: `/${name}` });
 
 describe("replySummary", () => {
-  test("photo-only quotes as Photo with its thumb", () => {
-    expect(replySummary({ ...base, media: [photo("/a.jpg")] })).toEqual({ text: "Photo", thumb: "/a.jpg" });
+  test("a picture alone quotes as Photo with its thumb", () => {
+    expect(replySummary({ ...base, files: [img("/a.jpg")] })).toEqual({ text: "Photo", thumb: "/a.jpg" });
   });
 
-  test("document with caption keeps the caption and gets the document glyph", () => {
-    expect(replySummary({ ...base, body: "Q3 report", documents: [doc("q3.pdf")] })).toEqual({
-      text: "Q3 report",
-      glyph: "document",
-    });
+  test("three pictures count themselves and show the first", () => {
+    expect(replySummary({ ...base, files: [img("/1.jpg"), img("/2.jpg"), img("/3.jpg")] })).toEqual({ text: "3 photos", thumb: "/1.jpg" });
   });
 
-  test("two documents without caption name the first and count the rest", () => {
-    expect(replySummary({ ...base, documents: [doc("a.pdf"), doc("b.pdf")] })).toEqual({
-      text: "a.pdf and 1 more",
-      glyph: "document",
-    });
+  test("a file with a caption keeps the caption and gets the document glyph", () => {
+    expect(replySummary({ ...base, body: "Q3 report", files: [doc("q3.pdf")] })).toEqual({ text: "Q3 report", glyph: "document" });
   });
 
-  test("an album of three is Album with the first thumb", () => {
-    const media = [photo("/1.jpg"), photo("/2.jpg"), photo("/3.jpg")];
-    expect(replySummary({ ...base, media })).toEqual({ text: "Album", thumb: "/1.jpg" });
+  test("files without a caption name the first and count the rest", () => {
+    expect(replySummary({ ...base, files: [doc("a.pdf"), doc("b.pdf")] })).toEqual({ text: "a.pdf and 1 more", glyph: "document" });
   });
 
-  test("a link-only message quotes its link, as kat does, with a link glyph", () => {
-    const message = {
-      ...base,
-      body: "https://example.com/x",
-      webPage: { url: "https://example.com/x", site: "Example", title: "Hello page" },
-    };
-    expect(replySummary(message)).toEqual({ text: "https://example.com/x", glyph: "link" });
+  test("a picture beside a file shows the picture", () => {
+    expect(replySummary({ ...base, files: [doc("a.pdf"), img("/b.png")] })).toEqual({ text: "a.pdf and 1 more", thumb: "/b.png" });
+  });
+
+  test("a link is quoted as its text", () => {
+    expect(replySummary({ ...base, body: "https://example.com/x" })).toEqual({ text: "https://example.com/x" });
   });
 });
 

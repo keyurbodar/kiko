@@ -20,7 +20,7 @@
 // Every timestamp is relative to the exported NOW, so the day labels ("three
 // days ago", "yesterday", "today") are stable no matter when this is read.
 
-import type { ChatMessage, MediaItem, RosterBot } from "./types";
+import type { ChatMessage, MessageFile, RosterBot } from "./types";
 
 export const VIEWER_ID = "viewer";
 
@@ -121,89 +121,33 @@ export const BOTS: readonly RosterBot[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// THE MEDIA CATALOGUE
+// ATTACHMENTS
 //
-// Every picture and clip the transcript can carry lives in `public/media`, and
-// each one is an ffmpeg testsrc2 card: six saturated vertical bars (red,
-// green, yellow, blue, magenta, cyan), a diagonal streak running out of the
-// top-left corner, a stepped grey pixel grid at the lower right, and a frame
-// counter burned into the top-left. The bar pattern is the readable part, so
-// the alt text says which bars survived the crop rather than saying "image".
-//
-// The sizes are ffprobe's, not the design's. A `MediaItem` carries the
-// INTRINSIC size because the box is reserved from it before the bytes land, and
-// an album whose cells resized on load would move the scroll anchor of every
-// row below it. Keeping the numbers beside the file they came from means
-// regenerating an asset is a one-line edit here rather than a silent layout
-// shift in the app.
+// The harness has no server, so a picture is a small SVG card drawn inline: a
+// coloured field with its size written on it. Its `type` is the one a stored
+// picture has, which is what picks the grid; any <img> draws the card. A file
+// row needs no bytes, so its `src` is a placeholder.
 // ---------------------------------------------------------------------------
 
-interface CardSize {
-  width: number;
-  height: number;
+const SIZES = {
+  landscape: [1600, 900, "#3b6fd6"],
+  wide: [1400, 700, "#2f9e6b"],
+  pano: [2100, 1000, "#c2513a"],
+  square: [1000, 1000, "#8a4fd0"],
+  portrait: [900, 1600, "#d08a2a"],
+  tall: [700, 1400, "#2a8fb0"],
+  narrow: [180, 800, "#b03a7a"],
+  small: [300, 200, "#5a6470"],
+} as const;
+
+function picture(shape: keyof typeof SIZES): MessageFile {
+  const [width, height, color] = SIZES[shape];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="${color}"/><text x="50%" y="50%" fill="white" font-family="sans-serif" font-size="${Math.round(Math.min(width, height) / 6)}" text-anchor="middle" dominant-baseline="middle">${width}x${height}</text></svg>`;
+  return { name: `${shape}.png`, size: svg.length, type: "image/png", src: `data:image/svg+xml,${encodeURIComponent(svg)}` };
 }
 
-const PHOTOS = {
-  "photo-landscape.jpg": { width: 1600, height: 900 },
-  "photo-wide.jpg": { width: 1400, height: 700 },
-  "photo-pano.jpg": { width: 2100, height: 1000 },
-  "photo-square.jpg": { width: 1000, height: 1000 },
-  "photo-portrait.jpg": { width: 900, height: 1600 },
-  "photo-tall.jpg": { width: 700, height: 1400 },
-  "photo-narrow.jpg": { width: 180, height: 800 },
-  "photo-small.jpg": { width: 300, height: 200 },
-} satisfies Record<string, CardSize>;
-
-/** A clip, with the poster frame shown before it plays and the badge's length. */
-const VIDEOS = {
-  "video-landscape.mp4": {
-    width: 1280,
-    height: 720,
-    duration: 6,
-    poster: "video-landscape-poster.jpg",
-  },
-  "video-portrait.mp4": {
-    width: 720,
-    height: 1280,
-    duration: 4,
-    poster: "video-portrait-poster.jpg",
-  },
-} satisfies Record<string, CardSize & { duration: number; poster: string }>;
-
-type PhotoFile = keyof typeof PHOTOS;
-type VideoFile = keyof typeof VIDEOS;
-
-function photo(file: PhotoFile, alt: string): MediaItem {
-  return { kind: "photo", src: `/media/${file}`, ...PHOTOS[file], alt };
-}
-
-/**
- * The preview image on a web page card, which is the same generated card at
- * the same intrinsic size but carries no alt: the card's own title and site
- * already name it, and an image inside a link inside a link is decoration to
- * assistive tech rather than content.
- */
-function cardImage(file: PhotoFile): { src: string; width: number; height: number } {
-  return { src: `/media/${file}`, ...PHOTOS[file] };
-}
-
-/**
- * A clip item. The poster is its own file rather than a frame the browser has
- * to seek for, because a video that paints nothing until it has buffered
- * reports a black box where the media should be — and a black box reads as a
- * broken cell, not as a clip that has not started.
- */
-function video(file: VideoFile, alt: string): MediaItem {
-  const { width, height, duration, poster } = VIDEOS[file];
-  return {
-    kind: "video",
-    src: `/media/${file}`,
-    width,
-    height,
-    duration,
-    poster: `/media/${poster}`,
-    alt,
-  };
+function file(name: string, size: number, type: string): MessageFile {
+  return { name, size, type, src: "#" };
 }
 
 export const MESSAGES: readonly ChatMessage[] = [
@@ -420,18 +364,15 @@ export const MESSAGES: readonly ChatMessage[] = [
     sentAt: TWO_DAYS_AGO + 12 * 60 * MINUTE + 11 * MINUTE,
   },
 
-  // --- yesterday: images, links, and the reply quote paths ------------------
+  // --- yesterday: pictures, links, and the reply quote paths ----------------
   {
     id: "a-25",
     threadId: "ada",
     sender: "user",
-    body: "A 16:9 test card, so the fitted box has to letterbox rather than crop. The grey grid at the bottom right is the thing to check.",
+    body: "A 16:9 card. In the grid it is cropped to a 4:3 tile, and the dialog shows it whole.",
     sentAt: YESTERDAY + 14 * 60 * MINUTE,
-    media: [
-      photo(
-        "photo-landscape.jpg",
-        "Test card at 16:9: six colour bars, a diagonal streak from the top left, and a stepped grey grid at the lower right",
-      ),
+    files: [
+      picture("landscape"),
     ],
   },
   {
@@ -439,14 +380,11 @@ export const MESSAGES: readonly ChatMessage[] = [
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "Same card at 2:1. Wider than the box, so this is the one that has to crop, and the grid block falls off the bottom edge.",
+    body: "Same card at 2:1. An agent never attaches files now, but an old message that has one draws the same tile.",
     sentAt: YESTERDAY + 14 * 60 * MINUTE + 2 * MINUTE,
     replyToId: "a-25",
-    media: [
-      photo(
-        "photo-wide.jpg",
-        "The same test card at 2:1, so the bars are wider and the grid block is cropped off the bottom edge",
-      ),
+    files: [
+      picture("wide"),
     ],
   },
   {
@@ -462,12 +400,12 @@ export const MESSAGES: readonly ChatMessage[] = [
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "Right. Text quotes clamp to a line, image quotes clamp to a square. Same slot, two shapes.",
+    body: "Right. Text quotes clamp to a line, picture quotes show a square thumbnail. Same slot, two shapes.",
     sentAt: YESTERDAY + 14 * 60 * MINUTE + 5 * MINUTE,
     reactions: [{ emoji: "✅", count: 1, viewerReacted: true }],
   },
 
-  // --- link in the body, and a link preview card ----------------------------
+  // --- links in the body: the text draws them, nothing else --------------
   {
     id: "a-29",
     threadId: "ada",
@@ -482,46 +420,22 @@ export const MESSAGES: readonly ChatMessage[] = [
     botId: "ada",
     body: "Read it. One correction, and it is the same sm step.",
     sentAt: YESTERDAY + 15 * 60 * MINUTE + 2 * MINUTE,
-    webPage: {
-      url: "https://example.com/design/radius-ladder",
-      site: "Design notes",
-      title: "The radius ladder, and why one calc() is enough",
-      description:
-        "A single derivation from --radius to every step, with the reason the rungs are unlayered.",
-      media: cardImage("photo-wide.jpg"),
-      mediaSize: "large",
-    },
   },
   {
     id: "a-30c",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "A profile-style page gets a small thumbnail beside the text instead.",
+    body: "A link is part of the text: https://example.com/people/anu",
     sentAt: YESTERDAY + 15 * MINUTE + 4 * MINUTE,
-    webPage: {
-      url: "https://example.com/people/anu",
-      site: "example.com",
-      title: "Anu",
-      description: "Designer and tinkerer.",
-      media: cardImage("photo-square.jpg"),
-      mediaSize: "small",
-    },
   },
   {
     id: "a-30b",
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "A page with no image gets the text-only card.",
+    body: "And another: https://solidjs.com/ecosystem",
     sentAt: YESTERDAY + 15 * MINUTE + 3 * MINUTE,
-    webPage: {
-      url: "https://solidjs.com/ecosystem",
-      site: "solidjs.com",
-      title: "SolidJS",
-      description:
-        "A purely reactive library with a fine-grained reactive core, and the ecosystem around it.",
-    },
   },
 
   // --- jumbo: one emoji, two emoji, and an emoji with prose ---------------
@@ -555,30 +469,20 @@ export const MESSAGES: readonly ChatMessage[] = [
     sentAt: YESTERDAY + 15 * 60 * MINUTE + 7 * MINUTE,
   },
 
-  // --- yesterday: the album layouter, the viewer, and the rich-text body ----
+  // --- yesterday: the picture grid, file rows, and the rich-text body ------
   //
-  // Its own block, and its own `m-` id prefix, because every message in it is
-  // about one variable — the shape of the media set or the shape of the body —
-  // and a reader has to be able to scroll straight to a single case without
-  // reasoning about which of the forty rows in this thread is the one they
-  // want. The album sizes climb 2, 3, 4, 5 on purpose: the layouter takes a
-  // different branch at each count, so an album that only ever appeared with
-  // three items would leave every other branch unrendered.
+  // Its own block, and its own `m-` id prefix, so a reader can scroll straight
+  // to one case. The counts climb 2, 3, 4, 5: an odd count leaves a lone tile on
+  // the last row, which is the case to check.
   {
     id: "m-01",
     threadId: "ada",
     sender: "user",
-    body: "Two, and deliberately mismatched. A 16:9 beside a 9:16 is the asymmetric case, so neither cell can be the reference and the pair has to be balanced against each other.",
+    body: "Two pictures, a 16:9 beside a 9:16. Both crop to the same 4:3 tile.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE,
-    media: [
-      photo(
-        "photo-landscape.jpg",
-        "Test card at 16:9: six colour bars with a diagonal streak from the top left and a stepped grey grid at the lower right",
-      ),
-      photo(
-        "photo-portrait.jpg",
-        "The same test card at 9:16, with the bars running the full height and the grey grid block cropped to a sliver",
-      ),
+    files: [
+      picture("landscape"),
+      picture("portrait"),
     ],
   },
   {
@@ -586,46 +490,25 @@ export const MESSAGES: readonly ChatMessage[] = [
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "Three goes to the row-plus-feature shape, and the square is the feature. Nothing is cropped, so what you are checking is that all three cells keep the same height.",
+    body: "Three leaves a lone tile on the second row.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 2 * MINUTE,
-    media: [
-      photo(
-        "photo-wide.jpg",
-        "Test card at 2:1: wide colour bars and the diagonal streak, with the grey grid block cut off by the bottom edge",
-      ),
-      photo(
-        "photo-square.jpg",
-        "Test card at 1:1, the whole pattern fitting inside the frame",
-      ),
-      photo(
-        "photo-tall.jpg",
-        "Test card at 1:2: the bars run vertically and the grey grid sits near the middle of the card",
-      ),
+    files: [
+      picture("wide"),
+      picture("square"),
+      picture("tall"),
     ],
   },
   {
     id: "m-03",
     threadId: "ada",
     sender: "user",
-    body: "Four is the plain 2x2, which is the only album shape that needs no special casing at all.",
+    body: "Four is a plain 2x2.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 4 * MINUTE,
-    media: [
-      photo(
-        "photo-landscape.jpg",
-        "Test card at 16:9 with six colour bars and a diagonal streak across the upper left",
-      ),
-      photo(
-        "photo-square.jpg",
-        "Test card at 1:1 with the full bar pattern and the grey grid in the lower right",
-      ),
-      photo(
-        "photo-tall.jpg",
-        "Test card at 1:2, bars running vertically, grid block visible in the middle",
-      ),
-      photo(
-        "photo-small.jpg",
-        "The test card at 300 by 200, small enough that the frame counter is the only legible detail",
-      ),
+    files: [
+      picture("landscape"),
+      picture("square"),
+      picture("tall"),
+      picture("small"),
     ],
   },
   {
@@ -633,50 +516,26 @@ export const MESSAGES: readonly ChatMessage[] = [
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "Five is where the grid stops being a grid. An odd count means the last row cannot be the same width as the first, so this is the branch that actually solves for the leftover.",
+    body: "Five: two full rows and one tile.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 6 * MINUTE,
-    media: [
-      photo(
-        "photo-wide.jpg",
-        "Test card at 2:1, wide bars and the diagonal streak, grey grid cropped off the bottom",
-      ),
-      photo(
-        "photo-square.jpg",
-        "Test card at 1:1 with the full pattern fitting the frame",
-      ),
-      photo(
-        "photo-landscape.jpg",
-        "Test card at 16:9, six colour bars with the grey grid at the lower right",
-      ),
-      photo(
-        "photo-tall.jpg",
-        "Test card at 1:2, vertical bars with the grey grid block mid-card",
-      ),
-      photo(
-        "photo-narrow.jpg",
-        "The test card at 180 by 800: a tall sliver where the bars read as stripes and the frame counter is squeezed into the corner",
-      ),
+    files: [
+      picture("wide"),
+      picture("square"),
+      picture("landscape"),
+      picture("tall"),
+      picture("narrow"),
     ],
   },
   {
     id: "m-05",
     threadId: "ada",
     sender: "user",
-    body: "A 2.1 pano is the other shape that reaches the complex layouter, and the reason it is worse than an odd count is that the wide one is nearly twice the ratio of everything beside it.",
+    body: "A pano beside a square and a portrait. The tile crops every shape the same way.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 8 * MINUTE,
-    media: [
-      photo(
-        "photo-pano.jpg",
-        "Test card at 2.1:1: the widest frame here, with the colour bars stretched across it and the grey grid block pushed right",
-      ),
-      photo(
-        "photo-square.jpg",
-        "Test card at 1:1 with the full pattern inside the frame",
-      ),
-      photo(
-        "photo-portrait.jpg",
-        "Test card at 9:16, bars running the full height with the grey grid cropped to a sliver",
-      ),
+    files: [
+      picture("pano"),
+      picture("square"),
+      picture("portrait"),
     ],
   },
   {
@@ -685,11 +544,8 @@ export const MESSAGES: readonly ChatMessage[] = [
     sender: "user",
     body: "",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 10 * MINUTE,
-    media: [
-      photo(
-        "photo-square.jpg",
-        "Test card at 1:1: six colour bars, a diagonal streak from the top left corner, and a stepped grey grid block at the lower right",
-      ),
+    files: [
+      picture("square"),
     ],
   },
   {
@@ -697,13 +553,10 @@ export const MESSAGES: readonly ChatMessage[] = [
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "And the same card with a caption under it. The box cannot grow to the image's own aspect once there is a line of text beside it, so this is the one that has to fit rather than letterbox.",
+    body: "And one picture with a line of text under it.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 12 * MINUTE,
-    media: [
-      photo(
-        "photo-portrait.jpg",
-        "Test card at 9:16: vertical colour bars, a diagonal streak, and the grey grid block cropped to a sliver at the lower right",
-      ),
+    files: [
+      picture("portrait"),
     ],
   },
   {
@@ -712,24 +565,18 @@ export const MESSAGES: readonly ChatMessage[] = [
     sender: "user",
     body: "",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 14 * MINUTE,
-    media: [
-      video(
-        "video-landscape.mp4",
-        "Six-second test clip at 16:9: the colour bars hold still while the burned-in frame counter runs, and the grey grid block sits at the lower right",
-      ),
+    files: [
+      file("clip-landscape.mp4", 1_204_224, "video/mp4"),
     ],
   },
   {
     id: "m-09",
     threadId: "ada",
     sender: "user",
-    body: "A caption under the clip. The duration badge has to stay legible against the poster, and the play mark has to sit on the bar pattern rather than on the grid.",
+    body: "A clip is a file row, with a line of text under it.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 16 * MINUTE,
-    media: [
-      video(
-        "video-landscape.mp4",
-        "Six-second test clip at 16:9: colour bars with a diagonal streak, a frame counter counting up in the top left, and a grey grid block at the lower right",
-      ),
+    files: [
+      file("clip-landscape.mp4", 1_204_224, "video/mp4"),
     ],
   },
   {
@@ -737,35 +584,21 @@ export const MESSAGES: readonly ChatMessage[] = [
     threadId: "ada",
     sender: "bot",
     botId: "ada",
-    body: "The portrait clip is the case where fitting to width would make the badge a strip, so the box is bounded by height instead.",
+    body: "An old agent message with a clip draws the same row.",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 18 * MINUTE,
-    media: [
-      video(
-        "video-portrait.mp4",
-        "Four-second test clip at 9:16: the bars run the full height, the frame counter is squeezed into the top-left corner, and the grey grid block is cropped",
-      ),
+    files: [
+      file("clip-portrait.mp4", 1_204_224, "video/mp4"),
     ],
   },
   {
     id: "m-11",
     threadId: "ada",
     sender: "user",
-    body: "Fitting a card and a photo into one row: https://example.com/design/geometry",
+    body: "A picture and a link in one message: https://example.com/design/geometry",
     sentAt: YESTERDAY + 16 * 60 * MINUTE + 20 * MINUTE,
-    media: [
-      photo(
-        "photo-landscape.jpg",
-        "Test card at 16:9 with six colour bars, a diagonal streak from the top left, and a stepped grey grid at the lower right",
-      ),
+    files: [
+      picture("landscape"),
     ],
-    webPage: {
-      url: "https://example.com/design/geometry",
-      site: "Design notes",
-      title: "Fitting a card and a photo into one row",
-      description: "The media block reserves its box from the intrinsic size.",
-      media: cardImage("photo-pano.jpg"),
-      mediaSize: "large",
-    },
   },
   {
     id: "m-12",
@@ -781,7 +614,7 @@ export const MESSAGES: readonly ChatMessage[] = [
     botId: "ada",
     body: "Here is the Q3 report, final numbers included.",
     sentAt: YESTERDAY + 17 * 60 * MINUTE,
-    documents: [{ name: "Q3-report.pdf", size: 1_887_437, mime: "application/pdf", src: "/media/sample.pdf" }],
+    files: [file("Q3-report.pdf", 1_887_437, "application/pdf")],
   },
   {
     id: "d-02",
@@ -790,10 +623,10 @@ export const MESSAGES: readonly ChatMessage[] = [
     botId: "ada",
     body: "",
     sentAt: YESTERDAY + 17 * 60 * MINUTE + 10 * MINUTE,
-    documents: [
-      { name: "design-spec.pdf", size: 482_304, mime: "application/pdf", src: "/media/sample.pdf" },
-      { name: "assets.zip", size: 12_582_912, mime: "application/zip", src: "/media/sample.zip" },
-      { name: "metrics.csv", size: 3_276, mime: "text/csv", src: "/media/sample.csv" },
+    files: [
+      file("design-spec.pdf", 482_304, "application/pdf"),
+      file("assets.zip", 12_582_912, "application/zip"),
+      file("metrics.csv", 3_276, "text/csv"),
     ],
   },
   {
@@ -802,13 +635,8 @@ export const MESSAGES: readonly ChatMessage[] = [
     sender: "user",
     body: "",
     sentAt: YESTERDAY + 17 * 60 * MINUTE + 12 * MINUTE,
-    documents: [
-      {
-        name: "notes.docx",
-        size: 45_056,
-        mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        src: "/media/sample.docx",
-      },
+    files: [
+      file("notes.docx", 45_056, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     ],
   },
   {
@@ -817,10 +645,10 @@ export const MESSAGES: readonly ChatMessage[] = [
     sender: "user",
     body: "Three shots from the review, in order.",
     sentAt: YESTERDAY + 18 * 60 * MINUTE,
-    media: [
-      photo("photo-landscape.jpg", "Test card at 16:9"),
-      photo("photo-square.jpg", "Square test card"),
-      photo("photo-portrait.jpg", "Portrait test card"),
+    files: [
+      picture("landscape"),
+      picture("square"),
+      picture("portrait"),
     ],
   },
   {
@@ -830,7 +658,7 @@ export const MESSAGES: readonly ChatMessage[] = [
     body: "Two more that go with that picture.",
     sentAt: YESTERDAY + 18 * 60 * MINUTE + 10 * MINUTE,
     replyToId: "a-25",
-    media: [photo("photo-square.jpg", "Square test card"), photo("photo-wide.jpg", "Wide test card")],
+    files: [picture("square"), picture("wide")],
   },
   {
     id: "u-03",
@@ -838,7 +666,7 @@ export const MESSAGES: readonly ChatMessage[] = [
     sender: "user",
     body: "",
     sentAt: YESTERDAY + 18 * 60 * MINUTE + 20 * MINUTE,
-    media: [photo("photo-portrait.jpg", "Portrait test card")],
+    files: [picture("portrait")],
   },
   {
     id: "l-01",
@@ -846,14 +674,6 @@ export const MESSAGES: readonly ChatMessage[] = [
     sender: "user",
     body: "https://www.youtube.com/watch?v=yveEiS0rlu4",
     sentAt: YESTERDAY + 19 * 60 * MINUTE,
-    webPage: {
-      url: "https://www.youtube.com/watch?v=yveEiS0rlu4",
-      site: "YouTube",
-      title: "Building a chat UI that feels native",
-      description: "A walkthrough of grouped bubbles, media layout and link previews, with the trade-offs behind each.",
-      media: cardImage("photo-landscape.jpg"),
-      mediaSize: "large",
-    },
   },
   {
     id: "l-02",
@@ -862,14 +682,6 @@ export const MESSAGES: readonly ChatMessage[] = [
     botId: "ada",
     body: "https://t.me/heisanu",
     sentAt: YESTERDAY + 19 * 60 * MINUTE + 10 * MINUTE,
-    webPage: {
-      url: "https://t.me/heisanu",
-      site: "Telegram",
-      title: "Anu",
-      description: "Designer and tinkerer. Writes about interfaces, type and small tools.",
-      media: cardImage("photo-square.jpg"),
-      mediaSize: "small",
-    },
   },
   {
     id: "l-03",
@@ -877,12 +689,6 @@ export const MESSAGES: readonly ChatMessage[] = [
     sender: "user",
     body: "https://app.devin.ai",
     sentAt: YESTERDAY + 19 * 60 * MINUTE + 20 * MINUTE,
-    webPage: {
-      url: "https://app.devin.ai",
-      site: "app.devin.ai",
-      title: "Devin | The AI Software Engineer",
-      description: "Your reliable AI software engineer",
-    },
   },
   {
     id: "l-04",
@@ -1150,41 +956,31 @@ export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = 
   "jumbo-group": slice("a-32"),
   "jumbo-prose": slice("a-33"),
 
-  // A link in the body, and a link that resolves to a card.
-  link: slice("a-29"),
-  "link-card": slice("a-30"),
-  "link-accent": slice("a-30b"),
+  // Links are text: the body draws them, and nothing else.
+  link: slice("a-29", "a-30", "a-30c", "a-30b"),
 
   // A reply whose parent is text, and a reply whose parent is an image, so the
   // quote renders both the clamped text line and the thumbnail.
   "reply-text": slice("a-35", "a-36"),
   "reply-image": slice("a-25", "a-26", "a-27"),
 
-  // The album layouter, one count per state, because the count is the only
-  // input that changes which branch runs. Two and three are the shapes a
-  // symmetric grid cannot express; four is the one it can; five and the pano
-  // are both the complex layouter, reached for different reasons.
-  "album-2": slice("m-01"),
-  "album-3": slice("m-02"),
-  "album-4": slice("m-03"),
-  "album-5": slice("m-04"),
-  "album-pano": slice("m-05"),
+  // The picture grid, one count per state: a lone picture spans both
+  // columns, and an odd count leaves one tile on the last row.
+  "grid-2": slice("m-01"),
+  "grid-3": slice("m-02"),
+  "grid-4": slice("m-03"),
+  "grid-5": slice("m-04"),
+  "grid-shapes": slice("m-05"),
 
-  // A single photo with no body at all, then the same card with one. The pair
-  // is the point: an empty body has to leave the media its full box rather than
-  // reserve room for a caption that never arrives.
-  "media-only": slice("m-06"),
-  "photo-caption": slice("m-07"),
+  // A single picture with no body, then one with a line of text under it.
+  "picture-only": slice("m-06"),
+  "picture-caption": slice("m-07"),
 
-  // A clip with no body, a clip with one, and the portrait clip, which is the
-  // one whose fitted box is bounded by height rather than width.
-  video: slice("m-08"),
-  "video-caption": slice("m-09"),
-  "video-portrait": slice("m-10"),
+  // A clip is a file row like any other file.
+  video: slice("m-08", "m-09", "m-10"),
 
-  // Media and a card in one row: two independent reservations, and a card
-  // whose image is on the bottom edge rather than the top.
-  "media-card": slice("m-11"),
+  // A picture and a link in one message.
+  "picture-link": slice("m-11"),
 
   // Every run the body parser has to tell apart on one line: a bare scheme, a
   // `www.` run, a trailing full stop, a non-TLD that must stay text, an email,
@@ -1211,15 +1007,12 @@ export const FIXTURE_STATES: Readonly<Record<string, readonly ChatMessage[]>> = 
   // being pinned to the end of the list.
   unread: slice("a-35", "a-36", "a-37", "a-38", "a-39"),
 
-  "document-single": slice("d-01"),
-  "document-group": slice("d-02", "d-03"),
-  "user-album-3": slice("u-01"),
-  "user-album-2-reply": slice("a-25", "u-02"),
-  "user-photo": slice("u-03"),
-  "link-large": slice("l-01"),
-  "link-small": slice("l-02"),
-  "link-text-only": slice("l-03"),
-  "link-bare": slice("l-04"),
+  "file-single": slice("d-01"),
+  "file-group": slice("d-02", "d-03"),
+  "user-grid-3": slice("u-01"),
+  "user-grid-2-reply": slice("a-25", "u-02"),
+  "user-picture": slice("u-03"),
+  "link-only": slice("l-01", "l-02", "l-03", "l-04"),
   "grouped-own": slice("run-01", "run-02", "run-03", "run-04", "run-05"),
 };
 

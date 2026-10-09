@@ -103,7 +103,7 @@ describe("mentionIds", () => {
 
 describe("viewLast", () => {
   test("a pending photo from the composer is a photo before it uploads", () => {
-    const m = message("local:1", Number.MAX_SAFE_INTEGER, { kind: "human" }, "", { pending: true, local: [{ src: "blob:x", name: "a.png", mime: "", width: 4, height: 3 }] })
+    const m = message("local:1", Number.MAX_SAFE_INTEGER, { kind: "human" }, "", { pending: true, local: [{ src: "blob:x", name: "a.png", type: "image/png", size: 4 }] })
     expect(viewLast(m, (s) => s)).toEqual({ from: "human", kind: "photo", at: Number.MAX_SAFE_INTEGER })
   })
 })

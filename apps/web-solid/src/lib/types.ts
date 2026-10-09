@@ -52,67 +52,24 @@ export interface Reaction {
 }
 
 /**
- * One picture or clip a message carries.
- *
- * `kind` is what picks the chrome: a video draws a duration badge and a play
- * mark over its poster frame, a photo draws nothing over itself. The intrinsic
- * size is required rather than optional, because the box is reserved from it
- * before the bytes land — an album whose cells resize on load would move the
- * scroll anchor of every row below it.
+ * A file the human attached to a message. Its type tells a picture from any other file
+ * (`lib/attachments.ts`), so an old message stored with media draws the same way.
  */
-export interface MediaItem {
-  kind: "photo" | "video"
-  /** The original. Only the media viewer loads it. */
-  src: string
-  /**
-   * A small still that fits 840 px, which the transcript draws instead of the original: a
-   * decoded 12 MP photo costs about 48 MB, its still about 1 MB.
-   */
-  thumb?: string
-  /** A 30-byte sketch of the picture, drawn until the still has loaded. */
-  thumbhash?: string
-  /** Intrinsic size in pixels, not layout size. */
-  width: number
-  height: number
-  /** Frame shown before a video plays. Ignored on a photo. */
-  poster?: string
-  /** Clip length in seconds, for the duration badge. */
-  duration?: number
-  /** Describes the media for assistive tech and for the viewer's caption. */
-  alt: string
-}
-
-/**
- * The card a message renders when its body points at a page that described
- * itself. `mediaSize` picks the Telegram layout: `large` draws the picture under
- * the text at the card's full width, `small` draws a 48px thumbnail at the
- * card's trailing edge beside the text.
- */
-export interface WebPagePreview {
-  url: string
-  site?: string
-  title?: string
-  description?: string
-  /** A path on kiko's origin. */
-  favicon?: string
-  media?: { src: string; width: number; height: number }
-  mediaSize?: "large" | "small"
-  /** The page's theme-color, a hint for the card's panel before its picture loads. */
-  themeColor?: string
-}
-
-/** A file a message carries that is not a picture: a PDF, an archive, a text file. */
-export interface DocumentItem {
+export interface MessageFile {
+  /** The name the human gave it. */
   name: string
+  /** The file's path in the room, once stored. The files tab opens it by this. Absent while it uploads. */
+  path?: string
   /** Bytes. */
   size: number
-  mime: string
+  type: string
+  /** The server's URL, or a blob URL while the upload runs. */
   src: string
 }
 
 /**
  * A single message as the transcript draws it. The store builds it from a
- * protocol `Message` with `toChatMessage`. A media-only message has an empty body.
+ * protocol `Message` with `toChatMessage`. A message of only attachments has an empty body.
  */
 export interface ChatMessage {
   /** The protocol `MessageId`, or `local:<clientId>` while a send is unacknowledged. */
@@ -138,14 +95,8 @@ export interface ChatMessage {
   reactions?: Reaction[];
   /** The message this one answers. Absent on a root message. */
   replyToId?: string;
-  /**
-   * The message's media, in the order the sender attached it. One item draws
-   * as a single fitted box and two or more draw as an album grid, which is the
-   * same split tweb makes between its photo path and its album layouter.
-   */
-  media?: MediaItem[]
-  /** Files that are not pictures, drawn as document rows in the same bubble. */
-  documents?: DocumentItem[]
+  /** The human's attachments, in the order they were added. */
+  files?: MessageFile[]
   /** Shows the edited marker. The body is never rewritten, only flagged. */
   edited?: boolean
   /** A chat this message points to, such as the one kiko just made. */
@@ -154,8 +105,6 @@ export interface ChatMessage {
   quote?: string
   /** Marks the message as pinned in its thread. */
   pinned?: boolean
-  /** The card rendered from the metadata of a page the body points at. */
-  webPage?: WebPagePreview
   /**
    * Optimistic send state for the viewer's own messages. A bot message is
    * never in flight, so this only ever reads on a `sender: "user"` row.
@@ -166,20 +115,12 @@ export interface ChatMessage {
 /**
  * What the composer hands the app on a send.
  *
- * `body` stays a required string rather than becoming optional, because a
- * media-only message is `body: ""` — the shape the fixtures already use for an
- * attachment-only message — and every reader of `ChatMessage.body` (the
- * caption block, the height model, the reply quote) asks whether it is empty,
- * not whether it exists. Making it optional would push that same question into
- * every one of those readers for no gain.
+ * A message of only attachments has `body: ""`.
  */
 export interface OutgoingMessage {
   body: string
-  /** The attachments, in the order they were added to the composer. */
-  media?: MediaItem[]
-  documents?: DocumentItem[]
-  /** The preview the composer resolved for the draft's link, unless dismissed. */
-  webPage?: WebPagePreview
+  /** The attachments, in the order they were added, drawn from blob URLs until they upload. */
+  files?: MessageFile[]
 }
 
 export interface ComposerProps {

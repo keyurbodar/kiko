@@ -5,7 +5,6 @@ import { createPromptInputV2Attachments, type PromptInputV2AttachmentConfig } fr
 import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
 import type {
   PromptInputV2Attachment,
-  PromptInputV2Comment,
   PromptInputV2History,
   PromptInputV2HistoryEntry,
   PromptInputV2Option,
@@ -48,7 +47,6 @@ export type PromptInputV2ViewConfig = {
   }
   onKeyDown?: (event: KeyboardEvent) => void
   onPaste?: (event: ClipboardEvent) => void
-  onDrop?: (event: DragEvent) => void
 }
 
 export function createPromptInputV2State() {
@@ -64,8 +62,6 @@ export function createPromptInputV2Controller(input: {
   context: Accessor<PromptInputV2Suggestion[]>
   searchContextFiles: (query: string) => PromptInputV2Suggestion[] | Promise<PromptInputV2Suggestion[]>
   openAttachment?: (attachment: PromptInputV2Attachment) => void
-  openContext?: (key: string) => void
-  onContextRemove?: (item: PromptInputV2Comment) => void
   onEditor?: (element: HTMLElement) => void
   onSuggestionSelect?: (item: PromptInputV2Suggestion) => (() => void) | void
   view: PromptInputV2ViewConfig
@@ -98,7 +94,9 @@ export function createPromptInputV2Controller(input: {
         editor: () => editor,
         focusEditor: () => editor?.focus(),
         addPart,
-        setDraggingType: (type) => dispatch({ type: type ? "drag.enter" : "drag.leave" }),
+        setDragging: (dragging) => {
+          if ((state.drag === "active") !== dragging) dispatch({ type: dragging ? "drag.enter" : "drag.leave" })
+        },
       })
     : undefined
   const attach = () => {
@@ -106,7 +104,7 @@ export function createPromptInputV2Controller(input: {
       input.view.add?.onAttach()
       return
     }
-    attachments.pick(() => fileInput?.click())
+    fileInput?.click()
   }
   const contextList = useFilteredList<PromptInputV2Suggestion>({
     items: async (query) => {
@@ -304,30 +302,11 @@ export function createPromptInputV2Controller(input: {
       return draft.state.prompt
     },
     addPart,
-    contextItem(id: string) {
-      return draft.state.context.items.find((item) => item.key === id)
-    },
-    comments() {
-      return draft.state.context.items.filter((item) => !!item.comment?.trim())
-    },
     attachments(): PromptInputV2Attachment[] {
       return draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
     },
-    toggleContext(id: string) {
-      dispatch({ type: "context.active", id })
-      input.openContext?.(id)
-    },
-    removeContext(id: string) {
-      const item = draft.state.context.items.find((entry) => entry.key === id)
-      if (item) input.onContextRemove?.(item)
-      draft.removeContext(id)
-      if (state.activeContextID === id) dispatch({ type: "context.active", id })
-    },
     openAttachment(attachment: PromptInputV2Attachment) {
       input.openAttachment?.(attachment)
-    },
-    reorderAttachment(id: string, toId: string) {
-      draft.reorderAttachment(id, toId)
     },
     removeAttachment(id: string) {
       draft.removeAttachment(id)
@@ -335,7 +314,6 @@ export function createPromptInputV2Controller(input: {
     canSubmit() {
       const persisted = draft.state
       if (persisted.prompt.some((part) => part.type === "image")) return true
-      if (persisted.context.items.some((item) => !!item.comment?.trim())) return true
       return persisted.prompt.some((part) => "content" in part && !!part.content.trim())
     },
     setEditor(element: HTMLElement) {
@@ -403,26 +381,6 @@ export function createPromptInputV2Controller(input: {
       selection.removeAllRanges()
       selection.addRange(range)
       target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: text }))
-    },
-    onDragEnter(event: DragEvent) {
-      event.preventDefault()
-      dispatch({ type: "drag.enter" })
-    },
-    onDragOver(event: DragEvent) {
-      event.preventDefault()
-    },
-    onDragLeave() {
-      dispatch({ type: "drag.leave" })
-    },
-    onDrop(event: DragEvent) {
-      event.preventDefault()
-      dispatch({ type: "drag.leave" })
-      if (attachments) {
-        event.stopPropagation()
-        void attachments.handleDrop(event)
-        return
-      }
-      input.view.onDrop?.(event)
     },
     attach,
     setFileInput(element: HTMLInputElement) {

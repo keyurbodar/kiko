@@ -78,11 +78,25 @@ describe("projections", () => {
     )
     expect(view).toMatchObject({ id: "m2", seq: 2, sender: "bot", botId: "ada", body: "hi", sentAt: 5, replyToId: "m1", edited: true })
     expect(view.rich).toBe(fixtures.richText)
-    expect(view.media?.[0]).toMatchObject({ kind: "photo", alt: "plan.png" })
-    expect(view.documents).toBeUndefined()
-    const pending = toChatMessage({ id: "local:c" as MessageId, seq: Number.MAX_SAFE_INTEGER, at: 1, from: human, text: "x", pending: true }, "r")
+    expect(view.files).toEqual([{ name: "plan.png", path: "plan.png", size: 48_211, type: "image/png", src: `/api/files/${fixtures.roomId}/f1` }])
+    const pending = toChatMessage({ id: "local:c" as MessageId, seq: Number.MAX_SAFE_INTEGER, at: 1, from: human, text: "x", pending: true, local: [{ src: "blob:a", name: "a.pdf", type: "application/pdf", size: 9 }] }, "r")
+    expect(pending.files).toEqual([{ name: "a.pdf", size: 9, type: "application/pdf", src: "blob:a" }])
     expect(pending).toMatchObject({ sender: "user", status: "sending" })
     expect(pending.seq).toBeUndefined()
+  })
+
+  test("a message stored with the old media fields draws as plain attachments", () => {
+    const old = {
+      id: "m3" as MessageId,
+      seq: 3,
+      at: 1,
+      from: human,
+      text: "",
+      files: [{ id: "f9", name: "attachments/k3-photo.png", size: 5, type: "image/png", width: 4, height: 3, thumbhash: "x", thumb: true }],
+      preview: { url: "https://a.dev", title: "a" },
+    } as unknown as Parameters<typeof toChatMessage>[0]
+    const view = toChatMessage(old, "r")
+    expect(view.files).toEqual([{ name: "photo.png", path: "attachments/k3-photo.png", size: 5, type: "image/png", src: "/api/files/r/f9" }])
   })
 
   test("the first unread message is the oldest one from someone else above the read marker", () => {
