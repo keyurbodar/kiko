@@ -36,7 +36,7 @@ Selectors this feature relies on:
 - `[data-component="prompt-input"]` — the `contenteditable` `<div>` that takes the text.
 - `[data-component="prompt-input-box"]`, `[data-component="prompt-input-v2"]` — the input's own wrappers.
 - `[data-component="composer-reply-bar"]` — the armed-reply bar, with the class `.reply-bar`; its jump control is `.reply-bar-jump` and the cancel button carries `aria-label="cancel reply"`.
-- `[data-component="composer-scroll-down"]` — the circle, with `aria-label="scroll to latest"`.
+- `[data-component="composer-scroll-down"]` — a 26px square centred over the chat column, with `aria-label="Jump to latest"`.
 - `[data-component="chat-shell"]` — the pane; `data-reply-target` names the armed message, and `data-range` is the virtualizer's window.
 - `[data-component="chat-row"][data-replying]` — the armed row in the transcript.
 
@@ -69,7 +69,7 @@ Selectors this feature relies on:
 
 - **The scroll-down circle appears only when there is somewhere to go.** Observe: it is present mid-history and gone at the end.
   - Load `/`, read `page.evaluate(() => document.querySelectorAll("[data-component='composer-scroll-down']").length)` — it is `0` at the bottom. Then set the scroller away from the end: `page.evaluate(() => { document.querySelector('[data-component="chat-scroll"]').scrollTop = 0; })`, wait ~500ms, and re-read `page.evaluate(() => ({ down: document.querySelectorAll("[data-component='composer-scroll-down']').length, aria: document.querySelector('[data-component="composer-scroll-down"]')?.getAttribute("aria-label"), dockScrolled: document.querySelector('[data-component="composer-dock"]')?.getAttribute("data-scrolled"), range: document.querySelector('[data-component="chat-shell"]')?.getAttribute("data-range") }))`.
-  - **Measured:** `down` becomes `1`, the button's `aria-label` is `scroll to latest`, and the dock's `data-scrolled` becomes `"true"` while the pane's `data-range` reads something like `0-11`. Click it and re-read: `down` is back to `0` and `data-scrolled` is gone.
+  - **Measured:** `down` becomes `1`, the button's `aria-label` is `Jump to latest`, and the dock's `data-scrolled` becomes `"true"` while the pane's `data-range` reads something like `0-11`. Click it and re-read: `down` is back to `0` and `data-scrolled` is gone.
   - **Assert it never sits over the composer's own controls.** It is a 34px circle floating above the composer's *right* edge, next to the send button, and it renders only when there is somewhere to go, so a control overlapping the send button is a defect. The `data-range` attribute is the cheapest way to confirm you are actually mid-history rather than trusting that a `scrollTop` write took effect.
 
 - **Proof.** Write the send, the reply-arm and the scroll-down readings — including the before/after of `data-reply-target`, the bar's presence, and the sent row's `side` and quote — to `/tmp/kiko-verify-evidence/composer.json`, in the same run that measured them.

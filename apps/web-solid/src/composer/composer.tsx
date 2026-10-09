@@ -296,6 +296,7 @@ export function Composer(props: ComposerProps) {
       submit: {
         stopping: () => false,
         working: () => !!props.busy || decoding(),
+        preparing: decoding,
         onSubmit: () => {
           if (props.busy) return
           // There is no conversation to land in, so there is nothing to send.

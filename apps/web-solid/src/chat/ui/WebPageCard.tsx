@@ -11,7 +11,7 @@ const DESCRIPTION_LIMIT = 180
 
 function limitSymbols(value: string | undefined, length: number, limitFrom: number): string {
   const trimmed = value?.trim() ?? ""
-  return trimmed.length > limitFrom ? `${trimmed.slice(0, length)}...` : trimmed
+  return trimmed.length > limitFrom ? `${trimmed.slice(0, length)}…` : trimmed
 }
 
 /**
@@ -44,7 +44,7 @@ export function WebPageCard(props: { page: WebPagePreview; class?: string; child
         class={cn(
           "chat-webpage relative mt-1 block max-w-full overflow-hidden rounded-[18px] no-underline",
           color() ? "text-white" : "bg-message-assistant text-message-assistant-text",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          "",
           props.class,
         )}
         style={{ width: `${CARD_WIDTH}px`, "background-color": color() }}

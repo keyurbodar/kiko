@@ -2,13 +2,13 @@ import { A } from "@solidjs/router"
 import { For, Show, Suspense, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { Moment } from "../mascot/pixel/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
-import { Button, Empty, fieldClass, Group, Hint, Item, line, Notice, Pill, rowLine, Toggle } from "./kit"
+import { Button, fieldClass, Group, Hint, IconButton, Item, muted, Notice, Pill, Row, Toggle } from "./kit"
+import { Dialog } from "../lib/dialog"
 import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
 
@@ -27,8 +27,6 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
  * for whether the chat's model picker offers it. There is no default model to set: a new chat
  * starts on the model picked last.
  */
-
-const faint = "text-[color-mix(in_oklab,var(--text)_45%,transparent)]"
 
 /** Popular providers, in the order offered, with one line each. Only those in the catalog show. */
 const POPULAR: readonly { id: string; note: string }[] = [
@@ -89,36 +87,48 @@ export function ProvidersPage() {
       <Show when={catalog.error}>
         <Notice data-component="catalog-error">The model catalog did not load. Reload to try again.</Notice>
       </Show>
-      <Group title="Connected">
-        <For each={connected()} fallback={<Empty data-component="no-provider">{catalog.loading ? "Loading" : "No providers connected."}</Empty>}>
-          {(provider) => <ConnectedRow provider={provider} info={saved(provider.id)!} />}
+      {/* With nothing connected the page opens on the popular ones; an empty card would say nothing. */}
+      <Show when={connected().length}>
+        <Group title="Connected">
+          <For each={connected()}>{(provider) => <ConnectedRow provider={provider} info={saved(provider.id)!} />}</For>
+        </Group>
+      </Show>
+      <Group
+        title={connected().length ? "Add another" : "Popular"}
+        data-component="provider-add"
+        bare={!popular().length}
+        action={
+          <Button variant="ghost" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
+            View all providers
+          </Button>
+        }
+      >
+        <For
+          each={popular()}
+          fallback={
+            <Show when={!catalog.error}>
+              <Hint data-component="no-provider">{catalog.loading ? "Loading" : "Every popular provider is connected."}</Hint>
+            </Show>
+          }
+        >
+          {({ provider, note }) => (
+            <Item
+              data-provider={provider.id}
+              icon={<ProviderIcon id={provider.id} width="16" height="16" />}
+              title={provider.name}
+              meta={note}
+              actions={
+                <Button data-action="connect" onClick={() => setDialog(provider)}>
+                  <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <path d="M8 3.5v9M3.5 8h9" />
+                  </svg>
+                  Connect
+                </Button>
+              }
+            />
+          )}
         </For>
       </Group>
-      <div data-component="provider-add">
-        <Group title={connected().length ? "Add another" : "Popular"}>
-          <For each={popular()}>
-            {({ provider, note }) => (
-              <Item
-                data-provider={provider.id}
-                icon={<ProviderIcon id={provider.id} width="16" height="16" />}
-                title={provider.name}
-                meta={note}
-                actions={
-                  <Button data-action="connect" onClick={() => setDialog(provider)}>
-                    <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                      <path d="M8 3.5v9M3.5 8h9" />
-                    </svg>
-                    Connect
-                  </Button>
-                }
-              />
-            )}
-          </For>
-        </Group>
-        <button type="button" class="mt-3 cursor-pointer text-[13px] font-medium text-[var(--accent)] hover:underline" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
-          View all providers
-        </button>
-      </div>
       <AddProviderDialog
         open={browsing()}
         loading={catalog.loading}
@@ -151,14 +161,10 @@ function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; 
       data-provider={props.provider.id}
       data-connected="true"
       icon={<ProviderIcon id={props.provider.id} width="16" height="16" />}
-      title={
-        <>
-          <span class="truncate">{props.provider.name}</span>
-          <Pill>{props.info.kind === "api_key" ? `API key ••${props.info.last4}` : "Signed in"}</Pill>
-        </>
-      }
+      title={props.provider.name}
+      meta={props.info.kind === "api_key" ? `API key ••${props.info.last4}` : "Signed in"}
       actions={
-        <Button variant="ghost" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
+        <Button variant="danger" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
           Disconnect
         </Button>
       }
@@ -202,7 +208,7 @@ export function ModelsPage() {
   const searching = () => query().trim().length > 0
 
   return (
-    <div class="flex flex-col gap-6" data-component="models-page">
+    <div class="flex flex-col gap-8" data-component="models-page">
       <Show
         when={connected().length}
         fallback={
@@ -219,7 +225,7 @@ export function ModelsPage() {
       >
         <input
           type="search"
-          class={cn(fieldClass, "h-8 w-full")}
+          class={cn(fieldClass, "w-full")}
           placeholder="Search models"
           aria-label="Search models"
           spellcheck={false}
@@ -232,44 +238,50 @@ export function ModelsPage() {
           {(group) => {
             const open = () => searching() || !collapsed()[group.provider.id]
             return (
-              <section class="flex flex-col gap-2.5" data-component="models-provider" data-provider={group.provider.id} data-expanded={open() ? "" : undefined}>
-                <h2>
-                  <button
-                    type="button"
-                    class="-ml-1 flex h-7 cursor-pointer items-center gap-1.5 rounded-md pr-2 pl-1 text-[13px] font-medium text-text outline-none hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-default disabled:hover:bg-transparent"
-                    aria-expanded={open()}
-                    disabled={searching()}
-                    onClick={() => fold(group.provider.id, open())}
-                  >
-                    <svg class={cn("size-4 shrink-0", faint, !open() && "-rotate-90")} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                      <path d="M5.4 6.75c-.2-.33.04-.75.42-.75h4.38c.39 0 .63.42.43.75l-2.19 3.76a.5.5 0 0 1-.87 0z" />
-                    </svg>
+              <Group
+                data-component="models-provider"
+                data-provider={group.provider.id}
+                data-expanded={open() ? "" : undefined}
+                bare={!open()}
+                title={
+                  <span class="flex items-center gap-2">
                     <ProviderIcon id={group.provider.id} width="16" height="16" />
                     {group.provider.name}
-                    <span class={cn("font-normal", faint)}>{group.models.length}</span>
-                  </button>
-                </h2>
+                    <span class={cn("tabular-nums", muted)}>{group.models.length}</span>
+                  </span>
+                }
+                action={
+                  <IconButton label={open() ? `Hide ${group.provider.name} models` : `Show ${group.provider.name} models`} aria-expanded={open()} disabled={searching()} onClick={() => fold(group.provider.id, open())}>
+                    <svg class={cn("size-3.5", !open() && "-rotate-90")} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </IconButton>
+                }
+              >
                 <Show when={open()}>
-                  <div class="overflow-hidden rounded-lg bg-[color-mix(in_oklab,var(--text)_3%,transparent)] shadow-[inset_0_0_0_0.5px_color-mix(in_oklab,var(--text)_16%,transparent)]">
-                    <For each={group.models}>
-                      {(m) => {
-                        const ref = modelRef(group.provider.id, m.id)
-                        const shown = () => !hiddenModels().includes(ref)
-                        return (
-                          <div class={cn("flex min-h-12 items-center gap-4 px-5 py-2.5", rowLine)} data-model={ref}>
-                            <span class={cn("min-w-0 flex-1 truncate text-[13px] font-medium", shown() ? "text-text" : faint)}>{m.name}</span>
-                            <span class={cn("hidden shrink-0 text-[12px] tabular-nums sm:inline", faint)}>
-                              {formatContext(m.contextWindow)}
-                              {m.reasoning ? " · reasoning" : ""}
-                            </span>
-                            <Toggle label={`Show ${m.name} in the model picker`} on={shown()} onChange={(on) => setHidden([ref], !on)} />
-                          </div>
-                        )
-                      }}
-                    </For>
-                  </div>
+                  <For each={group.models}>
+                    {(m) => {
+                      const ref = modelRef(group.provider.id, m.id)
+                      return (
+                        <Row
+                          data-model={ref}
+                          label={
+                            <>
+                              <span class="truncate">{m.name}</span>
+                              <Show when={m.reasoning}>
+                                <Pill>Reasoning</Pill>
+                              </Show>
+                            </>
+                          }
+                          description={`${formatContext(m.contextWindow)} context`}
+                        >
+                          <Toggle label={`Show ${m.name} in the model picker`} on={!hiddenModels().includes(ref)} onChange={(on) => setHidden([ref], !on)} />
+                        </Row>
+                      )
+                    }}
+                  </For>
                 </Show>
-              </section>
+              </Group>
             )
           }}
         </For>
@@ -280,7 +292,7 @@ export function ModelsPage() {
 
 /**
  * Adding a provider, after t3code's add-provider dialog: a search over every provider not yet
- * connected and a grid of them. Choosing one goes straight to its connect step.
+ * connected and one list of them. Choosing one goes straight to its connect step.
  */
 function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
   const [query, setQuery] = createSignal("")
@@ -289,64 +301,58 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
     return q ? props.providers.filter((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : props.providers
   })
   return (
-    <ModalV2
+    <Dialog
       open={props.open}
-      onOpenChange={(open) => {
-        if (!open) {
-          setQuery("")
-          props.onClose()
-        }
+      onClose={() => {
+        setQuery("")
+        props.onClose()
       }}
+      title="Add a provider"
+      size="md"
+      class="h-[min(560px,86dvh)]"
+      bodyClass="flex flex-col gap-3 overflow-hidden px-3"
+      data-component="provider-browser"
     >
-      <ModalV2.Portal>
-        <ModalV2.Overlay />
-        <ModalV2.Content class="flex h-[min(560px,86dvh)] w-[min(600px,94vw)] flex-col overflow-hidden rounded-2xl bg-menu shadow-xl" data-component="provider-add">
-          <div class="flex flex-col gap-3 border-b border-[color-mix(in_oklab,var(--text)_8%,transparent)] p-4">
-            <div>
-              <ModalV2.Title class="text-[15px] font-semibold text-text">Add a provider</ModalV2.Title>
-            </div>
-            <form
-              role="search"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const first = shown()[0]
-                if (first) props.onPick(first)
-              }}
-            >
-              <input
-                type="search"
-                class={cn(fieldClass, "h-8 w-full")}
-                placeholder="Search providers"
-                aria-label="Search providers"
-                autocomplete="off"
-                value={query()}
-                ref={(el) => requestAnimationFrame(() => el.focus())}
-                onInput={(e) => setQuery(e.currentTarget.value)}
-                data-component="provider-search"
-              />
-            </form>
-          </div>
-          <ul class="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-2 overflow-y-auto p-4 sm:grid-cols-2" data-component="provider-list">
-            <For each={shown()} fallback={<li class="text-[13px] text-[color-mix(in_oklab,var(--text)_50%,transparent)] sm:col-span-2">{props.loading ? "Loading providers" : "No provider matches"}</li>}>
-              {(provider) => (
-                <li data-provider={provider.id}>
-                  <button
-                    type="button"
-                    class="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[color-mix(in_oklab,var(--text)_3%,transparent)] px-3 py-3 text-left outline-none ring-1 ring-[color-mix(in_oklab,var(--text)_6%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                    data-action="connect"
-                    onClick={() => props.onPick(provider)}
-                  >
-                    <ProviderIcon id={provider.id} width="18" height="18" />
-                    <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-text">{provider.name}</span>
-                    <span class="shrink-0 text-[12px] tabular-nums text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{provider.models.length}</span>
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </ModalV2.Content>
-      </ModalV2.Portal>
-    </ModalV2>
+      <form
+        role="search"
+        class="px-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          const first = shown()[0]
+          if (first) props.onPick(first)
+        }}
+      >
+        <input
+          type="search"
+          class={cn(fieldClass, "w-full")}
+          placeholder="Search providers"
+          aria-label="Search providers"
+          autocomplete="off"
+          value={query()}
+          ref={(el) => requestAnimationFrame(() => el.focus())}
+          onInput={(e) => setQuery(e.currentTarget.value)}
+          data-component="provider-search"
+        />
+      </form>
+      <ul class="flex min-h-0 flex-1 flex-col overflow-y-auto" data-component="provider-list">
+        <For each={shown()} fallback={<li class={cn("px-2 text-[13px]", muted)}>{props.loading ? "Loading providers" : "No provider matches"}</li>}>
+          {(provider) => (
+            <li data-provider={provider.id}>
+              <button
+                type="button"
+                class="flex h-10 w-full cursor-pointer items-center gap-3 rounded-lg px-2 text-left outline-none hover:bg-[var(--kit-hover)] focus-visible:bg-[var(--kit-hover)]"
+                data-action="connect"
+                onClick={() => props.onPick(provider)}
+              >
+                <ProviderIcon id={provider.id} width="16" height="16" />
+                <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-text">{provider.name}</span>
+                <span class={cn("shrink-0 text-[12px] tabular-nums", muted)}>{provider.models.length} {provider.models.length === 1 ? "model" : "models"}</span>
+              </button>
+            </li>
+          )}
+        </For>
+      </ul>
+    </Dialog>
   )
 }
 
@@ -380,66 +386,67 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
     }
   }
 
+  const close = () => {
+    setError(null)
+    props.onClose()
+  }
+  const byKey = () => props.provider?.connect.includes("api_key") ?? false
+
   return (
-    <ModalV2
+    <Dialog
       open={props.provider !== null}
-      onOpenChange={(open) => {
-        if (!open) {
-          setError(null)
-          props.onClose()
-        }
-      }}
+      onClose={close}
+      title={<span data-component="connect-title">Connect {props.provider?.name}</span>}
+      data-component="provider-connect"
+      footer={
+        <Show when={byKey()}>
+          <Button variant="ghost" data-action="cancel-connect" onClick={close}>
+            Cancel
+          </Button>
+          <Button type="submit" form="provider-key-form" variant="primary" disabled={busy()} data-action="save-key">
+            Save key
+          </Button>
+        </Show>
+      }
     >
-      <ModalV2.Portal>
-        <ModalV2.Overlay />
-        <ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-4 rounded-[16px] bg-menu p-4 shadow-xl">
-          <ModalV2.Title class="text-[13px] font-semibold text-text" data-component="connect-title">
-            Connect {props.provider?.name}
-          </ModalV2.Title>
-          <For each={props.provider?.connect ?? []}>
-            {(method) =>
-              method === "api_key" ? (
-                <form class="flex flex-col gap-2.5" onSubmit={submit} data-method="api_key">
-                  <label class="text-xs text-muted" for="provider-key">API key</label>
-                  <input
-                    id="provider-key"
-                    ref={input}
-                    type="password"
-                    name="kiko-provider-secret"
-                    autocomplete="off"
-                    autocapitalize="off"
-                    spellcheck={false}
-                    autofocus
-                    class={cn(fieldClass, "w-full")}
-                    data-component="provider-key"
-                  />
-                  <Show when={error()}>
-                    <Notice data-component="connect-error">{error()!}</Notice>
-                  </Show>
-                  <div class="flex justify-end gap-2">
-                    <Button variant="ghost" data-action="cancel-connect" onClick={() => { setError(null); props.onClose() }}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" disabled={busy()} data-action="save-key">
-                      Save key
-                    </Button>
-                  </div>
-                </form>
-              ) : (
-                <SignInMethod
-                  provider={props.provider!.id}
-                  method={method}
-                  onDone={async () => {
-                    await refreshConnected()
-                    props.onClose()
-                  }}
+      <div class="flex flex-col gap-4">
+        <For each={props.provider?.connect ?? []}>
+          {(method) =>
+            method === "api_key" ? (
+              <form id="provider-key-form" class="flex flex-col gap-2" onSubmit={submit} data-method="api_key">
+                <label class="text-[13px] font-medium text-text" for="provider-key">
+                  API key
+                </label>
+                <input
+                  id="provider-key"
+                  ref={input}
+                  type="password"
+                  name="kiko-provider-secret"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck={false}
+                  autofocus
+                  class={cn(fieldClass, "w-full")}
+                  data-component="provider-key"
                 />
-              )
-            }
-          </For>
-        </ModalV2.Content>
-      </ModalV2.Portal>
-    </ModalV2>
+                <Show when={error()}>
+                  <Notice data-component="connect-error">{error()!}</Notice>
+                </Show>
+              </form>
+            ) : (
+              <SignInMethod
+                provider={props.provider!.id}
+                method={method}
+                onDone={async () => {
+                  await refreshConnected()
+                  props.onClose()
+                }}
+              />
+            )
+          }
+        </For>
+      </div>
+    </Dialog>
   )
 }
 
@@ -480,7 +487,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
         <Show
           when={running()}
           fallback={
-            <Button variant="primary" data-action="sign-in" onClick={start}>
+            <Button data-action="sign-in" onClick={start}>
               {state()?.status === "error" ? "Try again" : "Sign in"}
             </Button>
           }
@@ -502,8 +509,8 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
           <>
             <Show when={s().code}>
               {(code) => (
-                <div class={cn("flex flex-col gap-1 rounded-xl border p-3", line, "bg-[color-mix(in_oklab,var(--text)_3%,transparent)]")} data-component="device-code">
-                  <span class="text-xs text-muted">Enter this code at the provider</span>
+                <div class="flex flex-col gap-1" data-component="device-code">
+                  <span class={cn("text-[12px]", muted)}>Enter this code at the provider</span>
                   <span class="select-all font-mono text-lg tracking-widest text-text">{code().userCode}</span>
                   <a
                     href={code().verificationUri}
@@ -518,9 +525,9 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
             </Show>
             <Show when={s().link}>
               {(link) => (
-                <div class={cn("flex flex-col gap-1 rounded-xl border p-3", line, "bg-[color-mix(in_oklab,var(--text)_3%,transparent)]")} data-component="sign-in-link">
+                <div class="flex flex-col gap-1" data-component="sign-in-link">
                   <Show when={link().instructions}>
-                    <span class="text-xs text-muted">{link().instructions}</span>
+                    <span class={cn("text-[12px]", muted)}>{link().instructions}</span>
                   </Show>
                   <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-[13px] text-[var(--accent)]">
                     Open the sign-in page
@@ -529,14 +536,14 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
               )}
             </Show>
             <Show when={s().note}>
-              <p class="text-xs text-muted" data-component="sign-in-note">{s().note}</p>
+              <p class={cn("text-[12px]", muted)} data-component="sign-in-note">{s().note}</p>
             </Show>
             <Show when={s().prompt}>
               {(p) => {
                 const prompt = p().prompt
                 return prompt.type === "select" ? (
                   <div class="flex flex-col gap-1.5" data-component="sign-in-select">
-                    <span class="text-xs text-muted">{prompt.message}</span>
+                    <span class={cn("text-[12px]", muted)}>{prompt.message}</span>
                     <For each={prompt.options}>
                       {(option) => (
                         <Button class="w-full justify-start" onClick={() => handle?.answer(p().promptId, option.id)}>
@@ -547,7 +554,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
                   </div>
                 ) : (
                   <form class="flex flex-col gap-2.5" onSubmit={answer} data-component="sign-in-prompt">
-                    <label class="text-xs text-muted" for="sign-in-answer">{prompt.message}</label>
+                    <label class={cn("text-[12px]", muted)} for="sign-in-answer">{prompt.message}</label>
                     <input
                       id="sign-in-answer"
                       ref={input}

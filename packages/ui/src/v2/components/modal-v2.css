@@ -42,31 +42,8 @@
     outline: none;
   }
 
-  /* No entrance animation by default. A modal is a surface the reader is about
-   * to read, which is the last place to make them wait on a transition — the
-   * reason `menu-v2.css` and `hover-card-v2.css` give. The fade below exists
-   * for the viewer case only, where the surface covers the whole app and a
-   * hard cut reads as a glitch; opacity alone, no transform, so it cannot
-   * perturb anything that measures the box while it is animating. Gated on
-   * `no-preference` rather than neutralised under `reduce`, so the reduced
-   * path has nothing to switch off. */
-  @media (prefers-reduced-motion: no-preference) {
-    [data-component="modal-v2-overlay"][data-expanded] {
-      animation: modal-v2-fade 140ms ease-out;
-    }
-
-    [data-component="modal-v2-content"][data-expanded] {
-      animation: modal-v2-fade 140ms ease-out;
-    }
-  }
+  /* No entrance animation. A modal is a surface the reader is about to read, which is the
+   * last place to make them wait on a transition, the reason `menu-v2.css` and
+   * `hover-card-v2.css` give. The media viewer animates its own flight. */
 }
 
-@keyframes modal-v2-fade {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}

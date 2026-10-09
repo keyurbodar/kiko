@@ -47,12 +47,12 @@ export function ThemeSelect(props: { value: string | null; options: readonly The
           o.onExport || o.onRemove ? (
             <>
               <Show when={o.onExport}>
-                <button type="button" class={cn(iconButtonClass, "size-6")} title="Export theme file" aria-label={`Export ${o.label}`} onClick={() => o.onExport!()}>
+                <button type="button" class={iconButtonClass} title="Export theme file" aria-label={`Export ${o.label}`} onClick={() => o.onExport!()}>
                   <HugeIcon icon={ShareIcon} size={13} />
                 </button>
               </Show>
               <Show when={o.onRemove}>
-                <button type="button" class={cn(iconButtonClass, "mr-0.5 size-6 hover:text-[var(--danger)]")} title="Remove theme" aria-label={`Remove ${o.label}`} data-action="remove-theme" onClick={() => o.onRemove!()}>
+                <button type="button" class={cn(iconButtonClass, "hover:text-[var(--danger)]")} title="Remove theme" aria-label={`Remove ${o.label}`} data-action="remove-theme" onClick={() => o.onRemove!()}>
                   <HugeIcon icon={TrashIcon} size={13} />
                 </button>
               </Show>

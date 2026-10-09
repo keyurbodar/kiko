@@ -11,7 +11,7 @@
   width: min(560px, calc(100vw - 32px));
   background: var(--menu-bg);
   color: var(--text);
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow: var(--menu-shadow);
   overflow: hidden;
 }
@@ -27,10 +27,11 @@
   font: inherit;
   font-size: 15px;
 }
-.palette-input::placeholder { color: color-mix(in srgb, currentColor 55%, transparent); }
+.palette-input::placeholder { color: var(--text-faint); }
 .palette-list {
   max-height: 420px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0 6px 8px;
 }
 .palette-row {
@@ -40,13 +41,20 @@
   height: 32px;
   padding: 0 10px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   cursor: default;
 }
-.palette-row[data-selected="true"] { background: color-mix(in srgb, currentColor 10%, transparent); }
+.palette-row[data-selected="true"] { background: var(--selected-bg); }
+/* The menu's group label: 11px, medium, faint. */
+.palette-group [cmdk-group-heading] {
+  padding: 8px 10px 4px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+}
 .palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.palette-keys { color: color-mix(in srgb, currentColor 55%, transparent); font-size: 12px; }
-.palette-empty { padding: 12px 10px; font-size: 14px; color: color-mix(in srgb, currentColor 55%, transparent); }
+.palette-keys { color: var(--text-muted); font-size: 12px; }
+.palette-empty { padding: 12px 10px; font-size: 13px; color: var(--text-muted); }
 
 /* Phones: a thumb-sized row, and the panel sits higher so the keyboard does not cover the list. */
 @media (width < 768px) {

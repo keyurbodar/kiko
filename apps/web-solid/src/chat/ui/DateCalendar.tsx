@@ -66,7 +66,7 @@ export default function DateCalendar(props: {
                         : MONTH_YEAR.format(calendar.month)}
                       <HugeIcon
                         icon={ChevronDownIcon}
-                        class={cn("size-4 transition-transform", picking() && "rotate-180")}
+                        class={cn("size-4", picking() && "rotate-180")}
                         aria-hidden="true"
                       />
                     </button>
@@ -124,8 +124,7 @@ export default function DateCalendar(props: {
                       </div>
                     }
                   >
-                    <Show when={`${calendar.month.getFullYear()}-${calendar.month.getMonth()}`} keyed>
-                    <Calendar.Table class="motion-calendar-month w-full border-collapse table-fixed">
+                    <Calendar.Table class="w-full border-collapse table-fixed">
                       <thead>
                         <tr>
                           <Index each={calendar.weekdays}>
@@ -149,7 +148,7 @@ export default function DateCalendar(props: {
                                   <Calendar.Cell class="h-10 p-0 text-center">
                                     <Calendar.CellTrigger
                                       class={cn(
-                                        "chat-calendar__day mx-auto grid motion-safe:transition-colors motion-safe:duration-(--motion-fast) size-9 place-items-center rounded-full p-0",
+                                        "chat-calendar__day mx-auto grid size-9 place-items-center rounded-full p-0",
                                         "tabular-nums cursor-pointer",
                                         "not-data-disabled:hover:bg-[oklch(from_var(--text)_l_c_h_/_6%)]",
                                         "active:not-data-disabled:scale-[0.92]",
@@ -170,7 +169,6 @@ export default function DateCalendar(props: {
                         </Index>
                       </tbody>
                     </Calendar.Table>
-                    </Show>
                   </Show>
                 </>
               )}

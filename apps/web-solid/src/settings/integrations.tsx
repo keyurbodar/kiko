@@ -1,6 +1,6 @@
 import type { ExecutorResult, ExecutorStatus } from "@kiko/protocol"
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
+import { Dialog } from "../lib/dialog"
 import { cn } from "../lib/cn"
 import { Button, Empty, Group, Item, Notice, buttonClass, fieldClass } from "./kit"
 import { createExecutorClient, createMockExecutor, type ExecutorClient } from "./integrations-client"
@@ -111,11 +111,9 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 			<Group
 				title="Executor"
 				action={
-					<span class="text-[12px]" data-component="integrations-about">
-						<a class="text-[color-mix(in_oklab,var(--text)_55%,transparent)] underline decoration-[color-mix(in_oklab,var(--text)_30%,transparent)] underline-offset-2 hover:text-text hover:decoration-current" href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
-							Learn more
-						</a>
-					</span>
+					<a class={buttonClass("ghost")} href={EXECUTOR_HOME} target="_blank" rel="noreferrer" data-component="integrations-link">
+						Learn more
+					</a>
 				}
 			>
 				<Show when={status()} fallback={<Empty>Loading</Empty>}>
@@ -157,7 +155,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 											class={cn(fieldClass, "flex-1")}
 											data-component="integrations-key"
 										/>
-										<Button type="submit" variant="secondary" class="h-[30px]" disabled={busy()} data-action="save-key">
+										<Button type="submit" variant="secondary" disabled={busy()} data-action="save-key">
 											Save
 										</Button>
 									</form>
@@ -173,7 +171,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 								<span data-field="tool-count">
 									{tools() ? `${tools()!.length} ${tools()!.length === 1 ? "tool" : "tools"}` : "Loading tools"}
 									{" · "}
-									{status()?.kind === "api_key" ? "API key" : "signed in"}
+									{status()?.kind === "api_key" ? "API key" : "Signed in"}
 								</span>
 							}
 							actions={
@@ -206,23 +204,23 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 					</Show>
 				</Group>
 			</Show>
-			<ModalV2 open={confirming()} onOpenChange={setConfirming}>
-				<ModalV2.Portal>
-					<ModalV2.Overlay />
-					<ModalV2.Content class="w-[min(420px,94vw)] flex-col gap-3 rounded-[16px] bg-menu p-4 shadow-xl">
-						<ModalV2.Title class="text-[13px] font-semibold text-text">Disconnect Executor?</ModalV2.Title>
-						<p class="text-xs leading-relaxed text-muted">Your agents lose these tools until you connect again.</p>
-						<div class="flex justify-end gap-2">
-							<Button variant="ghost" data-action="cancel-disconnect" onClick={() => setConfirming(false)}>
-								Cancel
-							</Button>
-							<Button variant="danger" data-action="confirm-disconnect" onClick={disconnect}>
-								Disconnect
-							</Button>
-						</div>
-					</ModalV2.Content>
-				</ModalV2.Portal>
-			</ModalV2>
+			<Dialog
+				open={confirming()}
+				onClose={() => setConfirming(false)}
+				title="Disconnect Executor?"
+				description="Your agents lose these tools until you connect again."
+				data-component="executor-disconnect"
+				footer={
+					<>
+						<Button variant="ghost" data-action="cancel-disconnect" onClick={() => setConfirming(false)}>
+							Cancel
+						</Button>
+						<Button variant="danger" data-action="confirm-disconnect" onClick={disconnect}>
+							Disconnect
+						</Button>
+					</>
+				}
+			/>
 		</div>
 	)
 }

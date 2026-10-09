@@ -7,14 +7,15 @@ import { CARD_IMAGE_ASPECT, CARD_WIDTH, hasWebPageContent, isLinkOnly } from "./
 const FONT_BASE = 14;
 // A bubble's line is the font size plus 6px (bubble.tsx).
 const LINE_BOX = FONT_BASE + 6;
-const LINE_BOX_CHROME = 11 * 1.45;
 
 const BUBBLE_PAD_TOP = 8;
 const BUBBLE_PAD_Y = BUBBLE_PAD_TOP * 2;
 const ROW_GAP_PX = 1;
 const RUN_GAP_PX = 16;
 
-const UNREAD_RULE_PAD_Y = 20;
+// The day divider, the unread rule and a notice (SystemMessage.tsx): `py-3` around a `leading-4` line.
+const CENTER_ROW_PAD_Y = 24;
+const CENTER_LINE = 16;
 
 const CHARS_PER_LINE = 87;
 
@@ -25,7 +26,7 @@ const QUOTE_CHROME_Y = 5 + 5 + 4;
 const JUMBO_SINGLE_PX = 42 * 1.25;
 const JUMBO_GROUP_PX = 31 * 1.25;
 
-const CAPTION_PAD_Y = 5 + 7;
+const CAPTION_PAD_Y = 8 + 8;
 
 const DOCUMENT_ICON_PX = 48;
 const DOCUMENT_ROW_PAD_Y = 8;
@@ -76,11 +77,10 @@ function bubbleTextLines(body: string): number {
 }
 
 export function estimateRowHeight(item: TimelineItem): number {
-  // Monocode's day pill: 24px above, 12px below, and a 16px line in 4px of padding each way.
-  if (item.kind === "day-divider") return 24 + 12 + 16 + 8;
-  if (item.kind === "unread-divider") return Math.ceil(UNREAD_RULE_PAD_Y + LINE_BOX_CHROME);
-  // A notice is one `py-1` line of 12px text; a thread line is a 28px pill with the run gap above.
-  if (item.kind === "notice") return Math.ceil(8 + LINE_BOX_CHROME);
+  // Every centred row is one 16px line with 12px above and below. The day pill adds 4px each way.
+  if (item.kind === "day-divider") return CENTER_ROW_PAD_Y + CENTER_LINE + 8;
+  if (item.kind === "unread-divider" || item.kind === "notice") return CENTER_ROW_PAD_Y + CENTER_LINE;
+  // A thread line is a 28px pill with the run gap above.
   if (item.kind === "thread") return RUN_GAP_PX + 28 + 2;
 
   const { message } = item;

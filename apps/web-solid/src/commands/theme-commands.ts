@@ -12,15 +12,15 @@ export function themeCommands(deps: {
   changeBird: (slug: string) => void
 }): Command[] {
   const modes: [Mode, string][] = [
-    ["dark", "Theme: Dark mode"],
-    ["light", "Theme: Light mode"],
-    ["system", "Theme: Follow the system"],
+    ["dark", "Dark mode"],
+    ["light", "Light mode"],
+    ["system", "Follow the system"],
   ]
   return [
     ...modes.map(([mode, title]): Command => ({ id: `theme.mode.${mode}`, title, group: "theme", icon: "appearance", run: () => deps.setMode(mode) })),
     {
       id: "chat.change-bird",
-      title: "Chat: Change bird",
+      title: "Change bird",
       group: "chat",
       icon: "appearance",
       when: () => deps.activeAgent() !== null,
@@ -34,5 +34,5 @@ export function themeCommands(deps: {
 
 /** One command per theme, with null for t3code's stock palette. */
 export function themeChoiceCommands(themes: readonly { id: string | null; label: string }[], setTheme: (id: string | null) => void): Command[] {
-  return themes.map((t) => ({ id: `theme.use.${t.id ?? "default"}`, title: `Theme: ${t.label}`, group: "theme", icon: "appearance", run: () => setTheme(t.id) }))
+  return themes.map((t) => ({ id: `theme.use.${t.id ?? "default"}`, title: t.label, group: "theme", icon: "appearance", run: () => setTheme(t.id) }))
 }

@@ -31,39 +31,6 @@
   user-select: none;
   pointer-events: none;
 
-  animation: tooltipV2In 120ms ease-out;
-  transform-origin: var(--kb-tooltip-content-transform-origin);
-
-  &[data-closed] {
-    animation: tooltipV2Out 80ms ease-in forwards;
-  }
+  /* No entrance or exit animation: a tooltip appears and goes in one frame. */
 }
 
-@keyframes tooltipV2In {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes tooltipV2Out {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-component="tooltip-v2"],
-  [data-component="tooltip-v2"][data-closed] {
-    animation: none;
-  }
-}

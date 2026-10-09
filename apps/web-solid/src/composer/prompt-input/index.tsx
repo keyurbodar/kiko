@@ -114,9 +114,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
         class="flex flex-col"
-        classList={{
-          "border border-v2-icon-icon-info border-dashed": state.drag === "active",
-        }}
         onSubmit={(event) => {
           event.preventDefault()
           if (!props.disabled) props.controller.submit()
@@ -126,28 +123,32 @@ export function PromptInputV2(props: PromptInputV2Props) {
         onDragLeave={props.controller.onDragLeave}
         onDrop={props.controller.onDrop}
       >
-        <Show
-          when={
-            state.mode === "normal" &&
-            (props.controller.attachments().length > 0 || props.controller.comments().length > 0)
-          }
-        >
-          <Suspense>
-            <PromptInputV2Attachments
-              attachments={props.controller.attachments()}
-              comments={props.controller.comments()}
-              activeCommentID={state.activeContextID}
-              removeLabel={i18n.t("ui.promptInput.removeAttachment")}
-              onAttachmentClick={props.controller.openAttachment}
-              onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
-              onAttachmentReorder={(id, toId) => props.controller.reorderAttachment(id, toId)}
-              onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
-              onCommentRemove={(item) => props.controller.removeContext(item.key)}
-            />
-          </Suspense>
-        </Show>
-
         <div class="composer-row">
+          <Show when={state.drag === "active"}>
+            <div class="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-lg bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-sm text-[color-mix(in_oklab,var(--text)_70%,transparent)] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--accent)_50%,transparent)]">
+              {i18n.t("ui.promptInput.dropFiles")}
+            </div>
+          </Show>
+          <Show
+            when={
+              state.mode === "normal" &&
+              (props.controller.attachments().length > 0 || props.controller.comments().length > 0)
+            }
+          >
+            <Suspense>
+              <PromptInputV2Attachments
+                attachments={props.controller.attachments()}
+                comments={props.controller.comments()}
+                activeCommentID={state.activeContextID}
+                removeLabel={i18n.t("ui.promptInput.removeAttachment")}
+                onAttachmentClick={props.controller.openAttachment}
+                onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
+                onAttachmentReorder={(id, toId) => props.controller.reorderAttachment(id, toId)}
+                onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
+                onCommentRemove={(item) => props.controller.removeContext(item.key)}
+              />
+            </Suspense>
+          </Show>
           <button
             type="button"
             class="composer-attach"
@@ -164,12 +165,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
             data-component="prompt-input-box"
             class="composer-input-wrap"
           >
-            <Show when={state.drag === "active"}>
-              <div class="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-xl bg-v2-background-bg-base/90 text-v2-text-text-base">
-                {i18n.t("ui.promptInput.dropFiles")}
-              </div>
-            </Show>
-
             {props.reply}
 
             <div
@@ -228,7 +223,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             mode={state.mode}
             stopping={view.submit.stopping()}
             disabled={!props.controller.canSubmit()}
-            sendLabel={i18n.t("ui.promptInput.send")}
+            sendLabel={i18n.t(view.submit.preparing?.() ? "ui.promptInput.preparing" : "ui.promptInput.send")}
             stopLabel={i18n.t("ui.promptInput.stop")}
             onSubmit={props.controller.submit}
             onStop={props.controller.stop}

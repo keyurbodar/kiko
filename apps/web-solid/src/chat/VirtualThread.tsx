@@ -79,6 +79,9 @@ const LANDING_MS = 1200
  */
 const SCROLL_LATEST_MS = 180
 
+/** How far down from the top an inline day pill hides the floating date chip. */
+const DIVIDER_ZONE_PX = 48
+
 /** A row whose height changed under the reader's eyes, and where to undo it. */
 type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
 
@@ -329,8 +332,21 @@ export function VirtualThread(props: {
    * the viewport, it names that day and opens the calendar on click. It used
    * to show only over today, which meant the one thing it exists for - telling
    * a reader who has scrolled back which day they are in - never happened.
+   *
+   * A day divider in the top 48px already names the day under the chip, so the
+   * chip steps aside instead of showing the same pill twice. Only the dividers
+   * the virtualizer has rendered are measured, once per scroll state.
    */
-  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined)
+  const dividerAtTop = createMemo(() => {
+    if (!scrollState() || !scrollElement) return false
+    const top = scrollElement.getBoundingClientRect().top
+    for (const pill of scrollElement.querySelectorAll('[data-component="chat-day-label"]')) {
+      const box = pill.getBoundingClientRect()
+      if (box.bottom > top && box.top < top + DIVIDER_ZONE_PX) return true
+    }
+    return false
+  })
+  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && !dividerAtTop())
 
   /**
    * Which message the last reply-quote jump landed on.
@@ -816,11 +832,11 @@ export function VirtualThread(props: {
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
       // Monocode's day separator (AgentTranscript.tsx `DaySeparator`): a soft pill, the day
-      // strong and the time faint.
+      // strong and the time faint. Its row keeps the rhythm of SystemMessage.tsx.
       const parts = () => dividerParts(item.firstSentAt, now())
       return (
         <div
-          class="flex items-center justify-center px-4 pt-6 pb-3 text-[12px]"
+          class="flex items-center justify-center px-4 py-3 text-sm"
           role="separator"
           aria-label={dividerLabel(item.firstSentAt, now())}
           data-component="chat-divider"

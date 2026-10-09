@@ -27,7 +27,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 	const l = () => props.line
 	const [sure, setSure] = createSignal(false)
 	return (
-		<div class="group flex flex-col gap-0.5 rounded-xl px-2.5 py-2 hover:bg-nav-hover" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
+		<div class="flex flex-col gap-0.5 rounded-xl px-2.5 py-2 hover:bg-nav-hover" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
 			<Show when={!l().redacted} fallback={<span class="text-sm text-faint">Removed</span>}>
 				<span class="text-[15px] leading-snug text-text">{l().text}</span>
 				<span class="flex items-center gap-1 text-xs text-faint">
@@ -37,7 +37,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 					<Show when={l().tainted}>
 						<span title="Written after reading outside content">· from outside</span>
 					</Show>
-					<span class="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+					<span class="ml-auto flex gap-1">
 						<Show when={l().pos >= 0}>
 							<button type="button" class={quiet} data-action="pin" onClick={() => props.store.pin(l().pos, !l().pinned)}>
 								{l().pinned ? "Unpin" : "Pin"}

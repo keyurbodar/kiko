@@ -31,7 +31,7 @@
   /* Off-screen blocks skip layout and paint, so 50 blocks scroll cheaply. */
   content-visibility: auto;
   contain-intrinsic-size: auto 8em;
-  /* kat is dark only. A dark palette in the spirit of tweb's dark theme. */
+  /* GitHub's dark palette. An agent's bubble in the light theme swaps in GitHub's light one below. */
   --sh-class: #79c0ff;
   --sh-identifier: #e6edf3;
   --sh-sign: #8b949e;
@@ -60,3 +60,18 @@
 
 /* Inside a chat bubble: the block uses the bubble's width, and a lone block has no extra gap. */
 .bubble-rich .rich-code { margin-block: 0.25em; background: rgb(0 0 0 / 0.28); }
+
+/* The light theme: an agent's bubble is a light fill, so its code takes GitHub's light palette
+   on a faint text tint. The human's bubble stays dark in both themes and keeps the dark palette. */
+:root[data-appearance="light"] [data-side="bot"] .rich-code {
+  --sh-class: #0550ae;
+  --sh-identifier: #1f2328;
+  --sh-sign: #6e7781;
+  --sh-property: #116329;
+  --sh-entity: #8250df;
+  --sh-jsxliterals: #0a3069;
+  --sh-string: #0a3069;
+  --sh-keyword: #cf222e;
+  --sh-comment: #6e7781;
+}
+:root[data-appearance="light"] [data-side="bot"] .bubble-rich .rich-code { background: color-mix(in oklab, var(--text) 6%, transparent); }

@@ -19,6 +19,19 @@ import { pushInfo } from "./state"
 /** The hairline monocode draws between the parts (`border-stroke`). */
 export const EDGE = "border-[var(--panel-edge)]"
 
+/**
+ * A tab row's arrow keys. Only the selected tab is in the tab order, so ArrowLeft and ArrowRight
+ * select the neighbouring tab, wrapping at the ends, and move focus to it.
+ */
+export function tabKeys<T>(event: KeyboardEvent, tabs: readonly T[], current: T, select: (tab: T) => void) {
+  const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
+  if (step === 0 || tabs.length === 0) return
+  event.preventDefault()
+  const next = (tabs.indexOf(current) + step + tabs.length) % tabs.length
+  select(tabs[next]!)
+  ;(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus()
+}
+
 /** A section: a hairline above, a small uppercase label, and its content. */
 export function Card(props: { id: string; title: string; action?: JSX.Element; children: JSX.Element }) {
   return (
@@ -194,7 +207,7 @@ export function DeleteChat(props: { chatId: string }) {
   return (
     <DangerRow
       action="delete-chat"
-      label={sure() ? "Sure? Delete this chat" : "Delete chat"}
+      label={sure() ? "Delete chat?" : "Delete chat"}
       description={sure() ? "Click again to delete it for good" : "Remove this chat and its messages"}
       onClick={remove}
       onBlur={() => setSure(false)}

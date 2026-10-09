@@ -1,4 +1,4 @@
-import { createEffect, createMemo, For, lazy, Match, on, onCleanup, Show, Suspense, Switch } from "solid-js"
+import { createEffect, createMemo, createUniqueId, For, lazy, Match, on, onCleanup, Show, Suspense, Switch } from "solid-js"
 import { openTasks, TasksView } from "./tasks"
 import { useCommands } from "../../commands/registry"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
@@ -11,7 +11,7 @@ import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { BackIcon } from "@kiko/ui/icons"
-import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers } from "./sections"
+import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers, tabKeys } from "./sections"
 import { shortDate, startedAt } from "./format"
 import { loadRoutines, RoutinesPage, routinesOf } from "./routines"
 import {
@@ -86,7 +86,7 @@ function AgentPage(props: { slug: string; chatId: string }) {
         face={
           <button
             type="button"
-            class="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            class="rounded-full outline-none"
             aria-label="Change bird"
             title="Change bird"
             data-action="change-bird"
@@ -253,7 +253,7 @@ export default function InfoPanel(props: { chatId: string }) {
   useCommands([
     {
       id: "chat.info-close",
-      title: "Chat: Close panel",
+      title: "Close panel",
       group: "chat",
       icon: "close",
       shortcut: "Escape",
@@ -285,6 +285,7 @@ export default function InfoPanel(props: { chatId: string }) {
   )
 
   const view = infoView
+  const ids = createUniqueId()
   // Beside the chat the panel leaves the chat at least 400 px. Below 760 px it covers the chat instead.
   return (
     <aside
@@ -301,14 +302,23 @@ export default function InfoPanel(props: { chatId: string }) {
         when={infoTab() === "info" && infoDepth() > 1}
         fallback={
           <header class={`flex h-10 shrink-0 items-center gap-0.5 border-b ${EDGE} pr-2 pl-2`}>
-            <div class="flex min-w-0 items-center" role="tablist" aria-label="Panel" data-component="info-tabs">
+            <div
+              class="flex min-w-0 items-center"
+              role="tablist"
+              aria-label="Panel"
+              data-component="info-tabs"
+              onKeyDown={(event) => tabKeys(event, TABS, infoTab(), setInfoTab)}
+            >
               <For each={TABS}>
                 {(tab) => (
                   <button
                     type="button"
                     role="tab"
-                    class="h-7 rounded-md px-2 text-[13px] font-medium text-[color-mix(in_oklab,var(--text)_45%,transparent)] hover:text-text aria-selected:text-text"
+                    id={`${ids}-tab-${tab}`}
+                    class="h-7 rounded-md px-2 text-md font-medium text-[color-mix(in_oklab,var(--text)_45%,transparent)] hover:text-text aria-selected:text-text"
                     aria-selected={infoTab() === tab}
+                    aria-controls={`${ids}-panel-${tab}`}
+                    tabIndex={infoTab() === tab ? 0 : -1}
                     data-tab={tab}
                     onClick={() => setInfoTab(tab)}
                   >
@@ -337,7 +347,13 @@ export default function InfoPanel(props: { chatId: string }) {
       </Show>
       <Switch>
         <Match when={infoTab() === "files"}>
-          <div class="flex min-h-0 flex-1 flex-col" role="tabpanel" data-component="info-files-tab">
+          <div
+            class="flex min-h-0 flex-1 flex-col"
+            role="tabpanel"
+            id={`${ids}-panel-files`}
+            aria-labelledby={`${ids}-tab-files`}
+            data-component="info-files-tab"
+          >
             <Suspense>
               <FilesPane chatId={props.chatId} />
             </Suspense>
@@ -348,6 +364,8 @@ export default function InfoPanel(props: { chatId: string }) {
             ref={scroller}
             class="min-h-0 flex-1 overflow-y-auto overscroll-none"
             role="tabpanel"
+            id={`${ids}-panel-info`}
+            aria-labelledby={`${ids}-tab-info`}
             data-component="info-scroll"
             onScroll={(event) => scrolls.set(key(), event.currentTarget.scrollTop)}
           >

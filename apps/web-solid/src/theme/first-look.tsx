@@ -33,7 +33,7 @@ function QuickPicker() {
               role="radio"
               aria-checked={look().mode === mode}
               data-mode={mode}
-              class="flex h-8 items-center gap-2 rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:bg-[var(--selected-bg)] aria-checked:text-text"
+              class="flex h-8 items-center gap-2 rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] aria-checked:bg-[var(--selected-bg)] aria-checked:text-text"
               onClick={() => updateLook({ mode })}
             >
               <HugeIcon icon={MODE_ICON[mode]} size={15} />
@@ -50,7 +50,7 @@ function QuickPicker() {
               role="radio"
               aria-checked={look()[shown()] === card.id}
               data-theme-id={card.id ?? "default"}
-              class="group flex w-[76px] flex-col items-center gap-1.5 rounded-xl p-1.5 outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:bg-[var(--selected-bg)]"
+              class="group flex w-[76px] flex-col items-center gap-1.5 rounded-xl p-1.5 outline-none hover:bg-[var(--hover-bg)] aria-checked:bg-[var(--selected-bg)]"
               onClick={() => chooseTheme(card.id)}
             >
               <ThemeOrb colors={previewOf(card, shown())} mode={shown()} />
@@ -111,7 +111,7 @@ export default function FirstLook() {
           </div>
           <button
             type="button"
-            class="h-11 w-full max-w-72 rounded-xl bg-[var(--accent-fill)] text-sm font-medium text-[var(--on-accent)] outline-none hover:bg-[var(--accent-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            class="h-11 w-full max-w-72 rounded-xl bg-[var(--accent-fill)] text-sm font-medium text-[var(--on-accent)] outline-none hover:bg-[var(--accent-hover)]"
             data-action="finish-first-look"
             onClick={finish}
           >

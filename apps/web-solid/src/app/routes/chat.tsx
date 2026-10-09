@@ -16,6 +16,10 @@ const ApprovalCards = lazy(() => import("../../chat/ApprovalCard"));
 // A temporary chat's "to:" row loads the first time one is open, not with the transcript.
 const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
 
+/** Monocode's jump button: a 26px square on a frosted 10% fill with a 15% hairline. */
+const JUMP_CLASS =
+  "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--text)_15%,transparent)] bg-[color-mix(in_oklab,var(--text)_10%,transparent)] text-text shadow-md backdrop-blur-md";
+
 /*
  * The composed app: the transcript over the open room in the sync store. The
  * same props the harness passes, driven from `useApp` instead of a fixture
@@ -289,36 +293,41 @@ export default function ChatRoute() {
           data-component="composer-dock"
           data-scrolled={scrolled() ? "true" : undefined}
         >
-          {/*
-            kat's scroll-down control: a 34px circle floating just above the
-            composer's right edge, where the send button is, rather than the
-            pill this used to be in the middle of the transcript. It appears
-            only when there is somewhere to go, so it never sits over the
-            composer's own controls when the reader is already at the end.
-          */}
-          <Show when={scrolled()}>
-            <button
-              type="button"
-              class="composer-scroll-down"
-              data-component="composer-scroll-down"
-              aria-label="Scroll to latest"
-              onClick={toLatest}
-            >
-              <IconV2 name="chevron-down" />
-            </button>
-          </Show>
-          <Show when={mentions().length}>
-            <button
-              type="button"
-              class="composer-jump-mention"
-              data-component="composer-jump-mention"
-              data-stacked={scrolled() ? "" : undefined}
-              aria-label="Next mention"
-              onClick={jumpToMention}
-            >
-              <span aria-hidden="true">@</span>
-              <span class="composer-jump-count" data-component="composer-jump-count">{mentions().length}</span>
-            </button>
+          {/* Monocode's TranscriptJumpToBottom: small squares centred over the chat column, 8px above
+              the composer. They show only when there is somewhere to go. */}
+          <Show when={scrolled() || mentions().length > 0}>
+            <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+8px)] z-6 flex justify-center gap-1.5">
+              <Show when={mentions().length}>
+                <button
+                  type="button"
+                  class={`${JUMP_CLASS} text-sm font-medium text-accent`}
+                  data-component="composer-jump-mention"
+                  title="Next mention"
+                  aria-label="Next mention"
+                  onClick={jumpToMention}
+                >
+                  <span aria-hidden="true">@</span>
+                  <span
+                    class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-accent px-1 text-center text-xs leading-4 text-[var(--on-accent)]"
+                    data-component="composer-jump-count"
+                  >
+                    {mentions().length}
+                  </span>
+                </button>
+              </Show>
+              <Show when={scrolled()}>
+                <button
+                  type="button"
+                  class={JUMP_CLASS}
+                  data-component="composer-scroll-down"
+                  title="Jump to latest"
+                  aria-label="Jump to latest"
+                  onClick={toLatest}
+                >
+                  <IconV2 name="chevron-down" />
+                </button>
+              </Show>
+            </div>
           </Show>
           <Show when={useApp.room()?.approvals().length ? useApp.room() : undefined}>
             {(r) => <ApprovalCards approvals={r().approvals()} onDecide={(id, action) => r().approve(id, action)} />}

@@ -1,6 +1,5 @@
-import { createEffect, createSignal, For, Show } from "solid-js"
+import { createSignal, For, Show } from "solid-js"
 import { FileIcon } from "@kiko/ui/file-icon"
-import { useI18n } from "@kiko/ui/context/i18n"
 import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { CommentCardV2 } from "../comment-card-v2"
@@ -27,154 +26,112 @@ export function PromptInputV2Attachments(props: {
   onCommentClick?: (comment: PromptInputV2Comment) => void
   onCommentRemove?: (comment: PromptInputV2Comment) => void
 }) {
-  const i18n = useI18n()
-  let scroller: HTMLDivElement | undefined
   const [dropTarget, setDropTarget] = createSignal<string>()
-  /** Which edges have more strip beyond them, so each fade earns its place. */
-  const [edges, setEdges] = createSignal({ start: false, end: false })
-  const syncEdges = () => {
-    const node = scroller
-    if (!node) return
-    // A single pixel of slack: a fractional layout width can leave the last
-    // position a hair short of the end and strand the fade on screen.
-    setEdges({
-      start: node.scrollLeft > 1,
-      end: node.scrollLeft < node.scrollWidth - node.clientWidth - 1,
-    })
-  }
-  // The strip's own width changes when an attachment is added or removed, so
-  // the fades have to be re-read after every list change, not just on scroll.
-  // createEffect runs after the render phase, so the new cards are already in
-  // the DOM by the time this reads scrollWidth.
-  createEffect(() => {
-    const count = props.attachments.length + (props.comments?.length ?? 0)
-    void count
-    syncEdges()
-  })
   return (
     <Show when={props.attachments.length > 0 || (props.comments?.length ?? 0) > 0}>
-      <div data-component="prompt-input-v2-attachments" data-slot="prompt-attachments" class="relative">
-        <div
-          ref={(element) => {
-            scroller = element
-          }}
-          data-slot="prompt-attachments-scroll"
-          onScroll={syncEdges}
-          class="attachment-strip"
-        >
-          <For each={props.comments ?? []}>
-            {(comment) => (
-              <div class="relative group shrink-0">
-                <TooltipV2
-                  value={comment.comment}
-                  placement="top"
-                  openDelay={800}
-                  contentClass="max-w-[300px] break-words"
+      <div data-component="prompt-input-v2-attachments" data-slot="prompt-attachments" class="attachment-strip">
+        <For each={props.comments ?? []}>
+          {(comment) => (
+            <div class="relative shrink-0">
+              <TooltipV2
+                value={comment.comment}
+                placement="top"
+                openDelay={800}
+                contentClass="max-w-[300px] break-words"
+              >
+                <CommentCardV2
+                  comment={comment.comment ?? ""}
+                  path={comment.path}
+                  selection={comment.selection}
+                  active={comment.key === props.activeCommentID}
+                  onClick={() => props.onCommentClick?.(comment)}
+                />
+              </TooltipV2>
+              <button
+                type="button"
+                onClick={() => props.onCommentRemove?.(comment)}
+                class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center"
+                aria-label={props.removeLabel}
+              >
+                <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
+              </button>
+            </div>
+          )}
+        </For>
+        <For each={props.attachments}>
+          {(attachment) => {
+            const isImage = () => attachment.mime.startsWith("image/")
+            return (
+              /* The tooltip wraps the chip rather than living inside it: its
+               * trigger is a wrapper element, and a wrapper inside the chip
+               * would become the flex item that kat's `gap: 6px` measures
+               * between the icon and the name. */
+              <TooltipV2 value={attachment.filename} placement="top" contentClass="break-all">
+                <div
+                  class="attachment-chip"
+                  data-component="composer-attachment"
+                  data-image={isImage() ? "" : undefined}
+                  data-id={attachment.id}
+                  data-drop={dropTarget() === attachment.id ? "" : undefined}
+                  draggable={props.onAttachmentReorder !== undefined && props.attachments.length > 1}
+                  onDragStart={(event) => {
+                    event.dataTransfer?.setData(REORDER_TYPE, attachment.id)
+                    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+                  }}
+                  onDragOver={(event) => {
+                    if (!event.dataTransfer?.types.includes(REORDER_TYPE)) return
+                    event.preventDefault()
+                    setDropTarget(attachment.id)
+                  }}
+                  onDragLeave={() => setDropTarget(undefined)}
+                  onDragEnd={() => setDropTarget(undefined)}
+                  onDrop={(event) => {
+                    const id = event.dataTransfer?.getData(REORDER_TYPE)
+                    setDropTarget(undefined)
+                    if (!id) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    props.onAttachmentReorder?.(id, attachment.id)
+                  }}
                 >
-                  <CommentCardV2
-                    comment={comment.comment ?? ""}
-                    path={comment.path}
-                    selection={comment.selection}
-                    active={comment.key === props.activeCommentID}
-                    onClick={() => props.onCommentClick?.(comment)}
-                  />
-                </TooltipV2>
-                <button
-                  type="button"
-                  onClick={() => props.onCommentRemove?.(comment)}
-                  class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label={props.removeLabel}
-                >
-                  <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
-                </button>
-              </div>
-            )}
-          </For>
-          <For each={props.attachments}>
-            {(attachment) => {
-              const isImage = () => attachment.mime.startsWith("image/")
-              return (
-                /* The tooltip wraps the chip rather than living inside it: its
-                 * trigger is a wrapper element, and a wrapper inside the chip
-                 * would become the flex item that kat's `gap: 6px` measures
-                 * between the icon and the name. */
-                <TooltipV2 value={attachment.filename} placement="top" contentClass="break-all">
-                  <div
-                    class="attachment-chip"
-                    data-component="composer-attachment"
-                    data-image={isImage() ? "" : undefined}
-                    data-id={attachment.id}
-                    data-drop={dropTarget() === attachment.id ? "" : undefined}
-                    draggable={props.onAttachmentReorder !== undefined && props.attachments.length > 1}
-                    onDragStart={(event) => {
-                      event.dataTransfer?.setData(REORDER_TYPE, attachment.id)
-                      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-                    }}
-                    onDragOver={(event) => {
-                      if (!event.dataTransfer?.types.includes(REORDER_TYPE)) return
-                      event.preventDefault()
-                      setDropTarget(attachment.id)
-                    }}
-                    onDragLeave={() => setDropTarget(undefined)}
-                    onDragEnd={() => setDropTarget(undefined)}
-                    onDrop={(event) => {
-                      const id = event.dataTransfer?.getData(REORDER_TYPE)
-                      setDropTarget(undefined)
-                      if (!id) return
-                      event.preventDefault()
-                      event.stopPropagation()
-                      props.onAttachmentReorder?.(id, attachment.id)
-                    }}
-                  >
-                    <Show
-                      when={isImage()}
-                      fallback={
-                        <>
-                          <FileIcon
-                            node={{ path: attachment.filename, type: "file" }}
-                            class="attachment-file-icon"
-                          />
-                          <span class="attachment-filename">{attachment.filename}</span>
-                        </>
-                      }
-                    >
-                      <button
-                        type="button"
-                        class="attachment-thumb-button"
-                        onClick={() => props.onAttachmentClick?.(attachment)}
-                        aria-label={`Open ${attachment.filename}`}
-                      >
-                        <img
-                          src={attachment.blob.url}
-                          alt={attachment.filename}
-                          class="attachment-thumb"
+                  <Show
+                    when={isImage()}
+                    fallback={
+                      <>
+                        <FileIcon
+                          node={{ path: attachment.filename, type: "file" }}
+                          class="attachment-file-icon"
                         />
-                      </button>
-                    </Show>
+                        <span class="attachment-filename">{attachment.filename}</span>
+                      </>
+                    }
+                  >
                     <button
                       type="button"
-                      class="attachment-remove"
-                      onClick={() => props.onAttachmentRemove(attachment)}
-                      aria-label={props.removeLabel}
+                      class="attachment-thumb-button"
+                      onClick={() => props.onAttachmentClick?.(attachment)}
+                      aria-label={`Open ${attachment.filename}`}
                     >
-                      <IconV2 name="outline-xmark" />
+                      <img
+                        src={attachment.blob.url}
+                        alt={attachment.filename}
+                        class="attachment-thumb"
+                      />
                     </button>
-                  </div>
-                </TooltipV2>
-              )
-            }}
-          </For>
-        </div>
-        <div
-          data-slot="prompt-attachments-fade-left"
-          classList={{ invisible: !edges().start }}
-          class="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-[linear-gradient(to_right,var(--v2-background-bg-base),transparent)] rtl:bg-[linear-gradient(to_left,var(--v2-background-bg-base),transparent)]"
-        />
-        <div
-          data-slot="prompt-attachments-fade-right"
-          classList={{ invisible: !edges().end }}
-          class="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-[linear-gradient(to_left,var(--v2-background-bg-base),transparent)] rtl:bg-[linear-gradient(to_right,var(--v2-background-bg-base),transparent)]"
-        />
+                  </Show>
+                  <button
+                    type="button"
+                    class="attachment-remove"
+                    onClick={() => props.onAttachmentRemove(attachment)}
+                    aria-label={props.removeLabel}
+                  >
+                    <IconV2 name="outline-xmark" />
+                  </button>
+                </div>
+              </TooltipV2>
+            )
+          }}
+        </For>
       </div>
     </Show>
   )

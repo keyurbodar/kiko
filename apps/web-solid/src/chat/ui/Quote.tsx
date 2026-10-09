@@ -41,9 +41,9 @@ export function Quote(props: {
       style={tone()}
       class={cn(
         "relative flex w-full cursor-pointer flex-row items-center gap-2 overflow-hidden",
-        "mb-1 py-[3px] ps-[11px] pe-2 text-start text-inherit text-sm leading-[1.35]",
+        "mb-1 py-[3px] ps-2.5 pe-2 text-start text-inherit text-sm leading-[1.35]",
         "rounded-[4px] bg-[var(--quote-bg)]",
-        "before:absolute before:inset-y-0 before:start-0 before:w-[3px] before:bg-[var(--quote-bar)] before:content-['']",
+        "before:absolute before:inset-y-0 before:start-0 before:w-[2px] before:bg-[var(--quote-bar)] before:content-['']",
         props.class,
       )}
       onClick={() => props.onOpenReplyTarget(props.parent.id)}
@@ -62,7 +62,7 @@ export function Quote(props: {
       >
         {(src) => (
           <img
-            class="chat-quote__thumb size-8 shrink-0 rounded-[3px] object-cover"
+            class="chat-quote__thumb size-8 shrink-0 rounded-[4px] object-cover"
             src={src()}
             alt=""
             loading="lazy"
@@ -71,10 +71,10 @@ export function Quote(props: {
         )}
       </Show>
       <span class="chat-quote__body flex min-w-0 flex-1 flex-col">
-        <span class="chat-quote__label min-w-0 max-w-[221px] truncate font-semibold text-[var(--quote-name)]">
+        <span class="chat-quote__label min-w-0 truncate font-semibold text-[var(--quote-name)]">
           {props.label}
         </span>
-        <span class="chat-quote__text min-w-0 max-w-[221px] truncate opacity-75">
+        <span class="chat-quote__text min-w-0 truncate opacity-75">
           {props.summary.text}
         </span>
       </span>

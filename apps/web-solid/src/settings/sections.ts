@@ -3,7 +3,7 @@
  * hint, where a section has one, is the page's one line under its title.
  */
 export const SETTINGS_SECTIONS = [
-  { id: "providers", group: "agents", label: "Providers", hint: "Keys stay on the server and never reach your browser.", keywords: "provider key api openai anthropic google opencode connect sign in disconnect" },
+  { id: "providers", group: "agents", label: "Providers", hint: undefined, keywords: "provider key api openai anthropic google opencode connect sign in disconnect" },
   { id: "models", group: "agents", label: "Models", hint: "The models the chat picker offers.", keywords: "model picker hide show default" },
   { id: "integrations", group: "agents", label: "Integrations", hint: "Apps your agents reach through Executor.", keywords: "executor mcp tools apps" },
   { id: "extensions", group: "agents", label: "Extensions", hint: undefined, keywords: "extension plugin addon tool hook script catalog install instructions schedules" },

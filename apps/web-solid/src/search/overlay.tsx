@@ -111,7 +111,7 @@ export default function SearchOverlay() {
             ref={input}
             class="search-input"
             data-component="search-input"
-            placeholder="Search messages..."
+            placeholder="Search messages…"
             aria-label="Search messages"
             aria-controls="search-results"
             aria-activedescendant={view()?.hits.length ? `search-hit-${view()!.selected}` : undefined}
@@ -186,7 +186,7 @@ export default function SearchOverlay() {
                     <Moment kind="nothing" />
                   </Suspense>
                 </Show>
-                {view()?.status === "error" ? "Search is not reachable" : view()?.status === "done" ? "No messages found" : "Searching..."}
+                {view()?.status === "error" ? "Search is not reachable" : view()?.status === "done" ? "No messages found" : "Searching…"}
               </div>
             </Show>
           </div>

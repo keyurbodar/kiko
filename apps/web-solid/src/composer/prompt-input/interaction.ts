@@ -37,6 +37,8 @@ export type PromptInputV2ViewConfig = {
   submit: {
     stopping: Accessor<boolean>
     working?: Accessor<boolean>
+    /** Attachments are still being read for sending. The send button says so. */
+    preparing?: Accessor<boolean>
     onSubmit: () => void
     onStop: () => void
   }

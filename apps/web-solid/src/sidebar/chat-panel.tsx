@@ -3,6 +3,7 @@ import { Moment } from "../mascot/pixel/lazy"
 import { FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { openBirdPicker } from "../mascot/picker-state"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show, Suspense } from "solid-js"
@@ -47,8 +48,6 @@ export function rowStamp(updatedAt: number, now: number): string {
   return `${Math.floor(delta / DAY)}d`
 }
 
-const menuClass = "min-w-[180px]"
-
 const PRESENCE: Record<BotPresence, string> = { idle: "Idle", typing: "Typing", working: "Working", sleeping: "Sleeping" }
 
 /** What every chat's menu holds, in kat's order (screenshot 16). */
@@ -77,11 +76,11 @@ function ChatMenuItems(props: { id: string }) {
             The menu never closes on select: Kobalte reads closeOnSelect after onSelect has armed it, and a
             deleted chat's row takes its menu away with it. */}
         <MenuV2.Item
-          class="text-danger hover:bg-[oklch(from_var(--danger)_l_c_h_/_12%)] focus-visible:bg-[oklch(from_var(--danger)_l_c_h_/_12%)]"
+          class="text-danger"
           closeOnSelect={false}
           onSelect={() => (sure() ? deleteChat(props.id, active(), navigate) : setSure(true))}
         >
-          {sure() ? "Sure? Delete" : "Delete"}
+          {sure() ? "Delete chat?" : "Delete"}
         </MenuV2.Item>
       </Show>
     </>
@@ -132,7 +131,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
                 <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="pin-tile-avatar" />
               </span>
               <Show when={unread()}>
-                <span class="pin-tile-dot" aria-hidden="true" />
+                <span class="unread-dot pin-tile-dot" aria-hidden="true" />
               </Show>
             </span>
             <span class="pin-tile-name">{props.bot.name}</span>
@@ -147,7 +146,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
       </MenuV2.Context.Trigger>
 
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content class={menuClass} data-component="sidebar-pin-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+        <MenuV2.Context.Content data-component="sidebar-pin-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
           <ChatMenuItems id={props.bot.id} />
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
@@ -351,7 +350,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
             <Show when={unread()}>
               <Show
                 when={props.bot.unread > 0}
-                fallback={<i class="chat-unread-dot" data-component="sidebar-unread-dot" aria-label="Marked unread" role="img" />}
+                fallback={<i class="unread-dot chat-unread-dot" data-component="sidebar-unread-dot" aria-label="Marked unread" role="img" />}
               >
                 <span class="chat-count" data-component="sidebar-unread-count" role="img" aria-label={`${props.bot.unread} unread`}>
                   {props.bot.unread > 99 ? "99+" : props.bot.unread}
@@ -363,7 +362,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
       </MenuV2.Context.Trigger>
 
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content class={menuClass} data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+        <MenuV2.Context.Content data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
           <ChatMenuItems id={props.bot.id} />
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
@@ -400,17 +399,18 @@ function SearchRow(props: {
           }}
         />
       </label>
-      <button
-        type="button"
-        class="chat-filter"
-        data-component="sidebar-filter"
-        aria-label="Show unread only"
-        aria-pressed={props.unreadOnly}
-        title="Unread only"
-        onClick={() => props.onUnreadOnly(!props.unreadOnly)}
-      >
-        <HugeIcon icon={FilterIcon} size={16} />
-      </button>
+      <TooltipV2 placement="bottom" openDelay={400} value="Unread only">
+        <button
+          type="button"
+          class="chat-filter"
+          data-component="sidebar-filter"
+          aria-label="Show unread only"
+          aria-pressed={props.unreadOnly}
+          onClick={() => props.onUnreadOnly(!props.unreadOnly)}
+        >
+          <HugeIcon icon={FilterIcon} size={16} />
+        </button>
+      </TooltipV2>
     </div>
   )
 }

@@ -65,7 +65,7 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
     expect(items.map((item) => item.kind)).toEqual(["message", "message", "day-divider", "message"]);
   });
 
-  test("the day chip costs its padding plus one chrome line, the unread rule less", () => {
+  test("the day pill and the unread rule share one rhythm, the pill 8px taller", () => {
     const items = buildTimelineItems(
       [
         bot("a", new Date(2024, 0, 15, 23, 0, 0)),
@@ -80,9 +80,9 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
     if (!day || day.kind !== "day-divider" || !unread || unread.kind !== "unread-divider") {
       throw new Error("expected both dividers");
     }
-    // The day pill is 24+12 of padding around a 24px pill: 60px. The unread rule is 20px of
-    // padding around one 16px chrome line.
-    expect(estimateRowHeight(day) - estimateRowHeight(unread)).toBe(24);
+    // Both rows are 12px above and below a 16px line. The day pill adds its own 4px each way.
+    expect(estimateRowHeight(unread)).toBe(40);
+    expect(estimateRowHeight(day) - estimateRowHeight(unread)).toBe(8);
   });
 });
 
@@ -170,8 +170,8 @@ describe("estimateRowHeight on media", () => {
       bot("b", at(0), { body: "short", media: [photo(1000, 1000)] }),
     );
 
-    // 5px of padding above and 7px below, plus one 20px line box.
-    expect(captioned - bare).toBe(32);
+    // 8px of padding above and below (`py-2`), plus one 20px line box.
+    expect(captioned - bare).toBe(36);
   });
 
   test("a card on a media-only message still pays the caption block's padding", () => {

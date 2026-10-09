@@ -1,4 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { FileTextIcon, LinkIcon } from "@kiko/ui/icons"
 import { Show, type JSX } from "solid-js"
 import type { ReplySummary } from "../chat/lib/reply"
@@ -28,7 +29,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
         >
           {(thumb) => (
             <img
-              class="reply-bar-thumb size-8 shrink-0 rounded-[3px] object-cover"
+              class="reply-bar-thumb size-8 shrink-0 rounded-[4px] object-cover"
               src={thumb()}
               alt=""
             />
@@ -45,7 +46,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
         aria-label="Cancel reply"
         onClick={() => props.onDismiss()}
       >
-        ×
+        <IconV2 name="outline-xmark" size="small" />
       </button>
     </div>
   )

@@ -2,7 +2,6 @@ import type { Member } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { MoreIcon, PlusIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { session } from "../../app/session"
@@ -11,6 +10,8 @@ import { useApp } from "../../lib/store"
 import { agentList } from "../../lib/chats"
 import { openBirdPicker } from "../../mascot/picker-state"
 import { addable, addOp, refusalText, renameOp, roleLabel } from "./model"
+import { Dialog } from "../../lib/dialog"
+import { Button, fieldClass } from "../../settings/kit"
 
 /*
  * The members section of the chat info panel: the human, then each agent with its role, model,
@@ -19,10 +20,8 @@ import { addable, addOp, refusalText, renameOp, roleLabel } from "./model"
  * room's `member` frame and shows at once; a refusal rolls it back and says why in a toast.
  */
 
-// Monocode's rows and buttons: 13px text on an 8px-cornered hover fill; small 12px buttons.
+// Monocode's rows: 13px text on an 8px-cornered hover fill.
 const row = "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-[13px] text-text outline-none hover:bg-[var(--hover-bg)] focus-visible:bg-[var(--hover-bg)] data-[expanded]:bg-[var(--selected-bg)]"
-const secondary = "h-7 rounded-md px-2.5 text-[12px] text-muted shadow-[inset_0_0_0_1px_var(--hairline)] outline-none hover:bg-[var(--hover-bg)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-const primary = "h-7 rounded-md bg-[var(--accent-fill)] px-2.5 text-[12px] font-medium text-[var(--on-accent)] outline-none hover:bg-[var(--accent-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
 /** Toasts each refusal from the open room while the section is on screen. */
 function useRefusalToasts() {
@@ -53,38 +52,43 @@ function RenameDialog(props: { member: Member; onClose: () => void }): JSX.Eleme
     props.onClose()
   }
   return (
-    <ModalV2 open onOpenChange={(open: boolean) => !open && props.onClose()}>
-      <ModalV2.Portal>
-        <ModalV2.Overlay />
-        <ModalV2.Content class="bg-menu flex w-[min(360px,calc(100vw-32px))] flex-col gap-3 rounded-2xl p-4 text-text shadow-popover" data-component="member-rename">
-          <ModalV2.Title class="text-[14px] font-semibold">Rename {props.member.name}</ModalV2.Title>
-          <input
-            ref={(el) => {
-              input = el
-              queueMicrotask(() => (el.focus(), el.select()))
-            }}
-            class="h-8 w-full rounded-lg bg-[var(--input-bg)] px-2.5 text-[13px] text-text outline-none shadow-[inset_0_0_0_1px_var(--hairline)]"
-            aria-label={`New name for ${props.member.name}`}
-            value={props.member.name}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                // The key stops here, so it never lands in the composer as a new line.
-                e.preventDefault()
-                commit()
-              }
-            }}
-          />
-          <div class="flex justify-end gap-2">
-            <button type="button" class={secondary} onClick={() => props.onClose()}>
-              Cancel
-            </button>
-            <button type="button" class={primary} data-action="save-rename" onClick={commit}>
-              Rename
-            </button>
-          </div>
-        </ModalV2.Content>
-      </ModalV2.Portal>
-    </ModalV2>
+    <Dialog
+      open
+      onClose={props.onClose}
+      title={`Rename ${props.member.name}`}
+      data-component="member-rename"
+      onSubmit={(e) => {
+        e.preventDefault()
+        commit()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => props.onClose()}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" data-action="save-rename">
+            Rename
+          </Button>
+        </>
+      }
+    >
+      <input
+        ref={(el) => {
+          input = el
+          queueMicrotask(() => (el.focus(), el.select()))
+        }}
+        class={`${fieldClass} w-full`}
+        aria-label={`New name for ${props.member.name}`}
+        value={props.member.name}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            // The key stops here, so it never lands in the composer as a new line.
+            e.preventDefault()
+            commit()
+          }
+        }}
+      />
+    </Dialog>
   )
 }
 

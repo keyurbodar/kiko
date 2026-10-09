@@ -1,10 +1,11 @@
 // Ported from t3code (MIT), apps/web/src/components/settings/ThemeImportDialog.tsx, in kiko's
 // own controls: search Open VSX, or bring a t3code or VS Code theme file.
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { FileIcon, PlusIcon } from "@kiko/ui/icons"
 import { Show, createSignal, type JSX } from "solid-js"
-import { buttonClass } from "../settings/kit"
+import { buttonClass, muted, Notice } from "../settings/kit"
+import { Dialog } from "../lib/dialog"
+import { cn } from "../lib/cn"
 import {
   MAX_THEME_FILE_BYTES,
   humanizeThemeName,
@@ -160,128 +161,124 @@ export default function ThemeImportDialog(props: {
   }
 
   return (
-    <ModalV2 open onOpenChange={(open: boolean) => !open && props.onClose()}>
-      <ModalV2.Portal>
-        <ModalV2.Overlay />
-        <ModalV2.Content
-          class="flex max-h-[90vh] w-[min(720px,calc(100vw-32px))] flex-col gap-5 overflow-y-auto rounded-[calc(20px*var(--brm))] bg-menu p-5 text-text shadow-popover"
-          data-component="theme-import-dialog"
+    <Dialog
+      open
+      onClose={props.onClose}
+      title="Add a theme"
+      size="md"
+      data-component="theme-import-dialog"
+      bodyClass="flex flex-col gap-5"
+      footer={
+        <Show
+          when={!conflicts()}
+          fallback={
+            <>
+              <button type="button" class={buttonClass("ghost")} onClick={() => setConflicts(null)}>
+                Back
+              </button>
+              <button type="button" class={buttonClass()} onClick={() => resolve("copy")}>
+                Keep both
+              </button>
+              <button type="button" class={buttonClass("primary")} onClick={() => resolve("update")}>
+                Update existing
+              </button>
+            </>
+          }
         >
-          <ModalV2.Title class="text-base font-medium text-text">Add a theme</ModalV2.Title>
-          <ThemeSearch
-            onInstalled={(themes, updated) => {
-              props.onImported(themes, updated)
-              props.onClose()
-            }}
-          />
-          <div class="flex items-center gap-3" aria-hidden="true">
-            <div class="h-px flex-1 bg-[var(--hairline)]" />
-            <span class="text-[11px] text-faint">Or import a file</span>
-            <div class="h-px flex-1 bg-[var(--hairline)]" />
-          </div>
-          <Show
-            when={!conflicts()}
-            fallback={
-              <div class="flex flex-col gap-3">
-                <div class="rounded-xl bg-[var(--card)] p-3">
-                  <p class="text-sm font-medium">Already installed</p>
-                  <p class="mt-1 text-xs text-muted">{conflicts()!.map((t) => t.label).join(", ")}</p>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <button type="button" class={buttonClass()} onClick={() => resolve("update")}>
-                    Update existing
-                  </button>
-                  <button type="button" class={buttonClass()} onClick={() => resolve("copy")}>
-                    Keep both
-                  </button>
-                  <button type="button" class={buttonClass()} onClick={() => setConflicts(null)}>
-                    Back
-                  </button>
-                </div>
-              </div>
-            }
-          >
-            <div class="flex flex-col gap-4">
-              <div
-                data-slot="theme-drop-zone"
-                class="flex flex-wrap items-center justify-between gap-3 rounded-xl px-3 py-3"
-                classList={{ "bg-[var(--accent-wash)]": dropTarget(), "bg-[var(--card)]": !dropTarget() }}
-                onDragEnter={(event) => {
-                  event.preventDefault()
-                  setDropTarget(true)
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setDropTarget(true)
-                }}
-                onDragLeave={(event) => {
-                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-                  setDropTarget(false)
-                }}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  setDropTarget(false)
-                  void readFiles([...(event.dataTransfer?.files ?? [])])
-                }}
-              >
-                <div class="min-w-0">
-                  <p class="text-sm font-medium">Theme file</p>
-                  <p class="truncate text-xs text-muted">{fileName() ?? "Drop t3code or VS Code .json files"}</p>
-                </div>
-                <button type="button" class={buttonClass()} disabled={reading()} onClick={() => fileInput?.click()}>
-                  <HugeIcon icon={FileIcon} size={14} />
-                  {reading() ? "Reading…" : "Choose files"}
-                </button>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  accept=".json,.jsonc,application/json"
-                  multiple
-                  class="sr-only"
-                  data-slot="theme-file-input"
-                  onChange={(event) => {
-                    const files = [...(event.currentTarget.files ?? [])]
-                    event.currentTarget.value = ""
-                    void readFiles(files)
-                  }}
-                />
-              </div>
-              <label class="flex flex-col gap-2">
-                <span class="text-sm font-medium">Theme JSON</span>
-                <textarea
-                  aria-label="Theme JSON"
-                  spellcheck={false}
-                  class="min-h-44 w-full resize-y rounded-xl bg-input p-3 font-mono text-xs leading-5 text-text outline-none placeholder:text-faint focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  placeholder={'{\n  "version": 1,\n  "name": "Aurora",\n  "appearance": "light",\n  "colors": { ... }\n}'}
-                  value={json()}
-                  onInput={(event) => setJson(event.currentTarget.value)}
-                  data-component="theme-json"
-                />
-              </label>
-              <div class="flex flex-wrap justify-end gap-2">
-                <button type="button" class={buttonClass()} onClick={() => props.onClose()}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  class={buttonClass("primary")}
-                  disabled={!json().trim() || reading()}
-                  data-action="add-theme-json"
-                  onClick={submit}
-                >
-                  <HugeIcon icon={PlusIcon} size={14} />
-                  Add theme
-                </button>
-              </div>
+          <button type="button" class={buttonClass("ghost")} onClick={() => props.onClose()}>
+            Cancel
+          </button>
+          <button type="button" class={buttonClass("primary")} disabled={!json().trim() || reading()} data-action="add-theme-json" onClick={submit}>
+            <HugeIcon icon={PlusIcon} size={14} />
+            Add theme
+          </button>
+        </Show>
+      }
+    >
+      <ThemeSearch
+        onInstalled={(themes, updated) => {
+          props.onImported(themes, updated)
+          props.onClose()
+        }}
+      />
+      <div class="flex items-center gap-3" aria-hidden="true">
+        <div class="h-px flex-1 bg-[var(--hairline)]" />
+        <span class={cn("text-[12px]", muted)}>Or import a file</span>
+        <div class="h-px flex-1 bg-[var(--hairline)]" />
+      </div>
+      <Show
+        when={!conflicts()}
+        fallback={
+          <p class="text-[13px] text-text">
+            Already installed: <span class={muted}>{conflicts()!.map((t) => t.label).join(", ")}</span>
+          </p>
+        }
+      >
+        {/* The whole import area takes a dropped file; it washes with the accent while one is over it. */}
+        <div
+          data-slot="theme-drop-zone"
+          class="-m-2 flex flex-col gap-4 rounded-xl p-2"
+          classList={{ "bg-[var(--accent-wash)]": dropTarget() }}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            setDropTarget(true)
+          }}
+          onDragOver={(event) => {
+            event.preventDefault()
+            setDropTarget(true)
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+            setDropTarget(false)
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDropTarget(false)
+            void readFiles([...(event.dataTransfer?.files ?? [])])
+          }}
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-[13px] font-medium text-text">Theme file</p>
+              <p class={cn("truncate text-[12px]", muted)}>{fileName() ?? "Drop t3code or VS Code .json files"}</p>
             </div>
-          </Show>
-          <Show when={error()}>
-            <p class="rounded-lg bg-[var(--danger-wash)] px-3 py-2 text-xs text-[var(--danger)]" role="alert" aria-live="polite" data-slot="theme-import-error">
-              {error()}
-            </p>
-          </Show>
-        </ModalV2.Content>
-      </ModalV2.Portal>
-    </ModalV2>
+            <button type="button" class={buttonClass()} disabled={reading()} onClick={() => fileInput?.click()}>
+              <HugeIcon icon={FileIcon} size={14} />
+              {reading() ? "Reading…" : "Choose files"}
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".json,.jsonc,application/json"
+              multiple
+              class="sr-only"
+              data-slot="theme-file-input"
+              onChange={(event) => {
+                const files = [...(event.currentTarget.files ?? [])]
+                event.currentTarget.value = ""
+                void readFiles(files)
+              }}
+            />
+          </div>
+          <label class="flex flex-col gap-2">
+            <span class="text-[13px] font-medium text-text">Theme JSON</span>
+            <textarea
+              aria-label="Theme JSON"
+              spellcheck={false}
+              class="min-h-44 w-full resize-y rounded-lg bg-input p-3 font-mono text-xs leading-5 text-text outline-none placeholder:text-faint"
+              placeholder={'{\n  "version": 1,\n  "name": "Aurora",\n  "appearance": "light",\n  "colors": { ... }\n}'}
+              value={json()}
+              onInput={(event) => setJson(event.currentTarget.value)}
+              data-component="theme-json"
+            />
+          </label>
+        </div>
+      </Show>
+      <Show when={error()}>
+        <div aria-live="polite" data-slot="theme-import-error">
+          <Notice>{error()!}</Notice>
+        </div>
+      </Show>
+    </Dialog>
   )
 }

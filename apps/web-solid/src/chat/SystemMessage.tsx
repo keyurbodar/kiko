@@ -36,11 +36,11 @@ export function SystemMessage(props: {
   return (
     <div
       class={cn(
-        "chat-system-message flex items-baseline justify-center gap-1.5 text-center text-xs",
-        divider() ? "px-4 pt-3.5 pb-2.5" : "px-4 py-1",
+        // The day divider in VirtualThread.tsx keeps the same 12px rhythm and 12px text.
+        "chat-system-message flex items-baseline justify-center gap-1.5 px-4 py-3 text-center text-sm leading-4",
         accent()
           ? [
-              "mx-auto w-full max-w-(--content-max-w) items-center gap-2.5 pt-3 pb-2 text-accent",
+              "mx-auto w-full max-w-(--content-max-w) items-center gap-2.5 text-accent",
               "before:h-px before:grow before:bg-[color-mix(in_oklch,var(--accent)_45%,transparent)]",
               "after:h-px after:grow after:bg-[color-mix(in_oklch,var(--accent)_45%,transparent)]",
             ]

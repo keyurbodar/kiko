@@ -60,10 +60,10 @@ export function ReactionStack(props: ReactionStackProps) {
               class={cn(
                 "pointer-events-auto relative inline-flex h-7 min-w-7 items-center justify-center rounded-full p-0 text-[15px] leading-none",
                 "bg-bg-subtle text-text shadow-[0_0_0_2px_var(--bg)]",
-                "active:scale-[0.85]",
-                // kat's counted circle: 7px of lead-in, 8px of trail. A count of
+                "active:scale-[0.92]",
+                // A counted badge has 8px either side. A count of
                 // 1 stays a bare circle.
-                reaction.count > 1 && "pr-2 pl-[7px]",
+                reaction.count > 1 && "px-2",
                 reaction.viewerReacted
                   ? // The viewer's own reaction takes their own bubble colour,
                     // and rides ABOVE its neighbours so the overlap reads.

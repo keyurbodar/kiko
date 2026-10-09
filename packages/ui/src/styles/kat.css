@@ -611,7 +611,6 @@
   --count-muted-bg: var(--tint-subtle);
   --count-muted-text: var(--text-faint);
   --sidebar-solid: var(--bg-sidebar);
-  --sidebar-w: 272px;
 
   /* shared accent mixes, so a component never writes `oklch(from ...)` */
   --accent-wash: oklch(from var(--accent) l c h / 12%);
@@ -1606,7 +1605,7 @@ h6 {
 html,
 body,
 #root {
-  overscroll-behavior-x: none;
+  overscroll-behavior: none;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -1620,11 +1619,12 @@ body,
   background: oklch(from var(--accent) l c h / 25%);
 }
 
-::focus {
+/* The one focus ring. The `:focus-visible` rule below outranks this bare `:focus` on specificity. */
+:focus {
   outline: none;
 }
 
-::focus-visible:not(input, textarea, select, [contenteditable]) {
+:focus-visible:not(input, textarea, select, [contenteditable]) {
   outline: 1.5px solid var(--accent);
   outline-offset: 1px;
 }

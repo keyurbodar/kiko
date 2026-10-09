@@ -11,7 +11,7 @@
 .search-scrim {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, black 28%, transparent);
+  background: var(--v2-overlay-simple-overlay-scrim);
 }
 .search-panel {
   position: relative;
@@ -29,7 +29,7 @@
   height: 48px;
   padding: 0 8px 0 16px;
 }
-.search-glass { flex: none; color: color-mix(in srgb, currentColor 55%, transparent); }
+.search-glass { flex: none; color: var(--text-faint); }
 .search-input {
   flex: 1;
   min-width: 0;
@@ -41,13 +41,13 @@
   font: inherit;
   font-size: 15px;
 }
-.search-input::placeholder { color: color-mix(in srgb, currentColor 55%, transparent); }
+.search-input::placeholder { color: var(--text-faint); }
 .search-scope {
   flex: none;
   display: flex;
   padding: 2px;
   border-radius: 10px;
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  background: var(--tint);
 }
 .search-scope-option {
   height: 28px;
@@ -55,7 +55,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: color-mix(in srgb, currentColor 60%, transparent);
+  color: var(--text-muted);
   font: inherit;
   font-size: 13px;
   cursor: default;
@@ -65,15 +65,15 @@
 .search-results {
   max-height: min(460px, 60dvh);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px 6px 8px;
-  border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
 }
 .search-hit {
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: default;
 }
-.search-hit[aria-selected="true"] { background: color-mix(in srgb, currentColor 10%, transparent); }
+.search-hit[aria-selected="true"] { background: var(--selected-bg); }
 .search-hit-head {
   display: flex;
   align-items: baseline;
@@ -86,31 +86,31 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: color-mix(in srgb, currentColor 55%, transparent);
+  color: var(--text-muted);
 }
 .search-hit-chat::before { content: "in "; }
 .search-hit-time {
   margin-left: auto;
   flex: none;
   font-size: 12px;
-  color: color-mix(in srgb, currentColor 55%, transparent);
+  color: var(--text-muted);
 }
 .search-hit-snippet {
   margin-top: 2px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.35;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  color: color-mix(in srgb, currentColor 80%, transparent);
+  color: var(--text);
 }
 .search-hit-snippet mark {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: var(--accent-wash-strong);
   color: var(--text);
   border-radius: 3px;
 }
-.search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 14px; color: color-mix(in srgb, currentColor 55%, transparent); }
+.search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 13px; color: var(--text-muted); }
 
 @media (width < 768px) {
   .search-overlay { padding: 8px 8px 0; }

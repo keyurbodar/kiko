@@ -12,7 +12,7 @@ import { loadProviders, signInAsDev, signInWithProvider } from "./session"
 const PROVIDER = { google: "Google", github: "GitHub" } as const
 
 const button =
-  "flex h-11 w-full items-center justify-center rounded-lg bg-btn px-4 text-sm font-medium text-text outline-none hover:bg-btn-hover focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-wait disabled:opacity-60"
+  "flex h-11 w-full items-center justify-center rounded-lg bg-btn px-4 text-sm font-medium text-text outline-none hover:bg-btn-hover disabled:cursor-wait disabled:opacity-60"
 
 export default function SignIn() {
   const [providers] = createResource(loadProviders)

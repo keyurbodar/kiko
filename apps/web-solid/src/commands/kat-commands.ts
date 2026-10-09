@@ -1,8 +1,8 @@
 import type { Command } from "./registry"
 
 /*
- * kat's command map (screenshot 20). Titles are lowercase `noun: verb`.
- * Every command here does something. `Chat: Share` is left out: kiko has no share links.
+ * kat's command map (screenshot 20). Titles are sentence case; the palette shows the group as a heading.
+ * Every command here does something. Share is left out: kiko has no share links.
  */
 
 /** The pure part: the table of commands, given what they act on. */
@@ -34,22 +34,22 @@ export function katCommands(deps: {
   canMove: () => boolean
 }): Command[] {
   return [
-    { id: "view.toggle-sidebar", title: "View: Toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+S", global: true, run: deps.toggleSidebar },
-    { id: "chat.new", title: "Chat: New", group: "chat", icon: "plus", shortcut: "Mod+N", alias: "Mod+T", run: deps.newChat },
-    { id: "chat.new-group", title: "Chat: New group", group: "chat", icon: "plus", run: deps.newGroup },
-    { id: "chat.reopen", title: "Chat: Reopen closed", group: "chat", icon: "undo", shortcut: "Mod+Shift+T", run: deps.reopenClosed },
-    { id: "chat.attach", title: "Chat: Attach file...", group: "chat", icon: "attach", shortcut: "Mod+O", when: deps.hasActiveChat, run: deps.attach },
-    { id: "chat.rename", title: "Chat: Rename", group: "chat", icon: "edit", shortcut: "F2", when: deps.hasActiveChat, run: deps.rename },
-    { id: "chat.pin", title: "Chat: Pin", group: "chat", icon: "pin", shortcut: "Mod+D", when: deps.canMove, run: deps.togglePin },
-    { id: "chat.info", title: "Chat: Info", group: "chat", icon: "info", shortcut: "Mod+I", global: true, when: deps.hasActiveChat, run: deps.toggleInfo },
-    { id: "chat.files", title: "Chat: Files", group: "chat", icon: "files", shortcut: "Mod+Shift+E", global: true, when: deps.hasActiveChat, run: deps.toggleFiles },
-    { id: "chat.close", title: "Chat: Close", group: "chat", icon: "close", shortcut: "Mod+W", when: deps.hasActiveChat, run: deps.closeChat },
-    { id: "chat.delete", title: "Chat: Delete", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
-    { id: "chats.go", title: "Chats: Go to chat...", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },
+    { id: "view.toggle-sidebar", title: "Toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+S", global: true, run: deps.toggleSidebar },
+    { id: "chat.new", title: "New chat", group: "chat", icon: "plus", shortcut: "Mod+N", alias: "Mod+T", run: deps.newChat },
+    { id: "chat.new-group", title: "New group", group: "chat", icon: "plus", run: deps.newGroup },
+    { id: "chat.reopen", title: "Reopen closed chat", group: "chat", icon: "undo", shortcut: "Mod+Shift+T", run: deps.reopenClosed },
+    { id: "chat.attach", title: "Attach file…", group: "chat", icon: "attach", shortcut: "Mod+O", when: deps.hasActiveChat, run: deps.attach },
+    { id: "chat.rename", title: "Rename chat", group: "chat", icon: "edit", shortcut: "F2", when: deps.hasActiveChat, run: deps.rename },
+    { id: "chat.pin", title: "Pin chat", group: "chat", icon: "pin", shortcut: "Mod+D", when: deps.canMove, run: deps.togglePin },
+    { id: "chat.info", title: "Details", group: "chat", icon: "info", shortcut: "Mod+I", global: true, when: deps.hasActiveChat, run: deps.toggleInfo },
+    { id: "chat.files", title: "Files", group: "chat", icon: "files", shortcut: "Mod+Shift+E", global: true, when: deps.hasActiveChat, run: deps.toggleFiles },
+    { id: "chat.close", title: "Close chat", group: "chat", icon: "close", shortcut: "Mod+W", when: deps.hasActiveChat, run: deps.closeChat },
+    { id: "chat.delete", title: "Delete chat", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
+    { id: "chats.go", title: "Go to chat…", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },
     // ⌘1 to ⌘9 open the sidebar's chats in order, pinned first, as kat does.
     ...Array.from({ length: 9 }, (_, i): Command => ({
       id: `chats.go-${i + 1}`,
-      title: "Chats: Go to chat",
+      title: "Go to chat",
       group: "chats",
       icon: "chat",
       shortcut: `Mod+${i + 1}`,
@@ -59,10 +59,10 @@ export function katCommands(deps: {
       run: () => deps.goToChat(i + 1),
     })),
     // Telegram's way through the list without the mouse.
-    { id: "chats.previous", title: "Chats: Previous chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowUp", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(-1) },
-    { id: "chats.next", title: "Chats: Next chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowDown", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(1) },
-    { id: "chats.search-current", title: "Chats: Search messages in current chat", group: "chats", icon: "search", shortcut: "Mod+F", global: true, when: deps.hasActiveChat, run: deps.searchChat },
-    { id: "chats.search-all", title: "Chats: Search all chats", group: "chats", icon: "search", shortcut: "Mod+Shift+F", global: true, run: deps.searchAll },
-    { id: "palette.open", title: "Palette: Open", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
+    { id: "chats.previous", title: "Previous chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowUp", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(-1) },
+    { id: "chats.next", title: "Next chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowDown", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(1) },
+    { id: "chats.search-current", title: "Search messages in this chat", group: "chats", icon: "search", shortcut: "Mod+F", global: true, when: deps.hasActiveChat, run: deps.searchChat },
+    { id: "chats.search-all", title: "Search all chats", group: "chats", icon: "search", shortcut: "Mod+Shift+F", global: true, run: deps.searchAll },
+    { id: "palette.open", title: "Open command palette", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
   ]
 }

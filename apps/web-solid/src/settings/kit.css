@@ -7,6 +7,8 @@
   /* --kit-border, --kit-input, --kit-input-fill, --kit-card, and --kit-hover are the theme's
      (palette.ts NEUTRALS), so the contrast setting scales them with every other neutral. */
   --kit-muted: color-mix(in oklab, var(--text) 55%, transparent);
+  /* The one muted text color: descriptions, item meta, hints, and empty lines (kit.tsx `muted`). */
+  --kit-meta: color-mix(in oklab, var(--text) 50%, transparent);
   --kit-bevel: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.08);
   --kit-raised: 0 1px 2px rgb(0 0 0 / 0.12);
 }
@@ -38,16 +40,19 @@
   transform: scale(0.97);
 }
 
-.kit-btn:disabled {
+/* A disabled control keeps the pointer, so it can say no: no hover, a not-allowed cursor. */
+.kit-btn:disabled,
+.kit-select:disabled,
+.kit-seg-item:disabled,
+.kit-field:disabled {
   opacity: 0.6;
-  pointer-events: none;
+  cursor: not-allowed;
 }
 
-.kit-btn:focus-visible,
-.kit-select:focus-visible,
-.kit-seg-item:focus-visible,
-.kit-switch:focus-visible {
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+/* The select's list keeps focus while the arrows move a highlighted row, so the row is the mark. */
+.kit-listbox,
+.kit-listbox:focus-visible {
+  outline: none;
 }
 
 /* t3code's default: the accent, solid, with a light top edge. */
@@ -57,7 +62,7 @@
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(0 0 0 / 0.12);
 }
 
-.kit-btn--primary:hover {
+.kit-btn--primary:hover:not(:disabled) {
   background: color-mix(in oklab, var(--accent-fill) 90%, transparent);
 }
 
@@ -70,7 +75,7 @@
   box-shadow: var(--kit-bevel);
 }
 
-.kit-btn--secondary:hover {
+.kit-btn--secondary:hover:not(:disabled) {
   background: var(--kit-hover);
 }
 
@@ -79,9 +84,16 @@
   color: var(--danger);
 }
 
-.kit-btn--danger:hover {
+.kit-btn--danger:hover:not(:disabled) {
   background: color-mix(in oklab, var(--danger) 6%, transparent);
   border-color: color-mix(in oklab, var(--danger) 32%, transparent);
+}
+
+/* A toggle button, pressed: the accent's wash and edge. */
+.kit-btn--secondary[aria-pressed="true"] {
+  color: var(--text);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
 }
 
 /* t3code's ghost-muted. */
@@ -89,7 +101,7 @@
   color: var(--kit-muted);
 }
 
-.kit-btn--ghost:hover {
+.kit-btn--ghost:hover:not(:disabled) {
   color: var(--text);
   background: var(--kit-hover);
 }
@@ -121,7 +133,7 @@
   outline: none;
 }
 
-.kit-select:hover {
+.kit-select:hover:not(:disabled) {
   background: var(--kit-hover);
 }
 
@@ -158,7 +170,7 @@
   outline: none;
 }
 
-.kit-seg-item:hover {
+.kit-seg-item:hover:not(:disabled) {
   color: var(--text);
   background: color-mix(in oklab, var(--text) 4%, transparent);
 }
@@ -317,8 +329,11 @@
 /* monocode's narrow settings pane (styles/index.css): a row stacks, its control under its label,
    unless the control is only a switch. The settings body is the `settings` container. */
 @container settings (width < 560px) {
+  /* Stacked, the label and the control both start at the left edge, as t3code's rows do. A
+     column inherits the row's centering otherwise, and each row lands somewhere else. */
   .settings-row {
     flex-direction: column;
+    align-items: stretch;
     gap: 0.75rem;
   }
 

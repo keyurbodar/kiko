@@ -6,17 +6,17 @@ import { For, Show, createEffect, createMemo } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
 import { useApp } from "../lib/store"
 import { closePalette, paletteMode } from "./state"
-import { iconFor, paletteRows } from "./model"
+import { iconFor, paletteGroups } from "./model"
 import "./palette.css"
 
 /*
  * kat's command palette (screenshot 20). cmdk-solid filters, ranks, and moves
- * the highlight; the rows come from the registry, or from the chat list in
- * chat mode. Nothing here animates.
+ * the highlight; the rows come from the registry under their group's heading,
+ * or from the chat list in chat mode. Nothing here animates.
  */
 export default function Palette() {
   const navigate = useNavigate()
-  const rows = createMemo(() => paletteRows())
+  const groups = createMemo(() => paletteGroups())
   const chats = createMemo(() => useApp.bots())
   let input: HTMLInputElement | undefined
 
@@ -58,7 +58,7 @@ export default function Palette() {
             <Cmdk.Input
               ref={input}
               class="palette-input"
-              placeholder={mode() === "chats" ? "Go to chat..." : "Type a command..."}
+              placeholder={mode() === "chats" ? "Go to chat…" : "Type a command…"}
               autofocus
             />
             <Cmdk.List class="palette-list">
@@ -76,15 +76,21 @@ export default function Palette() {
                   </For>
                 }
               >
-                <For each={rows()}>
-                  {(command) => (
-                    <Cmdk.Item class="palette-row" value={command.title} onSelect={() => run(command.run)}>
-                      <HugeIcon icon={iconFor(command.icon)} size={16} />
-                      <span class="palette-label">{command.title}</span>
-                      <Show when={command.shortcut}>
-                        {(shortcut) => <span class="palette-keys">{displayShortcut(shortcut())}</span>}
-                      </Show>
-                    </Cmdk.Item>
+                <For each={groups()}>
+                  {(group) => (
+                    <Cmdk.Group class="palette-group" heading={group.label}>
+                      <For each={group.rows}>
+                        {(command) => (
+                          <Cmdk.Item class="palette-row" value={`${group.label} ${command.title}`} onSelect={() => run(command.run)}>
+                            <HugeIcon icon={iconFor(command.icon)} size={16} />
+                            <span class="palette-label">{command.title}</span>
+                            <Show when={command.shortcut}>
+                              {(shortcut) => <span class="palette-keys">{displayShortcut(shortcut())}</span>}
+                            </Show>
+                          </Cmdk.Item>
+                        )}
+                      </For>
+                    </Cmdk.Group>
                   )}
                 </For>
               </Show>

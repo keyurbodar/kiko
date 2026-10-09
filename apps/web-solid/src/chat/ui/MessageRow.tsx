@@ -146,7 +146,7 @@ export function MessageRow(props: {
         >
           <Show when={grouped() && props.isRunStart && !props.jumboClass}>
             <div
-              class={cn("truncate text-[13px] leading-5 font-semibold", hasAttachment() ? "px-3 pt-2" : "pb-0.5")}
+              class={cn("truncate text-md leading-5 font-semibold", hasAttachment() ? "px-3 pt-2" : "pb-0.5")}
               style={{ color: identityLook(props.message.botId!).color }}
               data-component="chat-sender"
             >
@@ -183,7 +183,7 @@ export function MessageRow(props: {
           </Show>
           <Show when={props.message.body.length > 0}>
             <div
-              class={hasAttachment() ? "px-3 pt-[5px] pb-[7px]" : undefined}
+              class={hasAttachment() ? "px-3 py-2" : undefined}
               style={captionStyle()}
             >
               <Collapsible messageId={props.message.id}>
@@ -215,7 +215,7 @@ export function MessageRow(props: {
           </Show>
           <Show when={floatingTime()}>
             <time
-              class="pointer-events-none absolute end-1 bottom-1 z-[1] rounded-full bg-black/35 px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-white"
+              class="pointer-events-none absolute end-1 bottom-1 z-[1] rounded-full bg-black/35 px-1.5 text-xs leading-[18px] whitespace-nowrap text-white"
               data-component="chat-media-time"
               datetime={new Date(props.message.sentAt).toISOString()}
             >
@@ -236,7 +236,7 @@ export function MessageRow(props: {
           <WebPageCard page={page()} class={cn(own() && "self-end", cardOnly() && "mt-0")}>
             <Show when={cardOnly()}>
               <time
-                class="pointer-events-none absolute end-2 top-2 z-[1] rounded-full bg-black/35 px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-white"
+                class="pointer-events-none absolute end-2 top-2 z-[1] rounded-full bg-black/35 px-1.5 text-xs leading-[18px] whitespace-nowrap text-white"
                 data-component="chat-media-time"
                 datetime={new Date(props.message.sentAt).toISOString()}
               >

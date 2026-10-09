@@ -48,7 +48,7 @@ export function DateChip(props: {
         props.class,
       )}
       data-component="chat-date-chip"
-      data-visible={props.visible ? "" : undefined}
+      data-visible={props.visible || open() ? "" : undefined}
       data-open={open() ? "" : undefined}
       onWheel={onWheel}
     >
@@ -59,8 +59,11 @@ export function DateChip(props: {
           // The chip floats over the transcript, open or closed, so it is the frosted menu surface.
           // The translucent raised fill let the text scrolling under it show through.
           "bg-menu",
-          // The shadow belongs to the open calendar. On the closed pill it read as a halo.
-          open() ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full shadow-popover motion-calendar-open" : "rounded-full",
+          // The shadow belongs to the open calendar. On the closed pill it read as a halo, so the pill
+          // gets a hairline instead, which keeps it readable on the light theme's white transcript.
+          open()
+            ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full shadow-popover"
+            : "rounded-full shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text)_10%,transparent)]",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
@@ -77,11 +80,9 @@ export function DateChip(props: {
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto cursor-pointer hover:bg-btn-hover aria-expanded:bg-btn-hover",
-              open()
-                ? "min-h-7 rounded-full bg-btn px-3 text-sm hover:bg-btn-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                : // Monocode's day pill: 12px, the day semibold at 75%.
-                  "min-h-6 rounded-full px-3 py-1 text-[12px] leading-4 font-semibold text-[color-mix(in_oklab,var(--text)_75%,transparent)]",
+              // Monocode's day pill, open or closed: 12px, the day semibold at 75%.
+              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 text-sm leading-4 font-semibold text-[color-mix(in_oklab,var(--text)_75%,transparent)] hover:bg-btn-hover aria-expanded:bg-btn-hover",
+              open() && "bg-btn",
             )}
             data-component="chat-day-chip"
             aria-expanded={open()}
@@ -96,7 +97,7 @@ export function DateChip(props: {
           <Show when={open()}>
             <button
               type="button"
-              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-weak hover:bg-btn hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
+              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-weak hover:bg-btn hover:text-text"
               aria-label="Close calendar"
               onClick={close}
             >

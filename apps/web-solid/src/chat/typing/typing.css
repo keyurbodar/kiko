@@ -22,12 +22,13 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  padding: var(--bubble-pad-y) calc(var(--bubble-pad-x) + 2px);
-  border-radius: var(--radius-bubble);
+  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  /* The one-line pill of bubble.css: half of a 20px line plus the vertical padding. */
+  border-radius: calc((var(--font-base) + 6px) / 2 + var(--bubble-pad-y));
   background: var(--assistant-bubble);
   color: var(--assistant-bubble-text);
-  font-size: var(--text-base);
-  line-height: var(--text-base--line-height);
+  font-size: var(--font-base);
+  line-height: calc(var(--font-base) + 6px);
   transform-origin: 0 100%;
 }
 
@@ -60,14 +61,14 @@
   overflow: hidden;
   padding-bottom: calc(var(--bubble-pad-y) + 1px);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--font-md);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .typing-more {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--font-md);
 }
 .typing-more[data-group] {
   padding-left: 40px;

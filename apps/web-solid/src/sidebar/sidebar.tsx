@@ -49,7 +49,9 @@ const ACTIONS: Record<SectionId, PanelAction | null> = {
 const MIN_W = 220
 const MAX_W = 420
 /** Mirrors `--sidebar-content-w`; used only until the first drag. */
-const DEFAULT_W = 272
+const DEFAULT_W = 280
+/** One arrow key press on the resize handle. */
+const KEY_STEP = 16
 
 export interface SidebarProps {
   /** The active section, read from the URL by the shell. */
@@ -162,6 +164,18 @@ export function Sidebar(props: SidebarProps) {
     },
   })
 
+  // The arrow keys move the edge as a drag does: past the minimum it collapses, and out again it reopens.
+  const nudge = (delta: number) => {
+    if (collapsed()) {
+      if (delta > 0) setCollapsed(false)
+      return
+    }
+    const next = (width() ?? DEFAULT_W) + delta
+    if (next < MIN_W) return setCollapsed(true)
+    setWidth(Math.min(MAX_W, next))
+    writeWidth(width())
+  }
+
   return (
     <>
       <aside
@@ -225,9 +239,16 @@ export function Sidebar(props: SidebarProps) {
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize sidebar"
+          tabindex={0}
           aria-valuemin={MIN_W}
           aria-valuemax={MAX_W}
-          aria-valuenow={collapsed() ? 0 : (width() ?? DEFAULT_W)}
+          aria-valuenow={collapsed() ? MIN_W : (width() ?? DEFAULT_W)}
+          aria-valuetext={collapsed() ? "Collapsed" : undefined}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+            event.preventDefault()
+            nudge(event.key === "ArrowRight" ? KEY_STEP : -KEY_STEP)
+          }}
           onDblClick={() => {
             setCollapsed(false)
             setWidth(null)
@@ -285,7 +306,7 @@ function Foot(props: { section: SectionId | null }) {
         >
           <HugeIcon icon={SettingsIcon} size={17} />
           <Show when={waiting()}>
-            <span class="pointer-events-none absolute top-1 right-1 size-2 rounded-full bg-[var(--accent)]" data-component="sidebar-extensions-waiting" aria-hidden="true" />
+            <span class="unread-dot panel-icon-dot" data-component="sidebar-extensions-waiting" aria-hidden="true" />
           </Show>
         </A>
       </TooltipV2>
@@ -306,16 +327,20 @@ function HeaderAction(props: { action: PanelAction }) {
     <Show
       when={props.action.menu}
       fallback={
-        <button type="button" class={button} data-component="sidebar-add" aria-label={props.action.label} onClick={() => props.action.run(navigate)}>
-          <HugeIcon icon={ComposeIcon} size={17} />
-        </button>
+        <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
+          <button type="button" class={button} data-component="sidebar-add" aria-label={props.action.label} onClick={() => props.action.run(navigate)}>
+            <HugeIcon icon={ComposeIcon} size={17} />
+          </button>
+        </TooltipV2>
       }
     >
       {(items) => (
         <MenuV2 gutter={6} placement="bottom-end">
-          <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="New chat">
-            <HugeIcon icon={ComposeIcon} size={17} />
-          </MenuV2.Trigger>
+          <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
+            <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="New chat">
+              <HugeIcon icon={ComposeIcon} size={17} />
+            </MenuV2.Trigger>
+          </TooltipV2>
           <MenuV2.Portal>
             <MenuV2.Content data-component="sidebar-add-menu">
               <For each={items()}>

@@ -7,7 +7,7 @@ import { DeleteAccount } from "../app/delete-account"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { session, signOut } from "../app/session"
 import type { JSX } from "solid-js"
-import { Button, Empty, Group, Item, Page } from "./kit"
+import { Button, Group, Hint, Item, Page } from "./kit"
 
 /*
  * The settings route body: the section the URL names. The section list lives in the sidebar
@@ -39,7 +39,7 @@ function Account() {
           }
         />
       </Group>
-      <Group title="Leave Kiko">
+      <Group title="Delete account">
         <DeleteAccount />
       </Group>
     </div>
@@ -51,11 +51,7 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   models: ModelsPage,
   account: Account,
   integrations: Integrations,
-  skills: () => (
-    <Group>
-      <Empty data-component="skills-empty">No skills yet.</Empty>
-    </Group>
-  ),
+  skills: () => <Hint data-component="skills-empty">A skill is a set of instructions an agent loads when a task needs it. You have none yet.</Hint>,
   appearance: () => (
     <Suspense>
       <Appearance />
@@ -95,7 +91,7 @@ export function SettingsShell(props: { sectionId: string }) {
         {NAV_SECTIONS.map((s) => (
           <A
             href={`/settings/${s.id}`}
-            class="flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            class="flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)]"
             activeClass="bg-[var(--selected-bg)] text-text"
           >
             {s.label}
@@ -103,7 +99,7 @@ export function SettingsShell(props: { sectionId: string }) {
         ))}
       </nav>
       <div class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
-        <div class="mx-auto w-full max-w-5xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
+        <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
           <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
             {section(props.sectionId)}
           </Page>

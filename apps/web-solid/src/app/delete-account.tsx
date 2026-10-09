@@ -1,5 +1,6 @@
 import { createSignal, Show } from "solid-js"
 import { signOut } from "./session"
+import { Dialog } from "../lib/dialog"
 import { Button, fieldClass, Notice, Row } from "../settings/kit"
 
 /*
@@ -40,33 +41,40 @@ export function DeleteAccount() {
   }
 
   const cancel = () => {
+    if (busy()) return
     setOpen(false)
     setTyped("")
     setMessage("")
   }
 
-  // A row in the account card. Asked, it opens the confirmation in place, under its own line.
+  // A row in the account card. Asked, it opens a dialog that holds the typed confirmation.
   return (
     <div data-component="delete-account">
-      <Row label="Delete account" description="Deletes every chat, agent, file, key, and memory. This cannot be undone.">
-        <Show when={!open()}>
-          <Button variant="danger" onClick={() => setOpen(true)}>
-            Delete account
-          </Button>
-        </Show>
+      <Row label="Delete your account and everything in it" description="This cannot be undone.">
+        <Button variant="danger" data-action="delete-account" onClick={() => setOpen(true)}>
+          Delete account
+        </Button>
       </Row>
-      <Show when={open()}>
-        <form
-          class="flex flex-col gap-2.5 px-4 pb-4"
-          onSubmit={submit}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && !busy()) {
-              e.stopPropagation()
-              cancel()
-            }
-          }}
-        >
-          <label class="flex flex-col gap-1.5 text-xs text-muted">
+      <Dialog
+        open={open()}
+        onClose={cancel}
+        title="Delete your account?"
+        description="This deletes every chat, agent, file, key, and memory. It cannot be undone."
+        onSubmit={submit}
+        data-component="delete-account-dialog"
+        footer={
+          <>
+            <Button variant="ghost" onClick={cancel}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" disabled={typed() !== CONFIRM_PHRASE || busy()} data-action="confirm-delete-account">
+              Delete account
+            </Button>
+          </>
+        }
+      >
+        <div class="flex flex-col gap-2.5">
+          <label class="flex flex-col gap-1.5 text-[13px] text-text">
             Type "{CONFIRM_PHRASE}" to confirm
             <input
               class={fieldClass}
@@ -78,19 +86,11 @@ export function DeleteAccount() {
               onInput={(e) => setTyped(e.currentTarget.value)}
             />
           </label>
-          <div class="flex flex-wrap items-center gap-2">
-            <Button type="submit" variant="danger" disabled={typed() !== CONFIRM_PHRASE || busy()}>
-              Delete my account forever
-            </Button>
-            <Button variant="ghost" onClick={cancel}>
-              Keep my account
-            </Button>
-          </div>
           <Show when={message()}>
             <Notice>{message()}</Notice>
           </Show>
-        </form>
-      </Show>
+        </div>
+      </Dialog>
     </div>
   )
 }

@@ -46,6 +46,14 @@ describe("richTextSegments", () => {
     expect(rendered("https://example.com/a/b?c=d")).toBe("https://example.com/a/b?c=d")
   })
 
+  test("a file name inside a path is not a link, even when its extension is a TLD", () => {
+    expect(links("see /plan/route.md")).toEqual([])
+    expect(links("src\\route.md")).toEqual([])
+    expect(rendered("see /plan/route.md")).toBe("see /plan/route.md")
+    // The same name on its own is still a domain.
+    expect(links("route.md")).toEqual([["route.md", "https://route.md"]])
+  })
+
   test("sentence punctuation after a url stays out of the href", () => {
     // A full stop and a comma end the path rather than joining it.
     expect(links("see https://example.com.")).toEqual([

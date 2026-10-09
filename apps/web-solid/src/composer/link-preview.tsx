@@ -34,7 +34,7 @@ export function ComposerLinkPreview(props: ComposerLinkPreviewProps): JSX.Elemen
               "relative flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-[6px]",
               "bg-accent/10 py-0.5 pe-2 ps-[11px] text-inherit no-underline",
               "before:absolute before:inset-y-0 before:start-0 before:w-[3px] before:bg-accent before:content-['']",
-              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+              " focus-visible:-outline-offset-2",
             )}
             data-component="chat-webpage"
             href={props.url}

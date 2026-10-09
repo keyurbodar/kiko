@@ -5,8 +5,8 @@ describe("nav commands", () => {
   const went: string[] = []
   const list = navCommands({ go: (h) => went.push(h), signOut() {}, chooseModel() {} })
 
-  test("every title is `Noun: Verb` with both parts capitalized, and every id is unique", () => {
-    for (const c of list) expect(c.title).toMatch(/^[A-Z][a-z]*: [A-Z]/)
+  test("every title is sentence case with no group prefix, and every id is unique", () => {
+    for (const c of list) expect(c.title).toMatch(/^[A-Z][^:A-Z]*$/)
     expect(new Set(list.map((c) => c.id)).size).toBe(list.length)
   })
 
@@ -19,7 +19,7 @@ describe("nav commands", () => {
   })
 
   test("the first-run path has a command", () => {
-    expect(list.find((c) => c.id === "settings.providers")?.title).toBe("Settings: Providers")
+    expect(list.find((c) => c.id === "settings.providers")?.title).toBe("Providers")
   })
 
   test("chats, settings and the model have shortcuts, and all work in a text field", () => {

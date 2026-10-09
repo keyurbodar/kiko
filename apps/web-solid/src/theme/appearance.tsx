@@ -9,7 +9,7 @@ import { For, Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
 import { appearanceOf } from "./apply"
 import { BUILT_IN_THEMES } from "./builtins"
 import { cn } from "../lib/cn"
-import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
+import { buttonClass, Group, Notice, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { background, BACKGROUND_EFFECTS, BLUR_RADIUS, chooseBackground, DEFAULT_GLASS, EFFECT_DESCRIPTIONS, EFFECT_LABELS, glass, picture, removeBackground, setBackground, setGlass, SIDEBAR_OPACITY, VISIBILITY } from "./glass"
 import { allThemes, chooseTheme, customThemes, look, matchWallpaper, removeThemes, setHalf, updateLook } from "./live"
 import { ThemeSelect, type ThemeOption } from "./theme-select"
@@ -99,7 +99,7 @@ function AccentPicker(): JSX.Element {
   const choices = [null, ...ACCENT_PRESETS] as const
   const names: Record<string, string> = { default: "Default", "#4da3f5": "Blue", "#8b5cf6": "Violet", "#ec4899": "Pink", "#ef4444": "Red", "#f59e0b": "Orange", "#10b981": "Green" }
   return (
-    <div class="flex items-center gap-1.5" role="radiogroup" aria-label="Accent color">
+    <div class="flex items-center gap-1" role="radiogroup" aria-label="Accent color">
       <For each={choices}>
         {(color) => (
           <button
@@ -109,7 +109,7 @@ function AccentPicker(): JSX.Element {
             aria-label={names[color ?? "default"]}
             title={names[color ?? "default"]}
             data-accent={color ?? "default"}
-            class="grid size-6 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_3.5px_var(--text)]"
+            class="grid size-7 cursor-pointer place-items-center rounded-full outline-none [&[aria-checked=true]>span]:shadow-[0_0_0_2px_var(--bg),0_0_0_3.5px_var(--text)]"
             onClick={() => updateLook({ accent: color })}
           >
             <span class="block size-5 rounded-full" style={{ background: color ?? "var(--text)" }} />
@@ -315,54 +315,53 @@ function BackgroundGroup(): JSX.Element {
   const bg = background
   return (
     <Group title="Chat background" description="A picture behind your chats. It stays on this device." id="chat-background">
-      <div class="p-4">
-        <div class="overflow-hidden rounded-lg [box-shadow:inset_0_0_0_1px_var(--hairline)]">
-          <Show
-            when={bg() && picture()}
-            fallback={
-              <button
-                type="button"
-                disabled={busy()}
-                class="flex h-36 w-full flex-col items-center justify-center gap-2 text-faint outline-none hover:bg-[var(--hover-bg)] hover:text-muted focus-visible:bg-[var(--hover-bg)] disabled:opacity-40"
-                data-action="choose-background"
-                onClick={() => input?.click()}
-              >
-                <HugeIcon icon={ImageIcon} size={20} />
-                <span class="text-xs">{busy() ? "Reading picture…" : "Choose an image"}</span>
-              </button>
-            }
-          >
-            <div class="relative h-36" classList={{ "bg-[var(--bg)]": bg()!.effect === "gradient-blur" }}>
-              <Show
-                when={bg()!.effect === "gradient-blur"}
-                fallback={<div aria-hidden="true" class="size-full bg-cover bg-center bg-no-repeat" style={{ "background-image": "var(--chat-background-image)", opacity: bg()!.empty }} />}
-              >
-                <div aria-hidden="true" class="gradient-blur-background gradient-blur-preview absolute inset-0" style={{ opacity: bg()!.empty }}>
-                  <span class="gradient-blur-background-soft" />
-                  <span class="gradient-blur-background-strong" />
+      <Row
+        label="Picture"
+        details={
+          (bg() && picture()) || error() ? (
+            <div class="flex flex-col gap-2">
+              <Show when={bg() && picture()}>
+                <div
+                  class="relative h-28 w-48 max-w-full overflow-hidden rounded-lg [box-shadow:inset_0_0_0_1px_var(--hairline)]"
+                  classList={{ "bg-[var(--bg)]": bg()!.effect === "gradient-blur" }}
+                  data-component="background-preview"
+                >
+                  <Show
+                    when={bg()!.effect === "gradient-blur"}
+                    fallback={<div aria-hidden="true" class="size-full bg-cover bg-center bg-no-repeat" style={{ "background-image": "var(--chat-background-image)", opacity: bg()!.empty }} />}
+                  >
+                    <div aria-hidden="true" class="gradient-blur-background gradient-blur-preview absolute inset-0" style={{ opacity: bg()!.empty }}>
+                      <span class="gradient-blur-background-soft" />
+                      <span class="gradient-blur-background-strong" />
+                    </div>
+                  </Show>
                 </div>
               </Show>
-              <span class="pointer-events-none absolute bottom-2 left-2 text-[11px] text-faint">Empty chat preview at {percent(bg()!.empty)}%</span>
+              <Show when={error()}>
+                <Notice>{error()!}</Notice>
+              </Show>
             </div>
-          </Show>
-        </div>
+          ) : undefined
+        }
+      >
         <input ref={input} type="file" accept="image/*" class="hidden" data-slot="background-file-input" onChange={(e) => pick(e.currentTarget.files?.[0])} />
-        <Show when={bg()}>
-          <div class="mt-3 flex items-center justify-end gap-2">
-            <button type="button" class={buttonClass()} disabled={busy()} onClick={() => input?.click()}>
-              {busy() ? "Reading…" : "Change"}
+        <Show
+          when={bg()}
+          fallback={
+            <button type="button" class={buttonClass()} disabled={busy()} data-action="choose-background" onClick={() => input?.click()}>
+              <HugeIcon icon={ImageIcon} size={13} />
+              {busy() ? "Reading…" : "Choose"}
             </button>
-            <button type="button" class={buttonClass("danger")} disabled={busy()} data-action="remove-background" onClick={() => void run(removeBackground)}>
-              Remove
-            </button>
-          </div>
+          }
+        >
+          <button type="button" class={buttonClass()} disabled={busy()} onClick={() => input?.click()}>
+            {busy() ? "Reading…" : "Change"}
+          </button>
+          <button type="button" class={buttonClass("danger")} disabled={busy()} data-action="remove-background" onClick={() => void run(removeBackground)}>
+            Remove
+          </button>
         </Show>
-        <Show when={error()}>
-          <p class="mt-2 text-xs text-[var(--danger)]" role="alert">
-            {error()}
-          </p>
-        </Show>
-      </div>
+      </Row>
       <Show when={bg()}>
         {(b) => (
           <>

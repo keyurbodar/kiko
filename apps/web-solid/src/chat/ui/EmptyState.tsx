@@ -22,7 +22,7 @@ export function EmptyState(props: { class?: string }) {
       <Suspense>
         <BirdGrid faces={useApp.chatFaces(useApp.activeThreadId() ?? "")} />
       </Suspense>
-      <p class="text-[15px] font-medium text-weak">What's on your mind?</p>
+      <p class="text-md leading-relaxed text-muted">What's on your mind?</p>
     </div>
   )
 }

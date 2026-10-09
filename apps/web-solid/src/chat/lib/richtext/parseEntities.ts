@@ -94,7 +94,11 @@ export function parseEntities(text: string): TextEntity[] {
           // IP address — no TLD to gate on, and an IPv4 literal is not ambiguous
         }
 
-        if (protocol || !tld) {
+        // A host right after a slash is a file name inside a path, as in
+        // `/plan/route.md`, where `.md` is also a TLD. Only a spelled-out
+        // protocol makes it a link.
+        const inPath = !groups.protocol && /[/\\]/.test(text[matchIndex - 1] ?? "")
+        if ((protocol || !tld) && !inPath) {
           entities.push({
             kind: "url",
             offset: matchIndex,

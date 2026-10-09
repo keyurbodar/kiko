@@ -9,7 +9,7 @@ import { mediaThumbnail } from "../lib/media"
 const ALBUM_SPACING = 2
 
 const CELL_BASE =
-  "cursor-zoom-in overflow-hidden border-none bg-tint p-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+  "cursor-zoom-in overflow-hidden border-none bg-tint p-0 focus-visible:-outline-offset-2"
 
 /** Rounds only the corners a cell shares with the album's outline. */
 function radiusClass(sides: number, hasText: boolean): string {

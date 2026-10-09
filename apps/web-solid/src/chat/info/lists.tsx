@@ -1,11 +1,11 @@
 import type { CatalogItem } from "@kiko/protocol"
-import { createEffect, createSignal, For, Match, Show, Switch } from "solid-js"
+import { createEffect, createSignal, createUniqueId, For, Match, Show, Switch } from "solid-js"
 import { stillOf, urls, useApp } from "../../lib/store"
 import type { MediaItem } from "../../lib/types"
 import { createMediaViewer } from "../media/mediaViewer"
 import { peekLinkPreview, resolveLinkPreview } from "../lib/linkPreview"
 import type { createCatalog } from "./catalog"
-import { EDGE } from "./sections"
+import { EDGE, tabKeys } from "./sections"
 
 type Catalog = ReturnType<typeof createCatalog>
 type Link = Extract<CatalogItem, { kind: "link" }>
@@ -164,6 +164,7 @@ export function SharedContent(props: { media: Catalog; links: Catalog }) {
   }
   const [picked, setPicked] = createSignal<SharedKind>("media")
   const shown = () => (kinds().includes(picked()) ? picked() : kinds()[0])
+  const ids = createUniqueId()
   createEffect(() => {
     const k = shown()
     if (k && k !== picked()) setPicked(k)
@@ -172,12 +173,20 @@ export function SharedContent(props: { media: Catalog; links: Catalog }) {
     <Show when={kinds().length}>
       <section class={`border-t ${EDGE} px-2 pt-3 pb-4`} data-component="info-shared">
         {/* The section's label is its tabs: each kind a label of its own, the open one brighter. */}
-        <div class="flex items-center gap-3 px-2 pb-2" role="tablist" aria-label="Shared">
+        <div
+          class="flex items-center gap-3 px-2 pb-2"
+          role="tablist"
+          aria-label="Shared"
+          onKeyDown={(event) => tabKeys(event, kinds(), shown(), setPicked)}
+        >
           <For each={kinds()}>
             {(kind) => (
               <button
                 type="button"
                 role="tab"
+                id={`${ids}-tab-${kind}`}
+                aria-controls={`${ids}-panel`}
+                tabIndex={shown() === kind ? 0 : -1}
                 class="text-[11px] font-medium tracking-wide text-[color-mix(in_oklab,var(--text)_40%,transparent)] uppercase hover:text-[color-mix(in_oklab,var(--text)_75%,transparent)] aria-selected:text-[color-mix(in_oklab,var(--text)_75%,transparent)]"
                 aria-selected={shown() === kind}
                 data-tab={kind}
@@ -188,14 +197,16 @@ export function SharedContent(props: { media: Catalog; links: Catalog }) {
             )}
           </For>
         </div>
-        <Switch>
-          <Match when={shown() === "media"}>
-            <MediaList catalog={props.media} />
-          </Match>
-          <Match when={shown() === "links"}>
-            <LinksList catalog={props.links} />
-          </Match>
-        </Switch>
+        <div role="tabpanel" id={`${ids}-panel`} aria-labelledby={`${ids}-tab-${shown()}`}>
+          <Switch>
+            <Match when={shown() === "media"}>
+              <MediaList catalog={props.media} />
+            </Match>
+            <Match when={shown() === "links"}>
+              <LinksList catalog={props.links} />
+            </Match>
+          </Switch>
+        </div>
       </section>
     </Show>
   )

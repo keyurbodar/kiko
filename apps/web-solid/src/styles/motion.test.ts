@@ -51,7 +51,7 @@ test("the scanner flags navigation, button, menu, tab, and composer selectors", 
   for (const sel of ["button", ".menu-item", "[role=tab]", ".composer-input", ".tab-strip", "nav a"]) {
     expect(FORBIDDEN.test(sel), sel).toBe(true);
   }
-  for (const sel of [".motion-toast-enter", ".motion-bubble-in", ".motion-reaction-pop"]) {
+  for (const sel of [".motion-attachment-in", ".motion-bubble-in", ".motion-reaction-pop"]) {
     expect(FORBIDDEN.test(sel), sel).toBe(false);
   }
 });
@@ -81,7 +81,7 @@ test("durations and easings are tokens", () => {
 });
 
 test("keyframes move only transform and opacity", () => {
-  expect(frames.length).toBeGreaterThan(5);
+  expect(frames.length).toBeGreaterThanOrEqual(5);
   for (const f of frames) {
     const props = [...f.body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
     for (const p of props) expect(["transform", "opacity"], `${f.selector} ${p}`).toContain(p);
@@ -89,7 +89,7 @@ test("keyframes move only transform and opacity", () => {
 });
 
 test("the allowed motions exist", () => {
-  for (const c of ["reaction-pop", "attachment-in", "calendar-open", "toast-enter", "bubble-in", "reply-in"]) {
+  for (const c of ["reaction-pop", "attachment-in", "bubble-in", "reply-in"]) {
     expect(css).toContain(`.motion-${c}`);
   }
 });

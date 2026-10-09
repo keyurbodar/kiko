@@ -6,6 +6,7 @@ import { ChatAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { closeChat } from "../sidebar/actions"
 import { openTabs, stepTab } from "./open-tabs"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import "./tab-strip.css"
 
 /*
@@ -137,7 +138,7 @@ export function TabStrip() {
               data-tab-id={id}
               data-active={active() ? "" : undefined}
               data-unread={unread(id) && !active() ? "" : undefined}
-              class="group flex h-[var(--tab-h)] max-w-[var(--tab-max-w)] shrink-0 cursor-default items-center gap-1.5 rounded-[9px] pr-1 pl-2.5 text-[13px] font-medium text-[var(--tab-text)] outline-none select-none hover:text-[var(--tab-text-active)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] data-[active]:bg-[var(--tab-bg-active)] data-[active]:text-[var(--tab-text-active)]"
+              class="group flex h-[var(--tab-h)] max-w-[var(--tab-max-w)] shrink-0 cursor-default items-center gap-1.5 rounded-[9px] pr-1 pl-2.5 text-[13px] font-medium text-[var(--tab-text)] select-none hover:text-[var(--tab-text-active)] data-[active]:bg-[var(--tab-bg-active)] data-[active]:text-[var(--tab-text-active)]"
               onClick={() => go(id)}
               onAuxClick={(event) => {
                 if (event.button === 1) close(id)
@@ -155,7 +156,6 @@ export function TabStrip() {
                 data-hint-label="Details"
                 data-info-toggle={active() ? "" : undefined}
                 aria-expanded={active() ? infoOpen() : undefined}
-                title={active() ? "Details" : undefined}
                 onPointerEnter={() => active() && void loadInfoPanel()}
                 onClick={(event) => {
                   if (!active()) return
@@ -172,7 +172,13 @@ export function TabStrip() {
                   {label(id)}
                 </span>
               </span>
-              <span class="flex size-4 shrink-0 items-center justify-center">
+              {/* The unread dot has its own slot, so it and the close button never trade places. */}
+              <span
+                class="hidden size-[6px] shrink-0 rounded-full bg-[var(--accent)] group-data-[unread]:block"
+                data-component="tab-unread-dot"
+                aria-hidden="true"
+              />
+              <TooltipV2 placement="bottom" openDelay={400} value="Close" class="shrink-0">
                 <button
                   type="button"
                   tabindex="-1"
@@ -180,7 +186,7 @@ export function TabStrip() {
                   data-component="tab-close"
                   data-hint={active() ? "chat.close" : undefined}
                   data-hint-label="Close"
-                  class="relative hidden size-4 items-center justify-center rounded-[5px] text-[var(--tab-text)] before:absolute before:-inset-[10px] before:content-[''] before:md:-inset-1 hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] group-hover:flex group-data-[active]:flex"
+                  class="relative flex size-4 items-center justify-center rounded-[5px] text-[var(--text-faint)] before:absolute before:-inset-[10px] before:content-[''] before:md:-inset-1 hover:bg-[var(--tab-bg-hover)] hover:text-[var(--tab-text-active)] group-data-[active]:text-[var(--tab-text)]"
                   onClick={(event) => {
                     event.stopPropagation()
                     close(id)
@@ -190,12 +196,7 @@ export function TabStrip() {
                     <path d="M1 1l6 6M7 1L1 7" />
                   </svg>
                 </button>
-                <span
-                  class="hidden size-[6px] rounded-full bg-[var(--accent)] group-data-[unread]:block group-hover:hidden"
-                  data-component="tab-unread-dot"
-                  aria-hidden="true"
-                />
-              </span>
+              </TooltipV2>
             </div>
           )
         }}

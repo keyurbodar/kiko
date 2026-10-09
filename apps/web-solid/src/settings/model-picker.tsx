@@ -1,6 +1,6 @@
 import { A } from "@solidjs/router"
-import { For, Show, createMemo, createResource, createSignal } from "solid-js"
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
+import { For, Show, createEffect, createMemo, createResource, createSignal, createUniqueId, on } from "solid-js"
+import { Dialog } from "../lib/dialog"
 import { chatModel, setChatModel } from "./chat-model"
 import { formatContext, formatPrice, loadCatalog, modelRef, searchModels } from "./catalog"
 import { connectedProviders } from "./connected"
@@ -13,7 +13,8 @@ const MAX_ROWS = 150
 /*
  * The model list with search, context size and price. It lists the models of
  * connected providers only, because a model of an unconnected provider cannot
- * run. With none connected it says so and links to settings.
+ * run. With none connected it says so and links to settings. Focus stays in the search, and the
+ * arrows move the active row under it, as the to-bar's agent search does.
  */
 export function ModelList(props: { current?: string; onPick: (ref: string) => void; autofocus?: boolean }) {
   const [catalog] = createResource(loadCatalog)
@@ -28,6 +29,26 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
       return !off.has(ref) || ref === props.current
     })
   })
+  const shown = () => rows().slice(0, MAX_ROWS)
+  const id = createUniqueId()
+  const [at, setAt] = createSignal(0)
+  let list: HTMLUListElement | undefined
+  // A new search starts at the top.
+  createEffect(on(query, () => setAt(0), { defer: true }))
+  const move = (index: number) => {
+    setAt(index)
+    list?.querySelector(`#${CSS.escape(`${id}-${index}`)}`)?.scrollIntoView({ block: "nearest" })
+  }
+  const onKeyDown = (event: KeyboardEvent) => {
+    const last = shown().length - 1
+    if (event.key === "ArrowDown") move(Math.min(last, at() + 1))
+    else if (event.key === "ArrowUp") move(Math.max(0, at() - 1))
+    else if (event.key === "Enter") {
+      const row = shown()[at()]
+      if (row) props.onPick(modelRef(row.provider.id, row.model.id))
+    } else return
+    event.preventDefault()
+  }
   return (
     <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="model-list">
       <Show when={connectedIds().size > 0}>
@@ -41,7 +62,12 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
             class="h-full min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
             placeholder="Search models"
             aria-label="Search models"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={id}
+            aria-activedescendant={shown().length ? `${id}-${at()}` : undefined}
             autofocus={props.autofocus}
+            onKeyDown={onKeyDown}
             value={query()}
             onInput={(e) => setQuery(e.currentTarget.value)}
             data-component="model-search"
@@ -56,25 +82,22 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
           </div>
         }
       >
-        <ul class="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Models" data-component="model-rows">
-          <For each={rows().slice(0, MAX_ROWS)} fallback={<li class="p-4 text-sm text-weak">{catalog.loading ? "Loading models" : "No models match"}</li>}>
-            {({ provider, model }) => {
+        <Show when={shown().length} fallback={<p class="p-4 text-sm text-weak">{catalog.loading ? "Loading models" : "No models match"}</p>}>
+        <ul ref={list} id={id} class="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Models" data-component="model-rows">
+          <For each={shown()}>
+            {({ provider, model }, i) => {
               const ref = modelRef(provider.id, model.id)
               return (
                 <li
+                  id={`${id}-${i()}`}
                   role="option"
                   aria-selected={props.current === ref}
-                  tabindex="0"
-                  class="model-row flex cursor-default items-center justify-between gap-3 rounded-[10px] px-3 py-2 outline-none hover:bg-[var(--tab-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] aria-selected:bg-[var(--tab-bg-active)]"
+                  class="model-row flex cursor-pointer items-center justify-between gap-3 rounded-[10px] px-3 py-2 aria-selected:bg-[var(--tab-bg-active)] data-[active]:bg-[var(--tab-bg-hover)]"
                   style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 48px" }}
                   data-model={ref}
+                  data-active={at() === i() ? "" : undefined}
+                  onPointerMove={() => setAt(i())}
                   onClick={() => props.onPick(ref)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault()
-                      props.onPick(ref)
-                    }
-                  }}
                 >
                   <span class="min-w-0">
                     <span class="block truncate text-sm text-[var(--tab-text-active)]">{model.name}</span>
@@ -89,6 +112,7 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
             }}
           </For>
         </ul>
+        </Show>
       </Show>
     </div>
   )
@@ -107,11 +131,11 @@ export function ModelPickerButton(props: { chatId: string | null }) {
   const current = () => chatModel(props.chatId)
   const ready = () => connectedProviders().length > 0
   return (
-    <ModalV2 open={pickerOpen()} onOpenChange={setPickerOpen}>
+    <>
       <Show when={ready()}>
         <button
           type="button"
-          class="flex h-7 max-w-[200px] shrink-0 items-center gap-1 rounded-[9px] px-2 text-xs text-muted outline-none hover:bg-[var(--tab-bg-hover)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          class="flex h-7 max-w-[200px] shrink-0 items-center gap-1 rounded-[9px] px-2 text-xs text-muted outline-none hover:bg-[var(--tab-bg-hover)] hover:text-text"
           data-component="model-picker-button"
           data-hint="chat.model"
           data-hint-label="Model"
@@ -125,20 +149,16 @@ export function ModelPickerButton(props: { chatId: string | null }) {
           </svg>
         </button>
       </Show>
-      <ModalV2.Portal>
-        <ModalV2.Overlay />
-        <ModalV2.Content class="h-[min(560px,80dvh)] w-[min(520px,94vw)] flex-col gap-2 rounded-[16px] bg-menu p-3 shadow-xl">
-          <ModalV2.Title class="px-1 text-sm font-medium text-muted">Choose a model</ModalV2.Title>
-          <ModelList
-            autofocus
-            current={current()}
-            onPick={(ref) => {
-              setChatModel(props.chatId, ref)
-              setPickerOpen(false)
-            }}
-          />
-        </ModalV2.Content>
-      </ModalV2.Portal>
-    </ModalV2>
+      <Dialog open={pickerOpen()} onClose={() => setPickerOpen(false)} title="Choose a model" size="md" class="h-[min(560px,80dvh)]" bodyClass="flex flex-col px-3 pb-3" data-component="model-picker">
+        <ModelList
+          autofocus
+          current={current()}
+          onPick={(ref) => {
+            setChatModel(props.chatId, ref)
+            setPickerOpen(false)
+          }}
+        />
+      </Dialog>
+    </>
   )
 }
