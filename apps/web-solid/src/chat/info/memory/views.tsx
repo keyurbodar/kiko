@@ -31,7 +31,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 			<Show when={!l().redacted} fallback={<span class="text-sm text-faint">Removed</span>}>
 				<span class="text-[15px] leading-snug text-text">{l().text}</span>
 				<span class="flex items-center gap-1 text-xs text-faint">
-					<span>{l().source || "Kiko"}</span>
+					<span>{l().source || "Yuki"}</span>
 					<span>·</span>
 					<span>{ago(l().at)}</span>
 					<Show when={l().tainted}>
@@ -163,7 +163,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 			>
 				<input
 					class="h-9 min-w-0 flex-1 rounded-xl bg-input px-3 text-sm text-text outline-none placeholder:text-weak"
-					placeholder="Tell Kiko something to remember"
+					placeholder="Tell Yuki something to remember"
 					aria-label="Add a memory"
 					maxLength={280}
 					value={draft()}
@@ -205,7 +205,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 						<Moment kind="nest" />
 					</Suspense>
 					<p class="mt-2 text-sm text-text">Nothing remembered yet</p>
-					<p class="text-xs text-weak">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
+					<p class="text-xs text-weak">Talk to Yuki about people, places, and how you like things done. It keeps the lasting parts here.</p>
 				</div>
 			</Show>
 			<MemoryModelRow store={props.store} />

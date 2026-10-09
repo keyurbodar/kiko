@@ -6,7 +6,10 @@ import { type Agent, type AgentSlug, type Chat, dmFor, KIKO, kikoOnly, type Room
  */
 
 /** The agent every user has. It is not stored, so it is never missing. */
-export const BUILTIN_AGENT: Agent = { id: KIKO, name: "Kiko", slug: KIKO as AgentSlug, prompt: "", model: "" }
+export const BUILTIN_AGENT: Agent = { id: KIKO, name: "Yuki", slug: KIKO as AgentSlug, prompt: "", model: "" }
+
+/** A chat's name. The kiko chat made before the rename still holds the old title; it reads as Yuki. */
+export const chatTitle = (chat: Chat): string => (chat.kiko && chat.title === KIKO ? BUILTIN_AGENT.name : chat.title)
 
 /** The user's agents with the built-in one first. */
 export function agentList(stored: readonly Agent[]): Agent[] {

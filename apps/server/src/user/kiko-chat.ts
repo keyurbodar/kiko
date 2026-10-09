@@ -6,6 +6,7 @@ import { isRoomId, newRoomId, type Chat, type ChatOp, type RoomId } from "@kiko/
 
 // The stored key predates the rename, so existing accounts keep the chat they already have.
 const KEY = "kiko_home"
+const TITLE = "Yuki"
 
 export function kikoChatRoom(sql: SqlStorage): RoomId | null {
   const row = sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", KEY).toArray()[0]
@@ -21,7 +22,7 @@ export function kikoChatOps(sql: SqlStorage, exists: (roomId: RoomId) => boolean
     sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", KEY, roomId)
   }
   return [
-    { op: "create", roomId, title: "kiko", agents: ["kiko"] },
+    { op: "create", roomId, title: TITLE, agents: ["kiko"] },
     { op: "pin", roomId, pinned: true },
   ]
 }

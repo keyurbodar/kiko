@@ -94,7 +94,7 @@ export default function FirstLook() {
         <div class="flex w-full max-w-[560px] flex-col items-center gap-7">
           <Bird slug="kiko" size={88} state="wave" />
           <div class="flex flex-col items-center gap-1.5 text-center">
-            <h1 id="first-look-title" class="text-2xl font-semibold text-text">Make Kiko yours</h1>
+            <h1 id="first-look-title" class="text-2xl font-semibold text-text">Make Yuki yours</h1>
             <p class="text-sm text-muted">You can change this any time in Settings.</p>
           </div>
           <div class="w-full rounded-2xl bg-[var(--card)] [box-shadow:var(--card-shadow)] p-4">

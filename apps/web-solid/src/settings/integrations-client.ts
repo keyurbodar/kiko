@@ -46,7 +46,7 @@ export function createExecutorClient(options: ExecutorClientOptions = {}): Execu
 				const frame = { ...ask, reqId } as ClientToUser
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "Kiko did not answer." })
+					resolve({ ok: false, error: "Yuki did not answer." })
 				}, timeoutMs)
 				pending.set(reqId, { frame, resolve, timer })
 				socket.send(frame)

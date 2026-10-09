@@ -149,7 +149,7 @@ test("a chat created without agents gets kiko as its lead", async () => {
   await call("/user", { chats: [chatFor(room, "solo")], agents: [] })
   const ws = await Socket.open(room)
   await ws.until(() => ws.members().length === 1)
-  expect(ws.members()).toEqual([{ slug: slug("kiko"), name: "kiko", lead: true }])
+  expect(ws.members()).toEqual([{ slug: slug("kiko"), name: "Yuki", lead: true }])
   ws.ws.close()
 })
 
@@ -201,7 +201,7 @@ test("untagged reaches only the lead, @ada only ada, @all everyone, and every me
   expect(hers).not.toContain("your turn")
   expect(toAda!.brief).not.toContain("hello team")
   expect(toAda!.brief).toContain("room goal: ship the plan")
-  expect(toAda!.brief).toContain("- @kiko (kiko): lead")
+  expect(toAda!.brief).toContain("- @yuki (Yuki): lead")
   expect(toAda!.brief).toContain("- @bob (bob): plans, idle")
 
   await ws.say("@all ping")
@@ -490,7 +490,7 @@ test("in a temporary chat kiko makes an agent only after the human answers", asy
   expect(goto?.t === "message" && goto.goto).toBe(dm.roomId)
   // And the new agent hears it was made, so it says hi first.
   const intro = await delivered(dm.roomId as RoomId, "chef", 1)
-  expect(intro[0]!.envelopes[0]!.body).toContain("kiko just made you for the human: plans your meal prep")
+  expect(intro[0]!.envelopes[0]!.body).toContain("yuki just made you for the human: plans your meal prep")
   ws.ws.close()
 })
 

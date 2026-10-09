@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@kiko/protocol"
+import { type AgentSlug, slugOfHandle } from "@kiko/protocol"
 
 // Architecture section 7.2. Who receives a human message, as one pure function over the table:
 //
@@ -23,11 +23,11 @@ export type RecipientMember = { slug: AgentSlug; lead: boolean }
 // "me@ada.dev" is not a tag. It ends where the slug's characters end.
 const TAG = /(?:^|[^a-z0-9_@.-])@([a-z0-9-]{1,32})(?![a-z0-9-])/gi
 
-/** The slugs the text tags, lowercased, in order, without repeats. `all` is included when tagged. */
+/** The slugs the text tags, lowercased, in order, without repeats. `all` is included when tagged. `@yuki` tags the chief. */
 export function tags(text: string): string[] {
 	const found: string[] = []
 	for (const match of text.matchAll(TAG)) {
-		const slug = match[1]!.toLowerCase()
+		const slug = slugOfHandle(match[1]!.toLowerCase())
 		if (!found.includes(slug)) found.push(slug)
 	}
 	return found

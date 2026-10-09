@@ -679,7 +679,7 @@ export function routineBody(routine: Reminder, why: string, last: RoutineRun | n
   const lines = [
     `routine "${routine.name}" (id ${routine.id}), run because of ${why}.`,
     `it runs ${describeTrigger(routine.trigger!, routine.tz, routine.dueUtc)}.`,
-    routine.grant.length ? `it may use outside kiko without asking: ${routine.grant.join(", ")}.` : "it may not act outside kiko without asking the human.",
+    routine.grant.length ? `it may use outside yuki without asking: ${routine.grant.join(", ")}.` : "it may not act outside yuki without asking the human.",
     last ? `last run: ${last.status}, ${localTime(last.startedAt, routine.tz)}.` : "this is its first run.",
     "instructions:",
     routine.text,

@@ -4,7 +4,7 @@ import type { JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 
-/** "Kiko and Piko", "Kiko, Piko and Ada". Each name keeps its own casing. */
+/** "Yuki and Piko", "Yuki, Piko and Ada". Each name keeps its own casing. */
 export function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? ""
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`

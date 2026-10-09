@@ -7,6 +7,18 @@ import type { Chat } from "./user"
 /** The built-in agent's id and slug. Its direct chat is the kiko chat. */
 export const KIKO = "kiko"
 
+/**
+ * The built-in agent's handle: what a person types and reads, as `@yuki`. Its slug stays
+ * `kiko`, because every stored room, member row and agent object is named by it.
+ */
+export const CHIEF_HANDLE = "yuki"
+
+/** The slug a typed handle names. Only the chief's handle differs from its slug. */
+export const slugOfHandle = (handle: string): string => (handle === CHIEF_HANDLE ? KIKO : handle)
+
+/** The handle a slug is typed and read as. */
+export const handleOf = (slug: string): string => (slug === KIKO ? CHIEF_HANDLE : slug)
+
 /** True when `chat` is a direct chat with the agent `agentId`: one agent, and not temporary. */
 export const isDmOf = (chat: Chat, agentId: string): boolean => !chat.temp && chat.agents?.length === 1 && chat.agents[0] === agentId
 

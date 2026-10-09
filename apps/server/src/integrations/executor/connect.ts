@@ -200,7 +200,7 @@ export class ExecutorConnection {
 
   private async open(): Promise<McpClient> {
     if (!(await this.bearer())) throw new ExecutorError("executor is not connected")
-    const client = new McpClient({ name: "kiko", version: "0.0.0" })
+    const client = new McpClient({ name: "Yuki", version: "0.0.0" })
     const transport = new StreamableHttpTransport({
       url: EXECUTOR_MCP_URL,
       fetch: this.fetcher,
@@ -291,7 +291,7 @@ export class ExecutorConnection {
       serverUrl: EXECUTOR_MCP_URL,
       redirectUrl,
       clientMetadata: {
-        client_name: "kiko",
+        client_name: "Yuki",
         token_endpoint_auth_method: "none",
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],

@@ -245,7 +245,7 @@ test("/me/soul.md is the agent's soul: read and edited with pi's tools, never mo
   expect((await ada.write("/me/other.md", "x")).text).toContain("only /me/soul.md")
   expect((await ada.write("/me/soul.md", "x".repeat(3_001))).text).toContain("tighten it")
   // kiko's first soul is the chief's.
-  expect(await agent(room, "kiko").read("/me/soul.md")).toContain("i'm kiko, their chief")
+  expect(await agent(room, "kiko").read("/me/soul.md")).toContain("i'm yuki, their chief")
 })
 
 test("/chat.md stays short: a write past the cap is refused", async () => {

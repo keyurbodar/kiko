@@ -91,7 +91,7 @@ export default function ExtensionsPage() {
         bare={!extensions().length}
         action={
           <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>
-            Build one with Kiko
+            Build one with Yuki
           </Button>
         }
       >

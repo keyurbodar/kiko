@@ -1,4 +1,4 @@
-import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@kiko/protocol"
+import { type Agent, type AgentSlug, CHIEF_HANDLE, isAgentSlug, slugOfHandle, tagline } from "@kiko/protocol"
 import { MAX_CHAT } from "../files/room-fs"
 import { MAX_SOUL } from "../user/souls"
 
@@ -28,7 +28,7 @@ const clean = (s: string, max: number) => s.trim().slice(0, max)
 
 /** The proposal ready to store, or why it is refused. `agents` are the human's agents. */
 export function checkProposal(input: ProposalInput, agents: readonly Agent[]): ProposalInput | { error: string } {
-  const taken = new Set([CHIEF, ...agents.map((a) => a.slug as string)])
+  const taken = new Set([CHIEF, CHIEF_HANDLE, ...agents.map((a) => a.slug as string)])
   const checkAgent = (a: NewAgentSpec): NewAgentSpec | string => {
     const handle = a.handle.trim().toLowerCase().replace(/^@/, "")
     const name = clean(a.name, 60)
@@ -47,7 +47,7 @@ export function checkProposal(input: ProposalInput, agents: readonly Agent[]): P
   }
   const title = clean(input.title, 200)
   if (!title) return { error: "the group needs a title" }
-  const members = [...new Set(input.members.map((m) => m.trim().toLowerCase().replace(/^@/, "")).filter((m) => m && m !== CHIEF))]
+  const members = [...new Set(input.members.map((m) => slugOfHandle(m.trim().toLowerCase().replace(/^@/, ""))).filter((m) => m && m !== CHIEF))]
   const unknown = members.filter((m) => !agents.some((a) => a.slug === m))
   if (unknown.length) return { error: `no agent ${unknown.map((m) => `@${m}`).join(", ")}. the human has: ${agents.map((a) => `@${a.slug}`).join(", ") || "no agents yet"}` }
   if (input.agents.length > MAX_NEW_AGENTS) return { error: `make at most ${MAX_NEW_AGENTS} new agents at once` }
@@ -65,5 +65,5 @@ export function checkProposal(input: ProposalInput, agents: readonly Agent[]): P
 
 /** What the new agent hears first, so it says hi in its own chat. */
 export function introduction(spec: NewAgentSpec): string {
-  return `kiko just made you for the human: ${spec.description}. this is your own chat with them. say hi in a line, in your voice, and ask what to start with.`
+  return `yuki just made you for the human: ${spec.description}. this is your own chat with them. say hi in a line, in your voice, and ask what to start with.`
 }

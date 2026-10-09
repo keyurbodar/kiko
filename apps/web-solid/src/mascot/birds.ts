@@ -196,7 +196,9 @@ export function inkColor(b: BirdSpec): string {
 
 /** The body outline: a round snowball with a soft bumpy crown. */
 const BODY = "M26 70 C24 52 34 37 48 35 C52 31 57 30 62 33 C67 30 74 31 77 36 C90 41 96 54 94 70 C94 90 80 102 60 102 C40 102 26 90 26 70Z"
+/** The long thin tail, and the stubby one of the plush-toy look that small avatars use. */
 const TAIL = "M38 86 C30 93 20 102 11 110 C9.5 111.6 11.5 113.8 13.3 112.6 C23 106 33 98 44 91Z"
+const STUB = "M33 87 C27 91 21 95 15 98.5 C13.5 99.5 14.5 102 16.5 101.5 C23.5 99.5 30.5 96 37 92Z"
 const FEET = "M53 101 L51.5 105.5 M55 101.5 L55 106 M65 101.5 L65 106 M67 101 L68.5 105.5"
 const SPECKS = [[40, 48, 1], [47, 43, 0.8], [56, 40, 1], [66, 41, 0.8], [74, 44, 1], [82, 50, 0.8], [36, 58, 0.8], [86, 60, 1], [44, 52, 0.7], [78, 53, 0.7], [61, 46, 0.7]]
 const FRECKLES = [[41.5, 70.5], [44, 72.2], [46.5, 70.6], [77, 70.2], [79.2, 71.7], [81.2, 70.3]]
@@ -240,8 +242,11 @@ function eyes(kind: Eyes, ink: string): string {
 
 let uid = 0
 
-/** How a bird is drawn: on the ground with a soft shadow, or flat with no shading for the favicon. */
-export type DrawOptions = { ground?: boolean; flat?: boolean }
+/**
+ * How a bird is drawn: on the ground with a soft shadow, flat with no shading for the favicon,
+ * and with a stubby tail where a long one would read as a stick.
+ */
+export type DrawOptions = { ground?: boolean; flat?: boolean; stub?: boolean }
 
 /** The SVG markup for a bird, in a 120-unit box. Pure, so tests and scripts can call it. */
 export function birdSvg(b: BirdSpec, state: BirdState = "idle", opts: DrawOptions = {}): string {
@@ -285,7 +290,7 @@ export function birdSvg(b: BirdSpec, state: BirdState = "idle", opts: DrawOption
     defs +
     (opts.ground ? `<ellipse class="bird-shadow" cx="60" cy="108" rx="34" ry="5" fill="url(#${id}g)"/>` : "") +
     `<g class="bird-body">` +
-    `<path d="${TAIL}" fill="${f.tail}"/>` +
+    `<path d="${opts.stub ? STUB : TAIL}" fill="${f.tail}"/>` +
     `<path class="bird-feet" d="${FEET}" fill="none" stroke="${f.feet ?? "#8C7A6E"}" stroke-width="1.8" stroke-linecap="round"/>` +
     `<path d="${BODY}" fill="${f.body}"/>` +
     `<g clip-path="url(#${refs.clip})">${inside}</g>` +

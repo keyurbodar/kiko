@@ -263,7 +263,7 @@ test("every account has one pinned kiko chat that cannot be deleted or unpinned"
   await rpc(user, "ensureHome")
   await rpc(user, "ensureHome")
   const chats = await rpc(user, "listChats")
-  const home = chats.filter((c: { title: string }) => c.title === "kiko")
+  const home = chats.filter((c: { title: string }) => c.title === "Yuki")
   expect(home).toHaveLength(1)
   expect(home[0]).toMatchObject({ pinned: true, agents: ["kiko"] })
   expect(await rpc(user, "deleteChat", home[0].roomId)).toBe(false)

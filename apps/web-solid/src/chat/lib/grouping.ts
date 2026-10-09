@@ -1,4 +1,5 @@
 import { createSignal, type Setter } from "solid-js";
+import { slugOfHandle } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { startsTimeBreak } from "./time-label";
 
@@ -94,7 +95,8 @@ export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
  */
 export function addressee(message: ChatMessage, members: ReadonlySet<string>): string | undefined {
   if (message.sender !== "bot") return undefined;
-  const slug = /^\s*@([a-z0-9-]{1,32})(?![\w-])/i.exec(message.body)?.[1]?.toLowerCase();
+  const handle = /^\s*@([a-z0-9-]{1,32})(?![\w-])/i.exec(message.body)?.[1]?.toLowerCase();
+  const slug = handle === undefined ? undefined : slugOfHandle(handle);
   return slug !== undefined && slug !== message.botId && members.has(slug) ? slug : undefined;
 }
 

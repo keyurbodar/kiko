@@ -371,7 +371,7 @@ export default function ChatRoute() {
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
             /* A temporary chat is still "New chat"; its composer names who will read the message. */
-            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "Kiko" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
+            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "Yuki" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => {

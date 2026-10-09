@@ -315,7 +315,7 @@ function Foot(props: { section: SectionId | null }) {
 }
 
 /**
- * The compose button in the panel header. On chat it is a two-item menu: "New chat" (Kiko, the same command
+ * The compose button in the panel header. On chat it is a two-item menu: "New chat" (Yuki, the same command
  * as `Mod+N` and the bird in the top bar) and "New group", which opens the same temporary chat
  * with its "to:" search already open. It does not own the sidebar toggle; the rail icon and
  * `cmd+s` do.

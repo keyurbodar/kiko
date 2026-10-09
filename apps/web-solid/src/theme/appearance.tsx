@@ -70,7 +70,7 @@ function themeOptions(): ThemeOption[] {
     return modes.length === 1 ? ONLY[modes[0]!] : undefined
   }
   return [
-    { id: null, label: "Kiko", colors: monocodeColors(look().tint, now) },
+    { id: null, label: "Yuki", colors: monocodeColors(look().tint, now) },
     ...(palette ? [{ id: WALLPAPER_ID, label: "Match wallpaper", colors: wallpaperColors(palette, now) }] : []),
     ...BUILT_IN_THEMES.map((t) => ({ id: t.id, label: t.label, colors: colors(t) })),
     ...customThemes().map((t) => ({
@@ -160,7 +160,7 @@ function ColorGroups(): JSX.Element {
       </Show>
       <Group
         title="Color"
-        description={onStock() ? "Hue and saturation tint every surface. Lightness only moves the dark theme." : "These tint Kiko's own theme. Pick Kiko as the theme to see them."}
+        description={onStock() ? "Hue and saturation tint every surface. Lightness only moves the dark theme." : "These tint Yuki's own theme. Pick Yuki as the theme to see them."}
       >
         <Row label="Hue" onReset={tint().hue !== DEFAULT_LOOK.tint.hue ? () => updateLook({ tint: { ...tint(), hue: DEFAULT_LOOK.tint.hue } }) : undefined}>
           <Slider label="Hue" value={tint().hue} display={`${tint().hue}°`} min={TINT_RANGE.hue.min} max={TINT_RANGE.hue.max} onChange={(hue) => updateLook({ tint: { ...tint(), hue } })} />
@@ -269,7 +269,7 @@ function TranslucencyGroup(): JSX.Element {
       description={
         off()
           ? "Light mode always uses an opaque window, so these are off. Your dark-mode values are kept."
-          : "How much of the chat background shows through Kiko."
+          : "How much of the chat background shows through Yuki."
       }
     >
       <Row label="Sidebar opacity" description="Applies to the sidebar and the other glass panes." onReset={glass().opacity !== DEFAULT_GLASS.opacity ? () => setGlass({ opacity: DEFAULT_GLASS.opacity }) : undefined}>

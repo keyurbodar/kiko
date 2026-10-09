@@ -182,7 +182,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
         <MenuV2.Portal>
           <MenuV2.Content class="min-w-[240px] max-w-[300px]" data-component="member-add">
             <MenuV2.GroupLabel>Add to this chat</MenuV2.GroupLabel>
-            <Show when={candidates().length > 0} fallback={<p class="px-3 pb-2 text-[12px] text-weak">Every agent is here. Ask Kiko to make a new one.</p>}>
+            <Show when={candidates().length > 0} fallback={<p class="px-3 pb-2 text-[12px] text-weak">Every agent is here. Ask Yuki to make a new one.</p>}>
               <For each={candidates()}>
                 {(agent) => (
                   <MenuV2.Item data-action="add-member" data-slug={agent.slug} onSelect={() => useApp.memberOp(addOp(agent))}>

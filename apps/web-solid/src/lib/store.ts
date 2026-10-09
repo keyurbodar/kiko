@@ -33,7 +33,7 @@ import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import { newestMessages } from "../warm/messages"
 import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "./types"
-import { resumeChat, rosterChats } from "./chats"
+import { chatTitle, resumeChat, rosterChats } from "./chats"
 import { dmFor } from "@kiko/protocol"
 
 // The URLs. The one place a socket or file URL is built.
@@ -153,7 +153,7 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRo
   const typing = live.typing ?? []
   const row: RosterBot = {
     id: chat.roomId,
-    name: chat.title,
+    name: chatTitle(chat),
     preview: line.text,
     updatedAt: Math.max(chat.updatedAt, live.last?.at ?? 0),
     presence: typing.length ? "typing" : presence,

@@ -4,7 +4,7 @@
 // http, https, or mailto, or when it names a file (no scheme, or `file:`). The
 // client draws a file href as a chip that opens the files tab, never as a link.
 
-import { isAgentSlug, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@kiko/protocol"
+import { isAgentSlug, slugOfHandle, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@kiko/protocol"
 import { Lexer, type Token, type Tokens } from "marked"
 
 const SAFE_LINK = /^(https?|mailto|file):/i
@@ -122,12 +122,13 @@ function mentions(text: string): Inline[] {
 	const out: Inline[] = []
 	let last = 0
 	for (const m of text.matchAll(MENTION)) {
-		const slug = m[2]!
+		const handle = m[2]!
+		const slug = slugOfHandle(handle)
 		if (!isAgentSlug(slug)) continue
 		const start = m.index + m[1]!.length
 		if (start > last) out.push({ t: "text", text: text.slice(last, start) })
 		out.push({ t: "mention", slug })
-		last = start + 1 + slug.length
+		last = start + 1 + handle.length
 	}
 	if (last < text.length) out.push({ t: "text", text: text.slice(last) })
 	return out

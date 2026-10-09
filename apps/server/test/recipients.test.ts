@@ -38,6 +38,12 @@ describe("resolveRecipients", () => {
   test("a room with no members has no recipients", () => expect(resolveRecipients({ text: "hi" }, [])).toEqual([]))
 
   test("tags are found once each, in order", () => expect(tags("@cy @ada @cy, (@bob)")).toEqual(["cy", "ada", "bob"]))
+
+  test("@yuki reaches the chief, whose slug is kiko", () => {
+    const room = [{ slug: slug("kiko"), lead: true }, { slug: slug("ada"), lead: false }]
+    expect(resolveRecipients({ text: "@ada and @Yuki, look" }, room)).toEqual([slug("kiko"), slug("ada")])
+    expect(resolveRecipients({ text: "@ada look" }, room)).toEqual([slug("ada")])
+  })
 })
 
 const envelope = (seq: number, body: string, replyTo?: string): Envelope => ({

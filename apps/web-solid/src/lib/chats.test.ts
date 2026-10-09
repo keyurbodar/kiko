@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Chat, RoomId } from "@kiko/protocol"
-import { agentList, BUILTIN_AGENT, resumeChat, rosterChats } from "./chats"
+import { agentList, BUILTIN_AGENT, chatTitle, resumeChat, rosterChats } from "./chats"
 
 const chat = (roomId: string, over: Partial<Chat> = {}): Chat => ({
   roomId: roomId as RoomId,
@@ -47,4 +47,12 @@ describe("the chat to resume", () => {
 
 test("kiko is always among the agents, first", () => {
   expect(agentList([{ ...BUILTIN_AGENT }, { id: "a", name: "ada", slug: "ada" as never, prompt: "", model: "" }]).map((a) => a.id)).toEqual(["kiko", "a"])
+})
+
+describe("a chat's name", () => {
+  test.each([
+    ["the kiko chat from before the rename reads as Yuki", { kiko: true, title: "kiko" }, "Yuki"],
+    ["a kiko chat the person renamed keeps its name", { kiko: true, title: "Home base" }, "Home base"],
+    ["another chat called kiko keeps its name", { title: "kiko" }, "kiko"],
+  ] as const)("%s", (_name, over, want) => expect(chatTitle(chat("r1", over))).toBe(want))
 })

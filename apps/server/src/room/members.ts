@@ -1,4 +1,4 @@
-import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@kiko/protocol"
+import { type AgentSlug, type AgentState, CHIEF_HANDLE, type Member, type MemberOp, type MemberRefusal, type RoomEvent } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
 /** The built-in agent. It leads every room and cannot be removed. */
@@ -17,7 +17,7 @@ const MAX_NAME = 60
 const MAX_ROLE = 500
 const MAX_MODEL = 200
 /** `@all` addresses everyone (section 7.2), so no agent may hold the slug. */
-export const RESERVED_SLUGS: ReadonlySet<string> = new Set(["all"])
+export const RESERVED_SLUGS: ReadonlySet<string> = new Set(["all", CHIEF_HANDLE])
 
 /** One row of the table, as the room uses it. */
 export type MemberRow = {

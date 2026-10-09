@@ -40,7 +40,7 @@ export function createMemoryClient(options: MemoryClientOptions = {}): MemoryCli
 				const reqId = `m${++n}`
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "Kiko did not answer" })
+					resolve({ ok: false, error: "Yuki did not answer" })
 				}, timeoutMs)
 				const p: Pending = { op, resolve, timer }
 				pending.set(reqId, p)

@@ -5,5 +5,5 @@ import { BIRD_VIEWBOX, birdSvg, YUKI } from "./birds"
  * boot screen. `flat` drops the shading, so the favicon stays crisp at 16 px.
  */
 export function logoSvg(flat = false): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${BIRD_VIEWBOX}">${birdSvg(YUKI, "idle", { flat })}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${BIRD_VIEWBOX}">${birdSvg(YUKI, "idle", { flat, stub: flat })}</svg>`
 }

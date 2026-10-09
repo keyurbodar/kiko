@@ -41,6 +41,8 @@ import { applyTaskOp, RoomWorkspace, runCall, wakeEnvelope, type WorkspaceAnswer
 declare const process: { env: { NODE_ENV?: string } }
 
 export const DEFAULT_AGENT = "kiko" as AgentSlug
+/** The chief's display name. Its slug stays `kiko`; people read and type it as Yuki and `@yuki`. */
+const CHIEF_NAME = "Yuki"
 const DELIVERY_RETRY_MS = 2_000
 const WAKES_WAKEUP = "ws_wakes"
 const MAIL_WAKEUP = "mail"
@@ -63,7 +65,7 @@ const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
 	unknown: "no such agent.",
 	last: "the room needs at least one agent.",
 	reserved: "that handle is reserved. pick another.",
-	chief: "kiko leads this room and cannot be removed.",
+	chief: "yuki leads this room and cannot be removed.",
 }
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
@@ -144,14 +146,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (chat.agents?.length) {
 			const mine = await userStub(this.env.USER, home.userId).listAgents()
 			agents = chat.agents.flatMap((id): NewMember[] => {
-				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: "kiko" }]
+				if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }]
 				const a = mine.find((x) => x.id === id)
 				const role = tagline(a?.prompt ?? "")
 				return a ? [{ slug: a.slug, name: a.name, ...(role ? { role } : {}), model: a.model }] : []
 			})
 		}
-		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: DEFAULT_AGENT }]
-		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: "kiko" }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
+		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }]
+		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
 		await this.trySeedChatFile(home, chat.title)
 	}
@@ -174,7 +176,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
 		const home = this.home()
 		if (!home) return { ok: false, error: "this chat is not set up yet" }
-		if (slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
+		if (slug !== CHIEF) return { ok: false, error: "only yuki makes agents and groups" }
 		const checked = checkProposal(input, await userStub(this.env.USER, home.userId).listAgents())
 		if ("error" in checked) return { ok: false, error: checked.error }
 		const id = crypto.randomUUID().slice(0, 8)
@@ -200,7 +202,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	async createProposal(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
 		const home = this.home()
-		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
+		if (!home || slug !== CHIEF) return { ok: false, error: "only yuki makes agents and groups" }
 		id ||= this.newestProposal() ?? ""
 		const done = this.log.meta(`created:${id}`)
 		if (done) return { ok: true, text: done }
@@ -223,7 +225,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (proposal.kind === "agent") {
 				const agent = await make(proposal.agent)
 				const roomId = await user.openChat(agent.name, [agent.id])
-				const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko made @${agent.slug}. say hi in your new chat.`, goto: roomId })
+				const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `yuki made @${agent.slug}. say hi in your new chat.`, goto: roomId })
 				if (event) this.publish([event])
 				this.ctx.waitUntil(
 					roomStub(this.env.ROOM, home.userId, roomId)
@@ -245,7 +247,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 					await this.writeChatFile(CHIEF, proposal.chat)
 					this.log.setMeta("chat_file", "1")
 					await user.keepChat(home.roomId, proposal.title, [CHIEF, ...members.map((a) => a.id)])
-					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
+					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `yuki started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
 					if (event) this.publish([event])
 					text = `the group is ready, here in this chat, with ${members.map((a) => `@${a.slug}`).join(", ")}. /chat.md holds the plan. kick it off in a line or two.`
 				} else {
@@ -255,7 +257,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 							.startGroup(home.userId, proposal.chat)
 							.catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`)),
 					)
-					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title}. open it to begin.`, goto: roomId })
+					const { event } = this.log.addMessage({ from: { kind: "system", reason: "created" }, text: `yuki started ${proposal.title}. open it to begin.`, goto: roomId })
 					if (event) this.publish([event])
 					text = `the group ${proposal.title} is made, in its own chat. say one short line.`
 				}

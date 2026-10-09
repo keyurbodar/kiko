@@ -125,7 +125,7 @@ export function Chevron() {
  * ASSUMPTION: until teams (P6) a room stores no member record, and its one agent is `kiko` (the
  * server's DEFAULT_AGENT). The sidebar already falls back to that name, so the panel does too.
  */
-const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "Kiko", lead: true }
+const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "Yuki", lead: true }
 
 /** The open room's agents with pending changes applied, or the one default agent while the room lists none. */
 export function roomMembers(): readonly Member[] {

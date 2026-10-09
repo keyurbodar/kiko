@@ -711,7 +711,7 @@ export class UserDO extends DurableObject<Env> {
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = kikoChatRoom(this.sql)
     const owner = userIdFromObjectName(this.ctx.id.name)
-    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open kiko.", "limit")
+    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open yuki.", "limit")
   }
 
   takeTurn(): TurnAnswer {

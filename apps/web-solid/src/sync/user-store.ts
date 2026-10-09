@@ -386,14 +386,14 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 						resolve()
 					}, EXTENSION_TIMEOUT_MS / 3)
 				})
-				if (!socket?.send({ t: "extension", reqId, op })) return { ok: false, error: "You are offline. Try again when Kiko reconnects." }
+				if (!socket?.send({ t: "extension", reqId, op })) return { ok: false, error: "You are offline. Try again when Yuki reconnects." }
 			}
 			setState("extensionPatches", (list) => [...list, { reqId, op }])
 			return new Promise<ExtensionResult>((resolve) => {
 				const timer = setTimeout(() => {
 					answers.delete(reqId)
 					setState("extensionPatches", (list) => list.filter((p) => p.reqId !== reqId))
-					resolve({ ok: false, error: "Kiko did not answer. Try again." })
+					resolve({ ok: false, error: "Yuki did not answer. Try again." })
 				}, EXTENSION_TIMEOUT_MS)
 				answers.set(reqId, (result) => {
 					clearTimeout(timer)
