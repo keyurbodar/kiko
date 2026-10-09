@@ -1,0 +1,57 @@
+html, body { overflow: auto !important; height: auto !important; background: var(--bg); }
+#root { height: auto !important; }
+
+.bg-page { max-width: 1180px; margin: 0 auto; padding: 44px 24px 96px; color: var(--text); font-family: var(--font-family-sans); display: flex; flex-direction: column; gap: 52px; }
+.bg-page header h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+.bg-page header p { margin: 8px 0 0; color: var(--text-muted); }
+.bg-page header a { color: var(--accent); margin-left: 6px; }
+.bg-label { display: grid; grid-template-columns: 30px 1fr; column-gap: 12px; margin-bottom: 12px; }
+.bg-label span { grid-row: span 2; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--tint); font-weight: 600; }
+.bg-label h2 { margin: 2px 0 2px; font-size: 18px; font-weight: 600; }
+.bg-label h2 em { font-style: normal; color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+.bg-label p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+/* A pane the size of a real chat, so each background is judged at full size. */
+.bg-pane { position: relative; height: 620px; border-radius: 14px; overflow: hidden; background: var(--bg); box-shadow: inset 0 0 0 1px var(--hairline); }
+.bg-fill, .bg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.bg-canvas { color: var(--text); }
+
+.bg-hero { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding-bottom: 40px; }
+.bg-hero h2 { margin: 6px 0 10px; font-size: 22px; font-weight: 500; letter-spacing: -0.015em; }
+.bg-composer { width: min(680px, 86%); height: 92px; border-radius: 16px; padding: 14px 16px; font-size: 14px; color: var(--text-faint); background: color-mix(in oklab, var(--text) 4.5%, var(--bg)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 11%, transparent), 0 12px 32px oklch(0% 0 none / 0.22); }
+:root[data-appearance="light"] .bg-composer { background: color-mix(in oklab, #ffffff 70%, var(--bg)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 11%, transparent), 0 10px 30px color-mix(in oklab, var(--text) 8%, transparent); }
+
+/* 1. Seigaiha */
+.seigaiha { stroke: color-mix(in oklab, var(--text) 9%, transparent); stroke-width: 1px; fill: var(--bg); -webkit-mask-image: radial-gradient(75% 70% at 50% 45%, #000 20%, transparent 95%); mask-image: radial-gradient(75% 70% at 50% 45%, #000 20%, transparent 95%); }
+.seigaiha circle { fill: var(--bg); }
+.seigaiha-light { background: radial-gradient(28% 40% at 50% 50%, color-mix(in oklab, #b9cfe6 14%, transparent), transparent 70%); mix-blend-mode: screen; }
+:root[data-appearance="light"] .seigaiha-light { background: radial-gradient(28% 40% at 50% 50%, color-mix(in oklab, #ffffff 70%, transparent), transparent 70%); mix-blend-mode: normal; }
+
+/* 2. Sumi */
+.paper-grain { opacity: 0.18; mix-blend-mode: overlay; }
+
+/* 3. Washi */
+.washi { opacity: 0.5; mix-blend-mode: soft-light; }
+:root[data-appearance="light"] .washi { mix-blend-mode: multiply; opacity: 0.25; }
+
+/* 4. Glow */
+.glow { filter: blur(70px); opacity: 0.55; }
+:root[data-appearance="light"] .glow { opacity: 0.4; }
+.glow span { position: absolute; border-radius: 50%; }
+.glow .g1 { width: 46%; height: 60%; left: 8%; top: 6%; background: #3d5a99; }
+.glow .g2 { width: 38%; height: 52%; right: 6%; top: 10%; background: #e8a2b3; }
+.glow .g3 { width: 40%; height: 46%; left: 30%; bottom: -6%; background: #d9a94e; }
+.glow .g4 { width: 30%; height: 40%; right: 18%; bottom: 4%; background: #8fae7c; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .seigaiha-light { animation: bg-moon 16s ease-in-out infinite alternate; }
+  .glow .g1 { animation: bg-drift-a 22s ease-in-out infinite alternate; }
+  .glow .g2 { animation: bg-drift-b 26s ease-in-out infinite alternate; }
+  .glow .g3 { animation: bg-drift-c 30s ease-in-out infinite alternate; }
+  .glow .g4 { animation: bg-drift-a 24s ease-in-out infinite alternate-reverse; }
+}
+
+@keyframes bg-moon { from { translate: -30% -6%; } to { translate: 30% 6%; } }
+@keyframes bg-drift-a { from { translate: 0 0; } to { translate: 14% 10%; } }
+@keyframes bg-drift-b { from { translate: 0 0; } to { translate: -16% 12%; } }
+@keyframes bg-drift-c { from { translate: 0 0; } to { translate: 10% -14%; } }
