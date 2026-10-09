@@ -1,6 +1,6 @@
 /* Chat composer, after monocode's MonoComposer.tsx: one 8px-cornered glass box with a hairline
  * that darkens on focus. The attachment strip sits on top, wrapping. Below it is one row: a
- * 26px square attach button, the field, and a 26px square send button.
+ * 26px square attach button, the field, a 26px square emoji button, and a 26px square send button.
  *
  * Every selector is scoped under `.composer-dock`. The names here (`.composer-row`,
  * `.attachment-*`, `.reply-bar*`) are generic enough to collide with the sidebar and the
@@ -55,9 +55,10 @@
     0 2px 6px color-mix(in oklab, var(--text) 6%, transparent);
 }
 
-/* ===== The two buttons -------------------------------------------------- */
+/* ===== The buttons -------------------------------------------------- */
 
 .composer-dock .composer-attach,
+.composer-dock .composer-emoji,
 .composer-dock .composer-send {
   display: flex;
   width: 26px;
@@ -72,22 +73,26 @@
 }
 
 .composer-dock .composer-attach svg,
+.composer-dock .composer-emoji svg,
 .composer-dock .composer-send svg {
   width: 14px;
   height: 14px;
 }
 
-.composer-dock .composer-attach {
+.composer-dock .composer-attach,
+.composer-dock .composer-emoji {
   background: color-mix(in oklab, var(--text) 8%, transparent);
   color: color-mix(in oklab, var(--text) 55%, transparent);
 }
 
-.composer-dock .composer-attach:disabled {
+.composer-dock .composer-attach:disabled,
+.composer-dock .composer-emoji:disabled {
   opacity: 0.35;
 }
 
 @media (hover: hover) {
-  .composer-dock .composer-attach:hover:not(:disabled) {
+  .composer-dock .composer-attach:hover:not(:disabled),
+  .composer-dock .composer-emoji:hover:not(:disabled) {
     background: color-mix(in oklab, var(--text) 12%, transparent);
     color: var(--text);
   }

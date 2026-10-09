@@ -17,7 +17,9 @@ The composer is the dock below the transcript: where a reader types, what they s
 
 - Open `http://localhost:<port>/` and click the field at the bottom of the conversation.
 - Type a message and press `Enter` to send it.
-- Swipe a message leftward, or click a reply's quote, and the reply bar appears above the input; press `cancel reply`, or just send, to move on.
+- Hover a message and press its reply arrow, or choose Reply in its menu, and the reply bar appears above the input; press `cancel reply`, or just send, to move on.
+- Press the smiley button left of send to open the emoji picker; the pick goes in at the caret.
+- Type `:` and two letters (at the start or after a space) to get a list of matching shortcodes. Arrows move, Enter or Tab inserts, Escape closes. Enter never sends while the list is open.
 - Scroll up through the history and a down-arrow circle appears above the composer's right edge; click it to return to the newest message.
 
 ## Driving it with ego-browser
@@ -55,10 +57,10 @@ Selectors this feature relies on:
   - **Assert the new row is the last one and on the right.** `lastSide` is `"user"`, and the bubble's `data-align` is `"end"`. A send that lands on the left, or that appends above the last row, is a defect.
   - The transcript is virtualized, so `rowCount` is the **viewport**, not the total. Never assert a send by a row count; assert by the new row's own text and side.
 
-- **Arm a reply and read the bar.** Observe: a swipe on a message raises a bar naming who is being replied to and quoting them.
-  - Load `/`, then dispatch the trackpad swipe at the first row: `page.evaluate(async () => { const row = document.querySelector('[data-component="chat-swipe-row"]'); for (let i = 0; i < 6; i++) { row.dispatchEvent(new WheelEvent("wheel", { deltaX: -40, deltaY: 0, bubbles: true, cancelable: true })); await new Promise((r) => setTimeout(r, 20)); } })`, and allow ~1.5s for the snap-back spring.
+- **Arm a reply and read the bar.** Observe: the reply hover action on a message raises a bar naming who is being replied to and quoting them.
+  - Load `/`, hover a row's `[data-slot="bubble-content"]`, then click that row's `[data-action="reply"]`.
   - Then run `page.evaluate(() => ({ shellReplyTarget: document.querySelector('[data-component="chat-shell"]').getAttribute("data-reply-target"), replying: [...document.querySelectorAll('[data-component="chat-row"][data-replying]')].map((r) => r.dataset.messageId), replyBar: document.querySelectorAll('[data-component="composer-reply-bar"]').length, barText: document.querySelector('[data-component="composer-reply-bar"]')?.textContent?.trim(), barButtons: [...document.querySelectorAll('[data-component="composer-reply-bar"] button')].map((b) => b.getAttribute("aria-label") || b.textContent.trim()) }))`.
-  - **Measured:** the pane's `data-reply-target` names the swiped message, the same row carries `data-replying`, and the bar renders with the quoted sender's name followed by the quoted text, plus two controls — the quote itself (the jump control) and a button labelled `cancel reply`.
+  - **Measured:** the pane's `data-reply-target` names that message, the same row carries `data-replying`, and the bar renders with the quoted sender's name followed by the quoted text, plus two controls — the quote itself (the jump control) and a button labelled `cancel reply`.
   - **The bar names the QUOTED sender, and the armed row paints nothing.** `data-replying` is state a probe reads, not a style hook: there is deliberately no ring on the armed row, so a `box-shadow` other than `none` on its `[data-slot="bubble-content"]` is a regression. See [Chat interactions](./chat-interactions.md).
   - Press `cancel reply` and re-read: the bar is gone and `data-reply-target` is back to `null`. **Assert the bar disappears, not that the row changed** — the row never changed.
 
@@ -81,9 +83,14 @@ Selectors this feature relies on:
 - **`page.fill` will not work on it.** The field is not a form control; it is driven by keyboard input into a contenteditable node. Use click-then-type, and read the text back with `textContent`.
 - **The send button is labelled `Send` (capital S) and there is a second unlabelled button next to it.** The composer is not part of the lowercase-chrome pass, which covers the transcript's own labels; a recipe that asserts every button in the app is lowercase will catch the composer's own `aria-label` and report a real thing that is out of scope. Scope the lowercase assertion to the transcript surfaces it names.
 - **The scroll-down control reads `data-scrolled` on the dock, not its own visibility.** It is rendered by a conditional in the composed app, so the honest assertion is its **presence in the DOM** — `document.querySelectorAll("[data-component='composer-scroll-down']").length` — going `0 → 1 → 0`. Do not assert a computed `display`, because the element does not exist at all when it is hidden.
+- **Emoji shortcodes and the emoji button.** Observe: `:lo` lists shortcodes with the typed part washed in accent; ArrowDown then Enter inserts that emoji in place of `:lo` and sends nothing; the smiley button's picker inserts at the caret.
+  - Click `[data-component="prompt-input"]`, type `so :lo`, and read `[data-component="emoji-shortcode"]` rows: the first is `:lol:` (prefix matches first) and the list is at most 50. Press ArrowDown, then Enter: the input reads `so 😭` and no message was sent. Type ` :fire` and Tab: `🔥` (an exact shortcode ranks first).
+  - Put the caret mid-text, click `[data-action="composer-emoji"]`, then a cell in `[data-component="emoji-picker"]`: the emoji lands at that caret and focus returns to the input.
+  - Measured 2026-10-09 with agent-browser at 1280x820: all of the above held.
+
 - **A written `scrollTop` is not a user scroll.** The dock's `data-scrolled` is derived from the transcript's reported scroll state, so move the scroller with `page.mouse.wheel` over `[data-component="chat-scroll"]` when the recipe is about that state, and use a direct write only when you are deliberately testing the far-from-bottom condition. Confirm with `data-range` that the transcript actually moved.
 - **The reply bar's jump control's accessible name is its own quoted text, not a fixed label.** Measured: the two buttons in the bar report the quoted body as one name and `cancel reply` as the other. **Locate the cancel button by `aria-label="cancel reply"`, not by position or by `text`**, because the other button's text is the quote and changes per message.
 - **An armed reply paints nothing on the row.** `data-replying` is state a probe reads, not a style hook, and the reply bar is the whole indication. A ring or any `box-shadow` on the armed row's content is a regression.
-- **The transcript is virtualized, so a row handle can be detached between a swipe and the read.** Re-query `[data-component="chat-row"][data-replying]` immediately before reading it, and never assert a send by a row count.
+- **The transcript is virtualized, so a row handle can be detached between the click and the read.** Re-query `[data-component="chat-row"][data-replying]` immediately before reading it, and never assert a send by a row count.
 - **A send while a reply is armed is a different store mutation from a plain send.** `appendReply` carries the quote; `appendMessage` drops it. Asserting only that the input cleared passes against both, and would have passed against the bug where the quote vanished from both surfaces.
 - **The attachment input is created on demand.** Measured `0` file inputs on a fresh page, so do not look for it up front. See [Message media and the viewer](./chat-images.md) for the media path, which does not depend on it.

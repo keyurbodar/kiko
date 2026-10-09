@@ -10,6 +10,7 @@ import { MessageDocuments } from "./Documents"
 import { MessageMedia } from "./Media"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
+import { MessageActions } from "./MessageActions"
 import { RichText } from "./RichText"
 import { WebPageCard } from "./WebPageCard"
 /* The parsed tree's renderer loads after first paint; until it lands a bubble shows its plain text. */
@@ -62,6 +63,10 @@ export function MessageRow(props: {
   onOpenReplyTarget: (messageId: string) => void
   onContextMenu?: (event: MouseEvent) => void
   onReact?: (emoji: string) => void
+  /** Arms a reply to this message, from the hover actions. */
+  onReply?: () => void
+  /** Opens the message menu at the hover actions' "…" button. */
+  onMore?: (anchor: HTMLElement) => void
   onOpenMedia?: (items: readonly MediaItem[], index: number) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
@@ -102,7 +107,7 @@ export function MessageRow(props: {
     <div
       class={cn(
         "group/row relative mx-auto flex w-full max-w-(--content-max-w) flex-col items-start",
-        "px-4 pb-(--row-gap) contain-layout touch-pan-y",
+        "px-4 pb-(--row-gap) contain-layout",
         props.hasRunGapBefore ? "pt-(--run-gap)" : "pt-(--row-gap)",
         grouped() && GROUP_GUTTER,
         props.class,
@@ -228,6 +233,14 @@ export function MessageRow(props: {
           side={props.message.sender}
           onToggle={props.onReact}
         />
+        <Show when={props.onReact && props.onReply && props.onMore}>
+          <MessageActions
+            side={props.message.sender}
+            onReact={(emoji) => props.onReact!(emoji)}
+            onReply={() => props.onReply!()}
+            onMore={(anchor) => props.onMore!(anchor)}
+          />
+        </Show>
       </Bubble>
       </Show>
       {/* The link card is its own block under the bubble, on the sender's side, as in kat. */}

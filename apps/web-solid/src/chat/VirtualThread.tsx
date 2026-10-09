@@ -25,7 +25,6 @@ import { SystemMessage } from "./SystemMessage"
 import { AgentThread } from "./AgentThread"
 import { MentionLookup } from "./ui/Mention"
 import { EmptyState } from "./ui/EmptyState"
-import { SwipeToReply } from "./ui/SwipeToReply"
 import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
@@ -101,10 +100,8 @@ type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
 /**
- * The scroller. `touch-pan-y` hands the vertical axis to the row track and
- * leaves the horizontal axis to the swipe-to-reply gesture, which is the only
- * reason a transcript has both. `overscroll-y-contain` stops a flick at either
- * end from chaining into the shell behind it.
+ * The scroller. `overscroll-y-contain` stops a flick at either end from
+ * chaining into the shell behind it.
  *
  * The scrollbar is deliberately NOT restated here. `kat.css` ships the app-wide
  * thin scrollbar — `scrollbar-width: thin` on `*`, a 4px transparent
@@ -114,7 +111,7 @@ const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
  * product the moment either changed.
  */
 const SCROLLER_CLASS =
-  "relative flex min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-y-contain"
+  "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
 
 /**
  * The centred measure. `pt-12` is the 48px top inset: rows carry their own
@@ -765,7 +762,7 @@ export function VirtualThread(props: {
   const viewer = createMediaViewer()
 
   /**
-   * One message row: the swipe wrapper, the bubble, and the menu that belongs
+   * One message row: the bubble, its hover actions, and the menu that belongs
    * to that specific message.
    *
    * The menu is per row rather than one menu for the transcript because it acts
@@ -796,34 +793,37 @@ export function VirtualThread(props: {
     })
     return (
       <>
-        <SwipeToReply onCommit={() => aimReplyAt(message.id)}>
-          <MessageRow
-            message={message}
-            bot={props.botById(message.botId)}
-            parent={props.replyParent(message.replyToId)}
-            parentBot={props.botById(props.replyParent(message.replyToId)?.botId)}
-            isRunStart={item.isRunStart}
-            isRunEnd={item.isRunEnd}
-            runKey={item.runKey}
-            hasRunGapBefore={item.hasRunGapBefore}
-            group={props.groupChat}
-            class={fresh.has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined}
-            highlighted={landed() === message.id}
-            replying={activeReply() === message.id}
-            /*
-             * Classified here, at the one place a row is built. The helper was
-             * imported and then never called, so `jumboClass` was always
-             * undefined and every emoji-only message drew an ordinary bubble:
-             * the jumbo sizes and the bare `ghost` variant were both in
-             * `MessageRow` and neither could ever be reached.
-             */
-            jumboClass={jumboEmojiClass(message.body)}
-            onOpenReplyTarget={jumpToMessage}
-            onReact={(emoji) => props.onReact?.(message.id, emoji)}
-            onContextMenu={menu.onContextMenu}
-            onOpenMedia={(media, index) => viewer.open(media, index, message.body)}
-          />
-        </SwipeToReply>
+        <MessageRow
+          message={message}
+          bot={props.botById(message.botId)}
+          parent={props.replyParent(message.replyToId)}
+          parentBot={props.botById(props.replyParent(message.replyToId)?.botId)}
+          isRunStart={item.isRunStart}
+          isRunEnd={item.isRunEnd}
+          runKey={item.runKey}
+          hasRunGapBefore={item.hasRunGapBefore}
+          group={props.groupChat}
+          class={fresh.has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined}
+          highlighted={landed() === message.id}
+          replying={activeReply() === message.id}
+          /*
+           * Classified here, at the one place a row is built. The helper was
+           * imported and then never called, so `jumboClass` was always
+           * undefined and every emoji-only message drew an ordinary bubble:
+           * the jumbo sizes and the bare `ghost` variant were both in
+           * `MessageRow` and neither could ever be reached.
+           */
+          jumboClass={jumboEmojiClass(message.body)}
+          onOpenReplyTarget={jumpToMessage}
+          onReact={(emoji) => props.onReact?.(message.id, emoji)}
+          onReply={() => aimReplyAt(message.id)}
+          onMore={(anchor) => {
+            const box = anchor.getBoundingClientRect()
+            menu.openAt(message.id, box.left, box.bottom)
+          }}
+          onContextMenu={menu.onContextMenu}
+          onOpenMedia={(media, index) => viewer.open(media, index, message.body)}
+        />
         {menu.view}
       </>
     )

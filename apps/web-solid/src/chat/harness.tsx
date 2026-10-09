@@ -47,7 +47,7 @@ const [unknownFlag, setUnknownFlag] = createSignal(
 const [typingNames, setTypingNames] = createSignal<readonly string[]>(
   params.get("typing") ? params.get("typing")!.split(",").filter(Boolean) : [],
 );
-/** The message the reply gesture is aimed at; null means "not swiping". */
+/** The message the reply is aimed at; null means none. */
 const [replyTargetId, setReplyTargetId] = createSignal<string | null>(null);
 /** Set by the menu/picker openers so a probe can tell a real open from a no-op. */
 const [openOverlay, setOpenOverlay] = createSignal<"menu" | "picker" | null>(null);
@@ -295,7 +295,7 @@ function openMenu(messageId: string): boolean {
 /**
  * Poll a predicate across frames until it holds, or the budget is spent.
  *
- * The picker cannot be checked synchronously: it is a lazily imported web
+ * The picker cannot be checked synchronously: it is a lazily imported
  * component that then loads its own database, so the panel appears a beat after
  * the button is pressed. A probe that read the DOM on the same tick would report
  * a working picker as missing, which is worse than no probe at all.
@@ -315,14 +315,9 @@ async function waitFor(predicate: () => boolean, budgetMs: number): Promise<bool
  * Open the emoji picker on a message.
  *
  * Same principle as `openMenu`: the events a reader produces, on the controls
- * they actually press. A bubble carries no add-reaction button, and kat has none
- * either — reactions are reached through the message menu — so the route is a
- * right-click and then the menu's "more emoji" button.
- *
- * This used to dispatch clicks at `[data-component='chat-add-reaction']` and
- * fall back to the row itself. Neither the handle nor the control exists, so it
- * clicked the bubble and returned false in every state: a probe that could never
- * pass. It is async now for the reason `waitFor` gives.
+ * they actually press. The route is a right-click and then the menu's "more
+ * emoji" button, because the menu is the one route that touch has too. It is
+ * async for the reason `waitFor` gives.
  */
 async function openPicker(messageId: string): Promise<boolean> {
   const row = rowFor(messageId);
@@ -331,7 +326,7 @@ async function openPicker(messageId: string): Promise<boolean> {
   const more = q<HTMLElement>(".chat-menu__more");
   if (more === null) return false;
   more.click();
-  const opened = await waitFor(() => q("emoji-picker") !== null, 5000);
+  const opened = await waitFor(() => q("[data-component='emoji-picker']") !== null, 5000);
   setOpenOverlay(opened ? "picker" : null);
   return opened;
 }

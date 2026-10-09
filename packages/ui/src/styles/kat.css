@@ -1137,6 +1137,8 @@
   --font-mono: var(--font-family-mono);
   --default-font-family: var(--font-family-sans);
   --default-mono-family: var(--font-family-mono);
+  /* Emoji are the platform's own glyphs. `font-emoji` sets them in its color font. */
+  --font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 
   /* The radius roles. This block is emitted as a real `:root` rule, so these
    * ARE the runtime `--radius-*` vars; `rounded-sm` / `rounded-bubble` read

@@ -1,6 +1,5 @@
 import { For, Show } from "solid-js"
 import { cn } from "../../lib/cn"
-import { Emoji } from "../../lib/emoji"
 import type { Reaction } from "../../lib/types"
 import { BubbleReactions } from "./bubble"
 
@@ -77,7 +76,7 @@ export function ReactionStack(props: ReactionStackProps) {
               aria-label={`${reaction.emoji} ${reaction.count}`}
               onClick={props.onToggle && (() => props.onToggle!(reaction.emoji))}
             >
-              <Emoji emoji={reaction.emoji} class="size-[18px] align-middle" eager />
+              <span class="font-emoji text-[17px] leading-none">{reaction.emoji}</span>
               <Show when={reaction.count > 1}>
                 <span class="ml-[3px] text-xs font-medium tabular-nums">{reaction.count}</span>
               </Show>

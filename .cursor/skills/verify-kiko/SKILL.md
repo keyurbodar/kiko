@@ -236,7 +236,7 @@ There is **no `now()` probe.** An earlier version of this map listed one; it doe
 
 `setState`, `setTyping` and `setReplyTarget` return the value they resolved to, so a caller can assert the result in the same round. `openMenu`, `openPicker`, `openMedia` and `closeMedia` return a boolean saying whether a dialog actually opened — read it, because a stale overlay left on screen makes a no-op look like an open menu. `openMenu` returning `true` is an **observation, not a guarantee**: it tests `[role='menu'], [data-component*='menu']`, which matches the menu's `menu-v2-content`. Measured on `today`: `openMenu` returns `true` for `a-35`, `a-36` and `a-37` with `probe().overlay === "menu"`, but `[data-component="chat-menu"]` is `0` even while the menu is open — see the selector note below.
 
-`openPicker` returned `false` with `overlay: null` and `emoji-picker` absent on every message tried in the `today` state. It looks for `[data-component='chat-add-reaction']`, then `.chat-add-reaction`, then falls back to the row — and **none of the three is rendered by `MessageRow`**, so the fallback click lands on a row that has no add-reaction control. The picker is reachable by hand: open the menu, then click `.chat-menu__more`. Report an `openPicker` of `false` as a finding about the probe, not about the picker.
+`openPicker` opens the menu, clicks `.chat-menu__more`, and waits up to 5s for `[data-component='emoji-picker']`. The picker is kiko's own component in the light DOM, drawing system emoji glyphs. On a pointer device the same picker is also reached from a row's hover actions: hover `[data-action="react"]`, then click the popover's `[data-action="more-emoji"]`.
 
 The harness also takes the state in the URL, which is the cheaper way to start a round: `http://localhost:<port>/src/chat/harness.html?state=unread`. An unknown slug falls back to `today` **and says so in the page's own state readout** — `[data-component="harness-state"]` renders `unknown state: <slug>` — so a typo is visible on the page rather than silent. Read `probe().state` and `[data-component="harness-state"]` before measuring. `?typing=ada,grace` starts a round with those senders already typing.
 
@@ -309,7 +309,9 @@ These were read out of a live page on both entry points, not inferred from sourc
 - `loc=css:[data-component="chat-masked-link"]` — a homograph host: text kept, `href` dropped, `role="link"`, and a confirm dialog on click.
 - `loc=css:[data-component="chat-document"]` — one file attachment row in a bubble, inside `[data-component="chat-documents"]`.
 - `loc=css:[data-component="chat-media-time"]` — the floating time pill over a media-only message. There is **no `chat-row-time`** and no hover-revealed timestamp: text bubbles show no time at all.
-- `loc=css:[data-component="chat-swipe-row"]` / `chat-swipe-indicator` — the swipe wrapper (carrying `data-swiping` and writing `--swipe-x`) and the arrow revealed during the gesture. There is **no `data-swipe-side`**.
+- `loc=css:[data-component="chat-actions"]` — a row's hover actions (`[data-action="react"]`, `reply`, `more`), shown on row hover or focus on a pointer device only. There is no swipe to reply.
+- `loc=css:[data-component="reaction-popover"]` — the quick reactions the react button opens; `[data-action="more-emoji"]` swaps in `[data-component="emoji-picker"]`.
+- `loc=css:[data-component="emoji-shortcodes"]` — the composer's `:shortcode` list, one `[data-component="emoji-shortcode"]` row per match.
 - `loc=css:[data-component="chat-typing-row"]` / `chat-typing-bubble` / `chat-typing-dot` — the in-list typing row and its three dots.
 - `loc=css:[data-component="chat-fades"]` / `chat-fade-top` / `chat-fade-bottom` — the scrims on the stage.
 - `loc=css:[data-component="chat-jump-latest"]` / `chat-jump` — the jump-to-latest control, carrying `data-visible` and `data-arrivals`.

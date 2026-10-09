@@ -32,8 +32,8 @@ function Node(props: { node: RichNode }): JSX.Element {
 }
 
 /**
- * Renders the tree the server parsed. No markdown parser and no innerHTML. Text runs draw
- * their emoji as artwork and a mention as the member's chip, both inline.
+ * Renders the tree the server parsed. No markdown parser and no innerHTML. Text runs set
+ * their emoji in the emoji font and a mention as the member's chip, both inline.
  */
 export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
   return (

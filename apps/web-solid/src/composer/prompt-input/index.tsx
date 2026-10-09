@@ -6,6 +6,7 @@ import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { identityLook } from "../../lib/identity"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 import type { PromptInputV2Interaction } from "./interaction"
+import { createComposerEmoji, createShortcodes } from "../emoji"
 
 export type {
   PromptInputV2Attachment,
@@ -48,6 +49,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
     if (!editor || !window.getSelection()?.isCollapsed) return
     props.controller.onCursor(promptInputV2Cursor(editor))
   }
+  const shortcodes = createShortcodes(() => editor)
+  const emoji = createComposerEmoji(() => editor, () => !!props.disabled || !!props.readOnly)
 
   // The first attachment or popover should not wait on the network.
   onMount(() => {
@@ -88,6 +91,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
           if (files.length > 0) props.controller.addAttachments(files)
         }}
       />
+      {shortcodes.view}
+      {emoji.view}
       <Show when={state.popover.type !== "closed"}>
         <Suspense>
           <PromptInputV2Popover
@@ -192,8 +197,10 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 localInput = true
                 setBlank(!event.currentTarget.textContent)
                 props.controller.onInput(prompt.map((part) => part.content).join(""), [...prompt, ...images], cursor)
+                shortcodes.sync()
               }}
               onKeyDown={(event) => {
+                if (shortcodes.onKeyDown(event)) return
                 if (props.controller.onKeyDown(event)) return
                 if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
                   event.preventDefault()
@@ -201,14 +208,17 @@ export function PromptInputV2(props: PromptInputV2Props) {
                   props.controller.submit()
                 }
               }}
-              onKeyUp={() => {
+              onKeyUp={(event) => {
                 syncBlank()
                 updateCursor()
+                if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home" || event.key === "End") shortcodes.sync()
               }}
               onPointerUp={() => {
                 syncBlank()
                 updateCursor()
+                shortcodes.sync()
               }}
+              onBlur={shortcodes.close}
               onPaste={props.controller.onPaste}
               onFocus={() => props.controller.dispatch({ type: "focus.editor" })}
             />
@@ -218,6 +228,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
               </div>
             </Show>
           </div>
+
+          {emoji.trigger}
 
           <PromptInputV2SubmitButton
             mode={state.mode}

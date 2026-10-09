@@ -80,6 +80,6 @@ File-type and provider icons stay out of the sprite. They are data, chosen by na
 
 ## Known gaps
 
-- Component files still carry `oklch(from var(--accent) ...)` mixes: `sidebar/sidebar.tsx`, `sidebar/chat-panel.tsx`, `sidebar/sidebar.css`, `composer/composer.css`, `chat/ui/DateChip.tsx`, `chat/ui/MessageMenu.tsx`, `chat/ui/EmojiPicker.tsx`, `chat/ui/WebPageCard.tsx`, `chat/ui/Quote.tsx`. Use `--accent-wash`, `--accent-wash-strong`, `--accent-wash-faint`, `--text-wash`, `--danger-wash` instead.
+- Component files still carry `oklch(from var(--accent) ...)` mixes: `sidebar/sidebar.tsx`, `sidebar/chat-panel.tsx`, `sidebar/sidebar.css`, `composer/composer.css`, `chat/ui/DateChip.tsx`, `chat/ui/MessageMenu.tsx`, `chat/ui/WebPageCard.tsx`, `chat/ui/Quote.tsx`. Use `--accent-wash`, `--accent-wash-strong`, `--accent-wash-faint`, `--text-wash`, `--danger-wash` instead.
 - `chat/media/mediaViewer.css` holds literal `rgb()` values for the viewer overlay. Use `--scrim` and the wash tokens.
 - `lib/fixtures.ts` holds four hex avatar colors.

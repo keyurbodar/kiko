@@ -5,13 +5,16 @@ import { CopyIcon, EditIcon, ExternalIcon, LinkIcon, PinIcon, PlusIcon, ReplyIco
 import { createSignal, For, lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
-import { Emoji } from "../../lib/emoji"
+import { recentEmoji, recordRecent, warmEmoji } from "../../lib/emoji-data"
 import { draftLinkUrl } from "../../composer/link-draft"
 
-/* The picker wrapper loads when a menu opens, not with the transcript. */
+/* The picker loads when a menu opens, not with the transcript. */
 const pickerModule = () => import("./EmojiPicker")
 const EmojiPicker = lazy(() => pickerModule().then((m) => ({ default: m.EmojiPicker })))
-const preloadEmojiPicker = () => void pickerModule().then((m) => m.preloadEmojiPicker())
+const preloadEmojiPicker = () => {
+  void pickerModule()
+  warmEmoji()
+}
 
 export interface MessageMenuOptions {
   message: ChatMessage
@@ -42,25 +45,14 @@ export interface MessageMenuProps extends MessageMenuOptions {
 export interface MessageMenuController {
   /** Wire this to Bubble's `onContextMenu`. */
   onContextMenu: (event: MouseEvent) => void
+  /** Opens the menu for a message at a point, as the hover actions' "…" does. */
+  openAt: (messageId: string, x: number, y: number) => void
   /** Render this once, anywhere in the tree. */
   view: JSX.Element
 }
 
-/**
- * The five reactions offered without opening the picker, as literals.
- *
- * They used to be resolved out of an emojibase build by shortcode. Nothing
- * needs that any more: these five are a fixed set of characters, and the
- * picker's own shortcodes come from the element's data. So the database, its
- * search index and both emojibase dependencies are gone.
- */
-const QUICK_REACTIONS: readonly { readonly emoji: string; readonly label: string }[] = [
-  { emoji: "👍", label: "Thumbs up" },
-  { emoji: "❤️", label: "Heart" },
-  { emoji: "😂", label: "Joy" },
-  { emoji: "😮", label: "Surprised" },
-  { emoji: "🙏", label: "Folded hands" },
-]
+/** The menu's quick strip: the five most recent reactions, as the hover popover shows them. */
+const QUICK_COUNT = 5
 
 /**
  * The message menu, identical for the viewer's and the agent's messages apart
@@ -126,6 +118,8 @@ export function MessageMenu(props: MessageMenuProps) {
             // quiet leading glyph. The frame and its glass come from the shared menu
             // surface, so this only sets the rhythm.
             "chat-menu min-w-[184px] rounded-xl p-1 text-text",
+            // The picker brings its own 20px panel, so the menu gives up its frame.
+            pickerOpen() && "rounded-[20px] p-0",
             // The row itself is `data-component`, NOT `data-slot` - only the inner
             // content span is a slot.
             "[&_[data-component=menu-v2-item]]:h-[30px]",
@@ -140,8 +134,8 @@ export function MessageMenu(props: MessageMenuProps) {
           fallback={
             <>
               <div class="chat-menu__quick flex items-center gap-0.5 px-0.5 pt-0.5 pb-1">
-                <For each={QUICK_REACTIONS}>
-                  {(entry) => (
+                <For each={recentEmoji().slice(0, QUICK_COUNT)}>
+                  {(emoji) => (
                     <button
                       type="button"
                       class={cn(
@@ -150,18 +144,21 @@ export function MessageMenu(props: MessageMenuProps) {
                         // treated as one property and the size utility was dropped,
                         // leaving every emoji at the inherited 14px. Preflight
                         // already gives a button `color: inherit`.
-                        "chat-menu__emoji flex size-8 items-center justify-center rounded-lg p-0 text-[19px] leading-none",
+                        "chat-menu__emoji flex size-8 items-center justify-center rounded-lg p-0 font-emoji text-[20px] leading-none",
                         "cursor-default border-none bg-transparent",
                         "hover:bg-[var(--selected-bg)]",
                         "focus-visible:bg-[var(--selected-bg)]",
                         // One of the three permitted motions.
                         "active:scale-[0.92]",
                       )}
-                      data-emoji={entry.emoji}
-                      aria-label={entry.label}
-                      onClick={() => props.onReact(entry.emoji)}
+                      data-emoji={emoji}
+                      aria-label={`React with ${emoji}`}
+                      onClick={() => {
+                        recordRecent(emoji)
+                        props.onReact(emoji)
+                      }}
                     >
-                      <Emoji emoji={entry.emoji} class="size-[19px] align-middle" eager />
+                      {emoji}
                     </button>
                   )}
                 </For>
@@ -252,6 +249,7 @@ export function MessageMenu(props: MessageMenuProps) {
           <div class="chat-menu__picker">
             <Suspense>
               <EmojiPicker
+                class="bg-transparent shadow-none"
                 onSelect={(emoji) => {
                   props.onReact(emoji)
                   setPickerOpen(false)
@@ -298,6 +296,12 @@ export function createMessageMenu(
       <MessageMenu {...liveProps()} ref={setTrigger} />
     </Show>
   )
+  const openAt = (id: string | null, x: number, y: number) => {
+    setTargetId(id)
+    trigger()?.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y }),
+    )
+  }
   return {
     targetId,
     onContextMenu: (event) => {
@@ -305,16 +309,9 @@ export function createMessageMenu(
       const id = (event.currentTarget as HTMLElement | null)?.dataset.messageId
         ?? (event.target as HTMLElement | null)?.closest?.("[data-message-id]")?.getAttribute("data-message-id")
         ?? null
-      setTargetId(id)
-      trigger()?.dispatchEvent(
-        new MouseEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          clientX: event.clientX,
-          clientY: event.clientY,
-        }),
-      )
+      openAt(id, event.clientX, event.clientY)
     },
+    openAt,
     view,
   }
 }

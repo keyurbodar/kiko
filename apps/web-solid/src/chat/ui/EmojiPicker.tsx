@@ -1,279 +1,211 @@
-import { Show, createEffect, createSignal, onCleanup, onMount, type JSX } from "solid-js"
-import type { Picker } from "emoji-picker-element"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { SearchIcon } from "@kiko/ui/icons"
+import { createMemo, createResource, createSelector, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
-import { Emoji, twemojiSources } from "../../lib/emoji"
+import {
+  EMOJI_SECTIONS,
+  gridMove,
+  loadEmoji,
+  recentEmoji,
+  recordRecent,
+  searchEmoji,
+  type GridAt,
+} from "../../lib/emoji-data"
 
 /**
- * The emoji picker, as `<emoji-picker>`.
- *
- * `emoji-picker-element` is a web component, so this file is only a themed
- * wrapper plus a footer. The search, the categories, the skin-tone picker and
- * the lazy grid are the package's, and none of them is ours to maintain.
- *
- * Three things are ours, and each replaced something that did not work.
- *
- * The DATA is self-hosted from `public/` rather than the package's default
- * jsdelivr URL, so the picker works offline and a failing network cannot leave
- * a reader with an empty grid.
- *
- * The package is imported dynamically, so opening a message menu costs nothing
- * until someone actually asks for the picker.
- *
- * The theme goes on the ELEMENT, not on a wrapper: the element's own `:host`
- * rules declare the same custom properties, and a value declared on an element
- * always beats one merely inherited from its parent. Theming a wrapper does
- * nothing at all, which is why the first attempt came out in the library's own
- * green-grey.
+ * The emoji picker: a search pill, then recents and the emojibase groups as
+ * grids of the platform's own glyphs. Arrow keys move through the grid from the
+ * search field, Enter picks, and Escape is the caller's to close on.
  */
 export interface EmojiPickerProps {
-  /** Receives the emoji's own characters, ready to drop into a message. */
+  /** Receives the emoji's own characters. The pick is already recorded as recent. */
   onSelect: (emoji: string) => void
   class?: string
 }
 
-/** Importing the package registers the element; the promise is shared. */
-let registered: Promise<void> | undefined
-function ensureRegistered(): Promise<void> {
-  registered ??= import("emoji-picker-element").then(() => undefined)
-  return registered
-}
+const COLUMNS = 8
+const CELL = 40
+const HEADING = 32
 
-/**
- * Warm the picker before anyone asks for it.
- *
- * The element is ~100kB of JavaScript plus a 430kB emoji database, and both were
- * being fetched at the moment the reader pressed `+`, so the panel opened onto
- * an empty box and filled in a beat later. Kat's appears at once. Starting the
- * module import and the data fetch when the message menu opens gives the network
- * the whole time the reader spends deciding to react, and both are cached, so
- * this costs nothing when the picker is never used.
- */
-let warmed: Promise<unknown> | undefined
-export function preloadEmojiPicker(): void {
-  warmed ??= Promise.all([
-    ensureRegistered(),
-    fetch("/emoji-picker-data.json").catch(() => undefined),
-  ])
-}
-
-/**
- * The kat palette in the element's own vocabulary, read from the `:host`
- * defaults it ships. A plain string rather than an object, because custom
- * properties are not in `CSSProperties` and an object would need a cast.
- */
-const THEME = [
-  "font-family:var(--font-family-sans)",
-  "font-size:var(--font-sm)",
-  "--emoji-font-family:var(--font-family-sans)",
-  "--emoji-size:1.375rem",
-  "--emoji-padding:0.3rem",
-  "--num-columns:9",
-  // No borders in this system, so the sizes are zero rather than matching
-  // hairlines.
-  "--border-size:0px",
-  "--border-radius:12px",
-  "--input-border-size:0px",
-  "--input-border-radius:8px",
-  "--skintone-border-radius:calc(8px * var(--brm))",
-  "--background:transparent",
-  "--border-color:transparent",
-  "--indicator-color:var(--accent)",
-  "--outline-color:var(--accent)",
-  "--outline-size:2px",
-  "--input-border-color:transparent",
-  "--input-font-color:var(--text)",
-  "--input-placeholder-color:var(--text-faint)",
-  "--category-font-color:var(--text-muted)",
-  "--category-font-size:11px",
-  "--input-font-size:13px",
-  "--input-padding:0.375rem 0.625rem",
-  "--button-hover-background:var(--selected-bg)",
-  "--button-active-background:var(--selected-bg)",
-  // The element is 400px tall by default and the panel is anchored to a row.
-  "height:340px",
-].join(";")
-
-/** What the footer shows: the glyph, the annotation, and its shortcode. */
-type HoveredCell = {
+interface Cell {
   readonly emoji: string
   readonly label: string
-  readonly shortcode: string
 }
 
-/**
- * The element labels every cell as `😀, grinning face, grinning,
- * grinning_face` - glyph, annotation, then its emojibase shortcodes. That is
- * already exactly what the footer needs, and it comes from the package's own
- * emojibase build, so the app keeps no emoji database of its own.
- */
-function readCell(cell: Element): HoveredCell | undefined {
-  const label = cell.getAttribute("aria-label")
-  if (label === null) return undefined
-  const [emoji, name, ...shortcodes] = label.split(",").map((part) => part.trim())
-  if (name === undefined || emoji === undefined || name === "" || name === emoji) {
-    return undefined
-  }
-  return {
-    emoji,
-    label: name,
-    shortcode: shortcodes[0] ?? name.toLowerCase().replace(/ /g, "_"),
-  }
+interface Section {
+  readonly title: string
+  readonly cells: readonly Cell[]
 }
 
-/**
- * The element draws every cell as TEXT, so the grid would show the platform's
- * emoji while the chips and quick-reaction row in the same menu show Twemoji -
- * two different sets side by side. There is no renderer hook to override, so
- * the shadow root is rewritten instead: each cell's emoji becomes the same
- * `<img>` our `Emoji` renders.
- *
- * The grid is lazy, so this follows it rather than running once. Batched to a
- * frame, because the element inserts a whole category at a time and one walk
- * per batch is far cheaper than one per node.
- */
-function drawTwemoji(root: ParentNode): void {
-  const cells = root.querySelectorAll<HTMLElement>("button[id^='emo-']")
-  for (const cell of cells) {
-    if (cell.dataset.twemoji === "done") continue
-    const emoji = cell.textContent?.trim() ?? ""
-    const sources = twemojiSources(emoji)
-    if (sources.length === 0) continue
-    cell.dataset.twemoji = "done"
-    cell.textContent = ""
-    const image = document.createElement("img")
-    image.src = sources[0]
-    image.alt = ""
-    image.setAttribute("aria-hidden", "true")
-    image.loading = "lazy"
-    image.decoding = "async"
-    image.draggable = false
-    image.style.width = "var(--emoji-size, 1.25rem)"
-    image.style.height = "var(--emoji-size, 1.25rem)"
-    // The element's own click handler tests `event.target` for its `emoji`
-    // class and reads the id off that same node, so an <img> inside the cell
-    // becomes the target and every click is discarded before it begins. Making
-    // the artwork transparent to the pointer puts the target back on the
-    // button. The handler reads the id rather than the text, which is why
-    // emptying the cell costs nothing.
-    image.style.pointerEvents = "none"
-    // Twemoji's asset set disagrees with its own naming rule in a few places, so
-    // a miss walks to the next spelling. Only when every spelling is gone is the
-    // character drawn instead: a missing file is a missing glyph, and the
-    // platform's own glyph beats a broken-image box.
-    image.addEventListener("error", () => {
-      const attempt = Number(image.dataset.attempt ?? "0") + 1
-      const next = sources[attempt]
-      if (next !== undefined) {
-        image.dataset.attempt = String(attempt)
-        image.src = next
-        return
-      }
-      image.replaceWith(document.createTextNode(emoji))
-    })
-    cell.append(image)
-  }
-}
+const key = (at: GridAt) => `${at.section}:${at.index}`
 
 export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
-  const [ready, setReady] = createSignal(false)
-  const [picker, setPicker] = createSignal<Picker>()
-  const [hovered, setHovered] = createSignal<HoveredCell | undefined>()
-
+  const [data] = createResource(loadEmoji)
+  const [query, setQuery] = createSignal("")
+  const [active, setActive] = createSignal<GridAt | null>(null)
+  const isActive = createSelector(() => {
+    const at = active()
+    return at === null ? "" : key(at)
+  })
+  // Recents and the first group paint at once. The rest mount one section a frame.
+  const [mounted, setMounted] = createSignal(2)
   onMount(() => {
-    void ensureRegistered().then(() => setReady(true))
+    let frame = 0
+    const step = () => {
+      setMounted((count) => count + 1)
+      if (mounted() < EMOJI_SECTIONS.length + 1) frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    onCleanup(() => cancelAnimationFrame(frame))
   })
 
-  createEffect(() => {
-    const target = picker()
-    if (!ready() || target === undefined) return
-
-    // A real DOM listener rather than a JSX handler: the event is dispatched
-    // inside the element's own shadow root, and `on:emoji-click` in JSX reads
-    // as a namespaced event instead of this one.
-    const onPick = (event: Event) => {
-      const unicode = (event as CustomEvent<{ unicode?: string }>).detail?.unicode
-      if (unicode) props.onSelect(unicode)
+  const labels = createMemo(() => new Map((data() ?? []).map((entry) => [entry.emoji, entry.annotation])))
+  const sections = createMemo<readonly Section[]>(() => {
+    const entries = data() ?? []
+    const text = query().trim()
+    if (text !== "") {
+      return [
+        {
+          title: "Results",
+          cells: searchEmoji(entries, text, Infinity).map((match) => ({ emoji: match.entry.emoji, label: match.entry.annotation })),
+        },
+      ]
     }
-    target.addEventListener("emoji-click", onPick)
-    onCleanup(() => target.removeEventListener("emoji-click", onPick))
-
-    // Hover is delegated from the shadow root rather than bound per cell: the
-    // grid renders lazily and its cells come and go, so a per-cell listener
-    // would be attached to nodes that no longer exist.
-    const root = target.shadowRoot
-    if (root === null) return
-    const cellOf = (event: Event) =>
-      (event.target as Element | null)?.closest?.("button[id]") ?? null
-    const onOver = (event: Event) => {
-      const cell = cellOf(event)
-      setHovered(cell === null ? undefined : readCell(cell))
-    }
-    const onOut = (event: Event) => {
-      if (cellOf(event) !== null) setHovered(undefined)
-    }
-    root.addEventListener("mouseover", onOver)
-    root.addEventListener("mouseout", onOut)
-    // The footer opens on the first emoji rather than on nothing. kat's picker
-    // shows a populated preview the instant it appears, and an empty bar that
-    // only fills once the pointer happens to cross a cell reads as unfinished.
-    // Seeded rather than "hovered": a real hover still takes over, and this only
-    // speaks while nothing has been hovered.
-    const seed = () => {
-      if (hovered() !== undefined) return
-      const first = root.querySelector<HTMLElement>("button[id^='emo-']")
-      if (first !== null) setHovered(readCell(first))
-    }
-    // The grid fills in as the reader scrolls, so the substitution has to
-    // follow it. Batched to a frame: the element inserts a whole category at
-    // once, and one walk per batch is far cheaper than one per node.
-    let queued = false
-    const observer = new MutationObserver(() => {
-      if (queued) return
-      queued = true
-      requestAnimationFrame(() => {
-        queued = false
-        drawTwemoji(root)
-        seed()
-      })
-    })
-    observer.observe(root, { childList: true, subtree: true })
-    drawTwemoji(root)
-    seed()
-    onCleanup(() => observer.disconnect())
-    onCleanup(() => {
-      root.removeEventListener("mouseover", onOver)
-      root.removeEventListener("mouseout", onOut)
-    })
+    return [
+      { title: "Recently used", cells: recentEmoji().map((emoji) => ({ emoji, label: labels().get(emoji) ?? emoji })) },
+      ...EMOJI_SECTIONS.map((section) => ({
+        title: section.title,
+        cells: entries
+          .filter((entry) => section.groups.includes(entry.group))
+          .map((entry) => ({ emoji: entry.emoji, label: entry.annotation })),
+      })),
+    ]
   })
+
+  let scroller: HTMLDivElement | undefined
+  const reveal = (at: GridAt) => {
+    setMounted(Number.POSITIVE_INFINITY)
+    queueMicrotask(() =>
+      scroller?.querySelector(`[data-at="${key(at)}"]`)?.scrollIntoView({ block: "nearest" }),
+    )
+  }
+  const pick = (emoji: string) => {
+    recordRecent(emoji)
+    props.onSelect(emoji)
+  }
+  const cellAt = (at: GridAt | null) => (at === null ? undefined : sections()[at.section]?.cells[at.index])
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.isComposing) return
+    const at = active()
+    if (event.key === "Enter") {
+      const cell = cellAt(at) ?? (query().trim() ? cellAt({ section: 0, index: 0 }) : undefined)
+      if (!cell) return
+      event.preventDefault()
+      pick(cell.emoji)
+      return
+    }
+    const arrow = event.key === "ArrowDown" || event.key === "ArrowUp"
+    // Left and right edit the search text until the grid has a cell lit.
+    const sideways = (event.key === "ArrowLeft" || event.key === "ArrowRight") && at !== null
+    if (!arrow && !sideways) return
+    event.preventDefault()
+    const sizes = sections().map((section) => section.cells.length)
+    const first = sizes.findIndex((size) => size > 0)
+    if (first < 0) return
+    const next = at === null ? { section: first, index: 0 } : gridMove(sizes, at, event.key, COLUMNS)
+    setActive(next)
+    reveal(next)
+  }
+
+  const onPointerMove = (event: PointerEvent) => {
+    const at = (event.target as HTMLElement).closest<HTMLElement>("[data-at]")?.dataset.at
+    if (at === undefined) return
+    const [section, index] = at.split(":").map(Number)
+    if (active()?.section !== section || active()?.index !== index) setActive({ section: section!, index: index! })
+  }
 
   return (
-    <div class={cn("flex flex-col", props.class)}>
-      <Show when={ready()}>
-        <emoji-picker
-          ref={setPicker}
-          data-source="/emoji-picker-data.json"
-          style={THEME}
-        />
-      </Show>
-      {/* The footer is ours because the element has no slot for one. It states
-          the same two facts kat does: the annotation, and the shortcode that
-          names it. */}
+    <div
+      class={cn(
+        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] bg-menu text-text shadow-popover",
+        props.class,
+      )}
+      data-component="emoji-picker"
+    >
+      <div class="px-2.5 pt-2.5 pb-1">
+        <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--input-bg)] px-3 focus-within:shadow-[inset_0_0_0_2px_var(--accent)]">
+          <HugeIcon icon={SearchIcon} size={16} class="shrink-0 text-weak" />
+          <input
+            ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}
+            class="min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-weak"
+            placeholder="Search"
+            aria-label="Search emoji"
+            autocomplete="off"
+            spellcheck={false}
+            value={query()}
+            onInput={(event) => {
+              setQuery(event.currentTarget.value)
+              setActive(event.currentTarget.value.trim() ? { section: 0, index: 0 } : null)
+              scroller?.scrollTo({ top: 0 })
+            }}
+            onKeyDown={onKeyDown}
+            data-component="emoji-search"
+          />
+        </label>
+      </div>
       <div
-        class="flex min-h-[44px] items-center gap-2.5 px-3 shadow-[inset_0_1px_0_0_var(--hairline)]"
-        aria-live="polite"
+        ref={scroller}
+        class="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2"
+        onPointerMove={onPointerMove}
+        onPointerLeave={() => setActive(null)}
+        onClick={(event) => {
+          const at = (event.target as HTMLElement).closest<HTMLElement>("[data-emoji]")?.dataset.emoji
+          if (at) pick(at)
+        }}
       >
-        <Show when={hovered()}>
-          {(cell) => (
-            <>
-              {/* Artwork, like the grid above it. The platform glyph here would
-                  put the two sets side by side in the same panel. */}
-              <Emoji emoji={cell().emoji} class="size-5 shrink-0" eager />
-              <span class="flex min-w-0 flex-col gap-px">
-                <span class="truncate text-[13px] font-medium">{cell().label}</span>
-                <span class="truncate text-[11px] text-weak">:{cell().shortcode}:</span>
-              </span>
-            </>
-          )}
+        <Show
+          when={sections().some((section) => section.cells.length > 0) || (query().trim() === "" && data.loading)}
+          fallback={
+            <p class="py-10 text-center text-sm text-weak" data-component="emoji-empty">
+              No emoji found
+            </p>
+          }
+        >
+          <For each={sections()}>
+            {(section, index) => (
+              <Show when={index() < mounted() && section.cells.length > 0}>
+                <section
+                  style={{
+                    "content-visibility": "auto",
+                    "contain-intrinsic-size": `auto ${HEADING + Math.ceil(section.cells.length / COLUMNS) * CELL}px`,
+                  }}
+                  data-component="emoji-section"
+                >
+                  <h3 class="flex h-8 items-center px-1.5 text-[15px] font-semibold text-text">{section.title}</h3>
+                  <div class="grid grid-cols-8" role="listbox" aria-label={section.title}>
+                    <For each={section.cells}>
+                      {(cell, at) => (
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          role="option"
+                          class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--selected-bg)]"
+                          data-at={`${index()}:${at()}`}
+                          data-emoji={cell.emoji}
+                          data-active={isActive(`${index()}:${at()}`) ? "" : undefined}
+                          aria-selected={isActive(`${index()}:${at()}`)}
+                          aria-label={cell.label}
+                        >
+                          {cell.emoji}
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                </section>
+              </Show>
+            )}
+          </For>
         </Show>
       </div>
     </div>
