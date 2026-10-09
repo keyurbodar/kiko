@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enaga shapes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root, [data-theme="dark"] {
+  --bg: #1B1A18; --panel: #232220; --card: #2B2926; --line: #3A3834; --text: #F2EEE6; --muted: #A39E95; --faint: #6F6A63;
+  --side: #1F1E1C; --row: #2A2826; --accent: #E9C9C2;
+}
+[data-theme="light"] {
+  --bg: #F4F1EC; --panel: #FBF9F6; --card: #EFEBE4; --line: #DDD7CE; --text: #2B2824; --muted: #6F6A63; --faint: #A39E95;
+  --side: #F7F4EF; --row: #ECE7DF; --accent: #B86A5E;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Instrument Sans", system-ui, sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 48px 32px 80px; display: flex; flex-direction: column; gap: 56px; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+h1 { margin: 0; font: 400 52px/1 "Gochi Hand", cursive; letter-spacing: 2px; }
+h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+.lede { margin: 8px 0 0; color: var(--muted); max-width: 760px; }
+.sub { color: var(--muted); margin: 0 0 18px; }
+button.toggle { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 999px; padding: 8px 16px; font: inherit; cursor: pointer; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.stage { height: 170px; border-radius: 14px; background: var(--card); display: grid; place-items: center; }
+.title { display: flex; align-items: baseline; gap: 10px; }
+.title b { font: 400 26px/1 "Gochi Hand", cursive; letter-spacing: 2px; }
+.title span { color: var(--faint); font-size: 12px; }
+.note { margin: 0; color: var(--muted); font-size: 14px; min-height: 42px; }
+.ladder, .friends { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.ladder figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--faint); font-size: 11px; }
+.verdict { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.verdict em { font-style: normal; color: var(--text); }
+
+.sidebars { display: flex; flex-wrap: wrap; gap: 20px; }
+.sidebar { flex: none; width: 264px; border-radius: 16px; background: var(--side); border: 1px solid var(--line); padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden; }
+.sb-label { position: absolute; right: 10px; bottom: 8px; font: 400 18px "Gochi Hand", cursive; color: var(--faint); letter-spacing: 1px; }
+.brand { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px; font-weight: 600; font-size: 14px; }
+.brand .icons { margin-left: auto; display: flex; gap: 10px; color: var(--faint); font-size: 14px; }
+.search { height: 32px; border-radius: 9px; background: var(--row); color: var(--faint); font-size: 13px; display: flex; align-items: center; padding: 0 10px; }
+.tiles { display: flex; gap: 6px; }
+.tile { width: 76px; height: 74px; border-radius: 12px; background: var(--row); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; padding-bottom: 7px; font-size: 11px; font-weight: 600; overflow: hidden; }
+.rows { display: flex; flex-direction: column; gap: 2px; }
+.row { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 8px; border-radius: 10px; }
+.row.on { background: var(--row); }
+.row .av { flex: none; width: 40px; height: 36px; display: flex; align-items: flex-end; justify-content: center; }
+.row .tx { min-width: 0; display: flex; flex-direction: column; }
+.row .tx b { font-size: 13px; font-weight: 600; }
+.row .tx span { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.foot { margin-top: auto; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px; font-size: 13px; }
+
+.marks { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.mark { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.mark .line { display: flex; align-items: center; gap: 10px; font-size: 26px; }
+.mark .sans { font-weight: 600; letter-spacing: -0.02em; }
+.mark .hand { font: 400 32px "Gochi Hand", cursive; letter-spacing: 1.5px; }
+.mark small { color: var(--faint); font-size: 12px; }
+.msgrow { display: flex; align-items: center; gap: 14px; background: var(--row); border: 1px solid var(--line); border-radius: 16px; padding: 4px 18px 0 10px; height: 72px; overflow: hidden; }
+.msgrow .nm { font: 400 22px "Gochi Hand", cursive; letter-spacing: 2px; flex: none; }
+.msgrow .pv { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+svg.bird { display: block; overflow: visible; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>SHIMA ENAGA · SHAPES</h1>
+      <p class="lede">Six ways to draw the first bird in the sketchy ink style. Each card shows it large, down to 16 px, and with a few friends. Below, each one is placed in the real sidebar at real size, so you can judge it where it lives.</p>
+    </div>
+    <button class="toggle" id="theme">Light mode</button>
+  </header>
+
+  <section>
+    <h2>The shapes</h2>
+    <p class="sub">Same colors and ink for all six. Only the silhouette changes.</p>
+    <div class="grid" id="cards"></div>
+  </section>
+
+  <section>
+    <h2>In the sidebar</h2>
+    <p class="sub">Brand row, pinned tiles, and the chat list at 264 px wide, with a selected row and a group of three.</p>
+    <div class="sidebars" id="sidebars"></div>
+  </section>
+
+  <section>
+    <h2>Brand mark and wordmark</h2>
+    <p class="sub">Each shape next to "Yuki" in the app's sans and in the sketch's hand lettering, and in a message row like the prototype.</p>
+    <div class="marks" id="marks"></div>
+  </section>
+</main>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="rough" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="6"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="2.2"></feDisplacementMap>
+    </filter>
+  </defs>
+</svg>
+
+<script>
+const INK = "#2B2824"
+const BASE = { body: "#F6EDE0", belly: "#F2D8C6", nub: "#B6A28E", tail: "#9C8C7E", top: null, beak: "#7A6458", eye: "#2B2420", feet: "#5E524A", blush: "#F2A294" }
+const PAL = {
+  enaga: BASE,
+  matcha: { ...BASE, body: "#DDE0BE", top: "#ADB67C", belly: "#F2ECD8", nub: "#949C68", tail: "#868D5E" },
+  ramune: { ...BASE, body: "#DCE8F0", top: "#A6C6DC", belly: "#F4F8FA", nub: "#86A8C0", tail: "#7A9AB2", blush: "#F09C9C" },
+  sakura: { ...BASE, body: "#F4DEDE", top: "#EBB2B8", belly: "#FBEFEA", nub: "#D2989E", tail: "#BE8A90", blush: "#EE8088", beak: "#8A5E62" },
+  kinako: { ...BASE, body: "#41455C", top: "#2C3046", belly: "#D8BE86", nub: "#2C3046", tail: "#262A3C", eye: "#101018", beak: "#D8BE86", feet: "#9C927E", blush: "#E08E8E" },
+}
+
+let uid = 0
+// A wavy crown: the color fade across the top of the head, in a few hand-cut scallops.
+const crown = (y) => `M0 0 L120 0 L120 ${y} C111 ${y + 4} 103 ${y - 1} 95 ${y + 3.5} C87 ${y - 0.5} 79 ${y + 4.5} 71 ${y + 1} C63 ${y + 4.5} 55 ${y - 0.5} 47 ${y + 3.5} C39 ${y - 0.5} 30 ${y + 4} 22 ${y} C14 ${y + 3} 6 ${y - 1} 0 ${y + 2}Z`
+const eye = (x, y, r, p) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${p.eye}" stroke="none"/><circle cx="${x - 1.2}" cy="${y - 1.3}" r="${r * 0.36}" fill="#fff" stroke="none"/>`
+const blush = (x, y, rx, p) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${rx * 0.58}" fill="${p.blush}" fill-opacity=".75" stroke="none"/>`
+const beakDown = (x, y, p) => `<path d="M${x - 3} ${y} L${x + 3} ${y} L${x} ${y + 3.8}Z" fill="${p.beak}" stroke-width="1.4"/>`
+const beakSide = (x, y, p) => `<path d="M${x} ${y - 2.8} L${x + 6} ${y} L${x} ${y + 2.8}Z" fill="${p.beak}" stroke-width="1.4"/>`
+
+/** The body with its crown, belly and shade clipped inside, then the ink outline over it. */
+function body(path, p, { crownY, belly, shade }, id) {
+  return `<clipPath id="c${id}"><path d="${path}"/></clipPath>` +
+    `<path d="${path}" fill="${p.body}" stroke="none"/>` +
+    `<g clip-path="url(#c${id})" stroke="none">` +
+    (p.top ? `<path d="${crown(crownY)}" fill="${p.top}"/>` : "") +
+    `<ellipse cx="${belly[0]}" cy="${belly[1]}" rx="${belly[2]}" ry="${belly[3]}" fill="${p.belly}"/>` +
+    `<path d="${shade}" fill="#000" fill-opacity=".12"/></g>` +
+    `<path d="${path}" fill="none"/>`
+}
+
+const SHAPES = [
+  {
+    key: "sitting", name: "Sitting", vb: [6, 26, 94, 90], aspect: 1,
+    note: "The prototype as drawn: front-facing on its feet, the long tail sweeping down to the left.",
+    verdict: "<em>Best at 48 px and up.</em> Below 24 px the tail reads as a stick and the bird looks lopsided in a square slot.",
+    draw(p, id) {
+      const B = "M26 70 C24 52 34 37 48 35 C52 31 57 30 62 33 C67 30 74 31 77 36 C90 41 96 54 94 70 C94 90 80 102 60 102 C40 102 26 90 26 70Z"
+      return `<path d="M38 86 C30 93 20 102 11 110 C9.5 111.6 11.5 113.8 13.3 112.6 C23 106 33 98 44 91Z" fill="${p.tail}"/>` +
+        `<path d="M53 101 L51.5 106 M55 101.5 L55 106.5 M65 101.5 L65 106.5 M67 101 L68.5 106" fill="none" stroke="${p.feet}" stroke-width="2"/>` +
+        body(B, p, { crownY: 45, belly: [62, 89, 20, 11], shade: "M28 76 C32 93 46 101.5 60 101.5 C45 96 35 87 32 72Z" }, id) +
+        `<path d="M54 92 l1.6 2 M61 95 l1.6 2 M68 92 l1.6 2" fill="none" stroke-width="1.3" stroke-opacity=".45"/>` +
+        `<path d="M38 42 C41 39 44 37.5 47 37" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/>` +
+        `<ellipse cx="33" cy="76" rx="5.6" ry="9.6" transform="rotate(16 33 76)" fill="${p.nub}"/>` +
+        `<path d="M90 69 C92.5 74 92.5 81 89.6 85.6" fill="none" stroke-width="2"/>` +
+        blush(44, 71, 5, p) + blush(79, 70.5, 4.2, p) + eye(51, 63, 3.7, p) + eye(72, 63, 3.4, p) + beakDown(62, 68.4, p)
+    },
+  },
+  {
+    key: "loaf", name: "Loaf", vb: [2, 42, 103, 62], aspect: 1.66,
+    note: "In profile, facing right: a round loaf with the tail held out straight behind. The real bird's best-known silhouette.",
+    verdict: "<em>Made for a horizontal sidebar.</em> Fills a wide slot, reads at 16 px, and a group lines up nose to tail.",
+    draw(p, id) {
+      const B = "M38 72 C38 55 51 45 67 45 C85 45 97 57 97 71 C97 86 85 96 67 96 C51 96 38 88 38 72Z"
+      return `<path d="M44 75 C30 73 17 70.5 5 69 C3.4 68.8 3.3 72.4 5 72.9 C17 75.6 30 79 44 83Z" fill="${p.tail}"/>` +
+        `<path d="M61 95 L59.5 100.5 M64.5 95.6 L64 101 M72 95.6 L72.4 101 M75.5 95 L77 100.5" fill="none" stroke="${p.feet}" stroke-width="2"/>` +
+        body(B, p, { crownY: 55, belly: [74, 91, 21, 9], shade: "M40 77 C44 90 56 96 68 96 C56 92 46 86 43 73Z" }, id) +
+        `<path d="M74 66 C66 61 54 63 47 70 C44 73 42 76 41 79 C47 80 54 79.5 60 77.5 C67 75 72 71 74 66Z" fill="${p.nub}" stroke-width="1.6"/>` +
+        `<path d="M52 52 C55 49 59 47.5 63 47" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/>` +
+        blush(84, 76, 4.6, p) + eye(85, 65.5, 3.6, p) + beakSide(96.5, 70.5, p)
+    },
+  },
+  {
+    key: "mochi", name: "Mochi", vb: [3, 44, 103, 61], aspect: 1.69,
+    note: "Front-facing but squashed wide like a daifuku resting on a plate. No feet, a stubby tail tucked at the side.",
+    verdict: "<em>The calmest at small sizes.</em> The face sits low and wide, so eyes and blush survive at 16 px.",
+    draw(p, id) {
+      const B = "M20 90 C20 66 38 50 60 50 C82 50 100 66 100 90 C100 98 92 101 60 101 C28 101 20 98 20 90Z"
+      return `<path d="M24 92 C18 93 12 94 7 95 C5.5 95.4 5.8 98 7.4 97.8 C13 97.4 19 96.8 25 96.4Z" fill="${p.tail}"/>` +
+        body(B, p, { crownY: 63, belly: [60, 97, 27, 8], shade: "M22 86 C26 96 40 101 60 101 C42 98 30 93 26 82Z" }, id) +
+        `<ellipse cx="25.5" cy="87" rx="4.6" ry="7.4" transform="rotate(14 25.5 87)" fill="${p.nub}"/>` +
+        `<path d="M96 80 C98 84 98 89 96 92" fill="none" stroke-width="2"/>` +
+        `<path d="M34 62 C38 58 42 56 46 55" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/>` +
+        blush(41, 86, 5, p) + blush(79, 86, 5, p) + eye(50, 77.5, 3.6, p) + eye(70, 77.5, 3.4, p) + beakDown(60, 82, p)
+    },
+  },
+  {
+    key: "peek", name: "Peek", vb: [16, 46, 88, 44], aspect: 2,
+    note: "Only the top of the head, peeking over the row's bottom edge with two little nubs holding on. Like the prototype's message rows.",
+    verdict: "<em>Most playful in rows and the brand.</em> It needs a bottom edge to sit on, so it is not a stand-alone avatar.",
+    draw(p, id) {
+      const B = "M20 90 C20 66 38 50 60 50 C82 50 100 66 100 90 C100 98 92 101 60 101 C28 101 20 98 20 90Z"
+      return body(B, p, { crownY: 63, belly: [60, 97, 27, 8], shade: "M22 86 C26 96 40 101 60 101 C42 98 30 93 26 82Z" }, id) +
+        `<path d="M34 62 C38 58 42 56 46 55" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/>` +
+        blush(41, 85, 5, p) + blush(79, 85, 5, p) + eye(50, 76.5, 3.6, p) + eye(70, 76.5, 3.4, p) + beakDown(60, 81, p) +
+        `<g stroke-width="1.4"><path d="M29 90 C30 86.5 36 86 38.5 89.5Z" fill="${p.nub}"/><path d="M91 90 C90 86.5 84 86 81.5 89.5Z" fill="${p.nub}"/></g>`
+    },
+  },
+  {
+    key: "glide", name: "Glide", vb: [1, 26, 98, 66], aspect: 1.48,
+    note: "In flight, wing up, tail streaming behind. The bird as you would see it cross the sky at the top of the sidebar.",
+    verdict: "<em>A strong brand mark, a busy avatar.</em> Good for the logo and the sky; too much motion in a list of chats.",
+    draw(p, id) {
+      const B = "M44 68 C44 54 54 44 67 44 C81 44 90 54 90 67 C90 80 80 88 67 88 C54 88 44 81 44 68Z"
+      return `<path d="M47 66 C33 64 19 61.4 5 59 C3.4 58.8 3.2 62.3 5 62.8 C19 65.8 33 69.6 47 73Z" fill="${p.tail}"/>` +
+        `<path d="M62 87.5 L65.5 91 M68 88 L71.5 91" fill="none" stroke="${p.feet}" stroke-width="2"/>` +
+        body(B, p, { crownY: 54, belly: [70, 84, 18, 8], shade: "M46 72 C50 84 60 88 68 88 C58 84 50 79 48 68Z" }, id) +
+        `<path d="M57 61 C52 47 58 34 71 29 C72 41 70 52 67 63Z" fill="${p.nub}"/>` +
+        `<path d="M62 52 l3 -1 M63 45 l3 -1.4" fill="none" stroke-width="1.2" stroke-opacity=".45"/>` +
+        blush(78, 70, 4.2, p) + eye(78.5, 61.5, 3.4, p) + beakSide(89.5, 65.5, p)
+    },
+  },
+  {
+    key: "face", name: "Face", vb: [18, 22, 84, 80], aspect: 1.05,
+    note: "Just the round face with its bumpy crown. No tail, no feet. An emblem that fits any circle or square.",
+    verdict: "<em>Safest for avatars and the favicon.</em> Loses the bird's tail, which is most of its character.",
+    draw(p, id) {
+      const B = "M24 64 C23 46 34 32 48 30 C52 26 57 25 62 28 C67 25 74 26 77 31 C90 36 97 49 96 64 C96 84 81 98 60 98 C39 98 24 84 24 64Z"
+      return body(B, p, { crownY: 40, belly: [60, 92, 24, 10], shade: "M26 70 C30 88 44 97.5 60 97.5 C44 92 34 83 30 66Z" }, id) +
+        `<path d="M36 37 C39 34 42 32.5 45 32" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/>` +
+        blush(42, 70, 5.2, p) + blush(79, 69.5, 4.6, p) + eye(50, 60, 3.8, p) + eye(71, 60, 3.5, p) + beakDown(60.5, 65.6, p)
+    },
+  },
+]
+
+/**
+ * One bird as an inline SVG, `h` px tall. The ink line never drops under 1.1 px on screen,
+ * so the sketch still reads when the bird is tiny.
+ */
+function bird(shape, palette, h) {
+  const [x, y, w, vh] = shape.vb
+  const width = Math.round(h * (w / vh))
+  const sw = Math.max(2.2, (1.1 * vh) / h)
+  const id = uid++
+  return `<svg class="bird" width="${width}" height="${h}" viewBox="${x} ${y} ${w} ${vh}" aria-hidden="true">` +
+    `<g filter="url(#rough)" stroke="${INK}" stroke-width="${sw.toFixed(2)}" stroke-linejoin="round" stroke-linecap="round">${shape.draw(PAL[palette], id)}</g></svg>`
+}
+
+/**
+ * A group of three inside a w x h box, like a dango huddle: two friends behind, the chief in
+ * front and a little lower. Sized to the box, so it never spills into the chat's name.
+ */
+function huddle(shape, palettes, w, h) {
+  const front = Math.min(h * 0.74, (w * 0.62) / shape.aspect)
+  const back = front * 0.78
+  const spot = (pal, size, css, z) => `<span style="position:absolute;${css};z-index:${z};line-height:0">${bird(shape, pal, Math.round(size))}</span>`
+  const [chief, a, b] = palettes
+  return `<span style="position:relative;display:block;width:${w}px;height:${h}px">` +
+    spot(a, back, "left:0;top:0", 0) + spot(b, back, "right:0;top:0", 0) +
+    spot(chief, front, `left:50%;bottom:0;transform:translateX(-50%)`, 1) + `</span>`
+}
+
+document.getElementById("cards").innerHTML = SHAPES.map((s, i) => `
+  <article class="card">
+    <div class="stage">${bird(s, "enaga", Math.round(Math.min(140, 230 / s.aspect)))}</div>
+    <div class="title"><b>${s.name.toUpperCase()}</b><span>${String(i + 1).padStart(2, "0")}</span></div>
+    <p class="note">${s.note}</p>
+    <div class="ladder">${[48, 32, 24, 16].map((h) => `<figure>${bird(s, "enaga", h)}<figcaption>${h}</figcaption></figure>`).join("")}</div>
+    <div class="friends">${["matcha", "ramune", "sakura", "kinako"].map((p) => bird(s, p, 32)).join("")}</div>
+    <div class="verdict">${s.verdict}</div>
+  </article>`).join("")
+
+const ROWS = [
+  ["enaga", "Yuki", "Morning! Want the plan for today?"],
+  ["matcha", "ada", "Whisked that up for you"],
+  [["enaga", "ramune", "sakura"], "Trip to Hokkaido", "bo: Booked the ryokan"],
+  ["ramune", "bo", "Fizz! Found it"],
+  ["kinako", "dee", "Still up. Go on"],
+]
+
+function avatar(s, pal, h) {
+  return Array.isArray(pal) ? huddle(s, pal, Math.round(h * Math.min(s.aspect, 1.7)) + 6, 38) : bird(s, pal, h)
+}
+
+document.getElementById("sidebars").innerHTML = SHAPES.map((s) => {
+  const rowH = s.aspect > 1.3 ? 26 : 34
+  return `
+  <div class="sidebar">
+    <div class="brand">${bird(s, "enaga", s.aspect > 1.3 ? 18 : 22)}<span>Yuki</span><span class="icons">✎ ▤</span></div>
+    <div class="search">Search</div>
+    <div class="tiles">
+      <div class="tile">${bird(s, "enaga", s.aspect > 1.3 ? 30 : 40)}Yuki</div>
+      <div class="tile">${bird(s, "matcha", s.aspect > 1.3 ? 30 : 40)}ada</div>
+      <div class="tile">${huddle(s, ["enaga", "ramune", "sakura"], 64, 46)}Trip</div>
+    </div>
+    <div class="rows">${ROWS.map(([pal, name, msg], i) => `
+      <div class="row${i === 1 ? " on" : ""}"><span class="av" style="width:${Math.round(rowH * Math.min(s.aspect, 1.7)) + 6}px">${avatar(s, pal, rowH)}</span>
+        <span class="tx"><b>${name}</b><span>${msg}</span></span></div>`).join("")}
+    </div>
+    <div class="foot">${bird(s, "sakura", s.aspect > 1.3 ? 18 : 24)}<span>dev</span></div>
+    <span class="sb-label">${s.name.toLowerCase()}</span>
+  </div>`
+}).join("")
+
+document.getElementById("marks").innerHTML = SHAPES.map((s) => `
+  <div class="mark">
+    <div class="line sans">${bird(s, "enaga", s.aspect > 1.3 ? 26 : 32)}<span>Yuki</span><small>Instrument Sans</small></div>
+    <div class="line hand">${bird(s, "enaga", s.aspect > 1.3 ? 26 : 32)}<span>YUKI</span><small>Gochi Hand</small></div>
+    <div class="msgrow">${bird(s, "enaga", s.key === "peek" ? 34 : s.aspect > 1.3 ? 44 : 62)}<span class="nm">YUKI</span><span class="pv">Message 3 of 3: That's the cozy way to do it</span></div>
+  </div>`).join("")
+
+const root = document.documentElement
+document.getElementById("theme").addEventListener("click", (e) => {
+  const light = root.dataset.theme !== "light"
+  root.dataset.theme = light ? "light" : "dark"
+  e.currentTarget.textContent = light ? "Dark mode" : "Light mode"
+})
+</script>
+</body>
+</html>
