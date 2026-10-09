@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { seedBird, SPECIES } from "../mascot/birds"
+import { FLAVORS, seedBird } from "../mascot/birds"
 import { chatFaces, chatSeed, identityLook } from "./identity"
 
 describe("identity look", () => {
@@ -9,16 +9,16 @@ describe("identity look", () => {
     expect(identityLook("ada")).toEqual(identityLook("ada"))
   })
 
-  test("the kiko agent is the kiko bird and wears the theme accent", () => {
-    expect(seedBird("kiko").species).toBe("kiko")
+  test("the chief is Yuki, the cream bird, and wears the theme accent", () => {
+    expect(seedBird("kiko", "kiko").flavor).toBe("yuki")
     expect(identityLook("kiko").color).toBe("var(--accent)")
   })
 
-  test("other seeds spread over the flock and never draw the kiko bird", () => {
-    const species = new Set(Array.from({ length: 80 }, (_, i) => seedBird(`agent-${i}`).species))
-    expect(species.has("kiko")).toBe(false)
-    expect(species.size).toBeGreaterThanOrEqual(10)
-    expect([...species].every((s) => s in SPECIES)).toBe(true)
+  test("other seeds spread over the flock and never draw Yuki's cream", () => {
+    const flavors = new Set(Array.from({ length: 80 }, (_, i) => seedBird(`agent-${i}`, "kiko").flavor))
+    expect(flavors.has("yuki")).toBe(false)
+    expect(flavors.size).toBeGreaterThanOrEqual(10)
+    expect([...flavors].every((f) => f in FLAVORS)).toBe(true)
   })
 
   test("an agent colour reads on both appearances", () => {

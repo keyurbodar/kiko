@@ -1,13 +1,14 @@
 import { lazy, Suspense } from "solid-js"
 import { cn } from "../../lib/cn"
 import { useApp } from "../../lib/store"
+import { daypartOf, GREETING } from "../../mascot/scene"
 
-// The pixel field loads on its own, so a chat with messages never fetches it.
-const BirdGrid = lazy(() => import("./bird-grid"))
+// The perch loads on its own, so a chat with messages never fetches it.
+const Perch = lazy(() => import("../../mascot/perch"))
 
 /**
- * The no-messages state: the chat's own agents as pixel birds pecking at seeds, and one quiet line.
- * No instructions; the composer's placeholder already says who to message.
+ * The no-messages state: the chat's own birds huddled on a birch twig, and one quiet line for
+ * the time of day. No instructions; the composer's placeholder already says who to message.
  */
 export function EmptyState(props: { class?: string }) {
   return (
@@ -20,9 +21,9 @@ export function EmptyState(props: { class?: string }) {
       aria-hidden="true"
     >
       <Suspense>
-        <BirdGrid faces={useApp.chatFaces(useApp.activeThreadId() ?? "")} />
+        <Perch faces={useApp.chatFaces(useApp.activeThreadId() ?? "")} />
       </Suspense>
-      <p class="text-md leading-relaxed text-muted">What's on your mind?</p>
+      <p class="text-md leading-relaxed text-muted">{GREETING[daypartOf(new Date())]}</p>
     </div>
   )
 }

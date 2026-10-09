@@ -1,7 +1,7 @@
 import type { LifeLine } from "@kiko/protocol"
 import { createResource, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { session } from "../../../app/session"
-import { Moment } from "../../../mascot/pixel/lazy"
+import { Moment } from "../../../mascot/lazy"
 import { memoryFor } from "./instance"
 import type { MemoryStore } from "./store"
 

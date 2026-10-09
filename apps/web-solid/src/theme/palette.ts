@@ -476,12 +476,6 @@ export function tokensFor(colors: ThemeColors, mode: ThemeAppearance, accent: st
   return vars
 }
 
-/** How colorful the accent is, 0 to 1, for the favicon bird. */
-export function accentChroma(color: string): number {
-  const brand = oklchOf(color)
-  return brand ? Math.min(1, round(brand.c / 0.09, 2)) : 1
-}
-
 /** A theme as a file people can share and import again: t3code's format. */
 export function serializeThemeFile(theme: ThemeDefinition): string {
   const file = {

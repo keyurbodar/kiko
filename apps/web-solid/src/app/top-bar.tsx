@@ -1,7 +1,7 @@
 import { useLocation } from "@solidjs/router"
 import { Show } from "solid-js"
 import { runCommand } from "../commands/registry"
-import { Bird } from "../mascot/bird"
+import { BrandBird } from "../mascot/brand"
 import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
@@ -33,7 +33,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
         </Show>
         <TooltipV2 placement="bottom" openDelay={400} value="New chat">
           <button type="button" class="top-bar-button" aria-label="New chat" data-action="logo-new-chat" onClick={() => runCommand("chat.new")}>
-            <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={24} />
+            <BrandBird size={24} />
           </button>
         </TooltipV2>
         <TabStrip />

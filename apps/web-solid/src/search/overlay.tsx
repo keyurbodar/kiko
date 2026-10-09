@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router"
-import { Moment } from "../mascot/pixel/lazy"
+import { Moment } from "../mascot/lazy"
 import { Icon } from "@kiko/ui/v2/icon"
 import { type ChatSearchPage, type RoomId, snippetParts } from "@kiko/protocol"
 import { For, Show, Suspense, createEffect, createSignal, on, onCleanup, onMount } from "solid-js"

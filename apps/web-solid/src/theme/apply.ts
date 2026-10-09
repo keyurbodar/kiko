@@ -4,10 +4,9 @@
 //
 // Every function here is a no-op without a DOM, so tests can import it.
 
-import { setFavicon } from "../mascot/logo"
 import { displayVars } from "./display"
 import { accentFor, colorsFor, DEFAULT_LOOK, type Look } from "./look"
-import { accentChroma, oklchOf, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeDefinition, type ThemeMode } from "./palette"
+import { resolveAppearance, tokensFor, type ThemeAppearance, type ThemeDefinition, type ThemeMode } from "./palette"
 
 /** The key the inline script in `index.html` reads. Keep the two in step. */
 export const CACHE_KEY = "kiko:look"
@@ -47,9 +46,6 @@ function paint(look: Look, library: readonly ThemeDefinition[]): void {
   root.style.backgroundColor = colors.canvas
   root.style.setProperty("--boot-bg", colors.canvas)
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute("content", colors.canvas)
-  // The tab icon is the kiko bird, so it wears the accent too.
-  const brand = accent ?? colors.accent
-  setFavicon(oklchOf(brand)?.h ?? 340, accentChroma(brand))
 }
 
 function watch(): void {

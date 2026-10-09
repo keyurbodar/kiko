@@ -10,7 +10,7 @@ import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { SidebarSky } from "./sky"
-import { Bird } from "../mascot/bird"
+import { BrandBird } from "../mascot/brand"
 import { ChatPanel } from "./chat-panel"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import "./sidebar.css"
@@ -196,8 +196,8 @@ export function Sidebar(props: SidebarProps) {
         <SidebarSky />
         <header class="panel-header">
           <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-            <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={22} />
-            <span>Kiko</span>
+            <BrandBird size={22} />
+            <span>Yuki</span>
           </A>
           <span class="flex-1" aria-hidden="true" />
           <Show when={props.section && ACTIONS[props.section]}>{(action) => <HeaderAction action={action()} />}</Show>

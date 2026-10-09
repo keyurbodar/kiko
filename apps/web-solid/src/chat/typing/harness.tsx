@@ -5,7 +5,7 @@ import { render } from "solid-js/web";
 import "../../styles/app.css";
 import { createTypingPresence } from "./create-typing-presence";
 import { TypingIndicator } from "./TypingIndicator";
-import Moment from "../../mascot/pixel/moment";
+import Moment from "../../mascot/moment";
 
 const ROWS: [string[], (string | undefined)[]][] = [
   [["kiko"], []],

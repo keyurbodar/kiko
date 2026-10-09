@@ -1,5 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { Moment } from "../mascot/pixel/lazy"
+import { Moment } from "../mascot/lazy"
 import { FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"

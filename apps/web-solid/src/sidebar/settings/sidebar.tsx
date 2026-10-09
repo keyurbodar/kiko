@@ -1,5 +1,5 @@
 import { A } from "@solidjs/router"
-import { Moment } from "../../mascot/pixel/lazy"
+import { Moment } from "../../mascot/lazy"
 import { createSignal, For, Show, Suspense } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, KeyIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
