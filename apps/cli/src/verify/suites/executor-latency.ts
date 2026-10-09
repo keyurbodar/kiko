@@ -8,10 +8,13 @@ import { ulid } from "./mid-run"
 // (default `dev`, the local account), which must already have Executor and a model connected. Each
 // run opens a new chat, asks a first task, then a follow-up in the same chat, and records the time
 // from send to idle with the model turns, Executor calls, and Executor HTTP requests behind it.
-// Read-only tasks that ask for live data, so nothing pauses for approval. YUKI_EXECUTOR_RUNS sets the runs (default 3).
+// Read-only tasks that ask for live data, so nothing pauses for approval. YUKI_EXECUTOR_RUNS sets the runs (default 3),
+// YUKI_EXECUTOR_MODEL the model the chats use, and YUKI_EXECUTOR_KEEP=1 keeps the chats to read.
 
 const RUNS = Number(process.env.YUKI_EXECUTOR_RUNS ?? 3)
 const USER = process.env.YUKI_EXECUTOR_USER ?? "dev"
+/** A model for the chats, such as `opencode-go/muse-spark-1.3-contributor`. Unset leaves the server default. */
+const MODEL = process.env.YUKI_EXECUTOR_MODEL
 // Each asks for live data, so memory cannot answer it.
 const TASKS = [
   { tag: "new chat", text: "check github now: what is the newest commit message on my most recently pushed repo? one line." },
@@ -37,6 +40,10 @@ const suite: Suite = {
       await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
       const room = await s.room(roomId)
       await room.expect((f) => f.t === "events" || f.t === "reset")
+      if (MODEL) {
+        room.raw.send({ t: "model", ref: MODEL })
+        await Bun.sleep(500)
+      }
       for (const task of TASKS) {
         await resetStats(v, s)
         const t0 = performance.now()
@@ -63,10 +70,11 @@ const suite: Suite = {
         samples.add(`${task.tag}: executor calls`, calls)
         samples.add(`${task.tag}: executor http requests`, c["executor.http"] ?? 0)
         samples.add(`${task.tag}: executor http (s)`, Math.round((c["executor.httpMs"] ?? 0) / 100) / 10)
+        const models = Object.entries(c).filter(([k]) => k.startsWith("model.id.")).map(([k]) => k.slice(9)).join(" ")
         const tools = Object.entries(c).filter(([k]) => k.startsWith("executor.call.")).map(([k, n]) => `${k.slice(14)}×${n}`).join(" ")
-        answers.push(`${task.tag}: [${tools}] ${text.slice(0, 160)}`)
+        answers.push(`${task.tag}: <${models}> [${tools}] ${text.slice(0, 160)}`)
       }
-      user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })
+      if (!process.env.YUKI_EXECUTOR_KEEP) user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })
     }
     for (const a of answers) console.log(`  ${a}`)
     samples.print(`executor tasks as ${USER}, ${RUNS} runs`)

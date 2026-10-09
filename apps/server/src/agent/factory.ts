@@ -80,7 +80,10 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const registry = createRegistry()
   for (const extension of [...builtins, trust]) registry.install(extension)
   const extensions = new UserExtensions(registry, builtins, trust, effects, input.scripts)
-  return { registry, agent: { model: input.model, extensions: [...builtins, trust] }, extensions }
+  // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
+  // supports. A chat reply waits on every turn, and on Executor tasks the default level made each
+  // turn take 2 to 5 s longer with the same answers.
+  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: [...builtins, trust] }, extensions }
 }
 
 export type ExtensionProblem = { name: string; hash: string; error: string }
@@ -142,15 +145,17 @@ export class UserExtensions {
   }
 }
 
-export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "deepseek-v4.1-flash" }
+/** Muse Spark at minimal reasoning answered an Executor task in 9.3 s where DeepSeek V4.1 Flash took 16.6 s (executor-latency, 2026-10-09). */
+export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }
 
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
 
 /** Counts a model turn and its time for the dev stats. Returns the stream itself. */
-function timed<S extends { result(): Promise<unknown> }>(stream: S): S {
+function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S): S {
   const t = performance.now()
   count("model.turns")
+  count(`model.id.${modelId}`)
   void stream.result().then(() => count("model.ms", Math.round(performance.now() - t)), () => {})
   return stream
 }
@@ -169,8 +174,8 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
   for (const provider of builtinProviders()) {
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
     const routed = {
-      stream: ((model, context, options) => timed(provider.stream(model, context, via(model, options) as never))) as typeof provider.stream,
-      streamSimple: ((model, context, options) => timed(provider.streamSimple(model, context, via(model, options) as never))) as typeof provider.streamSimple,
+      stream: ((model, context, options) => timed(model.id, provider.stream(model, context, via(model, options) as never))) as typeof provider.stream,
+      streamSimple: ((model, context, options) => timed(model.id, provider.streamSimple(model, context, via(model, options) as never))) as typeof provider.streamSimple,
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }

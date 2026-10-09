@@ -243,6 +243,8 @@ export class ExecutorConnection {
     const requestId = typeof args.requestId === "string" ? args.requestId : ""
     const resumed = this.held.get(requestId)
     this.held.delete(requestId)
+    // The agent was promised handles by a listing that may predate this instance.
+    if (name === "execute" && !this.catalog) this.catalog = (await this.store.get<SavedListing>("listing"))?.catalog
     const sent = name === "execute" && typeof args.code === "string" && this.catalog ? { ...args, code: withHandles(args.code, this.catalog) } : args
     if (name === "execute" && typeof args.code === "string" && args.code !== DISCOVER_PROGRAM && args.code.includes("tools.executor.") && this.listing) this.listing = { ...this.listing, at: 0 }
     const run = async (client: McpClient) => {

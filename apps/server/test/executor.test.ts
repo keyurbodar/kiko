@@ -493,3 +493,13 @@ test("a program that uses executor's own app makes the next listing load again",
   expect(fake.listed).toBe(listed + 1)
   ws.close()
 })
+
+test("a program still gets its handles after the object was evicted between listing and call", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await mf.dispatchFetch(`http://do/rpc/${user}`, { method: "POST", body: JSON.stringify({ method: "evict", args: [] }) }).catch(() => {})
+  await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })
+  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"]);')
+  ws.close()
+})
