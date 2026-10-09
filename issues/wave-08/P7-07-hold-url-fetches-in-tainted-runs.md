@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p7-07-hold-url-fetches-in-tainted-runs` |
+| Branch | `yuki/p7-07-hold-url-fetches-in-tainted-runs` |
 
 ## Verification
 
-`bun kiko verify injection --no-model` passes the new case: a tainted run posts a bubble with a URL that no human message contained, and the room requests no preview for it.
+`bun yuki verify injection --no-model` passes the new case: a tainted run posts a bubble with a URL that no human message contained, and the room requests no preview for it.
 
 ## Task
 

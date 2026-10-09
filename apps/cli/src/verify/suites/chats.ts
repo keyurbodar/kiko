@@ -1,4 +1,4 @@
-import { type Chat, isRoomId, newRoomId, type RoomId, type UserToClient } from "@kiko/protocol"
+import { type Chat, isRoomId, newRoomId, type RoomId, type UserToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
@@ -6,7 +6,7 @@ import type { Suite } from "../runner"
 //
 //   1. ids        a new room id is a UUIDv7, and the server takes it
 //   2. one dm     a second direct chat with one agent is refused and names the first
-//   3. kiko       the kiko chat cannot be unpinned or deleted
+//   3. yuki       the yuki chat cannot be unpinned or deleted
 //   4. temp       a temporary chat is deleted when its tab closes, and kept when it becomes a group
 //   5. resume     the last chat opened comes back in a new device's snapshot
 
@@ -14,14 +14,14 @@ const suite: Suite = {
   name: "chats",
   async run(v) {
     const s = await v.as(`chats-${Date.now().toString(36)}`)
-    // The page asks /api/me on load, which makes sure the kiko chat exists.
+    // The page asks /api/me on load, which makes sure the yuki chat exists.
     await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
     const user = await s.user()
     const first = await user.expect((f) => f.t === "reset")
     if (first.t !== "reset") throw new VerifyError("a new device must get a snapshot")
-    const kiko = first.snapshot.chats.find((c) => c.kiko)
-    if (!kiko) throw new VerifyError("no kiko chat in the snapshot")
-    expectEqual(first.snapshot.lastChat, kiko.roomId, "a user who opened nothing resumes in the kiko chat")
+    const yuki = first.snapshot.chats.find((c) => c.yuki)
+    if (!yuki) throw new VerifyError("no yuki chat in the snapshot")
+    expectEqual(first.snapshot.lastChat, yuki.roomId, "a user who opened nothing resumes in the yuki chat")
 
     const chat = (roomId: string) => (f: UserToClient) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId)
     const gone = (roomId: string) => (f: UserToClient) => f.t === "events" && f.events.some((e) => e.t === "chat_removed" && e.roomId === roomId)
@@ -39,25 +39,25 @@ const suite: Suite = {
     await user.expectNone(chat(second), 500)
     console.log(`  one dm: ${second} refused, ${dm} kept`)
 
-    // 3. The kiko chat stays.
-    user.send({ t: "chat", op: { op: "pin", roomId: kiko.roomId, pinned: false } })
-    user.send({ t: "chat", op: { op: "delete", roomId: kiko.roomId } })
-    await user.expectNone((f) => chat(kiko.roomId)(f) || gone(kiko.roomId)(f), 800)
-    console.log("  kiko: unpin and delete changed nothing")
+    // 3. The yuki chat stays.
+    user.send({ t: "chat", op: { op: "pin", roomId: yuki.roomId, pinned: false } })
+    user.send({ t: "chat", op: { op: "delete", roomId: yuki.roomId } })
+    await user.expectNone((f) => chat(yuki.roomId)(f) || gone(yuki.roomId)(f), 800)
+    console.log("  yuki: unpin and delete changed nothing")
 
     // 4. A temporary chat closed with its tab is gone; one that became a group stays.
     const temp = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: temp, title: "new chat", agents: ["kiko"], temp: true } })
+    user.send({ t: "chat", op: { op: "create", roomId: temp, title: "new chat", agents: ["yuki"], temp: true } })
     await user.expect(chat(temp))
     user.send({ t: "chat", op: { op: "delete", roomId: temp } })
     await user.expect(gone(temp))
     const group = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: group, title: "new chat", agents: ["kiko"], temp: true } })
+    user.send({ t: "chat", op: { op: "create", roomId: group, title: "new chat", agents: ["yuki"], temp: true } })
     await user.expect(chat(group))
-    user.send({ t: "chat", op: { op: "keep", roomId: group, title: "kiko, ada", agents: ["kiko", agentId] } })
+    user.send({ t: "chat", op: { op: "keep", roomId: group, title: "yuki, ada", agents: ["yuki", agentId] } })
     const kept = await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === group && !e.chat.temp))
     const keptChat = kept.t === "events" ? kept.events.flatMap((e) => (e.t === "chat" && e.chat.roomId === group ? [e.chat] : []))[0] : undefined
-    expectEqual(keptChat?.title, "kiko, ada", "the kept group's title")
+    expectEqual(keptChat?.title, "yuki, ada", "the kept group's title")
     console.log(`  temp: ${temp} deleted on close, ${group} kept as a group`)
 
     // 5. Resume on a new device, never into a temporary chat.
@@ -72,13 +72,13 @@ const suite: Suite = {
     await Bun.sleep(300)
     expectEqual((await snapshot()).lastChat, dm, "the last chat opened")
     const temp2 = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: temp2, title: "new chat", agents: ["kiko"], temp: true } })
+    user.send({ t: "chat", op: { op: "create", roomId: temp2, title: "new chat", agents: ["yuki"], temp: true } })
     await user.expect(chat(temp2))
     user.send({ t: "open", roomId: temp2 })
     await Bun.sleep(300)
     const after = await snapshot()
-    expectEqual(after.lastChat, kiko.roomId, "a temporary chat is never resumed")
-    console.log(`  resume: ${dm}, then the kiko chat after a temporary one`)
+    expectEqual(after.lastChat, yuki.roomId, "a temporary chat is never resumed")
+    console.log(`  resume: ${dm}, then the yuki chat after a temporary one`)
 
     for (const roomId of [dm, group, temp2]) user.send({ t: "chat", op: { op: "delete", roomId } })
     await user.expect(gone(temp2))

@@ -247,7 +247,7 @@ describe("time dividers", () => {
   });
 });
 describe("group timeline", () => {
-  const members = new Set(["kiko", "piko"]);
+  const members = new Set(["yuki", "piko"]);
   const shape = (items: TimelineItem[]) =>
     items.map((item) =>
       item.kind === "message"
@@ -258,15 +258,15 @@ describe("group timeline", () => {
             ? `notice:${item.text}`
             : item.kind,
     );
-  const k = (id: string, seq: number, body = "hi") => bot(id, at(seq * 1000), { botId: "kiko", seq, body });
+  const k = (id: string, seq: number, body = "hi") => bot(id, at(seq * 1000), { botId: "yuki", seq, body });
   const p = (id: string, seq: number, body = "hi") => bot(id, at(seq * 1000), { botId: "piko", seq, body });
 
   test.each([
     ["a notice sits by seq and ends the run above it", [k("a", 1), k("b", 3)], [{ key: "n", seq: 2, at: at(2000).getTime(), text: "piko joined" }], undefined, ["a<>", "notice:piko joined", "b<>"]],
     ["a notice past every message goes last", [k("a", 1)], [{ key: "n", seq: 5, at: at(5000).getTime(), text: "piko left" }], undefined, ["a<>", "notice:piko left"]],
-    ["agents addressing each other fold into one thread", [k("a", 1), k("b", 2, "@piko over to you"), p("c", 3, "@kiko done"), k("d", 4)], [], undefined, ["a<>", "thread(b,c)", "d<>"]],
+    ["agents addressing each other fold into one thread", [k("a", 1), k("b", 2, "@piko over to you"), p("c", 3, "@yuki done"), k("d", 4)], [], undefined, ["a<>", "thread(b,c)", "d<>"]],
     ["an open thread's messages follow it and run among themselves", [k("b", 2, "@piko one"), k("c", 3, "@piko two"), k("d", 4)], [], "thread:b", ["thread(b,c open)", "b<", "c>", "d<>"]],
-    ["addressing yourself or a stranger does not fold", [k("a", 1, "@kiko note"), k("b", 2, "@ada hey")], [], undefined, ["a<", "b>"]],
+    ["addressing yourself or a stranger does not fold", [k("a", 1, "@yuki note"), k("b", 2, "@ada hey")], [], undefined, ["a<", "b>"]],
   ] as const)("%s", (_name, messages, notices, open, want) => {
     const items = buildTimelineItems(messages as unknown as ChatMessage[], null, {
       notices: notices as never,

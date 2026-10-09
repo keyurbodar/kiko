@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p10-04-store-extensions-in-userdo` |
+| Branch | `yuki/p10-04-store-extensions-in-userdo` |
 
 ## Verification
 

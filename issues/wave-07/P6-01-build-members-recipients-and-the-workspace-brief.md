@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-01-build-members-recipients-and-the-workspace-brief` |
+| Branch | `yuki/p6-01-build-members-recipients-and-the-workspace-brief` |
 
 ## Verification
 
-`bun kiko verify team-routing` passes with fake agents: an untagged message reaches only the lead, `@ada` reaches only ada, `@all` reaches everyone, and ada's next delivery carries the messages she missed.
+`bun yuki verify team-routing` passes with fake agents: an untagged message reaches only the lead, `@ada` reaches only ada, `@all` reaches everyone, and ada's next delivery carries the messages she missed.
 
 ## Task
 

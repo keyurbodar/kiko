@@ -1,11 +1,11 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 import type { AgentSend } from "../../room/mail"
 import type { SpawnInput } from "../../room/room-do"
-import { declareEffect } from "@kiko/agent/effects"
-import type { Answer } from "@kiko/agent/answers"
-import { isRunTainted, markRunTainted } from "@kiko/agent/trust"
+import { declareEffect } from "@yuki/agent/effects"
+import type { Answer } from "@yuki/agent/answers"
+import { isRunTainted, markRunTainted } from "@yuki/agent/trust"
 
 export const MESSAGING = "messaging"
 

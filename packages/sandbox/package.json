@@ -1,5 +1,5 @@
 {
-  "name": "@kiko/sandbox",
+  "name": "@yuki/sandbox",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "@earendil-works/chord": "1.0.0",
     "@earendil-works/pi-ai": "^1.0.0",
     "@earendil-works/pi-durable": "^1.0.0",
-    "@kiko/agent": "workspace:*",
+    "@yuki/agent": "workspace:*",
     "quickjs-wasi": "3.6.2"
   },
   "devDependencies": {

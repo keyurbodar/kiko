@@ -1,4 +1,4 @@
-import type { Chat, ChatLast, ChatOp, RoomId } from "@kiko/protocol"
+import type { Chat, ChatLast, ChatOp, RoomId } from "@yuki/protocol"
 
 // The chat index. Every edit is a pure step over one row: it returns the change to
 // broadcast, or null when the row already says the same thing. A repeated or late

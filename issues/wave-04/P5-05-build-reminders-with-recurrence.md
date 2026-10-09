@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-05-build-reminders-with-recurrence` |
+| Branch | `yuki/p5-05-build-reminders-with-recurrence` |
 
 ## Verification
 
-`bun kiko verify reminders` passes: a reminder due in 3 seconds posts one message to its room, a second alarm for the same time posts nothing, and a daily reminder moves `due_utc` forward by one day in the user's timezone.
+`bun yuki verify reminders` passes: a reminder due in 3 seconds posts one message to its room, a second alarm for the same time posts nothing, and a daily reminder moves `due_utc` forward by one day in the user's timezone.
 
 ## Task
 

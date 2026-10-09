@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-16-persist-drafts-and-scroll-position` |
+| Branch | `yuki/p3-16-persist-drafts-and-scroll-position` |
 
 ## Verification
 
-The `verify-kiko` drafts feature: type in chat A, switch to chat B, reload, return to chat A, and see the draft and the same scroll position.
+The `verify-yuki` drafts feature: type in chat A, switch to chat B, reload, return to chat A, and see the draft and the same scroll position.
 
 ## Task
 

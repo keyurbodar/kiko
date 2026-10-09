@@ -1,11 +1,11 @@
 import { createEffect, createMemo, createSignal, lazy, onMount, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
-import { Icon } from "@kiko/ui/icon"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { AttachIcon } from "@kiko/ui/icons"
-import { useI18n } from "@kiko/ui/context/i18n"
-import { Icon as IconV2 } from "@kiko/ui/v2/icon"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { Icon } from "@yuki/ui/icon"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { AttachIcon } from "@yuki/ui/icons"
+import { useI18n } from "@yuki/ui/context/i18n"
+import { Icon as IconV2 } from "@yuki/ui/v2/icon"
+import { TooltipV2 } from "@yuki/ui/v2/tooltip-v2"
 import { identityLook } from "../../lib/identity"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 import type { PromptInputV2Interaction } from "./interaction"
@@ -131,7 +131,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
         {(area) => (
           <Portal>
             <div
-              class="pointer-events-none fixed z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent/60 bg-accent/[0.035]"
+              class="pointer-events-none fixed z-40 flex items-center justify-center rounded-2xl border border-dashed border-accent/60 bg-accent/[0.035]"
               style={area()}
               data-component="composer-drop-overlay"
             >

@@ -1,4 +1,4 @@
-import { ClientToUser, UserToClient } from "@kiko/protocol/schema"
+import { ClientToUser, UserToClient } from "@yuki/protocol/schema"
 import { Channel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 

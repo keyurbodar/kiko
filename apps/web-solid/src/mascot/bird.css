@@ -1,28 +1,35 @@
-/* The mascot's moods. Only a bird with a state moves: a list of avatars stays still. */
+/*
+ * The mascot is an ink drawing, not a cartoon: it never moves across the screen. One large idle
+ * bird breathes and blinks; a working bird's line boils (an SVG animation in birds.ts). Both stop
+ * for reduced motion. Origins are in the drawing's own units: the mochi's base is at (60, 101).
+ */
 .bird { display: inline-block; flex-shrink: 0; line-height: 0; }
 .bird svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.bird .bird-body, .bird .bird-feet { transform-box: view-box; transform-origin: 48px 88px; }
+.bird .bird-body, .bird .bird-eyes { transform-box: view-box; }
+.bird .bird-body { transform-origin: 60px 101px; }
+.bird[data-shape="mochi"] .bird-eyes { transform-origin: 60px 77.5px; }
+.bird[data-shape="loaf"] .bird-eyes { transform-origin: 85px 65.5px; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .bird[data-state="thinking"] .bird-body { animation: bird-tilt 2.4s ease-in-out infinite; }
-  .bird[data-state="thinking"] .bird-think circle { animation: bird-blink 1.2s ease-in-out infinite; }
-  .bird[data-state="thinking"] .bird-think circle:nth-child(2) { animation-delay: .2s; }
-  .bird[data-state="thinking"] .bird-think circle:nth-child(3) { animation-delay: .4s; }
-  .bird[data-state="working"] .bird-gear { transform-box: view-box; animation: bird-spin 2.2s linear infinite; }
-  .bird[data-state="working"] .bird-body { animation: bird-tilt 3s ease-in-out infinite; }
-  .bird[data-state="typing"] .bird-body { animation: bird-peck .5s ease-in-out infinite; }
-  .bird[data-state="sending"] .bird-body, .bird[data-state="sending"] .bird-feet { animation: bird-hop .6s cubic-bezier(.3,.7,.4,1) 1; }
-  .bird[data-state="sending"] .bird-plane { animation: bird-fly .9s ease-out 1 forwards; }
-  .bird[data-state="wave"] .bird-body, .bird[data-state="wave"] .bird-feet { animation: bird-hop 1.4s cubic-bezier(.3,.7,.4,1) infinite; }
-  .bird[data-state="wave"] .bird-wing { transform-box: view-box; transform-origin: 40px 58px; animation: bird-flap .35s ease-in-out infinite alternate; }
-  .bird[data-state="idle"][data-alive] .bird-eye { transform-box: view-box; transform-origin: 63px 52px; animation: bird-wink 5s ease-in-out infinite; }
+  .bird[data-alive][data-state="idle"] .bird-body,
+  .bird[data-alive][data-state="sleeping"] .bird-body { animation: bird-breathe 5.6s ease-in-out infinite; }
+  .bird[data-alive][data-state="idle"] .bird-eyes { animation: bird-blink 7.4s ease-in-out infinite; }
 }
 
-@keyframes bird-tilt { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-6deg); } }
-@keyframes bird-peck { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(10deg) translateY(1px); } }
-@keyframes bird-hop { 0%, 100% { transform: translateY(0) scaleY(1); } 15% { transform: translateY(0) scaleY(.9); } 45% { transform: translateY(-14px) scaleY(1.04); } 75% { transform: translateY(0) scaleY(.96); } }
-@keyframes bird-flap { from { transform: rotate(0deg); } to { transform: rotate(-24deg); } }
-@keyframes bird-spin { to { transform: rotate(360deg); } }
-@keyframes bird-blink { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
-@keyframes bird-wink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
-@keyframes bird-fly { 0% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(22px, -18px); opacity: 0; } }
+@keyframes bird-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, 0.985); } }
+@keyframes bird-blink { 0%, 95.5%, 100% { transform: scaleY(1); } 97.5% { transform: scaleY(0.12); } }
+
+/* A playing bird. The scene sets where it looks (`--look-x`, `--look-y`, in drawing units), how
+   far it leans (`--tilt`), and which face it wears (`data-face`). These compose with the breathing
+   above because they use the separate `translate` and `rotate` properties. */
+.bird .bird-happy,
+.bird .bird-closed,
+.bird .bird-mouth { display: none; }
+.bird[data-face="closed"] .bird-closed { display: inline; }
+.bird[data-face="closed"] .bird-eyes { display: none; }
+.bird[data-face="happy"] .bird-happy { display: inline; }
+.bird[data-face="happy"] .bird-eyes { display: none; }
+.bird[data-face="open"] .bird-mouth { display: inline; }
+.bird[data-face="open"] .bird-beak { display: none; }
+.bird[data-expressive] .bird-eyes { translate: var(--look-x, 0px) var(--look-y, 0px); }
+.bird[data-expressive] .bird-body { rotate: var(--tilt, 0deg); }

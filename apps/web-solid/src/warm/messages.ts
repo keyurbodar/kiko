@@ -1,7 +1,7 @@
 // One row per message, keyed by [roomId, seq]. Architecture section 19.2.
 // The room's `lastSeq` lives in `meta`, so a socket can resume from it.
 
-import type { Message, RoomId } from "@kiko/protocol"
+import type { Message, RoomId } from "@yuki/protocol"
 import type { KeyRange, Warm } from "./db"
 
 /** The boot paint reads this many. */

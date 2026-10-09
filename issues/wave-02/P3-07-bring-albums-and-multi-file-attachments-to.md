@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-07-bring-albums-and-multi-file-attachments-to` |
+| Branch | `yuki/p3-07-bring-albums-and-multi-file-attachments-to` |
 
 ## Verification
 
-`bun test apps/web-solid/src/lib/album.test.ts` passes layouts for 1 to 10 items against the expected rectangles, and the `verify-kiko` album feature matches Telegram for 2, 3, 4, and 7 images.
+`bun test apps/web-solid/src/lib/album.test.ts` passes layouts for 1 to 10 items against the expected rectangles, and the `verify-yuki` album feature matches Telegram for 2, 3, 4, and 7 images.
 
 ## Task
 

@@ -1,4 +1,4 @@
-// DEVELOPMENT ONLY. Counts what one turn costs, for `bun kiko verify latency`: SQL statements and
+// DEVELOPMENT ONLY. Counts what one turn costs, for `bun yuki verify latency`: SQL statements and
 // rows written per object kind, key-value and alarm calls, and RPC calls between objects. Every
 // object of one Worker runs in one isolate under `wrangler dev`, so one module-level table sees
 // them all. A production bundle never calls `instrument`, and `rpc` returns the stub unchanged.

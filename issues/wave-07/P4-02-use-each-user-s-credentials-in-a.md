@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p4-02-use-each-user-s-credentials-in-a` |
+| Branch | `yuki/p4-02-use-each-user-s-credentials-in-a` |
 
 ## Verification
 
-`bun kiko verify byok` passes: a user with a connected provider gets an answer, a user with none gets a `no_provider` event and no run, and disconnecting mid-conversation makes the next message return `no_provider`.
+`bun yuki verify byok` passes: a user with a connected provider gets an answer, a user with none gets a `no_provider` event and no run, and disconnecting mid-conversation makes the next message return `no_provider`.
 
 ## Task
 

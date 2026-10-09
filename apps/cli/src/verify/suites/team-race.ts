@@ -1,4 +1,4 @@
-import type { FileRef, Message, RoomToClient } from "@kiko/protocol"
+import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -56,7 +56,7 @@ const suite: Suite = {
     const ada = { id: `agent-ada-${Date.now()}`, name: "ada", slug: "ada" as never, prompt: "you write copy.", model: "" }
     user.send({ t: "agent", op: { op: "create", agent: ada } })
     const roomId = ulid()
-    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "notes", agents: ["kiko", ada.id] } })
+    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "notes", agents: ["yuki", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
     const t0 = Date.now()
@@ -68,7 +68,7 @@ const suite: Suite = {
     const text = (await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()).toLowerCase()
     console.log(`  /notes.md after ${Date.now() - t0} ms: ${JSON.stringify(text)}`)
     for (const m of seen(room).messages.filter((m) => m.from.kind === "agent")) console.log(`    @${(m.from as { slug: string }).slug}: ${m.text.replace(/\s+/g, " ").slice(0, 140)}`)
-    const missing = ["kiko", "ada"].filter((n) => !text.includes(n))
+    const missing = ["yuki", "ada"].filter((n) => !text.includes(n))
     if (missing.length) throw new VerifyError(`a line was lost: no ${missing.join(", ")} in /notes.md`)
     room.raw.close()
   },

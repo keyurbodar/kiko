@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-03-build-file-upload-download-and-the-room` |
+| Branch | `yuki/p8-03-build-file-upload-download-and-the-room` |
 
 ## Verification
 
-`bun kiko verify files` passes: upload a 30 MB file in parts, download a byte range from the middle, see the file event on the room socket, and get 404 when another user requests it.
+`bun yuki verify files` passes: upload a 30 MB file in parts, download a byte range from the middle, see the file event on the room socket, and get 404 when another user requests it.
 
 ## Task
 

@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-08-build-the-team-chat-interface` |
+| Branch | `yuki/p6-08-build-the-team-chat-interface` |
 
 ## Verification
 
-The `verify-kiko` team chat feature: type `@`, pick an agent, send, and see only that agent answer. Open the member sheet, add an agent, and see it in the mention list.
+The `verify-yuki` team chat feature: type `@`, pick an agent, send, and see only that agent answer. Open the member sheet, add an agent, and see it in the mention list.
 
 ## Task
 

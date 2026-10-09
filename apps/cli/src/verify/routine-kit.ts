@@ -1,4 +1,4 @@
-import type { Message, RoomToClient } from "@kiko/protocol"
+import type { Message, RoomToClient } from "@yuki/protocol"
 import { type RoomHandle, type Session, VerifyError } from "./client"
 
 // Shared by the routine suites (architecture section 25): the human's HTTP calls, the dev routes, and

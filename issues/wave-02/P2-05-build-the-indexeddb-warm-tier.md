@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-05-build-the-indexeddb-warm-tier` |
+| Branch | `yuki/p2-05-build-the-indexeddb-warm-tier` |
 
 ## Verification
 

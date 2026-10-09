@@ -46,9 +46,9 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P11-01` `difficulty: 3` `area: backend`
 
-**Verify.** `test/log-memory.test.ts` passes its life cases (one line, at most 280 bytes, no duplicates, pins, redaction, the one-time import), and `bun kiko verify memory-tools` passes with the test model.
+**Verify.** `test/log-memory.test.ts` passes its life cases (one line, at most 280 bytes, no duplicates, pins, redaction, the one-time import), and `bun yuki verify memory-tools` passes with the test model.
 
-**Goal.** What kiko knows about the human, across every chat, as one append-only log with the same tree.
+**Goal.** What yuki knows about the human, across every chat, as one append-only log with the same tree.
 
 **Files.** `apps/server/src/user/life.ts`, `user/user-do.ts`, `user/turn-context.ts`, `packages/protocol/src/memory.ts`, `schema.ts`.
 
@@ -63,7 +63,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P11-02, P11-03` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify team-routing mid-run` passes with the fake agent, which reads its `<memory>` block, and `bun kiko verify memory-tools soul subagent turn` passes with the test model.
+**Verify.** `bun yuki verify team-routing mid-run` passes with the fake agent, which reads its `<memory>` block, and `bun yuki verify memory-tools soul subagent turn` passes with the test model.
 
 **Goal.** A run's context is the memory block and the run itself, the same size at turn 50 and turn 50,000.
 
@@ -73,14 +73,14 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 - A batch that starts a run resets the root conversation, then opens with `<memory>`: life, then this chat. A steer and a restart keep their context.
 - Tools `recall`, `zoom`, and `note`. A subagent has no memory tools: it cannot judge what is already known.
-- What a later run needs lives in the room, not in a tool result: `create` takes kiko's newest proposal, and an accepted approval carries its call's arguments.
+- What a later run needs lives in the room, not in a tool result: `create` takes yuki's newest proposal, and an accepted approval carries its call's arguments.
 - The prompt's memory rule is three lines in the system prompt, so the cache holds.
 
 ### P11-05 Measure memory with an eval
 
 `deps: P11-04` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 7 of 8 (measured 8 of 8).
+**Verify.** `bun yuki verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 7 of 8 (measured 8 of 8).
 
 **Goal.** A number for how well an agent knows a long chat, so later changes to the tree or the prompt can be compared.
 
@@ -92,7 +92,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 **Verify.** `bun run --cwd apps/web-solid test` passes `memory.test.ts`: newest lines first, pin and redact apply at once and refresh what agents read, a note shows at once, a refused change is undone.
 
-**Goal.** The human sees what kiko knows, pins what matters, removes what should be gone, and picks the model that writes summaries.
+**Goal.** The human sees what yuki knows, pins what matters, removes what should be gone, and picks the model that writes summaries.
 
 **Files.** `apps/web-solid/src/chat/info/memory/*`, `chat/info/panel.tsx`, `chat/info/state.ts`, `app/routes.tsx`.
 
@@ -100,7 +100,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P11-04` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `bun kiko verify team-model` passes with the test model: kiko gets one fact each from ada and bob with `ask`, writes /walk.md with both, and every agent is woken once. `test/team-routing.test.ts` covers an ask that closes before its answer.
+**Verify.** `bun yuki verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `bun yuki verify team-model` passes with the test model: yuki gets one fact each from ada and bob with `ask`, writes /walk.md with both, and every agent is woken once. `test/team-routing.test.ts` covers an ask that closes before its answer.
 
 **Goal.** Team work that needs an answer to go on takes one run, not a message, an end, and a second run.
 

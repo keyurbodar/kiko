@@ -1,4 +1,4 @@
-import type { LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
+import type { LoginEvent, LoginPrompt, UserToClient } from "@yuki/protocol"
 import { urls } from "../lib/store"
 
 // Provider sign-in from the browser (architecture 11.4). The server runs the flow; this

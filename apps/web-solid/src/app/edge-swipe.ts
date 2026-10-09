@@ -1,7 +1,7 @@
 /*
  * Phone swipes for the two panes that cover the chat: from the left edge the drawer opens, a
  * leftward swipe on the drawer or its scrim closes it, and a rightward swipe on the info panel
- * closes it. Each is decided once, when the finger lifts, so nothing animates (kiko is instant).
+ * closes it. Each is decided once, when the finger lifts, so nothing animates (yuki is instant).
  */
 
 /** A touch that starts this close to the left edge can open the drawer. */

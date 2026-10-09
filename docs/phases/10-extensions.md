@@ -1,6 +1,6 @@
 # Phase 10. User extensions
 
-Users and agents add pi-durable extensions while kiko runs, on the Free plan, without a deploy. An extension is a manifest and a few JavaScript files that run in a QuickJS sandbox inside the agent's object. The human installs every one. Architecture section 24 has every decision.
+Users and agents add pi-durable extensions while yuki runs, on the Free plan, without a deploy. An extension is a manifest and a few JavaScript files that run in a QuickJS sandbox inside the agent's object. The human installs every one. Architecture section 24 has every decision.
 
 The owner asked for this phase on 2026-10-04 and gave full authority over it. It shipped in one change, so the tasks below record what was built and how each part is verified.
 
@@ -49,7 +49,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 **Build.**
 
 - One VM per extension version per agent process, with a CPU budget, a memory cap, and a wall deadline.
-- `kiko.call`, `kiko.fetch`, `kiko.state`, `kiko.next`, `kiko.log`, each checked per call.
+- `yuki.call`, `yuki.fetch`, `yuki.state`, `yuki.next`, `yuki.log`, each checked per call.
 - `UserExtensions` in the factory: sync installs, removes, and reports clashes; the selection ends with trust.
 
 ### P10-04 Store extensions in UserDO
@@ -72,7 +72,7 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P10-03, P10-04` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify extensions` passes against the dev server.
+**Verify.** `bun yuki verify extensions` passes against the dev server.
 
 **Goal.** An install, a switch, or an update reaches the next run without a deploy.
 

@@ -1,28 +1,30 @@
-import { lazy, Suspense } from "solid-js"
-import { cn } from "../../lib/cn"
-import { useApp } from "../../lib/store"
+import { lazy, Show, Suspense } from "solid-js"
+import "./empty-state.css"
 
-// The pixel field loads on its own, so a chat with messages never fetches it.
-const BirdGrid = lazy(() => import("./bird-grid"))
+// The picture loads on its own, so a chat with messages never fetches it.
+const Hoarfrost = lazy(() => import("../../mascot/hoarfrost").then((m) => ({ default: m.Hoarfrost })))
 
-/**
- * The no-messages state: the chat's own agents as pixel birds pecking at seeds, and one quiet line.
- * No instructions; the composer's placeholder already says who to message.
+/*
+ * The empty chat, after monocode's empty session: a frosted branch with a huddle of Shima Enaga
+ * fills the top of the pane (`mascot/hoarfrost`), and a heading sits over the composer in the middle. The route puts the
+ * composer under the heading, so the first send can carry it down to the dock.
  */
-export function EmptyState(props: { class?: string }) {
+export function EmptyState(props: { faces: readonly string[]; names: readonly string[] }) {
+  const who = () => {
+    const n = props.names
+    return n.length < 2 ? "" : n.length === 2 ? `${n[0]} and ${n[1]}` : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`
+  }
   return (
-    <div
-      class={cn(
-        "chat-empty pointer-events-none flex flex-1 select-none flex-col items-center justify-center gap-5 px-4",
-        props.class,
-      )}
-      data-component="chat-empty"
-      aria-hidden="true"
-    >
+    <>
       <Suspense>
-        <BirdGrid faces={useApp.chatFaces(useApp.activeThreadId() ?? "")} />
+        <Hoarfrost />
       </Suspense>
-      <p class="text-md leading-relaxed text-muted">What's on your mind?</p>
-    </div>
+      <div class="chat-empty" data-component="chat-empty">
+        <h1 class="chat-empty-title">What's on your mind?</h1>
+        <Show when={who()}>
+          <p class="chat-empty-who">{who()}</p>
+        </Show>
+      </div>
+    </>
   )
 }

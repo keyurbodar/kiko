@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-12-add-message-search-to-the-room` |
+| Branch | `yuki/p3-12-add-message-search-to-the-room` |
 
 ## Verification
 
-`bun kiko verify room-search` passes: it finds a word in an old message, finds nothing after that message is deleted, and returns results in under 50 ms for a room with 20,000 messages.
+`bun yuki verify room-search` passes: it finds a word in an old message, finds nothing after that message is deleted, and returns results in under 50 ms for a room with 20,000 messages.
 
 ## Task
 

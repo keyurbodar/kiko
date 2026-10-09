@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-05-add-the-subagent-tool` |
+| Branch | `yuki/p6-05-add-the-subagent-tool` |
 
 ## Verification
 
-`bun kiko verify subagent` passes with the test model: the agent delegates a task, the answer returns as a tool result, and restarting the server mid-child yields one child conversation, not two.
+`bun yuki verify subagent` passes with the test model: the agent delegates a task, the answer returns as a tool result, and restarting the server mid-child yields one child conversation, not two.
 
 ## Task
 

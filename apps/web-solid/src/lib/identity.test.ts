@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { seedBird, SPECIES } from "../mascot/birds"
+import { FLAVORS, seedBird } from "../mascot/birds"
 import { chatFaces, chatSeed, identityLook } from "./identity"
 
 describe("identity look", () => {
@@ -9,16 +9,16 @@ describe("identity look", () => {
     expect(identityLook("ada")).toEqual(identityLook("ada"))
   })
 
-  test("the kiko agent is the kiko bird and wears the theme accent", () => {
-    expect(seedBird("kiko").species).toBe("kiko")
-    expect(identityLook("kiko").color).toBe("var(--accent)")
+  test("the chief is Yuki, the cream bird, and wears the theme accent", () => {
+    expect(seedBird("yuki", "yuki").flavor).toBe("yuki")
+    expect(identityLook("yuki").color).toBe("var(--accent)")
   })
 
-  test("other seeds spread over the flock and never draw the kiko bird", () => {
-    const species = new Set(Array.from({ length: 80 }, (_, i) => seedBird(`agent-${i}`).species))
-    expect(species.has("kiko")).toBe(false)
-    expect(species.size).toBeGreaterThanOrEqual(10)
-    expect([...species].every((s) => s in SPECIES)).toBe(true)
+  test("other seeds spread over the flock and never draw Yuki's cream", () => {
+    const flavors = new Set(Array.from({ length: 80 }, (_, i) => seedBird(`agent-${i}`, "yuki").flavor))
+    expect(flavors.has("yuki")).toBe(false)
+    expect(flavors.size).toBeGreaterThanOrEqual(10)
+    expect([...flavors].every((f) => f in FLAVORS)).toBe(true)
   })
 
   test("an agent colour reads on both appearances", () => {
@@ -60,7 +60,7 @@ describe("chatSeed", () => {
   const agents = [{ id: "a1", slug: "ada" }]
   test.each([
     ["a chat with one agent wears that agent's face", { roomId: "r1", agents: ["a1"] }, "ada"],
-    ["a chat made without a pick is the default agent", { roomId: "r2" }, "kiko"],
+    ["a chat made without a pick is the default agent", { roomId: "r2" }, "yuki"],
     ["a group has a face of its own", { roomId: "r3", agents: ["a1", "a2"] }, "r3"],
     ["an agent the list does not know yet falls back to its id", { roomId: "r4", agents: ["zz"] }, "zz"],
   ])("%s", (_name, chat, want) => expect(chatSeed(chat, agents)).toBe(want))
@@ -73,12 +73,12 @@ describe("chatFaces", () => {
   ]
   test.each([
     ["one agent wears its own face", { roomId: "r1", agents: ["a1"] }, undefined, ["ada"]],
-    ["a chat made without a pick is the default agent", { roomId: "r2" }, undefined, ["kiko"]],
-    ["a group stacks its members, the built-in agent by its slug", { roomId: "r3", agents: ["kiko", "a1", "a2"] }, undefined, ["kiko", "ada", "bo"]],
-    ["a group shows at most three", { roomId: "r4", agents: ["kiko", "a1", "a2", "zz"] }, undefined, ["kiko", "ada", "bo"]],
+    ["a chat made without a pick is the default agent", { roomId: "r2" }, undefined, ["yuki"]],
+    ["a group stacks its members, the built-in agent by its slug", { roomId: "r3", agents: ["yuki", "a1", "a2"] }, undefined, ["yuki", "ada", "bo"]],
+    ["a group shows at most three", { roomId: "r4", agents: ["yuki", "a1", "a2", "zz"] }, undefined, ["yuki", "ada", "bo"]],
     ["a chat with one picked agent stays one-to-one", { roomId: "r7", agents: ["a2"] }, undefined, ["bo"]],
-    ["a closed group shows kiko as its chief, the faces it has once open", { roomId: "r8", agents: ["a1", "a2"] }, undefined, ["kiko", "ada", "bo"]],
-    ["opening that group changes nothing", { roomId: "r8", agents: ["a1", "a2"] }, ["kiko", "ada", "bo"], ["kiko", "ada", "bo"]],
+    ["a closed group shows yuki as its chief, the faces it has once open", { roomId: "r8", agents: ["a1", "a2"] }, undefined, ["yuki", "ada", "bo"]],
+    ["opening that group changes nothing", { roomId: "r8", agents: ["a1", "a2"] }, ["yuki", "ada", "bo"], ["yuki", "ada", "bo"]],
     ["the open room's live members win", { roomId: "r5", agents: ["a1", "a2"] }, ["bo", "cy"], ["bo", "cy"]],
     ["a group that lost all but one wears that one's face", { roomId: "r6", agents: ["a1", "a2"] }, ["bo"], ["bo"]],
   ] as const)("%s", (_name, chat, members, want) =>

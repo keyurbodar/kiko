@@ -1,11 +1,11 @@
-import type { Approval, RoomToClient } from "@kiko/protocol"
+import type { Approval, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle, Session } from "../client"
 import { VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, newRoom, seen, send, until } from "./mid-run"
 
-// Architecture sections 12.3, 16.3 and 25.3, with the scripted fake agent. kiko asks only when it
-// matters. A run the human started acts outside kiko with no card, even after reading outside
+// Architecture sections 12.3, 16.3 and 25.3, with the scripted fake agent. yuki asks only when it
+// matters. A run the human started acts outside yuki with no card, even after reading outside
 // content. A run nobody asked for (here a teammate's message) posts one card for `fake_send`. Only the
 // human's socket decides it. `accept` is a 30-minute grant: the agent's call runs, and its next run
 // nobody asked for runs `fake_send` with no new card. `decline` delivers an error; a second `approve`

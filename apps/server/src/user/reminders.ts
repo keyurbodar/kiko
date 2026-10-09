@@ -1,9 +1,9 @@
-import type { RoomId, RoutineRunStatus, Trigger, TriggerKind } from "@kiko/protocol"
+import type { RoomId, RoutineRunStatus, Trigger, TriggerKind } from "@yuki/protocol"
 import type { Env } from "../index"
-import type { Alarms } from "@kiko/durable/alarm"
+import type { Alarms } from "@yuki/durable/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
-import type { Authority } from "@kiko/agent/authority"
+import type { Authority } from "@yuki/agent/authority"
 import { RRule } from "rrule"
 import { nextOccurrence, ruleProblem } from "./recurrence"
 
@@ -679,7 +679,7 @@ export function routineBody(routine: Reminder, why: string, last: RoutineRun | n
   const lines = [
     `routine "${routine.name}" (id ${routine.id}), run because of ${why}.`,
     `it runs ${describeTrigger(routine.trigger!, routine.tz, routine.dueUtc)}.`,
-    routine.grant.length ? `it may use outside kiko without asking: ${routine.grant.join(", ")}.` : "it may not act outside kiko without asking the human.",
+    routine.grant.length ? `it may use outside yuki without asking: ${routine.grant.join(", ")}.` : "it may not act outside yuki without asking the human.",
     last ? `last run: ${last.status}, ${localTime(last.startedAt, routine.tz)}.` : "this is its first run.",
     "instructions:",
     routine.text,

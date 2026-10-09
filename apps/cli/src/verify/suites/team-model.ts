@@ -1,12 +1,12 @@
-import type { FileRef, Message, RoomToClient } from "@kiko/protocol"
+import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { until } from "./mid-run"
 import { dev, team } from "./team-loops"
 
 // Architecture sections 7.5 and 13, with the real test model. A three-agent task that needs every
-// member: kiko leads, ada alone knows the pastry stop, and bob alone knows the meeting point. The human
-// asks kiko for one file with both. kiko must get each fact from its owner (ask or send_message), write
+// member: yuki leads, ada alone knows the pastry stop, and bob alone knows the meeting point. The human
+// asks yuki for one file with both. yuki must get each fact from its owner (ask or send_message), write
 // /walk.md, and tell the human. Scored on the result, and on the runs it cost: nobody may be woken
 // more than twice for one request.
 
@@ -29,11 +29,11 @@ const suite: Suite = {
     ]
     for (const p of people) user.send({ t: "agent", op: { op: "create", agent: { ...p, slug: p.slug as never, model: "" } } })
     const roomId = `01K${Array.from({ length: 23 }, () => "0123456789ABCDEFGHJKMNPQRSTVWXYZ"[Math.floor(Math.random() * 32)]).join("")}`
-    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "lisbon day", agents: ["kiko", ...people.map((p) => p.id)] } })
+    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "lisbon day", agents: ["yuki", ...people.map((p) => p.id)] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
     const t0 = Date.now()
-    room.send("@kiko write /walk.md: a one-day lisbon walk, five short lines. the pastry stop has to come from ada and the meeting point from bob, so get both from them first. then tell me it's done.")
+    room.send("@yuki write /walk.md: a one-day lisbon walk, five short lines. the pastry stop has to come from ada and the meeting point from bob, so get both from them first. then tell me it's done.")
 
     const files = () => {
       const out = new Map<string, FileRef & { at: number }>()
@@ -52,7 +52,7 @@ const suite: Suite = {
       return out
     }
     await until("/walk.md", () => files().has("walk.md"), 240_000)
-    await until("kiko says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "kiko" && m.seq > files().get("walk.md")!.at), 120_000).catch(() => {})
+    await until("yuki says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.seq > files().get("walk.md")!.at), 120_000).catch(() => {})
     await Bun.sleep(5_000)
     const file = files().get("walk.md")!
     const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
@@ -60,13 +60,13 @@ const suite: Suite = {
     console.log(`  /walk.md after ${Math.round((Date.now() - t0) / 1000)} s: ${JSON.stringify(text)}`)
     for (const m of messages().filter((m) => m.from.kind === "agent")) console.log(`    @${(m.from as { slug: string }).slug}: ${m.text.replace(/\s+/g, " ").slice(0, 160)}`)
     const woken: Record<string, number> = {}
-    for (const slug of ["kiko", "ada", "bob"]) {
+    for (const slug of ["yuki", "ada", "bob"]) {
       const st = (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status
       woken[slug] = st.inbox.waiting + st.inbox.claimed + st.inbox.submitted
     }
     console.log(`  envelopes each agent received: ${JSON.stringify(woken)}`)
     const missing = [PASTRY, MEET].filter((fact) => !text.includes(fact))
-    if (missing.length) throw new VerifyError(`/walk.md lacks ${missing.join(" and ")}: kiko did not get it from its owner`)
+    if (missing.length) throw new VerifyError(`/walk.md lacks ${missing.join(" and ")}: yuki did not get it from its owner`)
     const over = Object.entries(woken).filter(([, n]) => n > 2)
     if (over.length) throw new VerifyError(`too many runs for one request: ${JSON.stringify(woken)}`)
     room.raw.close()

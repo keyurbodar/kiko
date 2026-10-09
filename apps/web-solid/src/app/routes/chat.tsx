@@ -1,13 +1,17 @@
 import { Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { Icon as IconV2 } from "@kiko/ui/v2/icon";
+import { Icon as IconV2 } from "@yuki/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
-import type { MessageId, RoomId } from "@kiko/protocol";
+import type { MessageId, RoomId } from "@yuki/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
 import { jumpRequest, requestJump } from "../../search/state";
+import { EmptyState } from "../../chat/ui/EmptyState";
+import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
+// The composer snowball loads the first time an agent works in the open chat.
+const Snowball = lazy(() => import("../../composer/snowball").then((m) => ({ default: m.Snowball })));
 
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
@@ -76,7 +80,7 @@ export default function ChatRoute() {
     ),
   );
   /*
-   * A temporary chat (architecture section 7.11). When kiko makes an agent in it, a line points at
+   * A temporary chat (architecture section 7.11). When yuki makes an agent in it, a line points at
    * the agent's new chat, and the human is taken there. Closing its tab deletes it; leaving does not.
    */
   const isTemp = () => !!params.id && !!useApp.chat(params.id)?.temp;
@@ -136,7 +140,7 @@ export default function ChatRoute() {
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
   const agentName = (slug: string) => members().get(slug)?.name ?? slug;
   const messages = createMemo(() => useApp.activeMessages());
-  /* "kiko joined", "piko left": one muted line each, placed by the room's sequence. */
+  /* "yuki joined", "piko left": one muted line each, placed by the room's sequence. */
   const notices = createMemo(() =>
     useApp.memberNotices().map((n) => ({ key: `${n.seq}`, seq: n.seq, at: n.at, text: `${n.name} ${n.kind}` })),
   );
@@ -227,15 +231,29 @@ export default function ChatRoute() {
     useApp.seeMentions([id]);
   };
 
+  // The empty chat holds the composer in the middle of the pane; the first send glides it down.
+  const empty = () => messages().length === 0;
+  let dock: HTMLDivElement | undefined;
+  let launch: Launch | null = null;
+  // Once loaded, the snowball stays mounted, so it can play its goodbye when the reply lands.
+  const [snowballSeen, setSnowballSeen] = createSignal(false);
+  createEffect(() => useApp.typingSlugs().length > 0 && setSnowballSeen(true));
+  createEffect(
+    on(empty, (now, before) => {
+      if (before && !now && dock) glideToDock(dock, launch);
+      launch = null;
+    }),
+  );
+
   return (
     <>
     {/* The shell owns the row and the rail. The transcript pane keeps
        `data-component="chat-shell"`, the stable handle the verify skill scopes
        by, and keeps `min-w-0` so the column narrows with the window. */}
       <div
-        class="chat-pane-background flex min-h-0 min-w-0 flex-1 flex-col"
+        class="flex min-h-0 min-w-0 flex-1 flex-col"
         data-component="chat-shell"
-        data-session-empty={messages().length === 0 ? "true" : "false"}
+        data-session-empty={empty() ? "true" : "false"}
         data-reply-target={replyTarget() ?? undefined}
         data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}
       >
@@ -245,12 +263,7 @@ export default function ChatRoute() {
             the stage fell back to content height, the scroller inside never
             scrolled, and the transcript grew straight past the pane and
             rendered *behind* the composer. */}
-        {/* Monocode's haze effect: the chat background blurred and faded. kat.css shows it only when that effect is on. */}
-        <div class="gradient-blur-background" aria-hidden="true">
-          <span class="gradient-blur-background-soft" />
-          <span class="gradient-blur-background-strong" />
-        </div>
-        <div class="flex min-h-0 flex-1 flex-col" ref={transcript}>
+        <div class="flex min-h-0 flex-1 flex-col" ref={transcript} data-component="chat-transcript">
           <MessageList
             messages={messages()}
             botById={(id) => (id === undefined ? undefined : members().get(id))}
@@ -288,7 +301,11 @@ export default function ChatRoute() {
             and the viewport is a positioned ancestor, so `bottom: 0` would
             resolve against the window and the composer would span the whole
             page. The fade above it is the stylesheet's `::before`. */}
+        <Show when={empty()}>
+          <EmptyState faces={useApp.chatFaces(useApp.activeThreadId() ?? "")} names={members().size > 1 ? [...members().values()].map((m) => m.name) : []} />
+        </Show>
         <div
+          ref={dock}
           class="composer-dock"
           data-component="composer-dock"
           data-scrolled={scrolled() ? "true" : undefined}
@@ -368,10 +385,13 @@ export default function ChatRoute() {
               </div>
             )}
           </Show>
+          <Show when={useApp.typingSlugs().length > 0 || snowballSeen()}>
+            <Snowball slug={useApp.typingSlugs()[0] ?? null} dock={() => dock} />
+          </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}
             /* A temporary chat is still "New chat"; its composer names who will read the message. */
-            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "Kiko" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
+            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "Yuki" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => {
@@ -387,6 +407,7 @@ export default function ChatRoute() {
              * both surfaces while never reaching the transcript.
              */
             onSend={(message) => {
+              if (empty()) launch = captureLaunch(dock);
               const target = replyTarget();
               // A send from a window the reader jumped to lands at the live end, which renders first.
               const fromHistory = useApp.showingHistory();

@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-13-harden-wakeups-inboxes-and-socket-setup` |
+| Branch | `yuki/p1-13-harden-wakeups-inboxes-and-socket-setup` |
 
 ## Verification
 

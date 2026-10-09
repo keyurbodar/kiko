@@ -42,7 +42,7 @@ describe("the composer's limits, as t3code's", () => {
     expect(out.error).toBe("'big.zip' exceeds the 50 MB attachment limit.")
   })
 
-  test("a picture kiko cannot send is refused, not turned into a file", () => {
+  test("a picture yuki cannot send is refused, not turned into a file", () => {
     const out = admit(0, [file("logo.svg", "image/svg+xml"), file("IMG_1.heic", "image/heic")])
     expect(out.images).toEqual([])
     expect(out.files).toEqual([])

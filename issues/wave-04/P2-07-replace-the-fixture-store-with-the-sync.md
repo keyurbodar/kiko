@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-07-replace-the-fixture-store-with-the-sync` |
+| Branch | `yuki/p2-07-replace-the-fixture-store-with-the-sync` |
 
 ## Verification
 
@@ -27,7 +27,7 @@
 **Build.**
 
 - Keep the `useApp` shape where it still fits and back it with the sync stores.
-- Replace the local message types with the types from `@kiko/protocol`.
+- Replace the local message types with the types from `@yuki/protocol`.
 - Boot in the order from architecture section 19.2: shell, IndexedDB, sockets.
 - Pass the real `firstUnreadMessageId` and typing names to the transcript, which `main.tsx` stubs today.
 - Move the fixtures to the dev harness and the mock room only.

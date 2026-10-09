@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-13-build-sign-in-and-session-bootstrap` |
+| Branch | `yuki/p2-13-build-sign-in-and-session-bootstrap` |
 
 ## Verification
 
-With no session, `/chat` shows the sign-in screen. After `bun kiko login --dev --browser`, a reload shows the chat.
+With no session, `/chat` shows the sign-in screen. After `bun yuki login --dev --browser`, a reload shows the chat.
 
 ## Task
 

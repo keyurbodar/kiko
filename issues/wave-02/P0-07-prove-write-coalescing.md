@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-07-prove-write-coalescing` |
+| Branch | `yuki/p0-07-prove-write-coalescing` |
 
 ## Verification
 
-`bun test apps/server/test/coalescing-storage.test.ts` passes the conformance suite through the wrapper, and `bun kiko measure turn --coalesce` reports fewer rows written than without the flag.
+`bun test apps/server/test/coalescing-storage.test.ts` passes the conformance suite through the wrapper, and `bun yuki measure turn --coalesce` reports fewer rows written than without the flag.
 
 ## Task
 

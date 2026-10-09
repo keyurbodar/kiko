@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-05-add-the-file-tools-and-web-fetch` |
+| Branch | `yuki/p8-05-add-the-file-tools-and-web-fetch` |
 
 ## Verification
 
-`bun kiko verify file-tools` passes with the test model: the agent writes `notes/plan.md`, reads it back, lists the directory, and fetches a fixture page as text.
+`bun yuki verify file-tools` passes with the test model: the agent writes `notes/plan.md`, reads it back, lists the directory, and fetches a fixture page as text.
 
 ## Task
 

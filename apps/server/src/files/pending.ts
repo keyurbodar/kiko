@@ -1,4 +1,4 @@
-import { attachmentError, attachmentType } from "@kiko/protocol"
+import { attachmentError, attachmentType } from "@yuki/protocol"
 import type { Env } from "../index"
 import { addressRoom } from "../lib/names"
 import type { RoomDO } from "../room/room-do"

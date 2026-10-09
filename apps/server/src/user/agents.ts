@@ -1,4 +1,4 @@
-import type { Agent, AgentSlug } from "@kiko/protocol"
+import type { Agent, AgentSlug } from "@yuki/protocol"
 
 // The user's agents. One row each, created once. A repeat of the same id changes
 // nothing, so a client that resends after a reconnect is safe. A slug another agent

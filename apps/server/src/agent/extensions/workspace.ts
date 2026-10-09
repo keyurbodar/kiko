@@ -4,7 +4,7 @@ import type { Env } from "../../index"
 import { roomStub } from "../../lib/names"
 import type { AgentHome } from "../../room/room-do"
 import { TASK_STATUSES, type WorkspaceAnswer, type WorkspaceCall } from "../../room/workspace"
-import { declareEffect } from "@kiko/agent/effects"
+import { declareEffect } from "@yuki/agent/effects"
 
 export const WORKSPACE = "workspace"
 

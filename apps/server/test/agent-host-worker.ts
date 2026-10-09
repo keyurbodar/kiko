@@ -1,10 +1,10 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
-import type { Envelope } from "@kiko/protocol"
+import type { Envelope } from "@yuki/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
-import { type AgentSetup, type HostOptions, RUNS_KEY } from "@kiko/agent/host"
+import { type AgentSetup, type HostOptions, RUNS_KEY } from "@yuki/agent/host"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 
 const context = BACKGROUND_CONTEXT

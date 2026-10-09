@@ -1,4 +1,4 @@
-import { type Chat, humanHandle, type MessageId, type RoomToClient, type UserToClient } from "@kiko/protocol"
+import { type Chat, humanHandle, type MessageId, type RoomToClient, type UserToClient } from "@yuki/protocol"
 import type { UserChannel } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -39,7 +39,7 @@ const suite: Suite = {
     const res = await fetch(new URL("api/dev/agent/fake", v.url.endsWith("/") ? v.url : `${v.url}/`), {
       method: "POST",
       headers: { "content-type": "application/json", cookie: s.cookie },
-      body: JSON.stringify({ roomId, slugs: ["kiko", "ada"] }),
+      body: JSON.stringify({ roomId, slugs: ["yuki", "ada"] }),
     })
     if (!res.ok) throw new VerifyError(`the fake agent route answered ${res.status}. start the Worker with NODE_ENV=development`)
     const row = () => rowOf(user, roomId)
@@ -74,7 +74,7 @@ const suite: Suite = {
       step(`an inline reply to the human counts: mentions ${row()!.mentions}`)
       await send(`[reply] hey @${handle} look`)
       await wait("the @handle as a mention", (c) => c.last?.text === `hey @${handle} look` && (c.mentions ?? 0) === before + 2)
-      expectEqual(row()!.last?.name, "kiko", "who said it, by name")
+      expectEqual(row()!.last?.name, "Yuki", "who said it, by name")
       step(`@${handle} counts: mentions ${row()!.mentions}, line ${JSON.stringify(row()!.last)}`)
 
       // 4. Reading clears both counts and keeps the row where it was.
@@ -94,7 +94,7 @@ const suite: Suite = {
 
       // 6. The user socket said who was typing in this chat, by name.
       const typing = user.log.flatMap((e) => (e.dir === "in" && (e.frame as UserToClient).t === "typing" ? [e.frame as Extract<UserToClient, { t: "typing" }>] : []))
-      if (!typing.some((f) => f.roomId === roomId && f.names.includes("kiko"))) throw new VerifyError(`no typing frame named kiko: ${JSON.stringify(typing)}`)
+      if (!typing.some((f) => f.roomId === roomId && f.names.includes("Yuki"))) throw new VerifyError(`no typing frame named Yuki: ${JSON.stringify(typing)}`)
       if (!typing.some((f) => f.roomId === roomId && f.names.length === 0)) throw new VerifyError("no typing frame ended the typing")
       step(`the user socket said who was typing: ${typing.length} frames`)
     } catch (e) {

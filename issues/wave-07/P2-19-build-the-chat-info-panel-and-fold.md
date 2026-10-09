@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-19-build-the-chat-info-panel-and-fold` |
+| Branch | `yuki/p2-19-build-the-chat-info-panel-and-fold` |
 
 ## Verification
 
@@ -31,7 +31,7 @@ With `agent-browser`: clicking the chat's avatar or title in the tab strip or to
   - **Header.** Large avatar, inline-editable name, and a subtitle: `started <date>` for a one-agent chat, `<n> members` for a group.
   - **Members.** Avatars in a row with names, the human first with a crown, and an `add` button. In a one-agent chat, adding an agent turns it into a group. Each agent opens a card with role, model, status, and rename or remove. P6-08 builds on this.
   - **Model.** The model this chat uses, with the picker from P4-05.
-  - **Toggles.** Mute and pin. Lock is left out: kiko has no per-chat lock yet.
+  - **Toggles.** Mute and pin. Lock is left out: yuki has no per-chat lock yet.
   - **Memory.** Records this chat created or used most, then `all memory` for the full searchable list, with view, edit, history, pin, archive, and delete from P5-04. Memory stays per user; the panel only filters it.
   - **Links.** Every link sent in the chat with title and site, newest first.
   - **Media.** A grid of photos and videos that opens the media viewer.

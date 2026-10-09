@@ -4,11 +4,11 @@ import { dirname, join } from "node:path"
 import { CliError, type Context } from "../main"
 
 // The CLI keeps one cookie header per server origin in a JSON file.
-// KIKO_SESSION_FILE moves it, so tests never touch the real one.
+// YUKI_SESSION_FILE moves it, so tests never touch the real one.
 type Sessions = Record<string, string>
 
 export function sessionFile(): string {
-  return process.env.KIKO_SESSION_FILE ?? join(homedir(), ".config", "kiko", "cli-session.json")
+  return process.env.YUKI_SESSION_FILE ?? join(homedir(), ".config", "yuki", "cli-session.json")
 }
 
 async function readSessions(): Promise<Sessions> {
@@ -44,9 +44,9 @@ async function request(url: URL, init: RequestInit): Promise<Response> {
   }
 }
 
-/** `kiko login --dev [--name <name>]` signs in as a test user through the dev-only route. */
+/** `yuki login --dev [--name <name>]` signs in as a test user through the dev-only route. */
 export async function login(ctx: Context): Promise<void> {
-  if (!ctx.dev) throw new CliError("only `kiko login --dev` exists. sign in with google or github in the browser")
+  if (!ctx.dev) throw new CliError("only `yuki login --dev` exists. sign in with google or github in the browser")
   const url = endpoint(ctx, "api/auth/dev/session")
   const res = await request(url, {
     method: "POST",
@@ -65,13 +65,13 @@ export async function login(ctx: Context): Promise<void> {
   console.log(ctx.json ? JSON.stringify({ id: user.id }) : user.id)
 }
 
-/** `kiko whoami` prints the signed-in user id for the server. */
+/** `yuki whoami` prints the signed-in user id for the server. */
 export async function whoami(ctx: Context): Promise<void> {
   const cookie = await sessionCookie(ctx.url)
-  if (!cookie) throw new CliError(`not signed in to ${new URL(ctx.url).origin}. run kiko login --dev`)
+  if (!cookie) throw new CliError(`not signed in to ${new URL(ctx.url).origin}. run yuki login --dev`)
   const url = endpoint(ctx, "api/me")
   const res = await request(url, { headers: { cookie } })
-  if (res.status === 401) throw new CliError("the stored session is not valid. run kiko login --dev")
+  if (res.status === 401) throw new CliError("the stored session is not valid. run yuki login --dev")
   if (!res.ok) throw new CliError(`whoami failed: ${url} returned ${res.status}`)
   const { user } = (await res.json()) as { user: { id: string; name: string; email: string } }
   console.log(ctx.json ? JSON.stringify(user) : user.id)

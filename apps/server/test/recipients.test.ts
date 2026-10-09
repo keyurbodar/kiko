@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, Envelope } from "@kiko/protocol"
+import type { AgentSlug, Envelope } from "@yuki/protocol"
 import type { MemberRow } from "../src/room/members"
 import { buildBrief } from "../src/room/brief"
 import { replyTag } from "../src/room/bubbles"
@@ -38,6 +38,12 @@ describe("resolveRecipients", () => {
   test("a room with no members has no recipients", () => expect(resolveRecipients({ text: "hi" }, [])).toEqual([]))
 
   test("tags are found once each, in order", () => expect(tags("@cy @ada @cy, (@bob)")).toEqual(["cy", "ada", "bob"]))
+
+  test("@yuki reaches the chief, whose slug is yuki", () => {
+    const room = [{ slug: slug("yuki"), lead: true }, { slug: slug("ada"), lead: false }]
+    expect(resolveRecipients({ text: "@ada and @Yuki, look" }, room)).toEqual([slug("yuki"), slug("ada")])
+    expect(resolveRecipients({ text: "@ada look" }, room)).toEqual([slug("ada")])
+  })
 })
 
 const envelope = (seq: number, body: string, replyTo?: string): Envelope => ({

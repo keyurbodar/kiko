@@ -1,6 +1,6 @@
 # Routines and proactivity in Grok Bot and OpenAI dots
 
-Read on 2026-10-05 from the vendors' own pages, in a browser. Quotes are short and exact. A claim with no quote is a summary of the page cited next to it. Architecture section 25 is what kiko builds from this.
+Read on 2026-10-05 from the vendors' own pages, in a browser. Quotes are short and exact. A claim with no quote is a summary of the page cited next to it. Architecture section 25 is what yuki builds from this.
 
 ## 1. Grok Bot (SpaceXAI)
 
@@ -62,9 +62,9 @@ Sources: [Introducing dots](https://openai.com/index/introducing-dots/) (2026-09
 - Measured in the system card: across chained tasks, moderate scope violations went from 8.6% to 19.7% when intervening tasks doubled from five to ten. Revoked permissions were handled in all 17 explicit cases. Misleading proactivity inputs caused 0 misaligned actions in 151 tasks.
 - Pause stops a dot. Reset deletes its conversations, memories, and scheduled tasks. Individual memories cannot be viewed or edited.
 
-## 3. What kiko takes
+## 3. What yuki takes
 
-| Idea | From | Kiko section |
+| Idea | From | Yuki section |
 | --- | --- | --- |
 | a routine is a standing job owned by one agent, made from chat, confirmed with a card | Grok | 25.2 |
 | schedule, event, and webhook triggers, with narrow filters | Grok | 25.4 |

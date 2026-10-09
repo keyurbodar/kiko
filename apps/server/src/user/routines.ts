@@ -1,4 +1,4 @@
-import type { Trigger, WebhookMatch } from "@kiko/protocol"
+import type { Trigger, WebhookMatch } from "@yuki/protocol"
 import { type Reminder, ReminderError } from "./reminders"
 
 // Architecture section 25. Pure helpers around routines that UserDO and the room share.

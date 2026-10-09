@@ -1,5 +1,5 @@
 /* =============================================================================
-   kat.css — Kiko's token system.
+   kat.css — Yuki's token system.
 
    Structure follows kat's `tokens.css` foundation: self-hosted fonts, an OKLCH
    palette split into a lightness/chroma scale, `@property` registrations that
@@ -21,9 +21,27 @@
       Tailwind utilities registered in section 5, which resolve to these vars.
    ========================================================================== */
 
-/* Sans is the system stack: `-apple-system` resolves to SF Pro on Apple
-   platforms, and shipping Apple's font files in this repo is not permitted.
-   Mono is self-hosted. */
+/* Sans is Instrument Sans (SIL Open Font License, public/fonts/instrument-sans-OFL.txt),
+   self-hosted as one variable file per script, so first paint never waits on a
+   network font. Mono is self-hosted too. */
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 @font-face {
   font-family: "Fantasque Sans Mono";
   font-style: normal;
@@ -518,8 +536,8 @@
   --row-avatar: 28px;
   --row-avatar-img: 22px;
   --font-family-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
-    sans-serif;
+    "Instrument Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", system-ui, sans-serif;
   --font-family-mono:
     "Fantasque Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
     "Liberation Mono", monospace;
@@ -769,358 +787,125 @@
 }
 
 /* -----------------------------------------------------------------------------
-   4d. Glass
+   4d. Surfaces
 
-   Monocode's glass (MIT, src/styles/index.css), on by default in dark and off
-   in light, where the window is opaque. theme/glass.ts sets each variable from
-   the person's settings, which stay on this device.
-
-   - Floating surfaces (menus, hover cards, dialogs, the palette, tooltips,
-     toasts) are monocode's glass: the background at 55% over a 28px,
-     saturated backdrop blur, with a hairline edge.
-   - A web page has no desktop to see through, so the chat background stands
-     in for it: blurred by `--glass-blur` behind the whole window
-     (`body::before`). The shell lets it through at `--sidebar-opacity`, and the
-     panes do too when main pane glass is on. Without a background the glass
-     has nothing behind it, so it paints as the solid theme.
-   - The chat background also shows in the chat pane itself, sharp, at its own
-     visibility, as in monocode.
+   Everything is opaque paper. Panes split with a hairline, floating surfaces
+   sit one step off the canvas with a soft shadow, and nothing is blurred.
    -------------------------------------------------------------------------- */
 
 :root {
-  --sidebar-opacity: 0.85;
-  --glass-blur: 24px;
-  --chat-background-empty-opacity: 0.24;
-  --chat-background-session-opacity: 0.24;
   --shell-bg: var(--bg-sidebar);
   --panel: var(--bg);
   --dock-bg: var(--bg);
   --popover-bg: var(--menu-bg);
   --popover-blur: none;
-  --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.08);
-  /* Monocode splits panes with a hairline. */
-  --glass-edge: inset 0 0 0 1px var(--hairline);
-  /* The transcript's scroll fades. */
-  --fade-bg: var(--bg);
-}
-
-:root {
   --surface-blur: none;
-}
-
-:root {
-  /* The sidebar as a drawer over the chat, and the info pane over it on a narrow window. */
+  --popover-edge: 0 0 0 1px var(--hairline);
+  --glass-edge: inset 0 0 0 1px var(--hairline);
+  --fade-bg: var(--bg);
   --drawer-bg: var(--sidebar-solid);
 }
 
-:root:not([data-appearance="light"]) {
-  --drawer-bg: color-mix(in oklab, var(--sidebar-solid) var(--sidebar-share, 85%), transparent);
-  --surface-blur: blur(24px);
-  /* Monocode's popover glass (index.css `.popover-backdrop`): the content at 2% over a 24px
-     backdrop blur, so a menu reads as glass over what it opens on. Dialogs keep the 55%
-     background, as monocode's modal does. */
-  --popover-bg: color-mix(in oklab, var(--text) 2%, transparent);
-  --popover-blur: var(--surface-blur);
-  --popover-edge: 0 0 0 1px oklch(from var(--text) l c h / 0.1);
-}
-
-/* A menu row lights with monocode's selection fill. */
+/* A menu row lights with the selection fill. */
 [data-component="menu-v2-item"] {
   --menu-v2-hover: var(--selected-bg);
-}
-
-/* Every floating surface is frosted glass in dark: dialogs, the palette, search, tooltips.
-   Toasts draw their own glass (toast-v2.css). Menus and hover cards set it themselves through --popover-blur. */
-.bg-menu,
-.palette-panel,
-.search-panel,
-.search-bar,
-[data-component="tooltip-v2"] {
-  -webkit-backdrop-filter: var(--surface-blur);
-  backdrop-filter: var(--surface-blur);
-}
-
-:root[data-desktop]:not([data-appearance="light"]) {
-  /* Monocode's window glass (macos.rs `prepare_glass`, appearance.ts `nativeWindowOpacity`):
-     one tint in the theme's own background color over the whole window, at
-     0.4 + 0.6 x sidebar opacity, over the desktop blurred and otherwise untouched. The page
-     itself is transparent, so the sidebar, the tab bar, and the panes are all that one layer,
-     split by hairlines; the picture bleeds through it evenly and colors the whole window. */
-  --shell-bg: transparent;
-  /* The share is a literal percentage theme/glass.ts writes: a calc() of a variable inside
-     color-mix() is not drawn by every engine, and a dropped tint leaves the bare picture. */
-  --drawer-bg: color-mix(in oklab, var(--bg) var(--window-tint-share, 91%), transparent);
-}
-
-:root[data-desktop][data-glass-body]:not([data-appearance="light"]) {
-  /* Main pane glass on: the pane is the same window glass. Off: an opaque pane, as monocode's. */
-  --panel: transparent;
-}
-
-/* The overhang keeps the blur from fading at the window's edges. */
-:root[data-desktop]:not([data-appearance="light"]) body {
-  /* index.html paints the body for the boot screen, and a body background is drawn over a
-     fixed layer with a negative z-index. With a backdrop, the root alone carries the color. */
-  background: transparent;
-}
-
-:root[data-desktop]:not([data-appearance="light"]) body::before {
-  content: "";
-  position: fixed;
-  inset: calc(var(--glass-blur) * -2);
-  z-index: -1;
-  pointer-events: none;
-  background: var(--desktop-image, none) center / cover no-repeat;
-  filter: blur(var(--glass-blur));
-}
-
-/* The window tint, over the blurred desktop and under everything else. */
-:root[data-desktop]:not([data-appearance="light"]) body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  /* A plain color at an opacity: nothing here can be dropped by an engine. */
-  background: var(--bg);
-  opacity: var(--window-tint-alpha, 0.91);
-}
-
-/* The chat pane's background. Instant, unlike monocode's 600ms ease: switching chats is
-   navigation, and navigation never animates here. */
-:root[data-chat-background] {
-  --dock-bg: transparent;
-  --fade-bg: transparent;
-}
-
-/* The picture is drawn on the rounded pane itself, edge to edge, as monocode draws it on its
-   pane; the chat column inside only says whether the chat is empty. */
-.sidebar-shell .main-panel:has(.chat-pane-background) {
-  isolation: isolate;
-  container-type: inline-size;
-}
-
-.sidebar-shell .main-panel:has(.chat-pane-background)::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: var(--chat-background-image, none) center / cover no-repeat;
-  opacity: 0;
-}
-
-:root[data-chat-background-ready]:not([data-chat-background-effect="gradient-blur"]) .sidebar-shell .main-panel:has(.chat-pane-background)::before {
-  opacity: var(--chat-background-empty-opacity);
-}
-
-:root[data-chat-background-ready]:not([data-chat-background-effect="gradient-blur"]) .sidebar-shell .main-panel:has(.chat-pane-background[data-session-empty="false"])::before {
-  opacity: var(--chat-background-session-opacity);
-}
-
-/* Monocode's docked composer has no band behind it: the transcript fades out over its last
-   2.5rem instead, and the last message scrolls clear of that fade on the column's 48px bottom
-   inset (index.css, `.transcript-composer-fade`). Only over a picture: without one, the scroll
-   fades paint the panel color and already do this. */
-:root[data-chat-background] [data-component="chat-scroll"] {
-  -webkit-mask-image: linear-gradient(to bottom, #000, #000 calc(100% - 2.5rem), transparent);
-  mask-image: linear-gradient(to bottom, #000, #000 calc(100% - 2.5rem), transparent);
-}
-
-/* Haze: the picture blurred and faded into the pane below it. Each masked copy samples the
-   same picture; only the picture is blurred. */
-.gradient-blur-background {
-  --gradient-blur-soft: 7px;
-  --gradient-blur-strong: 18px;
-  --gradient-blur-soft-mask: linear-gradient(to bottom, transparent 18%, #000 60%);
-  --gradient-blur-strong-mask: linear-gradient(to bottom, transparent 28%, #000 76%);
-  --gradient-blur-overlay: linear-gradient(
-    to bottom,
-    transparent 16%,
-    color-mix(in srgb, var(--bg) 26%, transparent) 38%,
-    color-mix(in srgb, var(--bg) 55%, transparent) 55%,
-    color-mix(in srgb, var(--bg) 78%, transparent) 75%
-  );
-  --gradient-blur-mask: linear-gradient(
-    to bottom,
-    #000 0 19%,
-    rgb(0 0 0 / 94%) 30%,
-    rgb(0 0 0 / 72%) 42%,
-    rgb(0 0 0 / 42%) 54%,
-    rgb(0 0 0 / 16%) 66%,
-    rgb(0 0 0 / 4%) 78%,
-    transparent 90%
-  );
-  overflow: hidden;
-  pointer-events: none;
-  background: var(--chat-background-image, none) center / cover no-repeat;
-  -webkit-mask-image: var(--gradient-blur-mask);
-  mask-image: var(--gradient-blur-mask);
-}
-
-.gradient-blur-preview {
-  --gradient-blur-soft: 2px;
-  --gradient-blur-strong: 5px;
-}
-
-.gradient-blur-background > span {
-  position: absolute;
-  inset: 0;
-  background: var(--chat-background-image, none) center / cover no-repeat;
-}
-
-.gradient-blur-background-soft {
-  filter: blur(var(--gradient-blur-soft));
-  -webkit-mask-image: var(--gradient-blur-soft-mask);
-  mask-image: var(--gradient-blur-soft-mask);
-}
-
-.gradient-blur-background-strong {
-  filter: blur(var(--gradient-blur-strong));
-  -webkit-mask-image: var(--gradient-blur-strong-mask);
-  mask-image: var(--gradient-blur-strong-mask);
-}
-
-.gradient-blur-background::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    repeating-linear-gradient(to bottom, color-mix(in srgb, var(--bg) 36%, transparent) 0 1px, transparent 1px 3px),
-    var(--gradient-blur-overlay);
-}
-
-.chat-pane-background > .gradient-blur-background {
-  display: none;
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  opacity: 0;
-}
-
-/* Keep the active transcript clear of the wide haze the empty chat uses. */
-.chat-pane-background[data-session-empty="false"] > .gradient-blur-background {
-  --gradient-blur-soft: 5px;
-  --gradient-blur-strong: 12px;
-  --gradient-blur-soft-mask: linear-gradient(to bottom, transparent 18%, #000 70%);
-  --gradient-blur-strong-mask: linear-gradient(to bottom, transparent 22%, #000 76%);
-  --gradient-blur-overlay: linear-gradient(to bottom, transparent 15%, color-mix(in srgb, var(--bg) 70%, transparent) 76%);
-  --gradient-blur-mask: linear-gradient(to bottom, #000 0 18%, transparent 76%);
-}
-
-:root[data-chat-background-effect="gradient-blur"] .chat-pane-background > .gradient-blur-background {
-  display: block;
-}
-
-:root[data-chat-background-ready][data-chat-background-effect="gradient-blur"] .chat-pane-background > .gradient-blur-background {
-  opacity: var(--chat-background-empty-opacity);
-}
-
-:root[data-chat-background-ready][data-chat-background-effect="gradient-blur"] .chat-pane-background[data-session-empty="false"] > .gradient-blur-background {
-  opacity: var(--chat-background-session-opacity);
-}
-
-/* Shown on empty chats only. */
-:root[data-chat-background-scope="empty"] .sidebar-shell .main-panel:has(.chat-pane-background[data-session-empty="false"])::before,
-:root[data-chat-background-scope="empty"] .chat-pane-background[data-session-empty="false"] > .gradient-blur-background {
-  opacity: 0;
 }
 
 /* -----------------------------------------------------------------------------
    4e. The palette
 
-   t3code's stock palette, light and dark, on the roles the UI reads. It wins
-   over the derived colors above. A theme (apps/web-solid/src/theme) sets the
-   same tokens inline on <html>, so it wins over this. The values come from
+   Yuki's palette, light and dark, on the roles the UI reads. It wins over the
+   derived colors above. The look (apps/web-solid/src/theme) sets the same
+   tokens inline on <html>, so an accent or contrast change wins over this. The values come from
    `tokensFor` in theme/palette.ts: `bun scripts/gen-palette.ts` in
    apps/web-solid writes them, and a test keeps the two equal.
    -------------------------------------------------------------------------- */
 
 /* palette:start */
 :root {
-  --bg: #171717;
-  --bg-sidebar: #151515;
-  --sidebar-solid: #151515;
-  --text: #ebebeb;
-  --text-muted: #767676;
-  --text-faint: #5b5b5b;
-  --accent: #459bf7;
-  --accent-fill: #ffffff;
-  --accent-hover: #e8e8e8;
-  --on-accent: #000000;
-  --danger: #f87171;
-  --gold: #fbbf24;
-  --card: color-mix(in oklab, #ebebeb 3%, transparent);
-  --bg-subtle: color-mix(in oklab, #ebebeb 4%, transparent);
-  --input-bg: color-mix(in oklab, #ebebeb 5%, transparent);
-  --hover-bg: color-mix(in oklab, #ebebeb 5%, transparent);
-  --nav-hover-bg: color-mix(in oklab, #ebebeb 5%, transparent);
-  --selected-bg: color-mix(in oklab, #ebebeb 10%, transparent);
-  --nav-active-bg: color-mix(in oklab, #ebebeb 10%, transparent);
-  --surface-raised: color-mix(in oklab, #ebebeb 12%, transparent);
-  --assistant-bubble: color-mix(in oklab, #ebebeb 6%, transparent);
-  --tint-subtle: color-mix(in oklab, #ebebeb 5%, transparent);
-  --tint: color-mix(in oklab, #ebebeb 8%, transparent);
-  --tint-strong: color-mix(in oklab, #ebebeb 12%, transparent);
-  --hairline: color-mix(in oklab, #ebebeb 7%, transparent);
-  --panel-edge: color-mix(in oklab, #ebebeb 10%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #ebebeb 20%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #ebebeb 32%, transparent);
-  --kit-border: color-mix(in oklab, #ebebeb 9%, transparent);
-  --kit-input: color-mix(in oklab, #ebebeb 12%, transparent);
-  --kit-input-fill: color-mix(in oklab, #ebebeb 4%, transparent);
-  --kit-card: color-mix(in oklab, #ebebeb 3%, transparent);
-  --kit-hover: color-mix(in oklab, #ebebeb 7%, transparent);
-  --menu-bg: color-mix(in oklab, color-mix(in oklab, #ebebeb 3%, #171717) 55%, transparent);
-  --tooltip-bg: color-mix(in oklab, #ebebeb 12%, #171717);
-  --user-bubble: color-mix(in oklab, #ebebeb 10%, transparent);
-  --user-bubble-text: #ebebeb;
-  --user-bubble-deep: color-mix(in oklab, #ebebeb 10%, transparent);
-  --h-brand: 252.6;
-  --hue: 252.6;
+  --bg: #1a1917;
+  --bg-sidebar: #151412;
+  --sidebar-solid: #151412;
+  --text: #ece6dc;
+  --text-muted: #9a9389;
+  --text-faint: #6c665e;
+  --accent: #e2a99b;
+  --accent-fill: #ece6dc;
+  --accent-hover: #d9d2c6;
+  --on-accent: #1a1917;
+  --danger: #e5867a;
+  --gold: #e1b866;
+  --card: color-mix(in oklab, #ece6dc 3%, transparent);
+  --bg-subtle: color-mix(in oklab, #ece6dc 4%, transparent);
+  --input-bg: color-mix(in oklab, #ece6dc 5%, transparent);
+  --hover-bg: color-mix(in oklab, #ece6dc 5%, transparent);
+  --nav-hover-bg: color-mix(in oklab, #ece6dc 5%, transparent);
+  --selected-bg: color-mix(in oklab, #ece6dc 9%, transparent);
+  --nav-active-bg: color-mix(in oklab, #ece6dc 9%, transparent);
+  --surface-raised: color-mix(in oklab, #ece6dc 11%, transparent);
+  --assistant-bubble: color-mix(in oklab, #ece6dc 6%, transparent);
+  --tint-subtle: color-mix(in oklab, #ece6dc 5%, transparent);
+  --tint: color-mix(in oklab, #ece6dc 8%, transparent);
+  --tint-strong: color-mix(in oklab, #ece6dc 12%, transparent);
+  --hairline: color-mix(in oklab, #ece6dc 8%, transparent);
+  --panel-edge: color-mix(in oklab, #ece6dc 10%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #ece6dc 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #ece6dc 30%, transparent);
+  --kit-border: color-mix(in oklab, #ece6dc 9%, transparent);
+  --kit-input: color-mix(in oklab, #ece6dc 12%, transparent);
+  --kit-input-fill: color-mix(in oklab, #ece6dc 4%, transparent);
+  --kit-card: color-mix(in oklab, #ece6dc 3%, transparent);
+  --kit-hover: color-mix(in oklab, #ece6dc 7%, transparent);
+  --menu-bg: color-mix(in oklab, #ece6dc 5%, #1a1917);
+  --tooltip-bg: color-mix(in oklab, #ece6dc 14%, #1a1917);
+  --tooltip-text: #ece6dc;
+  --user-bubble: color-mix(in oklab, #e2a99b 20%, transparent);
+  --user-bubble-deep: color-mix(in oklab, #e2a99b 20%, transparent);
+  --user-bubble-text: #ece6dc;
+  --accent-wash: color-mix(in oklab, #e2a99b 14%, transparent);
 }
 
 :root[data-appearance="light"] {
-  --bg: #f7f7f7;
-  --bg-sidebar: #f7f7f7;
-  --sidebar-solid: #f7f7f7;
-  --text: #2e2e2e;
-  --text-muted: #9d9d9d;
-  --text-faint: #b7b7b7;
-  --accent: #0863c4;
-  --accent-fill: #2e2e2e;
-  --accent-hover: #424242;
-  --on-accent: #f7f7f7;
-  --danger: #dc2626;
-  --gold: #b45309;
-  --card: color-mix(in oklab, #2e2e2e 3%, transparent);
-  --bg-subtle: color-mix(in oklab, #2e2e2e 3%, transparent);
-  --input-bg: color-mix(in oklab, #2e2e2e 4%, transparent);
-  --hover-bg: color-mix(in oklab, #2e2e2e 4%, transparent);
-  --nav-hover-bg: color-mix(in oklab, #2e2e2e 4%, transparent);
-  --selected-bg: color-mix(in oklab, #2e2e2e 6%, transparent);
-  --nav-active-bg: color-mix(in oklab, #2e2e2e 6%, transparent);
-  --surface-raised: color-mix(in oklab, #2e2e2e 7%, transparent);
-  --assistant-bubble: color-mix(in oklab, #2e2e2e 5%, transparent);
-  --tint-subtle: color-mix(in oklab, #2e2e2e 4%, transparent);
-  --tint: color-mix(in oklab, #2e2e2e 6%, transparent);
-  --tint-strong: color-mix(in oklab, #2e2e2e 8%, transparent);
-  --hairline: color-mix(in oklab, #2e2e2e 7%, transparent);
-  --panel-edge: color-mix(in oklab, #2e2e2e 10%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #2e2e2e 20%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #2e2e2e 32%, transparent);
-  --kit-border: color-mix(in oklab, #2e2e2e 9%, transparent);
-  --kit-input: color-mix(in oklab, #2e2e2e 12%, transparent);
-  --kit-input-fill: color-mix(in oklab, #2e2e2e 4%, transparent);
-  --kit-card: color-mix(in oklab, #2e2e2e 3%, transparent);
-  --kit-hover: color-mix(in oklab, #2e2e2e 7%, transparent);
-  --menu-bg: #f7f7f7;
-  --tooltip-bg: color-mix(in oklab, #2e2e2e 12%, #f7f7f7);
-  --user-bubble: #2e2e2e;
-  --user-bubble-text: #f7f7f7;
-  --user-bubble-deep: #2e2e2e;
-  --h-brand: 256;
-  --hue: 256;
+  --bg: #f8f5ef;
+  --bg-sidebar: #f2eee6;
+  --sidebar-solid: #f2eee6;
+  --text: #2a2622;
+  --text-muted: #7a736a;
+  --text-faint: #a8a196;
+  --accent: #b4665a;
+  --accent-fill: #2a2622;
+  --accent-hover: #3e3934;
+  --on-accent: #f8f5ef;
+  --danger: #c2453a;
+  --gold: #93670f;
+  --card: color-mix(in oklab, #2a2622 3%, transparent);
+  --bg-subtle: color-mix(in oklab, #2a2622 3.5%, transparent);
+  --input-bg: color-mix(in oklab, #2a2622 4%, transparent);
+  --hover-bg: color-mix(in oklab, #2a2622 4.5%, transparent);
+  --nav-hover-bg: color-mix(in oklab, #2a2622 4.5%, transparent);
+  --selected-bg: color-mix(in oklab, #2a2622 7%, transparent);
+  --nav-active-bg: color-mix(in oklab, #2a2622 7%, transparent);
+  --surface-raised: color-mix(in oklab, #2a2622 7%, transparent);
+  --assistant-bubble: color-mix(in oklab, #2a2622 5%, transparent);
+  --tint-subtle: color-mix(in oklab, #2a2622 4%, transparent);
+  --tint: color-mix(in oklab, #2a2622 6%, transparent);
+  --tint-strong: color-mix(in oklab, #2a2622 9%, transparent);
+  --hairline: color-mix(in oklab, #2a2622 9%, transparent);
+  --panel-edge: color-mix(in oklab, #2a2622 11%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #2a2622 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #2a2622 30%, transparent);
+  --kit-border: color-mix(in oklab, #2a2622 10%, transparent);
+  --kit-input: color-mix(in oklab, #2a2622 13%, transparent);
+  --kit-input-fill: color-mix(in oklab, #2a2622 3.5%, transparent);
+  --kit-card: color-mix(in oklab, #2a2622 3%, transparent);
+  --kit-hover: color-mix(in oklab, #2a2622 6%, transparent);
+  --menu-bg: color-mix(in oklab, #ffffff 55%, #f8f5ef);
+  --tooltip-bg: #2a2622;
+  --tooltip-text: #f8f5ef;
+  --user-bubble: color-mix(in oklab, #b4665a 15%, transparent);
+  --user-bubble-deep: color-mix(in oklab, #b4665a 15%, transparent);
+  --user-bubble-text: #2a2622;
+  --accent-wash: color-mix(in oklab, #b4665a 11%, transparent);
 }
 /* palette:end */
 

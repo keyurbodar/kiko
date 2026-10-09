@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 
 // Architecture section 7.12. Agents share one chat and one file space, so without a shared picture
 // they race: two answer the same question, two rewrite the same file. The room is where every

@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import { keyringFromEnv } from "@kiko/durable/crypto"
+import { keyringFromEnv } from "@yuki/durable/crypto"
 import { ExtensionError, ExtensionStore } from "../src/user/extensions"
 
 type Env = { STORE: DurableObjectNamespace<StoreDO>; CREDENTIALS_KEK: string }
@@ -21,7 +21,7 @@ export class StoreDO extends DurableObject<Env> {
       {
         create: async (t) => void this.triggers.push(`create ${t.createdBy} ${t.rrule} ${t.text}`),
         cancelBy: async (by) => void this.triggers.push(`cancel ${by}`),
-        fallback: () => ({ roomId: "0190f5e2-7c3a-7b4d-8e9f-0123456789ab" as never, target: "kiko" }),
+        fallback: () => ({ roomId: "0190f5e2-7c3a-7b4d-8e9f-0123456789ab" as never, target: "yuki" }),
       },
       () => [],
       async (url, init) => {

@@ -7,7 +7,7 @@ import type { ApprovalAnswer, ApprovalRequest } from "../../room/approvals"
 // human's decision reaches the agent as an `approval_result` envelope, and the card lasts as long as
 // Executor holds the program.
 //
-// This file is the one place an Executor tool name appears in kiko (the plan allows it here).
+// This file is the one place an Executor tool name appears in yuki (the plan allows it here).
 
 /** Executor's tool that continues a paused program. */
 export const RESUME_TOOL = "resume"

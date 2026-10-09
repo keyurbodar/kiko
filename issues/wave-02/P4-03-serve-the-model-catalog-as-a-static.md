@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p4-03-serve-the-model-catalog-as-a-static` |
+| Branch | `yuki/p4-03-serve-the-model-catalog-as-a-static` |
 
 ## Verification
 

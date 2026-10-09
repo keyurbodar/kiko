@@ -10,19 +10,19 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-14-audit-the-frontend-verification-skill` |
+| Branch | `yuki/p2-14-audit-the-frontend-verification-skill` |
 
 ## Verification
 
-The `maintain-verification-skill` run ends with every feature in `.cursor/skills/verify-kiko/features/` either proven in a live session or corrected, and its report is in the pull request.
+The `maintain-verification-skill` run ends with every feature in `.cursor/skills/verify-yuki/features/` either proven in a live session or corrected, and its report is in the pull request.
 
 ## Task
 
 **Goal.** Bring the existing verify skill in line with the routed, live app.
 
-**Read first.** `.cursor/skills/verify-kiko/SKILL.md`.
+**Read first.** `.cursor/skills/verify-yuki/SKILL.md`.
 
-**Files.** `.cursor/skills/verify-kiko/`.
+**Files.** `.cursor/skills/verify-yuki/`.
 
 **Build.**
 

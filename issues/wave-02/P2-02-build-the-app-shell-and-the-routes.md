@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-02-build-the-app-shell-and-the-routes` |
+| Branch | `yuki/p2-02-build-the-app-shell-and-the-routes` |
 
 ## Verification
 

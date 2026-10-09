@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-09-build-the-sidebar-chat-list` |
+| Branch | `yuki/p2-09-build-the-sidebar-chat-list` |
 
 ## Verification
 
-Run the `verify-kiko` sidebar feature with 2,000 chats in the mock: the list scrolls without blank rows, and pin, rename, and delete apply at once.
+Run the `verify-yuki` sidebar feature with 2,000 chats in the mock: the list scrolls without blank rows, and pin, rename, and delete apply at once.
 
 ## Task
 

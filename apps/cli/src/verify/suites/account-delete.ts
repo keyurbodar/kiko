@@ -1,4 +1,4 @@
-import type { RoomId } from "@kiko/protocol"
+import type { RoomId } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
@@ -79,7 +79,7 @@ const suite: Suite = {
 		}
 		/** The status of a socket upgrade. The router checks the session before it upgrades. */
 		async function upgradeStatus(cookie: string, path: string) {
-			const headers = { cookie, upgrade: "websocket", connection: "Upgrade", "sec-websocket-version": "13", "sec-websocket-key": btoa("kiko-verify-key!") }
+			const headers = { cookie, upgrade: "websocket", connection: "Upgrade", "sec-websocket-version": "13", "sec-websocket-key": btoa("yuki-verify-key!") }
 			const res = await fetch(new URL(path, base), { headers, signal: AbortSignal.timeout(10_000) })
 			await res.body?.cancel()
 			return res.status
@@ -129,8 +129,8 @@ const suite: Suite = {
 		expectEqual((await call(s.cookie, "GET", "api/me")).status, 200, "/api/me before deletion")
 
 		const deleted = await call(s.cookie, "POST", "api/account/delete", { confirm: CONFIRM })
-		// Three rooms of this suite, plus the kiko chat every account gets when it signs in.
-		expectEqual([deleted.status, deleted.body], [202, { rooms: 4 }], "the delete answer, the room that is no chat and the kiko chat included")
+		// Three rooms of this suite, plus the yuki chat every account gets when it signs in.
+		expectEqual([deleted.status, deleted.body], [202, { rooms: 4 }], "the delete answer, the room that is no chat and the yuki chat included")
 		if (!deleted.headers.getSetCookie().some((c) => /max-age=0/i.test(c))) throw new VerifyError("the delete answer did not clear the cookie")
 
 		// The old cookie still carries Better Auth's five-minute cache. It must not sign in.
@@ -173,7 +173,7 @@ const suite: Suite = {
 		}
 		expectEqual(await residue(), gone, "what is left after the second run")
 
-		// The kiko chat's agent may still be answering "hello 0" when its storage is deleted. A harness left
+		// The yuki chat's agent may still be answering "hello 0" when its storage is deleted. A harness left
 		// running on deleted tables used to keep the server so busy that it answered nothing more.
 		await new Promise((r) => setTimeout(r, 2_000))
 		const health = await fetch(new URL("api/health", base), { signal: AbortSignal.timeout(5_000) }).then((r) => r.status, () => 0)

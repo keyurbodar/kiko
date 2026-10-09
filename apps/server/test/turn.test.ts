@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
-import type { Envelope, RoomToClient } from "@kiko/protocol"
+import type { Envelope, RoomToClient } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 import { blocksOf } from "../src/agent/outbox"
 import { debounce, deliverable, isFragment, MAX_DELIVERY_ENVELOPES } from "../src/room/burst"
-import { MAX_ENTRY_BYTES, MAX_OPEN } from "@kiko/agent/inbox"
+import { MAX_ENTRY_BYTES, MAX_OPEN } from "@yuki/agent/inbox"
 import { AFTER, BEFORE } from "./turn-fixtures"
 
 let mf: Miniflare
@@ -160,7 +160,7 @@ test("a repeated post stores one message, and a higher attempt replaces the earl
   const post = async (attempt: number, index: number, block: string) => {
     const res = await fetch(`${origin}/room/${roomId}/post`, {
       method: "POST",
-      body: JSON.stringify({ slug: "kiko", runId: "kiko:1", attempt, index, block }),
+      body: JSON.stringify({ slug: "yuki", runId: "yuki:1", attempt, index, block }),
     })
     return (await res.json()) as boolean
   }
@@ -179,7 +179,7 @@ test("a repeated post stores one message, and a higher attempt replaces the earl
 test("a restarted run keeps the bubbles it writes again unchanged, in place", async () => {
   const roomId = "01J00000000000000000000002"
   const call = async (op: string, body: object) =>
-    (await fetch(`${origin}/room/${roomId}/${op}`, { method: "POST", body: JSON.stringify({ slug: "kiko", runId: "kiko:1", ...body }) })).json()
+    (await fetch(`${origin}/room/${roomId}/${op}`, { method: "POST", body: JSON.stringify({ slug: "yuki", runId: "yuki:1", ...body }) })).json()
   await call("post", { attempt: 0, index: 0, block: "first" })
   await call("post", { attempt: 0, index: 1, block: "second" })
   await call("post", { attempt: 0, index: 2, block: "third" })
@@ -198,7 +198,7 @@ test("a restarted run keeps the bubbles it writes again unchanged, in place", as
   // A restart that writes fewer blocks leaves none of the earlier attempt behind once the run ends.
   await call("post", { attempt: 2, index: 0, block: "first" })
   // This test room has no user object, so the rest of `endRun` fails after the bubbles are settled.
-  await fetch(`${origin}/room/${roomId}/end`, { method: "POST", body: JSON.stringify({ slug: "kiko", runId: "kiko:1" }) })
+  await fetch(`${origin}/room/${roomId}/end`, { method: "POST", body: JSON.stringify({ slug: "yuki", runId: "yuki:1" }) })
   expect(await snapshot(roomId)).toEqual([[2, 0, "first", 1]])
 }, 30_000)
 

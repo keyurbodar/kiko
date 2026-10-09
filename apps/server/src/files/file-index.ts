@@ -1,4 +1,4 @@
-import type { Actor, FileRef } from "@kiko/protocol"
+import type { Actor, FileRef } from "@yuki/protocol"
 
 // The index of one file space (architecture section 18.1): a chat's files in RoomDO, or the
 // user's drive (/home) in UserDO. R2 holds the bytes; two tables hold what the space knows about

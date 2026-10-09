@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-02-add-the-memory-tools-and-prompt-sections` |
+| Branch | `yuki/p5-02-add-the-memory-tools-and-prompt-sections` |
 
 ## Verification
 
-`bun kiko verify memory-tools` passes with the test model: tell the agent a fact in one chat, ask for it in a second chat, and get it back.
+`bun yuki verify memory-tools` passes with the test model: tell the agent a fact in one chat, ask for it in a second chat, and get it back.
 
 ## Task
 

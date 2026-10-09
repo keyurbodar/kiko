@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { runSuites } from "./runner"
 
 async function suitesDir() {
-  const dir = await mkdtemp(join(tmpdir(), "kiko-suites-"))
+  const dir = await mkdtemp(join(tmpdir(), "yuki-suites-"))
   const client = join(import.meta.dir, "client")
   await writeFile(join(dir, "ok.ts"), `export default { name: "ok", async run() {} }\n`)
   await writeFile(

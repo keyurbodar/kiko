@@ -1,4 +1,4 @@
-import { type Agent, type AgentSlug, type Member, type MemberOp, type MemberRefusal, tagline } from "@kiko/protocol"
+import { type Agent, type AgentSlug, type Member, type MemberOp, type MemberRefusal, tagline } from "@yuki/protocol"
 
 /*
  * The pure part of a group's member list: who can be added, what an add sends, and what a
@@ -41,7 +41,7 @@ export function refusalText(op: MemberOp, reason: MemberRefusal): string {
     case "reserved":
       return `@${op.slug} is a reserved handle`
     case "chief":
-      return "Kiko leads every chat and stays in it"
+      return "Yuki leads every chat and stays in it"
   }
 }
 

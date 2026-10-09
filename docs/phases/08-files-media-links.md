@@ -32,9 +32,9 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 `deps: P8-01, P1-03` `difficulty: 3` `area: backend`
 
-**Removed.** DEVIATION (2026-10-09): the preview routes, the room's link card, and the `PREVIEWS` KV namespace are removed, and `bun kiko verify link-preview` with them. The owner chose t3code's model, where a link is a link. The safe fetcher (P8-01) stays for `web_fetch` and watch routines. Architecture section 18.2.
+**Removed.** DEVIATION (2026-10-09): the preview routes, the room's link card, and the `PREVIEWS` KV namespace are removed, and `bun yuki verify link-preview` with them. The owner chose t3code's model, where a link is a link. The safe fetcher (P8-01) stays for `web_fetch` and watch routines. Architecture section 18.2.
 
-**Verify.** `bun kiko verify link-preview` passes against a local fixture server: a page with Open Graph tags returns title, description, site name, and an image URL on kiko's origin, a second call is served from KV, and a page with no tags is cached as a miss.
+**Verify.** `bun yuki verify link-preview` passes against a local fixture server: a page with Open Graph tags returns title, description, site name, and an image URL on yuki's origin, a second call is served from KV, and a page with no tags is cached as a miss.
 
 **Goal.** Fetch link previews on the server, cache them, and re-host their images.
 
@@ -57,7 +57,7 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 **Changed.** DEVIATION (2026-10-09): the `width`, `height`, and `thumbhash` columns stay in `ws_files` but are no longer written or read, and the `/thumb` still route is removed. Architecture section 18.1.
 
-**Verify.** `bun kiko verify files` passes: upload a 30 MB file in parts, download a byte range from the middle, see the file event on the room socket, and get 404 when another user requests it.
+**Verify.** `bun yuki verify files` passes: upload a 30 MB file in parts, download a byte range from the middle, see the file event on the room socket, and get 404 when another user requests it.
 
 **Goal.** Store bytes in R2 and the index in the room.
 
@@ -79,9 +79,9 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 `deps: P8-03` `difficulty: 3` `area: backend`
 
-**Removed.** DEVIATION (2026-10-09): the attachment job, its `WorkDO`, and `bun kiko verify attachments` are removed. The owner chose t3code's simpler attachments, which compute nothing after upload. The queue consumer stays for account deletion. Architecture section 7.9.
+**Removed.** DEVIATION (2026-10-09): the attachment job, its `WorkDO`, and `bun yuki verify attachments` are removed. The owner chose t3code's simpler attachments, which compute nothing after upload. The queue consumer stays for account deletion. Architecture section 7.9.
 
-**Verify.** `bun kiko verify attachments` passes: after an image upload, the file row gains width, height, and a thumbhash within 5 seconds, and a job that fails twice succeeds on the third delivery.
+**Verify.** `bun yuki verify attachments` passes: after an image upload, the file row gains width, height, and a thumbhash within 5 seconds, and a job that fails twice succeeds on the third delivery.
 
 **Goal.** Compute image metadata without holding a room awake.
 
@@ -102,7 +102,7 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 `deps: P8-03, P8-01, P1-12` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify file-tools` passes with the test model: the agent writes `notes/plan.md`, reads it back, lists the directory, and fetches a fixture page as text.
+**Verify.** `bun yuki verify file-tools` passes with the test model: the agent writes `notes/plan.md`, reads it back, lists the directory, and fetches a fixture page as text.
 
 **Goal.** Let agents work with room files and read the web.
 
@@ -125,7 +125,7 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 **Changed.** DEVIATION (2026-10-09): the client no longer computes dimensions or a thumbhash, stores no still, and shows no album. The owner chose t3code's simpler attachments: the upload to `attachments/` and the optimistic send stay. Architecture section 18.1.
 
-**Verify.** The `verify-kiko` attachments feature: paste an image, drop two files, see all three in the tray with progress, send, and see the album appear at once and survive a reload.
+**Verify.** The `verify-yuki` attachments feature: paste an image, drop two files, see all three in the tray with progress, send, and see the album appear at once and survive a reload.
 
 **Goal.** Make attachments real and optimistic.
 
@@ -145,7 +145,7 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 `deps: P0-10, P8-03, P2-07` `difficulty: 4` `area: frontend`
 
-**Verify.** The `verify-kiko` file tree feature: rows are 30 px, each level indents 16 px, a chevron rotates on open, the selected row is `#28221f`, hidden files are at half opacity, and the arrow keys move and expand.
+**Verify.** The `verify-yuki` file tree feature: rows are 30 px, each level indents 16 px, a chevron rotates on open, the selected row is `#28221f`, hidden files are at half opacity, and the arrow keys move and expand.
 
 **Goal.** Build the files sidebar so it looks and behaves like kat's tree.
 
@@ -167,7 +167,7 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 `deps: P8-07` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` file editor feature: open a text file, see line numbers and the current-line highlight, edit, save, and reload to the saved content. `bun scripts/bundle-budget.ts` shows CodeMirror outside tiers 1 to 3.
+**Verify.** The `verify-yuki` file editor feature: open a text file, see line numbers and the current-line highlight, edit, save, and reload to the saved content. `bun scripts/bundle-budget.ts` shows CodeMirror outside tiers 1 to 3.
 
 **Goal.** View and edit room files.
 
@@ -190,7 +190,7 @@ DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and t
 
 **Verify.** `bun test apps/web-solid/src/chat/export.test.ts` passes a fixture transcript to expected markdown.
 
-**Goal.** Let a user take a conversation out of kiko without a share link.
+**Goal.** Let a user take a conversation out of yuki without a share link.
 
 **Files.** Create `apps/web-solid/src/chat/export.ts`.
 

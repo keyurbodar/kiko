@@ -1,4 +1,4 @@
-import { type Actor, isRoomId } from "@kiko/protocol"
+import { type Actor, isRoomId } from "@yuki/protocol"
 import type { Env } from "../index"
 import { addressRoom, userStub } from "../lib/names"
 import type { SessionLookup } from "../router"
@@ -11,7 +11,7 @@ import { pendingRoute } from "./pending"
 // `<roomId>` may be `home`, the user's drive (section 18.3): its index is in UserDO.
 //
 //   PUT    /api/files/<roomId>?path=<path>                     one request, up to MAX_SINGLE_PUT_BYTES
-//          x-kiko-if-sha256: <sha256 | none> makes it an edit: 409 { error, file } when the path holds other bytes
+//          x-yuki-if-sha256: <sha256 | none> makes it an edit: 409 { error, file } when the path holds other bytes
 //   POST   /api/files/<roomId>/uploads                         { path, type, size } -> { fileId, uploadId }
 //   PUT    /api/files/<roomId>/uploads/<fileId>/<part>?uploadId=  -> { partNumber, etag }
 //   POST   /api/files/<roomId>/uploads/<fileId>?uploadId=      { parts } -> { file }
@@ -174,9 +174,9 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 		sha256Of(toHash),
 	])
 	// An edit names the SHA-256 it started from, so a write that landed meanwhile is never overwritten.
-	const expect = request.headers.get("x-kiko-if-sha256")
+	const expect = request.headers.get("x-yuki-if-sha256")
 	const expectSha256 = expect && /^(none|[0-9a-f]{64})$/.test(expect) ? expect : undefined
-	if (expect && !expectSha256) return error(400, "bad x-kiko-if-sha256")
+	if (expect && !expectSha256) return error(400, "bad x-yuki-if-sha256")
 	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...(expectSha256 ? { expectSha256 } : {}) })
 }
 

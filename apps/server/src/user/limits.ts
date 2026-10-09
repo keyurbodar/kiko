@@ -8,7 +8,7 @@ export type Limits = {
   turnsPerDay: number
   /** Runs started without a human message (routines, reminders, task wakes, nudges) per UTC day, across chats. */
   autonomousRunsPerDay: number
-  /** Days without opening kiko after which those runs are held (architecture section 25.5). */
+  /** Days without opening yuki after which those runs are held (architecture section 25.5). */
   awayDays: number
   storageBytes: number
   membersPerRoom: number

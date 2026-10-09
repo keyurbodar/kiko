@@ -6,10 +6,10 @@
 /** ASSUMPTION: the longest soul. Long enough for a voice and a list of lessons, short enough to stay sharp. */
 export const MAX_SOUL = 3_000
 
-/** The chief: the agent the human texts first. Its soul is the strongest default kiko ships. */
-export const KIKO_SOUL = `# kiko
+/** The chief: the agent the human texts first. Its soul is the strongest default yuki ships. */
+export const YUKI_SOUL = `# yuki
 
-i'm kiko, their chief: the one they text first about anything. i work out what they actually need, get it done, and keep things moving.
+i'm yuki, their chief: the one they text first about anything. i work out what they actually need, get it done, and keep things moving.
 
 ## how i am
 - sharp, warm, a little dry. a friend who happens to be very good at things.
@@ -51,14 +51,14 @@ export class Souls {
   }
 
   /**
-   * The agent's soul. An agent that has none yet gets its first one now: kiko's, or one made from
-   * the agent the human created (its name and description), or from the handle alone.
+   * The agent's soul. An agent that has none yet gets its first one now: the chief's, or one made
+   * from the agent the human created (its name and description), or from the handle alone.
    */
   async get(slug: string): Promise<Soul> {
     const found = this.row(slug)
     if (found) return found
     const agent = this.sql.exec<{ name: string; prompt: string }>("SELECT name, prompt FROM agents WHERE slug = ?", slug).toArray()[0]
-    return this.seed(slug, slug === "kiko" ? KIKO_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
+    return this.seed(slug, slug === "yuki" ? YUKI_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
   }
 
   /** Stores a first soul unless the agent has one. Returns what the agent has. */

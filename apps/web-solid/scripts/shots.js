@@ -1,7 +1,7 @@
 const { mkdir } = await import("node:fs/promises")
 await mkdir(OUT, { recursive: true })
 
-const task = await taskSpace("kiko shots " + LABEL)
+const task = await taskSpace("yuki shots " + LABEL)
 const page = task.page("p1")
 await page.cdp("Emulation.setDeviceMetricsOverride", {
   width: 1280,

@@ -10,15 +10,15 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-04-process-attachments-in-a-queue` |
+| Branch | `yuki/p8-04-process-attachments-in-a-queue` |
 
 ## Verification
 
-`bun kiko verify attachments` passes: after an image upload, the file row gains width, height, and a thumbhash within 5 seconds, and a job that fails twice succeeds on the third delivery.
+`bun yuki verify attachments` passes: after an image upload, the file row gains width, height, and a thumbhash within 5 seconds, and a job that fails twice succeeds on the third delivery.
 
 ## Task
 
-**Removed.** DEVIATION (2026-10-09): the attachment job, its `WorkDO`, and `bun kiko verify attachments` are removed. The owner chose t3code's simpler attachments, which compute nothing after upload. The queue consumer stays for account deletion. Architecture section 7.9.
+**Removed.** DEVIATION (2026-10-09): the attachment job, its `WorkDO`, and `bun yuki verify attachments` are removed. The owner chose t3code's simpler attachments, which compute nothing after upload. The queue consumer stays for account deletion. Architecture section 7.9.
 
 
 **Goal.** Compute image metadata without holding a room awake.

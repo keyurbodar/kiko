@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { ClientToUser, ExecutorResult, UserToClient } from "@kiko/protocol"
+import type { ClientToUser, ExecutorResult, UserToClient } from "@yuki/protocol"
 import { createExecutorClient } from "./integrations-client"
 import { createUserChannel } from "../sync/user-channel"
 
@@ -31,7 +31,7 @@ test("a reply with the same reqId answers the request, a push reaches listeners"
 test("no answer is an error, not a hang", async () => {
 	const f = fake()
 	const client = createExecutorClient({ channel: f.channel, timeoutMs: 20 })
-	expect(await client.request({ t: "disconnectExecutor" })).toEqual({ ok: false, error: "Kiko did not answer." })
+	expect(await client.request({ t: "disconnectExecutor" })).toEqual({ ok: false, error: "Yuki did not answer." })
 	client.close()
 })
 

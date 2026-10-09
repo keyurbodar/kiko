@@ -1,0 +1,51 @@
+/* The empty chat's hero: the birds at play, the heading, and who is here. */
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 18px;
+  text-align: center;
+  user-select: none;
+}
+
+.chat-empty-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.chat-empty-who {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* The empty pane: the transcript steps aside, the frosted branch fills the top, and the heading and the
+   composer sit together under it. */
+[data-component="chat-shell"] {
+  position: relative;
+}
+
+/* `safe` keeps the composer reachable on a short window: the pane scrolls instead of clipping. */
+[data-component="chat-shell"][data-session-empty="true"] {
+  justify-content: safe center;
+  padding-top: 18vh;
+  overflow-y: auto;
+}
+
+[data-component="chat-shell"][data-session-empty="true"] > [data-component="chat-transcript"] {
+  display: none;
+}
+
+[data-component="chat-shell"][data-session-empty="true"] > :not(.hoarfrost) {
+  position: relative;
+  z-index: 1;
+}
+
+[data-component="chat-shell"][data-session-empty="true"] .composer-dock {
+  --dock-bg: transparent;
+}

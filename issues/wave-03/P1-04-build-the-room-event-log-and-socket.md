@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-04-build-the-room-event-log-and-socket` |
+| Branch | `yuki/p1-04-build-the-room-event-log-and-socket` |
 
 ## Verification
 
-`bun kiko verify room-sync` passes. The suite sends, edits, reacts, deletes, disconnects, reconnects with `lastSeq`, and asserts the event stream.
+`bun yuki verify room-sync` passes. The suite sends, edits, reacts, deletes, disconnects, reconnects with `lastSeq`, and asserts the event stream.
 
 ## Task
 

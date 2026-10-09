@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Chat, ChatLast, MessageId, RoomId } from "@kiko/protocol"
+import type { Chat, ChatLast, MessageId, RoomId } from "@yuki/protocol"
 import { chatRow, mentionIds, viewLast } from "../lib/store"
 import type { ViewMessage } from "../sync/patches"
 import { type ActivityLine, describeLast, typingLine } from "./activity"

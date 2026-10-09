@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p10-06-let-agents-write-extensions` |
+| Branch | `yuki/p10-06-let-agents-write-extensions` |
 
 ## Verification
 

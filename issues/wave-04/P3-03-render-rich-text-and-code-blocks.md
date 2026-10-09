@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-03-render-rich-text-and-code-blocks` |
+| Branch | `yuki/p3-03-render-rich-text-and-code-blocks` |
 
 ## Verification
 
@@ -26,7 +26,7 @@
 
 **Build.**
 
-- Render every node type from `@kiko/protocol` with plain Solid components. Never set `innerHTML`.
+- Render every node type from `@yuki/protocol` with plain Solid components. Never set `innerHTML`.
 - Load `sugar-high` lazily and highlight a code block when it first becomes visible. Show plain monospace text until then.
 - Add a copy button to code blocks and a horizontal scroller for wide tables.
 - Open links in a new tab with `rel="noopener noreferrer"`.

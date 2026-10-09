@@ -10,15 +10,15 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p12-03-store-and-run-routines` |
+| Branch | `yuki/p12-03-store-and-run-routines` |
 
 ## Verification
 
-`bun kiko verify routines` passes: a routine runs once and answers; `[skip]` is quiet; a stuck run is a timeout; three failures pause. `bun kiko verify reminders` still passes.
+`bun yuki verify routines` passes: a routine runs once and answers; `[skip]` is quiet; a stuck run is a timeout; three failures pause. `bun yuki verify reminders` still passes.
 
 ## Task
 
-**Goal.** A routine is a standing job owned by one agent, fired by the one scheduler kiko has.
+**Goal.** A routine is a standing job owned by one agent, fired by the one scheduler yuki has.
 
 **Files.** `apps/server/src/user/reminders.ts`, `user/user-do.ts`, `user/routines.ts`, `user/routines-route.ts`; `room/routines.ts`, `room/room-do.ts`, `room/log.ts`.
 

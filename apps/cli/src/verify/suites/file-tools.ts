@@ -1,10 +1,10 @@
-import type { RoomToClient } from "@kiko/protocol"
+import type { RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 // P8-05, architecture sections 7.5 and 18. Real model turns with the chat's file system (pi's
-// read, write, and edit; kiko's ls, mv, cp, and rm) and `web_fetch`. Turn one: the agent writes
+// read, write, and edit; yuki's ls, mv, cp, and rm) and `web_fetch`. Turn one: the agent writes
 // `notes/plan.md`. The suite then changes that file and adds another over HTTP, as the human would,
 // so the second turn can only answer right if the agent really read the file, listed the folder,
 // and fetched the fixture page. Turn three asks for an edit, a move, a copy, and a delete in plain

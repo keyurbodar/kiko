@@ -1,5 +1,5 @@
 import type { McpOAuthState, McpOAuthStateStore } from "@earendil-works/pi-mcp/oauth"
-import { type Keyring, open, seal } from "@kiko/durable/crypto"
+import { type Keyring, open, seal } from "@yuki/durable/crypto"
 
 export type ExecutorSecret = "oauth" | "redirect" | "api_key"
 

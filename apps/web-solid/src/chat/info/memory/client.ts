@@ -3,7 +3,7 @@
 // A request made while the socket is down waits and goes out on connect. A request that
 // gets no answer in `timeoutMs` fails, so a screen never waits for ever.
 
-import type { MemoryOp, MemoryResult } from "@kiko/protocol"
+import type { MemoryOp, MemoryResult } from "@yuki/protocol"
 import { type UserChannel, userChannel } from "../../../sync/user-channel"
 
 export type MemoryClient = {
@@ -40,7 +40,7 @@ export function createMemoryClient(options: MemoryClientOptions = {}): MemoryCli
 				const reqId = `m${++n}`
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "Kiko did not answer" })
+					resolve({ ok: false, error: "Yuki did not answer" })
 				}, timeoutMs)
 				const p: Pending = { op, resolve, timer }
 				pending.set(reqId, p)

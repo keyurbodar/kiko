@@ -1,8 +1,8 @@
-import type { AgentSlug, Approval, ApprovalState, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
+import type { AgentSlug, Approval, ApprovalState, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
-// Architecture sections 9.2, 12.3, 16.3 and 25.3. kiko asks the human only when a run nobody asked
-// for wants to act outside kiko, or wants to make or widen a routine. There is one kind of card. The
+// Architecture sections 9.2, 12.3, 16.3 and 25.3. yuki asks the human only when a run nobody asked
+// for wants to act outside yuki, or wants to make or widen a routine. There is one kind of card. The
 // human's ok is a grant: for 30 minutes that agent may use every `external` tool without asking again.
 // A declined card goes back to the agent as an `approval_result` envelope. A card nobody answers
 // closes quietly after 30 minutes and wakes nobody.
@@ -61,7 +61,7 @@ export function summarize(args: Record<string, unknown>): string {
 }
 
 const pending = (id: string) => ({
-	refused: `waiting for the human: kiko posted card ${id}, so this did not run. do not retry it now and do not ask the human in a message; the card asks for you. if they answer, you get an approval_result.`,
+	refused: `waiting for the human: yuki posted card ${id}, so this did not run. do not retry it now and do not ask the human in a message; the card asks for you. if they answer, you get an approval_result.`,
 })
 
 export function listApprovals(storage: DurableObjectStorage): Approval[] {
@@ -221,8 +221,8 @@ export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "sum
 		r.state !== "accepted"
 			? `error: the human declined ${r.tool} (card ${r.id}, ${r.summary}). do not do it. tell the human in one line that you did not.`
 			: requestId
-				? `the human accepted the paused action (card ${r.id}, ${r.summary}). call ${r.tool} with requestId ${requestId} now. for the next ${minutes} minutes you may also act outside kiko without asking.`
-				: `the human accepted ${r.tool} (card ${r.id}, ${r.summary}). for the next ${minutes} minutes you may act outside kiko without asking. go on with the task now and tell the human what you did.`
+				? `the human accepted the paused action (card ${r.id}, ${r.summary}). call ${r.tool} with requestId ${requestId} now. for the next ${minutes} minutes you may also act outside yuki without asking.`
+				: `the human accepted ${r.tool} (card ${r.id}, ${r.summary}). for the next ${minutes} minutes you may act outside yuki without asking. go on with the task now and tell the human what you did.`
 	const id = `approval:${r.id}`
 	return { id, roomId, from: { kind: "system", reason: "approval_result" }, body, hop: 0, rootId: id, tainted: true, seq, origin: "human" }
 }

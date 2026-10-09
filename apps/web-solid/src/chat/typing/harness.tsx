@@ -5,17 +5,17 @@ import { render } from "solid-js/web";
 import "../../styles/app.css";
 import { createTypingPresence } from "./create-typing-presence";
 import { TypingIndicator } from "./TypingIndicator";
-import Moment from "../../mascot/pixel/moment";
+import Moment from "../../mascot/moment";
 
 const ROWS: [string[], (string | undefined)[]][] = [
-  [["kiko"], []],
+  [["yuki"], []],
   [["scout"], ["reading /notes.md"]],
   [["scout"], ["reading a web page"]],
   [["editor"], ["editing /draft.md"]],
   [["budget"], ["running code on the human's connected apps"]],
   [["lead"], ["working with a helper"]],
   [["planner"], ["handling a reminder"]],
-  [["kiko"], ["setting up agents"]],
+  [["yuki"], ["setting up agents"]],
   [["lead"], ["reading a web page"]],
   [["lead", "scout", "budget"], []],
   [["lead", "scout", "budget"], ["editing /plan.md", "reading a web page", undefined]],
@@ -29,12 +29,12 @@ function Page() {
       {ROWS.map(([typists, doing]) => (
         <TypingIndicator typists={typists} seeds={typists} doings={doing} group={typists.length > 1} />
       ))}
-      <TypingIndicator typists={["kiko", "scout", "budget", "lead", "planner"]} doings={["editing /plan.md"]} group />
+      <TypingIndicator typists={["yuki", "scout", "budget", "lead", "planner"]} doings={["editing /plan.md"]} group />
       <TypingIndicator typists={presence.typists()} />
       <div style={{ display: "flex", gap: "32px", "align-items": "flex-end" }}>
         <Moment kind="nothing" />
         <Moment kind="nest" faces={["planner"]} />
-        <Moment kind="cheer" faces={["kiko", "scout", "budget"]} />
+        <Moment kind="cheer" faces={["yuki", "scout", "budget"]} />
       </div>
     </div>
   );

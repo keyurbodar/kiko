@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-11-run-a-full-turn-between-the-room` |
+| Branch | `yuki/p1-11-run-a-full-turn-between-the-room` |
 
 ## Verification
 
-`bun kiko verify turn` passes with the test model. It sends three messages 400 ms apart and sees one run, at least one bubble, and one `touchChat`. It also passes after the dev server restarts during the run.
+`bun yuki verify turn` passes with the test model. It sends three messages 400 ms apart and sees one run, at least one bubble, and one `touchChat`. It also passes after the dev server restarts during the run.
 
 ## Task
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-port="${KIKO_PORT:-3017}"
+port="${YUKI_PORT:-3017}"
 label="${1:?usage: shots.sh <label> [state...]}"
 shift
-out="/tmp/kiko-verify-evidence/shots/${label}"
+out="/tmp/yuki-verify-evidence/shots/${label}"
 states="[]"
 if [ "$#" -gt 0 ]; then
   states="[$(printf '"%s",' "$@" | sed 's/,$//')]"

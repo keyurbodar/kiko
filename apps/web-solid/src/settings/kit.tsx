@@ -9,7 +9,7 @@ import "./kit.css"
 
 // Controls, cards, and rows are t3code's (MIT, apps/web/src/components/ui and settings), drawn by
 // the classes in kit.css. Page layout follows monocode's (MIT, src/features/settings/ui/SettingsView.tsx). Every color is the
-// text color mixed over what is behind it, so both work on kiko's light, dark, and glass themes:
+// text color mixed over what is behind it, so both work on yuki's light, dark, and glass themes:
 // `color-mix(in_oklab,var(--text)_N%,transparent)` below is t3code's `white/N` in dark mode.
 //
 // One rule keeps the page predictable: only something that looks like a button does anything.

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test"
-import type { Agent, AgentSlug, Chat, Member, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
+import type { Agent, AgentSlug, Chat, Member, RoomEvent, RoomId, RoomToClient } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 import type { Received } from "./fake-agent"
@@ -101,7 +101,7 @@ class Socket {
   }
 }
 
-/** A room whose chat was created with bob, ada, and cy. kiko is seeded first and leads. */
+/** A room whose chat was created with bob, ada, and cy. yuki is seeded first and leads. */
 async function team(): Promise<{ room: RoomId; ws: Socket }> {
   const room = fresh()
   await call("/user", { chats: [chatFor(room, "ship the plan", AGENTS.map((a) => a.id))], agents: AGENTS })
@@ -120,13 +120,13 @@ async function delivered(room: RoomId, who: string, count: number): Promise<Rece
 }
 
 const counts = async (room: RoomId) =>
-  Object.fromEntries(await Promise.all(["kiko", "bob", "ada", "cy"].map(async (s) => [s, (await received(room, s)).received.length])))
+  Object.fromEntries(await Promise.all(["yuki", "bob", "ada", "cy"].map(async (s) => [s, (await received(room, s)).received.length])))
 
-test("a chat created with agents seeds kiko as the lead, then them", async () => {
+test("a chat created with agents seeds yuki as the lead, then them", async () => {
   const { ws } = await team()
   await ws.until(() => ws.members().length === 4)
   expect(ws.members().map((m) => [m.slug, m.lead, m.role ?? null])).toEqual([
-    ["kiko", true, null],
+    ["yuki", true, null],
     ["bob", false, "plans"],
     ["ada", false, "reads code"],
     ["cy", false, null],
@@ -144,22 +144,22 @@ test("a chat with one agent stays one-to-one: that agent alone, as its lead", as
   ws.ws.close()
 })
 
-test("a chat created without agents gets kiko as its lead", async () => {
+test("a chat created without agents gets yuki as its lead", async () => {
   const room = fresh()
   await call("/user", { chats: [chatFor(room, "solo")], agents: [] })
   const ws = await Socket.open(room)
   await ws.until(() => ws.members().length === 1)
-  expect(ws.members()).toEqual([{ slug: slug("kiko"), name: "kiko", lead: true }])
+  expect(ws.members()).toEqual([{ slug: slug("yuki"), name: "Yuki", lead: true }])
   ws.ws.close()
 })
 
-test("a group with the built-in agent seeds kiko too: the client names it by its slug, and no stored agent has that id", async () => {
+test("a group with the built-in agent seeds yuki too: the client names it by its slug, and no stored agent has that id", async () => {
   const room = fresh()
-  await call("/user", { chats: [chatFor(room, "with kiko", ["kiko", AGENTS[1]!.id])], agents: AGENTS })
+  await call("/user", { chats: [chatFor(room, "with yuki", ["yuki", AGENTS[1]!.id])], agents: AGENTS })
   const ws = await Socket.open(room)
   await ws.until(() => ws.members().length === 2)
   expect(ws.members().map((m) => [m.slug, m.lead])).toEqual([
-    ["kiko", true],
+    ["yuki", true],
     ["ada", false],
   ])
   ws.ws.close()
@@ -168,11 +168,11 @@ test("a group with the built-in agent seeds kiko too: the client names it by its
 test("an untagged burst reaches only the lead; the others are not woken, even after the lead's run ends", async () => {
   const { room, ws } = await team()
   await ws.say("anyone around?")
-  await delivered(room, "kiko", 1)
-  await call(`/end/${room}/kiko/kiko:r1`)
+  await delivered(room, "yuki", 1)
+  await call(`/end/${room}/yuki/yuki:r1`)
   await Bun.sleep(500)
   // Every member reads the whole chat in its next run's memory, so nobody needs a run of its own now.
-  expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 0, cy: 0 })
+  expect(await counts(room)).toEqual({ yuki: 1, bob: 0, ada: 0, cy: 0 })
   ws.ws.close()
 })
 
@@ -181,17 +181,17 @@ const memory = async (room: RoomId, seqs: number[]) => ((await call(`/memory/${r
 test("untagged reaches only the lead, @ada only ada, @all everyone, and every memory view carries the whole chat", async () => {
   const { room, ws } = await team()
   await ws.say("hello team")
-  await delivered(room, "kiko", 1)
+  await delivered(room, "yuki", 1)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 0, cy: 0 })
-  const first = (await received(room, "kiko")).received[0]!
+  expect(await counts(room)).toEqual({ yuki: 1, bob: 0, ada: 0, cy: 0 })
+  const first = (await received(room, "yuki")).received[0]!
   expect(first.envelopes.map((e) => e.body)).toEqual(["hello team"])
-  expect(first.home).toMatchObject({ slug: "kiko", lead: true })
+  expect(first.home).toMatchObject({ slug: "yuki", lead: true })
 
   await ws.say("@ada your turn")
   const [toAda] = await delivered(room, "ada", 1)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ kiko: 1, bob: 0, ada: 1, cy: 0 })
+  expect(await counts(room)).toEqual({ yuki: 1, bob: 0, ada: 1, cy: 0 })
   expect(toAda!.envelopes.map((e) => e.body)).toEqual(["@ada your turn"])
   expect(toAda!.home).toMatchObject({ slug: "ada", lead: false })
   // She was not sent "hello team", yet her run's <memory> view holds it. Her own envelope is not repeated there.
@@ -201,15 +201,15 @@ test("untagged reaches only the lead, @ada only ada, @all everyone, and every me
   expect(hers).not.toContain("your turn")
   expect(toAda!.brief).not.toContain("hello team")
   expect(toAda!.brief).toContain("room goal: ship the plan")
-  expect(toAda!.brief).toContain("- @kiko (kiko): lead")
+  expect(toAda!.brief).toContain("- @yuki (Yuki): lead")
   expect(toAda!.brief).toContain("- @bob (bob): plans, idle")
 
   await ws.say("@all ping")
   await delivered(room, "cy", 1)
-  await delivered(room, "kiko", 2)
+  await delivered(room, "yuki", 2)
   await delivered(room, "bob", 1)
   await delivered(room, "ada", 2)
-  expect(await counts(room)).toEqual({ kiko: 2, bob: 1, ada: 2, cy: 1 })
+  expect(await counts(room)).toEqual({ yuki: 2, bob: 1, ada: 2, cy: 1 })
   const cy = (await received(room, "cy")).received[0]!
   // cy joins the conversation late and still reads every turn before its burst.
   const cys = await memory(room, cy.envelopes.map((e) => e.seq))
@@ -275,11 +275,11 @@ test("a reply to an agent's bubble reaches that agent", async () => {
   await ws.say("yes please", bubble?.t === "message" ? bubble.id : undefined)
   await delivered(room, "cy", 1)
   await Bun.sleep(300)
-  expect(await counts(room)).toEqual({ kiko: 0, bob: 0, ada: 0, cy: 1 })
+  expect(await counts(room)).toEqual({ yuki: 0, bob: 0, ada: 0, cy: 1 })
   ws.ws.close()
 })
 
-test("add, rename, and remove members, with the limit of 8, and kiko always stays", async () => {
+test("add, rename, and remove members, with the limit of 8, and yuki always stays", async () => {
   const { room, ws } = await team()
   await ws.until(() => ws.members().length === 4)
   for (const s of ["d1", "d2", "d3", "d4"]) ws.send({ t: "member", op: { op: "add", slug: s, name: s } })
@@ -293,10 +293,10 @@ test("add, rename, and remove members, with the limit of 8, and kiko always stay
   ws.send({ t: "member", op: { op: "rename", slug: "ada", name: "ada lovelace" } })
   await ws.until(() => ws.members().find((m) => m.slug === "ada")?.name === "ada lovelace")
 
-  // kiko is the chief: it cannot be removed, and it stays the lead.
-  ws.send({ t: "member", op: { op: "remove", slug: "kiko" } })
+  // yuki is the chief: it cannot be removed, and it stays the lead.
+  ws.send({ t: "member", op: { op: "remove", slug: "yuki" } })
   await ws.until((f) => f.t === "member_refused" && f.reason === "chief")
-  expect(ws.members().filter((m) => m.lead).map((m) => m.slug)).toEqual([slug("kiko")])
+  expect(ws.members().filter((m) => m.lead).map((m) => m.slug)).toEqual([slug("yuki")])
 
   ws.send({ t: "member", op: { op: "remove", slug: "bob" } })
   await ws.until(() => !ws.members().some((m) => m.slug === "bob"))
@@ -304,7 +304,7 @@ test("add, rename, and remove members, with the limit of 8, and kiko always stay
 
   // A tag for a removed member counts as no tag, so it reaches the lead.
   await ws.say("@bob are you there")
-  await delivered(room, "kiko", 1)
+  await delivered(room, "yuki", 1)
   await Bun.sleep(300)
   expect((await received(room, "bob")).received.length).toBe(0)
 
@@ -319,7 +319,7 @@ test("add, rename, and remove members, with the limit of 8, and kiko always stay
     late.onopen = () => late.send(JSON.stringify({ t: "hello", lastSeq: 1_000_000 }))
     late.onmessage = (e) => resolve(JSON.parse(String(e.data)))
   })
-  expect(snapshot.t === "reset" && snapshot.snapshot.members.map((m) => m.slug)).toEqual(["kiko", "ada", "cy", "d1", "d2", "d3", "d4"].map(slug))
+  expect(snapshot.t === "reset" && snapshot.snapshot.members.map((m) => m.slug)).toEqual(["yuki", "ada", "cy", "d1", "d2", "d3", "d4"].map(slug))
   late.close()
   ws.ws.close()
 })
@@ -345,21 +345,21 @@ test("stop reaches every member", async () => {
   ws.send({ t: "stop" })
   const end = Date.now() + 3000
   while (Date.now() < end) {
-    const stops = await Promise.all(["kiko", "bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))
+    const stops = await Promise.all(["yuki", "bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))
     if (stops.every((x) => x === 1)) break
     await Bun.sleep(50)
   }
-  expect(await Promise.all(["kiko", "bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))).toEqual([1, 1, 1, 1])
+  expect(await Promise.all(["yuki", "bob", "ada", "cy"].map(async (s) => (await received(room, s)).stops))).toEqual([1, 1, 1, 1])
   ws.ws.close()
 })
 
 test("a burst whose delivery fails once is retried, and counts as one turn", async () => {
   const { room, ws } = await team()
   const before = ((await call("/turns")) as { turns: number }).turns
-  await call(`/fail/${room}/kiko/1`)
+  await call(`/fail/${room}/yuki/1`)
   await ws.say("plan the launch")
   // The first delivery throws; the room's retry delivers it to the lead.
-  const got = await delivered(room, "kiko", 1)
+  const got = await delivered(room, "yuki", 1)
   expect(got[0]!.envelopes.map((e) => e.body)).toEqual(["plan the launch"])
   expect(((await call("/turns")) as { turns: number }).turns).toBe(before + 1)
   ws.ws.close()
@@ -392,15 +392,15 @@ test("an agent's send_message carries text only: no files on the message, none i
 test("a group starts with /chat.md listing who does what; it is written once", async () => {
   const { room, ws } = await team()
   await ws.say("hi team")
-  await delivered(room, "kiko", 1)
+  await delivered(room, "yuki", 1)
   const file = ws.events().find((e) => e.t === "file" && e.file.name === "chat.md")
   expect(file?.t === "file" && file.file.type).toBe("text/markdown")
   const raw = await (await mf.getR2Bucket("FILES")).list()
   const key = raw.objects.find((o) => o.key.includes(room))?.key
   const text = await (await (await mf.getR2Bucket("FILES")).get(key!))!.text()
-  expect(text).toBe("# ship the plan\n\ngoal:\n\n## who does what\n- @kiko: leads\n- @bob: plans\n- @ada: reads code\n- @cy:\n\n## decisions\n")
+  expect(text).toBe("# ship the plan\n\ngoal:\n\n## who does what\n- @yuki: leads\n- @bob: plans\n- @ada: reads code\n- @cy:\n\n## decisions\n")
   await ws.say("again")
-  await delivered(room, "kiko", 2)
+  await delivered(room, "yuki", 2)
   expect(ws.events().filter((e) => e.t === "file" && e.file.name === "chat.md")).toHaveLength(1)
   ws.ws.close()
 })
@@ -412,7 +412,7 @@ test("a human's attachment shows on the message and is listed in the lead's enve
   const frame = (await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && (e.files?.length ?? 0) > 0))) as Extract<RoomToClient, { t: "events" }>
   const shown = frame.events.find((e) => e.t === "message")
   expect(shown?.t === "message" && shown.files?.map((f) => f.name)).toEqual(["attachments/a1-photo.png"])
-  const got = await delivered(room, "kiko", 1)
+  const got = await delivered(room, "yuki", 1)
   const body = got.flatMap((r) => r.envelopes.map((e) => e.body)).find((b) => b.startsWith("look"))
   expect(body).toStartWith("look\n(attached: /attachments/a1-photo.png (")
   expect(body).toEndWith("open each with read before you answer about it.)")
@@ -436,49 +436,49 @@ test("a private chat's agents are told so on every delivery", async () => {
   await call("/user", { chats: [{ ...chatFor(room, "secret plans", AGENTS.map((a) => a.id)), private: true }], agents: AGENTS })
   const ws = await Socket.open(room)
   await ws.say("between us")
-  const got = await delivered(room, "kiko", 1)
+  const got = await delivered(room, "yuki", 1)
   expect(got[0]!.home?.private).toBe(true)
   ws.ws.close()
 })
 
 const soul = (name: string) => `# ${name}\n\ni plan meals around what's in the fridge.\n\n## what i've learned about working with them\n`
 
-test("a yes the human sends while kiko is still writing the proposal counts, and the request itself does not", async () => {
+test("a yes the human sends while yuki is still writing the proposal counts, and the request itself does not", async () => {
   const room = fresh()
-  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), temp: true }], agents: AGENTS })
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["yuki"]), temp: true }], agents: AGENTS })
   const ws = await Socket.open(room)
-  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "kiko"))
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "yuki"))
   await ws.say("make me a cooking agent")
-  await call(`/status/${room}/kiko/working`)
-  const first = (await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "baker", handle: "baker", description: "plans your meal prep", soul: soul("baker") } })) as { id: string }
+  await call(`/status/${room}/yuki/working`)
+  const first = (await call(`/propose/${room}/yuki`, { kind: "agent", agent: { name: "baker", handle: "baker", description: "plans your meal prep", soul: soul("baker") } })) as { id: string }
   // The request that started the run is not a yes to what the run then proposed.
-  expect(((await call(`/create/${room}/kiko/${first.id}`)) as { error: string }).error).toContain("wait for their yes")
+  expect(((await call(`/create/${room}/yuki/${first.id}`)) as { error: string }).error).toContain("wait for their yes")
   // The human writes while the next proposal is still being written; it is saved after their message.
   await ws.say("do fast")
-  const second = (await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "grill", handle: "grill", description: "plans your meal prep", soul: soul("grill") } })) as { id: string }
-  expect(((await call(`/create/${room}/kiko/${second.id}`)) as { ok: boolean }).ok).toBe(true)
+  const second = (await call(`/propose/${room}/yuki`, { kind: "agent", agent: { name: "grill", handle: "grill", description: "plans your meal prep", soul: soul("grill") } })) as { id: string }
+  expect(((await call(`/create/${room}/yuki/${second.id}`)) as { ok: boolean }).ok).toBe(true)
   ws.ws.close()
 })
 
-test("in a temporary chat kiko makes an agent only after the human answers", async () => {
+test("in a temporary chat yuki makes an agent only after the human answers", async () => {
   const room = fresh()
-  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), temp: true }], agents: AGENTS })
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["yuki"]), temp: true }], agents: AGENTS })
   const ws = await Socket.open(room)
-  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "kiko"))
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "yuki"))
   await ws.say("i want help with meal prep")
-  // Only kiko proposes; a bad handle and a taken one are refused.
+  // Only yuki proposes; a bad handle and a taken one are refused.
   expect(((await call(`/propose/${room}/bob`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "", soul: soul("chef") } })) as { ok: boolean }).ok).toBe(false)
-  expect(((await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "ada", handle: "ada", description: "", soul: soul("ada") } })) as { error: string }).error).toContain("taken")
-  const proposed = (await call(`/propose/${room}/kiko`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "plans your meal prep", soul: soul("chef") } })) as { ok: true; id: string }
+  expect(((await call(`/propose/${room}/yuki`, { kind: "agent", agent: { name: "ada", handle: "ada", description: "", soul: soul("ada") } })) as { error: string }).error).toContain("taken")
+  const proposed = (await call(`/propose/${room}/yuki`, { kind: "agent", agent: { name: "chef", handle: "chef", description: "plans your meal prep", soul: soul("chef") } })) as { ok: true; id: string }
   expect(proposed.ok).toBe(true)
   // No human message since the proposal: not yet.
-  const early = (await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean; error: string }
+  const early = (await call(`/create/${room}/yuki/${proposed.id}`)) as { ok: boolean; error: string }
   expect(early.error).toContain("wait for their yes")
   await ws.say("yes do it")
-  const made = (await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean; text: string }
+  const made = (await call(`/create/${room}/yuki/${proposed.id}`)) as { ok: boolean; text: string }
   expect(made.ok).toBe(true)
   // The same create again returns what the first one made.
-  expect(((await call(`/create/${room}/kiko/${proposed.id}`)) as { text: string }).text).toBe(made.text)
+  expect(((await call(`/create/${room}/yuki/${proposed.id}`)) as { text: string }).text).toBe(made.text)
   const state = (await call("/userstate")) as { agents: { slug: string }[]; souls: Record<string, string>; chats: { roomId: string; title: string; agents?: string[] }[] }
   expect(state.agents.map((a) => a.slug)).toContain("chef")
   expect(state.souls.chef).toBe(soul("chef"))
@@ -490,25 +490,25 @@ test("in a temporary chat kiko makes an agent only after the human answers", asy
   expect(goto?.t === "message" && goto.goto).toBe(dm.roomId)
   // And the new agent hears it was made, so it says hi first.
   const intro = await delivered(dm.roomId as RoomId, "chef", 1)
-  expect(intro[0]!.envelopes[0]!.body).toContain("kiko just made you for the human: plans your meal prep")
+  expect(intro[0]!.envelopes[0]!.body).toContain("yuki just made you for the human: plans your meal prep")
   ws.ws.close()
 })
 
-test("a group from a temporary chat: the chat becomes the group, with its members and kiko's /chat.md", async () => {
+test("a group from a temporary chat: the chat becomes the group, with its members and yuki's /chat.md", async () => {
   const room = fresh()
-  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["kiko"]), temp: true }], agents: AGENTS })
+  await call("/user", { chats: [{ ...chatFor(room, "new chat", ["yuki"]), temp: true }], agents: AGENTS })
   const ws = await Socket.open(room)
-  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "kiko"))
+  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "yuki"))
   await ws.say("a group for launching the app: ada and a new marketer")
-  const chatMd = "# launch\n\ngoal: ship the app\n\n## who does what\n- @kiko: leads\n- @ada: code\n- @mia: marketing\n\n## decisions\n"
-  const proposed = (await call(`/propose/${room}/kiko`, { kind: "group", title: "launch", members: ["@ada"], agents: [{ name: "mia", handle: "mia", description: "markets the launch", soul: soul("mia") }], chat: chatMd })) as { id: string }
+  const chatMd = "# launch\n\ngoal: ship the app\n\n## who does what\n- @yuki: leads\n- @ada: code\n- @mia: marketing\n\n## decisions\n"
+  const proposed = (await call(`/propose/${room}/yuki`, { kind: "group", title: "launch", members: ["@ada"], agents: [{ name: "mia", handle: "mia", description: "markets the launch", soul: soul("mia") }], chat: chatMd })) as { id: string }
   await ws.say("yes")
-  expect(((await call(`/create/${room}/kiko/${proposed.id}`)) as { ok: boolean }).ok).toBe(true)
+  expect(((await call(`/create/${room}/yuki/${proposed.id}`)) as { ok: boolean }).ok).toBe(true)
   await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "mia"))
-  expect(ws.members().map((m) => m.slug).sort()).toEqual(["ada", "kiko", "mia"])
+  expect(ws.members().map((m) => m.slug).sort()).toEqual(["ada", "mia", "yuki"])
   const state = (await call("/userstate")) as { chats: { roomId: string; title: string; temp?: true; agents?: string[] }[] }
   const chat = state.chats.find((c) => c.roomId === room)!
-  expect(chat).toMatchObject({ title: "launch", agents: ["kiko", "id-ada", "made-mia"] })
+  expect(chat).toMatchObject({ title: "launch", agents: ["yuki", "id-ada", "made-mia"] })
   expect(chat.temp).toBeUndefined()
   const files = await (await mf.getR2Bucket("FILES")).list()
   const key = files.objects.filter((o) => o.key.includes(room)).at(-1)!.key
@@ -519,13 +519,13 @@ test("a group from a temporary chat: the chat becomes the group, with its member
 test("a quote tells the agent exactly which words the human answers", async () => {
   const { room, ws } = await team()
   await ws.say("first")
-  await delivered(room, "kiko", 1)
+  await delivered(room, "yuki", 1)
   const posted = (await call(`/post/${room}/bob`)) as boolean
   expect(posted).toBe(true)
   const bubble = await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "agent"))
   const target = bubble.t === "events" ? bubble.events.find((e) => e.t === "message")! : null
   ws.send({ t: "send", clientId: crypto.randomUUID(), text: "why?", replyTo: target!.t === "message" ? target!.id : "", quote: "help" })
-  // A reply to bob's bubble reaches bob, though kiko leads.
+  // A reply to bob's bubble reaches bob, though yuki leads.
   const got = await delivered(room, "bob", 1)
   expect(got[0]!.envelopes[0]!.body).toBe('(replying to @bob, about this part: "help")\nwhy?')
   ws.ws.close()
@@ -673,11 +673,11 @@ test("a burst the day's limit refused releases the agents it warned and the mail
 
 test("a task an agent makes in the human's work wakes its owner with the human's authority and root", async () => {
   const { room, ws } = await team()
-  await ws.say("@kiko plan it")
-  const [human] = await delivered(room, "kiko", 1)
+  await ws.say("@yuki plan it")
+  const [human] = await delivered(room, "yuki", 1)
   ws.send({ t: "task", op: { op: "create", id: "w1", title: "first", owner: "ada" } })
   await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "task" && e.task.id === "w1"))
-  expect(((await call(`/task/${room}/kiko`, { op: "create_task", id: "w2", title: "second", owner: "bob", dependsOn: ["w1"] })) as { ok: boolean }).ok).toBe(true)
+  expect(((await call(`/task/${room}/yuki`, { op: "create_task", id: "w2", title: "second", owner: "bob", dependsOn: ["w1"] })) as { ok: boolean }).ok).toBe(true)
   ws.send({ t: "task", op: { op: "update", id: "w1", status: "done" } })
   const [wake] = await delivered(room, "bob", 1)
   expect(wake!.envelopes.map((e) => ({ id: e.id, rootId: e.rootId, origin: e.origin }))).toEqual([{ id: "unblocked:w2", rootId: human!.envelopes[0]!.rootId, origin: "human" }])

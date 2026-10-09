@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-06-wire-composer-attachments-to-upload` |
+| Branch | `yuki/p8-06-wire-composer-attachments-to-upload` |
 
 ## Verification
 
-The `verify-kiko` attachments feature: paste an image, drop two files, see all three in the tray with progress, send, and see the album appear at once and survive a reload.
+The `verify-yuki` attachments feature: paste an image, drop two files, see all three in the tray with progress, send, and see the album appear at once and survive a reload.
 
 ## Task
 

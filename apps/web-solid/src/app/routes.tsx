@@ -27,7 +27,7 @@ const activeChat = () => useApp.activeThreadId() ?? openTabs.ids()[0] ?? null
 
 /*
  * `/` and `/chat` name no chat, so the app goes back to the one the user was last in (architecture
- * section 7.11): this device's copy at once, else the server's, else the kiko chat.
+ * section 7.11): this device's copy at once, else the server's, else the yuki chat.
  */
 function Resume() {
   const navigate = useNavigate()

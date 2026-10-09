@@ -7,8 +7,8 @@ import { useApp } from "../../lib/store"
 import { chatModel } from "../../settings/chat-model"
 import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { BackIcon } from "@kiko/ui/icons"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { BackIcon } from "@yuki/ui/icons"
 import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers, tabKeys } from "./sections"
 import { shortDate, startedAt } from "./format"
 import { loadRoutines, RoutinesPage, routinesOf } from "./routines"
@@ -179,8 +179,8 @@ function Home(props: { chatId: string }) {
           </Card>
         )}
       </For>
-      {/* The kiko chat is always there, so it has no delete. */}
-      <Show when={!useApp.user()?.chats().find((c) => c.roomId === props.chatId)?.kiko}>
+      {/* The yuki chat is always there, so it has no delete. */}
+      <Show when={!useApp.user()?.chats().find((c) => c.roomId === props.chatId)?.yuki}>
         <DeleteChat chatId={props.chatId} />
       </Show>
     </div>

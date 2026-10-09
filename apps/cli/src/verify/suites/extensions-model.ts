@@ -1,4 +1,4 @@
-import type { ExtensionOp, ExtensionProposal, ExtensionResult, UserEvent } from "@kiko/protocol"
+import type { ExtensionOp, ExtensionProposal, ExtensionResult, UserEvent } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { newRoom, seen, send, until } from "./mid-run"

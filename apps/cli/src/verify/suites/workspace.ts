@@ -1,11 +1,11 @@
-import type { Agent, AgentSlug, Message, RoomEvent, RoomId, RoomToClient, Task } from "@kiko/protocol"
+import type { Agent, AgentSlug, Message, RoomEvent, RoomId, RoomToClient, Task } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send, ulid, until } from "./mid-run"
 
 // P6-02, architecture section 7.6. The task board with fake agents (`apps/server/src/agent/dev-fake.ts`),
-// so the suite is deterministic and spends no tokens. kiko leads the group (section 7.11); bob, ada and cy are members. The
+// so the suite is deterministic and spends no tokens. yuki leads the group (section 7.11); bob, ada and cy are members. The
 // fake calls a workspace tool for `[ws <tool> <json>]` and answers `heard: ...; tool: <result>`.
 // Needs a development server.
 //
@@ -51,8 +51,8 @@ const suite: Suite = {
 		user.send({ t: "chat", op: { op: "create", roomId, title: "ship it", agents: TEAM.map((n) => agentOf(n).id) } })
 		await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
 		const room = await s.room(roomId)
-		// A group is seeded with kiko first, as its lead, so kiko is a fake too.
-		await dev(v.url, s.cookie, "fake", { roomId, slugs: ["kiko", ...TEAM] })
+		// A group is seeded with yuki first, as its lead, so yuki is a fake too.
+		await dev(v.url, s.cookie, "fake", { roomId, slugs: ["yuki", ...TEAM] })
 		await until("three members", () => events(room).filter((e) => e.t === "member").length >= 3, 5_000)
 		const status = async (slug: string) => (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status
 		const received = async (slug: string) => {
@@ -63,12 +63,12 @@ const suite: Suite = {
 		// 1. The human creates A for ada; the lead's tool adds B for cy, after A.
 		room.raw.send({ t: "task", op: { op: "create", id: "task-a", title: "draft the plan", owner: "ada" as AgentSlug } })
 		await until("task a", () => tasks(room).has("task-a"), 5_000)
-		await send(room, `@kiko [ws create_task {"title":"review the plan","owner":"cy","depends_on":["task-a"]}]`)
+		await send(room, `@yuki [ws create_task {"title":"review the plan","owner":"cy","depends_on":["task-a"]}]`)
 		await until("task b", () => tasks(room).size === 2, 15_000)
 		const b = [...tasks(room).values()].find((t) => t.id !== "task-a")!
 		expectEqual({ owner: b.owner, status: b.status, dependsOn: b.dependsOn }, { owner: "cy", status: "todo", dependsOn: ["task-a"] }, "task b")
-		await until("kiko's answer", () => bubbles(room, "kiko").length === 1, 15_000)
-		console.log(`  ok board: task-a for ada, ${b.id} for cy after task-a (kiko: ${JSON.stringify(bubbles(room, "kiko")[0])})`)
+		await until("yuki's answer", () => bubbles(room, "yuki").length === 1, 15_000)
+		console.log(`  ok board: task-a for ada, ${b.id} for cy after task-a (yuki: ${JSON.stringify(bubbles(room, "yuki")[0])})`)
 
 		// 2. cy taking A fails and names the owner.
 		await send(room, `@cy [ws update_task {"id":"task-a","status":"doing"}]`)

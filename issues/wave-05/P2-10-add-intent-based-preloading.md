@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-10-add-intent-based-preloading` |
+| Branch | `yuki/p2-10-add-intent-based-preloading` |
 
 ## Verification
 

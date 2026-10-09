@@ -1,6 +1,6 @@
 # Phase 13. Memory after OptChat
 
-The OptMem author published OptChat, a spec of an endless chat whose history is its memory ([research](../research/optchat.md)). This phase takes what it measured to be better and leaves what does not fit kiko. Architecture sections 8 and 13 have every decision.
+The OptMem author published OptChat, a spec of an endless chat whose history is its memory ([research](../research/optchat.md)). This phase takes what it measured to be better and leaves what does not fit yuki. Architecture sections 8 and 13 have every decision.
 
 The owner asked for this phase on 2026-10-05, asked that OptChat's folded view ship only if it measured better, and gave full authority over it. It did not measure better and was deleted. The rest shipped in one change, so the tasks below record what was built and how each part is verified.
 
@@ -10,7 +10,7 @@ The owner asked for this phase on 2026-10-05, asked that OptChat's folded view s
 
 `deps: none` `difficulty: 3` `area: backend` `parallel: no`
 
-**Verify.** `bun kiko verify memory-hard` scores at least 14 of 15 with deepseek-v4.1-flash, and `bun kiko verify memory-eval` still scores at least 9 of 10. `bun run --cwd apps/server test` passes `test/optmem.test.ts` (free nodes, the prompt has no ids and keeps a long item whole) and `test/log-memory.test.ts`.
+**Verify.** `bun yuki verify memory-hard` scores at least 14 of 15 with deepseek-v4.1-flash, and `bun yuki verify memory-eval` still scores at least 9 of 10. `bun run --cwd apps/server test` passes `test/optmem.test.ts` (free nodes, the prompt has no ids and keeps a long item whole) and `test/log-memory.test.ts`.
 
 **Goal.** A summary loses nothing in a long item and costs no more than memo's.
 
@@ -56,7 +56,7 @@ The owner asked for this phase on 2026-10-05, asked that OptChat's folded view s
 
 `deps: none` `difficulty: 2` `area: backend`
 
-**Verify.** `bun kiko verify subagent` passes its memory case: a helper finds a code word said earlier in the chat with `recall`.
+**Verify.** `bun yuki verify subagent` passes its memory case: a helper finds a code word said earlier in the chat with `recall`.
 
 **Files.** `apps/server/src/agent/extensions/subagent.ts`, `extensions/memory.ts`, `agent/factory.ts`, `agent/agent-do.ts`, `apps/cli/src/verify/suites/subagent.ts`.
 

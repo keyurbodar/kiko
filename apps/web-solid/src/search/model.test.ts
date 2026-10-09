@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { MessageId, RoomId } from "@kiko/protocol"
+import type { MessageId, RoomId } from "@yuki/protocol"
 import { createSearch, type Hit, type HitPage, PAGE_AHEAD, SEARCH_DEBOUNCE_MS, senderName, type Timer } from "./model"
 import type { SearchScope } from "./state"
 
@@ -130,10 +130,10 @@ describe("createSearch", () => {
   })
 })
 
-test("senderName names the human, agents by their name, and the system as Kiko", () => {
+test("senderName names the human, agents by their name, and the system as Yuki", () => {
   const agents = [{ slug: "piko" as never, name: "Piko" }]
   expect(senderName({ kind: "human" }, agents)).toBe("You")
   expect(senderName({ kind: "agent", slug: "piko" as never }, agents)).toBe("Piko")
   expect(senderName({ kind: "agent", slug: "zed" as never }, agents)).toBe("zed")
-  expect(senderName({ kind: "system", reason: "reminder" } as never, agents)).toBe("Kiko")
+  expect(senderName({ kind: "system", reason: "reminder" } as never, agents)).toBe("Yuki")
 })

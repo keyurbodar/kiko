@@ -1,4 +1,4 @@
-import type { Agent, RoomId, SearchHit, Sender } from "@kiko/protocol"
+import type { Agent, RoomId, SearchHit, Sender } from "@yuki/protocol"
 import type { SearchScope } from "./state"
 
 /*
@@ -123,6 +123,6 @@ export function createSearch(options: {
 /** Who wrote a hit, as a row names them. */
 export function senderName(from: Sender, agents: readonly Pick<Agent, "slug" | "name">[]): string {
   if (from.kind === "human") return "You"
-  if (from.kind === "system") return "Kiko"
+  if (from.kind === "system") return "Yuki"
   return agents.find((a) => a.slug === from.slug)?.name ?? from.slug
 }

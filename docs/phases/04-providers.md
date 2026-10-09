@@ -2,7 +2,7 @@
 
 This phase replaces the development key with each user's own provider credentials. At the end, a user connects a provider in settings, picks a model, and chats with it. A user with no provider sees a prompt to connect one.
 
-Kiko holds no model list and no provider adapter of its own. Everything comes from `pi-ai`.
+Yuki holds no model list and no provider adapter of its own. Everything comes from `pi-ai`.
 
 ## Tasks
 
@@ -10,7 +10,7 @@ Kiko holds no model list and no provider adapter of its own. Everything comes fr
 
 `deps: P1-05` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify credentials` passes: save a key, read back only the last four characters, disconnect, and see the row gone. `bun test apps/server/test/credentials.test.ts` passes a wrong-user decrypt failure and a key rotation.
+**Verify.** `bun yuki verify credentials` passes: save a key, read back only the last four characters, disconnect, and see the row gone. `bun test apps/server/test/credentials.test.ts` passes a wrong-user decrypt failure and a key rotation.
 
 **Goal.** Store provider credentials per user, encrypted, with `UserDO` as the only owner.
 
@@ -32,7 +32,7 @@ Kiko holds no model list and no provider adapter of its own. Everything comes fr
 
 `deps: P4-01, P1-12` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify byok` passes: a user with a connected provider gets an answer, a user with none gets a `no_provider` event and no run, and disconnecting mid-conversation makes the next message return `no_provider`.
+**Verify.** `bun yuki verify byok` passes: a user with a connected provider gets an answer, a user with none gets a `no_provider` event and no run, and disconnecting mid-conversation makes the next message return `no_provider`.
 
 **Goal.** Make every model request use the calling user's own credentials.
 
@@ -74,7 +74,7 @@ Kiko holds no model list and no provider adapter of its own. Everything comes fr
 
 `deps: P4-01, P0-08` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify provider-login --fake` passes with a fake provider that uses both `notify` and `prompt`. One real device-code flow is shown working by hand in the pull request.
+**Verify.** `bun yuki verify provider-login --fake` passes with a fake provider that uses both `notify` and `prompt`. One real device-code flow is shown working by hand in the pull request.
 
 **Goal.** Let a user sign in to a provider with the flow `pi-ai` offers, from the browser.
 
@@ -95,7 +95,7 @@ Kiko holds no model list and no provider adapter of its own. Everything comes fr
 
 `deps: P4-03, P4-01, P2-07` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` providers feature: connect the test provider by pasting a key, see the last four characters, pick a model for a chat, and disconnect.
+**Verify.** The `verify-yuki` providers feature: connect the test provider by pasting a key, see the last four characters, pick a model for a chat, and disconnect.
 
 **Goal.** Let a user manage providers and choose models.
 
@@ -116,7 +116,7 @@ Kiko holds no model list and no provider adapter of its own. Everything comes fr
 
 `deps: P4-02, P2-08` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` onboarding feature: a new account sends a message, sees the connect prompt in the transcript, connects, and the held message gets its answer.
+**Verify.** The `verify-yuki` onboarding feature: a new account sends a message, sees the connect prompt in the transcript, connects, and the held message gets its answer.
 
 **Goal.** Never fail a chat because no provider is connected.
 
@@ -134,7 +134,7 @@ Kiko holds no model list and no provider adapter of its own. Everything comes fr
 
 `deps: P4-02, P2-08` `difficulty: 2` `area: backend`
 
-**Verify.** `bun kiko verify usage` passes: after one turn, the room reports input tokens, output tokens, and a cost that matches the catalog price for the test model.
+**Verify.** `bun yuki verify usage` passes: after one turn, the room reports input tokens, output tokens, and a cost that matches the catalog price for the test model.
 
 **Goal.** Show a user what a chat has cost them.
 

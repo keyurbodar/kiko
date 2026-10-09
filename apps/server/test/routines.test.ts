@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, Envelope, RoomEvent } from "@kiko/protocol"
-import { Trigger } from "@kiko/protocol/schema"
+import type { AgentSlug, Envelope, RoomEvent } from "@yuki/protocol"
+import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
-import { gate, NO_CARD, needsApproval } from "@kiko/agent/trust"
-import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "@kiko/agent/authority"
+import { gate, NO_CARD, needsApproval } from "@yuki/agent/trust"
+import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "@yuki/agent/authority"
 import { eventLine, matches } from "../src/room/routines"
 import { nextSweep, stalled, STALE_MS, SWEEP_MS } from "../src/room/stalls"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
@@ -99,7 +99,7 @@ describe("triggers (section 25.4)", () => {
     const task = eventLine({ ...at, t: "task", task: { id: "t", title: "ship", status: "review", dependsOn: [] } } as RoomEvent, name)!
     const human = eventLine({ ...at, t: "message", id: "m", from: { kind: "human" }, text: "Deploy it" } as RoomEvent, name)!
     const file = eventLine({ ...at, t: "file", file: { id: "f", name: "reports/q3.md", size: 1, type: "text/markdown" } } as RoomEvent, name)!
-    const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "kiko", trigger })
+    const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "yuki", trigger })
     expect(matches(r({ on: "task", status: ["review"] }), task)).toBe(true)
     expect(matches(r({ on: "task", status: ["done"] }), task)).toBe(false)
     expect(matches(r({ on: "task" }), task)).toBe(true)
@@ -140,11 +140,11 @@ describe("proactivity (sections 25.5 and 25.6)", () => {
       { id: "d", title: "d", status: "todo", owner: "ada", updated_at: old },
       { id: "e", title: "e", status: "blocked", owner: null, updated_at: old },
     ]
-    expect(stalled(rows, "kiko" as AgentSlug, now, () => false).map((n) => [n.taskId, n.to])).toEqual([
+    expect(stalled(rows, "yuki" as AgentSlug, now, () => false).map((n) => [n.taskId, n.to])).toEqual([
       ["a", "ada"],
-      ["b", "kiko"],
+      ["b", "yuki"],
     ])
-    expect(stalled(rows, "kiko" as AgentSlug, now, (id) => id === `stalled:a:${old}`).map((n) => n.taskId)).toEqual(["b"])
+    expect(stalled(rows, "yuki" as AgentSlug, now, (id) => id === `stalled:a:${old}`).map((n) => n.taskId)).toEqual(["b"])
   })
 })
 

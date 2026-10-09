@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-15-show-tool-activity-and-agent-status` |
+| Branch | `yuki/p3-15-show-tool-activity-and-agent-status` |
 
 ## Verification
 
-`bun kiko verify activity` passes on the server side, and the `verify-kiko` activity feature shows a chevron on an agent bubble that expands to the tools the run used.
+`bun yuki verify activity` passes on the server side, and the `verify-yuki` activity feature shows a chevron on an agent bubble that expands to the tools the run used.
 
 ## Task
 

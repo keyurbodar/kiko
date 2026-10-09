@@ -10,15 +10,15 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-02-add-accounts-with-better-auth-and-d1` |
+| Branch | `yuki/p1-02-add-accounts-with-better-auth-and-d1` |
 
 ## Verification
 
-`bun kiko login --dev` stores a session and `bun kiko whoami` prints the user id. A request to `/api/me` without a cookie returns 401.
+`bun yuki login --dev` stores a session and `bun yuki whoami` prints the user id. A request to `/api/me` without a cookie returns 401.
 
 ## Task
 
-**Goal.** Give kiko user accounts and sessions.
+**Goal.** Give yuki user accounts and sessions.
 
 **Read first.** Architecture section 10. `docs/research/cloudflare.md`, the Better Auth section.
 

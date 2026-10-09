@@ -10,11 +10,11 @@
 | Parallel with its wave | no |
 | Needs a worktree | no |
 | Needs a human step | no |
-| Branch | `kiko/p12-02-carry-a-run-s-authority` |
+| Branch | `yuki/p12-02-carry-a-run-s-authority` |
 
 ## Verification
 
-`bun run --cwd apps/server test` passes `test/routines.test.ts` (authority and the gate) and `test/trust.test.ts`. `bun kiko verify proactive` passes its hand-off case: a routine's hand-off to a teammate cannot act outside kiko, a human's can.
+`bun run --cwd apps/server test` passes `test/routines.test.ts` (authority and the gate) and `test/trust.test.ts`. `bun yuki verify proactive` passes its hand-off case: a routine's hand-off to a teammate cannot act outside yuki, a human's can.
 
 ## Task
 

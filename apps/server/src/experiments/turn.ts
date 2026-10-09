@@ -2,10 +2,10 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { AssistantEntry, createRegistry, Harness, LiveDoc, ROOT_CONVERSATION_ID } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { userModels } from "../agent/factory"
-import { openDurableObjectSqlite } from "@kiko/agent/sqlite"
+import { openDurableObjectSqlite } from "@yuki/agent/sqlite"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
-import { createAlarms } from "@kiko/durable/alarm"
+import { createAlarms } from "@yuki/durable/alarm"
 import { userStub } from "../lib/names"
 import { countRows, type RowCounts } from "./count-rows"
 
@@ -50,7 +50,7 @@ export class TurnExperiment {
         const userId = await this.ctx.storage.get<string>(USER_KEY)
         return userId ? ((await userStub(this.env.USER, userId).turnContext(provider)).auth ?? undefined) : undefined
       }, this.ctx.id.toString())
-      this.counter = (this.env as { KIKO_DEBUG_ROWS?: string }).KIKO_DEBUG_ROWS === "1" ? countRows(this.ctx.storage) : undefined
+      this.counter = (this.env as { YUKI_DEBUG_ROWS?: string }).YUKI_DEBUG_ROWS === "1" ? countRows(this.ctx.storage) : undefined
       const storage = await SqliteStorage.open(openDurableObjectSqlite(this.counter?.storage ?? this.ctx.storage))
       const harness = await Harness.open(storage, { models, registry: createRegistry(), settings }, context)
       return { harness, openMs: Math.round(performance.now() - started) }

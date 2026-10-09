@@ -1,15 +1,15 @@
 import { useLocation } from "@solidjs/router"
 import { Show } from "solid-js"
 import { runCommand } from "../commands/registry"
-import { Bird } from "../mascot/bird"
+import { BrandBird } from "../mascot/brand"
 import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { SearchIcon, SidebarRightIcon } from "@yuki/ui/icons"
+import { TooltipV2 } from "@yuki/ui/v2/tooltip-v2"
 import { closeInfo, infoOpen, loadInfoPanel, openInfo } from "../chat/info/state"
 
 /*
@@ -33,7 +33,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
         </Show>
         <TooltipV2 placement="bottom" openDelay={400} value="New chat">
           <button type="button" class="top-bar-button" aria-label="New chat" data-action="logo-new-chat" onClick={() => runCommand("chat.new")}>
-            <Bird spec={{ species: "kiko", tint: 0, accessory: "none" }} size={24} />
+            <BrandBird size={24} />
           </button>
         </TooltipV2>
         <TabStrip />

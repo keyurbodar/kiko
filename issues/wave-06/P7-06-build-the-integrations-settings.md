@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p7-06-build-the-integrations-settings` |
+| Branch | `yuki/p7-06-build-the-integrations-settings` |
 
 ## Verification
 
-The `verify-kiko` integrations feature against a fake user socket: connect shows the sign-in step, the connected state shows the organization name and the tool count, and disconnect returns to the empty state.
+The `verify-yuki` integrations feature against a fake user socket: connect shows the sign-in step, the connected state shows the organization name and the tool count, and disconnect returns to the empty state.
 
 ## Task
 

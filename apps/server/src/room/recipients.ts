@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 
 // Architecture section 7.2. Who receives a human message, as one pure function over the table:
 //

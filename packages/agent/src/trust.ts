@@ -42,7 +42,7 @@ export type Gate =
   | { allow: true;  flagTainted: boolean }
   | { allow: false; reason: string }
 
-export const NO_CARD = "not run: no human asked for this run, and kiko could not post a card for the human's ok. go on without it."
+export const NO_CARD = "not run: no human asked for this run, and yuki could not post a card for the human's ok. go on without it."
 
 export function needsApproval(authority: Authority, tool: string): boolean {
   if (authority.origin === "human") return false
@@ -61,9 +61,9 @@ export function gate(effect: Effect, tainted: boolean, approval: string | null, 
   }
 }
 
-const KIKO_TAGS = ["untrusted", "agent-message", "system-event", "context", "human", "user", "system", "assistant", "tool", "kiko"]
+const YUKI_TAGS = ["untrusted", "agent-message", "system-event", "context", "human", "user", "system", "assistant", "tool", "yuki"]
 const OPENERS = "<＜﹤‹〈⟨〈"
-const LOOKALIKE = new RegExp(`[${OPENERS}](\\s*\\/?\\s*)(${KIKO_TAGS.join("|")})(?![\\w-])`, "giu")
+const LOOKALIKE = new RegExp(`[${OPENERS}](\\s*\\/?\\s*)(${YUKI_TAGS.join("|")})(?![\\w-])`, "giu")
 
 export function escapeLookalikes(text: string): string {
   return text.normalize("NFKC").replace(LOOKALIKE, (_m, slash: string, name: string) => `&lt;${slash}${name}`)

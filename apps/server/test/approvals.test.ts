@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { AgentSlug, RoomEvent, RoomId } from "@kiko/protocol"
+import type { AgentSlug, RoomEvent, RoomId } from "@yuki/protocol"
 import { APPROVAL_TTL_MS, GRANT_MS, RoomApprovals } from "../src/room/approvals"
 import type { RoomLog } from "../src/room/log"
 import { sqlStorage } from "./sql-shim"
@@ -64,7 +64,7 @@ test("a declined card allows nothing and tells the agent; an accepted one tells 
 
   approvals.decide(cardOf(ask(bob, "fake_send").answer), "accept")
   const [accepted] = approvals.undelivered(ROOM)
-  expect(accepted!.envelope.body).toContain("for the next 30 minutes you may act outside kiko without asking")
+  expect(accepted!.envelope.body).toContain("for the next 30 minutes you may act outside yuki without asking")
   expect(accepted!.envelope.body).not.toContain("exactly these arguments")
   expect(accepted!.envelope).toMatchObject({ origin: "human", hop: 0, from: { kind: "system", reason: "approval_result" } })
 })

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { CONTEXT_BUDGET_CHARS, measure, startsFresh, TASK_BUDGET_CHARS, TASK_IDLE_MS } from "@kiko/agent/host"
+import { CONTEXT_BUDGET_CHARS, measure, startsFresh, TASK_BUDGET_CHARS, TASK_IDLE_MS } from "@yuki/agent/host"
 
 const minute = 60_000
 const cases: [string, Parameters<typeof startsFresh>[0], boolean][] = [

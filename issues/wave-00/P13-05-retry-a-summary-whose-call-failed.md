@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p13-05-retry-a-summary-whose-call-failed` |
+| Branch | `yuki/p13-05-retry-a-summary-whose-call-failed` |
 
 ## Verification
 

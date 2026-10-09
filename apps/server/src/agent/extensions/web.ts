@@ -1,12 +1,12 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { declareEffect } from "@kiko/agent/effects"
-import { htmlToText } from "@kiko/durable/html-text"
+import { declareEffect } from "@yuki/agent/effects"
+import { htmlToText } from "@yuki/durable/html-text"
 
 export { htmlToText }
-import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
+import { type Fetcher, safeFetch } from "@yuki/durable/safe-fetch"
 import { defaultFetcher } from "../../lib/dev-fixture-fetch"
-import type { Effect as ToolEffect } from "@kiko/agent/effects"
+import type { Effect as ToolEffect } from "@yuki/agent/effects"
 import type { RoomFs } from "../../files/room-fs"
 import { spill } from "./spill"
 

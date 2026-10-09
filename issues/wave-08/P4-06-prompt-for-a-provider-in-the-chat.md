@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p4-06-prompt-for-a-provider-in-the-chat` |
+| Branch | `yuki/p4-06-prompt-for-a-provider-in-the-chat` |
 
 ## Verification
 
-The `verify-kiko` onboarding feature: a new account sends a message, sees the connect prompt in the transcript, connects, and the held message gets its answer.
+The `verify-yuki` onboarding feature: a new account sends a message, sees the connect prompt in the transcript, connects, and the held message gets its answer.
 
 ## Task
 

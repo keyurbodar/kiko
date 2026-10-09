@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p11-08-bound-storage-the-floor-and-outside-content` |
+| Branch | `yuki/p11-08-bound-storage-the-floor-and-outside-content` |
 
 ## Verification
 

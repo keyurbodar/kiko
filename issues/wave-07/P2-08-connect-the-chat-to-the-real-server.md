@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-08-connect-the-chat-to-the-real-server` |
+| Branch | `yuki/p2-08-connect-the-chat-to-the-real-server` |
 
 ## Verification
 
-Run the `verify-kiko` live chat feature against `bun dev:server`: send a burst of three messages, see one answer arrive as bubbles with a typing indicator between them, reload, and see the same transcript at once.
+Run the `verify-yuki` live chat feature against `bun dev:server`: send a burst of three messages, see one answer arrive as bubbles with a typing indicator between them, reload, and see the same transcript at once.
 
 ## Task
 

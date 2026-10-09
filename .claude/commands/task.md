@@ -1,5 +1,5 @@
 ---
-description: Run one kiko plan task from start to pull request
+description: Run one yuki plan task from start to pull request
 argument-hint: <task id, for example P0-05>
 ---
 

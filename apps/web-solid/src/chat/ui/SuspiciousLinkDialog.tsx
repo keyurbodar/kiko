@@ -1,5 +1,5 @@
 import { type JSX } from "solid-js"
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
+import { ModalV2 } from "@yuki/ui/v2/modal-v2"
 
 /**
  * The confirm a link gets when its visible text and its destination disagree.

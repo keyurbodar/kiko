@@ -3,7 +3,7 @@
 // with no `reqId` is a push, for example when the sign-in finishes in another tab. A request
 // made while the socket is down goes out on connect. No answer in `timeoutMs` is an error.
 
-import type { ClientToUser, ExecutorResult, ExecutorStatus } from "@kiko/protocol"
+import type { ClientToUser, ExecutorResult, ExecutorStatus } from "@yuki/protocol"
 import { type UserChannel, userChannel } from "../sync/user-channel"
 
 type Ask = ClientToUser extends infer F ? (F extends { t: "connectExecutor" | "disconnectExecutor" | "executorStatus" } ? Omit<F, "reqId"> : never) : never
@@ -46,7 +46,7 @@ export function createExecutorClient(options: ExecutorClientOptions = {}): Execu
 				const frame = { ...ask, reqId } as ClientToUser
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "Kiko did not answer." })
+					resolve({ ok: false, error: "Yuki did not answer." })
 				}, timeoutMs)
 				pending.set(reqId, { frame, resolve, timer })
 				socket.send(frame)
@@ -74,7 +74,7 @@ const EMPTY: ExecutorStatus = { connected: false, kind: null, pending: false, ex
 /**
  * The dev mock, same rule as the chat data layer. It answers like the server for a user
  * with no account: a sign-in gives an authorize URL, a pasted key connects, disconnect
- * clears. `globalThis.__kikoExecutorPush(result)` sends a push frame, so a browser check can
+ * clears. `globalThis.__yukiExecutorPush(result)` sends a push frame, so a browser check can
  * show the connected state without an Executor account.
  */
 export function createMockExecutor(): ExecutorClient {
@@ -88,7 +88,7 @@ export function createMockExecutor(): ExecutorClient {
 		}
 		listeners.forEach((fn) => fn(result))
 	}
-	;(globalThis as { __kikoExecutorPush?: typeof push }).__kikoExecutorPush = push
+	;(globalThis as { __yukiExecutorPush?: typeof push }).__yukiExecutorPush = push
 	return {
 		async request(ask) {
 			if (ask.t === "disconnectExecutor") {

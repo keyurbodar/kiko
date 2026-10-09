@@ -1,12 +1,12 @@
 # Endgame backend audit
 
-On 2026-10-06 the owner asked for one pass that fixes everything wrong in the backend: the agent-to-agent loop, approvals, memory and recall, and wasted turns, tokens, and latency. Three read-only audits covered those areas. This page lists what they found and what kiko decided. Each row names the lane that fixes it. Every row is fixed on the `endgame/backend` branch.
+On 2026-10-06 the owner asked for one pass that fixes everything wrong in the backend: the agent-to-agent loop, approvals, memory and recall, and wasted turns, tokens, and latency. Three read-only audits covered those areas. This page lists what they found and what yuki decided. Each row names the lane that fixes it. Every row is fixed on the `endgame/backend` branch.
 
 Lanes: **A** approvals and trust, **B** the agent-to-agent loop and the room, **C** memory, the prompt, and per-run cost.
 
 ## Approvals: the decision
 
-The owner's rule: kiko asks only when it really matters. The trust gate asked far more often than that. Executor results taint a run, so the second `execute` of any task posted a card. Reading the agent's own files tainted the run. Reminders, task wakes, and extension triggers ran as `auto`, so each external call posted a card, often at 7am to a sleeping human, and the card expired after four minutes and woke the agent to say so.
+The owner's rule: yuki asks only when it really matters. The trust gate asked far more often than that. Executor results taint a run, so the second `execute` of any task posted a card. Reading the agent's own files tainted the run. Reminders, task wakes, and extension triggers ran as `auto`, so each external call posted a card, often at 7am to a sleeping human, and the card expired after four minutes and woke the agent to say so.
 
 The new table (`needsApproval` in `agent/extensions/trust.ts`):
 
@@ -21,7 +21,7 @@ The new table (`needsApproval` in `agent/extensions/trust.ts`):
 - A reminder, a task wake, and an approval result carry the authority of the chain that made them, so work the human asked for keeps the human's authority.
 - An extension's trigger runs as a routine granted that extension's own tools. The human reviewed and installed it.
 - `create_routine` and `update_routine` post a card only for a run the human did not start, or a tainted run that grants tools.
-- DEVIATION from section 16.3. A tainted run the human started may act outside kiko without a kiko card. The risk: an injected page could steer a send that Executor does not pause for. Taint still flags what the run stores and sends, `[outside]` still marks memory, and section 16.4 still blocks preview exfiltration.
+- DEVIATION from section 16.3. A tainted run the human started may act outside yuki without a yuki card. The risk: an injected page could steer a send that Executor does not pause for. Taint still flags what the run stores and sends, `[outside]` still marks memory, and section 16.4 still blocks preview exfiltration.
 
 Taint holes closed at the same time, because `auto` and `routine` runs still depend on taint:
 
@@ -71,7 +71,7 @@ Taint holes closed at the same time, because `auto` and `routine` runs still dep
 
 - Executor's own pause card. It is the app saying a person must approve.
 - Extension install and update. Only the human installs (invariant).
-- kiko's proposal before it makes an agent or a group. It is a chat line, not a card.
+- yuki's proposal before it makes an agent or a group. It is a chat line, not a card.
 - `to: all` wakes every other agent. The prompt discourages it for anything that needs no answer.
 - Memory and summaries do not taint a run (section 13.4, measured).
 - Reading a chat file still taints the run. After the new table, taint no longer decides any card in a human or granted routine run, so a per-file taint bit would add code and remove no card.

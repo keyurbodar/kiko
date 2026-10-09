@@ -1,5 +1,5 @@
 // The view types the components draw. The data behind them is the protocol:
-// `Message`, `Member`, and `Chat` from `@kiko/protocol`, held by the sync
+// `Message`, `Member`, and `Chat` from `@yuki/protocol`, held by the sync
 // stores. `lib/store.ts` turns each protocol value into one of these shapes in
 // one place, so no component reads a wire type and none invents one.
 //
@@ -9,7 +9,7 @@
 // derived from `Message` by `toChatMessage`, and only the store and the dev
 // harness fixtures build one.
 
-import type { MessageId, PendingAttachment, RichText } from "@kiko/protocol";
+import type { MessageId, PendingAttachment, RichText } from "@yuki/protocol";
 
 export type BotPresence = "idle" | "typing" | "working" | "sleeping";
 
@@ -41,7 +41,7 @@ export interface RosterBot {
 
 /**
  * One chip under a message: an emoji and how many reacted with it. The protocol
- * stores at most one reaction per actor (`Reaction` in `@kiko/protocol`), and
+ * stores at most one reaction per actor (`Reaction` in `@yuki/protocol`), and
  * the store folds those into chips.
  */
 export interface Reaction {
@@ -99,7 +99,7 @@ export interface ChatMessage {
   files?: MessageFile[]
   /** Shows the edited marker. The body is never rewritten, only flagged. */
   edited?: boolean
-  /** A chat this message points to, such as the one kiko just made. */
+  /** A chat this message points to, such as the one yuki just made. */
   goto?: string
   /** The words of the replied-to message this one answers, shown in its reply header. */
   quote?: string

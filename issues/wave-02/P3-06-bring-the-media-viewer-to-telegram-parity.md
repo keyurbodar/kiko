@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-06-bring-the-media-viewer-to-telegram-parity` |
+| Branch | `yuki/p3-06-bring-the-media-viewer-to-telegram-parity` |
 
 ## Verification
 
-The `verify-kiko` media viewer feature: open from a thumbnail, pinch or wheel zoom to 4x, pan inside bounds, swipe to the next item, swipe down to close, and see the image return to its thumbnail.
+The `verify-yuki` media viewer feature: open from a thumbnail, pinch or wheel zoom to 4x, pan inside bounds, swipe to the next item, swipe down to close, and see the image return to its thumbnail.
 
 ## Task
 

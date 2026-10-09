@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import type { Envelope } from "@kiko/protocol"
+import type { Envelope } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
-import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "@kiko/agent/inbox"
-import { HISTORY_LIMIT, MAX_WAKEUPS } from "@kiko/durable/alarm"
-import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "@kiko/durable/hello-deadline"
+import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "@yuki/agent/inbox"
+import { HISTORY_LIMIT, MAX_WAKEUPS } from "@yuki/durable/alarm"
+import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "@yuki/durable/hello-deadline"
 import { bundleWorker } from "./bundle"
 
 let parts: Miniflare
@@ -153,7 +153,7 @@ describe("the worker's upgrade checks", () => {
     const { route, UPGRADE_TIMEOUT_MS } = await import("../src/router")
     expect(UPGRADE_TIMEOUT_MS).toBe(5_000)
     const hang = () => new Promise<null>(() => {})
-    const request = new Request("http://kiko.test/api/ws/user", { headers: { upgrade: "websocket" } })
+    const request = new Request("http://yuki.test/api/ws/user", { headers: { upgrade: "websocket" } })
     const start = Date.now()
     const response = await route(request, {} as never, hang, 100)
     expect(response?.status).toBe(504)

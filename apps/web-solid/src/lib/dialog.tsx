@@ -1,10 +1,10 @@
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
+import { ModalV2 } from "@yuki/ui/v2/modal-v2"
 import { Show, createUniqueId, type JSX } from "solid-js"
 import { iconButtonClass } from "../settings/kit"
 import { cn } from "./cn"
 
 /*
- * Every dialog in kiko, after monocode's Modal (MIT, src/shared/ui/Modal.tsx) and t3code's dialog
+ * Every dialog in yuki, after monocode's Modal (MIT, src/shared/ui/Modal.tsx) and t3code's dialog
  * (MIT, apps/web/src/components/ui/dialog.tsx), on the ModalV2 shell: the menu surface with 16px
  * corners, a title with an optional line under it, a close button at the top right, the body, and
  * the buttons at the bottom right. It opens and closes at once, with no fade.

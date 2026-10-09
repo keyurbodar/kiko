@@ -111,7 +111,7 @@ export function parseEntities(text: string): TextEntity[] {
       // `#` is the first character of the entity.
       //
       // tweb accepted `\$[A-Z]{1,8}` here too and then discarded every cashtag
-      // that was not already uppercase. Cashtags are not a thing in a kiko
+      // that was not already uppercase. Cashtags are not a thing in a yuki
       // transcript, so `TAG_REG_EXP` does not match a `$`-led run at all and
       // there is nothing left to reject.
       entities.push({

@@ -1,13 +1,13 @@
-import type { RoomToClient } from "@kiko/protocol"
+import type { RoomToClient } from "@yuki/protocol"
 import type { RoomHandle, Session, UserChannel, Verifier } from "../client"
 import { VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 
 const BURST_MS = 1_000
-const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
-const RESTART = process.env.KIKO_LATENCY_RESTART
-const RESTART_RUNS = Number(process.env.KIKO_LATENCY_RESTART_RUNS ?? 3)
+const RUNS = Number(process.env.YUKI_LATENCY_RUNS ?? 10)
+const RESTART = process.env.YUKI_LATENCY_RESTART
+const RESTART_RUNS = Number(process.env.YUKI_LATENCY_RESTART_RUNS ?? 3)
 const ALIVE_LIMIT_MS = 15_000
 
 type Status = Extract<RoomToClient, { t: "status" }>
@@ -169,7 +169,7 @@ async function fakeRuns(v: Verifier): Promise<void> {
 
 async function restartRuns(v: Verifier): Promise<void> {
   if (!RESTART) {
-    console.log("  skip restart timing (set KIKO_LATENCY_RESTART)")
+    console.log("  skip restart timing (set YUKI_LATENCY_RESTART)")
     return
   }
   const s = await v.as("latency")

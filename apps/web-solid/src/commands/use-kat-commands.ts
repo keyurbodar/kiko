@@ -37,7 +37,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   useCommands(
     katCommands({
       toggleSidebar: deps.toggleSidebar,
-      // The one way to start a chat: a temporary chat with kiko, in a new tab (architecture section 7.11).
+      // The one way to start a chat: a temporary chat with yuki, in a new tab (architecture section 7.11).
       newChat: () => {
         const id = useApp.createTemp()
         if (id) navigate(`/chat/${id}`)
@@ -82,15 +82,15 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       canMove: () => {
         const id = activeId()
-        return id !== null && !useApp.chat(id)?.kiko
+        return id !== null && !useApp.chat(id)?.yuki
       },
       togglePin: () => {
         const id = activeId()
-        if (id && !useApp.chat(id)?.kiko) togglePin(id)
+        if (id && !useApp.chat(id)?.yuki) togglePin(id)
       },
       deleteChat: () => {
         const id = activeId()
-        if (id && !useApp.chat(id)?.kiko) deleteChat(id, id, navigate)
+        if (id && !useApp.chat(id)?.yuki) deleteChat(id, id, navigate)
       },
     }),
   )

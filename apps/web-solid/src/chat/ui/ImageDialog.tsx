@@ -1,6 +1,6 @@
-import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@kiko/ui/icons"
+import { ModalV2 } from "@yuki/ui/v2/modal-v2"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@yuki/ui/icons"
 import { Show, createSignal, createUniqueId, onCleanup, onMount } from "solid-js"
 import { wrapIndex } from "../../lib/attachments"
 import type { DialogImage } from "./image-dialog"
@@ -9,7 +9,7 @@ import { anchorAt, clampZoom, clickZoom, fitScale, keyZoom, maxHeight, panStep, 
 /*
  * A picture at full size over a dark backdrop, after t3code's ExpandedImageDialog: the picture
  * centred, a close button above its corner, arrows when there are more, and the name and count
- * under it. It opens and closes with no animation, as every kiko overlay does. Escape and a click
+ * under it. It opens and closes with no animation, as every yuki overlay does. Escape and a click
  * on the backdrop close it (Kobalte's dialog), and the arrow keys move.
  *
  * The picture zooms as t3code's ZoomableImage does: the wheel zooms around the pointer, a click

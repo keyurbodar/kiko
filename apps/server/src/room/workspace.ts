@@ -1,5 +1,5 @@
-import type { Actor, AgentSlug, Envelope, RoomEvent, RoomId, Task, TaskOp, TaskStatus } from "@kiko/protocol"
-import { HUMAN } from "@kiko/agent/authority"
+import type { Actor, AgentSlug, Envelope, RoomEvent, RoomId, Task, TaskOp, TaskStatus } from "@yuki/protocol"
+import { HUMAN } from "@yuki/agent/authority"
 import { actorKey, type RoomLog } from "./log"
 import type { Chain } from "./mail"
 

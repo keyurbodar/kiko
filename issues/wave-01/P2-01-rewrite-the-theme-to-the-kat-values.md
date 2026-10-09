@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-01-rewrite-the-theme-to-the-kat-values` |
+| Branch | `yuki/p2-01-rewrite-the-theme-to-the-kat-values` |
 
 ## Verification
 
-Run the `verify-kiko` skill's theme check. Sampled pixels of the sidebar, the panel, an assistant bubble, and a user bubble match `#0b0a09`, `#131211`, `#221f1e`, and `#66422f` within 2 per channel.
+Run the `verify-yuki` skill's theme check. Sampled pixels of the sidebar, the panel, an assistant bubble, and a user bubble match `#0b0a09`, `#131211`, `#221f1e`, and `#66422f` within 2 per channel.
 
 ## Task
 

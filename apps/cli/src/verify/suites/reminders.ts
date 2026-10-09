@@ -1,4 +1,4 @@
-import type { RoomEvent, RoomToClient } from "@kiko/protocol"
+import type { RoomEvent, RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 

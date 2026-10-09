@@ -8,7 +8,7 @@ This phase enforces limits, keeps performance from regressing, measures the real
 
 `deps: P4-02, P6-03` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify limits` passes: with the turn limit set to 2, the third burst gets a `limit` event and no run, and raising the limit record lets the next burst through.
+**Verify.** `bun yuki verify limits` passes: with the turn limit set to 2, the third burst gets a `limit` event and no run, and raising the limit record lets the next burst through.
 
 **Goal.** Make plans a matter of changing one record.
 
@@ -29,7 +29,7 @@ This phase enforces limits, keeps performance from regressing, measures the real
 
 `deps: P1-05, P8-03` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify account-delete` passes: after deletion, the user's rooms, agents, files, credentials, and auth rows are gone, and a second run of the same job succeeds with nothing to do.
+**Verify.** `bun yuki verify account-delete` passes: after deletion, the user's rooms, agents, files, credentials, and auth rows are gone, and a second run of the same job succeeds with nothing to do.
 
 **Goal.** Remove everything a user owns, reliably.
 
@@ -68,7 +68,7 @@ This phase enforces limits, keeps performance from regressing, measures the real
 
 `deps: P1-09, P0-12` `difficulty: 3` `area: infra`
 
-**Verify.** CI starts `wrangler dev`, runs `bun kiko verify --no-model`, and fails when a suite fails. A manual workflow runs the model suites with `OPENCODE_API_KEY` from repository secrets.
+**Verify.** CI starts `wrangler dev`, runs `bun yuki verify --no-model`, and fails when a suite fails. A manual workflow runs the model suites with `OPENCODE_API_KEY` from repository secrets.
 
 **Goal.** Run real backend verification on every pull request, without spending tokens.
 
@@ -90,7 +90,7 @@ This phase enforces limits, keeps performance from regressing, measures the real
 
 **Goal.** Make sure the verification skills still describe the app that exists.
 
-**Files.** `.cursor/skills/verify-kiko/` and `.cursor/skills/verify-kiko-server/`.
+**Files.** `.cursor/skills/verify-yuki/` and `.cursor/skills/verify-yuki-server/`.
 
 **Build.**
 
@@ -98,13 +98,13 @@ This phase enforces limits, keeps performance from regressing, measures the real
 - Remove features that no longer exist and add the ones that later phases built without a map entry.
 - Check that every `Verify` line in `docs/phases/` names a suite or a feature that exists.
 
-**Done when.** `bun kiko verify --list` and the server skill's map name the same suites.
+**Done when.** `bun yuki verify --list` and the server skill's map name the same suites.
 
 ### P9-06 Measure the real cost and update the documents
 
 `deps: P6-04, P7-04, P0-06` `difficulty: 2` `area: docs`
 
-**Verify.** `docs/research/turn-cost-final.md` holds the output of `bun kiko measure turn` for a one-agent turn, a three-agent team turn, and a turn with one Executor call, and architecture section 17 cites it.
+**Verify.** `docs/research/turn-cost-final.md` holds the output of `bun yuki measure turn` for a one-agent turn, a three-agent team turn, and a turn with one Executor call, and architecture section 17 cites it.
 
 **Goal.** Replace every remaining estimate with a measurement.
 
@@ -124,7 +124,7 @@ This phase enforces limits, keeps performance from regressing, measures the real
 
 `deps: P9-01, P9-02, P9-04` `difficulty: 3` `area: infra` `human: yes`
 
-**Verify.** `bunx wrangler deploy --dry-run --env production` succeeds, `docs/deploy.md` lists every secret and binding, and `bun kiko verify --no-model --url <preview>` passes against a deployed preview.
+**Verify.** `bunx wrangler deploy --dry-run --env production` succeeds, `docs/deploy.md` lists every secret and binding, and `bun yuki verify --no-model --url <preview>` passes against a deployed preview.
 
 **Goal.** Make production one approved command away.
 

@@ -1,5 +1,5 @@
-import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@kiko/protocol"
-import type { FileRef, Sender } from "@kiko/protocol"
+import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@yuki/protocol"
+import type { FileRef, Sender } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
 /** The `UserDO.touchChat` argument. */

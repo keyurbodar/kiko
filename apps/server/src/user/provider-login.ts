@@ -15,7 +15,7 @@ import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding"
 import { metaProvider } from "@earendil-works/pi-ai/providers/meta"
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex"
 import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
-import type { LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
+import type { LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@yuki/protocol"
 import { isProviderId, type ProviderInfo } from "./credentials"
 
 // Architecture section 11.4. `UserDO` runs pi-ai's `Models.login` and bridges its two
@@ -40,7 +40,7 @@ const WAKEUP_PREFIX = "login:"
 registerBunOAuthFlows()
 
 /**
- * The sign-in flows kiko runs. Experiment 6 showed every pi-ai flow module imports on
+ * The sign-in flows yuki runs. Experiment 6 showed every pi-ai flow module imports on
  * Workers, but a Worker cannot listen on a loopback port. So only flows with a device
  * code or a pasted code are here. When a flow asks to choose a method, `select` is the
  * answer the server gives on the user's behalf: the one that needs no loopback server.
@@ -55,7 +55,7 @@ const FLOWS: Record<string, { provider: () => Provider; select?: string }> = {
   xai: { provider: xaiProvider },
 }
 
-/** True when kiko can run a sign-in flow for this provider. The flag decides if it may. */
+/** True when yuki can run a sign-in flow for this provider. The flag decides if it may. */
 export function hasSignIn(provider: string): boolean {
   return Object.hasOwn(FLOWS, provider)
 }
@@ -63,16 +63,16 @@ export function hasSignIn(provider: string): boolean {
 // The test provider. Only a development bundle offers it. Its flow uses both
 // callbacks: it shows a device code, then asks for that code back.
 
-export const FAKE_PROVIDER = "kiko-fake"
-export const FAKE_CODE = "KIKO-0000"
+export const FAKE_PROVIDER = "yuki-fake"
+export const FAKE_CODE = "YUKI-0000"
 
 export function fakeProvider(): Provider {
   return {
     id: FAKE_PROVIDER,
-    name: "kiko fake",
+    name: "yuki fake",
     auth: {
       oauth: {
-        name: "kiko fake sign-in",
+        name: "yuki fake sign-in",
         async login(interaction): Promise<OAuthCredential> {
           interaction.notify({
             type: "device_code",
@@ -147,7 +147,7 @@ export class ProviderLogins<Owner> {
     if (this.logins.has(loginId)) return refuse("failed", "this sign-in is already running")
     const provider = this.provider(providerId)
     const oauth = provider?.auth.oauth
-    if (!provider || !oauth) return refuse("unsupported", "this provider has no sign-in kiko can run. use an api key")
+    if (!provider || !oauth) return refuse("unsupported", "this provider has no sign-in yuki can run. use an api key")
     if (oauth.isSubscription && !this.deps.subscriptions) {
       return refuse("disabled", "subscription sign-in is off on this server. use an api key")
     }

@@ -3,10 +3,10 @@ import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { declareEffect } from "@kiko/agent/effects"
-import { type Approvals, isRunTainted, markRunTainted } from "@kiko/agent/trust"
+import { declareEffect } from "@yuki/agent/effects"
+import { type Approvals, isRunTainted, markRunTainted } from "@yuki/agent/trust"
 import { type BuildAgentInput, buildAgent } from "./factory"
-import type { AgentSetup } from "@kiko/agent/host"
+import type { AgentSetup } from "@yuki/agent/host"
 import type { RoleInput } from "./prompt"
 import type { WorkspacePort } from "./extensions/workspace"
 
@@ -128,7 +128,7 @@ export const TRUST_TOOLS = {
   ),
   fake_lookup: declareEffect(
     "read",
-    defineTool({ name: "fake_lookup", description: "looks something up in kiko.", parameters: Type.Object({}), execute: async () => text("found") }),
+    defineTool({ name: "fake_lookup", description: "looks something up in yuki.", parameters: Type.Object({}), execute: async () => text("found") }),
   ),
   fake_note: declareEffect(
     "write",
@@ -140,7 +140,7 @@ export const TRUST_TOOLS = {
   ),
   fake_send: declareEffect(
     "external",
-    defineTool({ name: "fake_send", description: "sends an email outside kiko.", parameters: Type.Object({}), execute: async () => text("sent") }),
+    defineTool({ name: "fake_send", description: "sends an email outside yuki.", parameters: Type.Object({}), execute: async () => text("sent") }),
   ),
 }
 

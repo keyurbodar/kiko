@@ -1,31 +1,31 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { look, saveLook } from "../theme/live"
 import { Bird } from "./bird"
-import { ACCESSORIES, ACCESSORY_IDS, SPECIES, SPECIES_IDS, TINTS, formatBird, type BirdSpec, type BirdState } from "./birds"
+import { YUKI } from "@yuki/protocol"
+import { FLAVORS, FRIEND_IDS, OUTFITS, OUTFIT_IDS, formatBird, type BirdSpec, type BirdState } from "./birds"
 import { birdFor } from "./choices"
 import { birdPickerSlug, closeBirdPicker } from "./picker-state"
 import { Dialog } from "../lib/dialog"
 import { Button } from "../settings/kit"
 
 /*
- * The bird picker: species, tint and what the bird wears, for one agent. The preview acts
- * out every mood the agent can be in, so a person sees the bird thinking and typing before
- * they keep it. The kiko agent is always the kiko bird; only its tint and outfit change.
+ * The bird picker: a flavor and what the bird wears, for one agent. The preview acts out every
+ * mood the agent can be in, so a person sees the bird thinking and typing before they keep it.
+ * Yuki is always the warm cream bird; only its outfit changes.
  */
 
-const MOODS: BirdState[] = ["wave", "thinking", "typing", "working", "sending", "idle"]
+const MOODS: BirdState[] = ["wave", "thinking", "typing", "working", "sending", "sleeping", "idle"]
 
 // The pick is a filled cell with an accent edge; focus is a plain ring, and only from the keyboard.
 const chip =
-  "grid place-items-center rounded-xl outline-none hover:bg-[var(--btn-bg)] [:root[data-input=keys]_&]: [:root[data-input=keys]_&]: aria-checked:bg-[var(--accent-wash)] aria-checked:shadow-[inset_0_0_0_1.5px_var(--accent)]"
+  "grid place-items-center rounded-xl outline-none hover:bg-[var(--btn-bg)] [:root[data-input=keys]_&]: [:root[data-input=keys]_&]: aria-checked:bg-[var(--accent-wash)] aria-checked:shadow-[inset_0_0_0_1px_var(--accent)]"
 
 function Picker(props: { slug: string }) {
   const [draft, setDraft] = createSignal<BirdSpec>(birdFor(props.slug))
   const [mood, setMood] = createSignal(0)
   const timer = setInterval(() => setMood((m) => (m + 1) % MOODS.length), 1800)
   onCleanup(() => clearInterval(timer))
-  const isKiko = () => props.slug === "kiko"
-  const species = () => (isKiko() ? (["kiko"] as const) : SPECIES_IDS.filter((s) => s !== "kiko"))
+  const isYuki = () => props.slug === YUKI
   const set = (patch: Partial<BirdSpec>) => setDraft({ ...draft(), ...patch })
   const save = () => {
     saveLook({ ...look(), birds: { ...look().birds, [props.slug]: formatBird(draft()) } })
@@ -42,7 +42,7 @@ function Picker(props: { slug: string }) {
     <Dialog
       open
       onClose={closeBirdPicker}
-      title={isKiko() ? "Kiko, the chief" : `@${props.slug}`}
+      title={isYuki() ? "Yuki, the chief" : `@${props.slug}`}
       data-component="bird-picker"
       footer={
         <>
@@ -60,26 +60,26 @@ function Picker(props: { slug: string }) {
     >
       <div class="flex flex-col gap-4" data-slug={props.slug}>
         <div class="flex items-center gap-4">
-          <Bird spec={draft()} state={MOODS[mood()]} size={96} />
+          <Bird spec={draft()} state={MOODS[mood()]} size={96} alive />
           <div class="flex min-w-0 flex-col gap-1">
             <p class="text-xs text-muted">
-              {SPECIES[draft().species].label}
-              {draft().accessory !== "none" ? ` in a ${ACCESSORIES[draft().accessory].label.toLowerCase()}` : ""} · {MOODS[mood()]!.charAt(0).toUpperCase()}{MOODS[mood()]!.slice(1)}
+              {FLAVORS[draft().flavor].label}
+              {draft().outfit !== "none" ? ` in ${OUTFITS[draft().outfit].label.toLowerCase()}` : ""} · {MOODS[mood()]!.charAt(0).toUpperCase()}{MOODS[mood()]!.slice(1)}
             </p>
-            <Show when={isKiko()}>
-              <p class="text-xs text-muted">Kiko always follows your theme color.</p>
+            <Show when={isYuki()}>
+              <p class="text-xs text-muted">Yuki is always the warm cream Shima Enaga.</p>
             </Show>
           </div>
         </div>
 
-        <Show when={!isKiko()}>
+        <Show when={!isYuki()}>
           <section class="flex flex-col gap-2">
-            <h3 class="text-xs text-muted">Bird</h3>
-            <div class="grid grid-cols-8 gap-1" role="radiogroup" aria-label="Bird">
-              <For each={species()}>
-                {(s) => (
-                  <button type="button" role="radio" aria-checked={draft().species === s} aria-label={SPECIES[s].label} title={SPECIES[s].label} class={`${chip} aspect-square`} onClick={() => set({ species: s })}>
-                    <Bird spec={{ species: s, tint: draft().tint, accessory: "none" }} size={34} />
+            <h3 class="text-xs text-muted">Flavor</h3>
+            <div class="grid grid-cols-6 gap-1" role="radiogroup" aria-label="Flavor">
+              <For each={FRIEND_IDS}>
+                {(f) => (
+                  <button type="button" role="radio" aria-checked={draft().flavor === f} aria-label={FLAVORS[f].label} title={`${FLAVORS[f].label}, ${FLAVORS[f].vibe}`} class={`${chip} aspect-square`} onClick={() => set({ flavor: f })}>
+                    <Bird spec={{ flavor: f, outfit: "none" }} size={38} />
                   </button>
                 )}
               </For>
@@ -88,25 +88,12 @@ function Picker(props: { slug: string }) {
         </Show>
 
         <section class="flex flex-col gap-2">
-          <h3 class="text-xs text-muted">Color</h3>
-          <div class="flex gap-1" role="radiogroup" aria-label="Color">
-            <For each={TINTS.map((_, i) => i)}>
-              {(t) => (
-                <button type="button" role="radio" aria-checked={draft().tint === t} aria-label={`Color ${t + 1}`} class={`${chip} size-12`} onClick={() => set({ tint: t })}>
-                  <Bird spec={{ ...draft(), tint: t, accessory: "none" }} size={34} />
-                </button>
-              )}
-            </For>
-          </div>
-        </section>
-
-        <section class="flex flex-col gap-2">
           <h3 class="text-xs text-muted">Wears</h3>
-          <div class="grid grid-cols-6 gap-1" role="radiogroup" aria-label="Accessory">
-            <For each={ACCESSORY_IDS}>
-              {(a) => (
-                <button type="button" role="radio" aria-checked={draft().accessory === a} aria-label={ACCESSORIES[a].label} title={ACCESSORIES[a].label} class={`${chip} aspect-square`} onClick={() => set({ accessory: a })}>
-                  <Bird spec={{ ...draft(), accessory: a }} size={34} />
+          <div class="grid grid-cols-6 gap-1" role="radiogroup" aria-label="Outfit">
+            <For each={OUTFIT_IDS}>
+              {(o) => (
+                <button type="button" role="radio" aria-checked={draft().outfit === o} aria-label={OUTFITS[o].label} title={OUTFITS[o].label} class={`${chip} aspect-square`} onClick={() => set({ outfit: o })}>
+                  <Bird spec={{ ...draft(), outfit: o }} size={38} />
                 </button>
               )}
             </For>

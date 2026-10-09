@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 
 // Architecture section 7.5. An agent can ask a teammate and wait for the answer inside its own run,
 // instead of ending the run and waking again when the reply arrives. The question goes out like any

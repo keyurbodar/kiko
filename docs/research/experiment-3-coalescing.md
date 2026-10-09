@@ -2,7 +2,7 @@ Result: pass. A `Storage` wrapper can tell a partial-output commit apart, passes
 
 # Experiment 3: write coalescing
 
-Question: can kiko batch `pi-durable`'s partial-output commits without editing `pi-durable`? Architecture section 17.5 makes this the difference between a real Free tier and a demo tier.
+Question: can yuki batch `pi-durable`'s partial-output commits without editing `pi-durable`? Architecture section 17.5 makes this the difference between a real Free tier and a demo tier.
 
 Versions: `@earendil-works/pi-durable` 1.0.0, `@earendil-works/pi-ai` 1.0.0, `@earendil-works/chord` 1.0.0, wrangler 4, Miniflare 4.20260730.0. Run on 2026-10-02 on a local Mac.
 
@@ -22,7 +22,7 @@ One other commit has the same shape. The `request` phase sets `generation` to `{
   - A held commit returns the seq its flush will get, the inner storage's last seq plus one. The first commit after opening is never held, because that seq is not known yet. The flush checks that it got the predicted seq.
   - Held ops are copied, because `Storage` keeps detached values and a caller may reuse its batch.
 - `apps/server/test/coalescing-storage.test.ts` and its worker `apps/server/test/coalescing-worker.ts`. They run inside workerd through Miniflare.
-- `apps/server/src/experiments/coalescing.ts`, `AgentDO.experimentCoalescing`, the dev-only route `POST /api/experiments/coalescing?coalesce=1&ms=15000`, and the CLI command `bun kiko measure turn [--coalesce] [--ms <ms>]`. One turn runs in a fresh `AgentDO` with pi-ai's faux provider at 50 tokens a second, so a measurement costs nothing. Rows are counted by summing `cursor.rowsWritten` over every `ctx.storage.sql.exec`. Opening the harness and creating the root conversation are not counted.
+- `apps/server/src/experiments/coalescing.ts`, `AgentDO.experimentCoalescing`, the dev-only route `POST /api/experiments/coalescing?coalesce=1&ms=15000`, and the CLI command `bun yuki measure turn [--coalesce] [--ms <ms>]`. One turn runs in a fresh `AgentDO` with pi-ai's faux provider at 50 tokens a second, so a measurement costs nothing. Rows are counted by summing `cursor.rowsWritten` over every `ctx.storage.sql.exec`. Opening the harness and creating the root conversation are not counted.
 
 ## What was checked
 
@@ -42,13 +42,13 @@ crash inside a window: { pending: 3, memoryChars: 480, storedChars: 384 }
 Under `wrangler dev` on port 8807, with `NODE_ENV=development`:
 
 ```text
-$ bun kiko measure turn --url http://localhost:8807
+$ bun yuki measure turn --url http://localhost:8807
 as shipped: 531 rows written, 99 commits (0 held), 15592 ms
-$ bun kiko measure turn --coalesce --url http://localhost:8807
+$ bun yuki measure turn --coalesce --url http://localhost:8807
 coalesced: 91 rows written, 99 commits (95 held), 15649 ms
-$ bun kiko measure turn --json --url http://localhost:8807
+$ bun yuki measure turn --json --url http://localhost:8807
 {"coalesce":false,"status":"done","streamMs":15478,"rowsWritten":536,"commits":100,"held":0,"answerChars":3000}
-$ bun kiko measure turn --coalesce --json --url http://localhost:8807
+$ bun yuki measure turn --coalesce --json --url http://localhost:8807
 {"coalesce":true,"status":"done","streamMs":16989,"rowsWritten":96,"commits":99,"held":95,"answerChars":3000}
 ```
 
@@ -57,9 +57,9 @@ $ bun kiko measure turn --coalesce --json --url http://localhost:8807
 - Rows per partial commit are about 5, not 2. `cursor.rowsWritten` counts index rows, and `document_revisions` has an index. The estimate in architecture section 17.2 is low.
 - The faux model commits a partial about every 160 ms, because pi-ai sends a chunk of 3 to 5 tokens. A real model that streams in smaller chunks reaches the 100 ms throttle, so the as-shipped count rises. The coalesced count stays near one flush per 2 seconds.
 - Section 17.5's old reasoning said the saved partial is not reused. It is: recovery appends it to the transcript as an aborted assistant entry (`convertPartial`). Coalescing makes that aborted text up to 2 seconds shorter. The final answer is unaffected.
-- DEVIATION: `Seq` is documented as strictly increasing per commit. The held commits in one window share one seq. Nothing in `pi-durable` 1.0.0 reads a publication's seq (checked with grep over `src/`), but a kiko commit listener must not assume each publication has a seq of its own.
+- DEVIATION: `Seq` is documented as strictly increasing per commit. The held commits in one window share one seq. Nothing in `pi-durable` 1.0.0 reads a publication's seq (checked with grep over `src/`), but a yuki commit listener must not assume each publication has a seq of its own.
 - Miniflare refuses a computed `import()` in pi-ai's auth context (`importNodeModule`). The test bundle replaces that one expression. Wrangler accepts it unchanged.
 
 ## Decision
 
-Coalesce. The agent host (P1-06) opens `Harness` on `createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(ctx.storage)))`. With about 25 rows of kiko's own per turn and 30 turns a day, a user writes about 3,600 rows a day coalesced and about 16,800 as shipped. The Free plan's 100,000 rows a day then covers about 27 daily users instead of about 6.
+Coalesce. The agent host (P1-06) opens `Harness` on `createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(ctx.storage)))`. With about 25 rows of yuki's own per turn and 30 turns a day, a user writes about 3,600 rows a day coalesced and about 16,800 as shipped. The Free plan's 100,000 rows a day then covers about 27 daily users instead of about 6.

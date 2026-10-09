@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js"
 import { Bird } from "../mascot/bird"
+import type { BirdState } from "../mascot/birds"
 import { identityLook } from "./identity"
 
 /*
@@ -7,7 +8,7 @@ import { identityLook } from "./identity"
  * a list of moving avatars is motion where nobody is waiting for anything. A `state` makes
  * the bird act out what the agent is doing. `size` is in pixels. Omit it to size by class.
  */
-export function IdentityAvatar(props: { seed: string; size?: number; class?: string; state?: "idle" | "thinking" | "working" | "typing" | "sending" | "wave" }) {
+export function IdentityAvatar(props: { seed: string; size?: number; class?: string; state?: BirdState }) {
   const look = () => identityLook(props.seed)
   return (
     <span
@@ -21,45 +22,51 @@ export function IdentityAvatar(props: { seed: string; size?: number; class?: str
       data-seed={props.seed}
       aria-hidden="true"
     >
-      <Bird slug={look().seed} state={props.state} class="size-full" />
+      <Bird slug={look().seed} state={props.state} size={props.size} class="size-full" />
     </span>
   )
 }
 
 /*
- * Where each face of a group sits, as fractions of the box: kat's group tile is one blob on
- * top and two below, overlapping, and two members sit on the diagonal. `s` is the face's size.
- * Every face stays inside the box, so a group takes the room of a single avatar.
+ * Where each face of a group sits, as fractions of the box: a dango huddle, the way Shima Enaga
+ * fledglings sit shoulder to shoulder. Two sit side by side; three sit with the first face (the
+ * chief) in front and the other two peeking over it. `s` is the face's size and `z` its stacking
+ * order. Every face stays inside the box, so a group takes the room of a single avatar.
  */
 const LAYOUT: Record<number, readonly Spot[]> = {
   2: [
-    { x: 0, y: 0, s: 0.62 },
-    { x: 0.38, y: 0.38, s: 0.62 },
+    { x: 0, y: 0.12, s: 0.66, z: 0 },
+    { x: 0.34, y: 0.22, s: 0.66, z: 1 },
   ],
   3: [
-    { x: 0.24, y: 0, s: 0.52 },
-    { x: 0, y: 0.46, s: 0.54 },
-    { x: 0.46, y: 0.46, s: 0.54 },
+    { x: 0.14, y: 0.3, s: 0.72, z: 2 },
+    { x: -0.04, y: 0.02, s: 0.58, z: 0 },
+    { x: 0.46, y: 0.02, s: 0.58, z: 1 },
   ],
 }
 
-type Spot = { x: number; y: number; s: number }
+type Spot = { x: number; y: number; s: number; z: number }
+
+/** Where a mochi's body sits in its box, as fractions: its center and its two radii. */
+const BODY = { cx: 0.553, cy: 0.5, rx: 0.39, ry: 0.25 }
 
 /**
- * The mask that cuts a 2 px ring out of a face wherever a later face sits on it, so each face
- * reads on its own, as stacked avatars do in Telegram. A cut, not a painted ring, so the gap
- * shows whatever surface is behind: a row, a hovered row, a tab, or the panel.
+ * The mask that cuts a 2 px ring out of a face wherever a face stacked above it sits on it, so
+ * each bird reads on its own, as stacked avatars do in Telegram. The ring follows the bird's
+ * wide body, not its square box. A cut, not a painted ring, so the gap shows whatever surface is
+ * behind: a row, a hovered row, a tab, or the panel.
  */
 function cutout(spots: readonly Spot[], index: number): Record<string, string> {
   const me = spots[index]!
-  const holes = spots.slice(index + 1).map((other) => {
-    // The later face's centre and radius, in percent of this face's box. The box is square,
-    // so an ellipse with equal percentages is a circle.
-    const cx = ((other.x + other.s / 2 - me.x) / me.s) * 100
-    const cy = ((other.y + other.s / 2 - me.y) / me.s) * 100
-    const r = (other.s / 2 / me.s) * 100
-    return `radial-gradient(calc(${r}% + 2px) calc(${r}% + 2px) at ${cx}% ${cy}%, transparent 99%, #000 100%)`
-  })
+  const holes = spots
+    .filter((other) => other.z > me.z)
+    .map((other) => {
+      const cx = ((other.x + other.s * BODY.cx - me.x) / me.s) * 100
+      const cy = ((other.y + other.s * BODY.cy - me.y) / me.s) * 100
+      const rx = ((other.s * BODY.rx) / me.s) * 100
+      const ry = ((other.s * BODY.ry) / me.s) * 100
+      return `radial-gradient(calc(${rx}% + 2px) calc(${ry}% + 2px) at ${cx}% ${cy}%, transparent 99%, #000 100%)`
+    })
   if (!holes.length) return {}
   const mask = holes.join(", ")
   return { "mask-image": mask, "-webkit-mask-image": mask, "mask-composite": "intersect", "-webkit-mask-composite": "source-in" }
@@ -69,10 +76,10 @@ function cutout(spots: readonly Spot[], index: number): Record<string, string> {
  * A chat's avatar: its one agent's face, or for a group a stack of up to three member faces.
  * `faces` comes from `useApp.chatFaces`. Sized like `IdentityAvatar`: by `size` or by `class`.
  */
-export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string }) {
+export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string; state?: BirdState }) {
   const layout = () => LAYOUT[Math.min(props.faces.length, 3)]
   return (
-    <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} />}>
+    <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} state={props.state} />}>
       {(spots) => (
         <span
           class={`relative inline-block shrink-0 align-middle leading-none ${props.class ?? ""}`}
@@ -86,8 +93,9 @@ export function ChatAvatar(props: { faces: readonly string[]; size?: number; cla
               <span
                 // `flex`, not inline: an inline face sits on a text line whose strut is
                 // taller than the face, which pushed small group faces down and left.
-                class="absolute flex rounded-full"
+                class="absolute flex"
                 style={{
+                  "z-index": spot.z,
                   left: `${spot.x * 100}%`,
                   top: `${spot.y * 100}%`,
                   width: `${spot.s * 100}%`,

@@ -2,7 +2,7 @@ import type { Command } from "./registry"
 
 /*
  * kat's command map (screenshot 20). Titles are sentence case; the palette shows the group as a heading.
- * Every command here does something. Share is left out: kiko has no share links.
+ * Every command here does something. Share is left out: yuki has no share links.
  */
 
 /** The pure part: the table of commands, given what they act on. */
@@ -30,7 +30,7 @@ export function katCommands(deps: {
   /** Opens message search over the open chat, or over every chat. */
   searchChat: () => void
   searchAll: () => void
-  /** The open chat may be pinned, unpinned, or deleted: it is not the kiko chat. */
+  /** The open chat may be pinned, unpinned, or deleted: it is not the yuki chat. */
   canMove: () => boolean
 }): Command[] {
   return [

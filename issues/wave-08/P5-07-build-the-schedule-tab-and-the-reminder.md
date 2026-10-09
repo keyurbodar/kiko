@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-07-build-the-schedule-tab-and-the-reminder` |
+| Branch | `yuki/p5-07-build-the-schedule-tab-and-the-reminder` |
 
 ## Verification
 
-The `verify-kiko` schedule feature: a reminder appears in the chat info panel's reminders section, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
+The `verify-yuki` schedule feature: a reminder appears in the chat info panel's reminders section, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
 
 ## Task
 

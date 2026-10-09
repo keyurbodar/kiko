@@ -3,13 +3,13 @@
  *
  * The HTML shell cannot run the app in 10 ms, but it can show what the app showed last time. When
  * the page hides, this saves the rendered screen (the HTML of #root, the stylesheets it used, and
- * the scroll offsets) under `kiko:snap`. The inline script in index.html puts it back in a fixed
+ * the scroll offsets) under `yuki:snap`. The inline script in index.html puts it back in a fixed
  * layer, #snap, on the first frame, before any module loads. Once the app has painted the same
  * screen from IndexedDB underneath, `dismissSnapshot` removes the layer, so the hand-over shows no
  * change. The snapshot is the user's own screen in their own browser, kept for the same path only.
  */
 
-export const SNAP_KEY = "kiko:snap"
+export const SNAP_KEY = "yuki:snap"
 /** localStorage holds about 5 MB per origin. A screen bigger than this is not worth the write. */
 const MAX_BYTES = 1_500_000
 

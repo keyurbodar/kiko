@@ -1,4 +1,4 @@
-import type { Task } from "@kiko/protocol"
+import type { Task } from "@yuki/protocol"
 import type { MemberRow } from "./members"
 import { briefTasks } from "./workspace"
 
@@ -22,7 +22,7 @@ export type BriefView = {
 	team?: Record<string, { doing: string | null; holds: readonly string[] }>
 	/** The human's handle, so the agent can @ them. Absent until the human's first socket. */
 	human?: string
-	/** kiko only: the proposal that waits for the human's answer (section 7.11). */
+	/** yuki only: the proposal that waits for the human's answer (section 7.11). */
 	proposal?: string
 }
 

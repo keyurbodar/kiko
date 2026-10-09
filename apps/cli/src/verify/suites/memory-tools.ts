@@ -1,4 +1,4 @@
-import type { MemoryOp, MemoryResult, RoomToClient } from "@kiko/protocol"
+import type { MemoryOp, MemoryResult, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle, UserChannel } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"

@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto"
 import { describe, expect, test } from "bun:test"
-import type { Chat, Message, MessageId, RoomId } from "@kiko/protocol"
+import type { Chat, Message, MessageId, RoomId } from "@yuki/protocol"
 import { IDBFactory } from "fake-indexeddb"
 import { allChats, getUserSeq, putChats, removeChat, replaceChats, setUserSeq } from "./chats"
 import { compareKeys, deleteWarm, MEMORY_ROWS_PER_STORE, openWarm, warmName } from "./db"

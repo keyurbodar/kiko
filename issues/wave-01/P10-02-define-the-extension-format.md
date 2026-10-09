@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p10-02-define-the-extension-format` |
+| Branch | `yuki/p10-02-define-the-extension-format` |
 
 ## Verification
 

@@ -26,7 +26,7 @@ import type {
 	RoomEvent,
 	Task,
 	UserEvent,
-} from "@kiko/protocol"
+} from "@yuki/protocol"
 
 /** The room frames that change state. `hello`, `typing`, and `stop` change nothing to show. */
 export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "history" } | { t: "model" }>

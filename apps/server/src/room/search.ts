@@ -1,4 +1,4 @@
-import { type MessageId, type Sender, type SearchHit, SNIPPET_CLOSE, SNIPPET_OPEN } from "@kiko/protocol"
+import { type MessageId, type Sender, type SearchHit, SNIPPET_CLOSE, SNIPPET_OPEN } from "@yuki/protocol"
 
 // Message search for one room. Architecture section 9.2. The FTS5 index
 // `messages_fts` is kept by triggers (schema.ts), so this file only reads it.

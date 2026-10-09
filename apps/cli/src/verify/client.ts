@@ -3,8 +3,8 @@ import type {
   ClientToUser as UserOut,
   RoomToClient as RoomIn,
   UserToClient as UserIn,
-} from "@kiko/protocol"
-import { ClientToRoom, ClientToUser, RoomToClient, UserToClient } from "@kiko/protocol/schema"
+} from "@yuki/protocol"
+import { ClientToRoom, ClientToUser, RoomToClient, UserToClient } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 
 export class VerifyError extends Error {}
@@ -222,7 +222,7 @@ function withSlash(url: string) {
   return url.endsWith("/") ? url : `${url}/`
 }
 
-/** Signs in through the dev-only route, the same one `kiko login --dev` uses. */
+/** Signs in through the dev-only route, the same one `yuki login --dev` uses. */
 export async function devSession(url: string, name: string): Promise<{ cookie: string; userId: string }> {
   const res = await fetch(new URL("api/auth/dev/session", withSlash(url)), {
     method: "POST",

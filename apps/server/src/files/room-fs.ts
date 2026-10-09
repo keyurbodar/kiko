@@ -13,7 +13,7 @@ import {
   type ShellExecResult,
   type TextLineReader,
 } from "@earendil-works/pi-durable/env"
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
@@ -24,7 +24,7 @@ import type { CommitResult, IndexChange, NewFile } from "./file-index"
 
 // The room's files as `pi-durable`'s `ExecutionEnv` (architecture section 18.1). Every agent in a
 // room sees one file space, rooted at `/`. `pi-durable`'s own `read`, `write`, and `edit` run on it
-// unchanged, and kiko's `ls`, `rm`, `mv`, and `cp` use the same object. Its shell is just-bash,
+// unchanged, and yuki's `ls`, `rm`, `mv`, and `cp` use the same object. Its shell is just-bash,
 // an interpreter over these same files (files/bash.ts).
 //
 // Folders are real, as on Linux: mkdir makes one, writing `a/b/c.md` makes `a` and `a/b`, and an
@@ -139,7 +139,7 @@ export class RoomFs implements ExecutionEnv {
   private readonly seen = new Map<string, string>()
   /**
    * Stats reused inside one `within` call, null for a missing path. pi's `read` checks a path exists
-   * and then reads it, after kiko's `read` looked at it: one room call instead of three. Outside a
+   * and then reads it, after yuki's `read` looked at it: one room call instead of three. Outside a
    * call every stat is fresh, so an edit always starts from what the room holds now.
    */
   private readonly stats = new Map<string, FsEntry | null>()

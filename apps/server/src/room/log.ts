@@ -14,7 +14,7 @@ import type {
 	RoomEvent,
 	RoomSnapshot,
 	RunRef,
-	Sender, RoomId } from "@kiko/protocol"
+	Sender, RoomId } from "@yuki/protocol"
 import { listApprovals } from "./approvals"
 import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"

@@ -2,11 +2,11 @@
 // settings/SettingsPanels.tsx `AppearanceSettingsPanel`): contrast, chat width, the interface,
 // prompt, and code fonts with their px sizes, and font smoothing. They travel with the look
 // (look.ts), so another device shows the same, and they become css variables the theme paints, so the first paint and
-// the boot screen already wear them. Fonts are system stacks plus the mono kiko ships: nothing is
+// the boot screen already wear them. Fonts are system stacks plus the mono yuki ships: nothing is
 // downloaded for a choice.
 
 export type ChatWidth = "comfortable" | "wide" | "full"
-export type InterfaceFont = "system" | "rounded" | "serif" | "mono"
+export type InterfaceFont = "yuki" | "system" | "rounded" | "serif" | "mono"
 /** The prompt box's family. `interface` follows the interface font. */
 export type PromptFont = "interface" | InterfaceFont
 export type CodeFont = "fantasque" | "system"
@@ -38,11 +38,11 @@ export const FONT_SIZES: Record<keyof FontSizes, { min: number; max: number; def
 export const DEFAULT_DISPLAY: Display = {
   contrast: 100,
   chatWidth: "comfortable",
-  interfaceFont: "system",
+  interfaceFont: "yuki",
   promptFont: "interface",
   codeFont: "fantasque",
   sizes: { interface: FONT_SIZES.interface.default, prompt: FONT_SIZES.prompt.default, code: FONT_SIZES.code.default },
-  smoothing: false,
+  smoothing: true,
 }
 
 /** t3code's lanes (index.css `--chat-content-max-width`): 46rem, 72rem, and the whole pane. */
@@ -56,6 +56,7 @@ const SANS = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", syst
 const MONO_SYSTEM = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
 
 export const INTERFACE_FONTS: Record<InterfaceFont, { label: string; family: string }> = {
+  yuki: { label: "Instrument Sans", family: `"Instrument Sans", ${SANS}` },
   system: { label: "System", family: SANS },
   rounded: { label: "Rounded", family: `ui-rounded, "SF Pro Rounded", ${SANS}` },
   serif: { label: "Serif", family: 'ui-serif, "New York", Charter, Georgia, serif' },
@@ -64,6 +65,7 @@ export const INTERFACE_FONTS: Record<InterfaceFont, { label: string; family: str
 
 export const PROMPT_FONTS: Record<PromptFont, { label: string }> = {
   interface: { label: "Same as interface" },
+  yuki: INTERFACE_FONTS.yuki,
   system: INTERFACE_FONTS.system,
   rounded: INTERFACE_FONTS.rounded,
   serif: INTERFACE_FONTS.serif,

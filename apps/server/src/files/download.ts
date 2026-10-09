@@ -30,7 +30,7 @@ function headersFor(object: R2Object): Headers {
 	headers.set("etag", object.httpEtag)
 	headers.set("cache-control", "private, max-age=31536000, immutable")
 	headers.set("accept-ranges", "bytes")
-	// A user's HTML or SVG must not run as kiko's origin.
+	// A user's HTML or SVG must not run as yuki's origin.
 	headers.set("x-content-type-options", "nosniff")
 	headers.set("content-security-policy", "sandbox")
 	return headers

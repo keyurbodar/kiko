@@ -1,4 +1,4 @@
-import { type ChatSearchPage, newRoomId, type RoomToClient, snippetText } from "@kiko/protocol"
+import { type ChatSearchPage, newRoomId, type RoomToClient, snippetText } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 

@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-09-export-a-chat-as-markdown` |
+| Branch | `yuki/p8-09-export-a-chat-as-markdown` |
 
 ## Verification
 
@@ -18,7 +18,7 @@
 
 ## Task
 
-**Goal.** Let a user take a conversation out of kiko without a share link.
+**Goal.** Let a user take a conversation out of yuki without a share link.
 
 **Files.** Create `apps/web-solid/src/chat/export.ts`.
 

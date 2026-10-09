@@ -1,5 +1,5 @@
 {
-  "kiko": 1,
+  "yuki": 1,
   "name": "path-guard",
   "version": "1.0.0",
   "description": "agents ask before they change files under the folders you protect, such as /prod or /contracts.",

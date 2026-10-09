@@ -7,11 +7,11 @@ import { newRoom, seen, send, statuses, until } from "./mid-run"
 // the helper's answer comes back as the tool result, and the agent replies with it. The room
 // holds one child conversation for the call.
 //
-// Restart check: set KIKO_SUBAGENT_RESTART to a shell command that stops the dev server and
+// Restart check: set YUKI_SUBAGENT_RESTART to a shell command that stops the dev server and
 // starts it again, returning once it is healthy. The suite runs it as soon as the child exists,
 // reconnects, and must still end with exactly one child, not two. Needs NODE_ENV=development.
 
-const RESTART = process.env.KIKO_SUBAGENT_RESTART
+const RESTART = process.env.YUKI_SUBAGENT_RESTART
 
 async function children(url: string, s: Session, roomId: string): Promise<{ id: string; taskId: string }[]> {
   const res = await fetch(new URL(`api/dev/agent/children?roomId=${roomId}`, url.endsWith("/") ? url : `${url}/`), { headers: { cookie: s.cookie } })

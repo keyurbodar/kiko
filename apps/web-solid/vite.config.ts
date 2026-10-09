@@ -4,16 +4,16 @@ import { defineConfig, type Plugin } from "vite";
 import solid from "vite-plugin-solid";
 import { buildCatalog, catalogFile, type CatalogFile } from "../../scripts/build-catalog";
 
-const CATALOG_MODULE = "virtual:kiko-model-catalog";
+const CATALOG_MODULE = "virtual:yuki-model-catalog";
 
 // Emits the pi-ai catalog as a hashed asset. The only code that learns its url is the module
-// `virtual:kiko-model-catalog`, which the settings route imports lazily.
+// `virtual:yuki-model-catalog`, which the settings route imports lazily.
 function modelCatalog(): Plugin {
   let file: CatalogFile | undefined;
   const load = async () => (file ??= catalogFile(await buildCatalog()));
   const urlPath = (name: string) => `/assets/${name}`;
   return {
-    name: "kiko-model-catalog",
+    name: "yuki-model-catalog",
     resolveId(id) {
       return id === CATALOG_MODULE ? `\0${CATALOG_MODULE}` : undefined;
     },
@@ -42,11 +42,11 @@ export default defineConfig({
   plugins: [solid(), tailwindcss(), modelCatalog()],
   optimizeDeps: {
     // Plain JS that Kobalte (kept out of the optimizer by vite-plugin-solid) imports file by file.
-    include: ["@kiko/ui > @kobalte/core > @internationalized/date", "@kiko/ui > @kobalte/core > @internationalized/number"],
+    include: ["@yuki/ui > @kobalte/core > @internationalized/date", "@yuki/ui > @kobalte/core > @internationalized/number"],
   },
   server: {
     port: 3001,
-    proxy: { "/api": { target: `http://localhost:${process.env.KIKO_SERVER_PORT ?? 8787}`, ws: true } },
+    proxy: { "/api": { target: `http://localhost:${process.env.YUKI_SERVER_PORT ?? 8787}`, ws: true } },
   },
   build: {
     manifest: true,

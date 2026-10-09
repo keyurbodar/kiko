@@ -1,4 +1,4 @@
-import { describeManifest, type ExtensionBundle, type ExtensionCatalogEntry, type ExtensionInfo, type ExtensionOp, type ExtensionProposal, type ExtensionResult, type ReviewLine } from "@kiko/protocol"
+import { describeManifest, type ExtensionBundle, type ExtensionCatalogEntry, type ExtensionInfo, type ExtensionOp, type ExtensionProposal, type ExtensionResult, type ReviewLine } from "@yuki/protocol"
 import { useNavigate } from "@solidjs/router"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { useApp } from "../lib/store"
@@ -66,11 +66,11 @@ export default function ExtensionsPage() {
     return out
   }
 
-  function askKiko() {
-    const kiko = app.kikoChatId()
-    if (!kiko) return
-    app.drafts()?.save(kiko, { text: "Build me an extension that " })
-    navigate(`/chat/${kiko}`)
+  function askYuki() {
+    const yuki = app.yukiChatId()
+    if (!yuki) return
+    app.drafts()?.save(yuki, { text: "Build me an extension that " })
+    navigate(`/chat/${yuki}`)
   }
 
   return (
@@ -90,8 +90,8 @@ export default function ExtensionsPage() {
         data-component="extensions-installed"
         bare={!extensions().length}
         action={
-          <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>
-            Build one with Kiko
+          <Button variant="ghost" data-action="ask-yuki" onClick={askYuki}>
+            Build one with Yuki
           </Button>
         }
       >
@@ -295,7 +295,7 @@ function AgentScope(props: { extension: ExtensionInfo; run: Run }) {
       <span class={cn("text-[13px]", muted)}>Used by</span>
       <div class="flex flex-wrap gap-1.5">
         <Chip on={scope() === null} onClick={() => set(null)} label="Every agent" />
-        <Chip on={scope()?.includes("kiko" as never) ?? false} onClick={() => toggle("kiko")} label="@kiko" />
+        <Chip on={scope()?.includes("yuki" as never) ?? false} onClick={() => toggle("yuki")} label="@yuki" />
         <For each={agents()}>{(a) => <Chip on={scope()?.includes(a.slug) ?? false} onClick={() => toggle(a.slug)} label={`@${a.slug}`} />}</For>
       </div>
     </div>
@@ -358,7 +358,7 @@ function SecretField(props: { extension: ExtensionInfo; name: string; set: boole
             <input
               ref={input}
               type="password"
-              name={`kiko-extension-secret-${props.name}`}
+              name={`yuki-extension-secret-${props.name}`}
               autocomplete="off"
               autocapitalize="off"
               spellcheck={false}

@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p12-08-measure-routines-with-the-real-model` |
+| Branch | `yuki/p12-08-measure-routines-with-the-real-model` |
 
 ## Verification
 
-`bun kiko verify routines-model` passes 20 of 20 with deepseek-v4.1-flash.
+`bun yuki verify routines-model` passes 20 of 20 with deepseek-v4.1-flash.
 
 ## Task
 

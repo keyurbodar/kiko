@@ -13,12 +13,12 @@ import { onChatModelChange } from "../settings/chat-model"
 //   3. Each store then connects its socket with `hello {lastSeq}`.
 //
 // The protocol is the data: `Chat`, `Member`, and `Message` from
-// `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
+// `@yuki/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentSlug, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
-import { fileName, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import type { Agent, AgentSlug, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@yuki/protocol"
+import { fileName, humanHandle, mentionsHuman, messageLast } from "@yuki/protocol"
+import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
@@ -34,7 +34,7 @@ import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import { newestMessages } from "../warm/messages"
 import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "./types"
 import { resumeChat, rosterChats } from "./chats"
-import { dmFor } from "@kiko/protocol"
+import { dmFor } from "@yuki/protocol"
 
 // The URLs. The one place a socket or file URL is built.
 
@@ -220,7 +220,7 @@ export function keepNewest<T>(record: Record<string, T>, max: number): Record<st
 // The store.
 
 export type AppOptions = {
-  /** The browser's `WebSocket`, or the dev mock in a dev build with `VITE_KIKO_SYNC=mock`. */
+  /** The browser's `WebSocket`, or the dev mock in a dev build with `VITE_YUKI_SYNC=mock`. */
   transport?: () => Promise<Transport>
   /** Passed to `openWarm`, for tests. */
   warm?: Omit<WarmOptions, "userId">
@@ -431,7 +431,7 @@ export function createApp(options: AppOptions = {}) {
      * The chat the user was last in (architecture section 7.11). This device keeps its own copy in
      * localStorage, read at once on boot; the server keeps one for a new device.
      */
-    const lastKey = () => (session ? `kiko.last-chat:${session.userId}` : null)
+    const lastKey = () => (session ? `yuki.last-chat:${session.userId}` : null)
     const [localLast, setLocalLast] = createSignal<string | null>(null)
     function readLast(): string | null {
       const key = lastKey()
@@ -559,7 +559,7 @@ export function createApp(options: AppOptions = {}) {
       room,
       user: userStore,
 
-      /** The chat list as sidebar rows: the kiko chat, then pinned, then the most recent. No temporary or hidden chats. */
+      /** The chat list as sidebar rows: the yuki chat, then pinned, then the most recent. No temporary or hidden chats. */
       bots(): RosterBot[] {
         return roster()
       },
@@ -620,16 +620,16 @@ export function createApp(options: AppOptions = {}) {
         openRoom(id)
       },
 
-      /** The chat to open when the URL names none: the last one the user was in, else the kiko chat. Null until known. */
+      /** The chat to open when the URL names none: the last one the user was in, else the yuki chat. Null until known. */
       resumeChat(): RoomId | null {
         const user = userStore()
         if (!user) return null
         return resumeChat(user.chats(), user.state.loaded && (user.state.synced || user.state.chats.length > 0), [localLast(), user.state.lastChat])
       },
 
-      /** The user's kiko chat, or undefined before the list has it. */
-      kikoChatId(): RoomId | undefined {
-        return userStore()?.chats().find((c) => c.kiko)?.roomId
+      /** The user's yuki chat, or undefined before the list has it. */
+      yukiChatId(): RoomId | undefined {
+        return userStore()?.chats().find((c) => c.yuki)?.roomId
       },
 
       /** The chat with this room id as the protocol has it, temporary ones included. */
@@ -871,7 +871,7 @@ export function createApp(options: AppOptions = {}) {
         return dmFor(user.chats(), agent.id)?.roomId ?? user.createChat(agent.name, [agent.id])
       },
 
-      /** A temporary chat with kiko: what the new chat button opens. Returns its room id. */
+      /** A temporary chat with yuki: what the new chat button opens. Returns its room id. */
       createTemp(): RoomId | undefined {
         return userStore()?.createTemp()
       },
@@ -881,25 +881,25 @@ export function createApp(options: AppOptions = {}) {
         userStore()?.keep(roomId, title, agents)
       },
 
-      /** The kiko chat stays pinned. */
+      /** The yuki chat stays pinned. */
       togglePinned(threadId: string) {
         const user = userStore()
         const c = chat(threadId)
-        if (user && c && !c.kiko) user.pin(c.roomId, !c.pinned)
+        if (user && c && !c.yuki) user.pin(c.roomId, !c.pinned)
       },
     }
     return app
   })
 }
 
-// The dev mock. A dev build with `VITE_KIKO_SYNC=mock` talks to the mock
+// The dev mock. A dev build with `VITE_YUKI_SYNC=mock` talks to the mock
 // room and user from `sync/mock-room.ts`, because the room and user sockets on
 // the server are not built yet. A production build drops this branch and the
 // mock with it.
 
 async function defaultTransport(): Promise<Transport> {
-  if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") {
-    const [mock, fixtures] = await Promise.all([import("../sync/mock-room"), import("@kiko/protocol/fixtures")])
+  if (import.meta.env.DEV && import.meta.env.VITE_YUKI_SYNC === "mock") {
+    const [mock, fixtures] = await Promise.all([import("../sync/mock-room"), import("@yuki/protocol/fixtures")])
     return devTransport(mock, fixtures.roomId)
   }
   return liveTransport

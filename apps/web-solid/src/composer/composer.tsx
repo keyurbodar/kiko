@@ -1,6 +1,6 @@
 import { Show, createEffect, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage } from "../lib/attachments"
 import "./composer.css"

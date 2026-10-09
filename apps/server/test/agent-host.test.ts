@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
-import type { Envelope } from "@kiko/protocol"
+import type { Envelope } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
-import { renderInput, requestIdFor } from "@kiko/agent/inbox"
+import { renderInput, requestIdFor } from "@yuki/agent/inbox"
 import { LONG_ANSWER, SLOW } from "./agent-host-fixtures"
 
 let mf: Miniflare

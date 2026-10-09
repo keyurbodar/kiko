@@ -31,9 +31,9 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 `deps: P0-01` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko login --dev` stores a session and `bun kiko whoami` prints the user id. A request to `/api/me` without a cookie returns 401.
+**Verify.** `bun yuki login --dev` stores a session and `bun yuki whoami` prints the user id. A request to `/api/me` without a cookie returns 401.
 
-**Goal.** Give kiko user accounts and sessions.
+**Goal.** Give yuki user accounts and sessions.
 
 **Read first.** Architecture section 10. `docs/research/cloudflare.md`, the Better Auth section.
 
@@ -53,7 +53,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 `deps: P1-02, P0-03` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko ws /api/ws/user` connects with a session and fails with 401 without one. `bun test apps/server/test/naming.test.ts` passes.
+**Verify.** `bun yuki ws /api/ws/user` connects with a session and fails with 401 without one. `bun test apps/server/test/naming.test.ts` passes.
 
 **Goal.** Make the Worker the only place that builds a Durable Object name, always from the session.
 
@@ -63,7 +63,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 **Build.**
 
-- Write `userName(userId)`, `roomName(userId, roomId)`, and `agentName(userId, roomId, slug)`. Validate `roomId` and `slug` against the patterns from `@kiko/protocol`.
+- Write `userName(userId)`, `roomName(userId, roomId)`, and `agentName(userId, roomId, slug)`. Validate `roomId` and `slug` against the patterns from `@yuki/protocol`.
 - Route `/api/ws/user` and `/api/ws/room/:roomId` to the right object after the session check. Pass the user id in a header that the Worker sets and strips from client input.
 - Reject any request whose path or body carries a user id.
 
@@ -73,7 +73,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 `deps: P1-03` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify room-sync` passes. The suite sends, edits, reacts, deletes, disconnects, reconnects with `lastSeq`, and asserts the event stream.
+**Verify.** `bun yuki verify room-sync` passes. The suite sends, edits, reacts, deletes, disconnects, reconnects with `lastSeq`, and asserts the event stream.
 
 **Goal.** Build the part of `RoomDO` that stores what a human sees and syncs it to clients.
 
@@ -95,7 +95,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 `deps: P1-03` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify user-sync` passes. The suite creates two rooms, renames one, and sees both changes on a second user socket.
+**Verify.** `bun yuki verify user-sync` passes. The suite creates two rooms, renames one, and sees both changes on a second user socket.
 
 **Goal.** Build the part of `UserDO` that lists a user's chats and keeps devices in sync.
 
@@ -168,7 +168,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 **Build.**
 
-- Use the `marked` lexer and map its tokens to the tree types from `@kiko/protocol`: paragraph, heading, list, quote, code block with language, table, and inline bold, italic, strike, code, link, and mention.
+- Use the `marked` lexer and map its tokens to the tree types from `@yuki/protocol`: paragraph, heading, list, quote, code block with language, table, and inline bold, italic, strike, code, link, and mention.
 - Never emit HTML. A raw HTML token becomes plain text.
 - Allow `http`, `https`, and `mailto` links only.
 
@@ -178,7 +178,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 `deps: P0-04, P1-02, P0-03` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify --list` prints the suites, and `bun kiko verify selftest` passes against the dev server and fails with a readable diff when an expectation is wrong.
+**Verify.** `bun yuki verify --list` prints the suites, and `bun yuki verify selftest` passes against the dev server and fails with a readable diff when an expectation is wrong.
 
 **Goal.** Give every backend task one way to script a session and assert on the event stream.
 
@@ -188,7 +188,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 **Build.**
 
-- A typed client over the two sockets that uses `@kiko/protocol/schema` to validate every frame it receives.
+- A typed client over the two sockets that uses `@yuki/protocol/schema` to validate every frame it receives.
 - Helpers: `as(user)`, `room.send(text)`, `room.expect(predicate, timeout)`, `room.reconnect()`, `user.expect(...)`.
 - Mark a suite as `model: true` when it calls a model. `verify --no-model` skips those, which is what CI runs.
 - Print the last 20 frames when an expectation times out.
@@ -210,7 +210,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 **Build.**
 
 - `buildAgent({role, model, lead})` returns the registry and the conversation's agent choices.
-- System prompt sections in a fixed order: kiko rules, the reaction tag line, the role, then slots for skills and the profile that later tasks fill.
+- System prompt sections in a fixed order: yuki rules, the reaction tag line, the role, then slots for skills and the profile that later tasks fill.
 - A `Base` extension that every agent selects. Later phases add `Trust`, `Memory`, and the rest to the same list in this file.
 - Read the dev model from `OPENCODE_API_KEY` through a `Models` object. Mark the code path as dev-only.
 
@@ -220,7 +220,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 `deps: P1-04, P1-05, P1-07, P1-08, P1-09, P1-10` `difficulty: 5` `area: backend`
 
-**Verify.** `bun kiko verify turn` passes with the test model. It sends three messages 400 ms apart and sees one run, at least one bubble, and one `touchChat`. It also passes after the dev server restarts during the run.
+**Verify.** `bun yuki verify turn` passes with the test model. It sends three messages 400 ms apart and sees one run, at least one bubble, and one `touchChat`. It also passes after the dev server restarts during the run.
 
 **Goal.** Connect the pieces so a human burst produces one answer in bubbles.
 
@@ -242,7 +242,7 @@ Until Phase 4 lands, the agent uses the test provider with the key from `OPENCOD
 
 `deps: P1-11` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify mid-run` passes its four cases: restart before the first bubble, steer during a tool, queue after a bubble, and stop.
+**Verify.** `bun yuki verify mid-run` passes its four cases: restart before the first bubble, steer during a tool, queue after a bubble, and stop.
 
 **Goal.** Decide what happens when a human message arrives while the agent works.
 

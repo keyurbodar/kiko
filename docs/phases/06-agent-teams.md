@@ -10,7 +10,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P1-12` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify team-routing` passes with fake agents: an untagged message reaches only the lead, `@ada` reaches only ada, `@all` reaches everyone, and ada's next delivery carries the messages she missed.
+**Verify.** `bun yuki verify team-routing` passes with fake agents: an untagged message reaches only the lead, `@ada` reaches only ada, `@all` reaches everyone, and ada's next delivery carries the messages she missed.
 
 **Goal.** Make a room hold several agents and decide who receives each human message.
 
@@ -32,7 +32,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P6-01` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify workspace` passes with fake agents: task B depends on task A, B's owner is not woken while A is open, and marking A `done` delivers exactly one `task_unblocked` envelope to B's owner.
+**Verify.** `bun yuki verify workspace` passes with fake agents: task B depends on task A, B's owner is not woken while A is open, and marking A `done` delivers exactly one `task_unblocked` envelope to B's owner.
 
 **Goal.** Give a team a task board, an activity log, and shared notes.
 
@@ -54,7 +54,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P6-01` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify team-loops` passes with fake agents that always reply to each other: the exchange stops at hop 8 with a system event, and a root message can cause at most 40 agent deliveries.
+**Verify.** `bun yuki verify team-loops` passes with fake agents that always reply to each other: the exchange stops at hop 8 with a system event, and a root message can cause at most 40 agent deliveries.
 
 **Goal.** Let agents talk to each other through the room without the ability to loop forever.
 
@@ -76,7 +76,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P6-02, P6-03` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify spawn-agent` passes with the test model: asked to "get a researcher to list three sources", the lead adds a member, the member posts a result, and the task ends `done`.
+**Verify.** `bun yuki verify spawn-agent` passes with the test model: asked to "get a researcher to list three sources", the lead adds a member, the member posts a result, and the task ends `done`.
 
 **Goal.** Let the lead grow the team.
 
@@ -97,7 +97,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P1-12` `difficulty: 2` `area: backend`
 
-**Verify.** `bun kiko verify subagent` passes with the test model: the agent delegates a task, the answer returns as a tool result, and restarting the server mid-child yields one child conversation, not two.
+**Verify.** `bun yuki verify subagent` passes with the test model: the agent delegates a task, the answer returns as a tool result, and restarting the server mid-child yields one child conversation, not two.
 
 **Goal.** Let any agent delegate a bounded task to a private child conversation.
 
@@ -117,7 +117,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P6-03` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify team-priority` passes with fake agents: a human message sent while two agents exchange messages is handled before the next agent message, and `stop` ends every run and clears waiting agent messages for that root.
+**Verify.** `bun yuki verify team-priority` passes with fake agents: a human message sent while two agents exchange messages is handled before the next agent message, and `stop` ends every run and clears waiting agent messages for that root.
 
 **Goal.** Make the human outrank every agent.
 
@@ -138,7 +138,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P1-12` `difficulty: 2` `area: backend`
 
-**Verify.** `bun kiko verify reactions` passes: a reply of `[react:👍]` produces a reaction and no bubble, a second reaction by the same agent on the same message replaces the first, a tag with an emoji outside the allowlist is dropped, and no reaction starts a run.
+**Verify.** `bun yuki verify reactions` passes: a reply of `[react:👍]` produces a reaction and no bubble, a second reaction by the same agent on the same message replaces the first, a tag with an emoji outside the allowlist is dropped, and no reaction starts a run.
 
 **Goal.** Complete the cheap reaction path from the spec.
 
@@ -159,7 +159,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P6-01, P2-08` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` team chat feature: type `@`, pick an agent, send, and see only that agent answer. Open the member sheet, add an agent, and see it in the mention list.
+**Verify.** The `verify-yuki` team chat feature: type `@`, pick an agent, send, and see only that agent answer. Open the member sheet, add an agent, and see it in the mention list.
 
 **Goal.** Make a group chat with agents feel like a Telegram group.
 
@@ -191,7 +191,7 @@ Every backend task here is verified with fake agents first. A fake agent is a sc
 
 `deps: P6-02, P2-08, P2-19` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` team tasks feature: in a group chat, the top bar shows `3 tasks`, clicking it opens the chat info panel at its tasks section with tasks grouped by status, owner, and dependencies, a status changed by hand applies at once, and a task an agent finishes appears as one muted line in the transcript.
+**Verify.** The `verify-yuki` team tasks feature: in a group chat, the top bar shows `3 tasks`, clicking it opens the chat info panel at its tasks section with tasks grouped by status, owner, and dependencies, a status changed by hand applies at once, and a task an agent finishes appears as one muted line in the transcript.
 
 **Goal.** Show a team's work where the team talks. There is no separate board section.
 

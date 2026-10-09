@@ -1,4 +1,4 @@
-# Cloudflare platform research for kiko (fetched 2026-10-02)
+# Cloudflare platform research for yuki (fetched 2026-10-02)
 
 All numbers are quoted from official docs fetched on 2026-10-02 (markdown via `<url>/index.md`). Doc "Last updated" dates are noted where seen. UNVERIFIED = could not confirm in official docs.
 

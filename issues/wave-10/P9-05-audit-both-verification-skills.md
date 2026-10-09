@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p9-05-audit-both-verification-skills` |
+| Branch | `yuki/p9-05-audit-both-verification-skills` |
 
 ## Verification
 
@@ -20,7 +20,7 @@ The `maintain-verification-skill` run drives every feature in both skills in one
 
 **Goal.** Make sure the verification skills still describe the app that exists.
 
-**Files.** `.cursor/skills/verify-kiko/` and `.cursor/skills/verify-kiko-server/`.
+**Files.** `.cursor/skills/verify-yuki/` and `.cursor/skills/verify-yuki-server/`.
 
 **Build.**
 
@@ -28,7 +28,7 @@ The `maintain-verification-skill` run drives every feature in both skills in one
 - Remove features that no longer exist and add the ones that later phases built without a map entry.
 - Check that every `Verify` line in `docs/phases/` names a suite or a feature that exists.
 
-**Done when.** `bun kiko verify --list` and the server skill's map name the same suites.
+**Done when.** `bun yuki verify --list` and the server skill's map name the same suites.
 
 ## Rules for this task
 

@@ -27,7 +27,7 @@ export interface Context {
 
 const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, executor, measure }
 
-export const usage = "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | executor <probe | discover> | measure turn [--runs <n>] [--tail <file>] | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>]"
+export const usage = "usage: yuki <health | ws <path> | login --dev [--name <name>] | whoami | executor <probe | discover> | measure turn [--runs <n>] [--tail <file>] | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>]"
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -55,7 +55,7 @@ export async function main(argv: string[]): Promise<number> {
     await run({ url: values.url, json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"], fake: values.fake, runs: values.runs, tail: values.tail })
     return 0
   } catch (e) {
-    console.error(`kiko: ${e instanceof Error ? e.message : String(e)}`)
+    console.error(`yuki: ${e instanceof Error ? e.message : String(e)}`)
     return 1
   }
 }

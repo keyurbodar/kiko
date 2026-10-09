@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-07-finish-agent-reactions` |
+| Branch | `yuki/p6-07-finish-agent-reactions` |
 
 ## Verification
 
-`bun kiko verify reactions` passes: a reply of `[react:👍]` produces a reaction and no bubble, a second reaction by the same agent on the same message replaces the first, a tag with an emoji outside the allowlist is dropped, and no reaction starts a run.
+`bun yuki verify reactions` passes: a reply of `[react:👍]` produces a reaction and no bubble, a second reaction by the same agent on the same message replaces the first, a tag with an emoji outside the allowlist is dropped, and no reaction starts a run.
 
 ## Task
 

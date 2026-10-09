@@ -1,4 +1,4 @@
-import type { AgentSlug, RoomEvent } from "@kiko/protocol"
+import type { AgentSlug, RoomEvent } from "@yuki/protocol"
 import type { RoomRoutine } from "../user/routines"
 
 // Architecture section 25.4. A room's event routines and the runs they started. `UserDO` owns the

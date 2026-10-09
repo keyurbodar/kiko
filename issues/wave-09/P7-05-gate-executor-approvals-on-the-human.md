@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p7-05-gate-executor-approvals-on-the-human` |
+| Branch | `yuki/p7-05-gate-executor-approvals-on-the-human` |
 
 ## Verification
 
-`bun kiko verify executor-approval` passes against a real account with one tool under a "require approval" policy: the run pauses, a model call to `executor_resume` is rejected, a human accept completes the action, and no answer for 4 minutes expires the card.
+`bun yuki verify executor-approval` passes against a real account with one tool under a "require approval" policy: the run pauses, a model call to `executor_resume` is rejected, a human accept completes the action, and no answer for 4 minutes expires the card.
 
 ## Task
 

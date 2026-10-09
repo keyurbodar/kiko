@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-08-parse-agent-markdown-into-the-rich-text` |
+| Branch | `yuki/p1-08-parse-agent-markdown-into-the-rich-text` |
 
 ## Verification
 
@@ -26,7 +26,7 @@
 
 **Build.**
 
-- Use the `marked` lexer and map its tokens to the tree types from `@kiko/protocol`: paragraph, heading, list, quote, code block with language, table, and inline bold, italic, strike, code, link, and mention.
+- Use the `marked` lexer and map its tokens to the tree types from `@yuki/protocol`: paragraph, heading, list, quote, code block with language, table, and inline bold, italic, strike, code, link, and mention.
 - Never emit HTML. A raw HTML token becomes plain text.
 - Allow `http`, `https`, and `mailto` links only.
 

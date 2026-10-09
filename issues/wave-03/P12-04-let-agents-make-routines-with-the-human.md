@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p12-04-let-agents-make-routines-with-the-human` |
+| Branch | `yuki/p12-04-let-agents-make-routines-with-the-human` |
 
 ## Verification
 
-`bun kiko verify routines` passes its card and grant cases. `bun kiko verify routines-model` shows plain requests becoming the right routine with no card.
+`bun yuki verify routines` passes its card and grant cases. `bun yuki verify routines-model` shows plain requests becoming the right routine with no card.
 
 ## Task
 

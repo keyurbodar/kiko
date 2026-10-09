@@ -1,6 +1,6 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { MAX_IMAGE_BYTES, attachmentMessages } from "@kiko/protocol"
+import { MAX_IMAGE_BYTES, attachmentMessages } from "@yuki/protocol"
 import { admit, attachmentType } from "../../lib/attachments"
 import { prepareImageForAttachment } from "../../lib/image-compression"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
@@ -8,7 +8,7 @@ import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 /*
  * Files into the composer: the attach button's picker, a paste, and a drop anywhere on the page,
  * decided the way t3code's composer decides (`lib/attachments.ts` holds the rules). A picture over
- * 10 MB is shrunk to fit; a picture kiko cannot send, an empty file, a file over 50 MB, and a file
+ * 10 MB is shrunk to fit; a picture yuki cannot send, an empty file, a file over 50 MB, and a file
  * past the 100th are refused, and the last refusal is said in a toast. Each file taken starts
  * uploading at once (`onAdded`), so it is usually on the server before the human presses send.
  */

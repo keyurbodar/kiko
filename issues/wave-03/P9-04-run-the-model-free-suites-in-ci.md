@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p9-04-run-the-model-free-suites-in-ci` |
+| Branch | `yuki/p9-04-run-the-model-free-suites-in-ci` |
 
 ## Verification
 
-CI starts `wrangler dev`, runs `bun kiko verify --no-model`, and fails when a suite fails. A manual workflow runs the model suites with `OPENCODE_API_KEY` from repository secrets.
+CI starts `wrangler dev`, runs `bun yuki verify --no-model`, and fails when a suite fails. A manual workflow runs the model suites with `OPENCODE_API_KEY` from repository secrets.
 
 ## Task
 

@@ -10,7 +10,7 @@
 | Parallel with its wave | no |
 | Needs a worktree | no |
 | Needs a human step | no |
-| Branch | `kiko/p0-01-scaffold-the-server-worker-and-the-workspace` |
+| Branch | `yuki/p0-01-scaffold-the-server-worker-and-the-workspace` |
 
 ## Verification
 
@@ -26,7 +26,7 @@
 
 **Build.**
 
-- Set root `workspaces` to `apps/*` and `packages/*`. Add root scripts `dev:server`, `dev:web`, `typecheck`, `test`, `kiko`, and `plan`.
+- Set root `workspaces` to `apps/*` and `packages/*`. Add root scripts `dev:server`, `dev:web`, `typecheck`, `test`, `yuki`, and `plan`.
 - Declare three SQLite-backed Durable Object classes (`UserDO`, `RoomDO`, `AgentDO`) as empty classes with a migration tag.
 - Declare bindings for D1 (`AUTH_DB`), R2 (`FILES`), KV (`PREVIEWS`), one queue (`JOBS`), and static assets that point at `apps/web-solid/dist`.
 - Turn on `nodejs_compat`. Add `.dev.vars.example` with `OPENCODE_API_KEY`, `CREDENTIALS_KEK`, and `BETTER_AUTH_SECRET`. Add `.dev.vars` to `.gitignore`.

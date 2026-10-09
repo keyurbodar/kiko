@@ -120,7 +120,7 @@ const MIGRATIONS: readonly string[] = [
 	);
 	`,
 	`
-	-- A message can point at another chat, such as the one kiko just made (architecture section 7.11).
+	-- A message can point at another chat, such as the one yuki just made (architecture section 7.11).
 	ALTER TABLE messages ADD COLUMN goto TEXT;
 	`,
 	`

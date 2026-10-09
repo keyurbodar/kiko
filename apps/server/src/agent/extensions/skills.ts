@@ -2,7 +2,7 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, wrapSection } from "@earendil-works/pi-durable"
 import { BUILTIN_SKILLS } from "../../skills/builtin.gen"
 import { formatSkills, parseSkill, resolveSkills, type Skill } from "../../skills/registry"
-import { declareEffect } from "@kiko/agent/effects"
+import { declareEffect } from "@yuki/agent/effects"
 import type { RoomFs } from "../../files/room-fs"
 import { perRun } from "./self"
 

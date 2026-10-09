@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-05-port-system-messages-and-dividers` |
+| Branch | `yuki/p3-05-port-system-messages-and-dividers` |
 
 ## Verification
 
-The `verify-kiko` dividers feature shows a date divider, the "new messages" divider at the first unread message, and an inline system event, each matching `~/kat-images`.
+The `verify-yuki` dividers feature shows a date divider, the "new messages" divider at the first unread message, and an inline system event, each matching `~/kat-images`.
 
 ## Task
 

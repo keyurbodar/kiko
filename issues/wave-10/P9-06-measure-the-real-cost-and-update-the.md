@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p9-06-measure-the-real-cost-and-update-the` |
+| Branch | `yuki/p9-06-measure-the-real-cost-and-update-the` |
 
 ## Verification
 
-`docs/research/turn-cost-final.md` holds the output of `bun kiko measure turn` for a one-agent turn, a three-agent team turn, and a turn with one Executor call, and architecture section 17 cites it.
+`docs/research/turn-cost-final.md` holds the output of `bun yuki measure turn` for a one-agent turn, a three-agent team turn, and a turn with one Executor call, and architecture section 17 cites it.
 
 ## Task
 

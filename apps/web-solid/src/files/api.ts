@@ -1,4 +1,4 @@
-import type { FileRef } from "@kiko/protocol"
+import type { FileRef } from "@yuki/protocol"
 import { createSignal } from "solid-js"
 import { urls } from "../lib/store"
 
@@ -22,7 +22,7 @@ export async function putFile(roomId: string, path: string, body: string, type: 
 	try {
 		const res = await fetch(`/api/files/${roomId}?path=${encodeURIComponent(path)}`, {
 			method: "PUT",
-			headers: { "content-type": type, "x-kiko-if-sha256": expect },
+			headers: { "content-type": type, "x-yuki-if-sha256": expect },
 			body,
 		})
 		if (res.status === 409) return { kind: "conflict", theirs: ((await res.json()) as { file: FileRef | null }).file }

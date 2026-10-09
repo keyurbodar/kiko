@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-13-build-the-search-screen` |
+| Branch | `yuki/p3-13-build-the-search-screen` |
 
 ## Verification
 
-The `verify-kiko` search feature: type a query, see results in a virtual list, click one, and land on that message with a highlight.
+The `verify-yuki` search feature: type a query, see results in a virtual list, click one, and land on that message with a highlight.
 
 ## Task
 

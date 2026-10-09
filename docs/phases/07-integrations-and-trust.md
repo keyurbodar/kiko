@@ -10,7 +10,7 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 
 `deps: P1-12` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify injection --no-model` passes. Each canned attack runs through fake tools and the suite asserts that no tool with the `external` effect ran without an approval record.
+**Verify.** `bun yuki verify injection --no-model` passes. Each canned attack runs through fake tools and the suite asserts that no tool with the `external` effect ran without an approval record.
 
 **Goal.** Limit what an injected instruction can do, in code.
 
@@ -20,7 +20,7 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 
 **Build.**
 
-- Make every kiko tool declare one effect: `read`, `write`, `message`, or `external`. A tool with no declared effect fails to register.
+- Make every yuki tool declare one effect: `read`, `write`, `message`, or `external`. A tool with no declared effect fails to register.
 - In `afterTool`, wrap results from tools that return outside content in an `<untrusted>` block with a per-run nonce, escape look-alike tags, and mark the run tainted.
 - In `beforeTool`, apply the table in section 16.3.
 - Wrap agent envelopes in `<agent-message>` and submit them as user-role content. A tainted envelope starts a tainted run.
@@ -33,7 +33,7 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 
 `deps: P7-01, P2-08` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify approvals` passes with a fake `external` tool: a tainted run pauses, the room shows an approval, `approve` with `accept` runs the tool, `decline` returns an error to the model, and a second `approve` for the same id does nothing.
+**Verify.** `bun yuki verify approvals` passes with a fake `external` tool: a tainted run pauses, the room shows an approval, `approve` with `accept` runs the tool, `decline` returns an error to the model, and a second `approve` for the same id does nothing.
 
 **Goal.** Let the human, and only the human, approve an outside action.
 
@@ -54,7 +54,7 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 
 `deps: P4-01, P0-09` `difficulty: 4` `area: backend` `human: yes`
 
-**Verify.** `bun kiko verify executor-connect` passes against a real Executor account: connect, list tools, force a token refresh, disconnect, and see the tokens gone.
+**Verify.** `bun yuki verify executor-connect` passes against a real Executor account: connect, list tools, force a token refresh, disconnect, and see the tokens gone.
 
 **Goal.** Store a per-user Executor credential and keep it fresh.
 
@@ -76,7 +76,7 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 
 `deps: P7-03, P7-01, P4-02` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify executor-tools` passes against a real account with one integration: the agent's tool list contains every tool that `tools/list` returned, prefixed `executor_`, and one call returns a result wrapped as untrusted.
+**Verify.** `bun yuki verify executor-tools` passes against a real account with one integration: the agent's tool list contains every tool that `tools/list` returned, prefixed `executor_`, and one call returns a result wrapped as untrusted.
 
 **Goal.** Expose everything Executor offers, with nothing hardcoded.
 
@@ -92,13 +92,13 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 - If Executor is unreachable, start the run without its tools and tell the model in one line.
 - Keep no Executor tool name in the code outside the approval gate of P7-05.
 
-**Done when.** Adding an integration in the Executor console changes the next run's tools with no kiko deploy.
+**Done when.** Adding an integration in the Executor console changes the next run's tools with no yuki deploy.
 
 ### P7-05 Gate Executor approvals on the human
 
 `deps: P7-04, P7-02` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify executor-approval` passes against a real account with one tool under a "require approval" policy: the run pauses, a model call to `executor_resume` is rejected, a human accept completes the action, and no answer for 4 minutes expires the card.
+**Verify.** `bun yuki verify executor-approval` passes against a real account with one tool under a "require approval" policy: the run pauses, a model call to `executor_resume` is rejected, a human accept completes the action, and no answer for 4 minutes expires the card.
 
 **Goal.** Make sure a model can never approve its own paused execution.
 
@@ -119,7 +119,7 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 
 `deps: P7-03, P4-05` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` integrations feature against a fake user socket: connect shows the sign-in step, the connected state shows the organization name and the tool count, and disconnect returns to the empty state.
+**Verify.** The `verify-yuki` integrations feature against a fake user socket: connect shows the sign-in step, the connected state shows the organization name and the tool count, and disconnect returns to the empty state.
 
 **Goal.** Let a user connect and disconnect Executor.
 
@@ -138,7 +138,7 @@ The Executor Cloud contract is undocumented and its 2.0 release is in beta. Read
 
 `deps: P7-01, P8-02` `difficulty: 2` `area: backend`
 
-**Verify.** `bun kiko verify injection --no-model` passes the new case: a tainted run posts a bubble with a URL that no human message contained, and the room requests no preview for it.
+**Verify.** `bun yuki verify injection --no-model` passes the new case: a tainted run posts a bubble with a URL that no human message contained, and the room requests no preview for it.
 
 **Goal.** Close the path where an injected instruction sends data out inside a URL.
 

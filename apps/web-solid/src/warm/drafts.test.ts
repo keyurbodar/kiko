@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto"
 import { describe, expect, test } from "bun:test"
-import type { MessageId } from "@kiko/protocol"
+import type { MessageId } from "@yuki/protocol"
 import { IDBFactory } from "fake-indexeddb"
 import { openWarm } from "./db"
 import { createDraftBook } from "./drafts"

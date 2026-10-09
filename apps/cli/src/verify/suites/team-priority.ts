@@ -1,4 +1,4 @@
-import type { Message } from "@kiko/protocol"
+import type { Message } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send, until } from "./mid-run"

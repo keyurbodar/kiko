@@ -1,5 +1,5 @@
-import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@kiko/protocol"
-import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
+import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@yuki/protocol"
+import { ClientToRoom as ClientToRoomSchema } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
 import type { SearchOptions, SearchPage } from "./search"

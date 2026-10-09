@@ -4,7 +4,7 @@
 // Executor) sends and listens through this channel instead of opening a socket of its own: four
 // sockets to the same object cost four connections, four pings, and four catch-ups.
 
-import type { ClientToUser, UserToClient } from "@kiko/protocol"
+import type { ClientToUser, UserToClient } from "@yuki/protocol"
 
 type FrameOf<T extends UserToClient["t"]> = Extract<UserToClient, { t: T }>
 

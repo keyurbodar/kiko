@@ -1,5 +1,5 @@
-import type { AgentSlug, Task, TaskStatus } from "@kiko/protocol"
-import { Moment } from "../../mascot/pixel/lazy"
+import type { AgentSlug, Task, TaskStatus } from "@yuki/protocol"
+import { Moment } from "../../mascot/lazy"
 import { createMemo, For, Show, Suspense } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"

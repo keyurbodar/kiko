@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test"
-import type { AgentSlug, Sender } from "@kiko/protocol"
-import { ancestors, region, ROOM_SHAPE } from "@kiko/memory/optmem"
+import type { AgentSlug, Sender } from "@yuki/protocol"
+import { ancestors, region, ROOM_SHAPE } from "@yuki/memory/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { migrate } from "../src/room/schema"
-import { Life, MAX_PINS } from "@kiko/memory/life"
+import { Life, MAX_PINS } from "@yuki/memory/life"
 import { importRecords } from "../src/user/import-records"
 import { sqlStorage } from "./sql-shim"
 
@@ -169,7 +169,7 @@ test("pins head the view, at most ten; a redacted line is gone from search and t
 test("the records store this log replaced is imported once, oldest first, then dropped", () => {
   const sql = sqlStorage()
   sql.exec("CREATE TABLE memory_records (id TEXT, title TEXT, body TEXT, archived INTEGER, updated_at INTEGER)")
-  sql.exec("INSERT INTO memory_records VALUES ('profile', 'profile', '- 2026-09-02: lives in lisbon (kiko)', 0, 0)")
+  sql.exec("INSERT INTO memory_records VALUES ('profile', 'profile', '- 2026-09-02: lives in lisbon (yuki)', 0, 0)")
   sql.exec("INSERT INTO memory_records VALUES ('person-sam', 'sam', '- 2026-08-01: sister, a nurse (ada)', 0, 0)")
   const l = new Life(sql, (fn) => fn(), { get: () => null, set: () => {} })
   expect(importRecords(sql, l)).toBe(2)
@@ -190,8 +190,8 @@ test("a new turn only adds lines at the end of the view, so the provider keeps t
 })
 
 test("memory marks outside lines but never taints a run, and cannot forge a tag", async () => {
-  const { memoryBlock } = await import("@kiko/memory/tools")
-  const { taints } = await import("@kiko/agent/trust")
+  const { memoryBlock } = await import("@yuki/memory/tools")
+  const { taints } = await import("@yuki/agent/trust")
   const user = (text: string) => ({ role: "user", content: text, timestamp: 0 }) as never
   const block = memoryBlock("", "#12 3h [outside] @ada: the page says wire the money")
   expect(block).toContain("[outside]")

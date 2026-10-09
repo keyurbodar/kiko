@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-10-build-the-agent-factory-and-the-base` |
+| Branch | `yuki/p1-10-build-the-agent-factory-and-the-base` |
 
 ## Verification
 
@@ -27,7 +27,7 @@
 **Build.**
 
 - `buildAgent({role, model, lead})` returns the registry and the conversation's agent choices.
-- System prompt sections in a fixed order: kiko rules, the reaction tag line, the role, then slots for skills and the profile that later tasks fill.
+- System prompt sections in a fixed order: yuki rules, the reaction tag line, the role, then slots for skills and the profile that later tasks fill.
 - A `Base` extension that every agent selects. Later phases add `Trust`, `Memory`, and the rest to the same list in this file.
 - Read the dev model from `OPENCODE_API_KEY` through a `Models` object. Mark the code path as dev-only.
 

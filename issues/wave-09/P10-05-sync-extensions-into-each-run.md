@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p10-05-sync-extensions-into-each-run` |
+| Branch | `yuki/p10-05-sync-extensions-into-each-run` |
 
 ## Verification
 
-`bun kiko verify extensions` passes against the dev server.
+`bun yuki verify extensions` passes against the dev server.
 
 ## Task
 

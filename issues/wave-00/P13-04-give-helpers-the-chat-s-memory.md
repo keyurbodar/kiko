@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p13-04-give-helpers-the-chat-s-memory` |
+| Branch | `yuki/p13-04-give-helpers-the-chat-s-memory` |
 
 ## Verification
 
-`bun kiko verify subagent` passes its memory case: a helper finds a code word said earlier in the chat with `recall`.
+`bun yuki verify subagent` passes its memory case: a helper finds a code word said earlier in the chat with `recall`.
 
 ## Task
 

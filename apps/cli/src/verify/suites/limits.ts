@@ -1,4 +1,4 @@
-import type { Message, RoomToClient } from "@kiko/protocol"
+import type { Message, RoomToClient } from "@yuki/protocol"
 import { VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, newRoom, send, until } from "./mid-run"

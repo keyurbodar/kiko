@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-05-prove-pi-durable-in-a-durable-object` |
+| Branch | `yuki/p0-05-prove-pi-durable-in-a-durable-object` |
 
 ## Verification
 

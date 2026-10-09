@@ -1,5 +1,5 @@
 // An in-memory room and user server that speak the protocol, for tests and the
-// dev harness. It starts from the shared fixtures in `@kiko/protocol/fixtures`.
+// dev harness. It starts from the shared fixtures in `@yuki/protocol/fixtures`.
 // Its `connect` stands in for `WebSocket`. Frames cross it as JSON strings, one
 // macrotask later, the way a network delivers them.
 //
@@ -21,9 +21,9 @@ import type {
 	RoomToClient,
 	UserEvent,
 	UserToClient,
-} from "@kiko/protocol"
-import { duplicateDm, SNIPPET_CLOSE, SNIPPET_OPEN } from "@kiko/protocol"
-import * as fixtures from "@kiko/protocol/fixtures"
+} from "@yuki/protocol"
+import { duplicateDm, SNIPPET_CLOSE, SNIPPET_OPEN } from "@yuki/protocol"
+import * as fixtures from "@yuki/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
 import { overlayFiles, overlayFolders } from "./patches"
 import { type Connect, PING, PONG, type SocketLike } from "./socket"
@@ -259,7 +259,7 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			}
 			if (!current) return peer.push({ t: "member_refused", op, reason: "unknown" })
 			if (op.op === "rename") return void store({ t: "member", member: { ...current, name: op.name } })
-			if (op.slug === "kiko") return peer.push({ t: "member_refused", op, reason: "chief" })
+			if (op.slug === "yuki") return peer.push({ t: "member_refused", op, reason: "chief" })
 			if (data.members.length === 1) return peer.push({ t: "member_refused", op, reason: "last" })
 			store({ t: "member_removed", slug: op.slug })
 		},

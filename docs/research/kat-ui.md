@@ -1,4 +1,4 @@
-# kat UI research (for kiko)
+# kat UI research (for yuki)
 
 Sources: `~/kat-images` (screenshots 8-21, `screenshot 1.mov`), `~/kat-replica` (css-src, css), `packages/ui/src/styles/kat.css`.
 Screenshots win over the replica. All screenshots are dark mode, macOS, retina 2x.
@@ -28,7 +28,7 @@ Order top to bottom: chat (speech bubble), terminal (`>_` in a square), code (`<
 tile (radius ~14, est.) with fill `--nav-active-bg` (~#3d2f27) and the glyph in the accent colour (chat glyph is filled,
 code glyph is accent-coloured in shot 15); inactive glyphs are muted grey outlines. Rail is not labelled.
 
-### Horizontal tab navigation (the thing kiko must copy)
+### Horizontal tab navigation (the thing yuki must copy)
 This is the chat tab strip, in the top bar of the main panel (shots 9-13, 18-20). Not shown when a pinned tile/single chat is
 open without tabs (shots 14, 16, 17: title "cat paragraph test" instead) nor in new-chat (shot 21: "to:" field).
 - Position: top bar, x from ~340 CSS (right of sidebar) to the right-side action cluster. Vertical centre ~27 CSS.
@@ -175,9 +175,9 @@ Differences:
 - Missing vs replica: `--panel-edge`-based light variant, hl-* syntax tokens (check), `--popover-shadow` naming, tooltip etc. (not audited line-by-line).
 Action: replace the palette sections 2 of kat.css with the replica values above (dark block at least, optionally light), keep the structural tokens (rail/pin/row sizes) which already match kat measurements, and decide on the font (Inter is OFL and could be shipped, unlike SF).
 
-Extra tokens kiko will need (replica lacks them): tab-strip tokens (tab height 28, max-w 172, pill bg), date-pill, calendar popover, command-palette row/shortcut chip, context-menu item/danger, file-tree (row 30, indent 16, guide), editor gutter/current-line (#1f1e1d), scroll-to-bottom button, clamp fade, reply-bar, empty-state, toast, kbd.
+Extra tokens yuki will need (replica lacks them): tab-strip tokens (tab height 28, max-w 172, pill bg), date-pill, calendar popover, command-palette row/shortcut chip, context-menu item/danger, file-tree (row 30, indent 16, guide), editor gutter/current-line (#1f1e1d), scroll-to-bottom button, clamp fade, reply-bar, empty-state, toast, kbd.
 
-## 9. Proposed kiko screens / routes (derived from kat)
+## 9. Proposed yuki screens / routes (derived from kat)
 
 Shell: rail (60) + sidebar (280, collapsible, ⌘S) + panel with top bar. Rail tabs map to top-level routes:
 

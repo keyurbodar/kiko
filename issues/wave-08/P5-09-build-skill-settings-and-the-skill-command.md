@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-09-build-skill-settings-and-the-skill-command` |
+| Branch | `yuki/p5-09-build-skill-settings-and-the-skill-command` |
 
 ## Verification
 
-The `verify-kiko` skills feature: add a skill in settings, type `/skill:` in the composer, pick it, and see the agent use it.
+The `verify-yuki` skills feature: add a skill in settings, type `/skill:` in the composer, pick it, and see the agent use it.
 
 ## Task
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { effectOf } from "@kiko/agent/effects"
+import { effectOf } from "@yuki/agent/effects"
 import type { ApprovalGate } from "../src/integrations/executor/approval"
 import { executorExtension, toolName } from "../src/integrations/executor/tools"
 
@@ -61,7 +61,7 @@ describe("executor tools (P7-04)", () => {
     return { cards, gate }
   }
 
-  test("P7-05: a pause posts a card at once, and resume runs only against the human's accepted card, with kiko's answer", async () => {
+  test("P7-05: a pause posts a card at once, and resume runs only against the human's accepted card, with yuki's answer", async () => {
     const { cards, gate } = room()
     const sent: [string, Record<string, unknown>][] = []
     const ext = executorExtension(v2, async (name, args) => {

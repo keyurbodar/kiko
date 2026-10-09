@@ -10,11 +10,11 @@
 | Parallel with its wave | no |
 | Needs a worktree | no |
 | Needs a human step | no |
-| Branch | `kiko/p12-01-gate-every-run-nobody-asked-for-through` |
+| Branch | `yuki/p12-01-gate-every-run-nobody-asked-for-through` |
 
 ## Verification
 
-`bun kiko verify routines` passes its budget case: with the user's limit at 2, three due routines run, hold, and run, and the chat says so once. `bun kiko verify proactive` passes its away case.
+`bun yuki verify routines` passes its budget case: with the user's limit at 2, three due routines run, hold, and run, and the chat says so once. `bun yuki verify proactive` passes its away case.
 
 ## Task
 
@@ -25,7 +25,7 @@
 **Build.**
 
 - One delivery path for every wake no human started: the room's 50 a day, then the user's 100, paid once per envelope id.
-- `last_seen` on each socket hello; runs held after 7 days away, with one line in the kiko chat.
+- `last_seen` on each socket hello; runs held after 7 days away, with one line in the yuki chat.
 
 ## Rules for this task
 

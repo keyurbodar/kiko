@@ -1,4 +1,4 @@
-import type { Approval, RoomToClient } from "@kiko/protocol"
+import type { Approval, RoomToClient } from "@yuki/protocol"
 import { type RoomHandle, VerifyError } from "../client"
 import { agentTexts, api, dev, eventually, inSeconds, ok, type Routine, routines, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -32,7 +32,7 @@ const suite: Suite = {
       await send(room, toolLine("create_routine", { name: "ping", instructions: "[reply] pong", trigger: { on: "time", at: inSeconds(4) } }))
       await eventually("the tool result", () => agentTexts(room).some((t) => t.includes("routine set")), 20_000)
       const r = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "ping"), "the routine")
-      if (!["active", "done"].includes(r.status) || r.target !== "kiko" || r.createdBy !== "kiko") throw new VerifyError(`expected an active routine for kiko, got ${JSON.stringify(r)}`)
+      if (!["active", "done"].includes(r.status) || r.target !== "yuki" || r.createdBy !== "yuki") throw new VerifyError(`expected an active routine for yuki, got ${JSON.stringify(r)}`)
       if (cards(room).length) throw new VerifyError("a human's own ask posted a card")
       const runs = await waitRuns(url, s, r.id, "the run to answer", (rs) => rs.some((x) => x.status === "ok"), 40_000)
       if (runs.length !== 1 || runs[0]!.seq === null) throw new VerifyError(`expected one ok run with a seq, got ${JSON.stringify(runs)}`)

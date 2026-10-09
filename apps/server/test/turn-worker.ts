@@ -1,9 +1,9 @@
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
-import type { AgentSlug, AgentState, Envelope, RoomId } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Envelope, RoomId } from "@yuki/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
-import type { AgentSetup, HostOptions } from "@kiko/agent/host"
+import type { AgentSetup, HostOptions } from "@yuki/agent/host"
 import type { RoomPort } from "../src/agent/outbox"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../src/lib/names"
 import type { RoomDO } from "../src/room/room-do"
@@ -48,7 +48,7 @@ export class T extends AgentDO {
   override async fetch(request: Request) {
     const body = (await request.json()) as Body
     if (body.op === "receive") {
-      const home = { userId: "alice", roomId: "01J00000000000000000000000" as RoomId, slug: "kiko" as AgentSlug }
+      const home = { userId: "alice", roomId: "01J00000000000000000000000" as RoomId, slug: "yuki" as AgentSlug }
       return Response.json(await this.receive(body.envelopes, "room: test", home))
     }
     if (body.op === "crash") {

@@ -1,5 +1,5 @@
 /* t3code's control tokens (MIT, apps/web/src/index.css, components/ui/button.tsx, select.tsx,
-   toggle.tsx, switch.tsx, input.tsx, settings/SettingsGroup.tsx), in kiko's colors: t3code's
+   toggle.tsx, switch.tsx, input.tsx, settings/SettingsGroup.tsx), in yuki's colors: t3code's
    white/N in dark mode is the text color at N% here, so light, dark, and glass themes all work.
    What makes them feel solid is the 1px bevel: a light edge on top of an outline control in
    dark mode, a dark edge under it in light mode, plus a faint drop shadow. */
@@ -237,19 +237,19 @@
 }
 
 .kit-range::-webkit-slider-runnable-track {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: linear-gradient(to right, var(--accent) 0 var(--fill), color-mix(in oklab, var(--text) 14%, transparent) var(--fill) 100%);
 }
 
 .kit-range::-moz-range-track {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--text) 14%, transparent);
 }
 
 .kit-range::-moz-range-progress {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: var(--accent);
 }
@@ -257,21 +257,21 @@
 .kit-range::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
-  margin-top: -5px;
-  background: var(--bg);
-  border: 2px solid var(--accent);
+  margin-top: -6px;
+  background: #fff;
+  border: 1px solid var(--kit-border);
   border-radius: 999px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   appearance: none;
 }
 
 .kit-range::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  background: var(--bg);
-  border: 2px solid var(--accent);
+  background: #fff;
+  border: 1px solid var(--kit-border);
   border-radius: 999px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
 }
 
 .kit-range:focus-visible {

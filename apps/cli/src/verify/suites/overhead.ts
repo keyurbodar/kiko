@@ -1,4 +1,4 @@
-import type { RoomToClient, UserToClient } from "@kiko/protocol"
+import type { RoomToClient, UserToClient } from "@yuki/protocol"
 import { type RoomHandle, type Session, type Verifier, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, readStats, resetStats, Samples } from "./latency"
@@ -10,8 +10,8 @@ import { ulid } from "./mid-run"
 // asserts the resume rules: a hello at the newest seq replays nothing, and a hello a few events
 // behind replays exactly those events, in order, with no gap and no repeat.
 
-const N = Number(process.env.KIKO_OVERHEAD_RUNS ?? 20)
-const BIG = Number(process.env.KIKO_OVERHEAD_BIG ?? 1500)
+const N = Number(process.env.YUKI_OVERHEAD_RUNS ?? 20)
+const BIG = Number(process.env.YUKI_OVERHEAD_BIG ?? 1500)
 const now = () => performance.now()
 const bytes = (value: unknown) => JSON.stringify(value).length
 

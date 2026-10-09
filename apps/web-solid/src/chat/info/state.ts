@@ -28,11 +28,11 @@ export const fileMaxWidth = () => (typeof window === "undefined" ? 1200 : Math.m
 /** The panel's two tabs. */
 export type InfoTab = "info" | "files"
 
-const OPEN_KEY = "kiko:info-open"
-const WIDTH_KEY = "kiko:info-width"
-const FILE_WIDTH_KEY = "kiko:info-file-width"
-const TAB_KEY = "kiko:info-tab"
-const FILE_TABS_KEY = "kiko:file-tabs"
+const OPEN_KEY = "yuki:info-open"
+const WIDTH_KEY = "yuki:info-width"
+const FILE_WIDTH_KEY = "yuki:info-file-width"
+const TAB_KEY = "yuki:info-tab"
+const FILE_TABS_KEY = "yuki:file-tabs"
 
 function read(key: string): string | null {
   try {

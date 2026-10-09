@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p12-05-fire-routines-on-chat-events-webhooks-and` |
+| Branch | `yuki/p12-05-fire-routines-on-chat-events-webhooks-and` |
 
 ## Verification
 
-`bun kiko verify routine-triggers` passes all five cases.
+`bun yuki verify routine-triggers` passes all five cases.
 
 ## Task
 

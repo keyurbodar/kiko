@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p9-01-enforce-per-user-limits` |
+| Branch | `yuki/p9-01-enforce-per-user-limits` |
 
 ## Verification
 
-`bun kiko verify limits` passes: with the turn limit set to 2, the third burst gets a `limit` event and no run, and raising the limit record lets the next burst through.
+`bun yuki verify limits` passes: with the turn limit set to 2, the third burst gets a `limit` event and no run, and raising the limit record lets the next burst through.
 
 ## Task
 

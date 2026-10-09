@@ -4,9 +4,9 @@ import {
   pluralCategory,
   pluralKey,
   type UiI18n,
-} from "@kiko/ui/context/i18n";
-import { dict } from "@kiko/ui/i18n/en";
-import { ToastV2 } from "@kiko/ui/v2/toast-v2";
+} from "@yuki/ui/context/i18n";
+import { dict } from "@yuki/ui/i18n/en";
+import { ToastV2 } from "@yuki/ui/v2/toast-v2";
 import { birdPickerSlug } from "../mascot/picker-state";
 import { createEffect, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeInfo, infoOpen, loadInfoPanel } from "../chat/info/state";
@@ -45,11 +45,10 @@ const i18n: UiI18n = {
 // The info panel loads on the first open, or on idle after the first paint. The chat route does not carry it.
 const InfoPanel = lazy(loadInfoPanel);
 // The first-run look screen and the bird picker each load on their own, off the first paint.
-const FirstLook = lazy(() => import("../theme/first-look"));
 const BirdPicker = lazy(() => import("../mascot/picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
-const KEY = "kiko:sidebar-collapsed";
+const KEY = "yuki:sidebar-collapsed";
 
 function readCollapsed() {
   try {
@@ -243,9 +242,6 @@ export function Shell(props: ParentProps) {
           </Suspense>
         </Show>
         <ToastV2.Region />
-        <Suspense>
-          <FirstLook />
-        </Suspense>
         <Show when={birdPickerSlug()}>
           <Suspense>
             <BirdPicker />

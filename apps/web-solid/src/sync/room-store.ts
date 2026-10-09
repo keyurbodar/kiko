@@ -39,7 +39,7 @@ import type {
 	SearchHit,
 	Task,
 	TaskOp,
-} from "@kiko/protocol"
+} from "@yuki/protocol"
 import { batch } from "solid-js"
 import { $RAW, createStore, produce } from "solid-js/store"
 import type { Warm } from "../warm/db"
@@ -84,7 +84,7 @@ export type RoomData = {
 	roster: MemberNotice[]
 }
 
-/** One member joining or leaving, as the transcript shows it: "kiko joined". */
+/** One member joining or leaving, as the transcript shows it: "yuki joined". */
 export type MemberNotice = { seq: number; at: number; slug: AgentSlug; name: string; kind: "joined" | "left" }
 
 export const ROSTER_LIMIT = 100

@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-01-build-the-memory-store` |
+| Branch | `yuki/p5-01-build-the-memory-store` |
 
 ## Verification
 
-`bun kiko verify memory-store` passes: create a record with aliases, find it by an alias, edit it, and read the old version from history.
+`bun yuki verify memory-store` passes: create a record with aliases, find it by an alias, edit it, and read the old version from history.
 
 ## Task
 

@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-06-add-the-reminder-tool-and-agent-wakes` |
+| Branch | `yuki/p5-06-add-the-reminder-tool-and-agent-wakes` |
 
 ## Verification
 
-`bun kiko verify reminder-tool` passes with the test model: "remind me in 5 seconds to stretch" produces a reminder message, and an agent-target reminder starts a run with a `reminder` envelope.
+`bun yuki verify reminder-tool` passes with the test model: "remind me in 5 seconds to stretch" produces a reminder message, and an agent-target reminder starts a run with a `reminder` envelope.
 
 ## Task
 

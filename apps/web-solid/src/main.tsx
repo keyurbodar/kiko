@@ -7,7 +7,7 @@ import "./styles/app.css";
 import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
 import { loadMotion } from "./lib/motion";
-import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
+import { loadOverlaysV2 } from "@yuki/ui/v2/overlays";
 import { startSnapshots } from "./lib/snapshot";
 
 const SignIn = lazy(() => import("./app/sign-in"));
@@ -54,9 +54,6 @@ export function start(): void {
   root.replaceChildren();
   void bootstrapSession();
   render(() => <Router root={Root}>{routes}</Router>, root);
-  // The inline script painted the glass and its stand-in desktop. The sharp chat background
-  // reads from IndexedDB after the first paint.
-  setTimeout(() => void import("./theme/glass").then((m) => m.startGlass()), 0);
   // The shell painted the last screen from the snapshot. It goes once the app has painted its own.
   startSnapshots(() => {
     const s = session().status;
