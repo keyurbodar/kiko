@@ -35,6 +35,8 @@ const LISTING_FRESH_MS = 60_000
 
 export class ExecutorError extends Error {}
 
+type SavedListing = { at: number; tools: ExecutorTool[]; catalog?: ExecutorCatalog }
+
 /** What the authorization server sent back to the callback. */
 export interface CallbackParams {
   code?: string
@@ -60,7 +62,7 @@ export class ExecutorConnection {
    * Lost with this object. A session Executor has forgotten is opened again on the next call.
    */
   private shared: Promise<McpClient> | undefined
-  /** The tools agents get, with the user's apps in execute's description. Lost with this object. */
+  /** The tools agents get, with the user's apps in execute's description. Saved, so a cold object serves the last one. */
   private listing: { at: number; tools: Promise<ExecutorTool[]> } | undefined
   /** The apps the newest listing described. A program the agent writes gets their handles. */
   private catalog: ExecutorCatalog | undefined
@@ -190,7 +192,7 @@ export class ExecutorConnection {
    * for Executor once a listing exists: an old one is served while a new one loads.
    */
   async tools(now = Date.now()): Promise<ExecutorTool[]> {
-    const kept = this.listing
+    const kept = this.listing ?? (await this.savedListing())
     if (kept && now - kept.at < LISTING_FRESH_MS) return kept.tools
     const loading = this.discover()
     const next = { at: now, tools: loading }
@@ -202,7 +204,15 @@ export class ExecutorConnection {
   }
 
   /** Lists the tools, and the user's apps for execute's description. Without the apps, Executor's own description stays. */
+  private async savedListing(): Promise<{ at: number; tools: Promise<ExecutorTool[]> } | undefined> {
+    const saved = await this.store.get<SavedListing>("listing")
+    if (!saved) return undefined
+    this.catalog ??= saved.catalog
+    return { at: saved.at, tools: Promise.resolve(saved.tools) }
+  }
+
   private async discover(): Promise<ExecutorTool[]> {
+    const generation = this.store.generation
     const [listed, catalog] = await Promise.all([
       this.inSession((client) => client.listTools()),
       this.call("execute", { code: DISCOVER_PROGRAM })
@@ -210,12 +220,14 @@ export class ExecutorConnection {
         .catch(() => null),
     ])
     if (catalog) this.catalog = catalog
-    return listed.map((t) => ({
+    const tools: ExecutorTool[] = listed.map((t) => ({
       name: t.name,
       ...(t.name === "execute" && catalog ? { description: describeExecute(catalog) } : t.description ? { description: t.description } : {}),
       inputSchema: t.inputSchema,
       ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
     }))
+    await this.store.put("listing", { at: Date.now(), tools, ...(catalog ? { catalog } : {}) } satisfies SavedListing, generation)
+    return tools
   }
 
   /**

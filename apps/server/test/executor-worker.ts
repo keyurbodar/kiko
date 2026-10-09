@@ -12,6 +12,11 @@ export class UserDO extends Base {
       .toArray()
       .map((r) => ({ name: r.name, ciphertext: new TextDecoder().decode(r.ciphertext) }))
   }
+
+  /** Ends this instance the way an eviction does: the next call gets a new one with no memory. */
+  evict(): void {
+    this.ctx.abort("evicted by the test")
+  }
 }
 
 type Env = { USER: DurableObjectNamespace<UserDO> }

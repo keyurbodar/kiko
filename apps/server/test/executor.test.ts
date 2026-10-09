@@ -468,3 +468,15 @@ test("a program that names an app reaches executor with that app's handle define
   expect(fake.code.endsWith("return await github.get_me()")).toBe(true)
   ws.close()
 })
+
+test("an evicted object serves its last listing without asking executor", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await mf.dispatchFetch(`http://do/rpc/${user}`, { method: "POST", body: JSON.stringify({ method: "evict", args: [] }) }).catch(() => {})
+  const [listed, opened] = [fake.listed, fake.opened]
+  const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+  expect(tools.find((t) => t.name === "execute")?.description).toContain("github: for example await github.get_me({ ... }).")
+  expect([fake.listed, fake.opened]).toEqual([listed, opened])
+  ws.close()
+})
