@@ -17,15 +17,25 @@ export interface ImageDialogController {
 /** One dialog per surface: one for the whole transcript, and one for the composer's strip. */
 export function createImageDialog(): ImageDialogController {
   const [shown, setShown] = createSignal<{ images: readonly DialogImage[]; index: number } | null>(null)
+  /** What had focus when the dialog opened, usually the picture clicked. Focus goes back to it on close. */
+  let opener: HTMLElement | null = null
+  const close = () => {
+    setShown(null)
+    const back = opener
+    opener = null
+    // After the dialog's own focus scope lets go.
+    requestAnimationFrame(() => back?.isConnected && back.focus({ preventScroll: true }))
+  }
   return {
     open: (images, index) => {
       // The modal shell is in the deferred overlay chunk. A page that has not loaded it yet loads it now.
       void loadOverlaysV2()
+      opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
       setShown({ images, index })
     },
     view: (
       <Show when={shown()}>
-        {(s) => <ImageDialog images={s().images} index={s().index} onClose={() => setShown(null)} />}
+        {(s) => <ImageDialog images={s().images} index={s().index} onClose={close} />}
       </Show>
     ),
   }

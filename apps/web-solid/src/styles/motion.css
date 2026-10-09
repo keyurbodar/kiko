@@ -2,7 +2,8 @@
  *
  * Architecture 19.5: navigation, buttons, menus, tabs, the composer, and route
  * changes never animate. Motion is allowed where the user is already waiting:
- * a reaction pop, an attachment added or removed, and an incoming bubble. The
+ * a reaction pop, an attachment added or removed, an incoming bubble, and the
+ * spinner of a file that is loading. The
  * calendar is a popover, so it opens in one frame like a menu. Every rule here
  * hangs off an opt-in `motion-*` class that only those surfaces carry, and none of them is ever
  * put on a navigation, button, menu, tab, or composer element. `motion.test.ts`
@@ -23,6 +24,8 @@
   --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --motion-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --motion-spin: 800ms;
+  --motion-ease-linear: linear;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -72,5 +75,13 @@
   .motion-reply-in {
     transform-origin: 0 100%;
     animation: motion-reply-in var(--motion-base) var(--motion-ease-pop) both;
+  }
+
+  @keyframes motion-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .motion-spin {
+    animation: motion-spin var(--motion-spin) var(--motion-ease-linear) infinite;
   }
 }

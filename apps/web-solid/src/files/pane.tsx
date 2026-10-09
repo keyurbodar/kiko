@@ -1,30 +1,65 @@
 import type { FileOp } from "@kiko/protocol"
 import { FileIcon } from "@kiko/ui/file-icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { CheckIcon, CloseIcon, CodeIcon, CopyIcon, DownloadIcon, EyeIcon, FileAddIcon, FolderAddIcon, FolderTreeIcon, TableIcon, WrapTextIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js"
-import { closeFile, openFile, openFilePath } from "../chat/info/state"
-import { urls, useApp } from "../lib/store"
-import { createFile, withMade } from "./api"
 import { useNavigate } from "@solidjs/router"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
+import { closeFile, dropFileTabs, fileReveal, fileTabsOf, moveFileTabs, openFile, openFilePath, setActiveFile } from "../chat/info/state"
+import { urls, useApp } from "../lib/store"
+import { createFile, PREVIEW_BYTES, readText, withMade } from "./api"
+import { FileBreadcrumbs } from "./breadcrumbs"
+import { SUBHEADER, SurfaceAction } from "./chrome"
 import type { EditorState } from "./editor"
-import { viewerKind, type ViewerKind } from "./kind"
+import { RENDERED, TEXT_KINDS, viewerKind, type ViewerKind } from "./kind"
+import { buildIndex } from "./model"
 import { FileTree } from "./tree"
-import { FileViewer, type ViewMode } from "./viewer"
-import "./pane.css"
+import { FileViewer } from "./viewer"
 
 /*
- * The files tab of the chat's right panel, after t3code's file browser: the room's tree, and the
- * open file beside it. While a file is open the panel is wide, the tree is a 240 px column, and
- * the viewer fills the rest. Below 560 px there is no room for both, so the viewer takes the
- * whole tab and its back arrow returns to the tree.
+ * The files tab of the chat's right panel, after t3code's file preview. Open files are tabs. The
+ * active one shows under a header of crumbs and actions, with the room's tree beside it when the
+ * explorer is open. With no file open the tree is the whole tab.
  *
  * The shell loads this module with the panel's files tab, never with the chat route.
  */
 
+/** A saved switch. Storage can throw in a private window; the switch then lasts the session. */
+function stored(key: string, fallback: boolean) {
+	let initial = fallback
+	try {
+		const raw = localStorage.getItem(key)
+		if (raw !== null) initial = raw === "1"
+	} catch {}
+	const [get, set] = createSignal(initial)
+	const save = (value: boolean) => {
+		set(value)
+		try {
+			localStorage.setItem(key, value ? "1" : "0")
+		} catch {}
+	}
+	return [get, save] as const
+}
+
+// Reading rendered or as source is a preference, not a property of one file, as in t3code.
+const PREFS = {
+	markdown: stored("kiko:file-render-markdown", false),
+	table: stored("kiko:file-render-table", true),
+	html: stored("kiko:file-render-html", true),
+}
+const [wrap, setWrap] = stored("kiko:file-word-wrap", false)
+const [explorer, setExplorer] = stored("kiko:file-explorer-open", true)
+
+const RENDERED_LABELS = {
+	markdown: ["Show rendered markdown", "Show markdown source"],
+	table: ["Show table", "Show source"],
+	html: ["Show rendered page", "Show HTML source"],
+} as const
+
 const [newFile, setNewFile] = createSignal(0)
 const [newFolder, setNewFolder] = createSignal(0)
-/** A file made from the header opens in edit mode, because there is nothing to read yet. */
-const [editNext, setEditNext] = createSignal<string | null>(null)
+/** A file made from the header opens as source, because there is nothing to render yet. */
+const [sourceFor, setSourceFor] = createSignal<string | null>(null)
 
 const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
@@ -39,38 +74,13 @@ const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
 /** Where a tree path lives: its space (a room id or `home`) and its path there. */
 const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
 
-/** Kinds with a rendered view as well as the editor. The header toggles between the two. */
-const RENDERED: Partial<Record<ViewerKind, string>> = { markdown: "Preview", csv: "Table" }
-
-/** New file and new folder, drawn in the panel header while the files tab is open. */
+/** New file and new folder, drawn in the panel header while the files tab is open. They show the tree. */
 export function FilesActions() {
 	return (
 		<>
-			<IconButton label="New file" action="new-file" onClick={() => setNewFile((n) => n + 1)}>
-				<path d="M4 1.5h5l3 3v10H4zM9 1.5v3h3M8 8v4M6 10h4" />
-			</IconButton>
-			<IconButton label="New folder" action="new-folder" onClick={() => setNewFolder((n) => n + 1)}>
-				<path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13zM8 7.5v4M6 9.5h4" />
-			</IconButton>
+			<SurfaceAction label="New file" icon={FileAddIcon} action="new-file" onPress={() => (setExplorer(true), setNewFile((n) => n + 1))} />
+			<SurfaceAction label="New folder" icon={FolderAddIcon} action="new-folder" onPress={() => (setExplorer(true), setNewFolder((n) => n + 1))} />
 		</>
-	)
-}
-
-function IconButton(props: { label: string; action: string; pressed?: boolean; onClick: () => void; children: unknown }) {
-	return (
-		<button
-			type="button"
-			class="fp-icon"
-			aria-label={props.label}
-			title={props.label}
-			data-action={props.action}
-			aria-pressed={props.pressed}
-			onClick={() => props.onClick()}
-		>
-			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-				{props.children as never}
-			</svg>
-		</button>
 	)
 }
 
@@ -90,23 +100,63 @@ export default function FilesPane(props: { chatId: string }) {
 	const home = createMemo(() => withMade(HOME, useApp.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
 	const files = createMemo(() => [...withMade(props.chatId, useApp.activeFiles()), ...home()])
 	const folders = createMemo(() => [...useApp.activeFolders(), HOME, ...useApp.homeFolders().map((f) => `${HOME}/${f}`)])
+	const index = createMemo(() => buildIndex(files().map((f) => f.name), folders()))
+	const tabs = () => fileTabsOf(props.chatId).tabs
 	const path = () => openFilePath(props.chatId)
 	const file = createMemo(() => files().find((f) => f.name === path()))
 	const kind = createMemo<ViewerKind>(() => {
 		const f = file()
 		return f ? viewerKind(f) : "other"
 	})
-	const [mode, setMode] = createSignal<ViewMode>("view")
 	const [editor, setEditor] = createSignal<EditorState>("clean")
-	// Each file opens rendered, except a file just made here, which has nothing to render yet.
-	createEffect(
-		on(path, (p) => {
-			setMode(p && p === editNext() ? "edit" : "view")
-			setEditor("clean")
-			if (p === editNext()) setEditNext(null)
-		}),
-	)
-	const rendered = () => RENDERED[kind()]
+	createEffect(on(path, () => setEditor("clean")))
+	const unsaved = () => editor() === "dirty" || editor() === "saving" || editor() === "error"
+
+	// A line asked for shows in the source, so it wins over the rendered preference until the reader toggles.
+	const reveal = () => {
+		const p = path()
+		return p ? fileReveal(props.chatId, p) : null
+	}
+	const [seenReveal, setSeenReveal] = createSignal<number | null>(null)
+	const renderedMode = () => (file() ? RENDERED[kind()] : undefined)
+	const rendered = () => {
+		const mode = renderedMode()
+		const r = reveal()
+		return !!mode && sourceFor() !== path() && (!r || seenReveal() === r.n) && PREFS[mode][0]()
+	}
+	const toggleRendered = (mode: keyof typeof PREFS) => {
+		PREFS[mode][1](!rendered())
+		setSourceFor(null)
+		const r = reveal()
+		if (r) setSeenReveal(r.n)
+	}
+
+	const [copied, setCopied] = createSignal(false)
+	let copiedTimer: ReturnType<typeof setTimeout> | undefined
+	onCleanup(() => clearTimeout(copiedTimer))
+	/** Copies the file's text. The clipboard gets a promise, so Safari keeps the click's permission across the fetch. */
+	const copy = () => {
+		const f = file()
+		const p = path()
+		if (!f || !p) return
+		const text = readText(where(props.chatId, p).space, f.id, PREVIEW_BYTES).then((r) => {
+			if (r.kind !== "text") throw new Error(r.kind)
+			return r.text
+		})
+		const write =
+			typeof ClipboardItem !== "undefined" && navigator.clipboard?.write
+				? navigator.clipboard.write([new ClipboardItem({ "text/plain": text.then((t) => new Blob([t], { type: "text/plain" })) })])
+				: text.then((t) => navigator.clipboard.writeText(t))
+		write.then(
+			() => {
+				setCopied(true)
+				clearTimeout(copiedTimer)
+				copiedTimer = setTimeout(() => setCopied(false), 1500)
+			},
+			() => showToastV2({ title: "Could not copy this file", variant: "error" }),
+		)
+	}
+
 	/** The extension name when the open file is /extensions/<name>/extension.json in the chat's files. */
 	const extensionAt = (p: string) => /^extensions\/([a-z][a-z0-9-]{1,31})\/extension\.json$/.exec(p)?.[1] ?? null
 	const navigate = useNavigate()
@@ -121,116 +171,176 @@ export default function FilesPane(props: { chatId: string }) {
 		if (!out.ok) return showToastV2({ title: `${out.error}${out.problems?.length ? `: ${out.problems.slice(0, 3).join("; ")}` : ""}`, variant: "error" })
 		navigate("/settings/extensions")
 	}
-	const unsaved = () => editor() === "dirty" || editor() === "saving" || editor() === "error"
 
 	const make = (p: string) => {
 		const at = where(props.chatId, p)
 		void createFile(at.space, at.path).then((made) => {
 			if (!made) return
-			setEditNext(p)
+			setSourceFor(p)
 			openFile(props.chatId, p)
 		})
 	}
 
+	let tabStrip: HTMLDivElement | undefined
+	// The active tab scrolls into view when it changes.
+	createEffect(on(path, () => tabStrip?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest", inline: "nearest" })))
+	/** Left and right move between tabs, as in any tab list. */
+	const tabKeys = (event: KeyboardEvent) => {
+		if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+		const list = tabs()
+		const at = list.indexOf(path() ?? "")
+		const next = list[(at + (event.key === "ArrowLeft" ? -1 : 1) + list.length) % list.length]
+		if (!next) return
+		event.preventDefault()
+		setActiveFile(props.chatId, next)
+		tabStrip?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next)}"] [role="tab"]`)?.focus()
+	}
+
 	return (
-		<div class="files-pane" data-component="files-pane" data-open={path() ? "" : undefined}>
-			<div class="fp-tree">
-				<FileTree
-					roomId={props.chatId}
-					files={files()}
-					folders={folders()}
-					onNewFolder={(path) => op({ op: "mkdir", path })}
-					active={path()}
-					newFileRequests={newFile}
-					newFolderRequests={newFolder}
-					onOpen={(p) => openFile(props.chatId, p)}
-					onNewFile={make}
-					onRename={(from, to) => {
-						op({ op: "mv", from, to })
-						// The open file follows its move.
-						const open = path()
-						if (open && (open === from || open.startsWith(`${from}/`))) openFile(props.chatId, to + open.slice(from.length))
-					}}
-					onDelete={(p, paths) => {
-						const open = path()
-						op({ op: "rm", paths: [p], recursive: paths.length !== 1 || paths[0] !== p })
-						if (open && (open === p || open.startsWith(`${p}/`))) closeFile(props.chatId)
-					}}
-				/>
-			</div>
-			<Show when={path()} keyed>
-				{(p) => (
-					<section class="fp-view" aria-label={baseName(p)}>
-						<header class="fp-view-head" data-component="file-header">
-							<FileIcon node={{ path: p, type: "file" }} />
-							{/* A long folder part is cut at its left end, so the name always shows. */}
-							<span class="fp-path" title={p} data-component="file-path">
-								<Show when={p.includes("/")}>
-									<span class="fp-dir">
-										<span dir="ltr">{p.slice(0, p.lastIndexOf("/") + 1)}</span>
-									</span>
-								</Show>
-								<span class="fp-name">{baseName(p)}</span>
-								<Show when={unsaved()}>
-									<span class="fp-dirty" data-component="file-unsaved" title="Saving" aria-label="Unsaved changes" />
-								</Show>
-							</span>
-							<Show when={!inHome(p) && file() ? extensionAt(p) : null}>
-								{(name) => (
+		<div class="flex min-h-0 flex-1 flex-col" data-component="files-pane" data-open={path() ? "" : undefined}>
+			<Show when={tabs().length}>
+				<div
+					ref={tabStrip}
+					class="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--panel-edge)] px-2 [scrollbar-width:none]"
+					role="tablist"
+					aria-label="Open files"
+					data-component="file-tabs"
+					onKeyDown={tabKeys}
+				>
+					<For each={tabs()}>
+						{(p) => {
+							const active = () => p === path()
+							return (
+								<div
+									class={`flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-0.5 pl-1.5 text-xs ${active() ? "bg-selected text-text" : "text-muted hover:bg-hover hover:text-text"}`}
+									title={p}
+									data-component="file-tab"
+									data-path={p}
+									data-active={active() ? "" : undefined}
+									// A middle click closes the tab, and must not start the browser's autoscroll.
+									onMouseDown={(event) => event.button === 1 && event.preventDefault()}
+									onAuxClick={(event) => event.button === 1 && closeFile(props.chatId, p)}
+								>
 									<button
 										type="button"
-										class="h-7 shrink-0 rounded-[8px] bg-[var(--accent-fill)] px-2.5 text-xs text-[var(--on-accent)] disabled:opacity-50"
-										data-action="install-extension-file"
-										disabled={proposing() || unsaved()}
-										title="Review and install this extension"
-										onClick={() => void installExtension(name())}
+										role="tab"
+										class="flex min-w-0 items-center gap-1 outline-none focus-visible:underline"
+										aria-selected={active()}
+										tabIndex={active() ? 0 : -1}
+										onClick={() => setActiveFile(props.chatId, p)}
 									>
-										{proposing() ? "Checking" : "Install"}
+										<FileIcon node={{ path: p, type: "file" }} class="shrink-0" />
+										<span class="truncate">{baseName(p)}</span>
 									</button>
-								)}
-							</Show>
-							<Show when={file() && rendered()}>
-								{(label) => (
-									<IconButton
-										label={mode() === "edit" ? label() : "Edit"}
-										action="toggle-edit"
-										pressed={mode() === "edit"}
-										onClick={() => setMode(mode() === "edit" ? "view" : "edit")}
+									<button
+										type="button"
+										class="grid size-4 shrink-0 place-items-center rounded-sm text-muted hover:bg-hover hover:text-text"
+										aria-label={`Close ${baseName(p)}`}
+										data-action="close-tab"
+										onClick={() => closeFile(props.chatId, p)}
 									>
-										{mode() === "edit" ? (
-											<path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-										) : (
-											<path d="M11 2.5l2.5 2.5L6 12.5H3.5V10zM9.5 4l2.5 2.5" />
-										)}
-									</IconButton>
-								)}
-							</Show>
-							<Show when={file()}>
-								{(f) => (
-									<a class="fp-icon" href={urls.file(where(props.chatId, p).space, f().id)} download={baseName(p)} aria-label="Download" title="Download" data-action="download-file">
-										<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-											<path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 13.5h11" />
-										</svg>
-									</a>
-								)}
-							</Show>
-							<button type="button" class="fp-icon" aria-label="Close file" title="Close file" data-action="close-file" onClick={() => closeFile(props.chatId)}>
-								<svg width="10" height="10" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
-									<path d="M1 1l6 6M7 1L1 7" />
-								</svg>
-							</button>
-						</header>
-						<FileViewer
-							roomId={where(props.chatId, p).space}
-							path={where(props.chatId, p).path}
-							file={file() && { ...file()!, name: where(props.chatId, p).path }}
-							kind={kind()}
-							mode={rendered() ? mode() : "edit"}
-							onEditorState={setEditor}
+										<HugeIcon icon={CloseIcon} size={12} />
+									</button>
+								</div>
+							)
+						}}
+					</For>
+				</div>
+			</Show>
+			<Show when={path()} keyed>
+				{(p) => (
+					<div class={SUBHEADER} data-component="file-header">
+						<FileBreadcrumbs path={p} index={index()} unsaved={unsaved()} onOpen={(to) => openFile(props.chatId, to)} />
+						<Show when={!inHome(p) && file() ? extensionAt(p) : null}>
+							{(name) => (
+								<button
+									type="button"
+									class="h-6 shrink-0 rounded-md bg-[var(--accent-fill)] px-2 text-xs text-[var(--on-accent)] disabled:opacity-50"
+									data-action="install-extension-file"
+									disabled={proposing() || unsaved()}
+									title="Review and install this extension"
+									onClick={() => void installExtension(name())}
+								>
+									{proposing() ? "Checking" : "Install"}
+								</button>
+							)}
+						</Show>
+						<Show when={renderedMode()}>
+							{(mode) => (
+								<SurfaceAction
+									label={RENDERED_LABELS[mode()][rendered() ? 1 : 0]}
+									icon={rendered() ? CodeIcon : mode() === "table" ? TableIcon : EyeIcon}
+									action="toggle-rendered"
+									pressed={rendered()}
+									onPress={() => toggleRendered(mode())}
+								/>
+							)}
+						</Show>
+						<Show when={file() && TEXT_KINDS.has(kind()) && !rendered()}>
+							<SurfaceAction label={wrap() ? "Disable word wrap" : "Enable word wrap"} icon={WrapTextIcon} action="toggle-wrap" pressed={wrap()} onPress={() => setWrap(!wrap())} />
+						</Show>
+						<Show when={file() && TEXT_KINDS.has(kind())}>
+							<SurfaceAction label={copied() ? "Copied" : "Copy contents"} icon={copied() ? CheckIcon : CopyIcon} action="copy-file" onPress={copy} />
+						</Show>
+						<Show when={file()}>
+							{(f) => <SurfaceAction label="Save file" icon={DownloadIcon} action="download-file" href={urls.file(where(props.chatId, p).space, f().id)} download={baseName(p)} />}
+						</Show>
+						<SurfaceAction
+							label={explorer() ? "Hide file explorer" : "Show file explorer"}
+							icon={FolderTreeIcon}
+							action="toggle-explorer"
+							pressed={explorer()}
+							onPress={() => setExplorer(!explorer())}
 						/>
-					</section>
+						<SurfaceAction label="Close file" icon={CloseIcon} action="close-file" onPress={() => closeFile(props.chatId, p)} />
+					</div>
 				)}
 			</Show>
+			<div class="flex min-h-0 flex-1 overflow-hidden">
+				<Show when={path()} keyed>
+					{(p) => (
+						<section class="flex min-w-0 flex-1 flex-col" aria-label={baseName(p)} data-component="file-surface">
+							<FileViewer
+								roomId={where(props.chatId, p).space}
+								path={where(props.chatId, p).path}
+								file={file() && { ...file()!, name: where(props.chatId, p).path }}
+								kind={kind()}
+								rendered={rendered()}
+								wrap={wrap()}
+								reveal={reveal()}
+								onEditorState={setEditor}
+							/>
+						</section>
+					)}
+				</Show>
+				{/* The tree stays mounted while hidden, so it keeps its folders and scroll. */}
+				<aside
+					class={`min-h-0 flex-col px-2 pt-1 pb-2 ${path() ? "w-[min(22rem,46%)] min-w-64 shrink-0 border-l border-[var(--panel-edge)]" : "min-w-0 flex-1"} ${path() && !explorer() ? "hidden" : "flex"}`}
+					aria-label="File explorer"
+					data-component="file-explorer"
+				>
+					<FileTree
+						roomId={props.chatId}
+						files={files()}
+						folders={folders()}
+						onNewFolder={(p) => op({ op: "mkdir", path: p })}
+						active={path()}
+						newFileRequests={newFile}
+						newFolderRequests={newFolder}
+						onOpen={(p) => openFile(props.chatId, p)}
+						onNewFile={make}
+						onRename={(from, to) => {
+							op({ op: "mv", from, to })
+							// Open tabs follow their move.
+							moveFileTabs(props.chatId, from, to)
+						}}
+						onDelete={(p, paths) => {
+							op({ op: "rm", paths: [p], recursive: paths.length !== 1 || paths[0] !== p })
+							dropFileTabs(props.chatId, p)
+						}}
+					/>
+				</aside>
+			</div>
 		</div>
 	)
 }

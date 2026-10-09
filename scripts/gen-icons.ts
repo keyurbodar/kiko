@@ -81,6 +81,11 @@ const ICONS = {
   smile: "SmileIcon",
   "heart-add": "HeartAddIcon",
   download: "Download04Icon",
+  "wrap-text": "TextWrapIcon",
+  code: "SourceCodeIcon",
+  table: "Table01Icon",
+  "file-add": "FileAddIcon",
+  "folder-add": "FolderAddIcon",
 } as const
 
 /* The svg element carries these, so each glyph keeps only its geometry and any exception. */

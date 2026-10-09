@@ -1,6 +1,6 @@
 import type { ExtensionResult, FileRef } from "@kiko/protocol"
 import { useApp } from "../lib/store"
-import { readFile } from "./api"
+import { readText } from "./api"
 
 // Architecture section 24.6. The human's way to install an extension written in the chat's files:
 // the file header of /extensions/<name>/extension.json offers install, which sends the folder to
@@ -17,7 +17,9 @@ export async function proposeFromFiles(roomId: string, name: string, files: read
   const bundled: Record<string, string> = {}
   try {
     for (const f of mine) {
-      const { text } = await readFile(roomId, f.id)
+      const read = await readText(roomId, f.id)
+      if (read.kind !== "text") throw new Error("not text")
+      const text = read.text
       if (f === manifestFile) manifest = JSON.parse(text)
       else bundled[f.name.slice(dir.length)] = text
     }

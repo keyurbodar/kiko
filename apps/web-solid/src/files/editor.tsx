@@ -1,11 +1,16 @@
 import type { FileRef } from "@kiko/protocol"
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js"
-import { putFile, readFile, sha256Hex } from "./api"
+import { PREVIEW_BYTES, putFile, readText, sha256Hex } from "./api"
+import { SurfaceFailure, SurfaceLoading, SurfaceNotice, UNREADABLE } from "./chrome"
 import type { Mounted } from "./editor-cm"
 import "./editor.css"
 
 /*
- * The text editor for one room file: CodeMirror, always editable, with autosave. An edit saves
+ * A text file's source: CodeMirror with line numbers, the view t3code opens a file in. It reads
+ * at most the first 1 MB. A file that fits is editable and saves itself; a longer one shows its
+ * head, read only, under a notice. A binary file or one that is not UTF-8 says so instead.
+ *
+ * Editing is autosave. An edit saves
  * itself AUTOSAVE_MS after the last keystroke, and at once when the editor loses focus or
  * closes, so there is no save button and nothing to forget. The room's file index is the source
  * of truth for which version exists; this component keeps the version it started from (`base`)
@@ -29,7 +34,7 @@ export function onIndexChange(known: ReadonlySet<string>, latestId: string | und
 }
 
 type Base = { id: string; sha256: string }
-export type EditorState = "loading" | "clean" | "dirty" | "saving" | "conflict" | "error"
+export type EditorState = "loading" | "clean" | "dirty" | "saving" | "conflict" | "error" | "unreadable"
 type State = EditorState
 
 export function TextEditor(props: {
@@ -39,6 +44,10 @@ export function TextEditor(props: {
 	file: FileRef | undefined
 	/** The first version to show. */
 	initial: FileRef
+	/** Long lines wrap. */
+	wrap: boolean
+	/** A line to scroll to and select. A new `n` asks again. */
+	reveal?: { line: number; n: number } | null
 	/** Told every state change, so the header can show an unsaved dot. */
 	onState?: (state: EditorState) => void
 }) {
@@ -49,6 +58,10 @@ export function TextEditor(props: {
 	const [state, setState] = createSignal<State>("loading")
 	const [theirs, setTheirs] = createSignal<FileRef | null>(null)
 	const [message, setMessage] = createSignal("")
+	/** The file's size when the preview is its head only. A truncated file is read only. */
+	const [cut, setCut] = createSignal<number | null>(null)
+	/** True once text is in the editor. Before it, a failed read replaces the body. */
+	const [shown, setShown] = createSignal(false)
 	const type = () => (props.initial.type === "application/octet-stream" ? "text/plain" : props.initial.type)
 	let timer: ReturnType<typeof setTimeout> | undefined
 	let gone = false
@@ -57,16 +70,26 @@ export function TextEditor(props: {
 	async function load(file: FileRef) {
 		setState("loading")
 		try {
-			const { text, sha256 } = await readFile(props.roomId, file.id)
-			base = { id: file.id, sha256 }
+			const read = await readText(props.roomId, file.id, PREVIEW_BYTES)
+			if (read.kind !== "text") {
+				setMessage(UNREADABLE[read.kind])
+				return setState("unreadable")
+			}
+			base = { id: file.id, sha256: read.sha256 }
 			known.add(file.id)
+			setCut(read.truncated ? read.size : null)
 			if (!cm) {
 				const { mountEditor } = await import("./editor-cm")
 				if (!host.isConnected) return
-				cm = mountEditor(host, text, { path: props.path, readOnly: false, onChange: markDirty, onBlur: flush })
-			} else cm.setValue(text)
+				cm = mountEditor(host, read.text, { path: props.path, readOnly: read.truncated, wrap: props.wrap, onChange: markDirty, onBlur: flush })
+			} else {
+				cm.setValue(read.text)
+				cm.setReadOnly(read.truncated)
+			}
+			setShown(true)
 			setTheirs(null)
 			setState("clean")
+			if (props.reveal) cm.revealLine(props.reveal.line)
 		} catch (e) {
 			setMessage(e instanceof Error ? e.message : "Could not load the file")
 			setState("error")
@@ -124,8 +147,9 @@ export function TextEditor(props: {
 		if (!cm || !t) return
 		setState("saving")
 		try {
-			const { sha256 } = await readFile(props.roomId, t.id)
-			base = { id: t.id, sha256 }
+			const read = await readText(props.roomId, t.id, PREVIEW_BYTES)
+			if (read.kind !== "text" || read.truncated) throw new Error("not editable")
+			base = { id: t.id, sha256: read.sha256 }
 			known.add(t.id)
 		} catch {
 			setState("conflict")
@@ -162,6 +186,9 @@ export function TextEditor(props: {
 		onCleanup(() => window.removeEventListener("keydown", onKey, true))
 	})
 
+	createEffect(on(() => props.wrap, (wrap) => cm?.setWrap(wrap), { defer: true }))
+	createEffect(on(() => props.reveal?.n, () => props.reveal && cm?.revealLine(props.reveal.line), { defer: true }))
+
 	// A new version in the index while this file is open.
 	createEffect(
 		on(
@@ -180,11 +207,22 @@ export function TextEditor(props: {
 	)
 
 	// The bar shows only when a human has to decide something.
-	const bar = () => state() === "conflict" || state() === "error"
+	const bar = () => state() === "conflict" || (state() === "error" && shown())
 
 	return (
-		<div class="file-editor" data-component="file-editor" data-state={state()}>
-			<div class="fe-body" ref={host} />
+		<div class="file-editor" data-component="file-editor" data-state={state()} data-truncated={cut() !== null ? "" : undefined}>
+			<Show when={cut()}>
+				{(size) => <SurfaceNotice>Preview limited to the first 1 MB of a {size().toLocaleString()} byte file.</SurfaceNotice>}
+			</Show>
+			<Show when={!shown()}>
+				<Show when={state() === "loading"}>
+					<SurfaceLoading />
+				</Show>
+				<Show when={state() === "error" || state() === "unreadable"}>
+					<SurfaceFailure message={message()} onRetry={state() === "error" ? () => void load(props.file ?? props.initial) : undefined} />
+				</Show>
+			</Show>
+			<div class="fe-body" ref={host} hidden={!shown()} />
 			<Show when={bar()}>
 				<footer class="fe-bar">
 					<Show when={state() === "conflict"}>

@@ -1,7 +1,6 @@
-/* The file editor and viewer. No animation. Colors are kat tokens. */
+/* The source view and rendered markdown. No animation. Colors are kat tokens. */
 
-.file-editor,
-.file-view {
+.file-editor {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -60,34 +59,7 @@
   cursor: default;
 }
 
-.file-view .fv-center {
-  display: grid;
-  min-height: 0;
-  flex: 1;
-  place-content: center;
-  justify-items: center;
-  gap: 8px;
-  padding: 16px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.file-view .fv-scroll {
-  min-height: 0;
-  flex: 1;
-  overflow: auto;
-  padding: 8px 24px 24px;
-}
-
-.file-view .fv-note {
-  padding: 16px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
 .file-view .fv-markdown {
-  max-width: 720px;
-  padding-top: 8px;
   font-size: 14px;
   line-height: 1.6;
   color: var(--text);
@@ -95,109 +67,6 @@
 
 .file-view .fv-markdown > * + * {
   margin-top: 0.75em;
-}
-
-.file-view .fv-table-scroll {
-  padding: 0;
-}
-
-.file-view .fv-table {
-  min-width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.file-view .fv-table th,
-.file-view .fv-table td {
-  max-width: 320px;
-  padding: 4px 16px 4px 8px;
-  text-align: left;
-  vertical-align: top;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.file-view .fv-table th {
-  position: sticky;
-  top: 0;
-  background: var(--bg-subtle);
-  font-weight: 600;
-}
-
-.file-view .fv-table tbody tr:nth-child(even) {
-  background: var(--hover-bg);
-}
-
-.file-view .fv-frame {
-  min-height: 0;
-  flex: 1;
-  border: none;
-  background: #fff;
-}
-
-.file-view .fv-image {
-  display: grid;
-  max-width: 100%;
-  max-height: 100%;
-  min-height: 0;
-  place-items: center;
-  padding: 0;
-  border-radius: 8px;
-  background: none;
-  cursor: zoom-in;
-}
-
-.file-view .fv-image img {
-  max-width: 100%;
-  max-height: calc(100cqh - 32px);
-  border-radius: 8px;
-  object-fit: contain;
-}
-
-.file-view {
-  container-type: size;
-}
-
-.file-view .fv-audio {
-  width: min(360px, 100%);
-}
-
-.file-view .fv-video {
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 8px;
-}
-
-.file-view .fv-card {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  padding: 24px 32px;
-  border-radius: 16px;
-  background: var(--bg-subtle);
-}
-
-.file-view .fv-card-name {
-  max-width: 280px;
-  overflow: hidden;
-  color: var(--text);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-view .fv-download {
-  display: inline-grid;
-  height: 32px;
-  margin-top: 8px;
-  padding: 0 16px;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--bg, #fff);
-  font-weight: 500;
 }
 
 /* Touch targets: the editor bar and its buttons are too small to hit on a phone. */
@@ -211,9 +80,7 @@
   }
 }
 
-.file-editor .fe-btn:focus-visible,
-.file-view .fv-download:focus-visible,
-.file-view .fv-image:focus-visible {
+.file-editor .fe-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

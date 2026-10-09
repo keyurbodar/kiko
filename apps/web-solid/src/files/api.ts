@@ -33,18 +33,44 @@ export async function putFile(roomId: string, path: string, body: string, type: 
 	}
 }
 
-/** The bytes of one stored version, as text, with their hash. */
-export async function readFile(roomId: string, id: string): Promise<{ text: string; sha256: string }> {
-	const res = await fetch(urls.file(roomId, id))
+/** A text preview reads at most this much, as t3code's does. A longer file shows its head, read only. */
+export const PREVIEW_BYTES = 1024 * 1024
+/** A zero byte this early means the file is binary. */
+const SNIFF_BYTES = 8192
+
+export type TextRead =
+	/** `truncated` when `size` is past the bytes read. `sha256` is of the whole file, or empty when truncated. */
+	| { kind: "text"; text: string; sha256: string; truncated: boolean; size: number }
+	| { kind: "binary" }
+	| { kind: "not-utf8" }
+
+/** What some bytes of a `size` byte file are as text. A cut may split a character, so a truncated read decodes as a stream. */
+export function decodeText(bytes: Uint8Array, size: number): { kind: "text"; text: string; truncated: boolean } | { kind: "binary" } | { kind: "not-utf8" } {
+	if (bytes.subarray(0, SNIFF_BYTES).includes(0)) return { kind: "binary" }
+	const truncated = size > bytes.length
+	try {
+		return { kind: "text", text: new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: truncated }), truncated }
+	} catch {
+		return { kind: "not-utf8" }
+	}
+}
+
+/**
+ * One stored version as text. `limit` reads the head with a Range request; leave it out to read
+ * the whole file. The server answers a range with its total size in `content-range`.
+ */
+export async function readText(roomId: string, id: string, limit?: number): Promise<TextRead> {
+	const res = await fetch(urls.file(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
 	if (!res.ok) throw new Error(`The server said ${res.status}`)
-	const bytes = await res.arrayBuffer()
-	return { text: new TextDecoder().decode(bytes), sha256: await sha256Hex(bytes) }
+	const bytes = new Uint8Array(await res.arrayBuffer())
+	const size = Number(res.headers.get("content-range")?.split("/")[1]) || bytes.length
+	const read = decodeText(bytes, size)
+	if (read.kind !== "text") return read
+	return { ...read, size, sha256: read.truncated ? "" : await sha256Hex(bytes) }
 }
 
 const TEXT_TYPES = /^(text\/|application\/(json|xml|javascript|typescript|x-sh|x-yaml|yaml|toml|sql)|image\/svg)/
-const TEXT_EXT = /\.(txt|md|mdx|json|jsonc|ya?ml|toml|ini|env|csv|tsx?|jsx?|mjs|cjs|css|scss|html?|xml|svg|py|rs|go|rb|java|kt|c|h|cpp|hpp|sh|zsh|sql|lock)$/i
-/** Past this the editor would stall, so the file is offered as a download. */
-export const MAX_EDIT_BYTES = 2 * 1024 * 1024
+const TEXT_EXT = /\.(txt|md|mdx|json|jsonc|ya?ml|toml|ini|env|csv|tsx?|jsx?|mjs|cjs|css|scss|html?|xml|svg|py|rs|go|rb|java|kt|c|h|cpp|hpp|sh|zsh|sql|lock|log)$/i
 
 export const isTextFile = (f: Pick<FileRef, "name" | "type">) =>
 	TEXT_TYPES.test(f.type) || TEXT_EXT.test(f.name) || /(^|\/)\.[^/.]+$/.test(f.name)

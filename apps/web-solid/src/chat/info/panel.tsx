@@ -15,11 +15,13 @@ import { loadRoutines, RoutinesPage, routinesOf } from "./routines"
 import {
   closeFile,
   closeInfo,
-  FILE_MAX_WIDTH,
   FILE_MIN_WIDTH,
+  fileMaxWidth,
+  fileTabsOf,
   type InfoTab,
   type InfoView,
   infoDepth,
+  infoOpen,
   infoSections,
   infoTab,
   infoView,
@@ -29,6 +31,7 @@ import {
   panelWidth,
   popInfo,
   pushInfo,
+  reopenClosedFile,
   resetInfo,
   setFileWidth,
   setInfoTab,
@@ -203,7 +206,11 @@ function Back() {
 }
 
 
-/** Drag the left edge. An open file has its own, wider width, so closing it restores the narrow one. */
+/**
+ * Drag the left edge. Open files have their own, wider width, as t3code's preview panel does, so
+ * closing the last restores the narrow one. The line shows on hover and while dragging, like the
+ * sidebar's.
+ */
 function Resizer(props: { chatId: string }) {
   const wide = () => infoTab() === "files" && openFilePath(props.chatId) !== null
   let start: { x: number; width: number; wide: boolean } | null = null
@@ -226,10 +233,10 @@ function Resizer(props: { chatId: string }) {
       aria-orientation="vertical"
       aria-label="Resize panel"
       aria-valuemin={wide() ? FILE_MIN_WIDTH : MIN_WIDTH}
-      aria-valuemax={wide() ? FILE_MAX_WIDTH : MAX_WIDTH}
+      aria-valuemax={wide() ? fileMaxWidth() : MAX_WIDTH}
       aria-valuenow={panelWidth(props.chatId)}
       data-component="info-resizer"
-      class="absolute inset-y-0 left-0 z-10 w-1.5 cursor-col-resize hover:bg-[var(--tab-bg-hover)]"
+      class="absolute inset-y-0 left-0 z-20 w-2 cursor-col-resize after:absolute after:inset-y-0 after:left-0 after:w-0.5 after:bg-[color-mix(in_oklab,var(--text)_14%,transparent)] after:opacity-0 after:content-[''] hover:after:opacity-100 active:after:opacity-100"
       onPointerDown={(event) => {
         start = { x: event.clientX, width: panelWidth(props.chatId), wide: wide() }
         window.addEventListener("pointermove", move)
@@ -248,11 +255,11 @@ const iconButton = "grid size-7 shrink-0 place-items-center rounded-md text-mute
  * border: kat separates with fill or shadow. Nothing here animates.
  */
 export default function InfoPanel(props: { chatId: string }) {
-  // Escape steps back one level: an open file closes to its tree, then the panel closes. It is a
-  // command like every shortcut, and a dialog above the panel (the image dialog, a picker) keeps
-  // its own Escape. Whether a dialog was open is read before anyone handles the key, because the
-  // dialog closes itself on the same keydown, before this command runs.
-  const DIALOG = '[role="dialog"], [role="alertdialog"], [aria-modal="true"]'
+  // Escape closes the panel; its file tabs stay for next time. It is a
+  // command like every shortcut, and a dialog or menu above the panel (the image dialog, a picker,
+  // a crumb's folder menu) keeps its own Escape. Whether one was open is read before anyone handles
+  // the key, because it closes itself on the same keydown, before this command runs.
+  const DIALOG = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"]'
   let dialogOnKey = false
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") dialogOnKey = !!document.querySelector(DIALOG)
@@ -269,9 +276,27 @@ export default function InfoPanel(props: { chatId: string }) {
       passive: true,
       run: () => {
         if (dialogOnKey || document.querySelector(DIALOG)) return
-        if (infoTab() === "files" && openFilePath(props.chatId)) closeFile(props.chatId)
-        else closeInfo()
+        closeInfo()
       },
+    },
+    // Mod+W and Mod+Shift+T already close and reopen chats, so file tabs take Alt with the same letters.
+    {
+      id: "files.close-tab",
+      title: "Close file tab",
+      group: "chat",
+      icon: "close",
+      shortcut: "Alt+W",
+      when: () => infoOpen() && infoTab() === "files" && openFilePath(props.chatId) !== null,
+      run: () => closeFile(props.chatId),
+    },
+    {
+      id: "files.reopen-tab",
+      title: "Reopen closed file tab",
+      group: "chat",
+      icon: "undo",
+      shortcut: "Alt+Shift+T",
+      when: () => infoOpen() && infoTab() === "files" && fileTabsOf(props.chatId).closed.length > 0,
+      run: () => void reopenClosedFile(props.chatId),
     },
   ])
   let scroller: HTMLDivElement | undefined
@@ -293,10 +318,10 @@ export default function InfoPanel(props: { chatId: string }) {
 
   const view = infoView
   const ids = createUniqueId()
-  // Beside the chat the panel leaves the chat at least 400 px. Below 760 px it covers the chat instead.
+  // Beside the chat the panel leaves the chat at least 360 px, as t3code's preview does. Below 760 px it covers the chat instead.
   return (
     <aside
-      class="info-pane relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-[var(--panel-edge)] @min-[761px]/main:max-w-[calc(100%-400px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:bg-[var(--sidebar-solid)] @max-[760px]/main:shadow-[var(--popover-shadow)]"
+      class="info-pane relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-[var(--panel-edge)] @min-[761px]/main:max-w-[calc(100%-360px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:bg-[var(--sidebar-solid)] @max-[760px]/main:shadow-[var(--popover-shadow)]"
       style={{ width: `min(${panelWidth(props.chatId)}px, 100%)` }}
       data-component="info-panel"
       data-tab={infoTab()}

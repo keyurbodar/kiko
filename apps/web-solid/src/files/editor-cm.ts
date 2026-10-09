@@ -27,6 +27,9 @@ export type Mounted = {
 	value(): string
 	setValue(text: string): void
 	setReadOnly(readOnly: boolean): void
+	setWrap(wrap: boolean): void
+	/** Scrolls line `n` (from 1) to the middle and selects it. */
+	revealLine(n: number): void
 	focus(): void
 	destroy(): void
 }
@@ -103,9 +106,10 @@ function highlighter(path: string): Extension {
 export function mountEditor(
 	parent: HTMLElement,
 	doc: string,
-	opts: { path: string; readOnly: boolean; onChange: () => void; onBlur?: () => void },
+	opts: { path: string; readOnly: boolean; wrap: boolean; onChange: () => void; onBlur?: () => void },
 ): Mounted {
 	const editable = new Compartment()
+	const wrapping = new Compartment()
 	const lock = (readOnly: boolean) => [
 		EditorState.readOnly.of(readOnly),
 		EditorView.editable.of(!readOnly),
@@ -131,7 +135,10 @@ export function mountEditor(
 		}),
 	]
 	let readOnly = opts.readOnly
-	const state = (text: string) => EditorState.create({ doc: text, extensions: [...extensions, editable.of(lock(readOnly))] })
+	let wrap = opts.wrap
+	const wrapped = () => (wrap ? EditorView.lineWrapping : [])
+	const state = (text: string) =>
+		EditorState.create({ doc: text, extensions: [...extensions, editable.of(lock(readOnly)), wrapping.of(wrapped())] })
 	const view = new EditorView({ parent, state: state(doc) })
 	return {
 		value: () => view.state.doc.toString(),
@@ -140,6 +147,14 @@ export function mountEditor(
 		setReadOnly: (value) => {
 			readOnly = value
 			view.dispatch({ effects: editable.reconfigure(lock(value)) })
+		},
+		setWrap: (value) => {
+			wrap = value
+			view.dispatch({ effects: wrapping.reconfigure(wrapped()) })
+		},
+		revealLine: (n) => {
+			const line = view.state.doc.line(Math.min(Math.max(1, n), view.state.doc.lines))
+			view.dispatch({ selection: { anchor: line.from, head: line.to }, effects: EditorView.scrollIntoView(line.from, { y: "center" }) })
 		},
 		focus: () => view.focus(),
 		destroy: () => view.destroy(),
