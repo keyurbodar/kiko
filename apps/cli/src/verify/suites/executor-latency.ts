@@ -63,7 +63,7 @@ const suite: Suite = {
         samples.add(`${task.tag}: executor calls`, calls)
         samples.add(`${task.tag}: executor http requests`, c["executor.http"] ?? 0)
         samples.add(`${task.tag}: executor http (s)`, Math.round((c["executor.httpMs"] ?? 0) / 100) / 10)
-        const tools = Object.entries(c).filter(([k]) => k.startsWith("tool.")).map(([k, n]) => `${k.slice(5)}×${n}`).join(" ")
+        const tools = Object.entries(c).filter(([k]) => k.startsWith("executor.call.")).map(([k, n]) => `${k.slice(14)}×${n}`).join(" ")
         answers.push(`${task.tag}: [${tools}] ${text.slice(0, 160)}`)
       }
       user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })
