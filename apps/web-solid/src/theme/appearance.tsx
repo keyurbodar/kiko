@@ -53,7 +53,7 @@ const onThemesAdded = (themes: ThemeDefinition[], updated: boolean) => {
 }
 
 const removeTheme = (theme: ThemeDefinition) => {
-  if (!removeThemes([theme.id])) return void showToastV2({ title: "Couldn't remove the theme. Try again.", variant: "error" })
+  if (!removeThemes([theme.id])) return void showToastV2({ title: "Couldn't remove the theme. Try again", variant: "error" })
   showToastV2({ title: `${theme.label} removed`, description: "Import its file to bring it back." })
 }
 
