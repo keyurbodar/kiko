@@ -1,4 +1,5 @@
 import type { Block, ColumnAlign, Inline, RichText } from "@kiko/protocol"
+import { chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
 
 /* The rich text tree as plain element data. `RichText.tsx` renders this and
  * nothing else, so the table test covers the whole tree-to-DOM mapping. No node
@@ -7,6 +8,7 @@ export type RichNode =
   | { kind: "text"; text: string }
   | { kind: "code"; lang?: string; text: string }
   | { kind: "mention"; slug: string }
+  | { kind: "file"; file: FileTarget; label: string }
   | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[] }
 
 const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {}): RichNode => ({
@@ -18,8 +20,13 @@ const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {
 
 const text = (value: string): RichNode => ({ kind: "text", text: value })
 
-/** The server parser only emits these. Anything else renders as plain text. */
+/** Only these become links. A file href becomes a chip, and anything else renders as plain text. */
 export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(href)
+
+const fileChip = (file: FileTarget): RichNode => ({ kind: "file", file, label: chipLabel(file) })
+
+const plain = (nodes: readonly Inline[]): string =>
+  nodes.map((n) => (n.t === "text" || n.t === "code" ? n.text : n.t === "mention" ? `@${n.slug}` : plain(n.children))).join("")
 
 export function inline(node: Inline): RichNode {
   switch (node.t) {
@@ -32,18 +39,27 @@ export function inline(node: Inline): RichNode {
       return el("em", node.children.map(inline))
     case "strike":
       return el("s", node.children.map(inline))
-    case "code":
-      return el("code", [text(node.text)], { class: "rich-inline-code" })
+    case "code": {
+      const file = inlineCodeFile(node.text)
+      return file ? fileChip(file) : el("code", [text(node.text)], { class: "rich-inline-code" })
+    }
     case "mention":
       return { kind: "mention", slug: node.slug }
-    case "link":
-      if (!safeHref(node.href)) return el("span", node.children.map(inline))
+    case "link": {
+      if (!safeHref(node.href)) {
+        const file = hrefFile(node.href)
+        if (!file) return el("span", node.children.map(inline))
+        // A link that says more than its file's name keeps its words, with the chip after them.
+        if (isFileLabel(plain(node.children), file)) return fileChip(file)
+        return el("span", [...node.children.map(inline), text(" "), fileChip(file)])
+      }
       return el("a", node.children.map(inline), {
         href: node.href,
         target: "_blank",
         rel: "noopener noreferrer",
         class: "rich-link",
       })
+    }
   }
 }
 
@@ -78,4 +94,19 @@ export function block(node: Block): RichNode {
   }
 }
 
-export const richNodes = (tree: RichText): RichNode[] => tree.map(block)
+function chips(nodes: readonly RichNode[], out: Extract<RichNode, { kind: "file" }>[] = []) {
+  for (const node of nodes) {
+    if (node.kind === "file") out.push(node)
+    else if (node.kind === "el") chips(node.children, out)
+  }
+  return out
+}
+
+/** The message's tree. Two chips that share a file name show the parent folders that tell them apart. */
+export function richNodes(tree: RichText): RichNode[] {
+  const nodes = tree.map(block)
+  const files = chips(nodes)
+  const suffixes = parentSuffixes([...new Set(files.map((f) => f.file.path))])
+  for (const chip of files) chip.label = chipLabel(chip.file, suffixes.get(chip.file.path))
+  return nodes
+}

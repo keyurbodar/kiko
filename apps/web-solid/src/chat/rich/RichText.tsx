@@ -2,6 +2,7 @@ import { For, Match, Switch, type JSX } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import type { RichText as RichTextTree } from "@kiko/protocol"
 import { EmojiText } from "../../lib/emoji"
+import { FileChip } from "../ui/FileChip"
 import { Mention } from "../ui/Mention"
 import { CodeBlock } from "./CodeBlock"
 import { richNodes, type RichNode } from "./model"
@@ -14,6 +15,12 @@ function Node(props: { node: RichNode }): JSX.Element {
         {(n) => <EmojiText text={(n() as { text: string }).text} />}
       </Match>
       <Match when={props.node.kind === "mention" && props.node}>{(n) => <Mention slug={(n() as { slug: string }).slug} />}</Match>
+      <Match when={props.node.kind === "file" && props.node}>
+        {(n) => {
+          const f = () => n() as Extract<RichNode, { kind: "file" }>
+          return <FileChip file={f().file} label={f().label} />
+        }}
+      </Match>
       <Match when={props.node.kind === "code" && props.node}>
         {(n) => <CodeBlock lang={(n() as { lang?: string }).lang} text={(n() as { text: string }).text} />}
       </Match>
@@ -33,7 +40,8 @@ function Node(props: { node: RichNode }): JSX.Element {
 
 /**
  * Renders the tree the server parsed. No markdown parser and no innerHTML. Text runs set
- * their emoji in the emoji font and a mention as the member's chip, both inline.
+ * their emoji in the emoji font, a mention as the member's chip, and a file as a chip that
+ * opens it in the files tab, all inline.
  */
 export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
   return (

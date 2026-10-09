@@ -75,3 +75,36 @@
   --sh-comment: #6e7781;
 }
 :root[data-appearance="light"] [data-side="bot"] .bubble-rich .rich-code { background: color-mix(in oklab, var(--text) 6%, transparent); }
+
+/* A file the message names, after t3code's mention chip. Its size is in em so it follows the
+   text, its tint is one hue mixed into the bubble's own text color, so it reads on the dark
+   human bubble and on the agent's bubble in either theme. */
+.rich { --file-chip-accent: oklch(0.62 0.11 215); }
+:root[data-appearance="light"] [data-side="bot"] .rich { --file-chip-accent: oklch(0.55 0.11 215); }
+.file-chip-anchor { display: inline-flex; max-width: 100%; vertical-align: middle; }
+.file-chip {
+  display: inline-flex;
+  height: 1.41em;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.33em;
+  padding: 0 0.5em;
+  border: 1px solid color-mix(in oklab, var(--file-chip-accent) 34%, color-mix(in oklab, currentColor 22%, transparent));
+  border-radius: 0.5em;
+  background: color-mix(in oklab, var(--file-chip-accent) 11%, transparent);
+  color: color-mix(in oklab, var(--file-chip-accent) 22%, currentColor);
+  font: inherit;
+  font-size: 0.86em;
+  font-weight: 500;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.file-chip:hover {
+  border-color: color-mix(in oklab, var(--file-chip-accent) 48%, color-mix(in oklab, currentColor 22%, transparent));
+  background: color-mix(in oklab, var(--file-chip-accent) 17%, transparent);
+}
+.file-chip:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.file-chip[data-missing] { border-style: dashed; }
+.file-chip svg { display: block; width: 1.17em; height: 1.17em; flex-shrink: 0; }
+.file-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

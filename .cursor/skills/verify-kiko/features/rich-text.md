@@ -83,3 +83,25 @@ Selectors this feature relies on:
 - **`foo.zzz` staying prose is the TLD gate, not a parser miss.** A dotted word that is not a url must not become navigation; if a run is linked on a last label that is not a real TLD, that is a defect.
 - **The body is a `<span>`, not a `div`.** A recipe that reaches for `[data-component="chat-text"]` finds nothing — the handle is the `chat-text` class, and it is a QA handle rather than a style hook.
 - **Sending is a composed-app-only path.** The harness mounts `MessageList` alone, so `[data-component="prompt-input"]` is `0` there. See [Composer](./composer.md).
+
+## Agent file chips
+
+An agent's message arrives as a tree the server parsed (`apps/server/src/room/rich-text.ts`), and `apps/web-solid/src/chat/rich/RichText.tsx` draws it. A file the agent names becomes a chip, as in t3code: the file's icon and name in a small tinted pill. A click opens the file in the right panel's files tab. The human's own text never gets chips.
+
+- `file-chip-detect` — a link whose href is a path (`/plan/route.md`, `notes.md:3`, `./a/b.md#L4`, `file:///x.md`) and inline code that is clearly a path (a slash or a `:line`, an extension unless it starts with `/` or `./`, not a hostname or a version) become chips. Fenced code, prose, `node.meta`, `example.com/docs` and `/chat/settings` do not. The rules and their table test live in `chat/rich/file-links.ts`.
+- `file-chip-label` — the label is the file's name, then the parent folders when two chips in one message share a name (`index.ts · a/x`), then the line (`L3`). A link whose words are not the file's name keeps them, with the chip after.
+- `file-chip-open` — a click opens the file at its line. The chat's own files are searched first, then home. A bare name opens its one match. A name no file has draws a dashed edge and shows the toast `No file named <name> in this chat`. A name several files share opens the files tab on its tree.
+- `file-chip-menu` — right-click shows only `Open` and `Copy path`, never the message menu. The tooltip is the full path with its line.
+
+How to drive it, in `agent-browser` only:
+
+- Create files with `fetch("/api/files/<roomId>?path=plan/route.md", { method: "PUT", headers: { "content-type": "text/markdown" }, body: "# route" })`.
+- `/api/dev/agent/seed` writes plain text with no tree, so it draws no chips. Turn on the fake agent with `POST /api/dev/agent/fake { roomId }`, then send a message from the composer. Its reply `heard: <your text>` goes through the parser.
+- Read the chips with `[...document.querySelectorAll("[data-component=chat-file-chip]")].map((e) => [e.textContent, e.dataset.path, e.hasAttribute("data-missing")])`.
+- Measured on 2026-10-09 for the text ``route is in at `/plan/route.md`, see [the plan](/plan/route.md:3) and `notes.md:2`. Also [notes.md](notes.md), `a/x/index.ts`, `b/x/index.ts`, and `missing/gone.md`. Not files: `node.meta`, `example.com/docs`, [settings](/chat/settings).``: seven chips, `route.md`, `route.md · L3`, `notes.md · L2`, `notes.md`, `index.ts · a/x`, `index.ts · b/x`, and `gone.md` with `data-missing`. The last three runs stay code and text.
+- A click on a chip sets `localStorage["kiko:info-tab"]` to `files` and opens the panel on the file.
+
+Gotchas:
+
+- A message stored before the server kept file hrefs has the link's words only, so an old `[x](/plan/a.md)` draws no chip. Send a new one.
+- A right-click before the overlay chunk loads falls through to the message menu. It loads on idle, so wait a second after the page opens.

@@ -10,6 +10,7 @@ function html(node: RichNode): string {
   if (node.kind === "text") return esc(node.text)
   if (node.kind === "code") return `<code-block lang="${node.lang ?? ""}">${esc(node.text)}</code-block>`
   if (node.kind === "mention") return `<mention slug="${node.slug}">`
+  if (node.kind === "file") return `<file path="${node.file.path}"${node.file.line ? ` line="${node.file.line}"` : ""}>${esc(node.label)}</file>`
   const attrs = Object.entries(node.attrs).map(([k, v]) => ` ${k}="${v}"`).join("")
   return `<${node.tag}${attrs}>${node.children.map(html).join("")}</${node.tag}>`
 }
@@ -37,6 +38,23 @@ const cases: [string, Block, string][] = [
     { t: "paragraph", children: [{ t: "link", href: "javascript:alert(1)", children: [t("go")] }] },
     "<p><span>go</span></p>",
   ],
+  ["inline code that is a path is a file chip", { t: "paragraph", children: [{ t: "code", text: "/plan/route.md" }] }, '<p><file path="plan/route.md">route.md</file></p>'],
+  ["inline code that is a name alone stays code", { t: "paragraph", children: [{ t: "code", text: "notes.md" }] }, '<p><code class="rich-inline-code">notes.md</code></p>'],
+  [
+    "a file link named by its file is the chip alone",
+    { t: "paragraph", children: [{ t: "link", href: "/plan/route.md:3", children: [t("route.md")] }] },
+    '<p><file path="plan/route.md" line="3">route.md · L3</file></p>',
+  ],
+  [
+    "a file link with its own words keeps them before the chip",
+    { t: "paragraph", children: [{ t: "link", href: "/plan/route.md:3", children: [t("the plan")] }] },
+    '<p><span>the plan <file path="plan/route.md" line="3">route.md · L3</file></span></p>',
+  ],
+  [
+    "a route link is plain text",
+    { t: "paragraph", children: [{ t: "link", href: "/chat/settings", children: [t("settings")] }] },
+    "<p><span>settings</span></p>",
+  ],
   ["mention", { t: "paragraph", children: [{ t: "mention", slug: "bob" as never }] }, '<p><mention slug="bob"></p>'],
   ["unordered list", { t: "list", items: [[p("a")], [p("b")]] }, "<ul><li><p>a</p></li><li><p>b</p></li></ul>"],
   ["ordered list from 1", { t: "list", start: 1, items: [[p("a")]] }, "<ol><li><p>a</p></li></ol>"],
@@ -60,6 +78,18 @@ describe("rich text tree to DOM", () => {
 
   test.each(cases)("%s", (_name, node, expected) => {
     expect(html(block(node))).toBe(expected)
+  })
+
+  test("two chips that share a name show their folders, and a fenced block is never a chip", () => {
+    const out = richNodes([
+      { t: "paragraph", children: [{ t: "code", text: "a/x/index.ts" }, t(" "), { t: "code", text: "b/x/index.ts" }, t(" "), { t: "code", text: "c/y.ts" }] },
+      { t: "code_block", text: "a/x/index.ts" },
+    ])
+      .map(html)
+      .join("")
+    expect(out).toBe(
+      '<p><file path="a/x/index.ts">index.ts · a/x</file> <file path="b/x/index.ts">index.ts · b/x</file> <file path="c/y.ts">y.ts</file></p><code-block lang="">a/x/index.ts</code-block>',
+    )
   })
 
   test("the protocol fixture renders every node type", () => {

@@ -1,12 +1,15 @@
 // Architecture section 6.4. One function turns agent markdown into the
 // protocol tree. The `marked` lexer is confined to this file. Nothing here
-// emits HTML: a raw HTML token becomes text, and only http, https, and mailto
-// links survive.
+// emits HTML: a raw HTML token becomes text. A link keeps its href when it is
+// http, https, or mailto, or when it names a file (no scheme, or `file:`). The
+// client draws a file href as a chip that opens the files tab, never as a link.
 
 import { isAgentSlug, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@kiko/protocol"
 import { Lexer, type Token, type Tokens } from "marked"
 
-const SAFE_LINK = /^(https?|mailto):/i
+const SAFE_LINK = /^(https?|mailto|file):/i
+/** A scheme, as in `javascript:`. `notes.md:3` is a file with a line, not a scheme. */
+const SCHEME = /^[a-z][a-z0-9+.-]*:(?!\d)/i
 const MENTION = /(^|[^\w@/.-])@([a-z0-9-]{1,32})(?![\w-])/g
 
 export function parseRichText(markdown: string): RichText {
@@ -103,7 +106,7 @@ function push(out: Inline[], token: Token): void {
 			const t = token as Tokens.Link
 			const children = inlines(t.tokens)
 			const href = t.href.trim()
-			if (SAFE_LINK.test(href)) out.push({ t: "link", href, children })
+			if (SAFE_LINK.test(href) || !SCHEME.test(href)) out.push({ t: "link", href, children })
 			else out.push(...children)
 			return
 		}

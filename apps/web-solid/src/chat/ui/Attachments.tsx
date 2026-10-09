@@ -6,7 +6,6 @@ import { cn } from "../../lib/cn"
 import { splitFiles, tileSpan } from "../../lib/attachments"
 import type { MessageFile } from "../../lib/types"
 import { openFile } from "../info/state"
-import { viewerKind } from "../../files/kind"
 import type { DialogImage } from "./image-dialog"
 
 /*
@@ -15,9 +14,9 @@ import type { DialogImage } from "./image-dialog"
  * A file's type decides which it is, so a message stored with the old media draws the same way.
  */
 
-/** The files tab opens a stored file it can draw. Anything else opens in a new tab. */
+/** A stored file opens in the files tab, which says so when it cannot draw it. One still uploading opens in a new tab. */
 function preview(roomId: string, file: MessageFile) {
-  if (file.path && viewerKind(file) !== "other") openFile(roomId, file.path)
+  if (file.path) openFile(roomId, file.path)
   else window.open(file.src, "_blank", "noopener")
 }
 
