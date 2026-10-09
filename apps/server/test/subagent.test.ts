@@ -105,3 +105,37 @@ test("a teammate's answer from a tainted run taints the asker's run; a clean one
   expect(await askThenNote(true)).toBe("noted (tainted)")
   expect(await askThenNote(false)).toBe("noted")
 })
+
+test("helpers called in one reply run side by side, at most three at a time", async () => {
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } })
+  const faux = fauxProvider()
+  let running = 0
+  let peak = 0
+  let answers: string[] = []
+  const firstInput = (r: Request) => JSON.stringify((r.messages as Msg[]).find((m) => m.role === "user")?.content ?? "")
+  const step = async (r: Request) => {
+    const messages = r.messages as Msg[]
+    if (!firstInput(r).includes("task ")) {
+      const results = messages.filter((m) => m.role === "toolResult" && m.toolName === "spawn_subagent")
+      if (results.length === 0) {
+        return fauxAssistantMessage([1, 2, 3, 4].map((n) => fauxToolCall("spawn_subagent", { task: `task ${n}` })), { stopReason: "toolUse" })
+      }
+      answers = results.map((m) => (m.content ?? []).map((p) => p.text ?? "").join(""))
+      return fauxAssistantMessage("done")
+    }
+    running++
+    peak = Math.max(peak, running)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    running--
+    return fauxAssistantMessage(`answer to ${/task \d/.exec(firstInput(r))![0]}`)
+  }
+  faux.setResponses(Array.from({ length: 6 }, () => step))
+  const models = createModels()
+  models.setProvider(faux.provider)
+  const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
+  const root = await harness.root(context, { agent: built.agent })
+  expect((await (await root.submit({ type: "input", content: "go" }, context)).wait(context)).status).toBe("done")
+  await harness.close(context)
+  expect(peak).toBe(3)
+  expect(answers.sort()).toEqual(["answer to task 1", "answer to task 2", "answer to task 3", "answer to task 4"])
+})

@@ -76,6 +76,16 @@ const suite: Suite = {
       if (!/marigold-?42/i.test(word)) throw new VerifyError(`the helper did not know the chat's code word: ${JSON.stringify(word)}`)
       expectEqual((await children(v.url, s, roomId)).length, 2, "child conversations")
       step("a helper reads the chat's memory: it knew the code word")
+
+      // More helpers than one agent runs at once (MAX_HELPERS, 3): the fourth waits for a slot and still answers.
+      const fanned = seen(room).live.length
+      await send(room, "in one reply, call spawn_subagent four times at once, with these tasks: \"answer with only the word red\", \"answer with only the word green\", \"answer with only the word blue\", \"answer with only the word gold\". then reply with the four words the helpers gave you.")
+      await until("the four helpers' words", () => seen(room).live.length > fanned && statuses(room).at(-1) === "idle", 240_000)
+      const words = seen(room).live.slice(fanned).map((m) => m.text).join(" ").toLowerCase()
+      const missing = ["red", "green", "blue", "gold"].filter((w) => !words.includes(w))
+      if (missing.length) throw new VerifyError(`the reply lacks ${missing.join(", ")}: ${JSON.stringify(words.slice(0, 200))}`)
+      expectEqual((await children(v.url, s, roomId)).length, 6, "child conversations")
+      step(`four helpers in one reply all answered: ${JSON.stringify(words.slice(0, 80))}`)
     } finally {
       room.raw.close()
     }

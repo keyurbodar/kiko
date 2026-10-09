@@ -2,7 +2,7 @@ import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
-import { Subagent } from "./extensions/subagent"
+import { subagentExtension } from "./extensions/subagent"
 import { type EffectDeclaration, effectTable } from "@yuki/agent/effects"
 import { type Approvals, trustExtension } from "@yuki/agent/trust"
 import type { Authority } from "@yuki/agent/authority"
@@ -67,7 +67,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate, input.files?.fs)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
-    Subagent,
+    subagentExtension(),
     ...(input.testExtensions ?? []),
   ]
 }

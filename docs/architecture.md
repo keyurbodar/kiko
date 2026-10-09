@@ -425,11 +425,12 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 
 ## 8. Subagents
 
-**Decision.** `spawn_subagent(task)` is a tool in a `Subagent` extension, written from the pattern in the `pi-durable` README ("Abort and Subagents"). It is about 40 lines.
+**Decision.** `spawn_subagent(task)` is a tool in the `subagent` extension, written from the pattern in the `pi-durable` README ("Abort and Subagents"). It is about 40 lines.
 
 - The tool creates a child conversation in the same harness with `ownership: {kind: "task", taskId: api.taskId}`, submits the task with `requestId: "subagent:<taskId>"`, waits, and returns the answer as the tool result.
 - The tool declares `replay: "safe"`. After a crash it finds the same child through the ownership index.
-- The child runs with the parent's model unless the agent passes a cheaper one. The child has no `Subagent` extension and no messaging tools, so depth is 1.
+- The child runs with the parent's model. The child has no `Subagent` extension and no messaging tools, so depth is 1.
+- Several calls in one reply run side by side, since `pi-durable` runs a round's tool calls in parallel by default. One agent runs at most 3 helpers at once (`MAX_HELPERS`) and the rest wait for a slot, because every helper uses the human's one key. The slots are per agent, so the designer's helpers never wait on the writer's. A waiting call whose run is aborted leaves the queue. ASSUMPTION: the number 3.
 - The child can `recall` and `zoom` the chat's memory, but has no `note`: it cannot judge what is already known (section 13). It starts with no `<memory>` block and finds what it needs with `recall`. OptChat sends a subagent the whole view first. Yuki does not: that costs a block of tokens on every helper, and the read tools cost nothing until used.
 - Aborting the parent aborts the child. `pi-durable` owns that rule.
 
