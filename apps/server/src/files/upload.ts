@@ -3,6 +3,7 @@ import type { Env } from "../index"
 import { addressRoom, userStub } from "../lib/names"
 import type { SessionLookup } from "../router"
 import type { NewFile } from "../room/files"
+import { pendingRoute } from "./pending"
 
 // Architecture section 18.1. Bytes go from the client through the Worker to R2 as a
 // stream. The Worker computes SHA-256, then asks the room to index the object. The
@@ -15,6 +16,7 @@ import type { NewFile } from "../room/files"
 //   PUT    /api/files/<roomId>/uploads/<fileId>/<part>?uploadId=  -> { partNumber, etag }
 //   POST   /api/files/<roomId>/uploads/<fileId>?uploadId=      { parts } -> { file }
 //   DELETE /api/files/<roomId>/uploads/<fileId>?uploadId=      aborts
+//   *      /api/files/<roomId>/pending/...                     a composer attachment before it is sent (pending.ts)
 //
 // R2 multipart rules apply to the parts: every part but the last is at least 5 MiB and
 // all of them are the same size. R2 refuses the completion otherwise.
@@ -114,7 +116,7 @@ async function usedBytes(bucket: R2Bucket, userId: string): Promise<number> {
 }
 
 /** Null when `size` more bytes fit, or the refusal. */
-async function refuse(bucket: R2Bucket, userId: string, size: number): Promise<Response | null> {
+export async function refuse(bucket: R2Bucket, userId: string, size: number): Promise<Response | null> {
 	if (size > MAX_FILE_BYTES) return error(413, "file too large")
 	if ((await usedBytes(bucket, userId)) + size > STORAGE_LIMIT_BYTES) return error(413, "storage limit reached")
 	return null
@@ -268,6 +270,7 @@ export async function uploadRoute(
 	const [head, fileId = "", n] = rest
 
 	if (!rest.length && request.method === "PUT") return putOne(request, env, user.id, roomId, url)
+	if (head === "pending") return pendingRoute(request, env, user.id, roomId, rest.slice(1))
 	if (head !== "uploads") return error(404, "not found")
 	if (rest.length === 1 && request.method === "POST") return create(request, env, user.id, roomId)
 	if (!isFileId(fileId) || !uploadId) return error(404, "not found")

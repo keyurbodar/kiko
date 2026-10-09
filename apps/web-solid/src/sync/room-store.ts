@@ -26,6 +26,7 @@ import type {
 	Approval,
 	ClientToRoom,
 	FileRef,
+	PendingAttachment,
 	Member,
 	MemberOp,
 	MemberRefusal,
@@ -60,6 +61,7 @@ import {
 	type ViewMessage,
 } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
+import { retryFailedUploads } from "./uploads"
 
 // The room's durable state and the one reducer for it. The mock room uses the
 // same reducer, so the client and the fake server cannot drift apart.
@@ -337,10 +339,10 @@ export type SendOptions = {
 	replyTo?: MessageId
 	/** The words of `replyTo` this message answers. */
 	quote?: string
-	files?: readonly FileRef[]
-	/** Attachments still uploading: the message shows them now and leaves when `uploads` resolves (P8-06). */
+	/** Uploads the room claims as it stores the message (section 18.1). Each was uploaded when it was picked. */
+	attachments?: readonly PendingAttachment[]
+	/** The same files from their blob URLs, so the message shows them until the room's copy arrives. */
 	local?: readonly LocalAttachment[]
-	uploads?: Promise<readonly FileRef[]>
 }
 
 export type RoomStore = {
@@ -381,6 +383,8 @@ export type RoomStore = {
 	/** `rm` or `mv` on the room's files, applied at once. A refusal drops the patch and calls every `onFilesRefused` listener. */
 	fileOp(op: FileOp): void
 	onFilesRefused(listener: (op: FileOp, reason: string) => void): () => void
+	/** Calls `listener` when the room refuses a send, such as one whose attachments expired. The message stays, marked failed. */
+	onSendRefused(listener: (reason: string) => void): () => void
 	/** Searches the room's messages, newest first. `before` is the `next` of the previous page. Null when the room does not answer. */
 	search(query: string, before?: number, limit?: number): Promise<SearchPage | null>
 	/**
@@ -410,9 +414,9 @@ type RoomMeta = Omit<RoomData, "messages" | "seq">
 const metaKey = (roomId: RoomId) => `room:${roomId}`
 
 /**
- * Frees the object URLs a send drew its attachments from. Called once the uploads landed and the
- * message shows the server's files, and for a send still uploading when the room closes (its
- * upload already holds the bytes).
+ * Frees the object URLs a send drew its attachments from. Called once the room confirmed the send
+ * and the message shows the room's files, and for every unconfirmed send when the room closes (the
+ * outbox brings it back without them).
  */
 export function freeLocal(local: readonly LocalAttachment[] | undefined): void {
 	for (const f of local ?? []) if (f.src.startsWith("blob:")) URL.revokeObjectURL(f.src)
@@ -469,13 +473,15 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	let following = true
 	const refusalListeners = new Set<(op: MemberOp, reason: MemberRefusal) => void>()
 	const fileRefusalListeners = new Set<(op: FileOp, reason: string) => void>()
+	const sendRefusalListeners = new Set<(reason: string) => void>()
 
 	// Patches.
 
 	const setPatches = (fn: (p: RoomPatch[]) => RoomPatch[]) => setState("patches", (p) => fn(p))
 
 	function transmit(p: RoomPatch) {
-		if (p.held) return
+		// A refused send stays on screen, marked failed. Sending it again would be refused again.
+		if (p.failed) return
 		if (!socket?.send(p.frame)) return
 		const sentAt = now()
 		setPatches((list) => list.map((x) => (x.clientId === p.clientId ? { ...x, sentAt } : x)))
@@ -501,7 +507,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	function dropPatches(next: RoomPatch[]) {
 		const kept = new Set(next.map((p) => p.clientId))
 		for (const p of raw(state.patches)) {
-			if (!kept.has(p.clientId) && p.frame.t === "send") void removeFromOutbox(warm, p.clientId)
+			if (kept.has(p.clientId) || p.frame.t !== "send") continue
+			void removeFromOutbox(warm, p.clientId)
+			freeLocal(p.local)
 		}
 		if (next.length !== state.patches.length) setState("patches", next)
 	}
@@ -687,6 +695,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			dropPatches(raw(state.patches).filter((p) => !refused(p)))
 			for (const listener of refusalListeners) listener(f.op, f.reason)
 		},
+		send_refused: (f) => {
+			void removeFromOutbox(warm, f.clientId)
+			setPatches((list) => list.map((p) => (p.clientId === f.clientId ? { ...p, failed: true, reason: f.reason } : p)))
+			for (const listener of sendRefusalListeners) listener(f.reason)
+		},
 		files_refused: (f) => {
 			const same = (p: RoomPatch) => p.frame.t === "files" && JSON.stringify(p.frame.op) === JSON.stringify(f.op)
 			dropPatches(raw(state.patches).filter((p) => !same(p)))
@@ -705,6 +718,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		for (const w of waiting) w()
 		// Pending frames go out after `hello`, oldest first. Acknowledged sends are already stored.
 		for (const p of [...raw(state.patches)]) if (!p.ack) transmit(p)
+		// An attachment upload that failed while the room was unreachable goes again, as in t3code.
+		retryFailedUploads()
 	}
 
 	function onStatus(connection: SocketStatus) {
@@ -802,26 +817,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const frame: RoomPatchFrame = { t: "send", clientId, text }
 			if (opts.replyTo) frame.replyTo = opts.replyTo
 			if (opts.replyTo && opts.quote) frame.quote = opts.quote
-			if (opts.files?.length) frame.files = opts.files
-			const p: RoomPatch = { clientId, frame, at: now() }
-			if (opts.uploads) {
-				// Shown now from the local files. The frame leaves, and reaches the outbox, once every upload landed.
-				p.local = opts.local
-				p.held = true
-				setPatches((list) => [...list, p])
-				opts.uploads.then(
-					(files) => {
-						const sent = { ...frame, files } as Extract<RoomPatchFrame, { t: "send" }>
-						const ready: RoomPatch = { ...p, held: false, frame: sent, local: undefined }
-						void addToOutbox(warm, { roomId, frame: sent, createdAt: p.at })
-						setPatches((list) => list.map((x) => (x.clientId === clientId ? ready : x)))
-						freeLocal(p.local)
-						transmit(ready)
-					},
-					() => setPatches((list) => list.map((x) => (x.clientId === clientId ? { ...x, failed: true } : x))),
-				)
-				return clientId
-			}
+			if (opts.attachments?.length) frame.attachments = opts.attachments
+			const p: RoomPatch = { clientId, frame, at: now(), ...(opts.local?.length ? { local: opts.local } : {}) }
 			// The outbox write is queued before the socket sees the frame. Its flush is not awaited.
 			void addToOutbox(warm, { roomId, frame, createdAt: p.at })
 			setPatches((list) => [...list, p])
@@ -866,6 +863,10 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		onFilesRefused(listener) {
 			fileRefusalListeners.add(listener)
 			return () => fileRefusalListeners.delete(listener)
+		},
+		onSendRefused(listener) {
+			sendRefusalListeners.add(listener)
+			return () => sendRefusalListeners.delete(listener)
 		},
 		search(query, before, limit) {
 			return ask<SearchPage>(searchKey(query, before), {
@@ -927,7 +928,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		close() {
 			closed = true
-			for (const p of raw(state.patches)) if (p.held) freeLocal(p.local)
+			for (const p of raw(state.patches)) freeLocal(p.local)
 			// The disk keeps a long history, not every message the room ever had.
 			dropBefore(warm, roomId, state.seq - KEEP_ON_DISK)
 			for (const waiting of asked.values()) for (const done of waiting) done(null)

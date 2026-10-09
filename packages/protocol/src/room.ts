@@ -20,6 +20,20 @@ export type FileRef = {
 	type: string
 }
 
+/**
+ * A file the human uploaded when they picked it, which the room has not claimed yet (architecture
+ * section 18.1). A `send` names it, and the room moves it into the chat's files as it stores the message.
+ */
+export type PendingAttachment = {
+	/** The id the client chose for the upload. The claimed file keeps it. */
+	pendingId: string
+	name: string
+	/** MIME type. */
+	type: string
+	/** Bytes. Must equal what was uploaded. */
+	size: number
+}
+
 /** One actor has at most one reaction on a message. */
 export type Reaction = { by: Actor; emoji: string }
 
@@ -187,7 +201,12 @@ export type ChatSearchPage = { results: readonly ChatSearchHit[]; next: number |
 
 export type ClientToRoom =
 	| { t: "hello"; lastSeq: number }
-	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; files?: readonly FileRef[] }
+	/**
+	 * `attachments` are claimed from the pending uploads. `files` is what a client from before
+	 * 2026-10-09 sends: files it stored itself. The room accepts them for one release, and only
+	 * when each one is already in the chat's files.
+	 */
+	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; attachments?: readonly PendingAttachment[]; files?: readonly FileRef[] }
 	| { t: "react"; messageId: MessageId; emoji: string | null }
 	| { t: "edit"; messageId: MessageId; text: string }
 	| { t: "delete"; messageId: MessageId }
@@ -225,6 +244,8 @@ export type RoomToClient =
 	| { t: "status"; slug: AgentSlug; state: AgentState; doing?: string }
 	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
+	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */
+	| { t: "send_refused"; clientId: string; reason: string }
 	/** Not stored. Sent only to the socket whose `files` frame changed nothing. */
 	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
 	/** Not stored. The answer to `search` for one socket. `next` is the `before` for the following page, or null at the end. */

@@ -490,28 +490,50 @@ describe("the room store", () => {
 		expect(await store.search("apple")).toBeNull()
 	})
 
-	test("a send's object URLs are revoked once its uploads land, and a held send's when the room closes", async () => {
+	test("a send names its uploads, shows its blob URLs until the room confirms it, then frees them", async () => {
 		const revoked: string[] = []
 		const original = URL.revokeObjectURL
 		URL.revokeObjectURL = (url: string) => void revoked.push(url)
 		try {
-			const { make } = setup()
+			const { mock, make } = setup()
 			const { store } = await make()
 			await store.ready
-			let land!: (files: never[]) => void
-			const uploads = new Promise<never[]>((r) => (land = r))
-			store.send("pic", { local: [{ src: "blob:one", name: "a.png", type: "image/png", size: 1 }], uploads })
-			store.send("held", { local: [{ src: "blob:two", name: "b.png", type: "image/png", size: 1 }], uploads: new Promise(() => {}) })
-			expect(revoked).toEqual([])
-			land([])
-			await uploads
-			await Promise.resolve()
+			await until(() => store.state.connection === "open")
+			const attachments = [{ pendingId: "0199a8f0-0000-7000-8000-00000000000a", name: "a.png", type: "image/png", size: 1 }]
+			const clientId = store.send("pic", { attachments, local: [{ src: "blob:one", name: "a.png", type: "image/png", size: 1 }] })
+			const sent = store.messages().find((m) => m.clientId === clientId)
+			expect(sent?.local?.map((f) => f.src)).toEqual(["blob:one"])
+			await until(() => mock.received.some((f) => f.t === "send"))
+			expect(mock.received.find((f) => f.t === "send")).toMatchObject({ attachments })
+			await until(() => store.messages().some((m) => !m.pending && m.text === "pic"))
+			const stored = store.messages().find((m) => m.text === "pic")!
+			expect(stored.files?.map((f) => f.id)).toEqual([attachments[0]!.pendingId])
+			expect(store.files().map((f) => f.id)).toContain(attachments[0]!.pendingId)
 			expect(revoked).toEqual(["blob:one"])
-			store.close()
-			expect(revoked).toEqual(["blob:one", "blob:two"])
 		} finally {
 			URL.revokeObjectURL = original
 		}
+	})
+
+	test("a send the room refuses stays, marked failed with the reason, and is not sent again", async () => {
+		const { mock, make } = setup()
+		const { store, warm } = await make()
+		await store.ready
+		await until(() => store.state.connection === "open")
+		const reason = "Attachment 'a.png' cannot be sent: attachment not found (removed or expired)."
+		mock.refuseNextSend = reason
+		const heard: string[] = []
+		store.onSendRefused((r) => heard.push(r))
+		const clientId = store.send("pic", { attachments: [{ pendingId: "0199a8f0-0000-7000-8000-00000000000b", name: "a.png", type: "image/png", size: 1 }] })
+		await until(() => heard.length === 1)
+		expect(heard).toEqual([reason])
+		expect(store.messages().find((m) => m.clientId === clientId)).toMatchObject({ failed: true, reason })
+		await warm.flush()
+		expect((await outbox(warm, roomId)).some((i) => i.frame.clientId === clientId)).toBe(false)
+		mock.drop()
+		await until(() => store.state.connection === "open")
+		await sleep(30)
+		expect(mock.received.filter((f) => f.t === "send" && f.clientId === clientId).length).toBe(1)
 	})
 
 	test("an edit or delete of a message outside the window reaches the disk", async () => {

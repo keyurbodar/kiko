@@ -3,7 +3,7 @@
 // The object can hibernate between any two frames, so a socket's state lives in
 // its attachment and the room's state lives in SQLite. Nothing here is kept in memory.
 
-import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, RoomEvent, RoomToClient, TaskOp, FileOp } from "@kiko/protocol"
+import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@kiko/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
@@ -32,6 +32,11 @@ export interface SocketRoom {
 	memberOp(op: MemberOp): MemberRefusal | null
 	/** A human's `rm` or `mv` on the room's files. The refusal for the socket, or null. */
 	fileOp(op: FileOp): string | null
+	/**
+	 * A human's `send` (section 18.1): claims its attachments and stores the message in one
+	 * transaction. Returns the ack and the events to publish, or why it stored nothing.
+	 */
+	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }
 	/** A human's task board change (section 7.6). Publishes what it stored. */
 	taskOp(op: TaskOp): void
 	/** A human's decision on an approval card (P7-02). Publishes the change; a repeat does nothing. */
@@ -88,7 +93,7 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 	}
 	switch (frame.t) {
 		case "send":
-			return frame.text.length <= MAX_TEXT && (frame.text.trim() !== "" || !!frame.files?.length) ? frame : null
+			return frame.text.length <= MAX_TEXT && (frame.text.trim() !== "" || !!frame.files?.length || !!frame.attachments?.length) ? frame : null
 		case "edit":
 			return frame.text.length <= MAX_TEXT && frame.text.trim() !== "" ? frame : null
 		case "react":
@@ -108,12 +113,12 @@ export function handleFrame(room: SocketRoom, ws: WebSocket, raw: string | Array
 		if (!retired(raw)) ws.close(BAD_FRAME, "bad frame")
 		return
 	}
-	const event = apply(room, ws, frame)
-	if (event) room.publish([event])
+	const events = apply(room, ws, frame)
+	if (events) room.publish(Array.isArray(events) ? events : [events])
 }
 
-/** Applies one frame and returns the event it stored, if any. */
-function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent | null {
+/** Applies one frame and returns the events it stored, if any. */
+function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent | readonly RoomEvent[] | null {
 	const { log } = room
 	const human = { kind: "human" } as const
 	switch (frame.t) {
@@ -122,18 +127,13 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			ws.serializeAttachment({ ...attachment(ws), ready: true } satisfies Attachment)
 			return null
 		case "send": {
-			const replyTo = frame.replyTo && log.message(frame.replyTo) ? frame.replyTo : undefined
-			const stored = log.addMessage({
-				from: human,
-				text: frame.text,
-				clientId: frame.clientId,
-				...(replyTo ? { replyTo } : {}),
-				// A quote belongs to a reply: the words the human picked from the message they answer.
-				...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
-				...(frame.files ? { files: frame.files } : {}),
-			})
-			send(ws, { t: "ack", clientId: frame.clientId, id: stored.id, seq: stored.seq })
-			return stored.event
+			const out = room.humanSend(frame)
+			if ("refused" in out) {
+				send(ws, { t: "send_refused", clientId: frame.clientId, reason: out.refused })
+				return null
+			}
+			send(ws, { t: "ack", clientId: frame.clientId, ...out.ack })
+			return out.events
 		}
 		case "edit":
 			// The human edits only their own messages.

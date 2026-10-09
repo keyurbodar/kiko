@@ -13,6 +13,7 @@ import { ReplyBar } from "./reply-bar"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
+import { forgetUpload, moveUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "../sync/uploads"
 
 export function Composer(props: ComposerProps) {
   const [persisted, setPersisted] = createStore<PromptInputV2PersistedState>({
@@ -48,10 +49,37 @@ export function Composer(props: ComposerProps) {
   document.addEventListener("keydown", editLast)
   onCleanup(() => document.removeEventListener("keydown", editLast))
   onCleanup(() => document.removeEventListener("keydown", dropReply))
-  // Attachments still in the box when the composer goes were never sent: free their object URLs.
-  onCleanup(() => {
-    for (const part of persisted.prompt) if (part.type === "image") releaseBlobUrl(part.blob.url)
+  /*
+   * Each attachment uploads from the moment it is picked (`sync/uploads.ts`). One that leaves the
+   * box unsent, by its remove button, a slash command, an edit, or the composer going away, has
+   * its upload stopped and deleted and its object URL freed. A sent one belongs to its message:
+   * the send forgets it first, so nothing here touches it.
+   */
+  const boxed = () => store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
+  let held = new Map<string, string>()
+  const discard = (id: string, url: string) => {
+    releaseUpload(id)
+    releaseBlobUrl(url)
+  }
+  createEffect(() => {
+    const now = new Map(boxed().map((part) => [part.id, part.blob.url]))
+    for (const [id, url] of held) if (!now.has(id)) discard(id, url)
+    held = now
   })
+  onCleanup(() => {
+    for (const [id, url] of held) discard(id, url)
+  })
+  // The uploads go to the open chat. Attachments that stay in the box across a switch upload again there.
+  createEffect(
+    on(
+      () => props.threadId,
+      (roomId) => {
+        if (roomId) for (const part of boxed()) moveUpload(part.id, roomId)
+      },
+      { defer: true },
+    ),
+  )
+  const blocked = () => uploadBlockReason(boxed().map((part) => part.id))
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
 
@@ -144,14 +172,18 @@ export function Composer(props: ComposerProps) {
       refuse: (reasons) => {
         for (const title of reasons) showToastV2({ title, variant: "error" })
       },
+      onAdded: (attachment, file) => {
+        if (props.threadId) startUpload(attachment.id, props.threadId, file, attachment.filename, attachment.mime)
+      },
     },
     view: {
       placeholder,
       submit: {
         stopping: () => false,
         working: () => !!props.busy,
+        blocked,
         onSubmit: () => {
-          if (props.busy) return
+          if (props.busy || blocked()) return
           // There is no conversation to land in, so there is nothing to send.
           if (!props.threadId) return
           const text = draftText()
@@ -162,13 +194,17 @@ export function Composer(props: ComposerProps) {
             return
           }
           if (runSlash(text)) return void store.reset()
-          // Sent at once with the blob URLs. The room store uploads them and swaps in the server's.
-          const files = store.state.prompt.flatMap((part): MessageFile[] =>
-            part.type === "image" ? [{ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }] : [],
-          )
+          // Every attachment is already uploaded: the send names the uploads, and the message shows
+          // the blob URLs until the room's copy arrives.
+          const parts = boxed()
+          const attachments = readyAttachments(parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })))
+          if (!attachments) return
+          const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
           if (!text.trim() && files.length === 0) return
+          for (const part of parts) forgetUpload(part.id)
+          held = new Map()
           store.reset()
-          props.onSend(files.length ? { body: text, files } : { body: text })
+          props.onSend(files.length ? { body: text, files, attachments } : { body: text })
           props.onClearReply?.()
         },
         onStop: () => {},

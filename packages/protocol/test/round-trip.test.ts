@@ -35,7 +35,7 @@ describe("fixture round trip", () => {
 		expect(tags(F.clientToRoom)).toEqual(
 			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "approve", "task", "member", "search", "history"]),
 		)
-		expect(tags(F.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "search", "history"]))
+		expect(tags(F.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "send_refused", "search", "history"]))
 		expect(tags(F.roomEvents)).toEqual(
 			new Set([
 				"message",

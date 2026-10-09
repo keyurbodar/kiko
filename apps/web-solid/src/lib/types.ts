@@ -9,7 +9,7 @@
 // derived from `Message` by `toChatMessage`, and only the store and the dev
 // harness fixtures build one.
 
-import type { MessageId, RichText } from "@kiko/protocol";
+import type { MessageId, PendingAttachment, RichText } from "@kiko/protocol";
 
 export type BotPresence = "idle" | "typing" | "working" | "sleeping";
 
@@ -119,8 +119,10 @@ export interface ChatMessage {
  */
 export interface OutgoingMessage {
   body: string
-  /** The attachments, in the order they were added, drawn from blob URLs until they upload. */
+  /** The attachments, in the order they were added, drawn from blob URLs until the room's copy arrives. */
   files?: MessageFile[]
+  /** The same attachments as the uploads the room claims, in the same order. */
+  attachments?: PendingAttachment[]
 }
 
 export interface ComposerProps {

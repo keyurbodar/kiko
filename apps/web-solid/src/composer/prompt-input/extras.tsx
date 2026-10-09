@@ -1,10 +1,12 @@
 import { For, Show } from "solid-js"
 import { FileIcon } from "@kiko/ui/file-icon"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CloseIcon } from "@kiko/ui/icons"
+import { CloseIcon, UndoIcon } from "@kiko/ui/icons"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { formatBytes } from "../../chat/info/format"
 import { isImage } from "../../lib/attachments"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { progressLabel, retryUpload, uploadState } from "../../sync/uploads"
 import type { PromptInputV2Attachment, PromptInputV2Suggestion } from "./types"
 
 /*
@@ -13,8 +15,30 @@ import type { PromptInputV2Attachment, PromptInputV2Suggestion } from "./types"
  * out of first paint. The composer preloads it on idle.
  *
  * The strip is t3code's: pictures as 64px square thumbnails that open the image dialog, each with
- * a remove button on its corner, and other files as rows under them with their size.
+ * a remove button on its corner, and other files as rows under them with their size. While a file
+ * uploads, a thumbnail shows its percentage along its bottom edge and a row shows it in place of
+ * the size; a failed upload shows a retry button whose tooltip says why.
  */
+
+/** t3code's retry button: a small dark overlay button with the reason in its tooltip. */
+function RetryButton(props: { name: string; reason: string; class: string; onRetry: () => void }) {
+  return (
+    <TooltipV2 placement="top" value={props.reason}>
+      <button
+        type="button"
+        class={props.class}
+        aria-label={`Retry upload for ${props.name}`}
+        data-action="retry-upload"
+        onClick={(event) => {
+          event.stopPropagation()
+          props.onRetry()
+        }}
+      >
+        <HugeIcon icon={UndoIcon} size={12} />
+      </button>
+    </TooltipV2>
+  )
+}
 
 export function PromptInputV2Attachments(props: {
   attachments: PromptInputV2Attachment[]
@@ -24,6 +48,14 @@ export function PromptInputV2Attachments(props: {
   const picture = (a: PromptInputV2Attachment) => isImage({ name: a.filename, type: a.mime })
   const images = () => props.attachments.filter(picture)
   const others = () => props.attachments.filter((a) => !picture(a))
+  const failure = (id: string) => {
+    const upload = uploadState(id)
+    return upload?.status === "failed" ? upload.reason : null
+  }
+  const progressOf = (id: string) => {
+    const upload = uploadState(id)
+    return upload?.status === "uploading" ? progressLabel(upload.progress) : null
+  }
   return (
     <div data-component="prompt-input-v2-attachments" data-slot="prompt-attachments" class="flex flex-[0_0_100%] flex-col gap-2 px-1 pt-0.5">
       <Show when={images().length > 0}>
@@ -39,6 +71,23 @@ export function PromptInputV2Attachments(props: {
                 >
                   <img src={attachment.blob.url} alt={attachment.filename} class="size-full object-cover" draggable={false} />
                 </button>
+                <Show when={progressOf(attachment.id)}>
+                  {(label) => (
+                    <span data-slot="upload-progress" class="pointer-events-none absolute inset-x-0 bottom-0 bg-bg/85 px-1 text-center text-[10px] leading-[14px] text-text">
+                      {label()}
+                    </span>
+                  )}
+                </Show>
+                <Show when={failure(attachment.id)}>
+                  {(reason) => (
+                    <RetryButton
+                      name={attachment.filename}
+                      reason={reason()}
+                      class="absolute bottom-1 left-1 grid size-5 place-items-center rounded-sm bg-black/70 text-white/65 hover:bg-black/90 hover:text-white"
+                      onRetry={() => retryUpload(attachment.id)}
+                    />
+                  )}
+                </Show>
                 <button
                   type="button"
                   class="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80 focus-visible:ring-white"
@@ -61,7 +110,19 @@ export function PromptInputV2Attachments(props: {
                 <span class="min-w-0 flex-1 truncate" title={attachment.filename}>
                   {attachment.filename}
                 </span>
-                <span class="shrink-0 text-xs text-muted">{formatBytes(attachment.size)}</span>
+                <span class="shrink-0 text-xs text-muted" data-slot="upload-progress">
+                  {progressOf(attachment.id) ?? formatBytes(attachment.size)}
+                </span>
+                <Show when={failure(attachment.id)}>
+                  {(reason) => (
+                    <RetryButton
+                      name={attachment.filename}
+                      reason={reason()}
+                      class="grid size-6 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-text"
+                      onRetry={() => retryUpload(attachment.id)}
+                    />
+                  )}
+                </Show>
                 <button
                   type="button"
                   class="grid size-6 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-text"

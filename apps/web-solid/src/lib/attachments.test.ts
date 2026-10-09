@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { admit, attachmentType, isImage, MAX_FILES, splitFiles, tileSpan, wrapIndex } from "./attachments"
+import { admit, attachmentType, isImage, MAX_ATTACHMENTS, splitFiles, tileSpan, wrapIndex } from "./attachments"
 
 const MB = 1024 * 1024
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
@@ -34,27 +34,30 @@ describe("which files are pictures", () => {
   })
 })
 
-describe("the composer's limits", () => {
-  test("a picture may be 10 MB and a file 50 MB", () => {
-    const { accepted, refusals } = admit(0, [
-      file("ok.png", "image/png", 10 * MB),
-      file("big.png", "image/png", 10 * MB + 1),
-      file("ok.zip", "application/zip", 50 * MB),
-      file("big.zip", "application/zip", 50 * MB + 1),
-    ])
-    expect(accepted.map((f) => f.name)).toEqual(["ok.png", "ok.zip"])
-    expect(refusals).toEqual(["big.png is over 10 MB", "big.zip is over 50 MB"])
+describe("the composer's limits, as t3code's", () => {
+  test("a picture of any size is taken to be shrunk, a file may be 50 MB", () => {
+    const out = admit(0, [file("huge.png", "image/png", 30 * MB), file("ok.zip", "application/zip", 50 * MB), file("big.zip", "application/zip", 50 * MB + 1)])
+    expect(out.images.map((f) => f.name)).toEqual(["huge.png"])
+    expect(out.files.map((f) => f.name)).toEqual(["ok.zip"])
+    expect(out.error).toBe("'big.zip' exceeds the 50 MB attachment limit.")
   })
 
-  test("no more than 10 files, counting the ones already in the box, refused once", () => {
-    const many = Array.from({ length: 5 }, (_, i) => file(`${i}.png`, "image/png"))
-    const { accepted, refusals } = admit(MAX_FILES - 2, many)
-    expect(accepted.map((f) => f.name)).toEqual(["0.png", "1.png"])
-    expect(refusals).toEqual(["You can attach up to 10 files. 3 files were left out"])
+  test("a picture kiko cannot send is refused, not turned into a file", () => {
+    const out = admit(0, [file("logo.svg", "image/svg+xml"), file("IMG_1.heic", "image/heic")])
+    expect(out.images).toEqual([])
+    expect(out.files).toEqual([])
+    expect(out.error).toBe("'IMG_1.heic' is not a supported image type. Attach GIF, JPEG, PNG, or WebP images.")
   })
 
-  test("a full box takes nothing", () => {
-    expect(admit(MAX_FILES, [file("a.png", "image/png")])).toEqual({ accepted: [], refusals: ["You can attach up to 10 files. 1 file was left out"] })
+  test("an empty file is refused", () => {
+    expect(admit(0, [file("blank.txt", "text/plain", 0)]).error).toBe("'blank.txt' is empty or could not be read.")
+  })
+
+  test("no more than 100 files, counting the ones already in the box", () => {
+    const many = Array.from({ length: 5 }, (_, i) => file(`${i}.pdf`, "application/pdf"))
+    const out = admit(MAX_ATTACHMENTS - 2, many)
+    expect(out.files.map((f) => f.name)).toEqual(["0.pdf", "1.pdf"])
+    expect(out.error).toBe("You can attach up to 100 files per message.")
   })
 })
 

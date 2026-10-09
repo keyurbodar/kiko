@@ -17,7 +17,8 @@ import { onChatModelChange } from "../settings/chat-model"
 // the pure functions below, and nowhere else.
 
 import type { Agent, AgentSlug, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
-import { humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
+import { fileName, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
@@ -25,7 +26,6 @@ import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
-import { attachmentName, uploadAll } from "../sync/uploads"
 import { createRoomStore, type MemberNotice, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
@@ -113,7 +113,7 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   // A stored file keeps only what today's bubble reads, so an old message's media fields fall away here.
-  if (m.files?.length) out.files = m.files.map((f) => ({ name: attachmentName(f.name), path: f.name, size: f.size, type: f.type, src: urls.file(roomId, f.id) }))
+  if (m.files?.length) out.files = m.files.map((f) => ({ name: fileName(f.name), path: f.name, size: f.size, type: f.type, src: urls.file(roomId, f.id) }))
   else if (m.local?.length) out.files = m.local.map((f) => ({ name: f.name, size: f.size, type: f.type, src: f.src }))
   if (m.from.kind === "human") out.status = m.failed ? "failed" : m.pending ? "sending" : "sent"
   return out
@@ -360,15 +360,16 @@ export function createApp(options: AppOptions = {}) {
       views = new Map()
       setUnseen([])
       if (!session || !roomId) return void setRoom(null)
-      setRoom(
-        createRoomStore({
-          roomId,
-          warm: session.warm,
-          url: urls.room(roomId),
-          connect: session.transport.room(roomId),
-          backoff: options.backoff,
-        }),
-      )
+      const next = createRoomStore({
+        roomId,
+        warm: session.warm,
+        url: urls.room(roomId),
+        connect: session.transport.room(roomId),
+        backoff: options.backoff,
+      })
+      // A send the room refused stays in the transcript, marked failed. The toast says why.
+      next.onSendRefused((reason) => showToastV2({ title: reason, variant: "error" }))
+      setRoom(next)
     }
 
     const chat = (roomId: string | null): Chat | undefined =>
@@ -489,8 +490,9 @@ export function createApp(options: AppOptions = {}) {
       if (!r || (message.body.trim().length === 0 && local.length === 0)) return undefined
       const stored = replyTo !== undefined && !replyTo.startsWith("local:")
       const opts: SendOptions = stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}
-      // Attachments show at once from their blob URLs and upload in the background.
-      if (local.length) Object.assign(opts, { local, uploads: uploadAll(r.state.roomId, local) })
+      // Each attachment uploaded when it was picked: the room claims it by id, and the message shows
+      // it from its blob URL until the room's copy arrives.
+      if (message.attachments?.length) Object.assign(opts, { attachments: message.attachments, local })
       const clientId = r.send(message.body, opts)
       return `local:${clientId}`
     }

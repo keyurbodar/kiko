@@ -86,6 +86,13 @@ export const FileRef = Schema.Struct({
 	type: Schema.String,
 })
 
+export const PendingAttachment = Schema.Struct({
+	pendingId: Id,
+	name: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(255)),
+	type: Schema.String.check(Schema.isMaxLength(255)),
+	size: Count,
+})
+
 export const Reaction = Schema.Struct({ by: Actor, emoji: Schema.String })
 
 export const RunRef = Schema.Struct({ runId: Id, attempt: Count, index: Count })
@@ -251,6 +258,7 @@ export const ClientToRoom = Schema.Union([
 		text: Schema.String,
 		replyTo: Schema.optionalKey(MessageId),
 		quote: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1000))),
+		attachments: Schema.optionalKey(Schema.Array(PendingAttachment)),
 		files: Schema.optionalKey(Schema.Array(FileRef)),
 	}),
 	Schema.Struct({ t: Schema.Literal("react"), messageId: MessageId, emoji: Schema.NullOr(Schema.String) }),
@@ -285,6 +293,7 @@ export const RoomToClient = Schema.Union([
 		op: MemberOp,
 		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved", "chief"]),
 	}),
+	Schema.Struct({ t: Schema.Literal("send_refused"), clientId: Id, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),

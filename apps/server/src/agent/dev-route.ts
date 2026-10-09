@@ -21,6 +21,7 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/age     { roomId, ms }  -> { open }   ages open tasks and runs the stall sweep (section 25.6)
 //   POST /api/dev/agent/seen    { ago }  -> the human was last seen `ago` ms back (section 25.5)
 //   POST /api/dev/agent/due     { id }   -> routine `id` is due now (section 25)
+//   POST /api/dev/agent/pending { roomId, ms }  -> { pending }   ages the room's pending uploads and sweeps them (section 18.1)
 //
 // `seed` writes messages straight into the room's log, with no burst and no run, so a long chat costs
 // no tokens to set up. `from` is "human" or an agent slug. `memory` reports the room's log memory.
@@ -38,7 +39,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due"].includes(action ?? "")) return null
+  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -84,6 +85,7 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     return Response.json({ turns: await roomStub(env.ROOM, user.id, roomId).devSeed(turns as { from: string; text: string }[]) })
   }
   if (action === "memory") return Response.json(await roomStub(env.ROOM, user.id, roomId).devMemory())
+  if (action === "pending") return Response.json({ pending: await roomStub(env.ROOM, user.id, roomId).devAgePending(Number((body as { ms?: unknown }).ms ?? 0)) })
   if (action === "age") return Response.json({ open: await roomStub(env.ROOM, user.id, roomId).devAge(Number((body as { ms?: unknown }).ms ?? 0)) })
   if (action === "budget") {
     const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT

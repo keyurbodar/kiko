@@ -157,6 +157,22 @@ const MIGRATIONS: readonly string[] = [
 	-- the human asked for (section 25.3). Null on a task made before.
 	ALTER TABLE ws_tasks ADD COLUMN chain TEXT;
 	`,
+	`
+	-- Attachments the human uploaded when they picked them and has not sent yet (pending.ts,
+	-- architecture section 18.1). sha256 is null while the bytes are on their way. upload_id is the
+	-- R2 multipart upload of a big file. A send claims a row into ws_files; a sweep drops a stale one.
+	CREATE TABLE pending_uploads (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		type TEXT NOT NULL,
+		size INTEGER NOT NULL,
+		r2_key TEXT NOT NULL,
+		sha256 TEXT,
+		upload_id TEXT,
+		created_at INTEGER NOT NULL
+	);
+	CREATE INDEX pending_uploads_created ON pending_uploads (created_at);
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

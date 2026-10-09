@@ -1,38 +1,17 @@
 // The human's attachments, as data: which files are pictures, which the composer refuses, and how
 // a message lays its pictures out. The composer and the transcript both read these, so a file is
-// a picture in the box exactly when it is one in the bubble. No Solid and no DOM.
+// a picture in the box exactly when it is one in the bubble. The limits and their words come from
+// `@kiko/protocol`, which the server enforces too. No Solid and no DOM.
 
-/** The pictures kiko draws inline. Any other file, other image types included, is a file row. */
-const IMAGE_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"])
+import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS } from "@kiko/protocol"
 
-const IMAGE_BY_EXTENSION: Record<string, string> = {
-  gif: "image/gif",
-  jpeg: "image/jpeg",
-  jpg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-}
-
-export const MAX_FILES = 10
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-export const MAX_FILE_BYTES = 50 * 1024 * 1024
+export { attachmentType, MAX_ATTACHMENTS }
 
 type Named = { name: string; type: string }
 
-/**
- * The type a file is stored with. A drag from another app or a shell can hand over an empty or
- * generic type, so a `photo.jpg` with none is still a JPEG. Anything else without one is bytes.
- */
-export function attachmentType(file: Named): string {
-  const type = file.type.split(";", 1)[0]!.trim().toLowerCase()
-  if (type && type !== "application/octet-stream") return type
-  const ext = /\.([^./]+)$/.exec(file.name)?.[1]?.toLowerCase() ?? ""
-  return IMAGE_BY_EXTENSION[ext] ?? "application/octet-stream"
-}
-
 /** True when the file draws as a picture. */
 export function isImage(file: Named): boolean {
-  return IMAGE_TYPES.has(attachmentType(file))
+  return isImageType(attachmentType(file))
 }
 
 /** A message's files split the way the bubble draws them: pictures first, then the rest in order. */
@@ -53,23 +32,35 @@ export function wrapIndex(index: number, count: number): number {
   return count > 0 ? ((index % count) + count) % count : 0
 }
 
-const megabytes = (bytes: number) => `${bytes / 1024 / 1024} MB`
-
 /**
- * Which of `files` the composer takes when it already holds `held`, and why it refuses the rest.
- * A file over its size limit is refused on its own; the files past the count limit are refused
- * together, so one drop of thirty pictures says so once.
+ * Which of `files` the composer takes when it already holds `held`, the way t3code's composer
+ * decides before any await: a picture is taken at any size (the composer shrinks one over 10 MB),
+ * a picture kiko cannot send is refused, and any other file must be under its limit. Each file
+ * taken reserves a slot, so a drop past the 100 files says so. `error` is the last refusal, as
+ * t3code shows one line.
  */
-export function admit<T extends Named & { size: number }>(held: number, files: readonly T[]): { accepted: T[]; refusals: string[] } {
-  const accepted: T[] = []
-  const refusals: string[] = []
-  let over = 0
+export function admit<T extends Named & { size: number }>(held: number, files: readonly T[]): { images: T[]; files: T[]; error: string | null } {
+  const images: T[] = []
+  const others: T[] = []
+  let error: string | null = null
   for (const f of files) {
-    const limit = isImage(f) ? MAX_IMAGE_BYTES : MAX_FILE_BYTES
-    if (f.size > limit) refusals.push(`${f.name} is over ${megabytes(limit)}`)
-    else if (held + accepted.length >= MAX_FILES) over++
-    else accepted.push(f)
+    if (held + images.length + others.length >= MAX_ATTACHMENTS) {
+      error = attachmentMessages.tooMany
+      continue
+    }
+    const kind = attachmentKind(f)
+    if (kind === "unsupported-image") {
+      error = attachmentMessages.unsupportedImage(f.name)
+      continue
+    }
+    if (kind === "image") {
+      if (f.size <= 0) error = attachmentMessages.empty(f.name)
+      else images.push(f)
+      continue
+    }
+    const why = attachmentError(f)
+    if (why) error = why
+    else others.push(f)
   }
-  if (over) refusals.push(`You can attach up to ${MAX_FILES} files. ${over === 1 ? "1 file was" : `${over} files were`} left out`)
-  return { accepted, refusals }
+  return { images, files: others, error }
 }

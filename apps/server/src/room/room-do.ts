@@ -1,5 +1,5 @@
 import { isAgentSlug, tagline } from "@kiko/protocol"
-import type { AgentSlug, AgentState, Chat, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, RoomEvent, RoomId, RoomToClient, Sender, SystemReason, TaskOp } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, Sender, SystemReason, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
@@ -32,6 +32,7 @@ import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult,
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
+import { claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { migrate } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
@@ -102,6 +103,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	workspace!: RoomWorkspace
 	approvals!: RoomApprovals
 	private routines!: RoomRoutines
+	private pending!: PendingUploads
 	// ASSUMPTION: which agents are typing is kept in memory only, so a typing
 	// change costs no write. Hibernation forgets it, and the next setTyping call
 	// sends the set as it is then.
@@ -129,6 +131,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.asks = new Asks(ctx.storage.sql)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
+			this.pending = new PendingUploads(ctx.storage.sql)
 		})
 	}
 
@@ -396,6 +399,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[QUIET_WAKEUP]: () => this.rollupQuiet(),
 			[ROUTINES_WAKEUP]: () => this.flushRoutineEvents(),
 			[LOOPS_WAKEUP]: () => this.sweepStalls(),
+			[PENDING_WAKEUP]: () => this.sweepPending(),
 			[APPROVALS_WAKEUP]: async () => {
 				this.publish(this.approvals.expire())
 				await this.deliverApprovals()
@@ -1127,6 +1131,79 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return "held"
 	}
 
+	/**
+	 * A human's `send` (section 18.1). A resent clientId gets the first ack and claims nothing again.
+	 * Otherwise the attachments are claimed and the message stored in one transaction, so a refused
+	 * claim stores nothing and a stored message always has its files.
+	 */
+	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string } {
+		const earlier = this.log.sentBefore(frame.clientId)
+		if (earlier) return { ack: earlier, events: [] }
+		try {
+			return this.ctx.storage.transactionSync(() => {
+				const claimed = frame.attachments?.length
+					? claim(this.pending, this.files, frame.attachments, Date.now())
+					: { refs: frame.files?.length ? legacyFiles(this.files, frame.files) : [], events: [] }
+				const replyTo = frame.replyTo && this.log.message(frame.replyTo) ? frame.replyTo : undefined
+				const stored = this.log.addMessage({
+					from: { kind: "human" },
+					text: frame.text,
+					clientId: frame.clientId,
+					...(replyTo ? { replyTo } : {}),
+					// A quote belongs to a reply: the words the human picked from the message they answer.
+					...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
+					...(claimed.refs.length ? { files: claimed.refs } : {}),
+				})
+				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(stored.event ? [stored.event] : [])] }
+			})
+		} catch (error) {
+			if (error instanceof ClaimRefused) return { refused: error.message }
+			throw error
+		}
+	}
+
+	/**
+	 * RPC for the Worker's pending upload route, before the bytes go to R2. Null when they may go,
+	 * else why not. Points the sweep at the oldest row.
+	 */
+	async pendingOpen(input: NewPending): Promise<string | null> {
+		const refused = this.pending.open(input, Date.now())
+		if (!refused) await this.armPending()
+		return refused
+	}
+
+	/** RPC for the pending upload route once the bytes are in R2. "gone" means the row was removed meanwhile. */
+	async pendingReady(id: string, sha256: string, size: number): Promise<"ok" | "gone" | "size"> {
+		return this.pending.ready(id, sha256, size)
+	}
+
+	/** RPC for the pending upload route: the row, removed. Null for an id that is not pending. */
+	async pendingRemove(id: string): Promise<{ r2Key: string; uploadId: string | null } | null> {
+		const row = this.pending.remove(id)
+		return row ? { r2Key: row.r2_key, uploadId: row.upload_id } : null
+	}
+
+	/**
+	 * Deletes the pending uploads nobody sent within `PENDING_TTL_MS`, objects first, so a failed
+	 * delete leaves the row for the next sweep. Safe to run twice: R2 deletes a missing key quietly.
+	 */
+	async sweepPending(now = Date.now()): Promise<number> {
+		const stale = this.pending.expired(now - PENDING_TTL_MS)
+		for (const row of stale) {
+			if (row.upload_id) await this.env.FILES.resumeMultipartUpload(row.r2_key, row.upload_id).abort().catch(() => {})
+		}
+		if (stale.length) await deleteFiles(this.env.FILES, stale.map((r) => r.r2_key))
+		this.pending.drop(stale.map((r) => r.id))
+		await this.armPending()
+		return stale.length
+	}
+
+	private async armPending(): Promise<void> {
+		const at = this.pending.nextExpiry()
+		if (at === null) await this.alarms.clearWakeup(PENDING_WAKEUP)
+		else await this.alarms.setWakeup(PENDING_WAKEUP, at)
+	}
+
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
 	async putFile(input: NewFile): Promise<Omit<PutResult, "events"> & { entry: FsEntry | null }> {
 		// An agent writes only where no teammate is working (section 7.12). The human is never refused.
@@ -1595,7 +1672,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const sql = this.ctx.storage.sql
 		const agents = this.members.everyone()
 		const keys = sql.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files").toArray().map((r) => r.r2_key)
-		return { agents, keys }
+		return { agents, keys: [...keys, ...this.pending.keys()] }
 	}
 
 	/** Deletes all of the room's storage. Returns the rows that held data, 0 on a repeat. */
@@ -1641,6 +1718,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.ctx.storage.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)
 		await this.sweepStalls()
 		return openTasks(this.ctx.storage.sql).length
+	}
+
+	/** Development only. Ages every pending upload by `ms` and runs the sweep now (`verify attachments`). Returns how many remain. */
+	async devAgePending(ms: number): Promise<number> {
+		if (process.env.NODE_ENV !== "development") throw new Error("not found")
+		this.pending.age(ms)
+		await this.sweepPending()
+		return this.pending.count()
 	}
 
 	async devAgentMessage(slug: AgentSlug, text: string): Promise<void> {

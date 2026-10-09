@@ -244,6 +244,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             mode={state.mode}
             stopping={view.submit.stopping()}
             disabled={!props.controller.canSubmit()}
+            blocked={view.submit.blocked?.() ?? null}
             sendLabel={i18n.t(view.submit.preparing?.() ? "ui.promptInput.preparing" : "ui.promptInput.send")}
             stopLabel={i18n.t("ui.promptInput.stop")}
             onSubmit={props.controller.submit}
@@ -380,16 +381,19 @@ export function PromptInputV2SubmitButton(props: {
   mode: PromptInputV2Mode
   stopping: boolean
   disabled: boolean
+  /** Why sending waits, in t3code's words. Shown as the button's tooltip and name while it is off. */
+  blocked?: string | null
   sendLabel: string
   stopLabel: string
   onSubmit: () => void
   onStop: () => void
 }) {
+  const label = () => (props.stopping ? props.stopLabel : (props.blocked ?? props.sendLabel))
   return (
     <TooltipV2
       placement="top"
-      inactive={!props.stopping && props.disabled}
-      value={props.stopping ? props.stopLabel : props.sendLabel}
+      inactive={!props.stopping && props.disabled && !props.blocked}
+      value={label()}
     >
       <button
         data-action="prompt-submit"
@@ -397,7 +401,8 @@ export function PromptInputV2SubmitButton(props: {
         disabled={!props.stopping && props.disabled}
         tabIndex={props.mode === "normal" ? undefined : -1}
         class="composer-send"
-        aria-label={props.stopping ? props.stopLabel : props.sendLabel}
+        aria-label={label()}
+        title={props.blocked ?? undefined}
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()

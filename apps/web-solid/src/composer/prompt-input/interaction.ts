@@ -38,6 +38,8 @@ export type PromptInputV2ViewConfig = {
     working?: Accessor<boolean>
     /** Attachments are still being read for sending. The send button says so. */
     preparing?: Accessor<boolean>
+    /** Why sending waits, such as an attachment still uploading. The send button is off and says so. */
+    blocked?: Accessor<string | null>
     onSubmit: () => void
     onStop: () => void
   }
@@ -312,6 +314,7 @@ export function createPromptInputV2Controller(input: {
       draft.removeAttachment(id)
     },
     canSubmit() {
+      if (input.view.submit.blocked?.()) return false
       const persisted = draft.state
       if (persisted.prompt.some((part) => part.type === "image")) return true
       return persisted.prompt.some((part) => "content" in part && !!part.content.trim())

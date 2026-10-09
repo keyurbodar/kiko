@@ -1,13 +1,14 @@
 // Every type that crosses the network. This entry has no runtime dependency.
 // Its only runtime code is the id patterns and the room id generator in `ids.ts`, and the
-// pure chat list rules in `chats.ts`, and the small pure helpers of `activity.ts` that the
-// room and the client share.
+// pure chat list rules in `chats.ts`, the small pure helpers of `activity.ts` that the
+// room and the client share, and the attachment limits of `attachments.ts`.
 //
 // `@kiko/protocol/schema` has the Effect schemas, for the server and the CLI.
 // `@kiko/protocol/fixtures` has sample frames, for tests and the mock room.
 
 export * from "./chats"
 export * from "./activity"
+export * from "./attachments"
 export type * from "./envelope"
 export * from "./extensions"
 export * from "./ids"

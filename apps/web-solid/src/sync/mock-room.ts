@@ -123,6 +123,8 @@ export type MockRoom = {
 	broadcast(frame: RoomToClient): void
 	/** When set, the next send is stored and then the socket drops before the `ack`. */
 	loseNextAck: boolean
+	/** When set, the next send is refused with this reason, as the room refuses a claim of an expired upload. */
+	refuseNextSend: string | null
 }
 
 export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
@@ -178,17 +180,26 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		send(peer, f) {
 			const seen = byClientId.get(f.clientId)
 			if (seen) return peer.push({ t: "ack", clientId: f.clientId, ...seen })
-			const seq = nextSeq()
+			if (mock.refuseNextSend !== null) {
+				const reason = mock.refuseNextSend
+				mock.refuseNextSend = null
+				return peer.push({ t: "send_refused", clientId: f.clientId, reason })
+			}
+			// The room's claim (room/pending.ts): each upload becomes a file under attachments/.
+			const claimed: FileRef[] = (f.attachments ?? []).map((a, i) => ({ id: a.pendingId, name: `attachments/${(now() + i).toString(36)}-${a.name}`, size: a.size, type: a.type }))
+			const files = claimed.length ? claimed : f.files
+			const seq = nextSeq() + claimed.length
 			const m: Omit<Message, "seq" | "at"> = { id: `m${seq}` as MessageId, from: { kind: "human" }, text: f.text }
 			if (f.replyTo) m.replyTo = f.replyTo
-			if (f.files?.length) m.files = f.files
+			if (files?.length) m.files = files
+			const fileEvents = claimed.map((file): WithoutStored<RoomEvent> => ({ t: "file", file }) as WithoutStored<RoomEvent>)
 			if (mock.loseNextAck) {
 				mock.loseNextAck = false
-				append(stamp(message(m, f.clientId)))
+				for (const e of [...fileEvents, message(m, f.clientId)]) append(stamp(e))
 				return peer.close()
 			}
-			const [stored] = store(message(m, f.clientId))
-			peer.push({ t: "ack", clientId: f.clientId, id: m.id, seq: stored.seq })
+			const stored = store(...fileEvents, message(m, f.clientId))
+			peer.push({ t: "ack", clientId: f.clientId, id: m.id, seq: stored.at(-1)!.seq })
 		},
 		react(_, f) {
 			if (has(f.messageId)) store({ t: "react", messageId: f.messageId, by: { kind: "human" }, emoji: f.emoji })
@@ -313,6 +324,7 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			for (const p of peers) p.push(frame)
 		},
 		loseNextAck: false,
+		refuseNextSend: null,
 	}
 	return mock
 }

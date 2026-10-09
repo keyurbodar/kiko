@@ -1,12 +1,16 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { MAX_IMAGE_BYTES, attachmentMessages } from "@kiko/protocol"
 import { admit, attachmentType } from "../../lib/attachments"
+import { prepareImageForAttachment } from "../../lib/image-compression"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
 /*
- * Files into the composer: the attach button's picker, a paste, and a drop anywhere on the page.
- * Any file is taken. Pictures and other files differ only in how the strip and the bubble draw
- * them (`lib/attachments.ts`), which also holds the limits; a refused file is said in a toast.
+ * Files into the composer: the attach button's picker, a paste, and a drop anywhere on the page,
+ * decided the way t3code's composer decides (`lib/attachments.ts` holds the rules). A picture over
+ * 10 MB is shrunk to fit; a picture kiko cannot send, an empty file, a file over 50 MB, and a file
+ * past the 100th are refused, and the last refusal is said in a toast. Each file taken starts
+ * uploading at once (`onAdded`), so it is usually on the server before the human presses send.
  */
 
 type PromptTarget = {
@@ -16,8 +20,10 @@ type PromptTarget = {
 }
 
 export type PromptInputV2AttachmentConfig = {
-  /** Says why files were left out: too large, or past the count. */
+  /** Says why files were left out: too large, the wrong kind, or past the count. */
   refuse: (reasons: string[]) => void
+  /** A file entered the box, as `file` (a picture possibly re-encoded). Its upload starts here. */
+  onAdded?: (attachment: PromptInputV2Attachment, file: File) => void
 }
 
 export function createPromptInputV2Attachments(
@@ -36,22 +42,33 @@ export function createPromptInputV2Attachments(
   }
   const addAttachments = async (files: File[], target = capture()) => {
     const held = target.current().filter((part) => part.type === "image")
-    const { accepted, refusals } = admit(held.length, files)
-    if (refusals.length) input.refuse(refusals)
+    const { images, files: others, error } = admit(held.length, files)
+    const refusals = error ? [error] : []
     const added: PromptInputV2Attachment[] = []
-    for (const file of accepted) {
+    const take = async (file: File) => {
       const id = await blobId(file)
       // The same bytes twice, as a double paste makes, are attached once.
-      if ([...held, ...added].some((part) => part.blob.id === id)) continue
-      added.push({
+      if ([...held, ...added].some((part) => part.blob.id === id)) return
+      const attachment: PromptInputV2Attachment = {
         type: "image",
         id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2),
         filename: file.name || "file",
         mime: attachmentType(file),
         size: file.size,
         blob: { id, url: URL.createObjectURL(file) },
-      })
+      }
+      added.push(attachment)
+      input.onAdded?.(attachment, file)
     }
+    for (const file of others) await take(file)
+    for (const file of images) {
+      // Pictures over the limit are shrunk rather than refused; one within it passes byte for byte.
+      const typed = file.type === attachmentType(file) ? file : new File([file], file.name, { type: attachmentType(file), lastModified: file.lastModified })
+      const prepared = await prepareImageForAttachment(typed, MAX_IMAGE_BYTES)
+      if (prepared.ok) await take(prepared.file)
+      else refusals.push(prepared.reason === "unreadable" ? attachmentMessages.unreadable(file.name) : attachmentMessages.tooLargeCompressed(file.name))
+    }
+    if (refusals.length) input.refuse([refusals.at(-1)!])
     if (added.length) target.set([...target.current(), ...added], target.cursor())
   }
   const handlePaste = async (event: ClipboardEvent) => {
