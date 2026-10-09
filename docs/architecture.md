@@ -551,7 +551,7 @@ Every client action is applied locally first. The client keeps a list of pending
 ### 11.2 Encryption
 
 ```text
-data key  = HKDF-SHA256(CREDENTIALS_KEK, salt = userId, info = "yuki-cred-v1")
+data key  = HKDF-SHA256(CREDENTIALS_KEK, salt = userId, info = "kiko-cred-v1")
 record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || providerId)
 ```
 
