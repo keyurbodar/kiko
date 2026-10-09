@@ -1,6 +1,6 @@
 # Sidebar
 
-A user who opens Kiko sees the conversation list before they see any conversation: a narrow rail of icons down the far left, a panel beside it holding the pinned threads as a grid and the rest as a list, and a 3px handle on the panel's right edge they can drag. Everything here is chrome around the transcript, and the transcript has its own files.
+A user who opens Yuki sees the conversation list before they see any conversation: a narrow rail of icons down the far left, a panel beside it holding the pinned threads as a grid and the rest as a list, and a 3px handle on the panel's right edge they can drag. Everything here is chrome around the transcript, and the transcript has its own files.
 
 ## Sub-features
 
@@ -30,7 +30,7 @@ A user who opens Kiko sees the conversation list before they see any conversatio
 
 Preconditions:
 
-- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
+- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/yuki-verify-evidence/vite.pid` names it.
 - `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
 - **Every recipe here is a composed-app recipe.** The chat harness mounts `MessageList` alone, so `[data-component="sidebar"]` is `0` there — measured on a harness page.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only; `curl` to `127.0.0.1:3017` exits `7` (connection refused) while `localhost:3017` answers `200`.
@@ -84,14 +84,14 @@ Selectors this feature relies on:
   - The card portals outside the panel, so scope it by its own attribute and never by a row ancestor. Move the pointer away and confirm it closes.
 
 - **Right-click a row for its menu.** Observe: a menu opens with items that change real state.
-  - Dispatch `contextmenu` on `[data-component="sidebar-row"]` — `page.evaluate(() => { const r = document.querySelector('[data-component="sidebar-row"]'); r.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 300, clientY: 300 })); })` — wait ~600ms, and read the items with `[data-component="menu-v2-content"]` / `[data-component="menu-v2-item"]`. Record the item list and the row's `data-unread` and `data-active` before and after each mutating item, and write the pairs to `/tmp/kiko-verify-evidence/sidebar.json`.
+  - Dispatch `contextmenu` on `[data-component="sidebar-row"]` — `page.evaluate(() => { const r = document.querySelector('[data-component="sidebar-row"]'); r.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 300, clientY: 300 })); })` — wait ~600ms, and read the items with `[data-component="menu-v2-content"]` / `[data-component="menu-v2-item"]`. Record the item list and the row's `data-unread` and `data-active` before and after each mutating item, and write the pairs to `/tmp/yuki-verify-evidence/sidebar.json`.
   - **A menu item that leaves the row's state unchanged is a defect, not a no-op to accept** — the same rule the message menu follows by omitting an item it cannot honour.
 
 - **Nothing in the sidebar animates except the typing wave, and nothing in it draws a border.** Observe: the only motion is the three dots of a typing row.
   - Run one `page.evaluate` over every element inside `[data-component="sidebar"]`, collecting any with a non-`none` `animation-name` or a non-zero `transition-duration`, and any with a non-zero `border-width`. **Measured: the only three hits are `.typing-dot` with `animation-name: sidebar-typing-dot`, one per dot in the typing row, and the border list is empty.** Log `{ matchCount, violations, allowed }` so a fourth animation or a first border is visible rather than filtered away.
   - The chat transcript's own no-animation probe in [Chat bubbles](./chat-bubbles.md) is scoped to the transcript and **must not include the sidebar** — a sidebar element in that violation list means the scope leaked.
 
-- **Proof.** Write the rail, panel and tile/row geometry, the handle's three `aria-valuenow`/`min`/`max` values, the before/after pairs for the row menu's items, and the animation and border sweeps to `/tmp/kiko-verify-evidence/sidebar.json`, and take `/tmp/kiko-verify-evidence/sidebar.png`.
+- **Proof.** Write the rail, panel and tile/row geometry, the handle's three `aria-valuenow`/`min`/`max` values, the before/after pairs for the row menu's items, and the animation and border sweeps to `/tmp/yuki-verify-evidence/sidebar.json`, and take `/tmp/yuki-verify-evidence/sidebar.png`.
 
 ## Gotchas
 

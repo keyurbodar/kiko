@@ -21,7 +21,7 @@ const MANIFEST = (version: string) => ({
   yuki: 1,
   name: "verify-counter",
   version,
-  description: "counts, for kiko verify",
+  description: "counts, for yuki verify",
   tools: { verify_bump: { description: "adds one to the count", effect: "write" } },
   hooks: ["beforeTool"],
   state: "room",
@@ -135,7 +135,7 @@ const suite: Suite = {
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
 
     // A trigger runs as a routine granted the extension's own tools: its outside tool runs with no card.
-    const sender = { yuki: 1, name: "verify-sender", version: "1.0.0", description: "sends, for kiko verify", tools: { verify_send: { description: "sends a ping outside yuki", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
+    const sender = { yuki: 1, name: "verify-sender", version: "1.0.0", description: "sends, for yuki verify", tools: { verify_send: { description: "sends a ping outside yuki", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
     // Triggers post in the yuki chat, which the first visit makes.
     await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
     const sent = ok(await op({ op: "propose", bundle: { manifest: sender as never, files: { "main.js": 'export const tools = { async verify_send() { return "sent" } }' } } }), "propose the sender")

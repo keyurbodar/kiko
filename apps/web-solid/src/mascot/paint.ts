@@ -1,14 +1,13 @@
-// The painting kit for snowy places: seeded randomness, tapered limbs with frost and snow on
-// them, birds set into a painting who live on their own, glints, and knocked-loose snow. Pure
-// markup builders plus two small runtime helpers, shared by the empty chat and its preview page.
+// The painting kit behind the empty chat's frosted branch: seeded randomness, tapered limbs with
+// frost and snow on them, birds set into a painting who live on their own, glints, and
+// knocked-loose snow. Pure markup builders plus two small runtime helpers.
 
 import { onCleanup, onMount } from "solid-js"
 import { birdSvg, VIEWBOX, YUKI_BIRD, type BirdShape } from "./birds"
 
 const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
 
-export const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v))
-export const smooth = (p: number) => 0.5 - Math.cos(Math.PI * clamp(p)) / 2
+const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v))
 /** A seeded random source, so every painting is the same on every load. */
 export function rng(seed: number) {
   return () => {
@@ -20,10 +19,10 @@ export function rng(seed: number) {
 }
 
 export type Pt = readonly [number, number]
-export const f1 = (n: number) => n.toFixed(1)
+const f1 = (n: number) => n.toFixed(1)
 
 /** Points along a smooth curve through `pts` (Catmull-Rom), `n` per span. */
-export function curve(pts: readonly Pt[], n = 12): Pt[] {
+function curve(pts: readonly Pt[], n = 12): Pt[] {
   const out: Pt[] = []
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[Math.max(0, i - 1)]!
@@ -71,23 +70,6 @@ export function yAt(spine: readonly Pt[], x: number): number {
   return spine[spine.length - 1]![1]
 }
 
-/** A bare tree: a trunk that forks and forks again, as round-capped segments. */
-export function bareTree(rand: () => number, x: number, y: number, len: number, angle: number, width: number, depth: number, out: { x1: number; y1: number; x2: number; y2: number; w: number }[] = []) {
-  const x2 = x + Math.cos(angle) * len
-  const y2 = y + Math.sin(angle) * len
-  out.push({ x1: x, y1: y, x2, y2, w: width })
-  if (depth > 0) {
-    const kids = rand() < 0.35 ? 3 : 2
-    for (let k = 0; k < kids; k++) {
-      const turn = (k - (kids - 1) / 2) * (0.5 + rand() * 0.35) + (rand() - 0.5) * 0.3
-      bareTree(rand, x2, y2, len * (0.66 + rand() * 0.14), angle + turn, width * 0.66, depth - 1, out)
-    }
-  }
-  return out
-}
-export const segs = (s: ReturnType<typeof bareTree>, style: string) =>
-  s.map((g) => `<line x1="${f1(g.x1)}" y1="${f1(g.y1)}" x2="${f1(g.x2)}" y2="${f1(g.y2)}" stroke-width="${f1(Math.max(0.6, g.w))}" style="${style}" stroke-linecap="round"/>`).join("")
-// ----- birds --------------------------------------------------------------------------------
 
 export type BirdAt = { x: number; y: number; size: number; shape?: BirdShape; flip?: boolean; sleepy?: boolean; id?: string; rotate?: number }
 

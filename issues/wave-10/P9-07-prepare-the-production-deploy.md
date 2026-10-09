@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | yes |
-| Branch | `kiko/p9-07-prepare-the-production-deploy` |
+| Branch | `yuki/p9-07-prepare-the-production-deploy` |
 
 ## Verification
 
-`bunx wrangler deploy --dry-run --env production` succeeds, `docs/deploy.md` lists every secret and binding, and `bun kiko verify --no-model --url <preview>` passes against a deployed preview.
+`bunx wrangler deploy --dry-run --env production` succeeds, `docs/deploy.md` lists every secret and binding, and `bun yuki verify --no-model --url <preview>` passes against a deployed preview.
 
 ## Task
 

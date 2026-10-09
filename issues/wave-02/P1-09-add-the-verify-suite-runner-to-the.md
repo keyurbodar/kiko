@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-09-add-the-verify-suite-runner-to-the` |
+| Branch | `yuki/p1-09-add-the-verify-suite-runner-to-the` |
 
 ## Verification
 
-`bun kiko verify --list` prints the suites, and `bun kiko verify selftest` passes against the dev server and fails with a readable diff when an expectation is wrong.
+`bun yuki verify --list` prints the suites, and `bun yuki verify selftest` passes against the dev server and fails with a readable diff when an expectation is wrong.
 
 ## Task
 
@@ -26,7 +26,7 @@
 
 **Build.**
 
-- A typed client over the two sockets that uses `@kiko/protocol/schema` to validate every frame it receives.
+- A typed client over the two sockets that uses `@yuki/protocol/schema` to validate every frame it receives.
 - Helpers: `as(user)`, `room.send(text)`, `room.expect(predicate, timeout)`, `room.reconnect()`, `user.expect(...)`.
 - Mark a suite as `model: true` when it calls a model. `verify --no-model` skips those, which is what CI runs.
 - Print the last 20 frames when an expectation times out.

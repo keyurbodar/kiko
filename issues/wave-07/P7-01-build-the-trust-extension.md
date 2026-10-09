@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p7-01-build-the-trust-extension` |
+| Branch | `yuki/p7-01-build-the-trust-extension` |
 
 ## Verification
 
-`bun kiko verify injection --no-model` passes. Each canned attack runs through fake tools and the suite asserts that no tool with the `external` effect ran without an approval record.
+`bun yuki verify injection --no-model` passes. Each canned attack runs through fake tools and the suite asserts that no tool with the `external` effect ran without an approval record.
 
 ## Task
 
@@ -26,7 +26,7 @@
 
 **Build.**
 
-- Make every kiko tool declare one effect: `read`, `write`, `message`, or `external`. A tool with no declared effect fails to register.
+- Make every yuki tool declare one effect: `read`, `write`, `message`, or `external`. A tool with no declared effect fails to register.
 - In `afterTool`, wrap results from tools that return outside content in an `<untrusted>` block with a per-run nonce, escape look-alike tags, and mark the run tainted.
 - In `beforeTool`, apply the table in section 16.3.
 - Wrap agent envelopes in `<agent-message>` and submit them as user-role content. A tainted envelope starts a tainted run.

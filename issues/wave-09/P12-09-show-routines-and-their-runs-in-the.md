@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p12-09-show-routines-and-their-runs-in-the` |
+| Branch | `yuki/p12-09-show-routines-and-their-runs-in-the` |
 
 ## Verification
 
-The `verify-kiko` schedule feature: the chat info panel's schedule section lists reminders and routines with the next run and the last run's status; pause, resume, run now, and cancel apply at once and survive a reload; a routine's approval card reads as a routine (name, when, what it may do); every transition has 0 ms of animation.
+The `verify-yuki` schedule feature: the chat info panel's schedule section lists reminders and routines with the next run and the last run's status; pause, resume, run now, and cancel apply at once and survive a reload; a routine's approval card reads as a routine (name, when, what it may do); every transition has 0 ms of animation.
 
 ## Task
 

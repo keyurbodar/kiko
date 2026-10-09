@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p10-08-seed-the-catalog` |
+| Branch | `yuki/p10-08-seed-the-catalog` |
 
 ## Verification
 

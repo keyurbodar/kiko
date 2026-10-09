@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-06-enforce-human-priority-and-stop-across-a` |
+| Branch | `yuki/p6-06-enforce-human-priority-and-stop-across-a` |
 
 ## Verification
 
-`bun kiko verify team-priority` passes with fake agents: a human message sent while two agents exchange messages is handled before the next agent message, and `stop` ends every run and clears waiting agent messages for that root.
+`bun yuki verify team-priority` passes with fake agents: a human message sent while two agents exchange messages is handled before the next agent message, and `stop` ends every run and clears waiting agent messages for that root.
 
 ## Task
 

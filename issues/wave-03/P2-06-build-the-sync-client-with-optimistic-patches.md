@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-06-build-the-sync-client-with-optimistic-patches` |
+| Branch | `yuki/p2-06-build-the-sync-client-with-optimistic-patches` |
 
 ## Verification
 

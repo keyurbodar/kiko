@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p11-05-measure-memory-with-an-eval` |
+| Branch | `yuki/p11-05-measure-memory-with-an-eval` |
 
 ## Verification
 
-`bun kiko verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 7 of 8 (measured 8 of 8).
+`bun yuki verify memory-eval` seeds 320 turns with eight planted facts, waits for the summaries, asks all eight, and scores at least 7 of 8 (measured 8 of 8).
 
 ## Task
 

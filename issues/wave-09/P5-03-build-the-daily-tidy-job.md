@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-03-build-the-daily-tidy-job` |
+| Branch | `yuki/p5-03-build-the-daily-tidy-job` |
 
 ## Verification
 
-`bun kiko verify memory-tidy` passes with the test model: seed two duplicate records and one wrong fact with a correction, run `kiko memory tidy --now`, and see one merged record, a dated correction, and the old bodies in history.
+`bun yuki verify memory-tidy` passes with the test model: seed two duplicate records and one wrong fact with a correction, run `yuki memory tidy --now`, and see one merged record, a dated correction, and the old bodies in history.
 
 ## Task
 

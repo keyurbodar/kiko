@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-03-build-the-html-shell-and-split-the` |
+| Branch | `yuki/p2-03-build-the-html-shell-and-split-the` |
 
 ## Verification
 

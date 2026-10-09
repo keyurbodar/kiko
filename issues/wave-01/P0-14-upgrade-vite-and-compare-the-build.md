@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-14-upgrade-vite-and-compare-the-build` |
+| Branch | `yuki/p0-14-upgrade-vite-and-compare-the-build` |
 
 ## Verification
 

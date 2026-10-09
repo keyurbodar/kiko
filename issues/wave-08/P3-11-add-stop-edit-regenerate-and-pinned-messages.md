@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-11-add-stop-edit-regenerate-and-pinned-messages` |
+| Branch | `yuki/p3-11-add-stop-edit-regenerate-and-pinned-messages` |
 
 ## Verification
 
-`bun kiko verify message-actions` passes on the server side, and the `verify-kiko` message actions feature shows stop ending a run, an edit of the last message rerunning the answer, and a pinned message in the top bar.
+`bun yuki verify message-actions` passes on the server side, and the `verify-yuki` message actions feature shows stop ending a run, an edit of the last message rerunning the answer, and a pinned message in the top bar.
 
 ## Task
 

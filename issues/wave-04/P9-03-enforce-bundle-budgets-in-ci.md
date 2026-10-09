@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p9-03-enforce-bundle-budgets-in-ci` |
+| Branch | `yuki/p9-03-enforce-bundle-budgets-in-ci` |
 
 ## Verification
 

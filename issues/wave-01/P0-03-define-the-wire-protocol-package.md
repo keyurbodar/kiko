@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-03-define-the-wire-protocol-package` |
+| Branch | `yuki/p0-03-define-the-wire-protocol-package` |
 
 ## Verification
 
@@ -29,9 +29,9 @@
 - Write `ClientToRoom`, `RoomToClient`, `RoomEvent`, `RoomSnapshot`, `ClientToUser`, `UserToClient`, `Envelope`, and the rich text tree as plain TypeScript types with no runtime dependency.
 - Brand the id types (`UserId`, `RoomId`, `MessageId`, `AgentSlug`) and export the slug pattern.
 - Export a small set of fixture frames that the mock room and the tests share.
-- Export Effect `Schema` versions from a separate entry (`@kiko/protocol/schema`) for the server and the CLI only.
+- Export Effect `Schema` versions from a separate entry (`@yuki/protocol/schema`) for the server and the CLI only.
 
-**Done when.** Importing `@kiko/protocol` from the client adds no runtime code to the client bundle.
+**Done when.** Importing `@yuki/protocol` from the client adds no runtime code to the client bundle.
 
 ## Rules for this task
 

@@ -1,13 +1,13 @@
 ---
-name: verify-kiko
-description: "Drive the Kiko web app (SolidJS + Vite) in a real browser to prove what a user sees, and capture evidence. Use for 'verify the app', 'prove this change in the browser', 'check the Kiko UI', or before claiming a web-solid slice works."
+name: verify-yuki
+description: "Drive the Yuki web app (SolidJS + Vite) in a real browser to prove what a user sees, and capture evidence. Use for 'verify the app', 'prove this change in the browser', 'check the Yuki UI', or before claiming a web-solid slice works."
 ---
 
 > **Owner rule.** Never use `ego-browser`. Drive the app with `agent-browser --session <name>` (its own Chromium). See docs/orchestrated-run.md. The `ego-browser` sections below are kept only for what they check, not how they drive.
 
-# Verify Kiko
+# Verify Yuki
 
-Kiko is a SolidJS + Vite chat app at `apps/web-solid`. The only surface a user touches is a web UI, so verification means launching the Vite dev server and driving it with `ego-browser`, a Chromium driver available in this environment.
+Yuki is a SolidJS + Vite chat app at `apps/web-solid`. The only surface a user touches is a web UI, so verification means launching the Vite dev server and driving it with `ego-browser`, a Chromium driver available in this environment.
 
 There is **no Playwright, no Puppeteer, and no Chrome.app** on this machine. `import { chromium } from "playwright"` fails. Use `ego-browser nodejs` as the harness, exactly as the Drive section shows.
 
@@ -24,12 +24,12 @@ Colour comes from one stylesheet, `packages/ui/src/styles/kat.css`, pulled in by
 From the repo root:
 
 ```bash
-KIKO_PORT=3017
-mkdir -p /tmp/kiko-verify-evidence
+YUKI_PORT=3017
+mkdir -p /tmp/yuki-verify-evidence
 cd apps/web-solid
-nohup bunx vite --port "$KIKO_PORT" --strictPort > /tmp/kiko-verify-evidence/vite.log 2>&1 &
+nohup bunx vite --port "$YUKI_PORT" --strictPort > /tmp/yuki-verify-evidence/vite.log 2>&1 &
 for _ in $(seq 1 30); do
-  lsof -nP -iTCP:"$KIKO_PORT" -sTCP:LISTEN -t 2>/dev/null > /tmp/kiko-verify-evidence/vite.pid && break
+  lsof -nP -iTCP:"$YUKI_PORT" -sTCP:LISTEN -t 2>/dev/null > /tmp/yuki-verify-evidence/vite.pid && break
   sleep 0.5
 done
 ```
@@ -39,19 +39,19 @@ done
 Confirm the recorded pid is really the listener before driving anything:
 
 ```bash
-KIKO_PORT=3017
-PID=$(cat /tmp/kiko-verify-evidence/vite.pid)
+YUKI_PORT=3017
+PID=$(cat /tmp/yuki-verify-evidence/vite.pid)
 kill -0 "$PID" || { echo "FAIL: pid $PID is gone"; exit 1; }
-lsof -nP -iTCP:"$KIKO_PORT" -sTCP:LISTEN -t | grep -qx "$PID" && echo "pid $PID owns $KIKO_PORT" || echo "MISMATCH"
+lsof -nP -iTCP:"$YUKI_PORT" -sTCP:LISTEN -t | grep -qx "$PID" && echo "pid $PID owns $YUKI_PORT" || echo "MISMATCH"
 ```
 
-**Port 3001 is often already owned by a sibling Kiko checkout.** Check before launching:
+**Port 3001 is often already owned by a sibling Yuki checkout.** Check before launching:
 
 ```bash
 lsof -nP -iTCP:3001 -sTCP:LISTEN
 ```
 
-If that prints a row, pick a free port and use that value for `KIKO_PORT` in every later block. Do not kill the process holding 3001 — it belongs to another checkout. Find a free port with:
+If that prints a row, pick a free port and use that value for `YUKI_PORT` in every later block. Do not kill the process holding 3001 — it belongs to another checkout. Find a free port with:
 
 ```bash
 for p in 3017 3021 3044; do lsof -ti tcp:$p >/dev/null 2>&1 || echo "$p free"; done
@@ -61,12 +61,12 @@ Vite on this checkout needs roughly six seconds before the `Local:` line appears
 
 Ready when both hold:
 
-- `/tmp/kiko-verify-evidence/vite.log` contains a `Local:   http://localhost:<port>/` line.
+- `/tmp/yuki-verify-evidence/vite.log` contains a `Local:   http://localhost:<port>/` line.
 - The root URL serves the app:
 
 ```bash
-KIKO_PORT=3017
-curl -sf "http://localhost:${KIKO_PORT}/" | grep -q '<div id="root">' && echo ready
+YUKI_PORT=3017
+curl -sf "http://localhost:${YUKI_PORT}/" | grep -q '<div id="root">' && echo ready
 ```
 
 ## Doctor
@@ -74,13 +74,13 @@ curl -sf "http://localhost:${KIKO_PORT}/" | grep -q '<div id="root">' && echo re
 One read-only sequence answering "is this instance worth driving?" — the process you started is alive, it and not a stray checkout owns the port, the port serves the app, the app mounted, and the kat token layer resolved.
 
 ```bash
-KIKO_PORT=3017
-PID=$(cat /tmp/kiko-verify-evidence/vite.pid)
+YUKI_PORT=3017
+PID=$(cat /tmp/yuki-verify-evidence/vite.pid)
 kill -0 "$PID" || { echo "FAIL: vite pid $PID is not running"; exit 1; }
-lsof -nP -iTCP:"$KIKO_PORT" -sTCP:LISTEN -t | grep -qx "$PID" || { echo "FAIL: port $KIKO_PORT is not owned by pid $PID"; exit 1; }
-curl -sf "http://localhost:$KIKO_PORT/" | grep -q '<div id="root">' || { echo "FAIL: port $KIKO_PORT does not serve the app"; exit 1; }
-ego-browser nodejs <<EOF 2>&1 | tee /tmp/kiko-verify-evidence/doctor.txt
-const port = $KIKO_PORT;
+lsof -nP -iTCP:"$YUKI_PORT" -sTCP:LISTEN -t | grep -qx "$PID" || { echo "FAIL: port $YUKI_PORT is not owned by pid $PID"; exit 1; }
+curl -sf "http://localhost:$YUKI_PORT/" | grep -q '<div id="root">' || { echo "FAIL: port $YUKI_PORT does not serve the app"; exit 1; }
+ego-browser nodejs <<EOF 2>&1 | tee /tmp/yuki-verify-evidence/doctor.txt
+const port = $YUKI_PORT;
 const ROLES = [
   "--bg", "--bg-subtle", "--surface-raised", "--menu-bg",
   "--text", "--text-muted", "--text-faint",
@@ -94,7 +94,7 @@ const ROLES = [
   // here fails against a correct stylesheet. See features/kat-tokens.md.
   "--content-max-w", "--brm", "--hue",
 ];
-const task = await taskSpace("kiko verify doctor");
+const task = await taskSpace("yuki verify doctor");
 const page = task.page("p1");
 await page.goto("http://localhost:" + port + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForFunction(
@@ -115,7 +115,7 @@ const page1 = await page.evaluate(() => ({
   colorScheme: getComputedStyle(document.documentElement).colorScheme,
   bodyFontSize: getComputedStyle(document.body).fontSize,
   // The two deleted theme engines. Both must stay gone.
-  inlineKikoVars: [...document.documentElement.style].filter((n) => n.startsWith("--kiko-")).length,
+  inlineYukiVars: [...document.documentElement.style].filter((n) => n.startsWith("--yuki-")).length,
   themeId: document.documentElement.dataset.themeId ?? null,
 }));
 const font = await page.evaluate(() => ({
@@ -130,7 +130,7 @@ const ok =
   page1.rootChildren > 0 &&
   page1.shell === 1 &&
   page1.colorScheme === "dark" &&
-  page1.inlineKikoVars === 0 &&
+  page1.inlineYukiVars === 0 &&
   page1.themeId === null;
 console.log(JSON.stringify({ port, roles, ...page1, font, harnessStatus: harness.status, emptyRoles: empty, ok }));
 await task.finish({ keep: [] });
@@ -142,7 +142,7 @@ EOF
 
 **Editing `apps/web-solid/vite.config.ts` requires killing and relaunching this dev server.** A running Vite does not always pick a config change up on its own. There are no link previews any more (removed 2026-10-09), so no endpoint in that file serves one.
 
-The heredoc delimiter is unquoted so the shell substitutes `$KIKO_PORT` into the script. `ego-browser nodejs` does **not** inherit the parent environment: `process.env.KIKO_PORT` is `null` inside the script, and a `page.goto` built from it fails with `Cannot navigate to invalid URL`. Read that error as a port that never reached the script, not as a bad URL. For the same reason keep backticks and `${}` out of these scripts so the shell does not eat them.
+The heredoc delimiter is unquoted so the shell substitutes `$YUKI_PORT` into the script. `ego-browser nodejs` does **not** inherit the parent environment: `process.env.YUKI_PORT` is `null` inside the script, and a `page.goto` built from it fails with `Cannot navigate to invalid URL`. Read that error as a port that never reached the script, not as a bad URL. For the same reason keep backticks and `${}` out of these scripts so the shell does not eat them.
 
 `bodyFontSize` reads `14px`. The 14px face is on `body`, not `:root` — the root stays at the browser default so Tailwind's rem spacing utilities are not rescaled.
 
@@ -181,10 +181,10 @@ The script is evaluated on every new document, so it must be registered **before
 - **Chat harness** — `http://localhost:<port>/src/chat/harness.html`. The chat slice's own page, with every fixture state addressable and probes on `window.__chat`. It mounts `MessageList` alone: **no composer, no sidebar, and no send path.** A recipe that needs one of those is a composed-app recipe.
 
 ```bash
-KIKO_PORT=3017
+YUKI_PORT=3017
 ego-browser nodejs <<EOF
-const port = $KIKO_PORT;
-const task = await taskSpace("kiko chat");
+const port = $YUKI_PORT;
+const task = await taskSpace("yuki chat");
 const page = task.page("p1");
 await page.goto("http://localhost:" + port + "/src/chat/harness.html", { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForFunction(() => typeof window.__chat === "object", undefined, { timeout: 15_000 });
@@ -235,7 +235,7 @@ There is **no `now()` probe.** An earlier version of this map listed one; it doe
 
 `setState`, `setTyping` and `setReplyTarget` return the value they resolved to, so a caller can assert the result in the same round. `openMenu`, `openPicker`, `openMedia` and `closeMedia` return a boolean saying whether a dialog actually opened — read it, because a stale overlay left on screen makes a no-op look like an open menu. `openMenu` returning `true` is an **observation, not a guarantee**: it tests `[role='menu'], [data-component*='menu']`, which matches the menu's `menu-v2-content`. Measured on `today`: `openMenu` returns `true` for `a-35`, `a-36` and `a-37` with `probe().overlay === "menu"`, but `[data-component="chat-menu"]` is `0` even while the menu is open — see the selector note below.
 
-`openPicker` opens the menu, clicks `.chat-menu__more`, and waits up to 5s for `[data-component='emoji-picker']`. The picker is kiko's own component in the light DOM, drawing system emoji glyphs. On a pointer device the same picker is also reached from a row's hover actions: hover `[data-action="react"]`, then click the popover's `[data-action="more-emoji"]`.
+`openPicker` opens the menu, clicks `.chat-menu__more`, and waits up to 5s for `[data-component='emoji-picker']`. The picker is yuki's own component in the light DOM, drawing system emoji glyphs. On a pointer device the same picker is also reached from a row's hover actions: hover `[data-action="react"]`, then click the popover's `[data-action="more-emoji"]`.
 
 The harness also takes the state in the URL, which is the cheaper way to start a round: `http://localhost:<port>/src/chat/harness.html?state=unread`. An unknown slug falls back to `today` **and says so in the page's own state readout** — `[data-component="harness-state"]` renders `unknown state: <slug>` — so a typo is visible on the page rather than silent. Read `probe().state` and `[data-component="harness-state"]` before measuring. `?typing=ada,grace` starts a round with those senders already typing.
 
@@ -311,7 +311,7 @@ There is **no `chat-row-time`** and no hover-revealed timestamp: text bubbles sh
 - `loc=css:[data-component="chat-typing-row"]` / `chat-typing-bubble` / `chat-typing-dot` — the in-list typing row and its three dots.
 - `loc=css:[data-component="chat-fades"]` / `chat-fade-top` / `chat-fade-bottom` — the scrims on the stage.
 - `loc=css:[data-component="chat-jump-latest"]` / `chat-jump` — the jump-to-latest control, carrying `data-visible` and `data-arrivals`.
-- `loc=css:[data-component="chat-empty"]` — the empty-thread state: the dim kiko bird with a heart, no text.
+- `loc=css:[data-component="chat-empty"]` — the empty-thread state: the dim yuki bird with a heart, no text.
 - `loc=css:.menu-v2-content` — **the** handle for a Kobalte menu's content element. `MenuV2.Context.Content` overwrites any `data-component` passed to it with its own. Measured: the message menu is open with `[data-component="chat-menu"]` at `0` and `[data-component="menu-v2-content"]` at `1`, while the class `.chat-menu` is present on the same element. So **scope the menu by `.chat-menu` or `[data-component="menu-v2-content"]`; `[data-component="chat-menu"]` matches nothing.** Read its `[data-component="menu-v2-item"]` children for the action list.
 - `loc=css:[data-component="image-dialog"]` — the image dialog's column (picture, close button, caption `[data-component="image-dialog-caption"]`), inside a Kobalte modal. The files tab draws a picture inline (`[data-component="file-image"]`); see `features/files-panel.md`.
 
@@ -321,34 +321,34 @@ There is **no `chat-row-time`** and no hover-revealed timestamp: text bubbles sh
 
 **Prefer the `data-component` attribute over the class.** Two stylesheets once both defined a bare `.chat-shell` for different elements — the app's pane and the transcript's scroller — with conflicting `overflow` and layout. The pane is `[data-component="chat-shell"]` inside `.sidebar-shell` and the scroller is `[data-component="chat-scroll"]`, and the attribute is the handle that stays stable across that rename.
 
-Selectors to avoid: any top bar, theme switcher, or router query. None exists. A `data-theme-id`, a `data-theme`, a `--kiko-*` variable, a `data-continuation` attribute and a `chat-actionbar` are all things this app no longer renders. A `data-component` handed to `MenuV2.Content` as a prop is likewise not a handle.
+Selectors to avoid: any top bar, theme switcher, or router query. None exists. A `data-theme-id`, a `data-theme`, a `--yuki-*` variable, a `data-continuation` attribute and a `chat-actionbar` are all things this app no longer renders. A `data-component` handed to `MenuV2.Content` as a prop is likewise not a handle.
 
 The transcript is virtualized with `virtua`, so the DOM holds only the visible rows. `document.querySelectorAll("[data-component=chat-vrow]").length` tracks the viewport, not the message count, and an element captured before a scroll can be detached by the time you act on it. Re-query immediately before every action.
 
 ## Evidence
 
-Proof artifacts go under `/tmp/kiko-verify-evidence/`, which survives cleanup. The paths this skill and the feature map write:
+Proof artifacts go under `/tmp/yuki-verify-evidence/`, which survives cleanup. The paths this skill and the feature map write:
 
-- `/tmp/kiko-verify-evidence/vite.log` — the dev server log for the run.
-- `/tmp/kiko-verify-evidence/vite.pid` — the listener pid, deleted by Cleanup.
-- `/tmp/kiko-verify-evidence/doctor.txt` — the Doctor JSON line.
-- `/tmp/kiko-verify-evidence/kat-tokens.json` — every role read off `getComputedStyle`, with its resolved value.
-- `/tmp/kiko-verify-evidence/font-load.json` — the loaded `FontFace` set and the `document.fonts.check` results.
-- `/tmp/kiko-verify-evidence/app-shell.snapshot.txt` and `app-shell.png` — the mounted page.
-- `/tmp/kiko-verify-evidence/chat-bubbles.json` and `chat-bubbles.png` — column width, bubble widths, run facts, corner radii, and the jumbo scale.
-- `/tmp/kiko-verify-evidence/day-chip.json` — the date-chip label per fixture day state.
-- `/tmp/kiko-verify-evidence/lowercase-chrome.json` — computed `text-transform` for chrome labels and message bodies.
-- `/tmp/kiko-verify-evidence/no-border.json` — computed `border-width` across every bubble, chip, menu and card.
-- `/tmp/kiko-verify-evidence/no-animation.json` — computed `transition-duration` across those same elements, with the three permitted exceptions named.
-- `/tmp/kiko-verify-evidence/chat-menu.json` — the right-click menu's item list for a viewer's message and for an agent's, with each `openMenu` return value.
-- `/tmp/kiko-verify-evidence/reply-jump.json` — quote line count, quote height, and the scroll delta after the jump.
-- `/tmp/kiko-verify-evidence/unread-rule.json` — the unread rule's index among rows, before and after sending.
-- `/tmp/kiko-verify-evidence/reactions.json` — badge geometry and the toggle result.
-- `/tmp/kiko-verify-evidence/typing.json` — the typing bubble's dot count and the `aria-live` label.
-- `/tmp/kiko-verify-evidence/picker.json` — the picker's search result count and its shortcode footer.
-- `/tmp/kiko-verify-evidence/media.json` — picture tile rects, file rows, and the image dialog's open, step and close state.
-- `/tmp/kiko-verify-evidence/rich-text.json` — which runs became anchors, which stayed prose, and the homograph flag.
-- `/tmp/kiko-verify-evidence/sidebar.json` and `sidebar.png` — the rail, panel and tile/row geometry, the pinned grid's column count at two panel widths, and the before/after pairs for the row menu's `pin`, `mark as read` and `mark as unread` items.
+- `/tmp/yuki-verify-evidence/vite.log` — the dev server log for the run.
+- `/tmp/yuki-verify-evidence/vite.pid` — the listener pid, deleted by Cleanup.
+- `/tmp/yuki-verify-evidence/doctor.txt` — the Doctor JSON line.
+- `/tmp/yuki-verify-evidence/kat-tokens.json` — every role read off `getComputedStyle`, with its resolved value.
+- `/tmp/yuki-verify-evidence/font-load.json` — the loaded `FontFace` set and the `document.fonts.check` results.
+- `/tmp/yuki-verify-evidence/app-shell.snapshot.txt` and `app-shell.png` — the mounted page.
+- `/tmp/yuki-verify-evidence/chat-bubbles.json` and `chat-bubbles.png` — column width, bubble widths, run facts, corner radii, and the jumbo scale.
+- `/tmp/yuki-verify-evidence/day-chip.json` — the date-chip label per fixture day state.
+- `/tmp/yuki-verify-evidence/lowercase-chrome.json` — computed `text-transform` for chrome labels and message bodies.
+- `/tmp/yuki-verify-evidence/no-border.json` — computed `border-width` across every bubble, chip, menu and card.
+- `/tmp/yuki-verify-evidence/no-animation.json` — computed `transition-duration` across those same elements, with the three permitted exceptions named.
+- `/tmp/yuki-verify-evidence/chat-menu.json` — the right-click menu's item list for a viewer's message and for an agent's, with each `openMenu` return value.
+- `/tmp/yuki-verify-evidence/reply-jump.json` — quote line count, quote height, and the scroll delta after the jump.
+- `/tmp/yuki-verify-evidence/unread-rule.json` — the unread rule's index among rows, before and after sending.
+- `/tmp/yuki-verify-evidence/reactions.json` — badge geometry and the toggle result.
+- `/tmp/yuki-verify-evidence/typing.json` — the typing bubble's dot count and the `aria-live` label.
+- `/tmp/yuki-verify-evidence/picker.json` — the picker's search result count and its shortcode footer.
+- `/tmp/yuki-verify-evidence/media.json` — picture tile rects, file rows, and the image dialog's open, step and close state.
+- `/tmp/yuki-verify-evidence/rich-text.json` — which runs became anchors, which stayed prose, and the homograph flag.
+- `/tmp/yuki-verify-evidence/sidebar.json` and `sidebar.png` — the rail, panel and tile/row geometry, the pinned grid's column count at two panel widths, and the before/after pairs for the row menu's `pin`, `mark as read` and `mark as unread` items.
 
 Standards:
 
@@ -359,11 +359,11 @@ Standards:
 - Write artifacts from inside the script, with Node's `fs`, so the file is produced by the same run that asserted it:
 
 ```bash
-KIKO_PORT=3017
+YUKI_PORT=3017
 ego-browser nodejs <<EOF
 const { writeFile } = await import("node:fs/promises");
-const port = $KIKO_PORT;
-const task = await taskSpace("kiko verify kat tokens");
+const port = $YUKI_PORT;
+const task = await taskSpace("yuki verify kat tokens");
 const page = task.page("p1");
 await page.cdp("Page.addScriptToEvaluateOnNewDocument", {
   source: 'window.__errs=[];addEventListener("error",e=>window.__errs.push(String(e.message)));addEventListener("unhandledrejection",e=>window.__errs.push(String(e.reason)));',
@@ -382,11 +382,11 @@ const font = await page.evaluate(() => ({
   faces: [...document.fonts].map((f) => f.family + "|" + f.style + "|" + f.weight + "|" + f.status),
 }));
 const errs = await page.evaluate(() => window.__errs ?? []);
-await writeFile("/tmp/kiko-verify-evidence/kat-tokens.json", JSON.stringify(roles, null, 2));
-await writeFile("/tmp/kiko-verify-evidence/font-load.json", JSON.stringify(font, null, 2));
+await writeFile("/tmp/yuki-verify-evidence/kat-tokens.json", JSON.stringify(roles, null, 2));
+await writeFile("/tmp/yuki-verify-evidence/font-load.json", JSON.stringify(font, null, 2));
 const snapshot = await page.snapshot();
-await writeFile("/tmp/kiko-verify-evidence/app-shell.snapshot.txt", snapshot);
-await page.screenshot({ path: "/tmp/kiko-verify-evidence/app-shell.png" });
+await writeFile("/tmp/yuki-verify-evidence/app-shell.snapshot.txt", snapshot);
+await page.screenshot({ path: "/tmp/yuki-verify-evidence/app-shell.png" });
 console.log({ taskSpaceId: task.spaceId, roles, font, errs });
 await task.finish({ keep: [] });
 if (Object.values(roles).some((v) => v === "")) process.exit(1);
@@ -398,17 +398,17 @@ EOF
 Tear down only what this run started. Read the recorded pid; never kill by process name, and never kill the process on 3001 that you did not launch.
 
 ```bash
-PID=$(cat /tmp/kiko-verify-evidence/vite.pid)
+PID=$(cat /tmp/yuki-verify-evidence/vite.pid)
 kill "$PID" 2>/dev/null
 for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$PID" 2>/dev/null || break; sleep 0.5; done
 kill -9 "$PID" 2>/dev/null
-rm -f /tmp/kiko-verify-evidence/vite.pid
+rm -f /tmp/yuki-verify-evidence/vite.pid
 ```
 
-Do not delete `/tmp/kiko-verify-evidence/`. Evidence outlives the run; the pid file does not. Confirm what survived:
+Do not delete `/tmp/yuki-verify-evidence/`. Evidence outlives the run; the pid file does not. Confirm what survived:
 
 ```bash
-ls -l /tmp/kiko-verify-evidence
+ls -l /tmp/yuki-verify-evidence
 ```
 
 ## Helpers

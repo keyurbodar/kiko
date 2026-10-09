@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-04-collapse-long-messages` |
+| Branch | `yuki/p3-04-collapse-long-messages` |
 
 ## Verification
 
-The `verify-kiko` read-more feature: a 3,000-character message is clamped with a fade and a chevron, expands in place, and the scroll position of the messages below does not jump.
+The `verify-yuki` read-more feature: a 3,000-character message is clamped with a fade and a chevron, expands in place, and the scroll position of the messages below does not jump.
 
 ## Task
 

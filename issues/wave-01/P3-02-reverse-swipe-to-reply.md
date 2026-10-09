@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-02-reverse-swipe-to-reply` |
+| Branch | `yuki/p3-02-reverse-swipe-to-reply` |
 
 ## Verification
 
-`bun test apps/web-solid/src/lib/useSwipeToReply.test.ts` passes with a rightward drag, and the `verify-kiko` swipe feature shows the reply icon entering from the left.
+`bun test apps/web-solid/src/lib/useSwipeToReply.test.ts` passes with a rightward drag, and the `verify-yuki` swipe feature shows the reply icon entering from the left.
 
 ## Task
 

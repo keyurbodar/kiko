@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-12-apply-the-mid-run-rules` |
+| Branch | `yuki/p1-12-apply-the-mid-run-rules` |
 
 ## Verification
 
-`bun kiko verify mid-run` passes its four cases: restart before the first bubble, steer during a tool, queue after a bubble, and stop.
+`bun yuki verify mid-run` passes its four cases: restart before the first bubble, steer during a tool, queue after a bubble, and stop.
 
 ## Task
 

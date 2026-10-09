@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p4-05-build-the-provider-and-model-settings` |
+| Branch | `yuki/p4-05-build-the-provider-and-model-settings` |
 
 ## Verification
 
-The `verify-kiko` providers feature: connect the test provider by pasting a key, see the last four characters, pick a model for a chat, and disconnect.
+The `verify-yuki` providers feature: connect the test provider by pasting a key, see the last four characters, pick a model for a chat, and disconnect.
 
 ## Task
 

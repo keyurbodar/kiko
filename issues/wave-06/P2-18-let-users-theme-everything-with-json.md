@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-18-let-users-theme-everything-with-json` |
+| Branch | `yuki/p2-18-let-users-theme-everything-with-json` |
 
 ## Verification
 
@@ -20,7 +20,7 @@
 
 **Goal.** Let a user change any visual token by pasting a JSON theme, with radius, spacing, type, and colors all in reach.
 
-**Read first.** `packages/ui/src/styles/tokens.md` and `kat.css`. t3code's approach, which kiko extends: `refs/t3code/apps/web/src/themePalette.ts` (`ThemeFile` at line 47, `parseThemeFile` at line 1352, `applyThemePalette` at line 1516) and `components/settings/ThemeImportDialog.tsx`. t3code themes colors only; kiko themes every token.
+**Read first.** `packages/ui/src/styles/tokens.md` and `kat.css`. t3code's approach, which yuki extends: `refs/t3code/apps/web/src/themePalette.ts` (`ThemeFile` at line 47, `parseThemeFile` at line 1352, `applyThemePalette` at line 1516) and `components/settings/ThemeImportDialog.tsx`. t3code themes colors only; yuki themes every token.
 
 **Files.** Create `apps/web-solid/src/theme/` (`schema.ts`, `apply.ts`, `presets/`, `editor.tsx`, tests) and `docs/theming.md`. Edit `apps/server/src/user/` for one theme record, `packages/protocol` for one user event, and the HTML shell for the pre-paint script.
 

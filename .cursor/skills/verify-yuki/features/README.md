@@ -1,8 +1,8 @@
-# Kiko verification map
+# Yuki verification map
 
-This directory is the maintained source for verifying the user-facing behavior of Kiko. Read the index before driving the app, then use the matching feature file as the recipe.
+This directory is the maintained source for verifying the user-facing behavior of Yuki. Read the index before driving the app, then use the matching feature file as the recipe.
 
-The map reflects what exists **today**. Kiko is a dark app laid out in one row: a sidebar rail-and-panel down the left edge, a bubble-styled transcript filling the rest of the viewport, a composer docked below it, and one token layer behind all of it. There is no top bar, no router, and no theme switch. Where a recipe depends on a module that has not landed, the file says so and gives the reason — a gap is recorded, never papered over with an invented selector.
+The map reflects what exists **today**. Yuki is a dark app laid out in one row: a sidebar rail-and-panel down the left edge, a bubble-styled transcript filling the rest of the viewport, a composer docked below it, and one token layer behind all of it. There is no top bar, no router, and no theme switch. Where a recipe depends on a module that has not landed, the file says so and gives the reason — a gap is recorded, never papered over with an invented selector.
 
 ## Baseline preconditions
 
@@ -11,8 +11,8 @@ The map reflects what exists **today**. Kiko is a dark app laid out in one row: 
 - **`page.on` does not exist** (`typeof page.on === "undefined"`). To capture console errors and uncaught exceptions, inject listeners before the app boots with `await page.cdp("Page.addScriptToEvaluateOnNewDocument", { source })`, then read the array with `page.evaluate`. Registering it after `goto` misses every error the module graph already threw. See the Drive section in `../SKILL.md` for the exact snippet.
 - **`openMenu` and `openPicker` return what happened, they do not guarantee it.** `openMenu` dispatches a real `contextmenu` and then tests `[role='menu'], [data-component*='menu']`, so it returns `true` and `probe().overlay` reads `"menu"` even though `[data-component="chat-menu"]` is `0` — the menu's content element carries `data-component="menu-v2-content"` instead, because `MenuV2.Content` overwrites the prop. **Read the boolean, then read the menu by `.chat-menu` or `[data-component="menu-v2-content"]`.**
 - **`openPicker` opens the menu, clicks `.chat-menu__more`, and waits for `[data-component='emoji-picker']`.** Read its boolean like `openMenu`'s.
-- Launch the dev server per `../SKILL.md` **Launch** and keep `/tmp/kiko-verify-evidence/vite.pid` in place.
-- Port 3001 unless a sibling Kiko checkout already owns it; then a free port, used consistently in every later step.
+- Launch the dev server per `../SKILL.md` **Launch** and keep `/tmp/yuki-verify-evidence/vite.pid` in place.
+- Port 3001 unless a sibling Yuki checkout already owns it; then a free port, used consistently in every later step.
 - `../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
 - Never drive an instance this run did not start. A port that answers but is not owned by your pid is another checkout's app.
 
@@ -33,7 +33,7 @@ The map reflects what exists **today**. Kiko is a dark app laid out in one row: 
 
 ## Proof and skip reporting
 
-- Evidence goes to `/tmp/kiko-verify-evidence/`, and it must still be there after cleanup. The artifact names are listed in `../SKILL.md` **Evidence**.
+- Evidence goes to `/tmp/yuki-verify-evidence/`, and it must still be there after cleanup. The artifact names are listed in `../SKILL.md` **Evidence**.
 - Capture the action and the resulting state, not only a final screenshot.
 - Assert from the script's own output — the `console.log` value is the doc.
 - A rule that must be *absent* — no borders, no animation, no uppercase body — is proven by reading computed style over every candidate element and logging the match count next to the violation count. A count of zero violations over a selector that matched nothing proves nothing.

@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-08-port-skill-loading` |
+| Branch | `yuki/p5-08-port-skill-loading` |
 
 ## Verification
 
-`bun kiko verify skills` passes with the test model: with a built-in skill named `haiku`, a request that matches its description makes the agent call `read_skill("haiku")`, and a room skill with the same name wins over the built-in one.
+`bun yuki verify skills` passes with the test model: with a built-in skill named `haiku`, a request that matches its description makes the agent call `read_skill("haiku")`, and a room skill with the same name wins over the built-in one.
 
 ## Task
 

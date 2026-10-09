@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-01-port-the-typing-indicator` |
+| Branch | `yuki/p3-01-port-the-typing-indicator` |
 
 ## Verification
 
-`bun test apps/web-solid/src/chat/typing` passes the presence state machine cases, and the `verify-kiko` typing feature shows the wave, the label change from one name to two, and the send shrink.
+`bun test apps/web-solid/src/chat/typing` passes the presence state machine cases, and the `verify-yuki` typing feature shows the wave, the label change from one name to two, and the send shrink.
 
 ## Task
 

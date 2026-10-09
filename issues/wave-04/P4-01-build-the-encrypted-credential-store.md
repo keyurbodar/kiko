@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p4-01-build-the-encrypted-credential-store` |
+| Branch | `yuki/p4-01-build-the-encrypted-credential-store` |
 
 ## Verification
 
-`bun kiko verify credentials` passes: save a key, read back only the last four characters, disconnect, and see the row gone. `bun test apps/server/test/credentials.test.ts` passes a wrong-user decrypt failure and a key rotation.
+`bun yuki verify credentials` passes: save a key, read back only the last four characters, disconnect, and see the row gone. `bun test apps/server/test/credentials.test.ts` passes a wrong-user decrypt failure and a key rotation.
 
 ## Task
 

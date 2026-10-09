@@ -10,7 +10,7 @@
 | Parallel with its wave | no |
 | Needs a worktree | no |
 | Needs a human step | no |
-| Branch | `kiko/p10-01-prove-quickjs-runs-in-a-durable-object` |
+| Branch | `yuki/p10-01-prove-quickjs-runs-in-a-durable-object` |
 
 ## Verification
 

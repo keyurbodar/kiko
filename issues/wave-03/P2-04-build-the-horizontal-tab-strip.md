@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-04-build-the-horizontal-tab-strip` |
+| Branch | `yuki/p2-04-build-the-horizontal-tab-strip` |
 
 ## Verification
 
-Run the `verify-kiko` tab strip feature: open three chats, close the middle one, and reload. The same tabs return in the same order with the same active tab.
+Run the `verify-yuki` tab strip feature: open three chats, close the middle one, and reload. The same tabs return in the same order with the same active tab.
 
 ## Task
 

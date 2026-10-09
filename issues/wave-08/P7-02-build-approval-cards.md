@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p7-02-build-approval-cards` |
+| Branch | `yuki/p7-02-build-approval-cards` |
 
 ## Verification
 
-`bun kiko verify approvals` passes with a fake `external` tool: a tainted run pauses, the room shows an approval, `approve` with `accept` runs the tool, `decline` returns an error to the model, and a second `approve` for the same id does nothing.
+`bun yuki verify approvals` passes with a fake `external` tool: a tainted run pauses, the room shows an approval, `approve` with `accept` runs the tool, `decline` returns an error to the model, and a second `approve` for the same id does nothing.
 
 ## Task
 

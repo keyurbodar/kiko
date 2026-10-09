@@ -1,4 +1,4 @@
-# P0-09 Register kiko as an Executor OAuth client
+# P0-09 Register yuki as an Executor OAuth client
 
 | Field | Value |
 | --- | --- |
@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | yes |
-| Branch | `kiko/p0-09-register-kiko-as-an-executor-oauth-client` |
+| Branch | `yuki/p0-09-register-yuki-as-an-executor-oauth-client` |
 
 ## Verification
 
-`bun kiko executor probe` prints the tool names returned by `tools/list` from `https://executor.sh/mcp` for a real account, and `docs/research/experiment-8-executor-oauth.md` records the flow that worked.
+`bun yuki executor probe` prints the tool names returned by `tools/list` from `https://executor.sh/mcp` for a real account, and `docs/research/experiment-8-executor-oauth.md` records the flow that worked.
 
 ## Task
 

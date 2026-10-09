@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-16-add-the-command-registry-and-keyboard-shortcuts` |
+| Branch | `yuki/p2-16-add-the-command-registry-and-keyboard-shortcuts` |
 
 ## Verification
 
@@ -28,7 +28,7 @@
 
 - A typed registry: `{ id, title, group, icon, shortcut?, global?, when?, run }`. Titles use kat's `noun: verb` form in lowercase. A route or feature registers its commands on mount and they leave on unmount.
 - Bind shortcuts with `@tanstack/solid-hotkeys` (`createHotkey`, `Mod` for `⌘` or `ctrl`). If it fails in practice, use `tinykeys` and say why in the pull request.
-- Start with kat's map: `view: toggle sidebar ⌘S`, `chat: new ⌘T`, `chat: reopen closed ⌘⇧T`, `chat: attach file... ⌘O`, `chat: rename F2`, `chat: pin ⌘D`, `chat: close ⌘W`, `chat: delete`, `chats: go to chat... ⌘P`, `chats: search messages in current chat ⌘F`, `chats: search all chats ⌘⇧F`, and `palette: open ⌘K`. A command whose feature does not exist yet stays registered and disabled. Leave out `chat: share`, since kiko has no share links.
+- Start with kat's map: `view: toggle sidebar ⌘S`, `chat: new ⌘T`, `chat: reopen closed ⌘⇧T`, `chat: attach file... ⌘O`, `chat: rename F2`, `chat: pin ⌘D`, `chat: close ⌘W`, `chat: delete`, `chats: go to chat... ⌘P`, `chats: search messages in current chat ⌘F`, `chats: search all chats ⌘⇧F`, and `palette: open ⌘K`. A command whose feature does not exist yet stays registered and disabled. Leave out `chat: share`, since yuki has no share links.
 - Move the sidebar toggle from P2-15 to `⌘S` through the registry.
 - Single-key and plain shortcuts never fire while a text field has focus. `⌘K` and `⌘S` are global.
 - Export a list of all shortcuts for a later cheatsheet.

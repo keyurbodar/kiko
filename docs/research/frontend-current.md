@@ -4,7 +4,7 @@ Read-only audit of apps/web-solid and packages/ui. Paths are repo-relative. "NOT
 
 ## 1. Build setup
 - Bundler: Vite 7.1.4 (apps/web-solid/package.json), i.e. Rollup, NOT Rolldown. vite.config.ts:160 uses `build.rollupOptions`. (rolldown 1.2.11 exists in node_modules/.bun only transitively.)
-- Plugins (vite.config.ts:155): vite-plugin-solid 2.11.10, @tailwindcss/vite 4.1.11, custom `kiko-link-preview` plugin.
+- Plugins (vite.config.ts:155): vite-plugin-solid 2.11.10, @tailwindcss/vite 4.1.11, custom `yuki-link-preview` plugin.
 - Tailwind 4.1.11 (CSS-first, no tailwind.config). `@theme` blocks in packages/ui/src/styles/kat.css:596 and :613. Layer order declared at apps/web-solid/src/styles/app.css:15 (`theme, base, v2, components, utilities`).
 - Dev server port 3001 (vite.config.ts:157). Scripts: dev, build (`tsc --noEmit && vite build`), typecheck, preview. No test/lint script in package.json (tests run via `bun test`).
 - Code splitting: none configured (no manualChunks, no lazy()/dynamic import). Two HTML inputs (vite.config.ts:162-165): `index.html` and `src/chat/harness.html` (the dev verification harness ships in the prod build too). Rollup produced a shared chunk named MessageList by accident.
@@ -14,7 +14,7 @@ Read-only audit of apps/web-solid and packages/ui. Paths are repo-relative. "NOT
   - emoji-picker-data.json 440k; emoji/ (twemoji-style SVGs, many files); fonts/ 4 woff2 (352k, 388k, 67k, 68k; the two big ones were deleted from public/ in 95c2d4b); dist total 20M
   - dist/index.html has theme-color #331D2C (source now #1c1b1f).
 - Fonts: Inter is NOT loaded anywhere. Sans = system stack `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui` (kat.css:490). Mono = self-hosted "Fantasque Sans Mono" 400/700 via @font-face (kat.css:26-40) from public/fonts/{Y3td2gRp,hWqxyCs0}.woff2 (absolute `/fonts/...` URLs). A leftover @fontsource-variable/figtree sits in node_modules/.bun but is in no package.json.
-- index.html (apps/web-solid/index.html): `<html class="dark" lang="en">`, color-scheme dark, theme-color #1c1b1f, title "Kiko", `<div id="root">`, `<script src=/src/main.tsx>`. No manifest, no icons, no font links, no PWA bits.
+- index.html (apps/web-solid/index.html): `<html class="dark" lang="en">`, color-scheme dark, theme-color #1c1b1f, title "Yuki", `<div id="root">`, `<script src=/src/main.tsx>`. No manifest, no icons, no font links, no PWA bits.
 - tsconfig: strict, jsx preserve + solid-js, include `src` and vite.config.ts.
 
 ## 2. Routing
@@ -39,7 +39,7 @@ Read-only audit of apps/web-solid and packages/ui. Paths are repo-relative. "NOT
 - Code highlighting / code blocks: NOT FOUND (no sugar-high/shiki/prism/hljs).
 - Link preview card: ui/WebPageCard.tsx, lib/linkPreview.ts (parses og/twitter meta, large/small layouts).
 - Media bubble: ui/Media.tsx (MessageMedia), lib/media.ts. Album/gallery layout: lib/album.ts (785 lines, tweb album layouter, tested). Documents: ui/Documents.tsx (typed ext badge).
-- Lightbox: media/mediaViewer.tsx (496) + mediaViewer.css + zoom.ts; uses @kiko/ui/v2/modal-v2; native `<video>` at mediaViewer.tsx:362.
+- Lightbox: media/mediaViewer.tsx (496) + mediaViewer.css + zoom.ts; uses @yuki/ui/v2/modal-v2; native `<video>` at mediaViewer.tsx:362.
 - Audio/voice player: NOT FOUND (audio mime only picks a colour in Documents.tsx:24). Custom video player: NOT FOUND (native controls).
 - Reactions: ui/ReactionBadge.tsx (ReactionStack); store.toggleReaction. Emoji picker: ui/EmojiPicker.tsx wrapping `emoji-picker-element` with local SVG set (public/emoji, lib/emoji.tsx). 
 - Typing indicator: ui/TypingRow.tsx (motion). Wired in VirtualThread.tsx:729 via `waitingNames`; main.tsx passes `waitingNames={[]}` so it never shows in the app.
@@ -47,7 +47,7 @@ Read-only audit of apps/web-solid and packages/ui. Paths are repo-relative. "NOT
 - System messages: NOT FOUND. Empty state: ui/EmptyState.tsx. Jump-to-latest: ui/JumpToLatest.tsx (rendered at VirtualThread.tsx:742) AND a second scroll-down button in main.tsx (composer-scroll-down); two mechanisms. ScrollFades.tsx.
 - Swipe-to-reply: ui/SwipeToReply.tsx wraps each row (VirtualThread.tsx:633). Gesture lib/useSwipeToReply.ts (545 lines; motion; leftward drag only, travel = max(0,-dx), :159-175). The reply icon (CornerUpLeft, 28px circle) is positioned `right-4` = RIGHT edge, revealed as the row slides left (SwipeToReply.tsx:73-78). Rightward drag is ignored by design (:20 comment).
 - Context menu: ui/MessageMenu.tsx (MenuV2.Context :79, copy/reply/react etc.; `showToastV2` for "copied").
-- Composer: src/composer/. composer.tsx (281, Kiko-authored) over prompt-input/ vendored from opencode (ATTRIBUTION.md). Editor = a hand-rolled `contenteditable` div (prompt-input/index.tsx:175) with mention chips as non-editable spans (:238-240); NOT CodeMirror/ProseMirror/Lexical. Mentions: `@bot` suggestions built from bots (composer.tsx:143-145), part type "agent". Slash commands: `commands: () => []` (composer.tsx:161) = none. Attachments: prompt-input/attachments.ts + attachment-card-v2.tsx (images become media, other files become documents, composer.tsx:204-210). Link draft preview: link-preview.tsx, link-draft.ts. Has history/persisted-state/model-select/shell-mode machinery from upstream, mostly unused.
+- Composer: src/composer/. composer.tsx (281, Yuki-authored) over prompt-input/ vendored from opencode (ATTRIBUTION.md). Editor = a hand-rolled `contenteditable` div (prompt-input/index.tsx:175) with mention chips as non-editable spans (:238-240); NOT CodeMirror/ProseMirror/Lexical. Mentions: `@bot` suggestions built from bots (composer.tsx:143-145), part type "agent". Slash commands: `commands: () => []` (composer.tsx:161) = none. Attachments: prompt-input/attachments.ts + attachment-card-v2.tsx (images become media, other files become documents, composer.tsx:204-210). Link draft preview: link-preview.tsx, link-draft.ts. Has history/persisted-state/model-select/shell-mode machinery from upstream, mostly unused.
 
 ## 5. Sidebar and navigation (src/sidebar)
 - sidebar.tsx (267): vertical icon rail + resizable (200-420px, :31-33) collapsible panel; mingcute icons (icons.tsx). Not a horizontal tab bar; no horizontal navigation exists.
@@ -55,7 +55,7 @@ Read-only audit of apps/web-solid and packages/ui. Paths are repo-relative. "NOT
 - Search: NOT FOUND (no input in sidebar). Folders: NOT FOUND. Tabs (chat tabs): NOT FOUND. Virtua in sidebar: NO (plain `<For>`).
 - Below 768px the panel overlays the transcript (commit 95c2d4b).
 
-## 6. packages/ui (@kiko/ui)
+## 6. packages/ui (@yuki/ui)
 - Public barrel src/index.ts: FileIcon, Icon, ProviderIcon, ButtonV2, HoverCardV2, IconV2, IconButtonV2, ModalV2, KeybindV2, MenuV2, TooltipV2, useFilteredList, I18nProvider/useI18n. Subpath exports (package.json): ./kat.css, ./icon(.css), ./file-icon(.css), ./provider-icon(.css), ./hooks, ./context/*, ./v2/*.
 - components/ (legacy v1): icon.tsx (181), file-icon.tsx (588) + file-icons/sprite.svg (11.7k lines) + types, provider-icon.tsx + sprite.
 - v2/components: button, dismissable-layer, hover-card, icon-button, icon (209), keybind, menu, modal, toast, tooltip (each -v2.tsx/.css). Total 10.
@@ -77,8 +77,8 @@ Present but unused (candidates to drop):
 
 ## 8. OWNERSHIP.md, verify map, scripts
 - apps/web-solid/OWNERSHIP.md: one-writer-per-file rule. Frozen: src/lib/types.ts, fixtures.ts, store.ts. Slices: Chat owns src/chat/**, Composer owns src/composer/**; CSS per slice; tokens owned by kat.css; src/main.tsx edited once on main. It is already out of date: it names `chat.css` (deleted), lists no Sidebar slice though src/sidebar exists, and the "frozen" files have been edited in recent commits. Plan should treat it as superseded.
-- Verify map: .cursor/skills/verify-kiko/SKILL.md (418 lines: Launch, Doctor, Drive, Evidence, Cleanup, Helpers; uses `ego-browser nodejs`, no Playwright; use `localhost` not 127.0.0.1; harness at /src/chat/harness.html?state=<slug>, `window.__chat` probes) and .cursor/skills/verify-kiko/features/{README,app-shell,chat-bubbles,chat-images,chat-interactions,composer,kat-tokens,rich-text,sidebar}.md (997 lines total). README states each feature file has 4 H2 sections. It describes the app as of the prior commit (e.g. says "no top bar", "dark app").
-- apps/web-solid/scripts/shots.sh + shots.js: screenshot helper writing to /tmp/kiko-verify-evidence/shots/<label> through ego-browser.
+- Verify map: .cursor/skills/verify-yuki/SKILL.md (418 lines: Launch, Doctor, Drive, Evidence, Cleanup, Helpers; uses `ego-browser nodejs`, no Playwright; use `localhost` not 127.0.0.1; harness at /src/chat/harness.html?state=<slug>, `window.__chat` probes) and .cursor/skills/verify-yuki/features/{README,app-shell,chat-bubbles,chat-images,chat-interactions,composer,kat-tokens,rich-text,sidebar}.md (997 lines total). README states each feature file has 4 H2 sections. It describes the app as of the prior commit (e.g. says "no top bar", "dark app").
+- apps/web-solid/scripts/shots.sh + shots.js: screenshot helper writing to /tmp/yuki-verify-evidence/shots/<label> through ego-browser.
 - ultracite-agents.md (root, 126 lines): Ultracite/Oxlint/Oxfmt coding standards (explicit types, for...of, no any, a11y rules). The matching AGENTS.md was deleted in 5845a72. No ultracite config or lint script is wired in package.json.
 - docs/ did not exist before this file (docs/plan.md, solid-port.md, tech-stack.md were deleted in 5845a72; recover via `git show 5845a72^:docs/tech-stack.md`).
 - Unit tests: 13 files, `bun test` in apps/web-solid: 171 pass, 0 fail (460ms). The verify README warns bun test resolves the server build of solid-js, so reactive derivations are not trustworthy there.
@@ -87,7 +87,7 @@ Present but unused (candidates to drop):
 - `bun run typecheck` (apps/web-solid): PASS, no errors. `packages/ui` typecheck: PASS.
 - TODO/FIXME/HACK/XXX markers: none found in src.
 - Toasts never render: MessageMenu.tsx:68-70 calls `showToastV2` (copy confirmation) but `ToastV2.Region` (toast-v2.tsx:131) is mounted nowhere (grep). The copy toast is invisible.
-- I18nProvider is never mounted but the composer/link-preview call `useI18n` from @kiko/ui/context/i18n (need to confirm the context has a default; the typecheck passes). i18n dict (packages/ui/src/i18n/en.ts, 220 lines) is opencode strings (sessionTurn, messagePart...), mostly irrelevant.
+- I18nProvider is never mounted but the composer/link-preview call `useI18n` from @yuki/ui/context/i18n (need to confirm the context has a default; the typecheck passes). i18n dict (packages/ui/src/i18n/en.ts, 220 lines) is opencode strings (sessionTurn, messagePart...), mostly irrelevant.
 - main.tsx wiring gaps: `firstUnreadMessageId={null}`, `waitingNames={[]}`, `onJumpToMessage={() => {}}`, `scrollRef={() => {}}` (main.tsx:~95-100), so unread rule, typing row and unread tracking are demonstrable only in the harness.
 - Group threads: store has GROUPS and Thread type supports groups, but the sidebar renders only bots and `activeMessages` works by id, so a group cannot be opened from the UI.
 - Composer ATTRIBUTION.md lists prompt-input/attachments.css and attachment-card-v2.css as copied, but neither file exists in src/composer (composer.css is the only stylesheet imported, composer.tsx:10). Either styles were folded into composer.css or attachment styling is missing; verify visually.

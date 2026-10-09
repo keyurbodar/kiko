@@ -222,7 +222,7 @@ function withSlash(url: string) {
   return url.endsWith("/") ? url : `${url}/`
 }
 
-/** Signs in through the dev-only route, the same one `kiko login --dev` uses. */
+/** Signs in through the dev-only route, the same one `yuki login --dev` uses. */
 export async function devSession(url: string, name: string): Promise<{ cookie: string; userId: string }> {
   const res = await fetch(new URL("api/auth/dev/session", withSlash(url)), {
     method: "POST",

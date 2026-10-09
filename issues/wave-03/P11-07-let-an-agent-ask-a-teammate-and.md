@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p11-07-let-an-agent-ask-a-teammate-and` |
+| Branch | `yuki/p11-07-let-an-agent-ask-a-teammate-and` |
 
 ## Verification
 
-`bun kiko verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `bun kiko verify team-model` passes with the test model: kiko gets one fact each from ada and bob with `ask`, writes /walk.md with both, and every agent is woken once. `test/team-routing.test.ts` covers an ask that closes before its answer.
+`bun yuki verify team-ask` passes with the fake agents: ana asks ben, ben answers with send_message, ana's one reply carries the answer, and the inboxes store two envelopes. `bun yuki verify team-model` passes with the test model: yuki gets one fact each from ada and bob with `ask`, writes /walk.md with both, and every agent is woken once. `test/team-routing.test.ts` covers an ask that closes before its answer.
 
 ## Task
 

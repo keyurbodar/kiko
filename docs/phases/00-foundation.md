@@ -20,7 +20,7 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 **Build.**
 
-- Set root `workspaces` to `apps/*` and `packages/*`. Add root scripts `dev:server`, `dev:web`, `typecheck`, `test`, `kiko`, and `plan`.
+- Set root `workspaces` to `apps/*` and `packages/*`. Add root scripts `dev:server`, `dev:web`, `typecheck`, `test`, `yuki`, and `plan`.
 - Declare three SQLite-backed Durable Object classes (`UserDO`, `RoomDO`, `AgentDO`) as empty classes with a migration tag.
 - Declare bindings for D1 (`AUTH_DB`), R2 (`FILES`), KV (`PREVIEWS`), one queue (`JOBS`), and static assets that point at `apps/web-solid/dist`.
 - Turn on `nodejs_compat`. Add `.dev.vars.example` with `OPENCODE_API_KEY`, `CREDENTIALS_KEK`, and `BETTER_AUTH_SECRET`. Add `.dev.vars` to `.gitignore`.
@@ -67,15 +67,15 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 - Write `ClientToRoom`, `RoomToClient`, `RoomEvent`, `RoomSnapshot`, `ClientToUser`, `UserToClient`, `Envelope`, and the rich text tree as plain TypeScript types with no runtime dependency.
 - Brand the id types (`UserId`, `RoomId`, `MessageId`, `AgentSlug`) and export the slug pattern.
 - Export a small set of fixture frames that the mock room and the tests share.
-- Export Effect `Schema` versions from a separate entry (`@kiko/protocol/schema`) for the server and the CLI only.
+- Export Effect `Schema` versions from a separate entry (`@yuki/protocol/schema`) for the server and the CLI only.
 
-**Done when.** Importing `@kiko/protocol` from the client adds no runtime code to the client bundle.
+**Done when.** Importing `@yuki/protocol` from the client adds no runtime code to the client bundle.
 
-### P0-04 Scaffold the kiko CLI
+### P0-04 Scaffold the yuki CLI
 
 `deps: P0-01` `difficulty: 2` `area: backend`
 
-**Verify.** `bun kiko health --url http://localhost:8787` prints `ok` and exits 0. It exits 1 when the server is down.
+**Verify.** `bun yuki health --url http://localhost:8787` prints `ok` and exits 0. It exits 1 when the server is down.
 
 **Goal.** Create the command that every backend task uses to prove its work.
 
@@ -85,7 +85,7 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 **Build.**
 
-- Parse `kiko <command> [flags]` with a `--url` flag that defaults to the local dev server and a `--json` flag for machine output.
+- Parse `yuki <command> [flags]` with a `--url` flag that defaults to the local dev server and a `--json` flag for machine output.
 - Add `health`, and `ws <path>`, which opens a WebSocket, sends frames from stdin, and prints frames it receives as JSON lines.
 - Exit non-zero on any failure, with one line that says what failed.
 
@@ -117,7 +117,7 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 `deps: P0-05` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko measure turn --runs 5` prints rows written, rows read, requests, CPU ms, and wall time per turn, and `docs/research/experiment-2-turn-cost.md` contains that output.
+**Verify.** `bun yuki measure turn --runs 5` prints rows written, rows read, requests, CPU ms, and wall time per turn, and `docs/research/experiment-2-turn-cost.md` contains that output.
 
 **Goal.** Settle experiments 2 and 4 and replace the estimates in architecture section 17 with measurements.
 
@@ -138,7 +138,7 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 `deps: P0-05` `difficulty: 4` `area: backend`
 
-**Verify.** `bun test apps/server/test/coalescing-storage.test.ts` passes the conformance suite through the wrapper, and `bun kiko measure turn --coalesce` reports fewer rows written than without the flag.
+**Verify.** `bun test apps/server/test/coalescing-storage.test.ts` passes the conformance suite through the wrapper, and `bun yuki measure turn --coalesce` reports fewer rows written than without the flag.
 
 **Goal.** Settle experiment 3. Decide whether the Free plan is a real tier or a demo tier.
 
@@ -175,11 +175,11 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 **Done when.** Architecture section 11 has no UNVERIFIED label left for these three items.
 
-### P0-09 Register kiko as an Executor OAuth client
+### P0-09 Register yuki as an Executor OAuth client
 
 `deps: P0-01` `difficulty: 3` `area: backend` `human: yes`
 
-**Verify.** `bun kiko executor probe` prints the tool names returned by `tools/list` from `https://executor.sh/mcp` for a real account, and `docs/research/experiment-8-executor-oauth.md` records the flow that worked.
+**Verify.** `bun yuki executor probe` prints the tool names returned by `tools/list` from `https://executor.sh/mcp` for a real account, and `docs/research/experiment-8-executor-oauth.md` records the flow that worked.
 
 **Goal.** Settle experiment 8. Prove that a Worker can get a per-user credential for Executor Cloud.
 
@@ -258,17 +258,17 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 `deps: P0-04` `difficulty: 3` `area: docs`
 
-**Verify.** A fresh agent session that is told only "verify the server" finds the skill and runs `bun kiko health` without other guidance.
+**Verify.** A fresh agent session that is told only "verify the server" finds the skill and runs `bun yuki health` without other guidance.
 
 **Goal.** Give agents one documented way to drive the backend the way a user does.
 
-**Read first.** `.cursor/skills/verify-kiko/SKILL.md`, which covers the frontend.
+**Read first.** `.cursor/skills/verify-yuki/SKILL.md`, which covers the frontend.
 
-**Files.** Create `.cursor/skills/verify-kiko-server/SKILL.md` and `features/`. Make `.claude/skills` a link to `.cursor/skills`.
+**Files.** Create `.cursor/skills/verify-yuki-server/SKILL.md` and `features/`. Make `.claude/skills` a link to `.cursor/skills`.
 
 **Build.**
 
-- Run the `create-verification-skill` skill for the server. The driver is the kiko CLI against `wrangler dev`.
+- Run the `create-verification-skill` skill for the server. The driver is the yuki CLI against `wrangler dev`.
 - Write one feature file per CLI suite as suites appear. Start with `health`.
 - State the rule that a task adds its suite to the map in the same pull request.
 

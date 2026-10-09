@@ -8,7 +8,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P1-05` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify memory-store` passes: create a record with aliases, find it by an alias, edit it, and read the old version from history.
+**Verify.** `bun yuki verify memory-store` passes: create a record with aliases, find it by an alias, edit it, and read the old version from history.
 
 **Goal.** Store memory records with full-text search and version history.
 
@@ -30,7 +30,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P5-01, P4-02` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify memory-tools` passes with the test model: tell the agent a fact in one chat, ask for it in a second chat, and get it back.
+**Verify.** `bun yuki verify memory-tools` passes with the test model: tell the agent a fact in one chat, ask for it in a second chat, and get it back.
 
 **Goal.** Let agents read memory every turn and write facts when they learn them.
 
@@ -51,7 +51,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P5-02` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify memory-tidy` passes with the test model: seed two duplicate records and one wrong fact with a correction, run `kiko memory tidy --now`, and see one merged record, a dated correction, and the old bodies in history.
+**Verify.** `bun yuki verify memory-tidy` passes with the test model: seed two duplicate records and one wrong fact with a correction, run `yuki memory tidy --now`, and see one merged record, a dated correction, and the old bodies in history.
 
 **Goal.** Keep memory small and correct without the main agent doing the work.
 
@@ -73,9 +73,9 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P5-01, P2-07` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` memory feature: open `/memory`, search, open a record, edit it, see the new version in history, pin it, and delete another.
+**Verify.** The `verify-yuki` memory feature: open `/memory`, search, open a record, edit it, see the new version in history, pin it, and delete another.
 
-**Goal.** Let a user inspect and correct what kiko remembers.
+**Goal.** Let a user inspect and correct what yuki remembers.
 
 **Read first.** Product document, "Memory".
 
@@ -94,7 +94,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P1-05, P1-04, P1-01, P0-11` `difficulty: 4` `area: backend`
 
-**Verify.** `bun kiko verify reminders` passes: a reminder due in 3 seconds posts one message to its room, a second alarm for the same time posts nothing, and a daily reminder moves `due_utc` forward by one day in the user's timezone.
+**Verify.** `bun yuki verify reminders` passes: a reminder due in 3 seconds posts one message to its room, a second alarm for the same time posts nothing, and a daily reminder moves `due_utc` forward by one day in the user's timezone.
 
 **Goal.** Deliver reminders on time, once.
 
@@ -116,7 +116,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P5-05, P1-12` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify reminder-tool` passes with the test model: "remind me in 5 seconds to stretch" produces a reminder message, and an agent-target reminder starts a run with a `reminder` envelope.
+**Verify.** `bun yuki verify reminder-tool` passes with the test model: "remind me in 5 seconds to stretch" produces a reminder message, and an agent-target reminder starts a run with a `reminder` envelope.
 
 **Goal.** Let agents create reminders for the human, for themselves, and for other agents.
 
@@ -137,7 +137,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P5-05, P2-08` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` schedule feature: a reminder appears in the chat info panel's reminders section, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
+**Verify.** The `verify-yuki` schedule feature: a reminder appears in the chat info panel's reminders section, cancelling it removes it, and a fired reminder renders as a reminder bubble in the chat.
 
 **Goal.** Show what is scheduled and what fired.
 
@@ -155,7 +155,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P1-12` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify skills` passes with the test model: with a built-in skill named `haiku`, a request that matches its description makes the agent call `read_skill("haiku")`, and a room skill with the same name wins over the built-in one.
+**Verify.** `bun yuki verify skills` passes with the test model: with a built-in skill named `haiku`, a request that matches its description makes the agent call `read_skill("haiku")`, and a room skill with the same name wins over the built-in one.
 
 **Goal.** Give agents skills that load on demand, as pi's coding agent has.
 
@@ -177,7 +177,7 @@ This phase gives agents a memory of the user, a way to schedule, and skills they
 
 `deps: P5-08, P2-08` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` skills feature: add a skill in settings, type `/skill:` in the composer, pick it, and see the agent use it.
+**Verify.** The `verify-yuki` skills feature: add a skill in settings, type `/skill:` in the composer, pick it, and see the agent use it.
 
 **Goal.** Let a user add skills and apply one by hand.
 

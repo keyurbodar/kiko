@@ -10,15 +10,15 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p5-04-build-the-memory-screen` |
+| Branch | `yuki/p5-04-build-the-memory-screen` |
 
 ## Verification
 
-The `verify-kiko` memory feature: open `/memory`, search, open a record, edit it, see the new version in history, pin it, and delete another.
+The `verify-yuki` memory feature: open `/memory`, search, open a record, edit it, see the new version in history, pin it, and delete another.
 
 ## Task
 
-**Goal.** Let a user inspect and correct what kiko remembers.
+**Goal.** Let a user inspect and correct what yuki remembers.
 
 **Read first.** Product document, "Memory".
 

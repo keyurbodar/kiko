@@ -115,7 +115,7 @@ describe("production build", () => {
     expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: false })
   })
 
-  test("kiko login --dev fails", async () => {
+  test("yuki login --dev fails", async () => {
     const r = await cli(["login", "--dev", "--url", origin])
     expect(r.code).toBe(1)
     expect(r.err).toContain("no dev sign-in route")
@@ -140,7 +140,7 @@ describe("development build", () => {
     expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: true })
   })
 
-  test("kiko login --dev stores a session and kiko whoami prints the same user id", async () => {
+  test("yuki login --dev stores a session and yuki whoami prints the same user id", async () => {
     const before = await cli(["whoami", "--url", origin])
     expect(before.code).toBe(1)
 

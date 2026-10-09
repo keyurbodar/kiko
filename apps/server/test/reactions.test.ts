@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { partsOf } from "../src/agent/outbox"
 import { allowedReaction, reactionLines } from "../src/room/reactions"
 
-// P6-07, architecture section 6.5. The room-level behavior runs in `bun kiko verify reactions`.
+// P6-07, architecture section 6.5. The room-level behavior runs in `bun yuki verify reactions`.
 
 describe("allowedReaction", () => {
   test("an emoji on the list comes back in its stored form", () => {

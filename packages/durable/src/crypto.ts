@@ -1,4 +1,4 @@
-const INFO = "kiko-cred-v1"
+const INFO = "yuki-cred-v1"
 const IV_BYTES = 12
 const utf8 = new TextEncoder()
 

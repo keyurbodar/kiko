@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-10-add-micro-motion` |
+| Branch | `yuki/p3-10-add-micro-motion` |
 
 ## Verification
 

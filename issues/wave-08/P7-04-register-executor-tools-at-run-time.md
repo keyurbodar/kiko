@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p7-04-register-executor-tools-at-run-time` |
+| Branch | `yuki/p7-04-register-executor-tools-at-run-time` |
 
 ## Verification
 
-`bun kiko verify executor-tools` passes against a real account with one integration: the agent's tool list contains every tool that `tools/list` returned, prefixed `executor_`, and one call returns a result wrapped as untrusted.
+`bun yuki verify executor-tools` passes against a real account with one integration: the agent's tool list contains every tool that `tools/list` returned, prefixed `executor_`, and one call returns a result wrapped as untrusted.
 
 ## Task
 
@@ -32,7 +32,7 @@
 - If Executor is unreachable, start the run without its tools and tell the model in one line.
 - Keep no Executor tool name in the code outside the approval gate of P7-05.
 
-**Done when.** Adding an integration in the Executor console changes the next run's tools with no kiko deploy.
+**Done when.** Adding an integration in the Executor console changes the next run's tools with no yuki deploy.
 
 ## Rules for this task
 

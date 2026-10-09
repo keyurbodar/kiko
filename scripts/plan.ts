@@ -117,7 +117,7 @@ const slug = (title: string) =>
 		.split("-")
 		.slice(0, 7)
 		.join("-");
-const branch = (task: Task) => `kiko/${task.id.toLowerCase()}-${slug(task.title)}`;
+const branch = (task: Task) => `yuki/${task.id.toLowerCase()}-${slug(task.title)}`;
 const waveDir = (wave: number) => `wave-${String(wave).padStart(2, "0")}`;
 const issuePath = (task: Task) => `issues/${waveDir(task.wave)}/${task.id}-${slug(task.title)}.md`;
 const yesNo = (value: boolean) => (value ? "yes" : "no");

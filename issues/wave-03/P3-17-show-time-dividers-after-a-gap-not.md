@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-17-show-time-dividers-after-a-gap-not` |
+| Branch | `yuki/p3-17-show-time-dividers-after-a-gap-not` |
 
 ## Verification
 
-`bun test apps/web-solid/src/chat/lib/time-label.test.ts` passes a table of cases, and the `verify-kiko` dividers feature shows `today 12:02 pm` and `today 2:22 pm` between two same-day messages two hours apart, with no divider between messages ten minutes apart.
+`bun test apps/web-solid/src/chat/lib/time-label.test.ts` passes a table of cases, and the `verify-yuki` dividers feature shows `today 12:02 pm` and `today 2:22 pm` between two same-day messages two hours apart, with no divider between messages ten minutes apart.
 
 ## Task
 

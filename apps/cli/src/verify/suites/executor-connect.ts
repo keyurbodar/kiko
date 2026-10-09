@@ -8,7 +8,7 @@ import type { Suite } from "../runner"
 // Part one needs no account: the sign-in starts, the authorize URL carries PKCE S256,
 // `offline_access`, and this server's callback, and Executor's sign-in page answers it.
 // Part two needs a human to sign in once in a browser. Set YUKI_EXECUTOR_WAIT to the
-// seconds the suite should wait for that. `.cursor/skills/verify-kiko-server` has the steps.
+// seconds the suite should wait for that. `.cursor/skills/verify-yuki-server` has the steps.
 
 const USER = "executor-alice"
 const CALLBACK = "api/integrations/executor/callback"

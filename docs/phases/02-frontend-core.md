@@ -1,6 +1,6 @@
 # Phase 2. Frontend core
 
-This phase turns the fixture-driven template in `apps/web-solid` into an app with routes, a tiny HTML shell, local storage, and a live connection. It runs at the same time as Phase 1. Until P2-08, the client talks to a mock room that replays fixture frames from `@kiko/protocol`.
+This phase turns the fixture-driven template in `apps/web-solid` into an app with routes, a tiny HTML shell, local storage, and a live connection. It runs at the same time as Phase 1. Until P2-08, the client talks to a mock room that replays fixture frames from `@yuki/protocol`.
 
 Measurements for layout and color are in `docs/research/kat-ui.md`. When that file and `~/kat-images` disagree, the screenshots win.
 
@@ -10,7 +10,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 `deps: P0-02` `difficulty: 3` `area: frontend`
 
-**Verify.** Run the `verify-kiko` skill's theme check. Sampled pixels of the sidebar, the panel, an assistant bubble, and a user bubble match `#0b0a09`, `#131211`, `#221f1e`, and `#66422f` within 2 per channel.
+**Verify.** Run the `verify-yuki` skill's theme check. Sampled pixels of the sidebar, the panel, an assistant bubble, and a user bubble match `#0b0a09`, `#131211`, `#221f1e`, and `#66422f` within 2 per channel.
 
 **Goal.** Make the app look like kat by changing tokens, not components.
 
@@ -74,7 +74,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 `deps: P2-01, P2-02` `difficulty: 3` `area: frontend`
 
-**Verify.** Run the `verify-kiko` tab strip feature: open three chats, close the middle one, and reload. The same tabs return in the same order with the same active tab.
+**Verify.** Run the `verify-yuki` tab strip feature: open three chats, close the middle one, and reload. The same tabs return in the same order with the same active tab.
 
 **Goal.** Port kat's tab strip for open chats.
 
@@ -150,7 +150,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 **Build.**
 
 - Keep the `useApp` shape where it still fits and back it with the sync stores.
-- Replace the local message types with the types from `@kiko/protocol`.
+- Replace the local message types with the types from `@yuki/protocol`.
 - Boot in the order from architecture section 19.2: shell, IndexedDB, sockets.
 - Pass the real `firstUnreadMessageId` and typing names to the transcript, which `main.tsx` stubs today.
 - Move the fixtures to the dev harness and the mock room only.
@@ -161,7 +161,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 `deps: P2-07, P1-12` `difficulty: 3` `area: frontend`
 
-**Verify.** Run the `verify-kiko` live chat feature against `bun dev:server`: send a burst of three messages, see one answer arrive as bubbles with a typing indicator between them, reload, and see the same transcript at once.
+**Verify.** Run the `verify-yuki` live chat feature against `bun dev:server`: send a burst of three messages, see one answer arrive as bubbles with a typing indicator between them, reload, and see the same transcript at once.
 
 **Goal.** Make the browser talk to the Worker.
 
@@ -182,7 +182,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 `deps: P2-07, P2-01` `difficulty: 3` `area: frontend`
 
-**Verify.** Run the `verify-kiko` sidebar feature with 2,000 chats in the mock: the list scrolls without blank rows, and pin, rename, and delete apply at once.
+**Verify.** Run the `verify-yuki` sidebar feature with 2,000 chats in the mock: the list scrolls without blank rows, and pin, rename, and delete apply at once.
 
 **Goal.** Finish the chat sidebar to match kat.
 
@@ -238,7 +238,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 - A typed registry: `{ id, title, group, icon, shortcut?, global?, when?, run }`. Titles use kat's `noun: verb` form in lowercase. A route or feature registers its commands on mount and they leave on unmount.
 - Bind shortcuts with `@tanstack/solid-hotkeys` (`createHotkey`, `Mod` for `⌘` or `ctrl`). If it fails in practice, use `tinykeys` and say why in the pull request.
-- Start with kat's map: `view: toggle sidebar ⌘S`, `chat: new ⌘T`, `chat: reopen closed ⌘⇧T`, `chat: attach file... ⌘O`, `chat: rename F2`, `chat: pin ⌘D`, `chat: close ⌘W`, `chat: delete`, `chats: go to chat... ⌘P`, `chats: search messages in current chat ⌘F`, `chats: search all chats ⌘⇧F`, and `palette: open ⌘K`. A command whose feature does not exist yet stays registered and disabled. Leave out `chat: share`, since kiko has no share links.
+- Start with kat's map: `view: toggle sidebar ⌘S`, `chat: new ⌘T`, `chat: reopen closed ⌘⇧T`, `chat: attach file... ⌘O`, `chat: rename F2`, `chat: pin ⌘D`, `chat: close ⌘W`, `chat: delete`, `chats: go to chat... ⌘P`, `chats: search messages in current chat ⌘F`, `chats: search all chats ⌘⇧F`, and `palette: open ⌘K`. A command whose feature does not exist yet stays registered and disabled. Leave out `chat: share`, since yuki has no share links.
 - Move the sidebar toggle from P2-15 to `⌘S` through the registry.
 - Single-key and plain shortcuts never fire while a text field has focus. `⌘K` and `⌘S` are global.
 - Export a list of all shortcuts for a later cheatsheet.
@@ -275,7 +275,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 **Goal.** Let a user change any visual token by pasting a JSON theme, with radius, spacing, type, and colors all in reach.
 
-**Read first.** `packages/ui/src/styles/tokens.md` and `kat.css`. t3code's approach, which kiko extends: `refs/t3code/apps/web/src/themePalette.ts` (`ThemeFile` at line 47, `parseThemeFile` at line 1352, `applyThemePalette` at line 1516) and `components/settings/ThemeImportDialog.tsx`. t3code themes colors only; kiko themes every token.
+**Read first.** `packages/ui/src/styles/tokens.md` and `kat.css`. t3code's approach, which yuki extends: `refs/t3code/apps/web/src/themePalette.ts` (`ThemeFile` at line 47, `parseThemeFile` at line 1352, `applyThemePalette` at line 1516) and `components/settings/ThemeImportDialog.tsx`. t3code themes colors only; yuki themes every token.
 
 **Files.** Create `apps/web-solid/src/theme/` (`schema.ts`, `apply.ts`, `presets/`, `editor.tsx`, tests) and `docs/theming.md`. Edit `apps/server/src/user/` for one theme record, `packages/protocol` for one user event, and the HTML shell for the pre-paint script.
 
@@ -312,7 +312,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
   - **Header.** Large avatar, inline-editable name, and a subtitle: `started <date>` for a one-agent chat, `<n> members` for a group.
   - **Members.** Avatars in a row with names, the human first with a crown, and an `add` button. In a one-agent chat, adding an agent turns it into a group. Each agent opens a card with role, model, status, and rename or remove. P6-08 builds on this.
   - **Model.** The model this chat uses, with the picker from P4-05.
-  - **Toggles.** Mute and pin. Lock is left out: kiko has no per-chat lock yet.
+  - **Toggles.** Mute and pin. Lock is left out: yuki has no per-chat lock yet.
   - **Memory.** Records this chat created or used most, then `all memory` for the full searchable list, with view, edit, history, pin, archive, and delete from P5-04. Memory stays per user; the panel only filters it.
   - **Links.** Every link sent in the chat with title and site, newest first.
   - **Media.** A grid of photos and videos that opens the media viewer.
@@ -389,7 +389,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 `deps: P2-02, P1-02` `difficulty: 2` `area: frontend`
 
-**Verify.** With no session, `/chat` shows the sign-in screen. After `bun kiko login --dev --browser`, a reload shows the chat.
+**Verify.** With no session, `/chat` shows the sign-in screen. After `bun yuki login --dev --browser`, a reload shows the chat.
 
 **Goal.** Let a person sign in and keep the session across reloads.
 
@@ -409,13 +409,13 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 `deps: P2-08, P2-09, P2-04` `difficulty: 3` `area: docs`
 
-**Verify.** The `maintain-verification-skill` run ends with every feature in `.cursor/skills/verify-kiko/features/` either proven in a live session or corrected, and its report is in the pull request.
+**Verify.** The `maintain-verification-skill` run ends with every feature in `.cursor/skills/verify-yuki/features/` either proven in a live session or corrected, and its report is in the pull request.
 
 **Goal.** Bring the existing verify skill in line with the routed, live app.
 
-**Read first.** `.cursor/skills/verify-kiko/SKILL.md`.
+**Read first.** `.cursor/skills/verify-yuki/SKILL.md`.
 
-**Files.** `.cursor/skills/verify-kiko/`.
+**Files.** `.cursor/skills/verify-yuki/`.
 
 **Build.**
 

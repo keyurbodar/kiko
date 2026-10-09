@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p10-07-build-the-extensions-settings-page` |
+| Branch | `yuki/p10-07-build-the-extensions-settings-page` |
 
 ## Verification
 

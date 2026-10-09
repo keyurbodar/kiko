@@ -10,23 +10,23 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-13-create-the-backend-verification-skill` |
+| Branch | `yuki/p0-13-create-the-backend-verification-skill` |
 
 ## Verification
 
-A fresh agent session that is told only "verify the server" finds the skill and runs `bun kiko health` without other guidance.
+A fresh agent session that is told only "verify the server" finds the skill and runs `bun yuki health` without other guidance.
 
 ## Task
 
 **Goal.** Give agents one documented way to drive the backend the way a user does.
 
-**Read first.** `.cursor/skills/verify-kiko/SKILL.md`, which covers the frontend.
+**Read first.** `.cursor/skills/verify-yuki/SKILL.md`, which covers the frontend.
 
-**Files.** Create `.cursor/skills/verify-kiko-server/SKILL.md` and `features/`. Make `.claude/skills` a link to `.cursor/skills`.
+**Files.** Create `.cursor/skills/verify-yuki-server/SKILL.md` and `features/`. Make `.claude/skills` a link to `.cursor/skills`.
 
 **Build.**
 
-- Run the `create-verification-skill` skill for the server. The driver is the kiko CLI against `wrangler dev`.
+- Run the `create-verification-skill` skill for the server. The driver is the yuki CLI against `wrangler dev`.
 - Write one feature file per CLI suite as suites appear. Start with `health`.
 - State the rule that a task adds its suite to the map in the same pull request.
 

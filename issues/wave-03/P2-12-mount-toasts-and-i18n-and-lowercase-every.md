@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-12-mount-toasts-and-i18n-and-lowercase-every` |
+| Branch | `yuki/p2-12-mount-toasts-and-i18n-and-lowercase-every` |
 
 ## Verification
 

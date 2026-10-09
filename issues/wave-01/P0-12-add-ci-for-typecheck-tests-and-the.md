@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-12-add-ci-for-typecheck-tests-and-the` |
+| Branch | `yuki/p0-12-add-ci-for-typecheck-tests-and-the` |
 
 ## Verification
 

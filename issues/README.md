@@ -23,10 +23,10 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | Task | Title | Area | Difficulty | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- |
 | [P0-03](wave-01/P0-03-define-the-wire-protocol-package.md) | Define the wire protocol package | backend | 3 | P0-01 | yes |
-| [P0-04](wave-01/P0-04-scaffold-the-kiko-cli.md) | Scaffold the kiko CLI | backend | 2 | P0-01 | yes |
+| [P0-04](wave-01/P0-04-scaffold-the-yuki-cli.md) | Scaffold the yuki CLI | backend | 2 | P0-01 | yes |
 | [P0-05](wave-01/P0-05-prove-pi-durable-in-a-durable-object.md) | Prove pi-durable in a Durable Object | backend | 5 | P0-01 | yes |
 | [P0-08](wave-01/P0-08-check-bundle-size-the-model-catalog-and.md) | Check bundle size, the model catalog, and provider imports | backend | 3 | P0-01 | yes |
-| [P0-09](wave-01/P0-09-register-kiko-as-an-executor-oauth-client.md) | Register kiko as an Executor OAuth client | backend | 3 | P0-01 | yes |
+| [P0-09](wave-01/P0-09-register-yuki-as-an-executor-oauth-client.md) | Register yuki as an Executor OAuth client | backend | 3 | P0-01 | yes |
 | [P0-10](wave-01/P0-10-prove-a-solid-binding-for-headless-tree.md) | Prove a Solid binding for headless-tree | frontend | 3 | P0-02 | yes |
 | [P0-11](wave-01/P0-11-check-recurrence-across-daylight-saving-changes.md) | Check recurrence across daylight-saving changes | backend | 2 | P0-01 | yes |
 | [P0-12](wave-01/P0-12-add-ci-for-typecheck-tests-and-the.md) | Add CI for typecheck, tests, and the plan check | infra | 2 | P0-01 | yes |
@@ -98,7 +98,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | --- | --- | --- | --- | --- | --- |
 | [P1-10](wave-04/P1-10-build-the-agent-factory-and-the-base.md) | Build the agent factory and the base prompt | backend | 3 | P1-06 | yes |
 | [P12-05](wave-04/P12-05-fire-routines-on-chat-events-webhooks-and.md) | Fire routines on chat events, webhooks, and watched pages | backend | 4 | P12-04 | yes |
-| [P12-07](wave-04/P12-07-kiko-checks-in-each-morning.md) | Kiko checks in each morning | backend | 3 | P12-04, P12-06 | yes |
+| [P12-07](wave-04/P12-07-yuki-checks-in-each-morning.md) | Yuki checks in each morning | backend | 3 | P12-04, P12-06 | yes |
 | [P2-07](wave-04/P2-07-replace-the-fixture-store-with-the-sync.md) | Replace the fixture store with the sync client | frontend | 4 | P2-06, P2-02 | yes |
 | [P2-11](wave-04/P2-11-throttle-work-in-background-tabs.md) | Throttle work in background tabs | frontend | 2 | P2-06 | yes |
 | [P2-16](wave-04/P2-16-add-the-command-registry-and-keyboard-shortcuts.md) | Add the command registry and keyboard shortcuts | frontend | 3 | P2-15 | yes |

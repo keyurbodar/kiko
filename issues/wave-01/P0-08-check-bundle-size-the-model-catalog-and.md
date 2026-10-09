@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-08-check-bundle-size-the-model-catalog-and` |
+| Branch | `yuki/p0-08-check-bundle-size-the-model-catalog-and` |
 
 ## Verification
 

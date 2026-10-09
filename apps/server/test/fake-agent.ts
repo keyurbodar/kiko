@@ -6,7 +6,7 @@ import type { AgentHome, RoomDO } from "../src/room/room-do"
 // P6-01. Runs inside workerd; `team-routing.test.ts` drives it through Miniflare. The real `RoomDO`
 // with two stand-ins: `FakeAgent` records every `receive()` and `stop()` and runs no model, so a test
 // sees exactly who was woken and with which brief, and `FakeUser` answers the two `UserDO` calls the
-// room makes. The live counterpart for `bun kiko verify team-routing` is `src/agent/dev-fake.ts`.
+// room makes. The live counterpart for `bun yuki verify team-routing` is `src/agent/dev-fake.ts`.
 
 export { RoomDO } from "../src/room/room-do"
 

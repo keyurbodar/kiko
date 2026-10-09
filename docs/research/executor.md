@@ -1,4 +1,4 @@
-# Executor (executor.sh) research notes for kiko
+# Executor (executor.sh) research notes for yuki
 
 Researched 2026-10-02. Sources: docs site (https://executor.sh/docs, llms.txt, .md pages), repo clone of
 https://github.com/UsefulSoftwareCo/executor at commit 98d606b (2026-09-30), GitHub API, DeepWiki (cross-checked
@@ -83,10 +83,10 @@ LIVE-VERIFIED (curl, 2026-10-02):
 - POST https://executor.sh/mcp unauthenticated -> 401 + the WWW-Authenticate above.
 - GET https://executor.sh/api/account/me unauthenticated -> 401.
 
-Answer for kiko: YES, a third-party server-side app can get a per-user credential, two ways:
+Answer for yuki: YES, a third-party server-side app can get a per-user credential, two ways:
 1. OAuth 2.1 authorization-code + PKCE (S256) with RFC 7591 dynamic client registration (or CIMD), standard MCP
    authorization flow: discover protected-resource metadata -> AS metadata -> POST registration_endpoint with
-   kiko's redirect_uri (e.g. https://kiko.example/oauth/executor/callback) -> redirect the user to
+   yuki's redirect_uri (e.g. https://yuki.example/oauth/executor/callback) -> redirect the user to
    authorization_endpoint (user logs in at signin.executor.sh and picks org) -> exchange code at token_endpoint ->
    store access + refresh token per user (request offline_access so a refresh token is issued; the server comment says
    clients without it "silently sign out at every access-token expiry"). Then call POST/GET/DELETE
@@ -94,13 +94,13 @@ Answer for kiko: YES, a third-party server-side app can get a per-user credentia
    SDK's OAuth client provider or `agents` MCP client can drive it. The repo's own e2e helper mints a bearer this way
    (e2e/src/surfaces/mcp.ts per DeepWiki; I did not read that file myself: UNVERIFIED line-level). Access-token TTL
    UNVERIFIED (AuthKit config).
-2. Paste-in personal API key: the user creates a personal API key in the Executor console and gives it to kiko;
-   kiko sends it as Bearer. Simplest, no refresh, but key lifetime/expiry/format UNVERIFIED, user must copy secret,
+2. Paste-in personal API key: the user creates a personal API key in the Executor console and gives it to yuki;
+   yuki sends it as Bearer. Simplest, no refresh, but key lifetime/expiry/format UNVERIFIED, user must copy secret,
    and the key is user-scoped so it acts as that member.
 Also usable: the REST API (section 6) with the same bearer (cloud resolves "api-key/session"; JWT bearer on /api
 supported via auth/api-jwt-bearer.ts, exact acceptance of MCP-audience JWTs on /api UNVERIFIED).
 Redirect URI allow-listing/ whether AuthKit DCR is enabled for arbitrary redirect URIs: the metadata advertises it and
-Claude/ChatGPT/Cursor use it per docs; actually registering from kiko was NOT tested (UNVERIFIED, would need a write
+Claude/ChatGPT/Cursor use it per docs; actually registering from yuki was NOT tested (UNVERIFIED, would need a write
 to their AuthKit, so I did not do it).
 
 ## 4. MCP tools exposed
@@ -121,13 +121,13 @@ operation:
   `?search_tools=true`.
 - Artifact/UI tools (default on; disable `?artifacts=false`): `execute-action` {code, artifactId?},
   `execute-action-resume` {executionId, action, content?}, plus artifact create/edit tools and a `ui://` MCP-Apps shell
-  resource (tool-server.ts ~L2600-2830; I did not enumerate all artifact tool names: UNVERIFIED). kiko should pass
+  resource (tool-server.ts ~L2600-2830; I did not enumerate all artifact tool names: UNVERIFIED). yuki should pass
   `?artifacts=false` since it is not an MCP-Apps host.
 Alternative `?mode=passthrough` (tool-server.ts L1285-1460, passthrough-tools.ts): serves `integrations`
 ({integration?, owner?: "org"|"user", ...paging}), `search` ({query,...filters}; returns tool IDs, account details and FULL
 JSON input schemas), `invoke` ({tool: string, arguments: Record<string,unknown>}, annotated destructiveHint=true,
 "Your client handles approval for this call; workspace blocks remain enforced"), and `skills`. No `execute`/`resume`.
-This is the closest fit for kiko if kiko wants to expose upstream operations to its own agent loop as discrete
+This is the closest fit for yuki if yuki wants to expose upstream operations to its own agent loop as discrete
 tool calls without a code sandbox. Exact full descriptions are in source; the schemas above are abridged.
 
 ## 5. Approvals
@@ -137,7 +137,7 @@ Per-connection elicitation mode chosen by URL query (browser-approval.ts), defau
   deadline. The agent/host must ask the human, then call `resume` {executionId, action: "accept"|"decline"|"cancel",
   content: JSON string (default "{}"), persist?: string (one of interaction.meta.persist, remember approval)}
   (packages/core/execution/src/engine.ts L213-275; tool-server.ts L2102-2140). No MCP elicitation capability needed:
-  kiko just renders an approve/deny UI and calls `resume`. Paused execution lease in cloud: 4 minutes
+  yuki just renders an approve/deny UI and calls `resume`. Paused execution lease in cloud: 4 minutes
   (PAUSED_APPROVAL_TIMEOUT_MS, tool-server.ts L350; used in apps/cloud/src/mcp/session-durable-object.ts L414).
   Auth-needed pauses use URL elicitation (user opens a URL, then resume accept).
 - browser: `execute` returns "User approval required" + approvalUrl
@@ -145,7 +145,7 @@ Per-connection elicitation mode chosen by URL query (browser-approval.ts), defau
   console; the `resume` tool {executionId} long-polls for the decision. Model cannot choose accept/decline.
 - native: no `resume` tool; server sends standard MCP `elicitation/create` (form/url) during the tool call; client must
   declare the elicitation capability and answer. Needs a held-open streaming request.
-Implementation needed in kiko for `model` mode: parse paused results, persist executionId against the chat turn,
+Implementation needed in yuki for `model` mode: parse paused results, persist executionId against the chat turn,
 surface UI, call `resume` within 4 minutes, handle decline/cancel and `persist`. Also REST equivalents:
 GET /executions/:id, POST /executions, POST /executions/:id/resume (packages/core/api/src/executions/api.ts).
 
@@ -153,7 +153,7 @@ GET /executions/:id, POST /executions, POST /executions/:id/resume (packages/cor
 - MCP resources: capabilities declared `{ resources: {}, tools: {} }` (tool-server.ts L1654); only `ui://` shell
   resource found. No prompts capability found (UNVERIFIED absence). tool-list-changed notifications: code reconciles
   tools on session restore; whether notifications/tools/list_changed is emitted on catalog change UNVERIFIED. Since
-  tool surface is fixed (execute/skills/resume), kiko mostly does not need it.
+  tool surface is fixed (execute/skills/resume), yuki mostly does not need it.
 - REST API: mounted under /api on cloud (apps/cloud/src/app-paths.ts; 401 unauthenticated verified live). Effect HttpApi
   groups in packages/core/api/src: GET/POST /connections, GET/PATCH/DELETE /connections/:owner/:integration/:name,
   /connections/:..../refresh|health, /connections/validate; GET/POST /policies, PATCH/DELETE /policies/:policyId;
@@ -164,14 +164,14 @@ GET /executions/:id, POST /executions, POST /executions/:id/resume (packages/cor
 - SDK: packages/core/sdk, examples/promise-sdk, examples/docs-sdk-quickstart (in-process embeddable SDK; not a cloud
   client; UNVERIFIED whether it can target Cloud).
 - Webhooks: only inbound WorkOS webhook (/api/webhooks/workos) for their own mirror. No outbound webhooks found.
-- Connecting upstream accounts happens in the Executor console/OAuth (/oauth/*); kiko cannot avoid sending the user
+- Connecting upstream accounts happens in the Executor console/OAuth (/oauth/*); yuki cannot avoid sending the user
   there for first-time connection setup (or drive /api/oauth/start with a user token: UNVERIFIED redirect handling).
 
 ## 7. Pricing/limits (https://executor.sh/pricing.md)
 Free $0: up to 3 members, 100,000 executions/month, unlimited integrations. Team $15/member/month (14-day trial),
 unlimited executions, verified domains. Enterprise: custom, SSO/SAML, audit logs, dedicated/self-hosted. Source also
 mentions a "free-organization limit" (apps/cloud/CHANGELOG.md 1.4.70) - count UNVERIFIED. Rate limits UNVERIFIED.
-An "execution" presumably = one `execute` call (UNVERIFIED). Each kiko user would use their own org/plan.
+An "execution" presumably = one `execute` call (UNVERIFIED). Each yuki user would use their own org/plan.
 Contact on pricing page: rhys@executor.sh.
 
 ## 8. License and maturity
@@ -192,9 +192,9 @@ Docs are thin (10 pages); detail lives only in code. Cloud MCP API surface is no
 3. Approvals are session-bound and short: paused executions live in the user's MCP session Durable Object with a 4-minute
    lease; an agent turn that outlives the user's attention loses the pause. Reconnecting with a new mcp-session-id
    loses it too (UNVERIFIED how restore works across sessions).
-4. Prompt injection / safety: upstream tool results flow into kiko's model; policy "approve" tools run without a
+4. Prompt injection / safety: upstream tool results flow into yuki's model; policy "approve" tools run without a
    human. Surface Executor's own policies, and do not auto-accept `resume` on the model's behalf (model mode lets the
-   model call resume itself: kiko must gate accept/decline on the human, not the LLM).
+   model call resume itself: yuki must gate accept/decline on the human, not the LLM).
 5. Cost/limits: 100k executions/month free cap per org; per-user org billing is the user's, but a failing cap breaks
    agents silently. Latency: extra hop plus QuickJS execution, search-then-describe-then-call means several round trips
    in code mode.
@@ -204,7 +204,7 @@ Docs are thin (10 pages); detail lives only in code. Cloud MCP API surface is no
    as a fallback (Cloudflare Worker host exists: apps/host-cloudflare, single-tenant).
 8. Session semantics: Streamable-HTTP sessions with `mcp-session-id`; from a Worker use fresh fetch per request or a DO to
    hold the session; long-lived SSE needed only for native elicitation.
-9. Data residency / secrets: users' third-party credentials live at Executor; kiko never sees them (a plus), but kiko's
+9. Data residency / secrets: users' third-party credentials live at Executor; yuki never sees them (a plus), but yuki's
    audit trail depends on Executor's (audit logging is Enterprise only).
 10. UNVERIFIED items above (DCR from arbitrary redirect URIs, token TTLs, tools/list_changed, REST bearer acceptance)
    should be tested with a real account before committing.

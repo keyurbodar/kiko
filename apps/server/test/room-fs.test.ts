@@ -210,7 +210,7 @@ test("read gives an image to a model that sees images, a pdf as text, and refuse
   await raw(room, "attachments/trip.pdf", "application/pdf", pdf)
   const read = await agent(room).read("/attachments/trip.pdf")
   expect(read).toContain("a pdf of 1 pages")
-  expect(read).toContain("kiko reads pdfs: lisbon trip plan")
+  expect(read).toContain("yuki reads pdfs: lisbon trip plan")
   await raw(room, "blob.bin", "application/octet-stream", new Uint8Array([1, 0, 2]))
   const bin = await agent(room).run("read", { path: "blob.bin" })
   expect(bin.ok).toBe(false)

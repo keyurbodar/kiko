@@ -8,8 +8,8 @@ Run on 2026-10-02. Versions: `@earendil-works/pi-durable` 1.0.0, wrangler 4.146.
 
 ## Method
 
-- Rows. `apps/server/src/experiments/count-rows.ts` wraps the storage handed to `openDurableObjectSqlite` and adds `cursor.rowsRead` and `cursor.rowsWritten` after every statement. `sqlite.ts` is not edited. It is on only when the variable `KIKO_DEBUG_ROWS=1` is set. Key-value `put` calls are not counted (the experiment writes 2 or 3 of them per turn). The counts split into `open` (migrations, one time) and `turn` (everything after).
-- Requests, CPU, wall. Read from `wrangler tail --format json`. Each event has `cpuTime`, `wallTime`, and for a Durable Object invocation a `durableObjectId`. `kiko measure turn` sums the events of one run.
+- Rows. `apps/server/src/experiments/count-rows.ts` wraps the storage handed to `openDurableObjectSqlite` and adds `cursor.rowsRead` and `cursor.rowsWritten` after every statement. `sqlite.ts` is not edited. It is on only when the variable `YUKI_DEBUG_ROWS=1` is set. Key-value `put` calls are not counted (the experiment writes 2 or 3 of them per turn). The counts split into `open` (migrations, one time) and `turn` (everything after).
+- Requests, CPU, wall. Read from `wrangler tail --format json`. Each event has `cpuTime`, `wallTime`, and for a Durable Object invocation a `durableObjectId`. `yuki measure turn` sums the events of one run.
 - Every run uses a fresh Durable Object (`?name=`), so no run reads an earlier run's history.
 - Deployed run. A throwaway Worker `kiko-measure-p0-06` holding only `AgentDO` was deployed from `apps/server/measure-worker/`, measured, and deleted. The key was set as a secret and the secret went with the Worker.
 
@@ -18,7 +18,7 @@ Run on 2026-10-02. Versions: `@earendil-works/pi-durable` 1.0.0, wrangler 4.146.
 Local, `wrangler dev` (no tail, so no CPU):
 
 ```text
-$ bun kiko measure turn --runs 5 --url http://localhost:8806
+$ bun yuki measure turn --runs 5 --url http://localhost:8806
 run	rowsWritten	rowsRead	statements	openRowsWritten	openMs	wallMs
 1	708	985	976	38	8	19951
 2	853	1188	1179	38	9	25645
@@ -31,7 +31,7 @@ mean	rowsWritten=872 rowsRead=1214.6 statements=1205.6 wallMs=22893
 Deployed, heartbeat alarm on (what experiment 1 ships):
 
 ```text
-$ bun kiko measure turn --runs 5 --url https://kiko-measure-p0-06.meroailabs.workers.dev --tail tail.jsonl
+$ bun yuki measure turn --runs 5 --url https://kiko-measure-p0-06.meroailabs.workers.dev --tail tail.jsonl
 run	rowsWritten	rowsRead	statements	openRowsWritten	openMs	wallMs	requests	cpuMs	tailWallMs
 1	813	1132	1123	38	0	17150	4	776	17985
 2	933	1300	1291	38	0	23062	5	2233	24166
@@ -41,10 +41,10 @@ run	rowsWritten	rowsRead	statements	openRowsWritten	openMs	wallMs	requests	cpuMs
 mean	rowsWritten=936 rowsRead=1304.2 statements=1295.2 requests=4.2 cpuMs=1854.6 wallMs=21445.8
 ```
 
-Deployed, heartbeat alarm off (`KIKO_MEASURE_HEARTBEAT=0`). This is the cost of the turn itself and is the number section 17 uses:
+Deployed, heartbeat alarm off (`YUKI_MEASURE_HEARTBEAT=0`). This is the cost of the turn itself and is the number section 17 uses:
 
 ```text
-$ KIKO_MEASURE_HEARTBEAT=0 bun kiko measure turn --runs 5 --url https://kiko-measure-p0-06.meroailabs.workers.dev --tail tail.jsonl
+$ YUKI_MEASURE_HEARTBEAT=0 bun yuki measure turn --runs 5 --url https://kiko-measure-p0-06.meroailabs.workers.dev --tail tail.jsonl
 run	rowsWritten	rowsRead	statements	openRowsWritten	openMs	wallMs	requests	cpuMs	tailWallMs
 1	503	696	687	38	0	10738	2	1172	11726
 2	668	927	918	38	0	14655	2	1521	15604

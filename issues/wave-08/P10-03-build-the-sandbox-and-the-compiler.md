@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p10-03-build-the-sandbox-and-the-compiler` |
+| Branch | `yuki/p10-03-build-the-sandbox-and-the-compiler` |
 
 ## Verification
 
@@ -25,7 +25,7 @@
 **Build.**
 
 - One VM per extension version per agent process, with a CPU budget, a memory cap, and a wall deadline.
-- `kiko.call`, `kiko.fetch`, `kiko.state`, `kiko.next`, `kiko.log`, each checked per call.
+- `yuki.call`, `yuki.fetch`, `yuki.state`, `yuki.next`, `yuki.log`, each checked per call.
 - `UserExtensions` in the factory: sync installs, removes, and reports clashes; the selection ends with trust.
 
 ## Rules for this task

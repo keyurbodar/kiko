@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p11-06-show-the-life-log` |
+| Branch | `yuki/p11-06-show-the-life-log` |
 
 ## Verification
 
@@ -18,7 +18,7 @@
 
 ## Task
 
-**Goal.** The human sees what kiko knows, pins what matters, removes what should be gone, and picks the model that writes summaries.
+**Goal.** The human sees what yuki knows, pins what matters, removes what should be gone, and picks the model that writes summaries.
 
 **Files.** `apps/web-solid/src/chat/info/memory/*`, `chat/info/panel.tsx`, `chat/info/state.ts`, `app/routes.tsx`.
 

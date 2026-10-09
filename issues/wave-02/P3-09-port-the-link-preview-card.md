@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-09-port-the-link-preview-card` |
+| Branch | `yuki/p3-09-port-the-link-preview-card` |
 
 ## Verification
 
-The `verify-kiko` link preview feature against the mock: a card with site name, title, description, and image renders in a bubble, and the composer shows the same preview with a remove button.
+The `verify-yuki` link preview feature against the mock: a card with site name, title, description, and image renders in a bubble, and the composer shows the same preview with a remove button.
 
 ## Task
 
@@ -32,7 +32,7 @@ The `verify-kiko` link preview feature against the mock: a card with site name, 
 - Lay out the card as site name, title, text, media, with the accent bar on the left. Support a large image and a small square image.
 - In the composer, preview the first URL in the draft in the same plate that reply uses. Guard against a stale response by comparing the URL at resolve time.
 - Request previews only from `/api/link-preview`. Delete the dev proxy from `vite.config.ts` when P8-02 has merged.
-- Load images only from kiko's origin.
+- Load images only from yuki's origin.
 
 **Done when.** The card renders from a protocol fixture with no network call.
 

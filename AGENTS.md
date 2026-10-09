@@ -69,16 +69,16 @@ A task is not done until its `Verify` line passes and you have shown the output.
 bun run typecheck
 bun run test                      # every package: client, cli, protocol, server (a bare `bun test` at the root fails)
 bun run --cwd apps/server test    # server: one process per file, each boots its own workerd
-bun kiko verify --list            # backend suites
-bun kiko verify <suite>           # one suite against the dev server
-bun kiko verify --no-model        # everything that needs no model key
+bun yuki verify --list            # backend suites
+bun yuki verify <suite>           # one suite against the dev server
+bun yuki verify --no-model        # everything that needs no model key
 bun scripts/bundle-budget.ts      # client tier sizes
 bun scripts/plan.ts --check       # the plan files are in sync
 bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
 - Backend work is verified through the yuki CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
-- Frontend work is verified with the `verify-kiko` skill, which drives a real browser. Use it for checks that matter, not for every change.
+- Frontend work is verified with the `verify-yuki` skill, which drives a real browser. Use it for checks that matter, not for every change.
 - Team and loop behavior is tested with fake agents first, so tests are deterministic and cost no tokens.
 - Do not write a test that only proves the code runs. A test must fail when the behavior breaks.
 

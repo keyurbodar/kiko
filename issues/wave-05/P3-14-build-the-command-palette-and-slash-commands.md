@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-14-build-the-command-palette-and-slash-commands` |
+| Branch | `yuki/p3-14-build-the-command-palette-and-slash-commands` |
 
 ## Verification
 
-The `verify-kiko` palette feature: `⌘K` opens the palette with `type a command...` focused and the first row highlighted, typing filters, Enter on `chat: new` creates a chat, `chats: go to chat...` (`⌘P`) lists chats, Escape closes, and typing `/` in the composer lists commands.
+The `verify-yuki` palette feature: `⌘K` opens the palette with `type a command...` focused and the first row highlighted, typing filters, Enter on `chat: new` creates a chat, `chats: go to chat...` (`⌘P`) lists chats, Escape closes, and typing `/` in the composer lists commands.
 
 ## Task
 

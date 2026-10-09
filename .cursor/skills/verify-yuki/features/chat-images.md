@@ -1,6 +1,6 @@
 # Message attachments and the image dialog
 
-Since 2026-10-09 kiko draws attachments as t3code does. The human attaches pictures and files in the composer; a sent message shows its pictures as a small grid and its other files as rows; a picture opens in an image dialog. There is no album layout, link card, thumbhash, or video poster any more. Agents send no files, so only the human's messages carry attachments, but an old agent message that has files draws the same way.
+Since 2026-10-09 yuki draws attachments as t3code does. The human attaches pictures and files in the composer; a sent message shows its pictures as a small grid and its other files as rows; a picture opens in an image dialog. There is no album layout, link card, thumbhash, or video poster any more. Agents send no files, so only the human's messages carry attachments, but an old agent message that has files draws the same way.
 
 A file is a picture when its type is GIF, JPEG, PNG, or WebP, or its name says so and the type is empty (`apps/web-solid/src/lib/attachments.ts` over `packages/protocol/src/attachments.ts`). Another picture type, an SVG or a HEIC, is refused in the composer. Every other file is a file row.
 
@@ -48,7 +48,7 @@ Use only `agent-browser --session <name>`. The commands below are what the 2026-
 - **Limits.** Upload a `logo.svg` and a 51 MB `big.zip` at once.
   - **Expected:** the strip takes neither, and one toast says `'big.zip' exceeds the 50 MB attachment limit.` (the last refusal). Toasts hide after a few seconds, so read them right after the upload.
 - **The harness probes.** `window.__chat.probe()` has `images`, `files`, and `viewer`; `await window.__chat.openMedia("m-02", 2)` resolves `true` with the caption `tall.png (3/3)`, and `closeMedia()` returns `true`.
-- **Proof.** Write tile and row geometry and the dialog's open, step, and close state to `/tmp/kiko-verify-evidence/media.json` in the same run.
+- **Proof.** Write tile and row geometry and the dialog's open, step, and close state to `/tmp/yuki-verify-evidence/media.json` in the same run.
 
 ## Gotchas
 

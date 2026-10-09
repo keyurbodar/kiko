@@ -10,11 +10,11 @@
 | Parallel with its wave | no |
 | Needs a worktree | no |
 | Needs a human step | no |
-| Branch | `kiko/p13-01-summarize-long-items-whole-without-ids-for` |
+| Branch | `yuki/p13-01-summarize-long-items-whole-without-ids-for` |
 
 ## Verification
 
-`bun kiko verify memory-hard` scores at least 14 of 15 with deepseek-v4.1-flash, and `bun kiko verify memory-eval` still scores at least 9 of 10. `bun run --cwd apps/server test` passes `test/optmem.test.ts` (free nodes, the prompt has no ids and keeps a long item whole) and `test/log-memory.test.ts`.
+`bun yuki verify memory-hard` scores at least 14 of 15 with deepseek-v4.1-flash, and `bun yuki verify memory-eval` still scores at least 9 of 10. `bun run --cwd apps/server test` passes `test/optmem.test.ts` (free nodes, the prompt has no ids and keeps a long item whole) and `test/log-memory.test.ts`.
 
 ## Task
 

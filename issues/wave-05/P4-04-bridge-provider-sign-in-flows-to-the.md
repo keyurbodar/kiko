@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p4-04-bridge-provider-sign-in-flows-to-the` |
+| Branch | `yuki/p4-04-bridge-provider-sign-in-flows-to-the` |
 
 ## Verification
 
-`bun kiko verify provider-login --fake` passes with a fake provider that uses both `notify` and `prompt`. One real device-code flow is shown working by hand in the pull request.
+`bun yuki verify provider-login --fake` passes with a fake provider that uses both `notify` and `prompt`. One real device-code flow is shown working by hand in the pull request.
 
 ## Task
 

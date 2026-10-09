@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-05-build-the-user-object-the-chat-index` |
+| Branch | `yuki/p1-05-build-the-user-object-the-chat-index` |
 
 ## Verification
 
-`bun kiko verify user-sync` passes. The suite creates two rooms, renames one, and sees both changes on a second user socket.
+`bun yuki verify user-sync` passes. The suite creates two rooms, renames one, and sees both changes on a second user socket.
 
 ## Task
 

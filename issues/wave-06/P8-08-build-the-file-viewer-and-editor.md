@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-08-build-the-file-viewer-and-editor` |
+| Branch | `yuki/p8-08-build-the-file-viewer-and-editor` |
 
 ## Verification
 
-The `verify-kiko` file editor feature: open a text file, see line numbers and the current-line highlight, edit, save, and reload to the saved content. `bun scripts/bundle-budget.ts` shows CodeMirror outside tiers 1 to 3.
+The `verify-yuki` file editor feature: open a text file, see line numbers and the current-line highlight, edit, save, and reload to the saved content. `bun scripts/bundle-budget.ts` shows CodeMirror outside tiers 1 to 3.
 
 ## Task
 

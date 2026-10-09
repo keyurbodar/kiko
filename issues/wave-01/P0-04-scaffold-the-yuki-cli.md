@@ -1,4 +1,4 @@
-# P0-04 Scaffold the kiko CLI
+# P0-04 Scaffold the yuki CLI
 
 | Field | Value |
 | --- | --- |
@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-04-scaffold-the-kiko-cli` |
+| Branch | `yuki/p0-04-scaffold-the-yuki-cli` |
 
 ## Verification
 
-`bun kiko health --url http://localhost:8787` prints `ok` and exits 0. It exits 1 when the server is down.
+`bun yuki health --url http://localhost:8787` prints `ok` and exits 0. It exits 1 when the server is down.
 
 ## Task
 
@@ -26,7 +26,7 @@
 
 **Build.**
 
-- Parse `kiko <command> [flags]` with a `--url` flag that defaults to the local dev server and a `--json` flag for machine output.
+- Parse `yuki <command> [flags]` with a `--url` flag that defaults to the local dev server and a `--json` flag for machine output.
 - Add `health`, and `ws <path>`, which opens a WebSocket, sends frames from stdin, and prints frames it receives as JSON lines.
 - Exit non-zero on any failure, with one line that says what failed.
 

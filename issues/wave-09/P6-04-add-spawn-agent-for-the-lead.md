@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-04-add-spawn-agent-for-the-lead` |
+| Branch | `yuki/p6-04-add-spawn-agent-for-the-lead` |
 
 ## Verification
 
-`bun kiko verify spawn-agent` passes with the test model: asked to "get a researcher to list three sources", the lead adds a member, the member posts a result, and the task ends `done`.
+`bun yuki verify spawn-agent` passes with the test model: asked to "get a researcher to list three sources", the lead adds a member, the member posts a result, and the task ends `done`.
 
 ## Task
 

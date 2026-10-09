@@ -10,7 +10,7 @@
 | Parallel with its wave | no |
 | Needs a worktree | no |
 | Needs a human step | no |
-| Branch | `kiko/p11-01-build-the-log-memory-core` |
+| Branch | `yuki/p11-01-build-the-log-memory-core` |
 
 ## Verification
 

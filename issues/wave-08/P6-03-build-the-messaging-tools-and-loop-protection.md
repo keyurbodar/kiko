@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-03-build-the-messaging-tools-and-loop-protection` |
+| Branch | `yuki/p6-03-build-the-messaging-tools-and-loop-protection` |
 
 ## Verification
 
-`bun kiko verify team-loops` passes with fake agents that always reply to each other: the exchange stops at hop 8 with a system event, and a root message can cause at most 40 agent deliveries.
+`bun yuki verify team-loops` passes with fake agents that always reply to each other: the exchange stops at hop 8 with a system event, and a root message can cause at most 40 agent deliveries.
 
 ## Task
 

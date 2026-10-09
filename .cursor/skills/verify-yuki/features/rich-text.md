@@ -24,7 +24,7 @@ A message body is not one string: it is a run of prose with urls, emails, mentio
 
 Preconditions:
 
-- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
+- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/yuki-verify-evidence/vite.pid` names it.
 - `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only; `curl` to `127.0.0.1:3017` exits `7` (connection refused) while `localhost:3017` answers `200`.
 - **Every `page.goto` passes `{ waitUntil: "domcontentloaded", timeout: 60000 }`; a cold Vite module graph has been observed to need 90s on this page**, so on a first load pass a longer timeout and then wait on the condition.
@@ -67,7 +67,7 @@ Selectors this feature relies on:
 - **A long url never widens the bubble past its cap.** Observe: the body wraps an unbroken url instead of pushing the bubble wider.
   - In the `rich-text` read, `overflowWrap` is measured as **`anywhere`** and `whiteSpace` as **`pre-wrap`**, and the class list is exactly `chat-text whitespace-pre-wrap wrap-anywhere`. The pre-wrap is what keeps a sender's own line breaks; `wrap-anywhere` is what keeps an unbroken url from widening the bubble past its 80% cap. **Assert both, and cross-check the computed bubble width against the 80% figure in [Chat bubbles](./chat-bubbles.md).**
 
-- **Proof.** Write the run-by-run classification — anchor or prose, href or none, and the two weighted spans — to `/tmp/kiko-verify-evidence/rich-text.json`, and record separately that the fixture's homograph produced an ordinary anchor.
+- **Proof.** Write the run-by-run classification — anchor or prose, href or none, and the two weighted spans — to `/tmp/yuki-verify-evidence/rich-text.json`, and record separately that the fixture's homograph produced an ordinary anchor.
 
 ## Gotchas
 
@@ -99,7 +99,7 @@ How to drive it, in `agent-browser` only:
 - `/api/dev/agent/seed` writes plain text with no tree, so it draws no chips. Turn on the fake agent with `POST /api/dev/agent/fake { roomId }`, then send a message from the composer. Its reply `heard: <your text>` goes through the parser.
 - Read the chips with `[...document.querySelectorAll("[data-component=chat-file-chip]")].map((e) => [e.textContent, e.dataset.path, e.hasAttribute("data-missing")])`.
 - Measured on 2026-10-09 for the text ``route is in at `/plan/route.md`, see [the plan](/plan/route.md:3) and `notes.md:2`. Also [notes.md](notes.md), `a/x/index.ts`, `b/x/index.ts`, and `missing/gone.md`. Not files: `node.meta`, `example.com/docs`, [settings](/chat/settings).``: seven chips, `route.md`, `route.md · L3`, `notes.md · L2`, `notes.md`, `index.ts · a/x`, `index.ts · b/x`, and `gone.md` with `data-missing`. The last three runs stay code and text.
-- A click on a chip sets `localStorage["kiko:info-tab"]` to `files` and opens the panel on the file.
+- A click on a chip sets `localStorage["yuki:info-tab"]` to `files` and opens the panel on the file.
 
 Gotchas:
 

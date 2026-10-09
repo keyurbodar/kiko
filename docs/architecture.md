@@ -135,7 +135,7 @@ A Durable Object has one alarm. Each class multiplexes it with a small shared he
 | `RoomDO` (memory) | the background summary pass, a quiet chat's rollup |
 | `UserDO` | next reminder, the life log's summary pass |
 
-`pi-durable` keeps retry and polling timers with in-process `setTimeout` (`src/harness/scheduler.ts`). A timer does not wake a Durable Object that was evicted. While any task is unfinished, `AgentDO` keeps a heartbeat alarm at most 30 seconds ahead. The alarm handler opens the harness if needed and calls `harness.resume()`. An alarm handler may run for 15 minutes at most (Cloudflare docs), so a long run continues across heartbeats and never depends on one handler invocation. After a restart, a run would wait for the next heartbeat, up to 30 seconds. So `RoomDO` stores a `live:<slug>` marker while an agent's status is not idle, and the first socket of a new room process calls `AgentDO.wake()` for each marked agent. `wake()` moves a pending heartbeat to now and returns, like `receive()`. Measured with `bun kiko verify latency`: the agent came back after 24.5 s at p50 before, 58 ms after.
+`pi-durable` keeps retry and polling timers with in-process `setTimeout` (`src/harness/scheduler.ts`). A timer does not wake a Durable Object that was evicted. While any task is unfinished, `AgentDO` keeps a heartbeat alarm at most 30 seconds ahead. The alarm handler opens the harness if needed and calls `harness.resume()`. An alarm handler may run for 15 minutes at most (Cloudflare docs), so a long run continues across heartbeats and never depends on one handler invocation. After a restart, a run would wait for the next heartbeat, up to 30 seconds. So `RoomDO` stores a `live:<slug>` marker while an agent's status is not idle, and the first socket of a new room process calls `AgentDO.wake()` for each marked agent. `wake()` moves a pending heartbeat to now and returns, like `receive()`. Measured with `bun yuki verify latency`: the agent came back after 24.5 s at p50 before, 58 ms after.
 
 Alarms deliver at least once. Every alarm handler in yuki is idempotent: it reads what is due from a table, acts with a stable id, and marks the row done in the same transaction.
 
@@ -535,7 +535,7 @@ Every client action is applied locally first. The client keeps a list of pending
 - The session cookie cache is on, so most requests verify a signed cookie and do not read D1.
 - The auth instance is created per request from `env`. The Worker needs the `nodejs_compat` flag for `AsyncLocalStorage`.
 - `bunx auth init` is a real command, but it scaffolds Next.js and SQLite only (Better Auth docs). The plan runs it for the reference config and adapts the result by hand. Migrations are generated as SQL and applied with `wrangler d1 migrations apply`.
-- A dev-only Better Auth plugin serves `POST /api/auth/dev/session` with `{ "name" }` and mints a session for `<name>@dev.yuki.test`. It is selected only when `process.env.NODE_ENV === "development"`, which wrangler sets at bundle time ("production" for deploy). A production bundle does not contain it, and the route also refuses any host that is not local. `kiko login --dev` and the server tests use it.
+- A dev-only Better Auth plugin serves `POST /api/auth/dev/session` with `{ "name" }` and mints a session for `<name>@dev.yuki.test`. It is selected only when `process.env.NODE_ENV === "development"`, which wrangler sets at bundle time ("production" for deploy). A production bundle does not contain it, and the route also refuses any host that is not local. `yuki login --dev` and the server tests use it.
 - A Google or GitHub provider is on only when both of its env values are set, so local runs need no OAuth clients.
 
 **Reasoning.** Pi has no user accounts, so yuki needs them. The spec names Better Auth. D1 is the right store for data that is global and tiny. All per-user data lives in that user's Durable Objects, so D1 never becomes a bottleneck.
@@ -551,7 +551,7 @@ Every client action is applied locally first. The client keeps a list of pending
 ### 11.2 Encryption
 
 ```text
-data key  = HKDF-SHA256(CREDENTIALS_KEK, salt = userId, info = "kiko-cred-v1")
+data key  = HKDF-SHA256(CREDENTIALS_KEK, salt = userId, info = "yuki-cred-v1")
 record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || providerId)
 ```
 
@@ -594,7 +594,7 @@ How yuki runs them (P4-04, `apps/server/src/user/provider-login.ts`):
 - The client sends `login.start`, gets `login.notify` and `login.prompt` frames, answers with `login.answer`, and ends with `login.done` or `login.error`. A sign-in opens its own user socket.
 - A login lives in `UserDO` memory, tied to its socket. It ends when the credential is stored, the flow fails, the user cancels, the socket closes, or a 10-minute wakeup fires. Each ending removes all of its state. A login does not survive an eviction; the client hears `unknown` and starts again.
 - pi-ai loads flow modules with a computed `import()` that a Worker bundle cannot follow. `registerBunOAuthFlows()` from `@earendil-works/pi-ai/bun-oauth` fills pi-ai's loader table with the bundled flows instead. ASSUMPTION: the helper is named for Bun binaries but does only that. P4-02's token refresh depends on it too.
-- Every enabled flow is a subscription flow, so all of them need `PROVIDER_OAUTH=on`. A development bundle also offers the `yuki-fake` provider for `bun kiko verify provider-login --fake`.
+- Every enabled flow is a subscription flow, so all of them need `PROVIDER_OAUTH=on`. A development bundle also offers the `yuki-fake` provider for `bun yuki verify provider-login --fake`.
 - UNVERIFIED: pi-ai's device-code polling waits with `setTimeout` between `fetch` calls. Whether a deployed Durable Object stays awake through a long poll has not been measured.
 
 Two cautions for the owner to decide on.
@@ -624,7 +624,7 @@ A user connects an Executor Cloud account in settings. `UserDO` stores the token
 
 - The first choice is OAuth with PKCE against `https://v2.executor.sh/api/auth`, with dynamic client registration and the scopes `mcp offline_access`. `pi-mcp` implements this flow, and yuki supplies the `McpOAuthStateStore` over `UserDO`.
 - The fallback is a personal API key that the user pastes (`exp_...`).
-- v2's sign-in server accepts a dynamic registration with yuki's localhost redirect URI and sends the browser on to its sign-in page (`bun kiko verify executor-connect`, part one, 2026-10-06). UNVERIFIED: that consent returns a refresh token. Part two of the suite tests it with a signed-in human.
+- v2's sign-in server accepts a dynamic registration with yuki's localhost redirect URI and sends the browser on to its sign-in page (`bun yuki verify executor-connect`, part one, 2026-10-06). UNVERIFIED: that consent returns a refresh token. Part two of the suite tests it with a signed-in human.
 - `UserDO` keeps the pi-mcp OAuth state and tokens in `executor_secrets`, one sealed row per name, and runs every exchange and refresh itself. Disconnect deletes every row in one transaction. A refresh still in flight at that moment stores nothing.
 - The callback is `/api/integrations/executor/callback`. The session names the user, and the stored `state` ties the code to the sign-in. The redirect URI is built from the origin the user socket came through.
 
@@ -674,7 +674,7 @@ Apps (imported MCP, OpenAPI, and GraphQL servers, and apps the user writes), acc
 
 ### 12.6 Risks
 
-v2 is a beta (`2.0.0-beta.8`), separate from v1: a v1 account and its integrations do not carry over. Its MCP contract is documented in `apps/docs/content/mcp.md` but may change between betas. All Executor code sits in one module, and `bun kiko verify executor-connect` checks the sign-in against the real server. The license is MIT.
+v2 is a beta (`2.0.0-beta.8`), separate from v1: a v1 account and its integrations do not carry over. Its MCP contract is documented in `apps/docs/content/mcp.md` but may change between betas. All Executor code sits in one module, and `bun yuki verify executor-connect` checks the sign-in against the real server. The license is MIT.
 
 ## 13. Memory
 
@@ -745,11 +745,11 @@ Each fact has one home, so one fact costs one write. A note is a fact about the 
 
 **Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started fresh, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one. Until 2026-10-06 every run counted, so a short chat started cold every 50 runs for nothing.
 
-**Reasoning.** A first version reset the context on every run. It was bounded, but it rebuilt the block every time, lost tool output between runs, and measured about 1.8 times the tokens of the old transcript design on a 30-turn chat. Waking only when the transcript is full keeps the old design's cache behavior and adds the bound: on the same 30-turn chat the agent's requests cost about 12% less than the old design's (`bun kiko verify token-cost`), and the gap grows with the chat, because the old transcript never stopped growing. Summary calls ask for no thinking, or the least a model allows, since a one-line summary needs none.
+**Reasoning.** A first version reset the context on every run. It was bounded, but it rebuilt the block every time, lost tool output between runs, and measured about 1.8 times the tokens of the old transcript design on a 30-turn chat. Waking only when the transcript is full keeps the old design's cache behavior and adds the bound: on the same 30-turn chat the agent's requests cost about 12% less than the old design's (`bun yuki verify token-cost`), and the gap grows with the chat, because the old transcript never stopped growing. Summary calls ask for no thinking, or the least a model allows, since a one-line summary needs none.
 
-**Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. On 2026-10-04 with deepseek-v4.1-flash, a group chat of the human and three agents, with a fact buried in a long teammate reply and two facts corrected later: 10 of 10, from a chat block of 64 lines and about 9,000 characters. The summaries took about 7 minutes in the background. The nap prompt asks for every name, number, date, and code word for word; the facts survive two to four levels of the tree that way.
+**Measured.** `bun yuki verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. On 2026-10-04 with deepseek-v4.1-flash, a group chat of the human and three agents, with a fact buried in a long teammate reply and two facts corrected later: 10 of 10, from a chat block of 64 lines and about 9,000 characters. The summaries took about 7 minutes in the background. The nap prompt asks for every name, number, date, and code word for word; the facts survive two to four levels of the tree that way.
 
-`bun kiko verify memory-hard` is harder: 640 turns, 15 facts, a "yes do it" that means something only next to the question before it, a fact 900 characters into a long paste, a correction with its reason, and an old value the answer must not carry. On 2026-10-06 with deepseek-v4.1-flash, old and new design side by side on two servers at once: both scored 15 of 15 and both 10 of 10 on `memory-eval`, while the new summaries spent 33% less output on `memory-hard` (365,000 against 545,000 tokens) and 22% less on `memory-eval` (102,000 against 131,000), and finished sooner. `verify token-cost` showed the agent's own spend unchanged (42,063 against 41,964, and 39,482 against 42,673, at a 10% cache price). Output is mostly thinking, which this model does on every call, so single runs vary by 30% or more; every comparison above is a pair run at the same time.
+`bun yuki verify memory-hard` is harder: 640 turns, 15 facts, a "yes do it" that means something only next to the question before it, a fact 900 characters into a long paste, a correction with its reason, and an old value the answer must not carry. On 2026-10-06 with deepseek-v4.1-flash, old and new design side by side on two servers at once: both scored 15 of 15 and both 10 of 10 on `memory-eval`, while the new summaries spent 33% less output on `memory-hard` (365,000 against 545,000 tokens) and 22% less on `memory-eval` (102,000 against 131,000), and finished sooner. `verify token-cost` showed the agent's own spend unchanged (42,063 against 41,964, and 39,482 against 42,673, at a 10% cache price). Output is mostly thinking, which this model does on every call, so single runs vary by 30% or more; every comparison above is a pair run at the same time.
 
 ### 13.5 Later
 
@@ -938,7 +938,7 @@ Rows written is the limit that binds first, and partial commits cause most of it
 
 **How a partial is told apart.** A partial commit is exactly one `document.change` delta to the conversation's `pi.live` document, and every op in it changes `generation`. One other commit has that shape, the marker that sets `generation` to `{ attempt }` before a request. Holding it is safe, because after a crash the task sends the request again from its checkpoint. The other commits in `src/harness/generation.ts` that change `generation` also write a task checkpoint, so they have more than one write. The wrapper also holds only a delta to a document without history, at the version stored, so the inner storage would accept it and no read can ask for a point inside a window.
 
-**Measured rows written per turn.** One turn on an empty `AgentDO`, with a faux model that streams 3,000 characters for 15 seconds, counted with `cursor.rowsWritten` (`bun kiko measure turn`):
+**Measured rows written per turn.** One turn on an empty `AgentDO`, with a faux model that streams 3,000 characters for 15 seconds, counted with `cursor.rowsWritten` (`bun yuki measure turn`):
 
 | | Commits | Rows written |
 | --- | --- | --- |
@@ -1200,7 +1200,7 @@ refs/, solid-refs/  read-only references
 **Verification.** The detail belongs to the phase plan. The shape is fixed here because it constrains the design.
 
 - `apps/cli` speaks the same WebSocket protocol as the client. It can sign in with a test session, send a burst, tail a room, and assert on the event stream. Every backend task is verified through it against `wrangler dev` or a deployed preview.
-- Frontend verification extends the existing skill at `.cursor/skills/verify-kiko/`, which drives the app with ego-browser.
+- Frontend verification extends the existing skill at `.cursor/skills/verify-yuki/`, which drives the app with ego-browser.
 - CI runs typecheck, unit tests, and the CLI suites that need no model. Suites that call a model run with `OPENCODE_API_KEY` on demand.
 
 ## 21. What to prove first
@@ -1382,7 +1382,7 @@ A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to t
 - `apps/server/test/script-vm.test.ts`: the sandbox. The bridge, the CPU stop, the memory cap, no I/O globals, imports only from the bundle.
 - `apps/server/test/user-extensions.test.ts`: a real harness on the faux model. Tools with state and calls, trust last, sections in the prompt, a fetch that taints the run so trust blocks the next external call, the effect rules, hooks, wraps, name clashes, `onYield`'s limit, and every catalog entry.
 - `apps/server/test/extension-store.test.ts`: the store in workerd with an echo server. Install gating, triggers, secrets per host, redaction, egress, switches, scopes, and users kept apart.
-- `bun kiko verify extensions`: end to end on the dev server with the fake agent.
+- `bun yuki verify extensions`: end to end on the dev server with the fake agent.
 
 ## 25. Routines and proactivity
 
@@ -1539,9 +1539,9 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; a c
 | Check | Proves |
 | --- | --- |
 | `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and event matching, the watch grid, the budget and away rules, stale-task nudges |
-| `bun kiko verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for gets a card and accept makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
-| `bun kiko verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its injected payload cannot use a granted tool; a watch wakes only on change |
-| `bun kiko verify proactive` | a stale task nudges its owner once a day; away 8 days holds runs with one line and a hello resumes; every user has one check-in; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |
+| `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for gets a card and accept makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
+| `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its injected payload cannot use a granted tool; a watch wakes only on change |
+| `bun yuki verify proactive` | a stale task nudges its owner once a day; away 8 days holds runs with one line and a hello resumes; every user has one check-in; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |
 | `test/recurrence.test.ts` | `ruleProblem` passes the rule shapes people ask for and refuses, in microseconds, every shape `rrule` could loop on |
-| `bun kiko verify routines-scale` | 300 users with a routine due the same second: each runs exactly once, none lost (the last confirmed 26 s after the due time under `wrangler dev`) |
-| `bun kiko verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder with no card; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine; the check-in offers help with stale work and is quiet the second time; a nudge gets one short answer. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
+| `bun yuki verify routines-scale` | 300 users with a routine due the same second: each runs exactly once, none lost (the last confirmed 26 s after the due time under `wrangler dev`) |
+| `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder with no card; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine; the check-in offers help with stale work and is quiet the second time; a nudge gets one short answer. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |

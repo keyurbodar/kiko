@@ -102,7 +102,7 @@ All in D/src/harness/types.ts unless noted. Re-exported from D/src/index.ts.
 - Entry schema: `EntryRecord = { id, conversationId, kind, model?: Message[], data?: JsonValue, head?, edits?, byTaskId? }` (D/src/types.ts:317-332). Built-in kinds: `pi.user`, `pi.assistant`, `pi.system`, `pi.tool-result`, `pi.reset`, `pi.compaction` (D/src/entries.ts:13-33). Messages are pi-ai `Message` types.
 - Resume-from-offset: NOT FOUND, explicitly rejected: "A client that joins late or reconnects starts from the current view; nothing is replayed" (README:285). Slow consumer: at most 100 pending frames, then replaced by one full-view frame (README:285; for events: ">100 batches" -> new `snapshot`, README:365). Committed order is by `Seq` (commit sequence), but no public "from seq N" subscription was found. Storage entries are queryable with cursor paging: `conversation.entries(query, limit, cursor, ctx)` newest-first (types.ts:~506-512).
 - Cadence: partial text/tool output committed at most every 100 ms (README:287), so streaming is coarse-grained by design; a crash loses at most that window.
-- So kiko must build: WS/SSE endpoint inside the DO that on connect sends `watchEvents(...).snapshot` (or view) then pipes `start()` batches; reconnection = new snapshot.
+- So yuki must build: WS/SSE endpoint inside the DO that on connect sends `watchEvents(...).snapshot` (or view) then pipes `start()` batches; reconnection = new snapshot.
 
 ## 7. Storage
 
@@ -145,13 +145,13 @@ All in D/src/harness/types.ts unless noted. Re-exported from D/src/index.ts.
   - `CredentialStore { read, list, modify(providerId, fn) }` app-owned; "Login/logout orchestration is app-owned"; `modify` does serialized read-modify-write incl. OAuth refresh (P/ai/src/auth/types.ts:~55-100). Default `InMemoryCredentialStore` (P/ai/src/auth/credential-store.ts:9). A DO-SQLite-backed store would be host code.
   - `Credential = ApiKeyCredential {type:"api_key", key?, env?} | OAuthCredential {type:"oauth", refresh, access, expires}` (P/ai/src/auth/types.ts:~11-33). `ModelAuth {apiKey?, headers?, baseUrl?}`.
   - Providers are separate modules, e.g. `@earendil-works/pi-ai/providers/openai` (`openaiProvider()` "reads OPENAI_API_KEY", README:55); static catalog `models.generated.ts` and `providers/*.models.ts`; `OPENAI_API_KEY`-style env resolution via `AuthContext.env` defaulting to `process.env` (P/ai/src/auth/context.ts:19-28).
-- How a key reaches a session: durable has no per-conversation credential field. `Harness.open` takes ONE `Models`. `ConversationStreamOptions` has `headers`, `metadata` but no `apiKey` (types.ts:350-360). Therefore BYOK in kiko = build one `Models` per DO/user (per-user `CredentialStore`) or a custom `Provider` whose auth looks up the user's key; per-conversation different keys inside one DO would require a custom provider/authContext keyed by something outside of durable. Not shown in any durable example: UNVERIFIED feasibility details.
+- How a key reaches a session: durable has no per-conversation credential field. `Harness.open` takes ONE `Models`. `ConversationStreamOptions` has `headers`, `metadata` but no `apiKey` (types.ts:350-360). Therefore BYOK in yuki = build one `Models` per DO/user (per-user `CredentialStore`) or a custom `Provider` whose auth looks up the user's key; per-conversation different keys inside one DO would require a custom provider/authContext keyed by something outside of durable. Not shown in any durable example: UNVERIFIED feasibility details.
 - Model catalog in the UI: from `Models.getAvailable()`/`getModels()`; durable's `ModelRef` is just strings (types.ts:20-24). No validation at `configure()` time (stored by name; fails `no_model` at run time).
 - No user accounts, sessions, multi-tenant routing, rate limits, billing in durable. Usage is tracked (`pi.usage`) but no budget enforcement: NOT FOUND.
 
 ## 10. Skills
 
-- No SKILL.md discovery/loading. Only mentions: spec.md:2382-2383, 2395, 2416, 2421, 3079, 3137-3138 use a hypothetical `Skills` extension as an EXAMPLE of how extensions and reload behave (`defineExtension({name:"skills", sections:[section("skills", renderSkills)]})`). `renderSkills` is not defined anywhere. NOT FOUND in `D/src`. Pi's coding-agent may implement skills (not examined). Implementation path for kiko: a section (list of skill names+descriptions) + a `read`-style tool, with skills stored in a doc or the env filesystem.
+- No SKILL.md discovery/loading. Only mentions: spec.md:2382-2383, 2395, 2416, 2421, 3079, 3137-3138 use a hypothetical `Skills` extension as an EXAMPLE of how extensions and reload behave (`defineExtension({name:"skills", sections:[section("skills", renderSkills)]})`). `renderSkills` is not defined anywhere. NOT FOUND in `D/src`. Pi's coding-agent may implement skills (not examined). Implementation path for yuki: a section (list of skill names+descriptions) + a `read`-style tool, with skills stored in a doc or the env filesystem.
 
 ## 11. Prompt injection / untrusted content
 
@@ -192,7 +192,7 @@ All in D/src/harness/types.ts unless noted. Re-exported from D/src/index.ts.
 ## Contradictions with "Pi already handles BYOK, login, auth, the model catalog and the agent loop"
 
 - Agent loop: yes, but it is pi-durable's own loop (generation/tool tasks), not pi-agent-core's. durable does not depend on pi-agent-core.
-- Model catalog, BYOK storage, OAuth login/refresh: in pi-ai (`Models`, `CredentialStore`), and "Login/logout orchestration is app-owned" (P/ai/src/auth/types.ts doc comment). kiko must build the credential store (per-user, DO/D1-backed), the login UI/flow, and key encryption. Default auth context reads `process.env` and `node:fs`.
+- Model catalog, BYOK storage, OAuth login/refresh: in pi-ai (`Models`, `CredentialStore`), and "Login/logout orchestration is app-owned" (P/ai/src/auth/types.ts doc comment). yuki must build the credential store (per-user, DO/D1-backed), the login UI/flow, and key encryption. Default auth context reads `process.env` and `node:fs`.
 - Auth of users/clients to the app: nothing anywhere in durable.
 - No transport, no DO class, no alarm usage, no wrangler/migration guidance, no CF storage adapter: all host work.
 - No resume-from-offset; reconnect = fresh snapshot.

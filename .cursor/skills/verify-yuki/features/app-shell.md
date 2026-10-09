@@ -1,6 +1,6 @@
 # App shell
 
-A user who opens Kiko gets one page: a full-height flex row with the conversation sidebar down its left edge and the conversation column filling the rest, with the composer docked below the transcript and nothing above either. There is no top bar, no theme control and no client router, so this is the whole app shell; the sidebar, the transcript and the composer inside it have their own feature files.
+A user who opens Yuki gets one page: a full-height flex row with the conversation sidebar down its left edge and the conversation column filling the rest, with the composer docked below the transcript and nothing above either. There is no top bar, no theme control and no client router, so this is the whole app shell; the sidebar, the transcript and the composer inside it have their own feature files.
 
 ## Sub-features
 
@@ -22,12 +22,12 @@ A user who opens Kiko gets one page: a full-height flex row with the conversatio
 
 Preconditions:
 
-- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
+- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/yuki-verify-evidence/vite.pid` names it.
 - `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only and `127.0.0.1` is refused — measured, `curl` exits `7` there and answers `200` on `localhost`.
 - **Every `page.goto` passes `{ waitUntil: "domcontentloaded" }` with an explicit `timeout: 60000`.** The default `load` never fires on this app because its media does not finish, so a default `goto` rejects with `PageNavigationTimeoutError` on a perfectly healthy page.
 
-- **Open the app.** Load the root URL the way a user's browser does. Run `page.goto("http://localhost:3001/", { waitUntil: "domcontentloaded", timeout: 60000 })`, then `page.title()`. The result is `Kiko`. Read `page.evaluate(() => document.documentElement.lang)` too: it is `en`.
+- **Open the app.** Load the root URL the way a user's browser does. Run `page.goto("http://localhost:3001/", { waitUntil: "domcontentloaded", timeout: 60000 })`, then `page.title()`. The result is `Yuki`. Read `page.evaluate(() => document.documentElement.lang)` too: it is `en`.
 
 - **Capture what the boot threw.** Register the listener *before* navigating, then read it. Run `page.cdp("Page.addScriptToEvaluateOnNewDocument", { source: 'window.__errs=[];addEventListener("error",e=>window.__errs.push(String(e.message)));addEventListener("unhandledrejection",e=>window.__errs.push(String(e.reason)));' })` before the `goto`, and afterwards run `page.evaluate(() => window.__errs)`. The result is `[]`. Registering after `goto` misses every error the module graph already threw, which is exactly where a broken import lives. Note that `page.on` does not exist on this driver, so there is no other way to collect these.
 
@@ -43,7 +43,7 @@ Preconditions:
 
 - **Read the pane's own state attributes.** Run `page.evaluate(() => { const p = document.querySelector('[data-component="chat-shell"]'); return { replyTarget: p.getAttribute("data-reply-target"), range: p.getAttribute("data-range") }; })`. `range` matches `<start>-<end>` and tracks the virtualizer's window. This is the cheapest way to see how far the reader has scrolled without counting rows.
 
-- **Proof.** Capture the mounted state. Run `page.snapshot()` and write it to `/tmp/kiko-verify-evidence/app-shell.snapshot.txt`, then run `page.screenshot({ path: "/tmp/kiko-verify-evidence/app-shell.png" })`. The snapshot shows the sidebar on the left and the conversation column beside it with the composer docked at the bottom — one row, two panes. A snapshot showing only the column means the sidebar did not mount.
+- **Proof.** Capture the mounted state. Run `page.snapshot()` and write it to `/tmp/yuki-verify-evidence/app-shell.snapshot.txt`, then run `page.screenshot({ path: "/tmp/yuki-verify-evidence/app-shell.png" })`. The snapshot shows the sidebar on the left and the conversation column beside it with the composer docked at the bottom — one row, two panes. A snapshot showing only the column means the sidebar did not mount.
 
 ## Gotchas
 

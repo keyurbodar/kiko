@@ -2,7 +2,7 @@
 
 This phase brings the chat itself to Telegram grade. Most tasks are independent and run at the same time, each inside its own component files. Two files are shared, `apps/web-solid/src/chat/VirtualThread.tsx` and the bubble component. A task that must edit one of them keeps the edit to the smallest insertion point and says so in its pull request.
 
-Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/research/frontend-refs.md`. Port techniques, not files. tweb is GPL-3.0, and kiko's own code must be written fresh.
+Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/research/frontend-refs.md`. Port techniques, not files. tweb is GPL-3.0, and yuki's own code must be written fresh.
 
 ## Tasks
 
@@ -10,7 +10,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-01` `difficulty: 3` `area: frontend`
 
-**Verify.** `bun test apps/web-solid/src/chat/typing` passes the presence state machine cases, and the `verify-kiko` typing feature shows the wave, the label change from one name to two, and the send shrink.
+**Verify.** `bun test apps/web-solid/src/chat/typing` passes the presence state machine cases, and the `verify-yuki` typing feature shows the wave, the label change from one name to two, and the send shrink.
 
 **Goal.** Port the reference component to Solid with the same behavior and no React.
 
@@ -32,7 +32,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P0-02` `difficulty: 2` `area: frontend`
 
-**Verify.** `bun test apps/web-solid/src/lib/useSwipeToReply.test.ts` passes with a rightward drag, and the `verify-kiko` swipe feature shows the reply icon entering from the left.
+**Verify.** `bun test apps/web-solid/src/lib/useSwipeToReply.test.ts` passes with a rightward drag, and the `verify-yuki` swipe feature shows the reply icon entering from the left.
 
 **Goal.** Make the reply icon appear from the left side, as the spec requires.
 
@@ -63,7 +63,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 **Build.**
 
-- Render every node type from `@kiko/protocol` with plain Solid components. Never set `innerHTML`.
+- Render every node type from `@yuki/protocol` with plain Solid components. Never set `innerHTML`.
 - Load `sugar-high` lazily and highlight a code block when it first becomes visible. Show plain monospace text until then.
 - Add a copy button to code blocks and a horizontal scroller for wide tables.
 - Open links in a new tab with `rel="noopener noreferrer"`.
@@ -74,7 +74,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-01` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` read-more feature: a 3,000-character message is clamped with a fade and a chevron, expands in place, and the scroll position of the messages below does not jump.
+**Verify.** The `verify-yuki` read-more feature: a 3,000-character message is clamped with a fade and a chevron, expands in place, and the scroll position of the messages below does not jump.
 
 **Goal.** Add "read more" as kat shows it.
 
@@ -94,7 +94,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-01` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` dividers feature shows a date divider, the "new messages" divider at the first unread message, and an inline system event, each matching `~/kat-images`.
+**Verify.** The `verify-yuki` dividers feature shows a date divider, the "new messages" divider at the first unread message, and an inline system event, each matching `~/kat-images`.
 
 **Goal.** Port the astryx `ChatSystemMessage` pattern to Solid.
 
@@ -117,7 +117,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 **Removed.** DEVIATION (2026-10-09): the media viewer is removed. The owner chose t3code's simpler attachments: an attached file is a workspace file under `attachments/`, shown on its message, with no Telegram-style viewer. Architecture section 18.1.
 
-**Verify.** The `verify-kiko` media viewer feature: open from a thumbnail, pinch or wheel zoom to 4x, pan inside bounds, swipe to the next item, swipe down to close, and see the image return to its thumbnail.
+**Verify.** The `verify-yuki` media viewer feature: open from a thumbnail, pinch or wheel zoom to 4x, pan inside bounds, swipe to the next item, swipe down to close, and see the image return to its thumbnail.
 
 **Goal.** Make the lightbox behave exactly like Telegram's.
 
@@ -141,7 +141,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 **Removed.** DEVIATION (2026-10-09): the album layout is removed. The owner chose t3code's simpler attachments. A human can still attach several files to one message, and the message keeps their `FileRef`s. Architecture section 18.1.
 
-**Verify.** `bun test apps/web-solid/src/lib/album.test.ts` passes layouts for 1 to 10 items against the expected rectangles, and the `verify-kiko` album feature matches Telegram for 2, 3, 4, and 7 images.
+**Verify.** `bun test apps/web-solid/src/lib/album.test.ts` passes layouts for 1 to 10 items against the expected rectangles, and the `verify-yuki` album feature matches Telegram for 2, 3, 4, and 7 images.
 
 **Goal.** Make grouped media look and behave like Telegram.
 
@@ -164,7 +164,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 **Removed.** DEVIATION (2026-10-09): the media player is removed with the old media system. The owner chose t3code's simpler attachments. Architecture section 18.1.
 
-**Verify.** The `verify-kiko` player feature: play an audio file, scrub, start a second one and see the first stop, and control playback from the keyboard media keys.
+**Verify.** The `verify-yuki` player feature: play an audio file, scrub, start a second one and see the first stop, and control playback from the keyboard media keys.
 
 **Goal.** Replace native media controls with a Telegram-style player.
 
@@ -187,7 +187,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 **Removed.** DEVIATION (2026-10-09): link previews are removed on the server and the client. The owner chose t3code's model, where a link is a link. Architecture section 18.2.
 
-**Verify.** The `verify-kiko` link preview feature against the mock: a card with site name, title, description, and image renders in a bubble, and the composer shows the same preview with a remove button.
+**Verify.** The `verify-yuki` link preview feature against the mock: a card with site name, title, description, and image renders in a bubble, and the composer shows the same preview with a remove button.
 
 **Goal.** Show link previews like Telegram, from data the server supplies.
 
@@ -200,7 +200,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 - Lay out the card as site name, title, text, media, with the accent bar on the left. Support a large image and a small square image.
 - In the composer, preview the first URL in the draft in the same plate that reply uses. Guard against a stale response by comparing the URL at resolve time.
 - Request previews only from `/api/link-preview`. Delete the dev proxy from `vite.config.ts` when P8-02 has merged.
-- Load images only from kiko's origin.
+- Load images only from yuki's origin.
 
 **Done when.** The card renders from a protocol fixture with no network call.
 
@@ -229,7 +229,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-08` `difficulty: 3` `area: frontend`
 
-**Verify.** `bun kiko verify message-actions` passes on the server side, and the `verify-kiko` message actions feature shows stop ending a run, an edit of the last message rerunning the answer, and a pinned message in the top bar.
+**Verify.** `bun yuki verify message-actions` passes on the server side, and the `verify-yuki` message actions feature shows stop ending a run, an edit of the last message rerunning the answer, and a pinned message in the top bar.
 
 **Goal.** Give the human control over a run and over their own messages.
 
@@ -251,7 +251,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P1-04` `difficulty: 3` `area: backend`
 
-**Verify.** `bun kiko verify room-search` passes: it finds a word in an old message, finds nothing after that message is deleted, and returns results in under 50 ms for a room with 20,000 messages.
+**Verify.** `bun yuki verify room-search` passes: it finds a word in an old message, finds nothing after that message is deleted, and returns results in under 50 ms for a room with 20,000 messages.
 
 **Goal.** Search one chat's messages on the server.
 
@@ -271,7 +271,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P3-12, P2-08` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` search feature: type a query, see results in a virtual list, click one, and land on that message with a highlight.
+**Verify.** The `verify-yuki` search feature: type a query, see results in a virtual list, click one, and land on that message with a highlight.
 
 **Goal.** Let a person find a message and jump to it.
 
@@ -289,7 +289,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-16, P2-07` `difficulty: 3` `area: frontend`
 
-**Verify.** The `verify-kiko` palette feature: `⌘K` opens the palette with `type a command...` focused and the first row highlighted, typing filters, Enter on `chat: new` creates a chat, `chats: go to chat...` (`⌘P`) lists chats, Escape closes, and typing `/` in the composer lists commands.
+**Verify.** The `verify-yuki` palette feature: `⌘K` opens the palette with `type a command...` focused and the first row highlighted, typing filters, Enter on `chat: new` creates a chat, `chats: go to chat...` (`⌘P`) lists chats, Escape closes, and typing `/` in the composer lists commands.
 
 **Goal.** Build kat's command palette on the command registry, and add composer commands.
 
@@ -312,7 +312,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P3-05` `difficulty: 2` `area: frontend`
 
-**Verify.** `bun test apps/web-solid/src/chat/lib/time-label.test.ts` passes a table of cases, and the `verify-kiko` dividers feature shows `today 12:02 pm` and `today 2:22 pm` between two same-day messages two hours apart, with no divider between messages ten minutes apart.
+**Verify.** `bun test apps/web-solid/src/chat/lib/time-label.test.ts` passes a table of cases, and the `verify-yuki` dividers feature shows `today 12:02 pm` and `today 2:22 pm` between two same-day messages two hours apart, with no divider between messages ten minutes apart.
 
 **Goal.** Show a time divider wherever the conversation paused, the way kat, Instagram, and iMessage do, so a reader sees when the talk picked up again.
 
@@ -334,7 +334,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-08` `difficulty: 3` `area: frontend`
 
-**Verify.** `bun kiko verify activity` passes on the server side, and the `verify-kiko` activity feature shows a chevron on an agent bubble that expands to the tools the run used.
+**Verify.** `bun yuki verify activity` passes on the server side, and the `verify-yuki` activity feature shows a chevron on an agent bubble that expands to the tools the run used.
 
 **Goal.** Let the human see what an agent did to produce an answer.
 
@@ -354,7 +354,7 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-07` `difficulty: 2` `area: frontend`
 
-**Verify.** The `verify-kiko` drafts feature: type in chat A, switch to chat B, reload, return to chat A, and see the draft and the same scroll position.
+**Verify.** The `verify-yuki` drafts feature: type in chat A, switch to chat B, reload, return to chat A, and see the draft and the same scroll position.
 
 **Goal.** Never lose what the user typed or where they were.
 

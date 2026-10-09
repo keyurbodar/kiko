@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p13-02-never-show-cut-text-as-if-whole` |
+| Branch | `yuki/p13-02-never-show-cut-text-as-if-whole` |
 
 ## Verification
 

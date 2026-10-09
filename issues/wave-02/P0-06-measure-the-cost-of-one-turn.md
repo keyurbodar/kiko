@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p0-06-measure-the-cost-of-one-turn` |
+| Branch | `yuki/p0-06-measure-the-cost-of-one-turn` |
 
 ## Verification
 
-`bun kiko measure turn --runs 5` prints rows written, rows read, requests, CPU ms, and wall time per turn, and `docs/research/experiment-2-turn-cost.md` contains that output.
+`bun yuki measure turn --runs 5` prints rows written, rows read, requests, CPU ms, and wall time per turn, and `docs/research/experiment-2-turn-cost.md` contains that output.
 
 ## Task
 

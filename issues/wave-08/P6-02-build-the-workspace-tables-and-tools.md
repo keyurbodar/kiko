@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p6-02-build-the-workspace-tables-and-tools` |
+| Branch | `yuki/p6-02-build-the-workspace-tables-and-tools` |
 
 ## Verification
 
-`bun kiko verify workspace` passes with fake agents: task B depends on task A, B's owner is not woken while A is open, and marking A `done` delivers exactly one `task_unblocked` envelope to B's owner.
+`bun yuki verify workspace` passes with fake agents: task B depends on task A, B's owner is not woken while A is open, and marking A `done` delivers exactly one `task_unblocked` envelope to B's owner.
 
 ## Task
 

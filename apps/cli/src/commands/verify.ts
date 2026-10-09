@@ -1,7 +1,7 @@
 import { CliError, type Context } from "../main"
 import { loadSuites, runSuites } from "../verify/runner"
 
-/** `kiko verify [--list] [--no-model] [--fake] [suite...]` runs scripted sessions against a server. */
+/** `yuki verify [--list] [--no-model] [--fake] [suite...]` runs scripted sessions against a server. */
 export async function verify(ctx: Context): Promise<void> {
   if (ctx.list) {
     for (const s of await loadSuites()) console.log(`${s.name}${s.model ? " (model)" : ""}`)

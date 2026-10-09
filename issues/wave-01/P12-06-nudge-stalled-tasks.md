@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p12-06-nudge-stalled-tasks` |
+| Branch | `yuki/p12-06-nudge-stalled-tasks` |
 
 ## Verification
 
-`bun kiko verify proactive` passes its stall case.
+`bun yuki verify proactive` passes its stall case.
 
 ## Task
 

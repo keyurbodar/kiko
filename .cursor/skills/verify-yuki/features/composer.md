@@ -26,7 +26,7 @@ The composer is the dock below the transcript: where a reader types, what they s
 
 Preconditions:
 
-- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
+- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/yuki-verify-evidence/vite.pid` names it.
 - `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
 - **This feature is `/`-only.** The chat harness mounts `MessageList` alone, so `[data-component="composer-dock"]` and `[data-component="prompt-input"]` are both `0` there — measured on a harness page. Every recipe below is a composed-app recipe, and a run that reaches for the composer in a fixture state is driving something that is not on the page.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only; `curl` to `127.0.0.1:3017` exits `7` (connection refused) while `localhost:3017` answers `200`.
@@ -74,7 +74,7 @@ Selectors this feature relies on:
   - **Measured:** `down` becomes `1`, the button's `aria-label` is `Jump to latest`, and the dock's `data-scrolled` becomes `"true"` while the pane's `data-range` reads something like `0-11`. Click it and re-read: `down` is back to `0` and `data-scrolled` is gone.
   - **Assert it never sits over the composer's own controls.** It is a 34px circle floating above the composer's *right* edge, next to the send button, and it renders only when there is somewhere to go, so a control overlapping the send button is a defect. The `data-range` attribute is the cheapest way to confirm you are actually mid-history rather than trusting that a `scrollTop` write took effect.
 
-- **Proof.** Write the send, the reply-arm and the scroll-down readings — including the before/after of `data-reply-target`, the bar's presence, and the sent row's `side` and quote — to `/tmp/kiko-verify-evidence/composer.json`, in the same run that measured them.
+- **Proof.** Write the send, the reply-arm and the scroll-down readings — including the before/after of `data-reply-target`, the bar's presence, and the sent row's `side` and quote — to `/tmp/yuki-verify-evidence/composer.json`, in the same run that measured them.
 
 ## Gotchas
 

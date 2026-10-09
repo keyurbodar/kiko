@@ -9,7 +9,7 @@ async function getJson(url: string): Promise<unknown> {
   return res.json()
 }
 
-// kiko executor discover: public metadata only, needs no account.
+// yuki executor discover: public metadata only, needs no account.
 async function discover(ctx: Context) {
   const resource = (await getJson("https://v2.executor.sh/.well-known/oauth-protected-resource/mcp")) as { authorization_servers?: string[] }
   const meta = (await getJson(`${issuer}/.well-known/oauth-authorization-server`)) as Record<string, unknown>
@@ -25,7 +25,7 @@ async function discover(ctx: Context) {
   console.log(ctx.json ? JSON.stringify(out) : Object.entries(out).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n"))
 }
 
-// kiko executor probe: asks the Worker to call tools/list on Executor with its stored token.
+// yuki executor probe: asks the Worker to call tools/list on Executor with its stored token.
 async function probe(ctx: Context) {
   const base = ctx.url.endsWith("/") ? ctx.url : `${ctx.url}/`
   const url = new URL("api/experiments/executor-oauth/probe", base)
@@ -56,5 +56,5 @@ export async function executor(ctx: Context): Promise<void> {
   const [sub] = ctx.args
   if (sub === "probe") return probe(ctx)
   if (sub === "discover") return discover(ctx)
-  throw new CliError("usage: kiko executor <probe | discover>")
+  throw new CliError("usage: yuki executor <probe | discover>")
 }

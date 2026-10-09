@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p9-02-delete-an-account-and-all-its-data` |
+| Branch | `yuki/p9-02-delete-an-account-and-all-its-data` |
 
 ## Verification
 
-`bun kiko verify account-delete` passes: after deletion, the user's rooms, agents, files, credentials, and auth rows are gone, and a second run of the same job succeeds with nothing to do.
+`bun yuki verify account-delete` passes: after deletion, the user's rooms, agents, files, credentials, and auth rows are gone, and a second run of the same job succeeds with nothing to do.
 
 ## Task
 

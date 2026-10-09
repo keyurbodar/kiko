@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p3-08-build-the-audio-and-video-player` |
+| Branch | `yuki/p3-08-build-the-audio-and-video-player` |
 
 ## Verification
 
-The `verify-kiko` player feature: play an audio file, scrub, start a second one and see the first stop, and control playback from the keyboard media keys.
+The `verify-yuki` player feature: play an audio file, scrub, start a second one and see the first stop, and control playback from the keyboard media keys.
 
 ## Task
 

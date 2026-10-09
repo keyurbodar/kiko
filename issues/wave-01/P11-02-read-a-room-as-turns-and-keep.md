@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p11-02-read-a-room-as-turns-and-keep` |
+| Branch | `yuki/p11-02-read-a-room-as-turns-and-keep` |
 
 ## Verification
 

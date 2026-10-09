@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-01-build-the-safe-fetcher` |
+| Branch | `yuki/p8-01-build-the-safe-fetcher` |
 
 ## Verification
 

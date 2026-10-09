@@ -1,4 +1,4 @@
-# P12-07 Kiko checks in each morning
+# P12-07 Yuki checks in each morning
 
 | Field | Value |
 | --- | --- |
@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p12-07-kiko-checks-in-each-morning` |
+| Branch | `yuki/p12-07-yuki-checks-in-each-morning` |
 
 ## Verification
 
-`bun kiko verify proactive` passes its check-in case, and `bun kiko verify routines-model` shows the check-in offering help with stale work, then staying quiet.
+`bun yuki verify proactive` passes its check-in case, and `bun yuki verify routines-model` shows the check-in offering help with stale work, then staying quiet.
 
 ## Task
 

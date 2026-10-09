@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | yes |
-| Branch | `kiko/p7-03-connect-an-executor-cloud-account` |
+| Branch | `yuki/p7-03-connect-an-executor-cloud-account` |
 
 ## Verification
 
-`bun kiko verify executor-connect` passes against a real Executor account: connect, list tools, force a token refresh, disconnect, and see the tokens gone.
+`bun yuki verify executor-connect` passes against a real Executor account: connect, list tools, force a token refresh, disconnect, and see the tokens gone.
 
 ## Task
 

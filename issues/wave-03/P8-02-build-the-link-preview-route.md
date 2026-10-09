@@ -10,15 +10,15 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-02-build-the-link-preview-route` |
+| Branch | `yuki/p8-02-build-the-link-preview-route` |
 
 ## Verification
 
-`bun kiko verify link-preview` passes against a local fixture server: a page with Open Graph tags returns title, description, site name, and an image URL on kiko's origin, a second call is served from KV, and a page with no tags is cached as a miss.
+`bun yuki verify link-preview` passes against a local fixture server: a page with Open Graph tags returns title, description, site name, and an image URL on yuki's origin, a second call is served from KV, and a page with no tags is cached as a miss.
 
 ## Task
 
-**Removed.** DEVIATION (2026-10-09): the preview routes, the room's link card, and the `PREVIEWS` KV namespace are removed, and `bun kiko verify link-preview` with them. The owner chose t3code's model, where a link is a link. The safe fetcher (P8-01) stays for `web_fetch` and watch routines. Architecture section 18.2.
+**Removed.** DEVIATION (2026-10-09): the preview routes, the room's link card, and the `PREVIEWS` KV namespace are removed, and `bun yuki verify link-preview` with them. The owner chose t3code's model, where a link is a link. The safe fetcher (P8-01) stays for `web_fetch` and watch routines. Architecture section 18.2.
 
 
 **Goal.** Fetch link previews on the server, cache them, and re-host their images.

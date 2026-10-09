@@ -10,15 +10,15 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p11-03-give-each-user-a-life-log` |
+| Branch | `yuki/p11-03-give-each-user-a-life-log` |
 
 ## Verification
 
-`test/log-memory.test.ts` passes its life cases (one line, at most 280 bytes, no duplicates, pins, redaction, the one-time import), and `bun kiko verify memory-tools` passes with the test model.
+`test/log-memory.test.ts` passes its life cases (one line, at most 280 bytes, no duplicates, pins, redaction, the one-time import), and `bun yuki verify memory-tools` passes with the test model.
 
 ## Task
 
-**Goal.** What kiko knows about the human, across every chat, as one append-only log with the same tree.
+**Goal.** What yuki knows about the human, across every chat, as one append-only log with the same tree.
 
 **Files.** `apps/server/src/user/life.ts`, `user/user-do.ts`, `user/turn-context.ts`, `packages/protocol/src/memory.ts`, `schema.ts`.
 

@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-01-build-the-alarm-multiplexer` |
+| Branch | `yuki/p1-01-build-the-alarm-multiplexer` |
 
 ## Verification
 

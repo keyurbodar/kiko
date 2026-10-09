@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p8-07-build-the-file-tree` |
+| Branch | `yuki/p8-07-build-the-file-tree` |
 
 ## Verification
 
-The `verify-kiko` file tree feature: rows are 30 px, each level indents 16 px, a chevron rotates on open, the selected row is `#28221f`, hidden files are at half opacity, and the arrow keys move and expand.
+The `verify-yuki` file tree feature: rows are 30 px, each level indents 16 px, a chevron rotates on open, the selected row is `#28221f`, hidden files are at half opacity, and the arrow keys move and expand.
 
 ## Task
 

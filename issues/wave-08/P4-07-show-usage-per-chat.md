@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p4-07-show-usage-per-chat` |
+| Branch | `yuki/p4-07-show-usage-per-chat` |
 
 ## Verification
 
-`bun kiko verify usage` passes: after one turn, the room reports input tokens, output tokens, and a cost that matches the catalog price for the test model.
+`bun yuki verify usage` passes: after one turn, the room reports input tokens, output tokens, and a cost that matches the catalog price for the test model.
 
 ## Task
 

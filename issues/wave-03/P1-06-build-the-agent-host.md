@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-06-build-the-agent-host` |
+| Branch | `yuki/p1-06-build-the-agent-host` |
 
 ## Verification
 

@@ -10,11 +10,11 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p1-03-route-authenticated-requests-and-sockets-to-durable` |
+| Branch | `yuki/p1-03-route-authenticated-requests-and-sockets-to-durable` |
 
 ## Verification
 
-`bun kiko ws /api/ws/user` connects with a session and fails with 401 without one. `bun test apps/server/test/naming.test.ts` passes.
+`bun yuki ws /api/ws/user` connects with a session and fails with 401 without one. `bun test apps/server/test/naming.test.ts` passes.
 
 ## Task
 
@@ -26,7 +26,7 @@
 
 **Build.**
 
-- Write `userName(userId)`, `roomName(userId, roomId)`, and `agentName(userId, roomId, slug)`. Validate `roomId` and `slug` against the patterns from `@kiko/protocol`.
+- Write `userName(userId)`, `roomName(userId, roomId)`, and `agentName(userId, roomId, slug)`. Validate `roomId` and `slug` against the patterns from `@yuki/protocol`.
 - Route `/api/ws/user` and `/api/ws/room/:roomId` to the right object after the session check. Pass the user id in a header that the Worker sets and strips from client input.
 - Reject any request whose path or body carries a user id.
 

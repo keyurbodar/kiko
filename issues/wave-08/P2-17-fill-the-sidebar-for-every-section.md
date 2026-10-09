@@ -10,7 +10,7 @@
 | Parallel with its wave | yes |
 | Needs a worktree | yes |
 | Needs a human step | no |
-| Branch | `kiko/p2-17-fill-the-sidebar-for-every-section` |
+| Branch | `yuki/p2-17-fill-the-sidebar-for-every-section` |
 
 ## Verification
 
