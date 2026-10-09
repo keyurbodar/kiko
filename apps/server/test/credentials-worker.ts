@@ -1,13 +1,9 @@
 import { DurableObject } from "cloudflare:workers"
-import type { Keyring } from "../src/lib/crypto"
+import type { Keyring } from "@kiko/durable/crypto"
 import { CredentialVault, userIdFromObjectName } from "../src/user/credentials"
 import { UserDO } from "../src/user/user-do"
 
 export { UserDO }
-
-// `/rpc/<user>` calls one real `UserDO` RPC method by name. `/vault/<user>` drives a
-// `CredentialVault` with a keyring the test chooses, so a rotation needs no restart.
-// Every result is logged, so the test's log grep would catch a key in any answer.
 
 type Env = { USER: DurableObjectNamespace<UserDO>; VAULT: DurableObjectNamespace<VaultDO> }
 

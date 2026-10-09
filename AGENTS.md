@@ -43,8 +43,9 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not write a handler that is unsafe to run twice.** Alarms and queues deliver at least once. Give every delivery and post a stable id.
 - **Do not add a tool without an effect.** Every tool declares `read`, `write`, `message`, or `external`.
 - **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions, and the trust extension must always be selected.
-- **Do not give an extension script a way out except the bridge in `agent/script/compile.ts`.** The VM has no I/O by design. A new `kiko.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
+- **Do not give an extension script a way out except the bridge in `packages/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `kiko.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
 - **Do not let anything but the human's socket install an extension.** Agents and the catalog only propose.
+- **Do not import `apps/` or `@kiko/protocol` from `packages/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass kiko's behavior in as an option. `scripts/check-imports.ts` fails the build.
 - **Do not import Effect, CodeMirror, or a markdown parser into client tiers 1 to 3.** The budget script fails the build.
 - **Do not add a model list, a provider adapter, or an Executor tool name.** Those come from `pi-ai` and from Executor at run time.
 - **Do not commit a secret.** Keys live in `.dev.vars` and in CI secrets. `OPENCODE_API_KEY` is read from the environment.
@@ -73,6 +74,7 @@ bun kiko verify <suite>           # one suite against the dev server
 bun kiko verify --no-model        # everything that needs no model key
 bun scripts/bundle-budget.ts      # client tier sizes
 bun scripts/plan.ts --check       # the plan files are in sync
+bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
 - Backend work is verified through the kiko CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
@@ -115,14 +117,17 @@ apps/
   server/               the Worker                             (planned, P0-01)
     src/user/           UserDO: credentials, memory, reminders
     src/room/           RoomDO: log, burst, delivery, workspace
-    src/agent/          AgentDO: host, factory, extensions
-    src/agent/script/   the extension sandbox: QuickJS VM, compiler, checker
+    src/agent/          AgentDO: factory, outbox, kiko's extensions
     catalog/            extensions reviewed upstream, bundled by scripts/gen-catalog.ts
-    src/lib/            alarm, names, crypto, safe-fetch
+    src/lib/            names, dev stats
   cli/                  the kiko verification CLI              (planned, P0-04)
 packages/
   ui/                   @kiko/ui: Kobalte and Corvu wrappers, kat.css
   protocol/             wire types shared by all three apps   (planned, P0-03)
+  durable/              @kiko/durable: alarm, safe-fetch, crypto, wipe
+  agent/                @kiko/agent: pi-durable host, inbox, trust, effects
+  memory/               @kiko/memory: OptMem tree, life log, memory tools
+  sandbox/              @kiko/sandbox: QuickJS VM, manifest, compiler, checker
 docs/
   overview.md  product.md  architecture.md
   phases/               the plan, one file per phase

@@ -1,10 +1,5 @@
 import { afterAll, beforeEach, expect, test } from "bun:test"
-import { safeFetch, type Fetcher } from "../src/lib/safe-fetch"
-
-// The tests run the real function against a real HTTP server on this machine.
-// One fetcher is injected. It answers DNS over HTTPS lookups from a table and
-// sends every other request to the local server, whatever the host name says.
-// Nothing leaves the machine.
+import { safeFetch, type Fetcher } from "@kiko/durable/safe-fetch"
 
 const MB = 1024 * 1024
 const PUBLIC_V4 = "93.184.216.34"
@@ -30,7 +25,6 @@ const server = Bun.serve({
     const hop = /^\/hop\/(\d+)$/.exec(pathname)
     if (hop) {
       const left = Number(hop[1])
-      // A relative Location, so the fetcher must resolve it against the current hop.
       if (left > 0) return new Response(null, { status: 302, headers: { location: `/hop/${left - 1}` } })
       return new Response("end of the chain")
     }
@@ -66,7 +60,6 @@ const server = Bun.serve({
 
 afterAll(() => server.stop(true))
 
-/** Host name to DNS records. A number is a DNS status other than NOERROR. */
 let dns: Record<string, { A?: string[]; AAAA?: string[] } | number>
 let lookups: string[]
 let requests: string[]
@@ -94,7 +87,6 @@ const fetcher: Fetcher = async (url, init) => {
     const code = type === "A" ? 1 : 28
     return Response.json({
       Status: 0,
-      // A CNAME record first, as a real resolver returns for an alias.
       Answer: [
         { name, type: 5, TTL: 60, data: "alias.test." },
         ...(entry[type] ?? []).map((data) => ({ name, type: code, TTL: 60, data })),
@@ -126,13 +118,13 @@ test.each([
   ["http://127.0.0.1/", "ip-literal"],
   ["http://[::1]/", "ip-literal"],
   ["http://169.254.169.254/latest/meta-data/", "ip-literal"],
-  ["http://2130706433/", "ip-literal"], // decimal 127.0.0.1
-  ["http://0x7f000001/", "ip-literal"], // hex
-  ["http://017700000001/", "ip-literal"], // octal
-  ["http://127.1/", "ip-literal"], // short form
+  ["http://2130706433/", "ip-literal"],
+  ["http://0x7f000001/", "ip-literal"],
+  ["http://017700000001/", "ip-literal"],
+  ["http://127.1/", "ip-literal"],
   ["http://[::ffff:127.0.0.1]/", "ip-literal"],
   ["http://[fd00:ec2::254]/", "ip-literal"],
-  ["http://93.184.216.34/", "ip-literal"], // a public literal is refused too
+  ["http://93.184.216.34/", "ip-literal"],
   ["http://localhost/", "blocked-host"],
   ["http://localhost./", "blocked-host"],
   ["http://app.localhost:8787/", "blocked-host"],
@@ -262,7 +254,6 @@ test("refuses a fourth redirect", async () => {
     ok: false,
     reason: "too-many-redirects",
   })
-  // Hops 4, 3, 2, and 1 are requested. The fourth Location, /hop/0, is not.
   expect(requests).toEqual([4, 3, 2, 1].map((left) => `http://public.test/hop/${left}`))
 })
 
@@ -296,7 +287,6 @@ test("stops reading a 5 MB body after 1 MB", async () => {
   if (!result.ok) throw new Error(result.reason)
   expect(result.truncated).toBe(true)
   expect(result.body.byteLength).toBe(MB)
-  // The bytes kept are the first ones, in order.
   expect(result.body.every((byte, index) => byte === CHUNK[index % CHUNK.byteLength])).toBe(true)
 })
 
@@ -320,7 +310,6 @@ test("with the dns cache on, a second fetch to the same host makes no lookup, an
   expect((await safeFetch("http://public.test/small", own, { dnsCache: true })).ok).toBe(true)
   expect(lookups).toEqual(["A public.test", "AAAA public.test"])
   expect(requests).toHaveLength(2)
-  // Off (the default for a fetcher a caller passes): every fetch looks the host up again.
   lookups = []
   await safeFetch("http://public.test/small", fetcher)
   await safeFetch("http://public.test/small", fetcher)

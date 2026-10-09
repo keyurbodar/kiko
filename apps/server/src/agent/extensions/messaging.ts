@@ -3,56 +3,41 @@ import { defineExtension, defineTool, type Extension, type ToolExecutionApi } fr
 import type { AgentSlug } from "@kiko/protocol"
 import type { AgentSend } from "../../room/mail"
 import type { SpawnInput } from "../../room/room-do"
-import { declareEffect } from "../effects"
-import type { Answer } from "../answers"
-import { isRunTainted, markRunTainted } from "./trust"
-
-// Architecture sections 7.5 and 7.7. The team tools: send_message, team, and for the lead spawn_agent. Every agent message goes through `RoomDO`,
-// which stores it in the log, delivers it, and enforces the loop limits. A plain reply bubble
-// wakes nobody, so an agent that answers a teammate must call `send_message`. The room sets the
-// sender, the hop, and the root; the tool only says who and what, and whether the run is tainted.
+import { declareEffect } from "@kiko/agent/effects"
+import type { Answer } from "@kiko/agent/answers"
+import { isRunTainted, markRunTainted } from "@kiko/agent/trust"
 
 export const MESSAGING = "messaging"
 
-/** The room's side of the tools, bound to the calling agent. */
 export type MessagingPort = {
   send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
-  /** `ask`: a message to one teammate whose answer the tool waits for. */
   ask(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean } | null>
-  /** The answer the room pushes for ask `id`, or null when `ms` passes or the human writes. */
   waitAnswer(id: string, ms: number): Promise<Answer | null>
   closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean } | null>
-  /** A human message is waiting: the human outranks a teammate's answer (section 7.8). */
   humanWaiting(): boolean
-  /** What everyone in the room is doing now and the paths they hold (section 7.12). */
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
 }
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
-/** How long `ask` waits for a teammate. ASSUMPTION: the number. */
 export const ASK_WAIT_MS = 120_000
 
-/** `port` returns null before the room has delivered anything, when the agent has no home yet. */
 export function messagingExtension(port: () => MessagingPort | null, lead = false): Extension {
   const room = () => {
     const p = port()
     if (!p) throw new Error("this agent is not in a room yet")
     return p
   }
-  // The id is the tool call, so a replayed call stores and delivers nothing new.
   const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "registry" | "conversationId" | "callId">) => {
     const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body, tainted: isRunTainted(api) })
-    // The chat already shows the message, so a bubble saying it was sent is noise: [skip] posts nothing.
     return out.ok
       ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat. if that was all you had to say, reply with just [skip].`) }
       : { content: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })
 
-  // Section 7.5. Only the lead grows the team, so only the lead's agent is offered the tool.
   const spawnTool = declareEffect(
     "message",
     defineTool({
@@ -86,13 +71,11 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
         const who = to.replace(/^@/, "").toLowerCase() as AgentSlug
         const sent = await room().ask({ id, to: who, text: question, tainted: isRunTainted(api) })
         if (!sent.ok) return { content: text(sent.error), isError: true }
-        // An answer from a run that read outside content taints this run, like the envelope would.
         const reply = (answer: Answer) => {
           if (answer.tainted) markRunTainted(api, "agent")
           return { content: text(`@${who} answered: ${answer.text}`) }
         }
         const answered = (s: { state: string; answer: string | null; tainted: boolean } | null) => (s?.state === "answered" ? reply({ text: s.answer ?? "", tainted: s.tainted }) : null)
-        // A replayed call finds an answer that arrived while this object was gone.
         const stored = answered(await room().askState(id))
         if (stored) return stored
         const pushed = room().humanWaiting() ? null : await room().waitAnswer(id, ASK_WAIT_MS)

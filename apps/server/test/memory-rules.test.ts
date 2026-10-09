@@ -1,15 +1,13 @@
 import { expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
-import { parseZoomId } from "../src/agent/extensions/memory"
+import { parseZoomId } from "@kiko/memory/tools"
 import { perRun } from "../src/agent/extensions/self"
-import { briefToShow } from "../src/agent/host"
-import { renderInput } from "../src/agent/inbox"
-import { itemLine } from "../src/lib/optmem"
+import { briefToShow } from "@kiko/agent/host"
+import { renderInput } from "@kiko/agent/inbox"
+import { itemLine } from "@kiko/memory/optmem"
 import { buildBrief, shortBrief } from "../src/room/brief"
 import type { MemberRow } from "../src/room/members"
-import { norm } from "../src/user/life"
-
-// Section 13.4 and 7.4: the small rules that keep a run from paying twice for what it already has.
+import { norm } from "@kiko/memory/life"
 
 const zoomCases: [string, ReturnType<typeof parseZoomId>][] = [
   ["chat:12", { log: "chat", id: "12" }],
@@ -63,17 +61,14 @@ test("the long line about the human is cut from a brief that is not fresh", () =
 test("only the newest brief shows, once, until it changes or the run starts fresh", () => {
   const a = brief(null, null)
   const b = brief(null, "reading a web page")
-  const first = briefToShow([a], true, undefined)
+  const first = briefToShow([a], true, undefined, shortBrief)
   expect(first.brief).toBe(a)
-  // The same brief again, on a run that goes on: the transcript has it.
-  expect(briefToShow([a], false, first.key)).toEqual({ key: first.key })
-  // A batch with two briefs shows only the newest, without the long line.
-  const next = briefToShow([a, b], false, first.key)
+  expect(briefToShow([a], false, first.key, shortBrief)).toEqual({ key: first.key })
+  const next = briefToShow([a, b], false, first.key, shortBrief)
   expect(next.brief).toBe(shortBrief(b))
   expect(next.key).not.toBe(first.key)
-  // A fresh run shows it in full even when unchanged, since the transcript starts over.
-  expect(briefToShow([b], true, next.key).brief).toBe(b)
-  expect(briefToShow([], false, next.key)).toEqual({})
+  expect(briefToShow([b], true, next.key, shortBrief).brief).toBe(b)
+  expect(briefToShow([], false, next.key, shortBrief)).toEqual({})
 })
 
 let n = 0
@@ -101,7 +96,6 @@ test("the prompt reads a file once per run, and again when the run changes", asy
   expect(await read()).toBe(1)
   run = 2
   expect(await read()).toBe(2)
-  // Without a stamp, every request reads.
   const every = perRun(async () => ++reads)
   await every()
   await every()

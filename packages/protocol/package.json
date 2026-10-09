@@ -14,6 +14,8 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@kiko/agent": "workspace:*",
+    "@kiko/sandbox": "workspace:*",
     "effect": "4.0.0",
     "uuid": "14.0.2"
   },

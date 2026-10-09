@@ -21,6 +21,7 @@ jobs:
       - run: bun run test
       - run: bun run lint
       - run: bun scripts/plan.ts --check
+      - run: bun scripts/check-imports.ts
 
   # Real backend verification. It needs no repository secret and no model key, so it is
   # safe for a pull request from a fork. It has only the read-only `contents` permission.

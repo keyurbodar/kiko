@@ -1,22 +1,15 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
-
-// P6-02. The workspace tables and the tool rules over real SQLite in workerd.
+import { bundleWorker } from "./bundle"
 
 let mf: Miniflare
 let origin: string
 
 beforeAll(async () => {
-	const built = await Bun.build({
-		entrypoints: [new URL("./workspace-worker.ts", import.meta.url).pathname],
-		target: "browser",
-		format: "esm",
-		external: ["cloudflare:workers"],
-	})
-	if (!built.success) throw new Error(built.logs.join("\n"))
+	const script = await bundleWorker(new URL("./workspace-worker.ts", import.meta.url))
 	mf = new Miniflare({
 		modules: true,
-		script: await built.outputs[0]!.text(),
+		script,
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
 		durableObjects: { WS: { className: "WorkspaceDO", useSQLite: true } },
@@ -43,7 +36,6 @@ test("only the lead creates tasks, and a task needs known dependencies and membe
 	expect((await call(r, "bob", true, { op: "create_task", id: "b", title: "y", dependsOn: ["zz"] })).answer.error).toBe("no task zz")
 	expect((await call(r, "bob", true, { op: "create_task", id: "b", title: "y", owner: "eve" })).answer.error).toBe("@eve is not a member of this room")
 	expect((await call(r, "bob", true, { op: "create_task", id: "b", title: "y", dependsOn: ["b"] })).answer.error).toBe("task b cannot depend on itself")
-	// A replayed create with the same id stores nothing.
 	expect((await call(r, "bob", true, { op: "create_task", id: "a", title: "write it", owner: "ada" })).events).toEqual([])
 })
 
@@ -72,7 +64,6 @@ test("the status set is enforced, and an agent changes only its own tasks", asyn
 		dependsOn: [],
 		note: "ready",
 	})
-	// The lead reviews anyone's task.
 	expect((await call(r, "bob", true, { op: "update_task", id: "a", status: "doing" })).answer.ok).toBe(true)
 })
 
@@ -98,10 +89,8 @@ test("finishing the last dependency unblocks a task once, and a task cannot fini
 	expect((await state(r)).brief.map((t: any) => t.id)).toEqual(["b", "a", "a2"])
 	expect((await call(r, "ada", false, { op: "update_task", id: "a", status: "done" })).wakes).toEqual([])
 	const done = await call(r, "bob", true, { op: "update_task", id: "a2", status: "done" })
-	// The wake keeps the chain its task was made on: bob made it in work the human asked for.
 	expect(done.wakes).toEqual([{ taskId: "b", owner: "cy", title: "second", seq: done.events[0].seq, chain: { rootId: "m-bob", hop: 1, authority: { origin: "human", grant: [] } } }])
 	expect(await post(`/woke/${r}`, { taskId: "b" })).toEqual([])
-	// Reopening and finishing a dependency again wakes nobody a second time.
 	await call(r, "bob", true, { op: "update_task", id: "a2", status: "review" })
 	expect((await call(r, "bob", true, { op: "update_task", id: "a2", status: "done" })).wakes).toEqual([])
 })

@@ -1,19 +1,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 
-// Runs the real helper inside workerd through Miniflare. The worker is bundled
-// from src/lib/alarm.ts so the test cannot drift from the source.
 let mf: Miniflare
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./alarm-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers"],
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
-  const script = await built.outputs[0]!.text()
+  const script = await bundleWorker(new URL("./alarm-worker.ts", import.meta.url))
   mf = new Miniflare({
     modules: true,
     script,
@@ -26,7 +18,7 @@ afterAll(async () => {
   await mf?.dispose()
 })
 
-const B = 5e12 // far future, so the real alarm never fires during a test
+const B = 5e12
 let n = 0
 async function call(id: string, op: string, args: Record<string, unknown> = {}) {
   const ns = await mf.getDurableObjectNamespace("T")

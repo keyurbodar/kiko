@@ -1,4 +1,4 @@
-import type { Fetcher } from "./safe-fetch"
+import type { Fetcher } from "@kiko/durable/safe-fetch"
 
 declare const process: { env: { NODE_ENV?: string } }
 

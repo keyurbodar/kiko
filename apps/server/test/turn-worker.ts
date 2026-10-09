@@ -3,14 +3,10 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import type { AgentSlug, AgentState, Envelope, RoomId } from "@kiko/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
-import type { AgentSetup, HostOptions } from "../src/agent/host"
+import type { AgentSetup, HostOptions } from "@kiko/agent/host"
 import type { RoomPort } from "../src/agent/outbox"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../src/lib/names"
 import type { RoomDO } from "../src/room/room-do"
-
-// Runs inside workerd. `turn.test.ts` drives it through Miniflare. `T` is the real `AgentDO` with a
-// faux model and a recording room port, so no test spends a token. `/room/<roomId>/...` reaches the
-// real `RoomDO`.
 
 import { AFTER, BEFORE } from "./turn-fixtures"
 
@@ -35,7 +31,6 @@ export class T extends AgentDO {
     return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }) }
   }
 
-  /** Records every room call in this object's own storage, in order. */
   protected override roomPort(): RoomPort {
     this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS calls (n INTEGER PRIMARY KEY AUTOINCREMENT, call TEXT NOT NULL)")
     const record = async (call: unknown) => {

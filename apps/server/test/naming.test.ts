@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Miniflare } from "miniflare"
+import { bundleWorker } from "./bundle"
 import { agentName, NameError, roomName, userName } from "../src/lib/names"
 
 const ROOM = "01JZ8Q4T6M0000000000000001"
@@ -39,25 +40,17 @@ describe("names", () => {
   })
 })
 
-// The router runs in workerd with objects that report who they are.
 let mf: Miniflare
 let origin: string
 let tmp: string
 
 beforeAll(async () => {
-  const built = await Bun.build({
-    entrypoints: [new URL("./naming-worker.ts", import.meta.url).pathname],
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers"],
-    define: { "process.env.NODE_ENV": '"production"' },
-  })
-  if (!built.success) throw new Error(built.logs.join("\n"))
+  const script = await bundleWorker(new URL("./naming-worker.ts", import.meta.url), { "process.env.NODE_ENV": '"production"' })
   // The router imports Better Auth, which imports modules by computed names, so the bundle
   // is listed as the only module instead of letting Miniflare walk its imports.
   tmp = await mkdtemp(join(tmpdir(), "kiko-naming-"))
   const path = join(tmp, "worker.js")
-  await Bun.write(path, built.outputs[0]!)
+  await Bun.write(path, script)
   mf = new Miniflare({
     modules: [{ type: "ESModule", path }],
     modulesRoot: tmp,

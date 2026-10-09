@@ -12,16 +12,9 @@ import {
   isRoomId,
   type RoomId,
 } from "@kiko/protocol"
-import { type Keyring, open, seal } from "../lib/crypto"
-import { type Fetcher, safeRequest, type SafeRequest } from "../lib/safe-fetch"
-import type { GuestRequest, GuestResponse } from "../agent/script/compile"
-
-// Architecture section 24.2. A user's extensions live in their `UserDO`, as data: the bundle by
-// content hash, the switches, the secrets (sealed like provider keys), and each extension's state.
-// Agents read the enabled set at the start of each run. Nothing here runs a script.
-//
-// A proposal is an install that waits for the human. Agents and the catalog can only propose;
-// `install` is reachable from the human's socket alone.
+import { type Keyring, open, seal } from "@kiko/durable/crypto"
+import { type Fetcher, safeRequest, type SafeRequest } from "@kiko/durable/safe-fetch"
+import type { GuestRequest, GuestResponse } from "@kiko/sandbox/compile"
 
 export type ExtensionEvent =
   | { t: "extension"; extension: ExtensionInfo }
@@ -38,11 +31,9 @@ export class ExtensionError extends Error {
   }
 }
 
-/** The scheduling side, so a trigger is a reminder (section 14). */
 export type TriggerPort = {
   create: (input: { text: string; rrule: string; roomId: RoomId; target: string; createdBy: string }) => Promise<void>
   cancelBy: (createdBy: string) => Promise<unknown>
-  /** The room and agent a trigger posts to when the extension has none: the kiko chat and kiko. */
   fallback: () => { roomId: RoomId; target: string } | null
 }
 
@@ -70,7 +61,6 @@ type Row = {
 
 type ProposalRow = { id: string; name: string; hash: string; bundle: string; source: string; by: string | null; room: string | null; tainted: number; created_at: number }
 
-/** The sha-256 of a bundle's canonical JSON, hex. The same bundle always has the same hash. */
 export async function bundleHash(bundle: ExtensionBundle): Promise<string> {
   const canonical = (v: unknown): unknown =>
     Array.isArray(v) ? v.map(canonical) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, x]) => [k, canonical(x)])) : v
@@ -130,8 +120,6 @@ export class ExtensionStore {
     )`)
   }
 
-  // Reads.
-
   private row(name: string): Row | undefined {
     return this.sql.exec<Row>("SELECT * FROM extensions WHERE name = ?", name).toArray()[0]
   }
@@ -183,7 +171,6 @@ export class ExtensionStore {
     return this.sql.exec<ProposalRow>("SELECT * FROM extension_proposals ORDER BY created_at").toArray().map((r) => this.proposal(r))
   }
 
-  /** The versions agent `slug` runs: enabled, and on for every agent or for this one. */
   forAgent(slug: string): { name: string; hash: string }[] {
     return this.sql
       .exec<Row>("SELECT * FROM extensions WHERE enabled = 1 ORDER BY name")
@@ -192,17 +179,12 @@ export class ExtensionStore {
       .map((r) => ({ name: r.name, hash: r.hash }))
   }
 
-  /**
-   * The tool names extension `name` adds, or null when it is not installed and enabled. Its trigger
-   * runs with exactly these granted (section 24.8): the human reviewed and installed them.
-   */
   toolNames(name: string): string[] | null {
     const r = this.row(name)
     if (r?.enabled !== 1) return null
     return Object.keys((JSON.parse(r.bundle) as ExtensionBundle).manifest.tools ?? {})
   }
 
-  /** The bundles of the given versions that are still installed. */
   bundles(hashes: readonly string[]): { name: string; hash: string; bundle: ExtensionBundle }[] {
     const want = new Set(hashes)
     return this.sql
@@ -218,9 +200,6 @@ export class ExtensionStore {
     return JSON.parse(r.bundle) as ExtensionBundle
   }
 
-  // Proposals.
-
-  /** Stores an install for the human to review. The bundle is checked here, the edge for agents and sockets. */
   async propose(input: { bundle: unknown; source: ExtensionSource; by?: string; room?: string; tainted?: boolean }): Promise<ExtensionProposal> {
     const checked = checkBundle(input.bundle)
     if (!checked.ok) throw new ExtensionError("the extension has problems", checked.problems)
@@ -230,7 +209,6 @@ export class ExtensionStore {
     if (this.row(name)?.hash === hash) throw new ExtensionError(`${name} ${bundle.manifest.version} is already installed`)
     if (input.by !== undefined && !isAgentSlug(input.by)) throw new ExtensionError("bad agent")
     if (input.room !== undefined && !isRoomId(input.room)) throw new ExtensionError("bad chat")
-    // One open proposal per extension: a newer one replaces the older.
     for (const old of this.sql.exec<{ id: string }>("SELECT id FROM extension_proposals WHERE name = ?", name).toArray()) {
       this.sql.exec("DELETE FROM extension_proposals WHERE id = ?", old.id)
       this.commit({ t: "extension_proposal_removed", id: old.id })
@@ -268,7 +246,6 @@ export class ExtensionStore {
     this.commit({ t: "extension_proposal_removed", id })
   }
 
-  /** The human's yes. Installs or updates; an update keeps the switches, the agents, and the secrets. */
   async install(id: string): Promise<ExtensionInfo> {
     const p = this.sql.exec<ProposalRow>("SELECT * FROM extension_proposals WHERE id = ?", id).toArray()[0]
     if (!p) throw new ExtensionError("that install is no longer waiting")
@@ -289,7 +266,6 @@ export class ExtensionStore {
         now,
       )
     }
-    // Secrets the new version no longer declares are deleted, never kept around.
     const declared = Object.keys((JSON.parse(p.bundle) as ExtensionBundle).manifest.secrets ?? {})
     for (const s of this.sql.exec<{ secret: string }>("SELECT secret FROM extension_secrets WHERE extension = ?", p.name).toArray()) {
       if (!declared.includes(s.secret)) this.sql.exec("DELETE FROM extension_secrets WHERE extension = ? AND secret = ?", p.name, s.secret)
@@ -302,7 +278,6 @@ export class ExtensionStore {
     return info
   }
 
-  /** Replaces the extension's reminders with one per trigger, when it is enabled. */
   private async scheduleTriggers(name: string): Promise<void> {
     const by = `ext:${name}`
     await this.triggers.cancelBy(by)
@@ -322,8 +297,6 @@ export class ExtensionStore {
       }
     }
   }
-
-  // Switches.
 
   async setEnabled(name: string, enabled: boolean): Promise<ExtensionInfo> {
     if (!this.row(name)) throw new ExtensionError(`no extension named ${name}`)
@@ -371,7 +344,6 @@ export class ExtensionStore {
     this.commit({ t: "extension_removed", name })
   }
 
-  /** An agent hit an error loading or running a version. Only the current version's error is kept. */
   setError(name: string, hash: string, error: string): void {
     const r = this.row(name)
     if (!r || r.hash !== hash || r.error === error) return
@@ -385,15 +357,12 @@ export class ExtensionStore {
     return info
   }
 
-  // What a running script reaches.
-
   private live(name: string): { row: Row; manifest: ExtensionManifest } {
     const r = this.row(name)
     if (r?.enabled !== 1) throw new ExtensionError(`extension ${name} is not installed and on`)
     return { row: r, manifest: (JSON.parse(r.bundle) as ExtensionBundle).manifest }
   }
 
-  /** `kiko.state`. `scope` is built by the agent from the manifest and its own name. */
   state(name: string, scope: string, op: "get" | "set" | "delete" | "list", key: string, value?: unknown): unknown {
     const { manifest } = this.live(name)
     if (!manifest.state) throw new ExtensionError(`kiko.state needs "state" in extension.json`)
@@ -429,11 +398,6 @@ export class ExtensionStore {
     return null
   }
 
-  /**
-   * `kiko.fetch`. The host must be in `egress`. A `{{secret.NAME}}` in the URL or a header value is
-   * filled in here, and only when the host is one of that secret's hosts. The answer never contains
-   * a secret the script did not already have: secrets go out, never back in.
-   */
   async fetch(name: string, request: GuestRequest): Promise<GuestResponse> {
     const { manifest } = this.live(name)
     let url: URL
@@ -477,7 +441,6 @@ export class ExtensionStore {
       return out
     }
     const filledUrl = await fill(url.href.replace(/%7B%7Bsecret\.([A-Z0-9_]+)%7D%7D/g, "{{secret.$1}}"))
-    // A filled URL must still point at the same host.
     if (new URL(filledUrl).hostname.toLowerCase() !== host) throw new ExtensionError("a secret cannot change the host")
     for (const [k, v] of Object.entries(headers)) headers[k] = await fill(v)
     if (body?.includes("{{secret.")) body = await fill(body)
@@ -486,7 +449,6 @@ export class ExtensionStore {
     const out = await safeRequest(filledUrl, req, this.fetcher, { maxBytes: MAX_FETCH_BYTES, timeoutMs: FETCH_TIMEOUT_MS, userAgent: `kiko-extension/${name}` })
     if (!out.ok) throw new ExtensionError(`the request failed: ${out.reason}`)
     let text = new TextDecoder().decode(out.body)
-    // A server that echoes a secret back does not hand it to the script.
     for (const ref of Object.keys(secrets)) {
       const value = await this.secret(name, ref)
       if (value && value.length >= 6) text = text.replaceAll(value, `{{secret.${ref}}}`)
@@ -500,7 +462,6 @@ export class ExtensionStore {
       try {
         json = JSON.parse(text)
       } catch {
-        // Not JSON after all; the text stands.
       }
     }
     return { status: out.status, headers: responseHeaders, text, ...(json !== undefined ? { json } : {}), ...(out.truncated ? { truncated: true } : {}) }

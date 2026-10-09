@@ -9,10 +9,10 @@ import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } fro
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import type { ExecutorTool } from "../integrations/executor/tools"
-import { type Alarms, createAlarms, runDue } from "../lib/alarm"
-import { enforceHello, HELLO_WAKEUP, helloBy } from "../lib/hello-deadline"
+import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
+import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
-import { keyringFromEnv } from "../lib/crypto"
+import { keyringFromEnv } from "@kiko/durable/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
@@ -20,17 +20,18 @@ import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsC
 import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
-import { Life } from "./life"
-import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "../lib/optmem"
+import { Life } from "@kiko/memory/life"
+import { importRecords } from "./import-records"
+import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
 import { BUDGET_LINE } from "../room/limits"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
 import type { Trigger } from "@kiko/protocol"
-import { safeFetch } from "../lib/safe-fetch"
+import { safeFetch } from "@kiko/durable/safe-fetch"
 import { defaultFetcher } from "../lib/dev-fixture-fetch"
-import { htmlToText } from "../lib/html-text"
+import { htmlToText } from "@kiko/durable/html-text"
 import { migrate } from "./schema"
 import { DEFAULT_TIMEZONE, findProvider, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
@@ -41,85 +42,60 @@ import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "./recurrence"
 import { CHIEF } from "../room/chief"
 import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
-import type { GuestRequest, GuestResponse } from "../agent/script/compile"
-import { closeSockets, storedRows, wipeStorage } from "../lib/wipe"
-import type { Authority } from "../lib/origin"
+import type { GuestRequest, GuestResponse } from "@kiko/sandbox/compile"
+import { closeSockets, storedRows, wipeStorage } from "@kiko/durable/wipe"
+import type { Authority } from "@kiko/agent/authority"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }
 
-// Architecture sections 4.1 and 9. One object per user. This part owns the chat
-// index and the user socket. Every change is stored as an event with a per-user `seq`
-// and sent to every socket that has said hello. A client that reconnects sends the
-// last `seq` it applied and gets the events after it, or a snapshot when the gap is
-// too old to replay.
-
-/** Events kept for replay. An older `lastSeq` gets a snapshot. Same limit as the room. */
 const REPLAY_LIMIT = 500
 
-/** `origin` is the Worker origin the socket came through. The Executor callback URL is built from it. */
 type Attachment = { ready: boolean; helloBy?: number; origin?: string }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
-/** The wakeup that makes the life log's summaries. */
 const LIFE_WAKEUP = "life_naps"
-/** Summaries per alarm, and at once per user across every room. */
 const NAPS_PER_ALARM = 4
 const MAX_NAPS = 4
-/** ASSUMPTION: the longest one summary call may take. A model that always thinks needs more than a minute for a page. */
 const COMPRESS_TIMEOUT_MS = 120_000
-/** The `settings` key of what memory summaries have spent: input, output, cacheRead, calls. */
 const MEMORY_USAGE = "memory_usage"
-/** The `settings` key of the memory model the human chose. */
 const MEMORY_MODEL = "memory_model"
-/** Section 25.5. When the human last opened kiko, and whether the away line was posted. */
 const LAST_SEEN = "last_seen"
-/** The part of a webhook's body the agent sees. */
 const HOOK_EXCERPT = 6_000
 const AWAY_NOTICE = "away_notice"
 const PUBLIC_ORIGIN = "public_origin"
-/** Section 25.7. kiko's daily check-in: the routine's id once made, its time, and what it does. */
 const CHECK_IN = "check_in"
-/** What the check-in last read, as `checkInFingerprint` makes it. */
 const CHECK_IN_SEEN = "check_in_seen"
 const CHECK_IN_RULE = "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0"
 const CHECK_IN_INSTRUCTIONS = `call overview, then decide if anything needs the human today: a task stuck for days, a routine that failed or was paused, something due soon, a chat they left mid-thread. if something does, send one short message: at most three things you could take off their plate, one line each, and ask which to do. if nothing is new since your last check-in, or they ignored the same offer before, reply [skip].`
 
-/** The `settings` key of the chat the user was last in. */
 const LAST_CHAT = "last_chat"
 
-/** The storage key that marks an account deletion in progress. */
 const DELETING = "deleting"
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
-  // Reminders and the life log's summaries register wakeups here in their own tasks.
   // Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
   private alarms!: Alarms
   private life!: Life
   private souls!: Souls
   private home!: FileIndex<UserEvent>
-  /** Events of a batch still in its transaction (`homeCommit`), broadcast once it commits. */
   private holding: UserEvent[] | null = null
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     instrument(ctx, "user")
-    // The client's liveness ping, answered by the runtime without waking this object.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
     this.sql = ctx.storage.sql
-    // Architecture section 23: the schema migration runs before any other work on every start.
     void ctx.blockConcurrencyWhile(async () => {
       migrate(this.sql)
       this.alarms = createAlarms(ctx)
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
-      // The records store this log replaced is read once into it, then dropped (architecture section 13).
-      if (this.life.importRecords() > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
+      if (importRecords(this.sql, this.life) > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner(), (by) => this.triggerAuthority(by)), Date.now, {
-        // The user's run is taken here, before the room is called, so a held run costs no call (section 25.5).
         deliverRun: async ({ deliveryId, routine, body, tainted }) => {
           const paid = this.takeAutonomous()
           if (!paid.ok) {
@@ -139,7 +115,6 @@ export class UserDO extends DurableObject<Env> {
             if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
             return away
           },
-          // kiko's check-in calls the model only when what it reads changed since its last run (section 25.7).
           unchanged: async (routine) => routine.id === this.setting(CHECK_IN) && this.setting(CHECK_IN_SEEN) === this.checkInFingerprint(),
         },
       })
@@ -149,7 +124,6 @@ export class UserDO extends DurableObject<Env> {
         () => userIdFromObjectName(ctx.id.name),
         (event) => this.commit(event),
         {
-          // A trigger is a recurring reminder (section 14), made as the extension.
           create: async ({ text, rrule, roomId, target, createdBy }) => {
             const tz = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'").toArray()[0]?.value ?? DEFAULT_TIMEZONE
             const first = nextOccurrence(rrule, tz, Date.now())
@@ -167,18 +141,14 @@ export class UserDO extends DurableObject<Env> {
     })
   }
 
-  // Extensions, architecture section 24. The logic is in extensions.ts. Agents reach these RPCs with
-  // a stub the Worker addressed by the session's user id, so every call is this user's own.
   private extensions!: ExtensionStore
 
-  /** An extension's trigger (`ext:<name>`) runs as a routine granted that extension's own tools. */
   private triggerAuthority(createdBy: string): Authority | null {
     if (!createdBy.startsWith("ext:")) return null
     const grant = this.extensions.toolNames(createdBy.slice("ext:".length))
     return grant ? { origin: "routine", grant } : null
   }
 
-  /** The versions agent `slug` runs this run. */
   async extensionsFor(slug: string) {
     return this.extensions.forAgent(slug)
   }
@@ -187,12 +157,10 @@ export class UserDO extends DurableObject<Env> {
     return this.extensions.bundles(hashes)
   }
 
-  /** `kiko.state` for a running script. Throws a message the script can read. */
   async extensionState(name: string, scope: string, op: "get" | "set" | "delete" | "list", key: string, value?: unknown) {
     return this.extensions.state(name, scope, op, key, value)
   }
 
-  /** `kiko.fetch` for a running script. Secrets are filled in here and never leave this object. */
   async extensionFetch(name: string, request: GuestRequest): Promise<GuestResponse> {
     return this.extensions.fetch(name, request)
   }
@@ -213,12 +181,10 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  /** An agent's `extension_propose`. The human installs it from settings; an agent never can. */
   async proposeExtension(input: { bundle: unknown; by: string; room: string; tainted: boolean }): Promise<ExtensionResult> {
     return this.extensionResult(async () => ({ proposal: await this.extensions.propose({ bundle: input.bundle, source: "agent", by: input.by, room: input.room, tainted: input.tainted }) }))
   }
 
-  /** The human's `extension` frame. Only a socket reaches this, so only the human installs. */
   private async extensionOp(op: ExtensionOp): Promise<ExtensionResult> {
     const x = this.extensions
     return this.extensionResult(async () => {
@@ -231,7 +197,6 @@ export class UserDO extends DurableObject<Env> {
           return { proposal: await x.proposeCatalog(op.name) }
         case "install": {
           const extension = await x.install(op.id)
-          // The chat an agent proposed it from hears that it is live, and so does the agent at its next delivery.
           if (extension.room && extension.by) {
             const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), extension.room)
             this.ctx.waitUntil(Promise.resolve(room.homeNotice(extension.by, `the ${extension.name} extension is installed. its tools work from the next message.`)).catch(() => {}))
@@ -265,8 +230,6 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  // Reminders, architecture section 14. The logic is in reminders.ts. `owner` is the
-  // session's user id from the Worker, the one place this object learns it.
   private reminders!: Reminders
   async createReminder(owner: string, input: NewReminder) { return asResult(() => this.reminders.create(owner, input)) }
   async listReminders() { return this.reminders.list() }
@@ -278,9 +241,6 @@ export class UserDO extends DurableObject<Env> {
       return out
     })
   }
-
-  // Routines, architecture section 25. The logic is in reminders.ts. Agents reach these through their
-  // tools, which decide whether the human's ok is needed first (section 25.3).
 
   async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> {
     return routineResult(async () => {
@@ -301,30 +261,25 @@ export class UserDO extends DurableObject<Env> {
     })
   }
 
-  /** Section 25.7. What kiko reads at its check-in. Only kiko's agent object calls it. */
   async overview(): Promise<string> {
     const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
     return overview(this.sql, { reminders: this.reminders.list(), runs: this.reminders.runs(), tz, now: Date.now() })
   }
 
-  /** What the check-in reads, without the parts that move by themselves (how long ago). */
   private checkInFingerprint(): string {
     return overviewFingerprint(this.sql, this.reminders.list(), this.reminders.runs(), { routineId: this.setting(CHECK_IN), roomId: kikoChatRoom(this.sql) })
   }
 
-  /** RPC from a room after its tasks changed: its open tasks, for the overview. */
   async chatTasks(roomId: string, tasks: ChatTasks): Promise<void> {
     if (!tasks.open) this.sql.exec("DELETE FROM chat_tasks WHERE room_id = ?", roomId)
     else this.sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET tasks = excluded.tasks", roomId, JSON.stringify(tasks))
   }
 
-  /** Development only. Moves the last time the human was seen `ago` ms back (`verify away`). */
   async devSeen(ago: number): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     this.putSetting(LAST_SEEN, String(Date.now() - ago))
   }
 
-  /** Development only. Makes routine `id` due now. */
   async devDue(id: string): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     await this.reminders.makeDue(id)
@@ -346,26 +301,18 @@ export class UserDO extends DurableObject<Env> {
     return this.reminders.runs(id)
   }
 
-  /** RPC from a room: a routine's run ended (section 25.2). */
   async routineRunDone(routineId: string, occurrence: string, status: "ok" | "quiet" | "failed" | "timeout", seq: number | null): Promise<void> {
     await this.reminders.finishRun(routineId, occurrence, status, seq)
   }
 
-  /** RPC from a room: an event matched one of its routines (section 25.4). */
   async routineEvent(routineId: string, occurrence: string, what: string, events: string, tainted: boolean): Promise<RunDelivery | null> {
     return this.reminders.fireEvent(routineId, occurrence, what, events, tainted)
   }
 
-  /** RPC from a room on its first start: the event routines it matches against. */
   async eventRoutines(roomId: string): Promise<RoomRoutine[]> {
     return this.reminders.roomRoutines(roomId).map(roomRoutine)
   }
 
-  /**
-   * The hook route, after it found this user and the routine from the token's hash in D1. The token is
-   * checked again here against the routine's own hash, then the body against the routine's conditions.
-   * The payload reaches the agent as outside content (section 25.4).
-   */
   async routineHook(routineId: string, token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
     const routine = await this.reminders.byHook(routineId, token)
     if (routine?.trigger?.on !== "webhook") return "unknown"
@@ -381,10 +328,6 @@ export class UserDO extends DurableObject<Env> {
     return out === "delivered" || out === "duplicate" ? "ran" : out === "held" ? "held" : "skipped"
   }
 
-  /**
-   * Keeps what lives outside this table in step with a routine: the room's copy of its event
-   * routines, and the D1 row a webhook's URL is found by.
-   */
   private async routineChanged(routine: Reminder, token?: string, before?: Reminder | null): Promise<void> {
     const owner = this.reminders.owner()
     if (!owner) return
@@ -398,7 +341,6 @@ export class UserDO extends DurableObject<Env> {
         .bind(await sha256(token), owner, routine.id, Date.now())
         .run()
     } catch (e) {
-      // The routine stands; its url answers 404 until the agent or the human changes its trigger again.
       console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
@@ -407,7 +349,6 @@ export class UserDO extends DurableObject<Env> {
     await this.env.AUTH_DB.prepare('delete from "hooks" where "routine_id" = ?').bind(routineId).run()
   }
 
-  /** A watch's page as text (section 25.4). Through its extension when it names one, else as a public GET. */
   private async watchPage(trigger: Extract<Trigger, { on: "watch" }>): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
     try {
       if (trigger.extension) {
@@ -427,13 +368,6 @@ export class UserDO extends DurableObject<Env> {
   async snoozeReminder(id: string, time: string) { return asResult(() => this.reminders.snooze(id, time)) }
   async rewindReminder(id: string) { return asResult(() => this.reminders.rewind(id)) }
 
-  // RPC. The Worker and the user's rooms call these. The object is already the user's
-  // own, so no method takes a user id.
-
-  /**
-   * Adds a chat. A repeat for the same room changes nothing and returns the stored row. A second
-   * direct chat with one agent is not made: the agent's one direct chat comes back instead.
-   */
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
     const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }
     this.apply(op)
@@ -455,25 +389,14 @@ export class UserDO extends DurableObject<Env> {
     return getChat(this.sql, roomId)
   }
 
-  /** Returns true when the chat existed. */
   async deleteChat(roomId: RoomId): Promise<boolean> {
     return this.apply({ op: "delete", roomId }) !== null
   }
 
-  /**
-   * A room calls this when its newest activity, read position, or members change, and at the end
-   * of a run. Returns true when it changed the row and broadcast. A repeat with the same `lastSeq`
-   * returns false and sends nothing.
-   */
   async touchChat(roomId: RoomId, touch: Touch): Promise<boolean> {
     return this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
   }
 
-  /**
-   * A room calls this when the set of its agents that are typing changes, so the chat list can say
-   * who is typing in a chat that is not open. Sent, never stored: a client that connects later sees
-   * the next change.
-   */
   async chatTyping(roomId: RoomId, names: readonly string[]): Promise<void> {
     if (!getChat(this.sql, roomId)) return
     this.broadcast({ t: "typing", roomId, names })
@@ -487,12 +410,10 @@ export class UserDO extends DurableObject<Env> {
     return listChats(this.sql)
   }
 
-  /** One chat, or null when the user has no chat for the room. The room asks before each delivery. */
   async getChat(roomId: RoomId): Promise<Chat | null> {
     return getChat(this.sql, roomId)
   }
 
-  /** Adds an agent and tells every socket. Returns null when the id or the handle is taken or the input is refused. */
   async createAgent(agent: Agent): Promise<Agent | null> {
     return this.saveAgent(agent)
   }
@@ -501,20 +422,14 @@ export class UserDO extends DurableObject<Env> {
     return listAgents(this.sql)
   }
 
-  /** An agent's soul (section 7.10), made on first read. The agent reads it on every request. */
   async soul(slug: string): Promise<Soul> {
     return this.souls.get(slug)
   }
 
-  /** Replaces an agent's soul, by the agent itself or by the human. */
   async setSoul(slug: string, body: string, expectSha?: string): Promise<SoulWrite> {
     return this.souls.set(slug, body, expectSha)
   }
 
-  // The user's drive, /home (architecture section 18.3). The same index and rules as a chat's
-  // files; its R2 keys sit under the user's prefix like every other object.
-
-  /** RPC for an upload to the drive, and for an agent's write. */
   async homePut(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
     const { events, ...result } = this.home.put(input)
     return { ...result, fresh: events.some((e) => e.t === "file"), entry: result.file && !result.conflict ? this.home.stat(input.path) : null }
@@ -540,9 +455,7 @@ export class UserDO extends DurableObject<Env> {
     return this.home.mkdir(path, by)
   }
 
-  /** RPC for a bash command's changes to the drive (section 18.4): all in one transaction, or none. */
   async homeCommit(by: Actor, changes: readonly IndexChange[]): Promise<CommitResult> {
-    // A refused batch rolls its events back, so nothing is broadcast until it holds.
     const held: UserEvent[] = []
     this.holding = held
     let out: CommitResult<UserEvent>
@@ -557,7 +470,6 @@ export class UserDO extends DurableObject<Env> {
     return { ok: true, events: [], drop: [] }
   }
 
-  /** A human's `home` frame. The refusal for the socket, or null. */
   private homeOp(op: FileOp): string | null {
     const human = { kind: "human" } as const
     const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
@@ -566,16 +478,11 @@ export class UserDO extends DurableObject<Env> {
     return out.ok ? null : out.message
   }
 
-  /** Deletes the R2 objects nothing points to any more. */
   private dropAfter<T extends FsChange | FsFail>(out: T): T {
     if (out.ok && out.drop.length) this.ctx.waitUntil(deleteFiles(this.env.FILES, out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
     return out
   }
 
-  // kiko makes agents and groups (architecture section 7.11). The room checks the human said yes;
-  // these only store, in the same shapes a client's frames would.
-
-  /** A new agent with the soul kiko wrote. Null when the handle is taken or the input is refused. */
   async makeAgent(input: { name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
     const agent = this.saveAgent({ id: crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
     if (!agent) return null
@@ -583,34 +490,27 @@ export class UserDO extends DurableObject<Env> {
     return agent
   }
 
-  /** A new chat with these agents (ids), in the list at once. Returns its room id, or the agent's one direct chat when it has one. */
   async openChat(title: string, agents: readonly string[]): Promise<RoomId> {
     const op: ChatOp = { op: "create", roomId: newRoomId(), title, agents }
     this.apply(op)
     return this.duplicateOf(op) ?? op.roomId
   }
 
-  /** A temporary chat becomes a group in the list, with its title and agents (ids). False when it was not temporary. */
   async keepChat(roomId: RoomId, title: string, agents: readonly string[]): Promise<boolean> {
     return this.apply({ op: "keep", roomId, title, agents }) !== null
   }
 
-  /** A first soul for an agent the lead added, from the role it gave. Keeps a soul that exists. */
   async seedSoul(slug: string, name: string, role: string): Promise<Soul> {
     return this.souls.seed(slug, firstSoul(name, role))
   }
 
-  /** The theme JSON text, or null. */
   async getTheme(): Promise<string | null> {
     return getTheme(this.sql)
   }
 
-  /** Saves or clears the theme and tells every socket. Returns false when it changed nothing. */
   async setTheme(theme: string | null): Promise<boolean> {
     return this.saveTheme(theme)
   }
-
-  // Memory: the user's life log (architecture section 13). The logic is in life.ts and lib/optmem.ts.
 
   private setting(key: string): string | null {
     return this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
@@ -620,7 +520,6 @@ export class UserDO extends DurableObject<Env> {
     this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value)
   }
 
-  /** The memory screen's requests. Only the human's socket reaches it: pin, redact, and the model are theirs. */
   private async memoryCall(op: MemoryOp): Promise<MemoryResult> {
     const now = Date.now()
     switch (op.op) {
@@ -657,13 +556,11 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  /** The model that writes summaries: the one the human chose, else the default. */
   private memoryModel(): MemoryModel {
     const raw = this.setting(MEMORY_MODEL)
     return raw ? (JSON.parse(raw) as MemoryModel) : null
   }
 
-  /** RPC for an agent's `note`. A private chat never writes (section 7.10); the agent checks that first. */
   async lifeNote(author: string, text: string, tainted: boolean): Promise<{ ok: true; duplicate?: true } | { ok: false; error: string }> {
     const out = this.life.append(text, `@${author}`, tainted)
     if (!out.ok) return out
@@ -671,7 +568,6 @@ export class UserDO extends DurableObject<Env> {
     return out.duplicate ? { ok: true, duplicate: true } : { ok: true }
   }
 
-  /** RPC for a room's rollup: a settled stretch of a chat, as one line. Private chats never call it. */
   async lifeRollup(roomId: RoomId, text: string, tainted: boolean, at: number): Promise<void> {
     const chat = getChat(this.sql, roomId)
     if (!chat || chat.private) return
@@ -679,12 +575,10 @@ export class UserDO extends DurableObject<Env> {
     if (out.ok && !out.duplicate) await this.armNaps()
   }
 
-  /** RPC for an agent's `recall`: life lines that match. */
   async lifeRecall(query: string): Promise<string[]> {
     return this.life.recall(query, 10).map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, 400, true, "life"))
   }
 
-  /** RPC for an agent's `zoom` on a life id. */
   async lifeZoom(id: string): Promise<string | null> {
     const one = /^(\d+)$/.exec(id)
     const span = one ? { lo: Number(one[1]), hi: Number(one[1]) + 1 } : spanOf(id)
@@ -693,12 +587,10 @@ export class UserDO extends DurableObject<Env> {
     return lines.length ? lines.join("\n") : null
   }
 
-  /** What memory summaries have spent so far, for `verify token-cost`. */
   async memoryUsage(): Promise<Record<string, number>> {
     return JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
   }
 
-  /** The life summaries still to make, a few per alarm. */
   private async armNaps(): Promise<void> {
     if (this.life.pending(1).length) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now() + 2_000)
   }
@@ -720,11 +612,6 @@ export class UserDO extends DurableObject<Env> {
 
   #compressing = 0
 
-  /**
-   * One memory summary with the human's memory model and their own credential. Rooms call it for their
-   * own summaries, so keys never leave this object. At most `MAX_NAPS` at once per user, so a dozen
-   * busy chats cannot spend the human's rate limit: the rest are told when to try again.
-   */
   async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
     if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
     this.#compressing++
@@ -740,10 +627,6 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  /**
-   * One completion with `model` and the user's own credential. Null when the user has no credential
-   * for that provider. Kiko pays for no model.
-   */
   private async complete(ref: { provider: string; modelId: string }, system: string, prompt: string): Promise<string | null> {
     const { provider, modelId } = ref
     const auth = (await this.turnContext(provider)).auth
@@ -755,12 +638,8 @@ export class UserDO extends DurableObject<Env> {
     const reply = await models.completeSimple(
       model,
       { systemPrompt: system, messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
-      // A summary that hangs would hold its room's pass forever, so each call has a deadline. A summary is
-      // an easy task, so it asks for no thinking: none where the model can turn it off, the least where not.
       { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS), ...(model.reasoning && model.thinkingLevelMap?.off === null ? { reasoning: "minimal" as const } : {}) },
     )
-    // The provider's own words, cut short: they name the cause (a timeout, a refusal) and carry no key.
-    // What memory costs, for the memory screen and `verify token-cost`: one row, summed.
     const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
     for (const k of ["input", "output", "cacheRead"] as const) spent[k] = (spent[k] ?? 0) + (reply.usage?.[k] ?? 0)
     spent.calls = (spent.calls ?? 0) + 1
@@ -771,7 +650,6 @@ export class UserDO extends DurableObject<Env> {
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }
 
-  // Provider credentials (P4-01). No method returns a secret.
   // DEVIATION: the plan names these `connect` and `disconnect`, but `connect` is the
   // `DurableObject` handler for incoming TCP sockets, so they carry a `Provider` suffix.
 
@@ -787,23 +665,17 @@ export class UserDO extends DurableObject<Env> {
     return this.#credentials.listProviders()
   }
 
-  /** The plan record (P9-01). */
   limits(): Limits {
     const raw = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value
     return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
   }
 
-  /** Admin and dev only: replaces fields of the plan record. The Worker's admin route checks who asks. */
   setLimits(patch: Partial<Limits>): Limits {
     const next = { ...JSON.parse(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value ?? "{}"), ...patch }
     this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('limits', ?)", JSON.stringify(next))
     return this.limits()
   }
 
-  /**
-   * Section 25.5. Asked before a run nobody asked for in the moment starts. Held while the human has
-   * been away `awayDays`, and past the day's `autonomousRunsPerDay` across every chat.
-   */
   takeAutonomous(): AutonomousAnswer {
     const now = Date.now()
     const key = `autonomous:${utcDay(now)}`
@@ -815,7 +687,6 @@ export class UserDO extends DurableObject<Env> {
     return answer
   }
 
-  /** Stamps the last time the human opened kiko, at most once an hour, so a long session costs no writes. */
   private seen(): void {
     const now = Date.now()
     const last = Number(this.setting(LAST_SEEN) ?? 0)
@@ -825,7 +696,6 @@ export class UserDO extends DurableObject<Env> {
     if (wasAway) this.sql.exec("DELETE FROM settings WHERE key = ?", AWAY_NOTICE)
   }
 
-  /** The day's budget held a routine: its chat says so once a day, as the room does for its own (section 25.5). */
   private async budgetNotice(roomId: RoomId): Promise<void> {
     const day = utcDay(Date.now())
     const key = `budget_notice:${roomId}`
@@ -836,7 +706,6 @@ export class UserDO extends DurableObject<Env> {
       .catch(() => {})
   }
 
-  /** One line in the kiko chat per time away, so the human knows why nothing ran. */
   private async awayNotice(now: number): Promise<void> {
     if (this.setting(AWAY_NOTICE) !== null) return
     this.putSetting(AWAY_NOTICE, String(now))
@@ -845,7 +714,6 @@ export class UserDO extends DurableObject<Env> {
     if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open kiko.", "limit")
   }
 
-  /** The room asks once per human burst (P9-01). Counts the turn when it is allowed. */
   takeTurn(): TurnAnswer {
     const now = Date.now()
     const key = `turns:${utcDay(now)}`
@@ -855,10 +723,6 @@ export class UserDO extends DurableObject<Env> {
     return answer
   }
 
-  /**
-   * Architecture section 11.3. Only an `AgentDO` of this user calls it, once at the start of a run.
-   * The answer holds the request auth, so the Worker's HTTP layer never calls it.
-   */
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
@@ -867,39 +731,27 @@ export class UserDO extends DurableObject<Env> {
     return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null }, agent)
   }
 
-  /** RPC for a run that starts fresh: the user's life log as every agent reads it (section 13.4). */
   async lifeView(): Promise<string> {
     return this.life.view(Date.now())
   }
 
-  // pi-ai's `CredentialStore` for this user. A `#` member, so RPC can never reach it.
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
     this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name))
     return this.#vault
   }
 
-  // Executor Cloud (P7-03, architecture section 12.1). The tokens live in this object,
-  // sealed, and every exchange and refresh runs here.
-
-  /** The Worker calls this from the OAuth callback. Every socket hears the result. */
   async finishExecutor(params: CallbackParams): Promise<ExecutorResult> {
     const result = await this.executorResult(async () => ({ status: await this.#executor.finish(params) }))
     this.broadcast({ t: "executor", result })
     return result
   }
 
-  /**
-   * A fresh Executor bearer credential for this user's own agents, or null. Server code
-   * only: it is never sent on a socket or over HTTP.
-   */
-  /** The tools Executor offers this user, for an agent's run (P7-04). Null when it is not connected. */
   async executorTools(): Promise<ExecutorTool[] | null> {
     if (!(await this.#executor.status()).connected) return null
     return this.#executor.tools()
   }
 
-  /** Calls one Executor tool for this user's agent. The credential never leaves this object. */
   async executorCall(name: string, args: Record<string, unknown>) {
     return this.#executor.call(name, args)
   }
@@ -948,7 +800,6 @@ export class UserDO extends DurableObject<Env> {
     send(ws, { t: "executor", reqId: frame.reqId, result })
   }
 
-  // Provider sign-in (P4-04, architecture 11.4). The logic is in provider-login.ts.
   #loginState?: ProviderLogins<WebSocket>
   get #logins(): ProviderLogins<WebSocket> {
     this.#loginState ??= new ProviderLogins<WebSocket>({
@@ -963,8 +814,6 @@ export class UserDO extends DurableObject<Env> {
     return this.#loginState
   }
 
-  // The socket.
-
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
@@ -973,7 +822,6 @@ export class UserDO extends DurableObject<Env> {
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ ready: false, helloBy: helloBy(), origin: new URL(request.url).origin } satisfies Attachment)
-    // Where the human reaches kiko, for a webhook routine's url (section 25.4).
     const origin = request.headers.get("origin") ?? new URL(request.url).origin
     if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)
     await enforceHello(this.ctx, this.alarms)
@@ -985,7 +833,7 @@ export class UserDO extends DurableObject<Env> {
     try {
       frame = decodeFrame(JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)))
     } catch {
-      return // A frame that breaks the protocol is dropped. Its content is never logged.
+      return
     }
     if (frame.t === "hello") {
       this.seen()
@@ -1015,7 +863,6 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "open") {
-      // One row, no event and no broadcast: the client sends it at most every few seconds.
       this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", LAST_CHAT, frame.roomId)
       return
     }
@@ -1028,11 +875,9 @@ export class UserDO extends DurableObject<Env> {
       if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
       return
     }
-    // A login runs until it ends, so the handler does not wait for it.
     if (frame.t === "login.start") return void this.#logins.start(ws, frame.loginId, frame.provider).catch(() => {})
     if (frame.t === "login.answer") return this.#logins.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#logins.cancel(ws, frame.loginId)
-    // One direct chat per agent. The client looks first; a client that did not know is told which chat it is.
     const existing = this.duplicateOf(frame.op)
     if (existing) return send(ws, { t: "chat_refused", roomId: frame.op.roomId, existing })
     this.apply(frame.op)
@@ -1047,7 +892,6 @@ export class UserDO extends DurableObject<Env> {
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code)
     } catch {
-      // already closed
     }
   }
 
@@ -1062,37 +906,24 @@ export class UserDO extends DurableObject<Env> {
     this.#loginState?.expire(due)
   }
 
-  /**
-   * The Worker calls this before it addresses one of the user's rooms, so deletion can
-   * find a room that never became a chat. False once deletion has begun.
-   */
   async recordRoom(roomId: RoomId): Promise<boolean> {
     if (this.#wiped || (await this.ctx.storage.get(DELETING))) return false
     this.sql.exec("INSERT OR IGNORE INTO rooms (room_id) VALUES (?)", roomId)
     return true
   }
 
-  // Account deletion (P9-02). The account route starts it and the jobs in
-  // jobs/delete-account.ts report each room back. This object is deleted last but one,
-  // before the D1 rows.
   #wiped = false
 
-  /**
-   * Marks the account as being deleted, stops reminders, and records every room in a
-   * ledger. Returns the rooms still to delete. Safe to call again.
-   */
   async beginDeletion(): Promise<RoomId[]> {
     if (this.#wiped) return []
     await this.ctx.storage.put(DELETING, Date.now())
     await this.ctx.storage.deleteAlarm()
     closeSockets(this.ctx)
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
-    // Chats and every room ever addressed. A deleted chat's room is still in `rooms`.
     this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
     return this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
   }
 
-  /** A room job reports its room gone. Returns how many rooms remain. 0 also when nothing is recorded. */
   async roomDeleted(roomId: RoomId): Promise<number> {
     if (this.#wiped) return 0
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
@@ -1100,7 +931,6 @@ export class UserDO extends DurableObject<Env> {
     return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM deletion_rooms").one().n
   }
 
-  /** Deletes all of this user's storage. Returns the rows that held data, 0 on a repeat. */
   async deleteAll(): Promise<number> {
     if (this.#wiped) return 0
     const rows = await wipeStorage(this.ctx)
@@ -1112,13 +942,9 @@ export class UserDO extends DurableObject<Env> {
     return this.#wiped ? 0 : storedRows(this.ctx.storage)
   }
 
-  // Internals.
-
   private apply(op: ChatOp): UserEvent | null {
-    // The kiko chat stays pinned: a delete or unpin of it changes nothing, like a delete of a chat that is gone.
     if (movesKikoChat(this.sql, op) || this.duplicateOf(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
-    // The room tells its agents on every delivery, so it hears of the change now, not at the next burst.
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))
@@ -1126,29 +952,22 @@ export class UserDO extends DurableObject<Env> {
     return event
   }
 
-  /** The agent's one direct chat when `op` would make a second one, else null. */
   private duplicateOf(op: ChatOp): RoomId | null {
     if (op.op !== "create" || op.temp || op.agents?.length !== 1) return null
     return duplicateDm(listChats(this.sql).map((c) => markKikoChat(this.sql, c)), op)
   }
 
-  /** The chat a new device opens: the last one the user was in, else the kiko chat. Never a temporary chat. */
   private lastChat(): RoomId | undefined {
     const stored = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", LAST_CHAT).toArray()[0]?.value
     const chat = stored ? getChat(this.sql, stored) : null
     return chat && !chat.temp ? chat.roomId : (kikoChatRoom(this.sql) ?? undefined)
   }
 
-  /** RPC. Makes sure the kiko chat exists. Safe to call on every sign-in and page load. */
   async ensureHome(): Promise<void> {
     for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     await this.ensureCheckIn()
   }
 
-  /**
-   * Section 25.7. Every user gets kiko's daily check-in, once: a routine in the kiko chat the human can
-   * pause, move, or cancel like any other. A cancelled one is never made again.
-   */
   private async ensureCheckIn(): Promise<void> {
     if (this.setting(CHECK_IN) !== null) return
     const roomId = kikoChatRoom(this.sql)
@@ -1186,10 +1005,8 @@ export class UserDO extends DurableObject<Env> {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
-  /** Stores `change` as the next event and sends it to every socket that said hello. */
   private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | ExtensionEvent | null): UserEvent | null {
     if (!change) return null
-    // The kiko chat carries its flag on every event, so a client never offers to delete it.
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
     const seq = this.currentSeq() + 1
@@ -1201,7 +1018,6 @@ export class UserDO extends DurableObject<Env> {
     return event
   }
 
-  /** Sends a frame to every socket that has said hello. */
   private broadcast(frame: UserToClient): void {
     const text = JSON.stringify(frame)
     for (const ws of this.ctx.getWebSockets()) {
@@ -1209,11 +1025,6 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  /**
-   * The answer to `hello`: the events after `lastSeq`, or a snapshot when they are gone. A client
-   * with nothing (`lastSeq` 0) always gets the snapshot: it is one row per chat and agent while the
-   * replay grows by one event per run, and only the snapshot says which chat to open (`lastChat`).
-   */
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
     const { oldest } = this.sql.exec<{ oldest: number | null }>("SELECT min(seq) AS oldest FROM user_events").one()
@@ -1241,6 +1052,5 @@ function trySend(ws: WebSocket, text: string): void {
   try {
     ws.send(text)
   } catch {
-    // The socket closed between the list and the send. It resumes on reconnect.
   }
 }

@@ -2,15 +2,13 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Envelope, RoomEvent } from "@kiko/protocol"
 import { Trigger } from "@kiko/protocol/schema"
 import { Schema } from "effect"
-import { gate, NO_CARD, needsApproval } from "../src/agent/extensions/trust"
-import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "../src/lib/origin"
+import { gate, NO_CARD, needsApproval } from "@kiko/agent/trust"
+import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "@kiko/agent/authority"
 import { eventLine, matches } from "../src/room/routines"
 import { nextSweep, stalled, STALE_MS, SWEEP_MS } from "../src/room/stalls"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
 import { describeTrigger, nextEvery, runGrant } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
-
-// Architecture section 25. The pure rules routines and proactivity stand on.
 
 const routine = (grant: string[]) => ({ origin: "routine" as const, grant })
 const env = (e: Partial<Envelope>): Pick<Envelope, "from" | "origin" | "grant"> => ({ from: { kind: "system", reason: "routine" }, ...e })
@@ -21,7 +19,6 @@ describe("authority (section 25.3)", () => {
     expect(authorityOf(env({ from: { kind: "agent", slug: "ada" as AgentSlug } }))).toEqual(AUTO)
     expect(authorityOf(env({}))).toEqual(AUTO)
     expect(authorityOf(env({ origin: "routine", grant: ["send_email"] }))).toEqual(routine(["send_email"]))
-    // A grant on anything but a routine means nothing.
     expect(authorityOf(env({ origin: "auto", grant: ["send_email"] }))).toEqual(AUTO)
   })
 
@@ -40,18 +37,16 @@ describe("authority (section 25.3)", () => {
 })
 
 describe("the gate (sections 16.3 and 25.3)", () => {
-  // [effect, tainted, card, authority, tool, runs]. Who started the run decides an outside call; taint
-  // only flags writes and messages. Each row fails if its rule breaks.
   const table: [Parameters<typeof gate>[0], boolean, string | null, ReturnType<typeof combine>, string, boolean][] = [
     ["external", false, null, HUMAN, "send", true],
-    ["external", true, null, HUMAN, "send", true], // DEVIATION: a tainted run the human started needs no card
+    ["external", true, null, HUMAN, "send", true],
     ["external", false, null, routine(["send"]), "send", true],
-    ["external", true, null, routine(["send"]), "send", true], // a routine's grant holds when its run is tainted
+    ["external", true, null, routine(["send"]), "send", true],
     ["external", false, null, routine(["send"]), "delete", false],
     ["external", true, null, routine(["send"]), "delete", false],
     ["external", false, null, AUTO, "send", false],
     ["external", true, null, AUTO, "send", false],
-    ["external", true, "ap_1", AUTO, "send", true], // an accepted card, or a live grant
+    ["external", true, "ap_1", AUTO, "send", true],
     ["external", false, "ap_1", routine([]), "send", true],
     ["read", true, null, AUTO, "x", true],
     ["write", true, null, AUTO, "x", true],
@@ -60,7 +55,6 @@ describe("the gate (sections 16.3 and 25.3)", () => {
   for (const [effect, tainted, card, authority, tool, runs] of table) {
     test(`${effect} ${tool} in a ${tainted ? "tainted" : "clean"} ${authority.origin} run${card ? " with a card" : ""} ${runs ? "runs" : "waits"}`, () => {
       expect(gate(effect, tainted, card, authority, tool).allow).toBe(runs)
-      // The card is asked for exactly when the call would otherwise wait.
       if (effect === "external" && !card) expect(needsApproval(authority, tool)).toBe(!runs)
     })
   }
@@ -133,7 +127,6 @@ describe("proactivity (sections 25.5 and 25.6)", () => {
     expect(takeAutonomous(0, now - 3_600_000, limits, now)).toEqual({ ok: true, used: 1 })
     expect(takeAutonomous(2, now, limits, now)).toEqual({ ok: false, reason: "limit" })
     expect(takeAutonomous(0, now - 8 * 86_400_000, limits, now)).toEqual({ ok: false, reason: "away" })
-    // Never seen (an account from before the stamp) is not away.
     expect(takeAutonomous(0, null, limits, now)).toEqual({ ok: true, used: 1 })
   })
 
@@ -151,7 +144,6 @@ describe("proactivity (sections 25.5 and 25.6)", () => {
       ["a", "ada"],
       ["b", "kiko"],
     ])
-    // Nudged once for this stretch: not again until the task changes.
     expect(stalled(rows, "kiko" as AgentSlug, now, (id) => id === `stalled:a:${old}`).map((n) => n.taskId)).toEqual(["b"])
   })
 })

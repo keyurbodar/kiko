@@ -4,24 +4,10 @@ import { VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 
-// How fast the backend feels. Runs KIKO_LATENCY_RUNS turns (default 10) against the scripted fake
-// agent of `apps/server/src/agent/dev-fake.ts`, so it spends no tokens, and prints p50 and p95 of
-// every step a person waits on. `latency-model` runs the same turn on the test model. Needs a
-// development server (`NODE_ENV=development`), which also serves the cost counters of
-// `apps/server/src/lib/dev-stats.ts`.
-//
-// Set KIKO_LATENCY_RESTART to a shell command that restarts the dev server and returns once it is
-// healthy (the same contract as KIKO_TURN_RESTART) to also time a reconnect after a restart mid-run.
-//
-// The suite fails when a step never happens, and when an agent waits for its heartbeat after a
-// restart. Every other number is for reading, not for asserting.
-
-/** The room's burst pause after a message (room/burst.ts AFTER_MESSAGE_MS). Subtracted from the burst step. The timed messages end with a full stop, so they are not fragments, which wait AFTER_FRAGMENT_MS. */
 const BURST_MS = 1_000
 const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
 const RESTART = process.env.KIKO_LATENCY_RESTART
 const RESTART_RUNS = Number(process.env.KIKO_LATENCY_RESTART_RUNS ?? 3)
-/** Well under the agent's 30 s heartbeat (agent/host.ts HEARTBEAT_MS). */
 const ALIVE_LIMIT_MS = 15_000
 
 type Status = Extract<RoomToClient, { t: "status" }>
@@ -52,7 +38,6 @@ const isStatus = (state: string) => (f: RoomToClient) => f.t === "status" && (f 
 const agentMessage = (test: (text: string) => boolean = () => true) => (f: RoomToClient) =>
   f.t === "events" && (f as Events).events.some((e) => e.t === "message" && e.from.kind === "agent" && test(e.text))
 
-/** The size on the wire of the newest frame the socket received. */
 function lastFrameBytes(room: RoomHandle): number {
   const entry = [...room.raw.log].reverse().find((e) => e.dir === "in")
   return entry ? JSON.stringify(entry.frame).length : 0
@@ -74,7 +59,6 @@ export async function readStats(v: Verifier, s: Session): Promise<Record<string,
   return ((await (await call(v, s, "api/dev/stats")).json()) as { counters: Record<string, number> }).counters
 }
 
-/** Folds counters into the few numbers a turn costs. */
 export function cost(c: Record<string, number>): Record<string, number> {
   const sum = (test: (k: string) => boolean) => Object.entries(c).reduce((n, [k, v]) => (test(k) ? n + v : n), 0)
   const out: Record<string, number> = {
@@ -88,11 +72,6 @@ export function cost(c: Record<string, number>): Record<string, number> {
   return out
 }
 
-/**
- * One human message and its answer, timed. `marker` picks the fake's script. Returns once the
- * agent is idle again.
- */
-/** Adds a chat through the user socket, then opens the room and times its connect and first frame. */
 async function openRoom(s: Session, user: UserChannel, title: string, samples?: Samples) {
   const roomId = ulid()
   user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title } })
@@ -137,7 +116,6 @@ async function fakeRuns(v: Verifier): Promise<void> {
   const costs = new Samples()
   const warmCosts = new Samples()
   for (let i = 0; i < RUNS; i++) {
-    // Cold: a room object that has never run.
     const { roomId, room } = await openRoom(s, user, `latency ${i}`, samples)
     await fake(v, s, roomId)
     await resetStats(v, s)
@@ -149,15 +127,12 @@ async function fakeRuns(v: Verifier): Promise<void> {
     await Bun.sleep(300)
     for (const [k, n] of Object.entries(cost(await readStats(v, s)))) warmCosts.add(k, n)
 
-    // Warm reconnect, the way a client resumes after a dropped socket. The verify client always
-    // says lastSeq 0, so this is the full replay a fresh tab gets.
     const t1 = now()
     await room.reconnect()
     await room.expect((f) => f.t === "events" || f.t === "reset")
     samples.add("warm reconnect to first frame", now() - t1)
     samples.add("hello reply bytes (4 messages)", lastFrameBytes(room))
 
-    // Stop while the fake writes a long paragraph.
     const clientId = room.send(`[slow] stop me ${i}`)
     await room.expect({ t: "ack", clientId })
     await room.expect(isStatus("typing"), 15_000)
@@ -172,7 +147,6 @@ async function fakeRuns(v: Verifier): Promise<void> {
   costs.print("cost of one cold turn (counts)")
   warmCosts.print("cost of one warm turn (counts)")
 
-  // Snapshot size: a room with many messages. 40 sends, then a fresh hello.
   const { roomId: sizeId, room } = await openRoom(s, user, "latency size")
   await fake(v, s, sizeId)
   for (let i = 0; i < 40; i++) {
@@ -182,7 +156,6 @@ async function fakeRuns(v: Verifier): Promise<void> {
   await room.reconnect()
   await room.expect((f) => f.t === "events" || f.t === "reset")
   console.log(`  hello reply for 40 human messages: ${lastFrameBytes(room)} bytes`)
-  // A client ahead of the log gets a snapshot. Count what building one costs.
   await Bun.sleep(3_000)
   await resetStats(v, s)
   room.raw.send({ t: "hello", lastSeq: 1_000_000 })
@@ -223,11 +196,9 @@ async function restartRuns(v: Verifier): Promise<void> {
     }
     await room.expect((f) => f.t === "events" || f.t === "reset", 10_000)
     samples.add("server up to transcript replayed", now() - tUp)
-    // The agent resumes on its own. Its first sign of life, then the answer the run was writing.
     await room.expect((f) => f.t === "status" || f.t === "draft" || agentMessage()(f), 120_000)
     const alive = now() - tUp
     samples.add("server up to agent alive again", alive)
-    // The room wakes the agent when the human reconnects. Waiting for the 30 s heartbeat is the bug.
     if (alive > ALIVE_LIMIT_MS) throw new VerifyError(`the agent came back after ${Math.round(alive)} ms. the room did not wake it`)
     await room.expect(agentMessage((t) => t.includes(`[slow] restart ${i}`)), 120_000)
     samples.add("server up to answer in transcript", now() - tUp)

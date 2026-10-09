@@ -42,7 +42,18 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 
 **Decision.** Kiko depends on `pi-durable`, `pi-ai`, `pi-mcp`, and `chord` from npm at exact pinned versions. All four are published at 1.0.0 (checked against the npm registry on 2026-10-02). Kiko extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
 
-**Reasoning.** The `pi-durable` README opens with "Experimental. The API changes without notice between releases." An exact pin and a thin host layer keep an upgrade to one package's worth of work. All kiko code that touches pi types lives in one directory (`apps/server/src/agent/`) so a breaking release has one place to land.
+**Reasoning.** The `pi-durable` README opens with "Experimental. The API changes without notice between releases." An exact pin and a thin host layer keep an upgrade to one package's worth of work. Kiko code that touches pi types lives in `apps/server/src/agent/` and in three reusable packages: `@kiko/agent` (the host), `@kiko/memory`, and `@kiko/sandbox`. A breaking release lands there and nowhere else.
+
+**Reusable packages.** Changed on 2026-10-08. The parts of the server any chat on Durable Objects and `pi-durable` could use are workspace packages, so a second app can depend on them without kiko's rooms, protocol, or product:
+
+| Package | What it holds | May import |
+| --- | --- | --- |
+| `@kiko/durable` | the multiplexed alarm, the hello deadline, storage wipe, `safeFetch`, sealed secrets, HTML to text | nothing from kiko |
+| `@kiko/agent` | the `pi-durable` host, inbox, mid-run rules, effects, trust gate, authority, ask waiters, the SQLite facade, coalesced storage, and a structural `Envelope` | `@kiko/durable` |
+| `@kiko/memory` | the OptMem tree, the life log, and the `recall`, `zoom`, and `note` tools | `@kiko/agent` |
+| `@kiko/sandbox` | the QuickJS VM, the manifest format and its checks, the bridge compiler, and the bundle checker | `@kiko/agent` |
+
+`bun scripts/check-imports.ts` enforces the last column and that no package reaches into `apps/`. CI runs it. The packages are not published: they become an SDK when a second app needs them, not before. The room engine (burst, mail, delivery) stays in `RoomDO` until its protocol unions are open to another app's events.
 
 **Risk.** `pi-durable` is one day old at 1.0.0 and no other pi package uses it yet. Section 21 lists the experiment that proves it runs inside a Durable Object before any feature work starts.
 
@@ -194,7 +205,7 @@ Two guards apply.
 - A burst can restart a run at most twice. The third arrival steers or queues. This stops a fast typist from starving the answer.
 - A run that started a tool is never restarted automatically. `pi-durable` reruns a tool after a crash only if the tool declares `replay: "safe"`, and an abort after a side effect would leave the model without the result.
 
-The table is `decide()` in `agent/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
+The table is `decide()` in `packages/agent/src/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
 
 - ASSUMPTION: only a human message interrupts. An agent or system message is queued.
 - A tool that is running steers even after a bubble. A finished tool round with bubbles queues.
@@ -295,7 +306,7 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 - The receiving agent's open tasks and the tasks that block them.
 - Reactions on the agent's messages since its last delivery.
 
-`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry. Only the newest brief of a batch is shown, and only when it differs from the last one the transcript holds (`briefToShow` in `agent/host.ts` keeps a hash of it). A run that starts fresh always shows it. The agent's own line in the member list leaves out what it is doing and holding, since that alone made every brief differ from the last. The long sentence about when to @-mention the human goes only into a fresh run's brief. Before this, each batch carried every distinct brief, and every input repeated an unchanged one. What was said is not in the brief: a run that starts opens with its `<memory>` block (section 13), which holds the whole chat, older turns compressed. The brief used to carry the last 30 messages, each cut to 400 characters, so a teammate that joined late saw nothing older.
+`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry. Only the newest brief of a batch is shown, and only when it differs from the last one the transcript holds (`briefToShow` in `packages/agent/src/host.ts` keeps a hash of it). A run that starts fresh always shows it. The agent's own line in the member list leaves out what it is doing and holding, since that alone made every brief differ from the last. The long sentence about when to @-mention the human goes only into a fresh run's brief. Before this, each batch carried every distinct brief, and every input repeated an unchanged one. What was said is not in the brief: a run that starts opens with its `<memory>` block (section 13), which holds the whole chat, older turns compressed. The brief used to carry the last 30 messages, each cut to 400 characters, so a teammate that joined late saw nothing older.
 
 **Reasoning.** The spec asks for the brief to be "injected into its prompt" at the start of each turn. Putting it in the user entry and not in the system prompt keeps the request prefix stable between runs, so provider prompt caches keep hitting. History is immutable in `pi-durable`, which gives the same property for free.
 
@@ -544,7 +555,7 @@ record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || provider
 
 `CREDENTIALS_KEK` is a Worker secret. Each record stores `kek_version`, so the secret can rotate. The plaintext exists only in memory inside `UserDO` and inside the `AgentDO` that is making a model request. Kiko never logs a key and never sends one to the client. The client receives the provider id, the kind of credential, and the last four characters.
 
-- The code is `apps/server/src/lib/crypto.ts` and `apps/server/src/user/credentials.ts`. `UserDO` takes its user id from `ctx.id.name`.
+- The code is `packages/durable/src/crypto.ts` and `apps/server/src/user/credentials.ts`. `UserDO` takes its user id from `ctx.id.name`.
 - Rotation: move the old secret to `CREDENTIALS_KEK_PREVIOUS`, set the new `CREDENTIALS_KEK`, and add 1 to `CREDENTIALS_KEK_VERSION` (default 1). A row sealed with the old secret is re-sealed on its next read.
 - ASSUMPTION: the additional data is `userId:providerId`. A user id cannot contain ":", so no two pairs share bytes.
 - DEVIATION: the RPC methods are `connectProvider`, `disconnectProvider`, and `listProviders`. `connect` is the `DurableObject` handler for TCP sockets, so the plan's name cannot be used.
@@ -671,7 +682,7 @@ v2 is a beta (`2.0.0-beta.8`), separate from v1: a v1 account and its integratio
 
 ### 13.1 The tree
 
-`lib/optmem.ts` is the one implementation, used by both logs.
+`packages/memory/src/optmem.ts` is the one implementation, used by both logs.
 
 - **Items.** A log is a list of items that only grows. Position is identity.
 - **Nodes.** A node is an aligned span `[k*size, (k+1)*size)` whose size is a page times a power of two. A page is summarized from its raw items. A bigger node is summarized from its two halves. A summary is one lowercase line of at most 280 bytes, memo's size. OptChat (gist.github.com/VictorTaelin/91837951a5ce5b38f341ec1ba1df6449, read on 2026-10-05) uses 512; kiko keeps 280 so the `<memory>` block every fresh run reads stays the size it was.
@@ -713,7 +724,7 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 
 Kiko follows OptMem's own loop: wake from memory once, then work in an ordinary transcript.
 
-1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `agent/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task with Executor started over at every step, because Executor's guides alone pass the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `agent/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
+1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `packages/agent/src/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task with Executor started over at every step, because Executor's guides alone pass the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `packages/agent/src/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
 2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own. It also leaves out the messages that joined the last run while it was live, as a steer or a queued input: the host keeps their seqs (`memory:joined`) until the next run starts. Before this, they came back in the next delta, so the agent read them twice. A turn there is cut at 300 characters, as before, and now says so and how to zoom for the rest.
 
 **Before the first token.** A run makes one call to `UserDO`: `turnContext(provider, slug)` brings the auth, the agent's extension versions, and its soul. The extension sync does nothing when the versions match what the process synced last. The room computes the delta at the same time (`prefetchDelta` in `agent/agent-do.ts`); a run that turns out fresh drops it. The soul, `/chat.md`, and the skills list in the system prompt are read once per run (`perRun` in `agent/extensions/self.ts`), not before every model request, and `/chat.md` comes through the byte cache. A change to any of them reaches the next run. Built-in skills are parsed once per isolate.
@@ -799,7 +810,7 @@ The design assumes that a model can be fooled. Marking content lowers the odds. 
 ### 16.2 Marking
 
 - An `afterTool` hook wraps every result from a tool that returns outside content in `<untrusted source="..." id="NONCE">`. The nonce is random per result and memoized on the tool task, so a replay writes the same text. DEVIATION: the spec said per run. A hook cannot see a durable run boundary, and a nonce per result is at least as hard to guess. The hook escapes any look-alike tag inside the content, after folding full-width forms with NFKC.
-- A tool declares its effect with `declareEffect(effect, tool, { outside? })` in `agent/effects.ts`. `outside` names the source of a result that is outside content. A tool that only sometimes reads outside content calls `markRunTainted(api, source)` from `agent/extensions/trust.ts`, and a `write` or `message` tool reads `isRunTainted(api)` to flag what it stores or sends.
+- A tool declares its effect with `declareEffect(effect, tool, { outside? })` in `packages/agent/src/effects.ts`. `outside` names the source of a result that is outside content. A tool that only sometimes reads outside content calls `markRunTainted(api, source)` from `agent/extensions/trust.ts`, and a `write` or `message` tool reads `isRunTainted(api)` to flag what it stores or sends.
 - The run's taint is worked out from the transcript in `beforeRequest`: a tainted envelope (`tainted="true"` on its tag) or an `<untrusted>` result since the last final answer. An unknown taint counts as tainted.
 - An agent message is wrapped in `<agent-message from="slug" hop="n">` and submitted as user-role content, never as a system message.
 - The system prompt says in three lines that untrusted blocks are data, that teammates' messages are requests to evaluate, and that only human messages carry authority.
@@ -891,7 +902,7 @@ Subrequests. A Free invocation may make 50 outside requests, and it is enforced 
 
 Each request through `egress` is one more Durable Object request, about five per turn. Free allows 100,000 a day, and rows written still bind first (the table above), so the user count does not move.
 
-Alarms. The runtime retries a throwing `alarm()` six times, and `dueWakeups` has already claimed the due keys, so a throwing step would lose its wakeup and skip the steps after it. `UserDO` and `RoomDO` run each due step through `runDue` (`lib/alarm.ts`), which catches a failure and sets that key again: after 30 seconds, or 2 seconds for the room's message path. `AgentHost` already catches and re-arms.
+Alarms. The runtime retries a throwing `alarm()` six times, and `dueWakeups` has already claimed the due keys, so a throwing step would lose its wakeup and skip the steps after it. `UserDO` and `RoomDO` run each due step through `runDue` (`packages/durable/src/alarm.ts`), which catches a failure and sets that key again: after 30 seconds, or 2 seconds for the room's message path. `AgentHost` already catches and re-arms.
 
 SQL. A query binds at most 100 values. A list of ids is passed as one JSON value and read with `json_each(?)`, never as one `?` per id.
 
@@ -921,7 +932,7 @@ Model cost is the user's own and is not in these numbers. A team turn that wakes
 
 Rows written is the limit that binds first, and partial commits cause most of it. `PARTIAL_THROTTLE_MS` is a constant, not a setting.
 
-**Decision, verified by experiment 3.** Kiko wraps `SqliteStorage` in `createCoalescingStorage` (`apps/server/src/agent/coalescing-storage.ts`). It holds partial-output commits in memory and writes each window of them as one commit. A window is written when a partial arrives 2 seconds or more after the window opened, and before any other write, any document read, and `close()`. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing. The agent host (P1-06) opens its harness on this wrapper. Details are in [research/experiment-3-coalescing.md](research/experiment-3-coalescing.md).
+**Decision, verified by experiment 3.** Kiko wraps `SqliteStorage` in `createCoalescingStorage` (`packages/agent/src/coalescing-storage.ts`). It holds partial-output commits in memory and writes each window of them as one commit. A window is written when a partial arrives 2 seconds or more after the window opened, and before any other write, any document read, and `close()`. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing. The agent host (P1-06) opens its harness on this wrapper. Details are in [research/experiment-3-coalescing.md](research/experiment-3-coalescing.md).
 
 **How a partial is told apart.** A partial commit is exactly one `document.change` delta to the conversation's `pi.live` document, and every op in it changes `generation`. One other commit has that shape, the marker that sets `generation` to `{ attempt }` before a request. Holding it is safe, because after a crash the task sends the request again from its checkpoint. The other commits in `src/harness/generation.ts` that change `generation` also write a task checkpoint, so they have more than one write. The wrapper also holds only a delta to a document without history, at the version stored, so the inner storage would accept it and no read can ask for a point inside a window.
 
@@ -1162,6 +1173,10 @@ apps/
 packages/
   ui/               @kiko/ui
   protocol/         wire types shared by the client, the server, and the CLI
+  durable/          @kiko/durable: Durable Object plumbing (section 2)
+  agent/            @kiko/agent: the pi-durable host
+  memory/           @kiko/memory: the log memory (section 13)
+  sandbox/          @kiko/sandbox: user extensions (section 24)
 docs/
 refs/, solid-refs/  read-only references
 ```
@@ -1244,8 +1259,8 @@ Kiko copies four patterns, built in P1-13:
 
 How P1-13 built them:
 
-- `lib/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works. `history()` returns the last 100 fired keys with their due and fired times.
-- `agent/inbox.ts` marks a claimed batch with `in_flight_at` and the id of the process that took it. A batch held by another process is reclaimed at once, because a Durable Object has one live process and the other one is dead. A batch held by this process is reclaimed after 5 minutes. A failed drain releases what it took. `submitted()` returns false the second time. `receive()` returns `{ admitted: [], refused: "full" | "too_large" }` instead of throwing.
+- `packages/durable/src/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works. `history()` returns the last 100 fired keys with their due and fired times.
+- `packages/agent/src/inbox.ts` marks a claimed batch with `in_flight_at` and the id of the process that took it. A batch held by another process is reclaimed at once, because a Durable Object has one live process and the other one is dead. A batch held by this process is reclaimed after 5 minutes. A failed drain releases what it took. `submitted()` returns false the second time. `receive()` returns `{ admitted: [], refused: "full" | "too_large" }` instead of throwing.
 - ASSUMPTION: the caps are 500 open rows (waiting or claimed) and 128 KiB per envelope plus brief. Submitted rows stay for dedupe and do not count. A delivery stores its brief on its first row only, since one delivery always lands in one batch. The room sends a burst past the caps in deliveries of at most 100 envelopes and 64 KiB (`deliverable` in `room/burst.ts`), so a huge burst is never refused forever or dropped.
 - ASSUMPTION: the room treats `full` as backpressure and retries the burst after 2 seconds. It drops a `too_large` burst from the queue. The messages stay in the log either way.
 - `RoomDO`, `UserDO`, and `AgentDO` build their tables inside `blockConcurrencyWhile`. The callback runs after the constructor returns but before any request or alarm.
@@ -1285,7 +1300,7 @@ The client gets extensions and proposals in the user snapshot and as user events
 
 ### 24.3 The sandbox
 
-`agent/script/vm.ts` runs one VM per extension version per agent process.
+`packages/sandbox/src/vm.ts` runs one VM per extension version per agent process.
 
 - The VM has no `fetch`, timers, `process`, `WebAssembly`, or bindings. The only way out is `__host`, which the prelude hides before the extension's module runs. Each invocation gets its own `kiko` object, and the host decides per call what it may do.
 - Data crosses as JSON text only, so a guest object never becomes a host object.
@@ -1296,7 +1311,7 @@ The client gets extensions and proposals in the user snapshot and as user events
 
 ### 24.4 How an extension becomes a pi-durable extension
 
-`agent/script/compile.ts` turns a manifest into an ordinary `Extension` named `ext:<name>`. Each tool, section, hook, and wrap is a host function that calls into the VM. The bridge enforces the manifest on every call:
+`packages/sandbox/src/compile.ts` turns a manifest into an ordinary `Extension` named `ext:<name>`. Each tool, section, hook, and wrap is a host function that calls into the VM. The bridge enforces the manifest on every call:
 
 | `kiko.` | Rule |
 | --- | --- |
@@ -1338,7 +1353,7 @@ Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for 
 - The extension must be installed and on. Only `https`. The host must match `egress`, where `*.example.com` covers every subdomain.
 - `{{secret.NAME}}` in the URL, a header value, or the body is filled in here, and only when the host is one of that secret's `hosts`. The script never holds a key.
 - A server that echoes a secret does not hand it back: every set secret is replaced by its placeholder in the response text. `set-cookie` and `authorization` response headers are dropped.
-- `safeRequest` in `lib/safe-fetch.ts` makes the request. It has `safeFetch`'s address checks, and it never follows a redirect, so headers chosen for one host never reach another. Bodies are at most 256 KB each way, and the deadline is 10 seconds.
+- `safeRequest` in `packages/durable/src/safe-fetch.ts` makes the request. It has `safeFetch`'s address checks, and it never follows a redirect, so headers chosen for one host never reach another. Bodies are at most 256 KB each way, and the deadline is 10 seconds.
 
 ### 24.8 Triggers
 
@@ -1420,7 +1435,7 @@ type Origin = "human" | "routine" | "auto"
 ```
 
 - The room stamps every envelope: `human` on a burst, `routine` with its grant on a routine run, `auto` on everything else. `agent_chains` keeps the authority of each member's chain, so a message an agent sends inherits it. Delegation never widens it: dots says authorization "stays tied to your instructions for the task; continuing later or delegating work does not expand it."
-- The agent host keeps the authority of the run in flight in `run_authority`. A batch that starts a run sets it; a batch that joins combines with it (`combine` in `lib/origin.ts`): a human anywhere gives the human's authority, otherwise the stricter wins and grants intersect. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
+- The agent host keeps the authority of the run in flight in `run_authority`. A batch that starts a run sets it; a batch that joins combines with it (`combine` in `packages/agent/src/authority.ts`): a human anywhere gives the human's authority, otherwise the stricter wins and grants intersect. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
 - An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
 
 `needsApproval` and `gate` in `trust.ts`. Taint does not decide an `external` call; it flags writes and messages (section 16.3).
@@ -1455,7 +1470,7 @@ type Origin = "human" | "routine" | "auto"
 - The run is tainted and its post is labeled outside content, so a granted tool still waits for the human.
 - The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
 
-**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`lib/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content, and the new fingerprint is saved only once the room has the run. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
+**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content, and the new fingerprint is saved only once the room has the run. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
 
 DEVIATION from the first plan: watches do not run extension code from an alarm. Fetching in `UserDO` reuses the extension's egress and secrets with no new `kiko.*` power and no VM outside a run.
 

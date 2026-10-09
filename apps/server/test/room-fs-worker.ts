@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { FileOp } from "@kiko/protocol"
-import "../src/agent/effects"
+import "@kiko/agent/effects"
 import { filesExtension } from "../src/agent/extensions/files"
 import { type FilesBackend, HOME_PATH, homeBackend, RoomFs, roomBackend, withMount, withSoul } from "../src/files/room-fs"
 import { FileIndex, HOME_TABLES, type IndexChange, type NewFile } from "../src/files/file-index"
@@ -13,15 +13,8 @@ import { Souls } from "../src/user/souls"
 import type { Env } from "../src/index"
 import { roomStub } from "../src/lib/names"
 
-// The agent file tools against the real RoomDO and real R2 in workerd. `room-fs.test.ts` drives it.
-//
-//   POST /tool/<roomId>/<slug>   { name, args }   runs one tool as that agent
-//   POST /op/<roomId>            FileOp           a human's `files` frame
-//   GET  /keys/<roomId>                           the R2 keys of the room
-
 export { RoomDO } from "../src/room/room-do"
 
-/** The real soul store (user/souls.ts) and drive index (files/file-index.ts) over this object's SQLite. */
 export class UserDO extends DurableObject {
   private readonly souls: Souls
   private readonly home: FileIndex<unknown>
@@ -64,12 +57,9 @@ export class UserDO extends DurableObject {
   }
 }
 
-/** What agents told the chat about the drive. */
 const notices: string[] = []
 
-/** One file system per agent, kept across requests as an agent process keeps it. */
 const systems = new Map<string, RoomFs>()
-/** Room calls and R2 reads per agent, so a test can pin how many a tool makes. */
 const counts = new Map<string, { stat: number; get: number; put: number }>()
 
 function counted(key: string, backend: FilesBackend, env: Env): FilesBackend {
@@ -80,7 +70,6 @@ function counted(key: string, backend: FilesBackend, env: Env): FilesBackend {
     ...backend,
     stat: (p) => (c.stat++, backend.stat(p)),
     bytes: async (k, m) => {
-      // Counts only the R2 reads the cache did not answer.
       const before = (env.FILES as unknown as { _gets?: number })._gets ?? 0
       const out = await backend.bytes(k, m)
       return (c.get += ((env.FILES as unknown as { _gets?: number })._gets ?? 0) - before), out
@@ -97,7 +86,6 @@ export default {
       return Response.json(page.objects.map((o) => o.key).filter((k) => k.includes(roomId!)))
     }
     if (kind === "raw") {
-      // Bytes as an upload would store them, through the same backend.
       const url = new URL(request.url)
       const home = { userId: "alice", roomId: roomId as never, slug: "human" as never, role: "", lead: true }
       const fs = new RoomFs("raw", roomBackend(env, () => home))
@@ -105,7 +93,6 @@ export default {
       return Response.json({ ok: out.ok })
     }
     if (kind === "idle") {
-      // The agent's run ended: the room lets go of what it held.
       await roomStub(env.ROOM, "alice", roomId!).setStatus(slug as never, "idle")
       return Response.json({ ok: true })
     }
@@ -129,10 +116,8 @@ export default {
       }
       // A stub per call: a stub made in one request cannot be used from another, as in AgentDO.
       const users = (env as unknown as { USER: DurableObjectNamespace<UserDO> }).USER
-      // One user, alice, in every room: the drive and the souls are hers.
       const user = () => users.get(users.idFromName("user:alice"))
       const soul = { get: () => user().soul(slug!), set: (body: string, expect?: string) => user().setSoul(slug!, body, expect) }
-      // An agent named "quiet" works in a private chat: the drive is read-only for it.
       const drive = homeBackend(env, () => home, async (text) => void notices.push(`@${slug} ${text}`), undefined, () => (slug === "quiet" ? "this chat is private" : null))
       fs = new RoomFs(`test:${key}`, withSoul(withMount(counted(key, roomBackend(env, () => home), env), HOME_PATH, drive), soul))
       systems.set(key, fs)
@@ -140,7 +125,6 @@ export default {
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }
     const tool = (filesExtension({ fs, acceptsImages: () => slug === "seer" }).tools ?? []).find((t) => t.name === name)
     if (!tool) return Response.json({ error: `no tool ${name}` }, { status: 404 })
-    // What a tool streams (bash) reaches `output`, as the harness keeps it.
     let streamed = ""
     const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {} } as unknown as ToolExecutionApi
     const started = performance.now()

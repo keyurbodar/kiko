@@ -1,24 +1,15 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { declareEffect } from "../effects"
-import { htmlToText } from "../../lib/html-text"
+import { declareEffect } from "@kiko/agent/effects"
+import { htmlToText } from "@kiko/durable/html-text"
 
 export { htmlToText }
-import { type Fetcher, safeFetch } from "../../lib/safe-fetch"
+import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 import { defaultFetcher } from "../../lib/dev-fixture-fetch"
-import type { Effect as ToolEffect } from "../effects"
+import type { Effect as ToolEffect } from "@kiko/agent/effects"
 import type { RoomFs } from "../../files/room-fs"
 import { spill } from "./spill"
 
-// Architecture section 18.2. `web_fetch` uses the safe fetcher: http and
-// https only, no private or metadata hosts, every redirect rechecked, 3 seconds, 1 MB. The page
-// comes back as plain text, which the harness bounds to `pi-durable`'s output limits.
-
-/**
- * Section 16.3. The fetch only reads, but what it returns is outside content, so the run becomes
- * tainted: the tool is declared with `outside: "web"`, so the trust extension wraps every result
- * and taints the run.
- */
 export const WEB_TOOL_EFFECTS = { web_fetch: "read" } as const satisfies Record<string, ToolEffect>
 export const WEB_TOOLS_UNTRUSTED: readonly string[] = ["web_fetch"]
 
@@ -28,10 +19,6 @@ const TEXT_TYPES = /^(text\/|application\/(json|xml|xhtml\+xml|javascript|ld\+js
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
 
-/**
- * `fetcher` is for tests. In development the fixture hosts work too (`fixture-<port>.preview.test`).
- * With `fs`, a page too big to return whole is saved in the chat's files (`spill.ts`).
- */
 export function webExtension(fetcher?: Fetcher, fs?: RoomFs): Extension {
   const fetch = fetcher ?? defaultFetcher()
   const webFetch = defineTool({
