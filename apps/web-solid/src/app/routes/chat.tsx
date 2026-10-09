@@ -233,7 +233,7 @@ export default function ChatRoute() {
        `data-component="chat-shell"`, the stable handle the verify skill scopes
        by, and keeps `min-w-0` so the column narrows with the window. */}
       <div
-        class="chat-pane-background flex min-h-0 min-w-0 flex-1 flex-col"
+        class="flex min-h-0 min-w-0 flex-1 flex-col"
         data-component="chat-shell"
         data-session-empty={messages().length === 0 ? "true" : "false"}
         data-reply-target={replyTarget() ?? undefined}
@@ -245,11 +245,6 @@ export default function ChatRoute() {
             the stage fell back to content height, the scroller inside never
             scrolled, and the transcript grew straight past the pane and
             rendered *behind* the composer. */}
-        {/* Monocode's haze effect: the chat background blurred and faded. kat.css shows it only when that effect is on. */}
-        <div class="gradient-blur-background" aria-hidden="true">
-          <span class="gradient-blur-background-soft" />
-          <span class="gradient-blur-background-strong" />
-        </div>
         <div class="flex min-h-0 flex-1 flex-col" ref={transcript}>
           <MessageList
             messages={messages()}

@@ -45,7 +45,6 @@ const i18n: UiI18n = {
 // The info panel loads on the first open, or on idle after the first paint. The chat route does not carry it.
 const InfoPanel = lazy(loadInfoPanel);
 // The first-run look screen and the bird picker each load on their own, off the first paint.
-const FirstLook = lazy(() => import("../theme/first-look"));
 const BirdPicker = lazy(() => import("../mascot/picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
@@ -243,9 +242,6 @@ export function Shell(props: ParentProps) {
           </Suspense>
         </Show>
         <ToastV2.Region />
-        <Suspense>
-          <FirstLook />
-        </Suspense>
         <Show when={birdPickerSlug()}>
           <Suspense>
             <BirdPicker />
