@@ -10,9 +10,10 @@ import { SharedContent } from "./lists"
 import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { BackIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { BackIcon } from "@kiko/ui/icons"
 import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers } from "./sections"
 import { shortDate, startedAt } from "./format"
+import { loadRoutines, RoutinesPage, routinesOf } from "./routines"
 import {
   closeFile,
   closeInfo,
@@ -64,6 +65,7 @@ const TITLES: Record<InfoView["kind"], string> = {
   memory: "Memory",
   agent: "Agent",
   soul: "Soul",
+  routines: "Routines",
   tasks: "Tasks",
 }
 
@@ -131,6 +133,8 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
   const extras = createMemo(() => infoSections().filter((s) => !s.when || s.when(props.chatId)))
   const lead = () => members().find((m) => m.lead) ?? members()[0]
   const started = () => startedAt(props.chatId)
+  // Routines are fetched each time the front page shows, so a new one an agent made appears.
+  void loadRoutines()
   return (
     <div class="flex min-h-full flex-col" data-component="info-home">
       <Header chatId={props.chatId} />
@@ -144,6 +148,13 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
       <Members members={members()} />
       <NavRows>
         <NavRow id="memory" label="Memory" description="Facts and preferences your agents remember." count={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
+        <NavRow
+          id="routines"
+          label="Routines"
+          description="What your agents do on their own, on a schedule or when something happens."
+          count={count(routinesOf(props.chatId)?.filter((r) => r.status === "active").length ?? 0)}
+          onClick={() => pushInfo({ kind: "routines" })}
+        />
         <Show when={members().length > 1}>
           <NavRow id="tasks" label="Tasks" description="Work the lead split up for the team." count={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
         </Show>
@@ -312,9 +323,6 @@ export default function InfoPanel(props: { chatId: string }) {
                 <FilesActions />
               </Suspense>
             </Show>
-            <button type="button" class={iconButton} data-action="close" aria-label="Hide details" title="Hide details" onClick={() => closeInfo()}>
-              <HugeIcon icon={SidebarRightIcon} size={15} />
-            </button>
           </header>
         }
       >
@@ -352,6 +360,9 @@ export default function InfoPanel(props: { chatId: string }) {
               </Match>
               <Match when={view().kind === "agent"}>
                 <AgentPage slug={(view() as { slug: string }).slug} chatId={props.chatId} />
+              </Match>
+              <Match when={view().kind === "routines"}>
+                <RoutinesPage chatId={props.chatId} />
               </Match>
               <Match when={view().kind === "soul"}>
                 <SoulCard slug={(view() as { slug: string }).slug} />
