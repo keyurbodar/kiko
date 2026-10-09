@@ -172,7 +172,7 @@ function body(path: string, f: Flavor, crownY: number, belly: readonly number[],
 const MOCHI = "M20 90 C20 66 38 50 60 50 C82 50 100 66 100 90 C100 98 92 101 60 101 C28 101 20 98 20 90Z"
 const LOAF = "M38 72 C38 55 51 45 67 45 C85 45 97 57 97 71 C97 86 85 96 67 96 C51 96 38 88 38 72Z"
 
-function drawMochi(f: Flavor, mood: (typeof MOODS)[BirdState], b: BirdSpec, clip: string): string {
+function drawMochi(f: Flavor, mood: (typeof MOODS)[BirdState], b: BirdSpec, clip: string, expressive: boolean): string {
   const ink = f.eye ?? "#2B2420"
   const color = f.blush ?? "#F2A294"
   const op = mood.rosy ? 0.9 : 0.75
@@ -187,7 +187,13 @@ function drawMochi(f: Flavor, mood: (typeof MOODS)[BirdState], b: BirdSpec, clip
     blush(79, 86, 5, color, op) +
     (f.freckle ? `<g fill="${f.freckle}" fill-opacity=".7" stroke="none">${[[38.5, 85.4], [41, 87.2], [43.5, 85.6], [76.5, 85.4], [79, 87.2], [81.5, 85.6]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r=".65"/>`).join("")}</g>` : "") +
     eyes(mood.eyes, [[50, 77.5, 3.6], [70, 77.5, 3.4]], ink) +
-    `<path d="M57 82.5 L63 82.5 L60 86.2Z" fill="${f.beak ?? "#7A6458"}" stroke-width="1.4"/>` +
+    `<path class="bird-beak" d="M57 82.5 L63 82.5 L60 86.2Z" fill="${f.beak ?? "#7A6458"}" stroke-width="1.4"/>` +
+    (expressive
+      ? // Faces a scene can switch to without redrawing: happy eyes, dozing eyes, and an open beak.
+        `<path class="bird-happy" d="M46.4 78.2 Q50 73.8 53.6 78.2 M66.6 78.2 Q70 74 73.4 78.2" fill="none" stroke="${ink}" stroke-width="2"/>` +
+        `<path class="bird-closed" d="M46.5 77 Q50 79.8 53.5 77 M66.5 77 Q70 79.6 73.5 77" fill="none" stroke="${ink}" stroke-width="1.8"/>` +
+        `<g class="bird-mouth"><path d="M56.6 81.6 L63.4 81.6 L60 83.4Z" fill="${f.beak ?? "#7A6458"}" stroke-width="1.2"/><path d="M57.4 84.2 Q60 89.6 62.6 84.2Z" fill="#7A3E3A" stroke-width="1.2"/></g>`
+      : "") +
     OUTFITS[b.outfit].svg
   )
 }
@@ -199,7 +205,7 @@ function drawLoaf(f: Flavor, mood: (typeof MOODS)[BirdState], clip: string): str
     `<path d="M44 75 C30 73 17 70.5 5 69 C3.4 68.8 3.3 72.4 5 72.9 C17 75.6 30 79 44 83Z" fill="${f.tail}"/>` +
     `<path d="M61 95 L59.5 100.5 M64.5 95.6 L64 101 M72 95.6 L72.4 101 M75.5 95 L77 100.5" fill="none" stroke="#5E524A" stroke-width="2"/>` +
     body(LOAF, f, 55, [74, 91, 21, 9], "M40 77 C44 90 56 96 68 96 C56 92 46 86 43 73Z", [[56, 50], [64, 48], [72, 48], [80, 51]], clip) +
-    `<path d="M74 66 C66 61 54 63 47 70 C44 73 42 76 41 79 C47 80 54 79.5 60 77.5 C67 75 72 71 74 66Z" fill="${f.nub}" stroke-width="1.6"/>` +
+    `<path class="bird-wing" d="M74 66 C66 61 54 63 47 70 C44 73 42 76 41 79 C47 80 54 79.5 60 77.5 C67 75 72 71 74 66Z" fill="${f.nub}" stroke-width="1.6"/>` +
     `<path d="M52 52 C55 49 59 47.5 63 47" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/>` +
     blush(84, 76, 4.6, f.blush ?? "#F2A294", mood.rosy ? 0.9 : 0.75) +
     eyes(mood.eyes, [[85, 65.5, 3.6]], ink) +
@@ -213,9 +219,10 @@ let uid = 0
  * How a bird is drawn. `size` is its rendered height in px: the ink line never drops under 1 px
  * on screen, and under 24 px the line is drawn straight, since a wobble that small is a blur.
  * `flat` drops the sketch filter entirely, for the favicon. `still` keeps a working bird's line
- * from boiling, for reduced motion.
+ * from boiling, for reduced motion. `expressive` adds the faces a scene switches to on its own
+ * (happy eyes, dozing eyes, an open beak), so a playing bird never redraws.
  */
-export type DrawOptions = { shape?: BirdShape; size?: number; flat?: boolean; still?: boolean }
+export type DrawOptions = { shape?: BirdShape; size?: number; flat?: boolean; still?: boolean; expressive?: boolean }
 
 /** The SVG markup for a bird, in its shape's box (`VIEWBOX`). Pure, so tests and scripts can call it. */
 export function birdSvg(b: BirdSpec, state: BirdState = "idle", opts: DrawOptions = {}): string {
@@ -231,7 +238,7 @@ export function birdSvg(b: BirdSpec, state: BirdState = "idle", opts: DrawOption
   const filter = rough
     ? `<filter id="${id}r" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="2" seed="6">${boil ? `<animate attributeName="seed" values="6;11;3;8" dur=".6s" calcMode="discrete" repeatCount="indefinite"/>` : ""}</feTurbulence><feDisplacementMap in="SourceGraphic" scale="2.2"/></filter>`
     : ""
-  const art = shape === "loaf" ? drawLoaf(f, mood, `${id}c`) : drawMochi(f, mood, b, `${id}c`)
+  const art = shape === "loaf" ? drawLoaf(f, mood, `${id}c`) : drawMochi(f, mood, b, `${id}c`, opts.expressive ?? false)
   return (
     filter +
     `<g class="bird-body"${rough ? ` filter="url(#${id}r)"` : ""} stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round">${art}</g>`

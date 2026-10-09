@@ -10,6 +10,7 @@ import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { BrandBird } from "../mascot/brand"
+import { HeaderSnow } from "./header-snow"
 import { ChatPanel } from "./chat-panel"
 import { MenuV2 } from "@yuki/ui/v2/menu-v2"
 import "./sidebar.css"
@@ -192,6 +193,7 @@ export function Sidebar(props: SidebarProps) {
          */
         style={{ "--sidebar-content-w": width() === null ? undefined : `${width()}px` }}
       >
+        <HeaderSnow />
         <header class="panel-header">
           <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
             <BrandBird size={22} working={useApp.bots().some((b) => b.presence === "typing" || b.presence === "working")} />

@@ -1,0 +1,43 @@
+html, body { background: #161514; overflow: auto !important; height: auto !important; }
+#root { height: auto !important; }
+
+.scenes-page { max-width: 1100px; margin: 0 auto; padding: 48px 24px 96px; color: #ece6dc; font-family: var(--font-family-sans); display: flex; flex-direction: column; gap: 56px; }
+.scenes-page header h1 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+.scenes-page header p { margin: 8px 0 0; color: #9a9389; max-width: 720px; }
+
+.scenes-option { display: flex; flex-direction: column; gap: 14px; }
+.scenes-label { display: flex; align-items: flex-start; gap: 14px; }
+.scenes-num { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #2a2825; font-weight: 600; }
+.scenes-label h2 { margin: 2px 0 4px; font-size: 19px; font-weight: 600; }
+.scenes-label h2 span { color: #9a9389; font-weight: 400; margin-left: 6px; }
+.scenes-label p { margin: 0; color: #a8a196; font-size: 14px; line-height: 1.5; max-width: 760px; }
+.scenes-chips { margin-left: auto; display: flex; gap: 5px; padding-top: 6px; }
+.scenes-chips span { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12); }
+
+.scenes-composer { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: -4px; }
+.scenes-composer strong { font-size: 20px; font-weight: 500; }
+.scenes-composer div { width: min(720px, 100%); height: 64px; border-radius: 16px; background: #22201e; box-shadow: inset 0 0 0 1px rgb(236 230 220 / 0.11); color: #6c665e; padding: 14px 16px; font-size: 14px; }
+
+/* A scene: its own world in a rounded frame, drawn in layers with the birds between them. */
+.scene { position: relative; width: 100%; aspect-ratio: 900 / 360; border-radius: 18px; overflow: hidden; }
+.scene-layer { position: absolute; inset: 0; width: 100%; height: 100%; }
+.scene-snow { position: absolute; z-index: 2; color: #ffffff; pointer-events: none; }
+.scene-snow.round { border-radius: 50%; }
+.scene-bird { position: absolute; aspect-ratio: 1; line-height: 0; }
+.scene-bird .bird { width: 100% !important; height: 100% !important; }
+.uk-title { writing-mode: vertical-rl; font: 600 15px "Hiragino Mincho ProN", "Yu Mincho", serif; fill: #1c1a20; letter-spacing: 4px; }
+.uk-seal { font: 700 22px "Hiragino Mincho ProN", "Yu Mincho", serif; fill: #fbeee6; text-anchor: middle; }
+
+.scene-steam path { fill: none; stroke-width: 2px; stroke-linecap: round; opacity: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .scene-flicker { animation: scene-flicker 3.1s ease-in-out infinite; }
+  .scene-bob { animation: scene-bob 3.4s ease-in-out infinite; }
+  .scene-ripple { animation: scene-ripple 4s ease-in-out infinite; }
+  .scene-steam path { animation: scene-steam 4.4s ease-out infinite; }
+}
+
+@keyframes scene-flicker { 0%, 100% { opacity: 1; } 35% { opacity: 0.86; } 60% { opacity: 0.96; } }
+@keyframes scene-bob { 0%, 100% { translate: 0 0; rotate: 0deg; } 50% { translate: 3px -2px; rotate: 4deg; } }
+@keyframes scene-ripple { 0%, 100% { opacity: 0.4; translate: 0 0; } 50% { opacity: 0.9; translate: 4px 0; } }
+@keyframes scene-steam { 0% { opacity: 0; translate: 0 8px; } 30% { opacity: 0.4; } 100% { opacity: 0; translate: 4px -26px; } }

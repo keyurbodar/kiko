@@ -1,0 +1,172 @@
+/* Yuki's window nook. Two palettes: an evening by candlelight in dark, a snowy afternoon in light.
+   Colors are soft and slightly desaturated, whites lean cream, and the only strong warmth is the
+   candle. Everything in the room is outlined in the birds' sumi ink with the same small wobble. */
+.nook {
+  --nook-ink: #2b2824;
+  --nook-sky-top: #1a2230;
+  --nook-sky-bottom: #2d3a4d;
+  --nook-moon: #f1e3bd;
+  --nook-hill: #3a4659;
+  --nook-pine: #2c3747;
+  --nook-ground: #cdd5de;
+  --nook-wood: #5b4535;
+  --nook-sill: #5f4634;
+  --nook-sill-top: #765a43;
+  --nook-curtain: #7a4b43;
+  --nook-tie: #a4775b;
+  --nook-teapot: #6d8c86;
+  --nook-teapot-lid: #5b7873;
+  --nook-cushion: #a9774f;
+  --nook-cup: #ece3d4;
+  --nook-tea: #9c7b3a;
+  --nook-book-a: #84584a;
+  --nook-book-b: #56677f;
+  --nook-candle: #ede3d1;
+  --nook-flame: #f5c46a;
+  --nook-pot: #a87454;
+  --nook-leaf: #7b986a;
+  --nook-steam: #ece6dc;
+  --nook-shine: #ffffff;
+  position: relative;
+  width: min(1060px, 100%);
+  aspect-ratio: 900 / 312;
+  flex: none;
+}
+
+:root[data-appearance="light"] .nook {
+  --nook-sky-top: #b8c8d8;
+  --nook-sky-bottom: #e4eaf0;
+  --nook-moon: #fff6dc;
+  --nook-hill: #c9d4df;
+  --nook-pine: #92a6b9;
+  --nook-ground: #f7f9fb;
+  --nook-wood: #9b7b5e;
+  --nook-sill: #a07e60;
+  --nook-sill-top: #b8977a;
+  --nook-curtain: #d7aea0;
+  --nook-tie: #c49278;
+  --nook-teapot: #93aea8;
+  --nook-teapot-lid: #7f9b95;
+  --nook-cushion: #d39d70;
+  --nook-cup: #fbf7f0;
+  --nook-tea: #b8924a;
+  --nook-book-a: #b77f6c;
+  --nook-book-b: #8296b0;
+  --nook-candle: #fbf6ec;
+  --nook-pot: #c48a66;
+  --nook-leaf: #8fae7c;
+  --nook-steam: #9aa6b2;
+}
+
+.nook-layer,
+.nook-snow {
+  position: absolute;
+}
+
+.nook-layer {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.nook-snow { color: #ffffff; }
+
+.nook-moon { fill: var(--nook-moon); }
+.nook-hill { fill: var(--nook-hill); }
+.nook-pine { fill: var(--nook-pine); }
+.nook-ground { fill: var(--nook-ground); }
+
+.nook-ink {
+  stroke: var(--nook-ink);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.nook-wood { fill: var(--nook-wood); }
+.nook-rod { fill: none; stroke: var(--nook-wood); stroke-width: 3.5px; }
+.nook-shine { fill: none; stroke: var(--nook-shine); stroke-opacity: 0.14; stroke-width: 2px; }
+.nook-curtain { fill: var(--nook-curtain); }
+.nook-fold { fill: none; stroke-opacity: 0.3; stroke-width: 1.2px; }
+.nook-tie { fill: var(--nook-tie); }
+.nook-sill { fill: var(--nook-sill); }
+.nook-sill-top { fill: var(--nook-sill-top); }
+.nook-handle { fill: none; stroke: var(--nook-tie); stroke-width: 3px; }
+.nook-teapot { fill: var(--nook-teapot); }
+.nook-teapot-lid { fill: var(--nook-teapot-lid); }
+.nook-cushion { fill: var(--nook-cushion); }
+.nook-cup { fill: var(--nook-cup); }
+.nook-tea { fill: var(--nook-tea); stroke: none; }
+.nook-book-a { fill: var(--nook-book-a); }
+.nook-book-b { fill: var(--nook-book-b); }
+.nook-pages { fill: none; stroke-opacity: 0.3; stroke-width: 1px; }
+.nook-candle { fill: var(--nook-candle); }
+.nook-wick { fill: none; }
+.nook-pot { fill: var(--nook-pot); }
+.nook-leaf { fill: var(--nook-leaf); }
+
+.nook-flame { fill: var(--nook-flame); transform-box: fill-box; transform-origin: 50% 100%; }
+.nook-glow { mix-blend-mode: screen; transform-box: fill-box; transform-origin: center; }
+:root[data-appearance="light"] .nook-glow { mix-blend-mode: normal; opacity: 0.55; }
+
+.nook-wire { fill: none; stroke: var(--nook-ink); stroke-opacity: 0.55; stroke-width: 1px; }
+.nook-bulb-glass { fill: #ffd98f; stroke: var(--nook-ink); stroke-opacity: 0.5; stroke-width: 0.8px; }
+.nook-bulb-glow { fill: #ffcf7a; opacity: 0.22; }
+:root[data-appearance="light"] .nook-bulb-glow { opacity: 0.12; }
+
+.nook-steam path {
+  fill: none;
+  stroke: var(--nook-steam);
+  stroke-width: 1.6px;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.nook-bird {
+  position: absolute;
+  aspect-ratio: 1;
+  line-height: 0;
+}
+
+.nook-bird .bird {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nook-flame { animation: nook-flicker 2.3s ease-in-out infinite; }
+  .nook-glow { animation: nook-breathe-light 4.7s ease-in-out infinite; }
+  .nook-steam path { animation: nook-steam 4.2s ease-out infinite; }
+  .nook-bulb { animation: nook-twinkle 5s ease-in-out infinite; }
+  .nook-steam path:nth-child(2) { animation-delay: 1.4s; }
+  .nook-steam path:nth-child(3) { animation-delay: 2.8s; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nook-steam path { opacity: 0.35; }
+}
+
+@keyframes nook-flicker {
+  0%, 100% { scale: 1 1; }
+  20% { scale: 0.94 1.06; }
+  45% { scale: 1.04 0.95; }
+  70% { scale: 0.97 1.03; }
+}
+
+@keyframes nook-breathe-light {
+  0%, 100% { opacity: 1; scale: 1; }
+  40% { opacity: 0.88; scale: 0.985; }
+  65% { opacity: 0.96; scale: 1.01; }
+}
+
+@keyframes nook-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes nook-steam {
+  0% { opacity: 0; translate: 0 6px; }
+  25% { opacity: 0.45; }
+  100% { opacity: 0; translate: 2px -14px; }
+}

@@ -18,3 +18,18 @@
 
 @keyframes bird-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, 0.985); } }
 @keyframes bird-blink { 0%, 95.5%, 100% { transform: scaleY(1); } 97.5% { transform: scaleY(0.12); } }
+
+/* A playing bird. The scene sets where it looks (`--look-x`, `--look-y`, in drawing units), how
+   far it leans (`--tilt`), and which face it wears (`data-face`). These compose with the breathing
+   above because they use the separate `translate` and `rotate` properties. */
+.bird .bird-happy,
+.bird .bird-closed,
+.bird .bird-mouth { display: none; }
+.bird[data-face="closed"] .bird-closed { display: inline; }
+.bird[data-face="closed"] .bird-eyes { display: none; }
+.bird[data-face="happy"] .bird-happy { display: inline; }
+.bird[data-face="happy"] .bird-eyes { display: none; }
+.bird[data-face="open"] .bird-mouth { display: inline; }
+.bird[data-face="open"] .bird-beak { display: none; }
+.bird[data-expressive] .bird-eyes { translate: var(--look-x, 0px) var(--look-y, 0px); }
+.bird[data-expressive] .bird-body { rotate: var(--tilt, 0deg); }

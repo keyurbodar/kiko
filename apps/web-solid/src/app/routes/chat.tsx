@@ -10,6 +10,8 @@ import { connectedProviders, connectedReady } from "../../settings/connected";
 import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
+// The composer snowball loads the first time an agent works in the open chat.
+const Snowball = lazy(() => import("../../composer/snowball").then((m) => ({ default: m.Snowball })));
 
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
@@ -233,6 +235,9 @@ export default function ChatRoute() {
   const empty = () => messages().length === 0;
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
+  // Once loaded, the snowball stays mounted, so it can play its goodbye when the reply lands.
+  const [snowballSeen, setSnowballSeen] = createSignal(false);
+  createEffect(() => useApp.typingSlugs().length > 0 && setSnowballSeen(true));
   createEffect(
     on(empty, (now, before) => {
       if (before && !now && dock) glideToDock(dock, launch);
@@ -379,6 +384,9 @@ export default function ChatRoute() {
                 <ToBar roomId={id() as RoomId} />
               </div>
             )}
+          </Show>
+          <Show when={useApp.typingSlugs().length > 0 || snowballSeen()}>
+            <Snowball slug={useApp.typingSlugs()[0] ?? null} dock={() => dock} />
           </Show>
           <Composer
             threadId={useApp.activeThreadId() ?? ""}

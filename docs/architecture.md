@@ -1128,7 +1128,13 @@ Motion never overshoots or bounces. It travels a short way, fades in, and settle
 
 DEVIATION: the composer moves once. An empty chat holds it in the middle of the pane, under the chat's birds and a heading, after monocode's empty session. The first send glides it down to the dock over 480 ms (`chat/send-motion.ts`), because a composer that jumps the height of the screen reads as a glitch. It never animates otherwise, and the send itself is not delayed.
 
-The mascot is an ink drawing, not a character. It never moves across the screen and carries no props. One large idle bird breathes and blinks. A working agent's bird shows its mood in its eyes, and its ink line boils: the outline is redrawn a little differently a few times a second (an SVG turbulence seed, `mascot/birds.ts`). Reduced motion stops both.
+In lists, the mascot is an ink drawing, not a character: it carries no props and does not move, except that one large idle bird breathes and blinks, and a working agent's bird shows its mood in its eyes while its ink line boils (an SVG turbulence seed, `mascot/birds.ts`).
+
+Three places let the birds play, each where nobody is waiting on the interface and each still under reduced motion. They scoot and lean; they never hop.
+
+- The empty chat is a snow day (`chat/ui/EmptyState.tsx`): soft snow on a changing wind (`mascot/snow.ts`, one canvas at 30 frames a second that stops when hidden), and the chief building a snowman on a snowbank while the chat's other birds watch (`mascot/snowman.tsx`, a timeline of steps).
+- The sidebar's header has the same quiet snow, and every 22 to 42 seconds a small Shima Enaga crosses it in the real bird's bounding flight (`sidebar/header-snow.tsx`).
+- While an agent works on your message, its bird pushes a growing snowball along the composer's top edge, and the snowball bursts into a puff when the reply lands (`composer/snowball.tsx`), after monocode's composer runner.
 
 The typing indicator is a port of [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx) with no React and no `motion` in tier 2.
 
