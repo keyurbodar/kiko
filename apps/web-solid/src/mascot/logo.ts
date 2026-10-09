@@ -1,9 +1,12 @@
-import { BIRD_VIEWBOX, birdSvg, YUKI } from "./birds"
+import { birdSvg, VIEWBOX, YUKI } from "./birds"
 
 /**
  * Yuki as a standalone SVG document, for places the app's CSS cannot reach: the favicon and the
- * boot screen. `flat` drops the shading, so the favicon stays crisp at 16 px.
+ * boot screen. The loaf, Yuki's mark, in a square box. `flat` draws a straight ink line, which
+ * stays crisp at 16 px.
  */
 export function logoSvg(flat = false): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${BIRD_VIEWBOX}">${birdSvg(YUKI, "idle", { flat, stub: flat })}</svg>`
+  const [x, y, w, h] = VIEWBOX.loaf
+  const pad = (w - h) / 2
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y - pad} ${w} ${w}">${birdSvg(YUKI, "idle", { shape: "loaf", flat, size: flat ? 16 : 64 })}</svg>`
 }

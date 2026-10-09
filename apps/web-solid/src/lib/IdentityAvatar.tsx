@@ -22,52 +22,50 @@ export function IdentityAvatar(props: { seed: string; size?: number; class?: str
       data-seed={props.seed}
       aria-hidden="true"
     >
-      <Bird slug={look().seed} state={props.state} class="size-full" />
+      <Bird slug={look().seed} state={props.state} size={props.size} class="size-full" />
     </span>
   )
 }
 
 /*
  * Where each face of a group sits, as fractions of the box: a dango huddle, the way Shima Enaga
- * fledglings line up shoulder to shoulder on a branch. Two sit side by side; three sit with the
- * first face (the chief) in front and the others peeking out behind it. `s` is the face's size
- * and `z` its stacking order. Every face stays inside the box, so a group takes the room of a
- * single avatar.
+ * fledglings sit shoulder to shoulder. Two sit side by side; three sit with the first face (the
+ * chief) in front and the other two peeking over it. `s` is the face's size and `z` its stacking
+ * order. Every face stays inside the box, so a group takes the room of a single avatar.
  */
 const LAYOUT: Record<number, readonly Spot[]> = {
   2: [
-    { x: 0.02, y: 0.2, s: 0.6, z: 0 },
-    { x: 0.38, y: 0.2, s: 0.6, z: 1 },
+    { x: 0, y: 0.12, s: 0.66, z: 0 },
+    { x: 0.34, y: 0.22, s: 0.66, z: 1 },
   ],
   3: [
-    { x: 0.2, y: 0.32, s: 0.6, z: 2 },
-    { x: 0.02, y: 0.12, s: 0.5, z: 0 },
-    { x: 0.48, y: 0.12, s: 0.5, z: 1 },
+    { x: 0.14, y: 0.3, s: 0.72, z: 2 },
+    { x: -0.04, y: 0.02, s: 0.58, z: 0 },
+    { x: 0.46, y: 0.02, s: 0.58, z: 1 },
   ],
 }
 
 type Spot = { x: number; y: number; s: number; z: number }
 
-/** Where a bird's round body sits in its box, as fractions: its center and its radius. */
-const BODY = { cx: 0.52, cy: 0.52, r: 0.36 }
+/** Where a mochi's body sits in its box, as fractions: its center and its two radii. */
+const BODY = { cx: 0.553, cy: 0.5, rx: 0.39, ry: 0.25 }
 
 /**
  * The mask that cuts a 2 px ring out of a face wherever a face stacked above it sits on it, so
  * each bird reads on its own, as stacked avatars do in Telegram. The ring follows the bird's
- * round body, not its square box. A cut, not a painted ring, so the gap shows whatever surface
- * is behind: a row, a hovered row, a tab, or the panel.
+ * wide body, not its square box. A cut, not a painted ring, so the gap shows whatever surface is
+ * behind: a row, a hovered row, a tab, or the panel.
  */
 function cutout(spots: readonly Spot[], index: number): Record<string, string> {
   const me = spots[index]!
   const holes = spots
     .filter((other) => other.z > me.z)
     .map((other) => {
-      // The other bird's body, in percent of this face's box. The box is square, so an
-      // ellipse with equal percentages is a circle.
       const cx = ((other.x + other.s * BODY.cx - me.x) / me.s) * 100
       const cy = ((other.y + other.s * BODY.cy - me.y) / me.s) * 100
-      const r = ((other.s * BODY.r) / me.s) * 100
-      return `radial-gradient(calc(${r}% + 2px) calc(${r}% + 2px) at ${cx}% ${cy}%, transparent 99%, #000 100%)`
+      const rx = ((other.s * BODY.rx) / me.s) * 100
+      const ry = ((other.s * BODY.ry) / me.s) * 100
+      return `radial-gradient(calc(${rx}% + 2px) calc(${ry}% + 2px) at ${cx}% ${cy}%, transparent 99%, #000 100%)`
     })
   if (!holes.length) return {}
   const mask = holes.join(", ")

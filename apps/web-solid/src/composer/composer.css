@@ -1,6 +1,7 @@
-/* Chat composer, after monocode's MonoComposer.tsx: one 8px-cornered glass box with a hairline
- * that darkens on focus. The attachment strip sits on top, a whole line. Below it is one row: a
- * 26px square attach button, the field, a 26px square emoji button, and a 26px square send button.
+/* Chat composer: one soft paper card, 16px corners, a hairline that darkens on focus and a quiet
+ * shadow under it. The attachment strip sits on top, a whole line. Below it is one row: a 32px
+ * attach button, the field, a 32px emoji button, and the 32px ink send button. In an empty chat
+ * the card is taller, because it is the middle of the screen.
  *
  * Every selector is scoped under `.composer-dock`. The names here (`.composer-row`,
  * `.reply-bar*`) are generic enough to collide with the sidebar and the
@@ -29,30 +30,51 @@
 /* `align-items: flex-end` keeps the two buttons on the bottom line as the field grows.
  * `flex-wrap` puts the attachment strip, which takes a whole line, above the field row. */
 .composer-dock .composer-row {
+  --composer-edge: color-mix(in oklab, var(--text) 11%, transparent);
   position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 6px;
-  margin: 0 6px 6px;
-  padding: 6px;
-  background: color-mix(in oklab, var(--text) 3%, transparent);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent);
+  margin: 0 10px 12px;
+  padding: 8px;
+  background: color-mix(in oklab, var(--text) 4.5%, var(--bg));
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 1px var(--composer-edge),
+    0 12px 32px oklch(0% 0 none / 0.28);
 }
 
 .composer-dock .composer-row:focus-within {
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 20%, transparent);
+  --composer-edge: color-mix(in oklab, var(--text) 20%, transparent);
 }
 
 :root[data-appearance="light"] .composer-dock .composer-row {
-  background: var(--bg);
+  background: color-mix(in oklab, #ffffff 70%, var(--bg));
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent),
-    0 6px 24px color-mix(in oklab, var(--text) 9%, transparent),
-    0 2px 6px color-mix(in oklab, var(--text) 6%, transparent);
+    inset 0 0 0 1px var(--composer-edge),
+    0 10px 30px color-mix(in oklab, var(--text) 8%, transparent),
+    0 1px 3px color-mix(in oklab, var(--text) 6%, transparent);
+}
+
+/* In an empty chat the card holds two lines before it grows. */
+[data-session-empty="true"] .composer-dock .composer-row {
+  padding: 10px;
+}
+
+[data-session-empty="true"] .composer-dock .composer-input {
+  min-height: 46px;
+}
+
+/* The field spans the card; the buttons sit on a row under it, attach on the left, the rest right. */
+[data-session-empty="true"] .composer-dock .composer-input-wrap {
+  order: -1;
+  flex: 1 1 100%;
+  padding: 4px 6px 2px;
+}
+
+[data-session-empty="true"] .composer-dock .composer-emoji {
+  margin-left: auto;
 }
 
 /* ===== The buttons -------------------------------------------------- */
@@ -61,28 +83,28 @@
 .composer-dock .composer-emoji,
 .composer-dock .composer-send {
   display: flex;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
 }
 
 .composer-dock .composer-attach svg,
 .composer-dock .composer-emoji svg,
 .composer-dock .composer-send svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .composer-dock .composer-attach,
 .composer-dock .composer-emoji {
-  background: color-mix(in oklab, var(--text) 8%, transparent);
-  color: color-mix(in oklab, var(--text) 55%, transparent);
+  background: transparent;
+  color: color-mix(in oklab, var(--text) 52%, transparent);
 }
 
 .composer-dock .composer-attach:disabled,
@@ -93,7 +115,7 @@
 @media (hover: hover) {
   .composer-dock .composer-attach:hover:not(:disabled),
   .composer-dock .composer-emoji:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--text) 12%, transparent);
+    background: color-mix(in oklab, var(--text) 7%, transparent);
     color: var(--text);
   }
 }
@@ -109,8 +131,8 @@
 }
 
 .composer-dock .composer-send:disabled {
-  background: color-mix(in oklab, var(--accent-fill) 30%, transparent);
-  color: color-mix(in oklab, var(--on-accent) 40%, transparent);
+  background: color-mix(in oklab, var(--text) 9%, transparent);
+  color: color-mix(in oklab, var(--text) 35%, transparent);
 }
 
 /* ===== The field -------------------------------------------------------- */
@@ -122,7 +144,7 @@
   flex: 1;
   flex-direction: column;
   align-items: stretch;
-  padding: 4px 2px;
+  padding: 7px 4px;
   cursor: text;
 }
 
@@ -145,9 +167,9 @@
  * one is armed. It shows only while the editor is empty, so it is always one line. */
 .composer-dock .composer-placeholder {
   position: absolute;
-  right: 2px;
-  bottom: 4px;
-  left: 2px;
+  right: 4px;
+  bottom: 7px;
+  left: 4px;
   color: color-mix(in oklab, var(--text) 35%, transparent);
   pointer-events: none;
 }
@@ -155,8 +177,16 @@
 .composer-dock .composer-input,
 .composer-dock .composer-placeholder {
   font-family: var(--font-family-prompt, var(--font-family-sans));
-  font-size: var(--font-md);
-  line-height: 18px;
+  font-size: var(--font-size-prompt);
+  line-height: 20px;
+}
+
+/* An empty chat's two-line card reads from the top. */
+[data-session-empty="true"] .composer-dock .composer-placeholder {
+  top: 4px;
+  right: 6px;
+  bottom: auto;
+  left: 6px;
 }
 
 /* iOS zooms the page when a field under 16px takes focus, and it does not zoom back. On a touch

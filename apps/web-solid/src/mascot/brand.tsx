@@ -1,11 +1,11 @@
 import { Bird } from "./bird"
-import { YUKI } from "./birds"
-import { SEASON_OUTFIT, seasonOf } from "./scene"
+import { YUKI, type BirdState } from "./birds"
 
 /**
- * The brand mark: Yuki in today's seasonal touch. Pointing at the link or button it sits in
- * tilts its head, at once, with no transition, because the chrome never animates.
+ * The brand mark: Yuki in profile, the loaf. `size` is its height. While any agent is working its
+ * ink line boils softly, the one sign of life the chrome carries.
  */
-export function BrandBird(props: { size: number }) {
-  return <Bird spec={{ ...YUKI, outfit: SEASON_OUTFIT[seasonOf(new Date())] }} size={props.size} class="brand-bird" />
+export function BrandBird(props: { size: number; working?: boolean }) {
+  const state = (): BirdState => (props.working ? "working" : "idle")
+  return <Bird spec={YUKI} shape="loaf" state={state()} size={props.size} class="brand-bird" />
 }

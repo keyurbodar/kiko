@@ -1124,6 +1124,12 @@ Effect v4 does not ship in tiers 1 to 3. See section 20.
 
 Navigation, buttons, menus, tabs, the composer, the image dialog, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
 
+Motion never overshoots or bounces. It travels a short way, fades in, and settles on one ease-out curve, `cubic-bezier(0.22, 1, 0.36, 1)`, monocode's. Your sent message rises out of the composer into its place over 520 ms, and an agent's reply fades up 10 px over 320 ms.
+
+DEVIATION: the composer moves once. An empty chat holds it in the middle of the pane, under the chat's birds and a heading, after monocode's empty session. The first send glides it down to the dock over 480 ms (`chat/send-motion.ts`), because a composer that jumps the height of the screen reads as a glitch. It never animates otherwise, and the send itself is not delayed.
+
+The mascot is an ink drawing, not a character. It never moves across the screen and carries no props. One large idle bird breathes and blinks. A working agent's bird shows its mood in its eyes, and its ink line boils: the outline is redrawn a little differently a few times a second (an SVG turbulence seed, `mascot/birds.ts`). Reduced motion stops both.
+
 The typing indicator is a port of [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx) with no React and no `motion` in tier 2.
 
 - `useTypingPresence` becomes a Solid primitive with the same state machine: a 3000 ms timeout per typist, a 900 ms minimum visible time, a beat counter that rises on each ping, and a 340 ms send phase. The sweep timer keeps its 24 ms floor.

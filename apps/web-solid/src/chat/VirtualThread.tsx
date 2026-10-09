@@ -24,7 +24,6 @@ import { DateChip } from "./ui/DateChip"
 import { SystemMessage } from "./SystemMessage"
 import { AgentThread } from "./AgentThread"
 import { MentionLookup } from "./ui/Mention"
-import { EmptyState } from "./ui/EmptyState"
 import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
@@ -889,10 +888,7 @@ export function VirtualThread(props: {
           }}
         >
           <MentionLookup.Provider value={(slug) => props.botById(slug)}>
-          <Show
-            when={hasMessages()}
-            fallback={<EmptyState />}
-          >
+          <Show when={hasMessages()}>
             <Virtualizer
               data={items()}
               scrollRef={scrollElement}

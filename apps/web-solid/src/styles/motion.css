@@ -1,4 +1,4 @@
-/* Micro-motion, the only motion kiko allows outside the typing indicator.
+/* Micro-motion, the only motion Yuki allows outside the typing indicator.
  *
  * Architecture 19.5: navigation, buttons, menus, tabs, the composer, and route
  * changes never animate. Motion is allowed where the user is already waiting:
@@ -16,22 +16,30 @@
  *   reduced motion on nothing animates. The tokens stay outside because a
  *   custom property is not motion.
  * - Animation, not transition: an element that mounts has no "from" state for a
- *   transition to start at, and an animation never delays input. */
+ *   transition to start at, and an animation never delays input.
+ * - Nothing overshoots or bounces. Things travel a short way, fade in, and settle on
+ *   one ease-out curve, monocode's (MIT, AgentTranscript.tsx `riseIntoAnchor`).
+ *
+ * The composer's glide to the dock on a chat's first send is the one motion outside
+ * this file: it measures where the composer was, so it runs as a web animation in
+ * `chat/send-motion.ts`. */
 
 :root {
   --motion-fast: 120ms;
   --motion-base: 180ms;
   --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --motion-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --motion-ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-rise: 520ms;
+  --motion-reveal: 320ms;
   --motion-spin: 800ms;
   --motion-ease-linear: linear;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   @keyframes motion-reaction-pop {
-    from { transform: scale(0.6); }
-    to { transform: scale(1); }
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
   }
 
   @keyframes motion-fade-scale-in {
@@ -44,13 +52,14 @@
     to { opacity: 0; transform: scale(0.92); }
   }
 
+  /* Your message rises out of the composer into its place. */
   @keyframes motion-bubble-in {
-    from { opacity: 0; transform: translateY(4px); }
+    from { opacity: 0; transform: translateY(28px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
   .motion-reaction-pop {
-    animation: motion-reaction-pop var(--motion-base) var(--motion-ease-pop) both;
+    animation: motion-reaction-pop var(--motion-base) var(--motion-ease-settle) both;
   }
 
   .motion-attachment-in {
@@ -63,18 +72,17 @@
   }
 
   .motion-bubble-in {
-    animation: motion-bubble-in var(--motion-base) var(--motion-ease-out) both;
+    animation: motion-bubble-in var(--motion-rise) var(--motion-ease-settle) both;
   }
 
-  /* An agent's reply grows out of the corner its typing bubble sat in. */
+  /* An agent's reply fades up into place where its typing bubble sat. */
   @keyframes motion-reply-in {
-    from { opacity: 0; transform: scale(0.94) translateY(4px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .motion-reply-in {
-    transform-origin: 0 100%;
-    animation: motion-reply-in var(--motion-base) var(--motion-ease-pop) both;
+    animation: motion-reply-in var(--motion-reveal) var(--motion-ease-settle) both;
   }
 
   @keyframes motion-spin {

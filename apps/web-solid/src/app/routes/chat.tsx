@@ -8,6 +8,8 @@ import type { MessageId, RoomId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
 import { jumpRequest, requestJump } from "../../search/state";
+import { EmptyState } from "../../chat/ui/EmptyState";
+import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
@@ -227,6 +229,17 @@ export default function ChatRoute() {
     useApp.seeMentions([id]);
   };
 
+  // The empty chat holds the composer in the middle of the pane; the first send glides it down.
+  const empty = () => messages().length === 0;
+  let dock: HTMLDivElement | undefined;
+  let launch: Launch | null = null;
+  createEffect(
+    on(empty, (now, before) => {
+      if (before && !now && dock) glideToDock(dock, launch);
+      launch = null;
+    }),
+  );
+
   return (
     <>
     {/* The shell owns the row and the rail. The transcript pane keeps
@@ -235,7 +248,7 @@ export default function ChatRoute() {
       <div
         class="flex min-h-0 min-w-0 flex-1 flex-col"
         data-component="chat-shell"
-        data-session-empty={messages().length === 0 ? "true" : "false"}
+        data-session-empty={empty() ? "true" : "false"}
         data-reply-target={replyTarget() ?? undefined}
         data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}
       >
@@ -245,7 +258,7 @@ export default function ChatRoute() {
             the stage fell back to content height, the scroller inside never
             scrolled, and the transcript grew straight past the pane and
             rendered *behind* the composer. */}
-        <div class="flex min-h-0 flex-1 flex-col" ref={transcript}>
+        <div class="flex min-h-0 flex-1 flex-col" ref={transcript} data-component="chat-transcript">
           <MessageList
             messages={messages()}
             botById={(id) => (id === undefined ? undefined : members().get(id))}
@@ -283,7 +296,11 @@ export default function ChatRoute() {
             and the viewport is a positioned ancestor, so `bottom: 0` would
             resolve against the window and the composer would span the whole
             page. The fade above it is the stylesheet's `::before`. */}
+        <Show when={empty()}>
+          <EmptyState faces={useApp.chatFaces(useApp.activeThreadId() ?? "")} names={members().size > 1 ? [...members().values()].map((m) => m.name) : []} />
+        </Show>
         <div
+          ref={dock}
           class="composer-dock"
           data-component="composer-dock"
           data-scrolled={scrolled() ? "true" : undefined}
@@ -382,6 +399,7 @@ export default function ChatRoute() {
              * both surfaces while never reaching the transcript.
              */
             onSend={(message) => {
+              if (empty()) launch = captureLaunch(dock);
               const target = replyTarget();
               // A send from a window the reader jumped to lands at the live end, which renders first.
               const fromHistory = useApp.showingHistory();

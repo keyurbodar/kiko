@@ -1,0 +1,83 @@
+/* The empty chat's hero. The dot grid itself is the shell's background (`[data-session-empty]` in
+   chat.css), so it fills the whole pane behind the composer too. */
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 18px;
+  text-align: center;
+  user-select: none;
+}
+
+.chat-empty-birds {
+  position: relative;
+  display: flex;
+  height: 92px;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+/* A group huddles: the first face (the chief) in front, the others behind it, a little higher. */
+.chat-empty[data-faces="2"] .chat-empty-birds,
+.chat-empty[data-faces="3"] .chat-empty-birds { width: 150px; }
+.chat-empty-bird[data-spot="front"] { position: relative; z-index: 2; }
+.chat-empty-bird[data-spot="back-1"],
+.chat-empty-bird[data-spot="back-2"] { position: absolute; bottom: 24px; z-index: 1; }
+.chat-empty-bird[data-spot="back-1"] { left: 4px; }
+.chat-empty-bird[data-spot="back-2"] { right: 4px; }
+.chat-empty[data-faces="2"] .chat-empty-bird[data-spot="back-1"] { left: auto; right: 0; }
+.chat-empty[data-faces="2"] .chat-empty-bird[data-spot="front"] { margin-right: 40px; }
+
+.chat-empty-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.chat-empty-who {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* The empty pane: the transcript steps aside, the hero and the composer sit together a little
+   above the middle, and a sketchbook dot grid fills the pane behind them, fading at the edges. */
+[data-component="chat-shell"] {
+  position: relative;
+}
+
+[data-component="chat-shell"][data-session-empty="true"] {
+  justify-content: center;
+  padding-bottom: 10vh;
+}
+
+[data-component="chat-shell"][data-session-empty="true"] > [data-component="chat-transcript"] {
+  display: none;
+}
+
+[data-component="chat-shell"][data-session-empty="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, color-mix(in oklab, var(--text) 16%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(70% 62% at 50% 46%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(70% 62% at 50% 46%, #000 30%, transparent 100%);
+}
+
+[data-component="chat-shell"][data-session-empty="true"] > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-component="chat-shell"][data-session-empty="true"] .composer-dock {
+  --dock-bg: transparent;
+}
