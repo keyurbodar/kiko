@@ -194,7 +194,7 @@ export function Sidebar(props: SidebarProps) {
       >
         <header class="panel-header">
           <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-            <BrandBird size={22} />
+            <BrandBird size={22} working={useApp.bots().some((b) => b.presence === "typing" || b.presence === "working")} />
             <span>Yuki</span>
           </A>
           <span class="flex-1" aria-hidden="true" />

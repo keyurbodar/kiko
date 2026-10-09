@@ -76,10 +76,10 @@ function cutout(spots: readonly Spot[], index: number): Record<string, string> {
  * A chat's avatar: its one agent's face, or for a group a stack of up to three member faces.
  * `faces` comes from `useApp.chatFaces`. Sized like `IdentityAvatar`: by `size` or by `class`.
  */
-export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string }) {
+export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string; state?: BirdState }) {
   const layout = () => LAYOUT[Math.min(props.faces.length, 3)]
   return (
-    <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} />}>
+    <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} state={props.state} />}>
       {(spots) => (
         <span
           class={`relative inline-block shrink-0 align-middle leading-none ${props.class ?? ""}`}

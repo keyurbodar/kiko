@@ -299,8 +299,8 @@
 .sidebar-shell .pin-tile-circle {
   position: relative;
   display: block;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 42px;
 }
 
 .sidebar-shell .pin-tile-icon {
@@ -308,12 +308,6 @@
   width: 100%;
   height: 100%;
   place-items: center;
-  background: var(--tint-subtle);
-  border-radius: 50%;
-}
-
-.sidebar-shell .pin-tile[data-active] .pin-tile-icon {
-  background: transparent;
 }
 
 .sidebar-shell .pin-tile-dot {
@@ -388,14 +382,15 @@
   overflow: visible;
 }
 
+/* A mochi is wide and low, so its slot is a size up from a round avatar's. */
 .sidebar-shell .chat-avatar {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
 }
 
 .sidebar-shell .pin-tile-avatar {
-  width: 30px;
-  height: 30px;
+  width: 46px;
+  height: 46px;
 }
 
 .sidebar-shell .chat-avatar > *,

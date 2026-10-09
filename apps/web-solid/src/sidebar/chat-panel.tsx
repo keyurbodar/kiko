@@ -13,6 +13,7 @@ import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
 import type { BotPresence, RosterBot } from "../lib/types"
+import type { BirdState } from "../mascot/birds"
 import {
   cancelRename,
   clearUnreadMark,
@@ -27,6 +28,9 @@ import {
   togglePin,
 } from "./actions"
 import { filterRows } from "./filter"
+
+/** A chat's bird shows what its agent is doing: busy eyes and a boiling ink line while it works. */
+const MOOD: Record<BotPresence, BirdState | undefined> = { idle: undefined, typing: "typing", working: "working", sleeping: "sleeping" }
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -302,7 +306,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" />
+        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" state={MOOD[props.bot.presence]} />
 
         <span class="chat-text">
           <span class="chat-line">
