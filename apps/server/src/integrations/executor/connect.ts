@@ -1,5 +1,5 @@
 import type { ExecutorStatus } from "@yuki/protocol"
-import { McpClient, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
+import { McpClient, McpSessionExpiredError, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
@@ -51,9 +51,16 @@ export function errorText(e: unknown): string {
 export class ExecutorConnection {
   private refreshing: Promise<void> | undefined
   /**
+   * One MCP session for every call, opened on first use. Opening one costs two requests and closing
+   * one a third; each takes Executor 0.4 to 1.5 s, so a fresh session per call tripled every step.
+   * Lost with this object. A session Executor has forgotten is opened again on the next call.
+   */
+  private shared: Promise<McpClient> | undefined
+  /**
    * Executor v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only
-   * from that session. So the session stays open until its program is resumed or Executor lets it go.
-   * Lost with this object; a resume after that gets Executor's "unavailable", which the agent reports.
+   * from that session. A held session is never closed until its program is resumed or expires, even
+   * after the shared session moves on. Lost with this object; a resume after that gets Executor's
+   * "unavailable", which the agent reports.
    */
   private readonly held = new Map<string, { client: McpClient; expiresAt: number }>()
 
@@ -120,6 +127,9 @@ export class ExecutorConnection {
   /** Deletes every Executor row for the user. Returns how many there were. */
   disconnect(): number {
     this.refreshing = undefined
+    const shared = this.shared
+    this.shared = undefined
+    void shared?.then((c) => c.close()).catch(() => {})
     for (const h of this.held.values()) void h.client.close().catch(() => {})
     this.held.clear()
     return this.store.clear()
@@ -153,7 +163,7 @@ export class ExecutorConnection {
 
   /** Every tool Executor offers this user, as plain data for the agent (P7-04). */
   async tools(): Promise<ExecutorTool[]> {
-    return this.withClient(async (client) =>
+    return this.inSession(async (client) =>
       (await client.listTools()).map((t) => ({
         name: t.name,
         ...(t.description ? { description: t.description } : {}),
@@ -172,30 +182,64 @@ export class ExecutorConnection {
     const requestId = typeof args.requestId === "string" ? args.requestId : ""
     const resumed = this.held.get(requestId)
     this.held.delete(requestId)
-    const client = resumed?.client ?? (await this.open())
-    let keep = false
-    try {
+    const run = async (client: McpClient) => {
       const result = await client.callTool(name, args)
       const content = toLlmContent(result) as ExecutorResultBlock[]
       const pending = pendingInteraction(content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n"))
       if (pending) {
         this.held.set(pending.requestId, { client, expiresAt: pending.expiresAt })
-        keep = true
         await this.dropOldest()
       }
       return { content, ...(result.isError ? { isError: true } : {}) }
+    }
+    if (!resumed) return this.inSession(run)
+    try {
+      return await run(resumed.client)
     } finally {
-      if (!keep) await client.close().catch(() => {})
+      await this.release(resumed.client)
     }
   }
 
-  private async withClient<T>(run: (client: McpClient) => Promise<T>): Promise<T> {
-    const client = await this.open()
-    try {
-      return await run(client)
-    } finally {
-      await client.close().catch(() => {})
+  /** Experiment: times calls on the shared session, the way an agent makes them. Dev only. */
+  async bench(rounds = 3): Promise<Record<string, unknown>> {
+    const time = async (fn: () => Promise<unknown>) => {
+      const t = performance.now()
+      await fn()
+      return Math.round(performance.now() - t)
     }
+    const list = await time(() => this.tools())
+    const execute: number[] = []
+    for (let i = 0; i < rounds; i++) execute.push(await time(() => this.call("execute", { code: "return 1" })))
+    return { list, execute }
+  }
+
+  /**
+   * Runs on the shared session. A session Executor no longer knows answers 404 before it runs
+   * anything, so that one case opens a new session and tries once more. Any other failure drops the
+   * session and is not retried: the call may have run.
+   */
+  private async inSession<T>(run: (client: McpClient) => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      const shared = (this.shared ??= this.open())
+      const client = await shared.catch((e) => {
+        if (this.shared === shared) this.shared = undefined
+        throw e
+      })
+      try {
+        return await run(client)
+      } catch (e) {
+        if (this.shared === shared) this.shared = undefined
+        await this.release(client)
+        if (attempt > 0 || !(e instanceof McpSessionExpiredError)) throw e
+      }
+    }
+  }
+
+  /** Closes a session that is neither the shared one nor holding a paused program. */
+  private async release(client: McpClient): Promise<void> {
+    if (this.shared && (await this.shared.catch(() => null)) === client) return
+    for (const h of this.held.values()) if (h.client === client) return
+    await client.close().catch(() => {})
   }
 
   private async open(): Promise<McpClient> {
@@ -215,7 +259,7 @@ export class ExecutorConnection {
     for (const [id, h] of this.held) {
       if (h.expiresAt > now) continue
       this.held.delete(id)
-      await h.client.close().catch(() => {})
+      await this.release(h.client)
     }
   }
 
@@ -223,7 +267,7 @@ export class ExecutorConnection {
     for (const [id, h] of this.held) {
       if (this.held.size <= MAX_HELD) return
       this.held.delete(id)
-      await h.client.close().catch(() => {})
+      await this.release(h.client)
     }
   }
 

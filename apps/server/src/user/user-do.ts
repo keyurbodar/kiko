@@ -756,6 +756,10 @@ export class UserDO extends DurableObject<Env> {
     return this.#executor.call(name, args)
   }
 
+  async executorBench(): Promise<Record<string, unknown>> {
+    return this.#executor.bench()
+  }
+
   async executorToken(): Promise<string | null> {
     return this.#executor.bearer()
   }

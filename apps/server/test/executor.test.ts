@@ -29,6 +29,8 @@ const fake = {
   /** Open MCP sessions, and the session each paused program waits in. */
   sessions: new Set<string>(),
   paused: new Map<string, string>(),
+  /** `initialize` requests, one per session opened. */
+  opened: 0,
 }
 let n = 0
 
@@ -112,9 +114,12 @@ async function executor(request: Request): Promise<Response> {
       return new Response(null, { status: 200 })
     }
     if (request.method !== "POST") return new Response(null, { status: 405 })
+    // Like any streamable HTTP server, a session it does not know answers 404.
+    if (session && !fake.sessions.has(session)) return new Response("session not found", { status: 404 })
     const msg = (await request.json()) as { id?: number; method: string; params?: { protocolVersion?: string; name?: string; arguments?: Record<string, unknown> } }
     if (msg.id === undefined) return new Response(null, { status: 202 })
     if (msg.method === "initialize") {
+      fake.opened++
       const id = `s-${crypto.randomUUID()}`
       fake.sessions.add(id)
       return Response.json(
@@ -127,6 +132,7 @@ async function executor(request: Request): Promise<Response> {
     }
     if (msg.method === "tools/call") {
       const text = (value: unknown) => json({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })
+      if (msg.params?.name === "execute" && msg.params.arguments?.code === "return 1") return text({ status: "completed", execution: { ok: true, value: 1 } })
       if (msg.params?.name === "execute") {
         const requestId = `apr_${crypto.randomUUID().slice(0, 8)}`
         fake.paused.set(requestId, session)
@@ -386,8 +392,31 @@ test("a paused program resumes in the session that paused it, which stays open u
 
   const done = (await rpc(user, "executorCall", "resume", { requestId: pending.requestId, response: { action: "accept", content: {} } })) as { content: { text: string }[] }
   expect(JSON.parse(done.content[0]!.text)).toMatchObject({ status: "completed" })
-  // The session closes once its program is done.
-  await Bun.sleep(100)
-  expect(fake.sessions.has(session)).toBe(false)
+  ws.close()
+})
+
+test("calls share one session instead of opening one each", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  const before = fake.opened
+  for (let i = 0; i < 3; i++) {
+    const out = (await rpc(user, "executorCall", "execute", { code: "return 1" })) as { content: { text: string }[] }
+    expect(JSON.parse(out.content[0]!.text)).toMatchObject({ status: "completed" })
+  }
+  await rpc(user, "executorTools")
+  expect(fake.opened).toBe(before)
+  ws.close()
+})
+
+test("a session executor forgot is opened again, and the call runs once", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorCall", "execute", { code: "return 1" })
+  const before = fake.opened
+  fake.sessions.clear()
+  const out = (await rpc(user, "executorCall", "execute", { code: "return 1" })) as { content: { text: string }[] }
+  expect(JSON.parse(out.content[0]!.text)).toMatchObject({ status: "completed" })
+  expect(fake.opened).toBe(before + 1)
   ws.close()
 })

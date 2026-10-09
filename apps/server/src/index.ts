@@ -87,6 +87,11 @@ export default {
     if (authResponse) return authResponse
     if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
     if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/coalescing") return experimentCoalescingRoute(request, env)
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/executor-bench") {
+      const user = await getSessionUser(request, env)
+      if (!user) return new Response("sign in first", { status: 401 })
+      return Response.json(await userStub(env.USER, user.id).executorBench())
+    }
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
   },
