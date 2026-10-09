@@ -1,0 +1,104 @@
+html, body { overflow: auto !important; height: auto !important; background: var(--bg); }
+#root { height: auto !important; }
+
+.play-page { max-width: 1180px; margin: 0 auto; padding: 44px 24px 96px; color: var(--text); font-family: var(--font-family-sans); display: flex; flex-direction: column; gap: 52px; }
+.play-page header h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+.play-page header p { margin: 8px 0 0; color: var(--text-muted); }
+.play-page header a { color: var(--accent); }
+.play-label { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; margin-bottom: 12px; }
+.play-label span { grid-row: span 2; align-self: start; padding: 4px 9px; border-radius: 999px; background: var(--tint); font-weight: 600; font-size: 13px; }
+.play-label h2 { margin: 2px 0 2px; font-size: 18px; font-weight: 600; }
+.play-label h2 em { font-style: normal; color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+.play-label p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+/* The pane: snow white melting into a pale sky, warm at the bottom, under fine grain. Dusk-blue in dark. */
+.play-pane {
+  position: relative;
+  height: 640px;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  background:
+    radial-gradient(70% 55% at 50% 100%, #fbe7dc 0%, transparent 70%),
+    linear-gradient(to bottom, #e6eef6 0%, #f3f2ef 55%, #fbf7f1 100%);
+}
+:root[data-appearance="dark"] .play-pane {
+  background:
+    radial-gradient(70% 55% at 50% 100%, #3a3040 0%, transparent 70%),
+    linear-gradient(to bottom, #1b2333 0%, #222a3a 55%, #2a2a36 100%);
+}
+.play-grain { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.16; mix-blend-mode: multiply; pointer-events: none; }
+:root[data-appearance="dark"] .play-grain { mix-blend-mode: overlay; opacity: 0.22; }
+
+.play-hero { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding-bottom: 30px; }
+.play-hero h3 { margin: 4px 0 12px; font-size: 22px; font-weight: 500; letter-spacing: -0.015em; }
+.play-composer { width: min(680px, 86%); height: 92px; border-radius: 16px; padding: 14px 16px; font-size: 14px; color: var(--text-faint); background: color-mix(in oklab, #ffffff 72%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 10%, transparent), 0 10px 30px color-mix(in oklab, #4a5a70 10%, transparent); }
+:root[data-appearance="dark"] .play-composer { background: color-mix(in oklab, #1a1917 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 11%, transparent), 0 12px 32px oklch(0% 0 none / 0.3); }
+
+/* The stage the bird plays on. */
+.play-stage { position: relative; max-width: 100%; flex: none; }
+.play-bird { position: absolute; z-index: 1; line-height: 0; }
+.play-shadow { position: absolute; left: 18%; right: 18%; bottom: 22%; height: 8px; border-radius: 50%; background: radial-gradient(closest-side, oklch(0% 0 none / 0.18), transparent); }
+.play-svg { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; }
+.play-ink { stroke: #2b2824; stroke-width: 1.5px; stroke-linejoin: round; stroke-linecap: round; }
+.play-string { fill: none; stroke: color-mix(in oklab, var(--text) 55%, transparent); stroke-width: 1.2px; }
+.play-spark path { stroke: #f2c14e; stroke-width: 2.4px; stroke-linecap: round; }
+
+/* Bubbles: clear in the middle, an iridescent rim, a highlight. */
+.play-bubbles { position: relative; }
+.play-bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.9) 0 8%, transparent 14%),
+    radial-gradient(circle at 50% 50%, transparent 58%, rgb(255 196 220 / 0.55) 68%, rgb(176 214 255 / 0.6) 78%, rgb(255 236 170 / 0.55) 88%, transparent 100%);
+  box-shadow: inset 0 0 0 1px rgb(120 140 170 / 0.25);
+}
+.play-pop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 -10px 0 #f4c3cc, 9px -5px 0 #bcd6ee, 9px 5px 0 #f6dc93, 0 10px 0 #bfe0cf, -9px 5px 0 #f4c3cc, -9px -5px 0 #bcd6ee;
+  animation: play-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes play-pop { from { scale: 0.4; opacity: 1; } to { scale: 1.6; opacity: 0; } }
+.play-wand { position: absolute; z-index: 2; width: 26px; height: 44px; rotate: 18deg; }
+.play-wand svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+/* The nap: a soft cloud, and z's that become tiny birds. */
+.play-sky { position: relative; }
+.play-cloud { position: absolute; left: calc(50% - 130px); top: 112px; width: 260px; height: 106px; line-height: 0; }
+.play-cloud svg { width: 100%; height: 100%; overflow: visible; }
+.play-cloud-body { fill: #ffffff; stroke: #2b2824; stroke-width: 1.4px; stroke-linejoin: round; }
+:root[data-appearance="dark"] .play-cloud-body { fill: #e9edf3; }
+.play-cloud-shade { fill: none; stroke: #c9d6e6; stroke-width: 5px; stroke-linecap: round; }
+.play-z {
+  position: absolute;
+  z-index: 3;
+  color: color-mix(in oklab, var(--text) 50%, transparent);
+  font-weight: 600;
+  font-size: 15px;
+  pointer-events: none;
+  animation: play-z 3.4s ease-out forwards;
+}
+@keyframes play-z {
+  0% { opacity: 0; translate: 0 6px; scale: 0.7; }
+  20% { opacity: 1; }
+  55% { opacity: 1; translate: calc(var(--drift) * 0.4) -40px; scale: 1.1; }
+  100% { opacity: 0; translate: var(--drift) -110px; scale: 0.9; }
+}
+.play-z b { display: block; font-weight: 600; animation: play-z-letter 3.4s ease-out forwards; }
+.play-z i { position: absolute; left: -6px; top: 2px; width: 24px; height: 15px; opacity: 0; animation: play-z-bird 3.4s ease-out forwards; }
+.play-z i svg { display: block; width: 100%; height: 100%; overflow: visible; }
+@keyframes play-z-letter { 0%, 42% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes play-z-bird { 0%, 42% { opacity: 0; } 55%, 100% { opacity: 1; } }
