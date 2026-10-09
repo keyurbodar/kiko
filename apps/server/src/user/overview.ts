@@ -1,7 +1,7 @@
 import { listChats } from "./chats"
 import { localTime, type Reminder, type RoutineRun } from "./reminders"
 
-// Architecture section 25.7. What kiko reads at its check-in: the open work across every chat, in a
+// Architecture section 25.7. What yuki reads at its check-in: the open work across every chat, in a
 // few short lines, so one tool call costs a few hundred tokens however many chats there are.
 
 /** A room's open tasks, as the room reports them on every task change. */

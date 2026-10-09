@@ -20,7 +20,7 @@ function provider(origin: string, onRedirect: (url: URL) => void) {
     serverUrl: executorMcpUrl,
     redirectUrl: `${origin}${executorOAuthPrefix}/callback`,
     clientMetadata: {
-      client_name: "kiko",
+      client_name: "yuki",
       token_endpoint_auth_method: "none",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
@@ -32,7 +32,7 @@ function provider(origin: string, onRedirect: (url: URL) => void) {
 }
 
 async function listTools(oauth: McpOAuthProvider) {
-  const client = new McpClient({ name: "kiko", version: "0.0.0" })
+  const client = new McpClient({ name: "yuki", version: "0.0.0" })
   const transport = new StreamableHttpTransport({
     url: executorMcpUrl,
     authProvider: adaptOAuthProvider(oauth),

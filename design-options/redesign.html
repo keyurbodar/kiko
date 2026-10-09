@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kiko redesign options</title>
+<title>Yuki redesign options</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Inter:wght@400;500;600&family=Geist:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
 <style>
-/* ---------- color: kiko's oklch model, warm-neutral like claude ---------- */
+/* ---------- color: yuki's oklch model, warm-neutral like claude ---------- */
 :root {
   --hue: 340; --cm: 1;
   /* dark lightness scale, tuned toward claude's warm near-black */
@@ -257,7 +257,7 @@ svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width:
   </nav>
 
   <aside class="side">
-    <div class="brand"><span class="mark"><svg><use href="#i-mark"/></svg></span>kiko</div>
+    <div class="brand"><span class="mark"><svg><use href="#i-mark"/></svg></span>yuki</div>
     <div class="search"><svg><use href="#i-search"/></svg>search<kbd>⌘k</kbd></div>
     <button class="row new" data-go="home"><svg><use href="#i-plus"/></svg>new chat</button>
     <div class="nav-only">
@@ -352,7 +352,7 @@ svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width:
 const SW = [["plum",340,1],["bluebird",245,1],["ocean",228,.94],["periwinkle",268,1],["lilac",295,.94],["orchid",320,1],["sakura",5,.94],["coral",28,1],["sage",145,.78],["mint",172,.89],["teal",200,.83],["slate",255,.39],["graphite",255,.15],["mono",0,0]];
 const NOTES = {
   a: "claude's own shape: one sidebar, serif greeting, sans ui, roomy composer card, accent used sparingly.",
-  b: "keeps kiko's rail. all sans (geist), tighter rows, hairline borders, filled new-chat button.",
+  b: "keeps yuki's rail. all sans (geist), tighter rows, hairline borders, filled new-chat button.",
   c: "bigger type and more air. display serif for titles, chat previews in the list, round send.",
 };
 const root = document.documentElement;
@@ -381,8 +381,8 @@ SW.forEach(([n, h, c]) => {
   b.onclick = () => pick(n); sw.append(b);
 });
 document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => document.querySelector(`#view [data-v="${b.dataset.go}"]`).click());
-function save() { try { localStorage.setItem("kiko-redesign", JSON.stringify({ dir: root.dataset.dir, view: root.dataset.view, app: root.dataset.appearance, sw: root.dataset.swatch })); } catch {} }
-let s = {}; try { s = JSON.parse(localStorage.getItem("kiko-redesign") || "{}"); } catch {}
+function save() { try { localStorage.setItem("yuki-redesign", JSON.stringify({ dir: root.dataset.dir, view: root.dataset.view, app: root.dataset.appearance, sw: root.dataset.swatch })); } catch {} }
+let s = {}; try { s = JSON.parse(localStorage.getItem("yuki-redesign") || "{}"); } catch {}
 pick(s.sw || "plum");
 for (const [id, v] of [["dir", s.dir], ["view", s.view], ["app", s.app]]) if (v) document.querySelector(`#${id} [data-v="${v}"]`)?.click();
 note();

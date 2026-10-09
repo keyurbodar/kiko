@@ -1,8 +1,8 @@
-import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
+import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
-import { AUTO, type Authority, authorityOfAll, combine, stamp } from "@kiko/agent/authority"
+import { AUTO, type Authority, authorityOfAll, combine, stamp } from "@yuki/agent/authority"
 
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean }
 

@@ -4,7 +4,7 @@ import { ExtensionBundle } from "../src/schema"
 import * as Schema from "effect/Schema"
 
 const standup = {
-	kiko: 1,
+	yuki: 1,
 	name: "standup",
 	version: "1.2.0",
 	description: "daily standup to slack",
@@ -43,7 +43,7 @@ describe("checkManifest", () => {
 	})
 
 	test("the safety sections cannot be wrapped", () => {
-		for (const s of ["kiko", "reactions", "role"]) {
+		for (const s of ["yuki", "reactions", "role"]) {
 			const out = checkManifest({ ...standup, wraps: { sections: [s] } })
 			expect(out.ok).toBe(false)
 		}
@@ -62,7 +62,7 @@ describe("checkManifest", () => {
 
 describe("checkBundle", () => {
 	test("needs the entry module only when the extension has script parts", () => {
-		const prompt = { kiko: 1, name: "voice", version: "1.0.0", description: "a house style", sections: { voice: { text: "write short." } } }
+		const prompt = { yuki: 1, name: "voice", version: "1.0.0", description: "a house style", sections: { voice: { text: "write short." } } }
 		expect(needsScript(prompt as never)).toBe(false)
 		expect(checkBundle({ manifest: prompt, files: {} }).ok).toBe(true)
 		const missing = checkBundle({ manifest: standup, files: {} })

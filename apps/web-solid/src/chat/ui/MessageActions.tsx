@@ -1,5 +1,5 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { HeartAddIcon, MoreIcon, ReplyIcon } from "@kiko/ui/icons"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { HeartAddIcon, MoreIcon, ReplyIcon } from "@yuki/ui/icons"
 import { createSignal, lazy, onCleanup, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"

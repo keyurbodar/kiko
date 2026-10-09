@@ -1,5 +1,5 @@
-import type { RoomEvent, RoomToClient } from "@kiko/protocol"
-import { ClientToRoom, RoomToClient as RoomToClientSchema } from "@kiko/protocol/schema"
+import type { RoomEvent, RoomToClient } from "@yuki/protocol"
+import { ClientToRoom, RoomToClient as RoomToClientSchema } from "@yuki/protocol/schema"
 import { Channel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
@@ -8,7 +8,7 @@ import type { Suite } from "../runner"
 // disconnects one socket, and resumes it with lastSeq. It asserts every event.
 
 /** workerd evicts an idle object after about 10 s. The sockets stay open and the room hibernates. */
-const HIBERNATE_MS = Number(process.env.KIKO_HIBERNATE_MS ?? 12_000)
+const HIBERNATE_MS = Number(process.env.YUKI_HIBERNATE_MS ?? 12_000)
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 function ulid(): string {

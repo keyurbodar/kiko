@@ -1,5 +1,5 @@
 import { Show, createSignal, lazy, type JSX } from "solid-js"
-import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
+import { loadOverlaysV2 } from "@yuki/ui/v2/overlays"
 
 /* The dialog body loads on first open, so the transcript and the composer pay only for this. */
 const ImageDialog = lazy(() => import("./ImageDialog"))

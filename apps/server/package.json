@@ -1,5 +1,5 @@
 {
-  "name": "@kiko/server",
+  "name": "@yuki/server",
   "private": true,
   "type": "module",
   "scripts": {
@@ -22,11 +22,11 @@
     "@earendil-works/pi-ai": "^1.0.0",
     "@earendil-works/pi-durable": "^1.0.0",
     "@earendil-works/pi-mcp": "1.0.0",
-    "@kiko/agent": "workspace:*",
-    "@kiko/durable": "workspace:*",
-    "@kiko/memory": "workspace:*",
-    "@kiko/protocol": "workspace:*",
-    "@kiko/sandbox": "workspace:*",
+    "@yuki/agent": "workspace:*",
+    "@yuki/durable": "workspace:*",
+    "@yuki/memory": "workspace:*",
+    "@yuki/protocol": "workspace:*",
+    "@yuki/sandbox": "workspace:*",
     "better-auth": "^1.7.7",
     "effect": "4.0.0",
     "just-bash": "3.6.0",

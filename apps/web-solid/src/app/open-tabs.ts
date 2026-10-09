@@ -9,7 +9,7 @@ import { createSignal } from "solid-js"
  * The active tab is not stored. The URL is the only source of it, so a reload
  * returns the same active tab because it returns the same URL.
  */
-export const OPEN_TABS_KEY = "kiko.open-tabs"
+export const OPEN_TABS_KEY = "yuki.open-tabs"
 
 /** Add an id at the end. An id that is already open keeps its place. */
 export function openTab(ids: readonly string[], id: string): string[] {

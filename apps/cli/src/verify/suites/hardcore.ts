@@ -1,10 +1,10 @@
-import type { Message, RoomToClient } from "@kiko/protocol"
+import type { Message, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { until } from "./mid-run"
 
-// The whole product at once, with the real test model. One group (kiko the lead and ada), then:
+// The whole product at once, with the real test model. One group (yuki the lead and ada), then:
 //
 //   1. rapid fire   five short human messages 350 ms apart are one burst, answered by the lead
 //                   in one run; ada, untagged, is not woken
@@ -91,7 +91,7 @@ const suite: Suite = {
     const ada = { id: `agent-ada-${Date.now()}`, name: "ada", slug: "ada" as never, prompt: "you love food and wine and you are a bit witty.", model: "" }
     user.send({ t: "agent", op: { op: "create", agent: ada } })
     const roomId = ulid()
-    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "dinner crew", agents: ["kiko", ada.id] } })
+    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "dinner crew", agents: ["yuki", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
     await until("the members", () => seen(room).members.length >= 2, 10_000).catch(() => {})
@@ -105,10 +105,10 @@ const suite: Suite = {
       room.send(text)
       await Bun.sleep(350)
     }
-    await until("the lead's answer", () => agentSays(room, from, "kiko").length > 0, 60_000)
+    await until("the lead's answer", () => agentSays(room, from, "yuki").length > 0, 60_000)
     const firstLead = Date.now() - t0
     await quiet(room, 6_000, 90_000)
-    const leadRuns = seen(room).runs.get("kiko") ?? 0
+    const leadRuns = seen(room).runs.get("yuki") ?? 0
     print(room, from)
     if (leadRuns !== 1) fail.push(`rapid fire: the lead ran ${leadRuns} times for one burst`)
     if (agentSays(room, from, "ada").length) fail.push("rapid fire: ada spoke on a message that tagged nobody")
@@ -120,14 +120,14 @@ const suite: Suite = {
     await until("ada's answer", () => agentSays(room, from, "ada").length > 0, 60_000)
     await quiet(room, 5_000, 60_000)
     print(room, from)
-    // kiko may speak here only if ada messaged it (an agent message wakes its addressee).
-    const adaToKiko = agentSays(room, from, "ada").some((m) => /@kiko\b/.test(m.text))
-    if (agentSays(room, from, "kiko").length && !adaToKiko) fail.push("tagged: kiko spoke on a message tagged only for ada")
-    step(`tagged: ada answered${adaToKiko ? " (and messaged kiko, who answered her)" : ", kiko stayed quiet"}`)
+    // yuki may speak here only if ada messaged it (an agent message wakes its addressee).
+    const adaToYuki = agentSays(room, from, "ada").some((m) => /@yuki\b/.test(m.text))
+    if (agentSays(room, from, "yuki").length && !adaToYuki) fail.push("tagged: yuki spoke on a message tagged only for ada")
+    step(`tagged: ada answered${adaToYuki ? " (and messaged yuki, who answered her)" : ", yuki stayed quiet"}`)
 
     // 3. Spawn.
     from = lastSeq(room)
-    room.send("@kiko please add a new agent to this chat, a designer called nova, and ask nova to suggest 3 colors for the invite card")
+    room.send("@yuki please add a new agent to this chat, a designer called nova, and ask nova to suggest 3 colors for the invite card")
     await until("nova to join", () => seen(room).members.includes("nova"), 90_000)
     await until("nova to speak", () => agentSays(room, from, "nova").length > 0, 90_000)
     await quiet(room, 6_000, 90_000)
@@ -136,20 +136,20 @@ const suite: Suite = {
 
     // 4. Agent to agent.
     from = lastSeq(room)
-    room.send("@kiko ask ada for one dessert idea, then tell me what she said")
-    await until("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "kiko"), 90_000)
-    await until("ada's answer to kiko", () => agentSays(room, from, "ada").length > 0, 90_000)
+    room.send("@yuki ask ada for one dessert idea, then tell me what she said")
+    await until("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "yuki"), 90_000)
+    await until("ada's answer to yuki", () => agentSays(room, from, "ada").length > 0, 90_000)
     await quiet(room, 8_000, 120_000)
     print(room, from)
-    const kikoRuns = seen(room).runs.get("kiko") ?? 0
+    const yukiRuns = seen(room).runs.get("yuki") ?? 0
     const answerAt = agentSays(room, from, "ada")[0]!.seq
-    if (!agentSays(room, from, "kiko").some((m) => m.seq > answerAt)) fail.push("a2a: kiko never told the human what ada said")
-    step(`a2a: kiko asked ada, ada answered, and kiko passed it on (kiko runs so far: ${kikoRuns})`)
+    if (!agentSays(room, from, "yuki").some((m) => m.seq > answerAt)) fail.push("a2a: yuki never told the human what ada said")
+    step(`a2a: yuki asked ada, ada answered, and yuki passed it on (yuki runs so far: ${yukiRuns})`)
 
     // 5. Reminder.
     from = lastSeq(room)
     t0 = Date.now()
-    room.send("@kiko remind me in 20 seconds to buy candles")
+    room.send("@yuki remind me in 20 seconds to buy candles")
     await until("the reminder line", () => after(room, from).some((m) => m.from.kind === "system" && /candle/i.test(m.text)), 120_000)
     const fired = (Date.now() - t0) / 1000
     print(room, from)
@@ -159,13 +159,13 @@ const suite: Suite = {
 
     // 6. Interrupt while the lead is typing.
     from = lastSeq(room)
-    room.send("@kiko what should the main course be")
-    await until("kiko typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)
-    room.send("@kiko oh and one guest is vegetarian")
-    await until("kiko's answer", () => agentSays(room, from, "kiko").length > 0, 90_000)
+    room.send("@yuki what should the main course be")
+    await until("yuki typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)
+    room.send("@yuki oh and one guest is vegetarian")
+    await until("yuki's answer", () => agentSays(room, from, "yuki").length > 0, 90_000)
     await quiet(room, 6_000, 90_000)
     print(room, from)
-    const answer = agentSays(room, from, "kiko").map((m) => m.text).join(" ")
+    const answer = agentSays(room, from, "yuki").map((m) => m.text).join(" ")
     if (!/vegetar|veggie|meat-free|plant/i.test(answer)) fail.push("interrupt: the reply ignored the vegetarian guest")
     step("interrupt: the reply took the second message into account")
 

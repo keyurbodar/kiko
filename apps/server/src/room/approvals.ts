@@ -1,8 +1,8 @@
-import type { AgentSlug, Approval, ApprovalState, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
+import type { AgentSlug, Approval, ApprovalState, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
-// Architecture sections 9.2, 12.3, 16.3 and 25.3. kiko asks the human only when a run nobody asked
-// for wants to act outside kiko, or wants to make or widen a routine. There is one kind of card. The
+// Architecture sections 9.2, 12.3, 16.3 and 25.3. yuki asks the human only when a run nobody asked
+// for wants to act outside yuki, or wants to make or widen a routine. There is one kind of card. The
 // human's ok is a grant: for 30 minutes that agent may use every `external` tool without asking again.
 // A declined card goes back to the agent as an `approval_result` envelope. A card nobody answers
 // closes quietly after 30 minutes and wakes nobody.

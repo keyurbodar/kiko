@@ -1,5 +1,5 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronDownIcon } from "@kiko/ui/icons"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { ChevronDownIcon } from "@yuki/ui/icons"
 import type { JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar } from "../lib/IdentityAvatar"

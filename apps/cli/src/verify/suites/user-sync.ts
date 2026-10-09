@@ -1,5 +1,5 @@
-import type { UserEvent, UserToClient } from "@kiko/protocol"
-import { ClientToUser, UserToClient as UserToClientSchema } from "@kiko/protocol/schema"
+import type { UserEvent, UserToClient } from "@yuki/protocol"
+import { ClientToUser, UserToClient as UserToClientSchema } from "@yuki/protocol/schema"
 import { Channel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 

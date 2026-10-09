@@ -3,7 +3,7 @@ import { sessionCookie } from "./login"
 
 // kiko measure turn --runs N [--tail <file>]
 // Runs the experiment turn route on a fresh Durable Object per run and prints what each turn cost.
-// Row counts come from the Worker, which needs KIKO_DEBUG_ROWS=1. CPU and wall time come from a
+// Row counts come from the Worker, which needs YUKI_DEBUG_ROWS=1. CPU and wall time come from a
 // `wrangler tail --format json` capture, passed with --tail. Local `wrangler dev` has no tail.
 
 interface TurnReply {
@@ -62,11 +62,11 @@ export async function measure(ctx: Context): Promise<void> {
   if (!cookie) throw new CliError("not signed in. run kiko login first")
   for (let i = 1; i <= runs; i++) {
     const name = `${batch}-${i}`
-    const res = await fetch(new URL(`api/experiments/turn?name=${name}&id=${name}${process.env.KIKO_MEASURE_HEARTBEAT === "0" ? "&heartbeat=0" : ""}`, base), { method: "POST", headers: { cookie }, signal: AbortSignal.timeout(120_000) })
+    const res = await fetch(new URL(`api/experiments/turn?name=${name}&id=${name}${process.env.YUKI_MEASURE_HEARTBEAT === "0" ? "&heartbeat=0" : ""}`, base), { method: "POST", headers: { cookie }, signal: AbortSignal.timeout(120_000) })
     if (!res.ok) throw new CliError(`run ${i} failed: ${res.status}`)
     const reply = (await res.json()) as TurnReply
     if (reply.status !== "done") throw new CliError(`run ${i} did not answer: ${reply.status}`)
-    if (!reply.rows) throw new CliError("the Worker did not report rows. Start it with KIKO_DEBUG_ROWS=1")
+    if (!reply.rows) throw new CliError("the Worker did not report rows. Start it with YUKI_DEBUG_ROWS=1")
     objectIds[name] = reply.objectId
     rows.push({ run: i, name, rowsWritten: reply.rows.turn.rowsWritten, rowsRead: reply.rows.turn.rowsRead, statements: reply.rows.turn.statements, openRowsWritten: reply.rows.open.rowsWritten, openMs: reply.openMs, wallMs: reply.wallMs })
   }

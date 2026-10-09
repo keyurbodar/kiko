@@ -1,8 +1,8 @@
 import { For, createSignal, onCleanup, type JSX } from "solid-js"
-import type { Approval } from "@kiko/protocol"
+import type { Approval } from "@yuki/protocol"
 
 /*
- * Approval cards (P7-02, architecture sections 12.3 and 16.3). An agent asked to act outside kiko
+ * Approval cards (P7-02, architecture sections 12.3 and 16.3). An agent asked to act outside yuki
  * and only the human can say yes. A card sits above the composer only while it waits: one line that
  * says what the agent wants, two buttons, and the raw call behind "details". Once the human answers
  * it leaves at once; the agent's reply is the confirmation. A card past its time leaves too.

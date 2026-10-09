@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
-import type { RoomEvent, RoomToClient } from "@kiko/protocol"
+import type { RoomEvent, RoomToClient } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 

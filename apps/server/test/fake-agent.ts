@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import type { Agent, AgentSlug, AgentState, Chat, Envelope } from "@kiko/protocol"
+import type { Agent, AgentSlug, AgentState, Chat, Envelope } from "@yuki/protocol"
 import { agentName, ROOM_ID_HEADER, roomStub, USER_ID_HEADER } from "../src/lib/names"
 import type { AgentHome, RoomDO } from "../src/room/room-do"
 
@@ -107,7 +107,7 @@ export class FakeUser extends DurableObject {
   async turns() {
     return (await this.ctx.storage.get<number>("turns")) ?? 0
   }
-  /** kiko makes an agent (section 7.11). */
+  /** yuki makes an agent (section 7.11). */
   async makeAgent(input: { name: string; slug: string; description: string; soul: string; model: string }) {
     const state = await this.state()
     if (state.agents.some((a) => a.slug === input.slug)) return null

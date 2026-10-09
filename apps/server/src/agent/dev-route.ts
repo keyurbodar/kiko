@@ -1,4 +1,4 @@
-import { type Envelope, isAgentSlug, isRoomId } from "@kiko/protocol"
+import { type Envelope, isAgentSlug, isRoomId } from "@yuki/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { agentStub, roomStub, userStub } from "../lib/names"

@@ -1,4 +1,4 @@
-import { isAgentSlug, isRoomId, type RoomId } from "@kiko/protocol"
+import { isAgentSlug, isRoomId, type RoomId } from "@yuki/protocol"
 import type { Env } from "../index"
 import { agentStub, NameError, roomStub, userStub } from "../lib/names"
 import { originAllowed } from "../router"

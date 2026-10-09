@@ -2,7 +2,7 @@
 // settings/SettingsPanels.tsx `AppearanceSettingsPanel`): contrast, chat width, the interface,
 // prompt, and code fonts with their px sizes, and font smoothing. They travel with the look
 // (look.ts), so another device shows the same, and they become css variables the theme paints, so the first paint and
-// the boot screen already wear them. Fonts are system stacks plus the mono kiko ships: nothing is
+// the boot screen already wear them. Fonts are system stacks plus the mono yuki ships: nothing is
 // downloaded for a choice.
 
 export type ChatWidth = "comfortable" | "wide" | "full"

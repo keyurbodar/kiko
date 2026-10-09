@@ -1,7 +1,6 @@
 import { Show, createEffect, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
-import { handleOf } from "@kiko/protocol"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage } from "../lib/attachments"
 import "./composer.css"
@@ -135,17 +134,16 @@ export function Composer(props: ComposerProps) {
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
 
   /*
-   * The `@` list is the open room's members. A mention is the handle, which is the slug the room
-   * routes by for every agent but the chief, whose handle is `@yuki`. A rename only changes the
-   * display name.
+   * The `@` list is the open room's members. A mention is the slug, because the slug is what
+   * the room routes by and it never changes; a rename only changes the display name.
    */
   const context = (): PromptInputV2Suggestion[] =>
     props.bots.map((bot) => ({
       id: `agent-${bot.id}`,
       kind: "agent",
-      label: `@${handleOf(bot.id)}`,
-      description: [bot.name.toLowerCase() === handleOf(bot.id) ? "" : bot.name, bot.persona ?? "Agent"].filter(Boolean).join(" · "),
-      mention: { type: "agent", name: bot.id, content: `@${handleOf(bot.id)}`, start: 0, end: 0 },
+      label: `@${bot.id}`,
+      description: [bot.name.toLowerCase() === bot.id ? "" : bot.name, bot.persona ?? "Agent"].filter(Boolean).join(" · "),
+      mention: { type: "agent", name: bot.id, content: `@${bot.id}`, start: 0, end: 0 },
     }))
 
   /*

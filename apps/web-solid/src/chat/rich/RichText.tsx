@@ -1,6 +1,6 @@
 import { For, Match, Switch, type JSX } from "solid-js"
 import { Dynamic } from "solid-js/web"
-import type { RichText as RichTextTree } from "@kiko/protocol"
+import type { RichText as RichTextTree } from "@yuki/protocol"
 import { EmojiText } from "../../lib/emoji"
 import { FileChip } from "../ui/FileChip"
 import { Mention } from "../ui/Mention"

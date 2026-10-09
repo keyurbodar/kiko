@@ -1,8 +1,8 @@
-import type { Member } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { MoreIcon, PlusIcon } from "@kiko/ui/icons"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import type { Member } from "@yuki/protocol"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { MoreIcon, PlusIcon } from "@yuki/ui/icons"
+import { MenuV2 } from "@yuki/ui/v2/menu-v2"
+import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { session } from "../../app/session"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
@@ -169,7 +169,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
           </div>
         </li>
         <For each={props.members}>
-          {(m) => <AgentRow member={m} canRemove={props.members.length > 1 && m.slug !== "kiko"} onOpen={props.onOpen} />}
+          {(m) => <AgentRow member={m} canRemove={props.members.length > 1 && m.slug !== "yuki"} onOpen={props.onOpen} />}
         </For>
       </ul>
       <MenuV2 gutter={4} placement="bottom-start">

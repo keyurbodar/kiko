@@ -8,7 +8,7 @@
 // ASSUMPTION: chat edits are not written to the outbox, which holds sends
 // only. A chat edit made offline is lost on reload.
 
-import type { Agent, Chat, ChatOp, ExtensionInfo, ExtensionOp, ExtensionProposal, ExtensionResult, FileOp, FileRef, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, Chat, ChatOp, ExtensionInfo, ExtensionOp, ExtensionProposal, ExtensionResult, FileOp, FileRef, RoomId, UserEvent, UserSnapshot, UserToClient } from "@yuki/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { allAgents, allChats, getExtensions, getUserSeq, putAgents, putChats, putExtensions, removeChat, replaceChats, setUserSeq } from "../warm/chats"
@@ -69,7 +69,7 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	return true
 }
 
-import { KIKO, newRoomId } from "@kiko/protocol"
+import { YUKI, newRoomId } from "@yuki/protocol"
 export { newRoomId }
 
 /** An extension change the server has not answered yet, laid over the server's lists. */
@@ -160,7 +160,7 @@ export type UserStore = {
 	createAgent(agent: Agent): void
 	/** Returns the new room's id. `agents` are the ids of the agents it starts with. */
 	createChat(title: string, agents?: readonly string[]): RoomId
-	/** A temporary chat with kiko (section 7.11): in the tab strip, not the list, until it becomes a group. */
+	/** A temporary chat with yuki (section 7.11): in the tab strip, not the list, until it becomes a group. */
 	createTemp(): RoomId
 	/** A temporary chat becomes a group in the list, with this title and these agents (ids). */
 	keep(roomId: RoomId, title: string, agents: readonly string[]): void
@@ -343,7 +343,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		},
 		createTemp() {
 			const roomId = newRoomId()
-			act({ op: "create", roomId, title: "New chat", agents: [KIKO], temp: true })
+			act({ op: "create", roomId, title: "New chat", agents: [YUKI], temp: true })
 			return roomId
 		},
 		keep: (roomId, title, agents) => act({ op: "keep", roomId, title, agents: [...agents] }),

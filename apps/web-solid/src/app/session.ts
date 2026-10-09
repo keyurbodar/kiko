@@ -24,14 +24,14 @@ export interface Providers {
   dev: boolean
 }
 
-const FLAG_KEY = "kiko:session"
+const FLAG_KEY = "yuki:session"
 
 /*
  * ASSUMPTION: the warm tier (P2-05) names each user's database
- * `kiko-warm:<userId>`, optionally with more after a second colon. Clearing deletes
+ * `yuki-warm:<userId>`, optionally with more after a second colon. Clearing deletes
  * every database with that name or prefix.
  */
-export const warmDbPrefix = (userId: string) => `kiko:warm:${userId}`
+export const warmDbPrefix = (userId: string) => `yuki:warm:${userId}`
 
 function readFlag(): SessionUser | null {
   try {
@@ -117,7 +117,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
 export async function signOut(): Promise<void> {
   try {
-    localStorage.removeItem("kiko:snap")
+    localStorage.removeItem("yuki:snap")
   } catch {}
   try {
     await fetch("/api/auth/sign-out", {

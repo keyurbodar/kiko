@@ -1,11 +1,11 @@
-import type { FileRef } from "@kiko/protocol"
-import { FileIcon } from "@kiko/ui/file-icon"
-import { createTree } from "@kiko/ui/v2/tree/create-tree"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import type { SolidTree } from "@kiko/ui/v2/tree/create-tree"
+import type { FileRef } from "@yuki/protocol"
+import { FileIcon } from "@yuki/ui/file-icon"
+import { createTree } from "@yuki/ui/v2/tree/create-tree"
+import { MenuV2 } from "@yuki/ui/v2/menu-v2"
+import type { SolidTree } from "@yuki/ui/v2/tree/create-tree"
 import { createComputed, createEffect, createMemo, createSignal, For, on, Show, type JSX } from "solid-js"
 import { Virtualizer } from "virtua/solid"
-import "@kiko/ui/file-icon.css"
+import "@yuki/ui/file-icon.css"
 import "./tree.css"
 import {
 	basename,

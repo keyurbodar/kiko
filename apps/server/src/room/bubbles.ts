@@ -1,4 +1,4 @@
-import type { AgentSlug, MessageId, RoomEvent, RunRef } from "@kiko/protocol"
+import type { AgentSlug, MessageId, RoomEvent, RunRef } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
 

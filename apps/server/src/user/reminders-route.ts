@@ -1,4 +1,4 @@
-import { isRoomId } from "@kiko/protocol"
+import { isRoomId } from "@yuki/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"

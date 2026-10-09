@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { MessageId, RoomId } from "@kiko/protocol"
+import type { MessageId, RoomId } from "@yuki/protocol"
 import { createSearch, type Hit, type HitPage, PAGE_AHEAD, SEARCH_DEBOUNCE_MS, senderName, type Timer } from "./model"
 import type { SearchScope } from "./state"
 

@@ -10,7 +10,7 @@ import { Miniflare } from "miniflare"
 
 const serverDir = new URL("..", import.meta.url).pathname
 const cliEntry = new URL("../../cli/src/index.ts", import.meta.url).pathname
-const MARKER = "kiko-dev-session"
+const MARKER = "yuki-dev-session"
 
 let tmp: string
 const workers: Miniflare[] = []
@@ -61,7 +61,7 @@ async function start(path: string): Promise<string> {
 
 async function cli(args: string[]) {
   const p = Bun.spawn(["bun", cliEntry, ...args], {
-    env: { ...process.env, KIKO_SESSION_FILE: join(tmp, "cli-session.json") },
+    env: { ...process.env, YUKI_SESSION_FILE: join(tmp, "cli-session.json") },
     stdout: "pipe",
     stderr: "pipe",
   })
@@ -94,7 +94,7 @@ describe("production build", () => {
 
   test("does not contain the dev sign-in code", () => {
     expect(prodScript).not.toContain(MARKER)
-    expect(prodScript).not.toContain("dev.kiko.test")
+    expect(prodScript).not.toContain("dev.yuki.test")
   })
 
   test("answers the dev sign-in route with 404", async () => {
@@ -182,7 +182,7 @@ describe("development build", () => {
   test("the dev route refuses a host that is not local", async () => {
     const res = await fetch(`${origin}/api/auth/dev/session`, {
       method: "POST",
-      headers: { "content-type": "application/json", host: "kiko.example.com" },
+      headers: { "content-type": "application/json", host: "yuki.example.com" },
       body: JSON.stringify({ name: "erin" }),
     })
     expect(res.status).toBe(404)

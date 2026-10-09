@@ -1,4 +1,4 @@
-import type { RoomToClient } from "@kiko/protocol"
+import type { RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { dev } from "./team-loops"
@@ -8,13 +8,13 @@ import { dev } from "./team-loops"
 //   classic  the agent keeps its whole transcript (no reset, no memory block): the design before log memory
 //   memory   every run resets and starts from the <memory> block
 //
-// The same TURNS human messages go to a fresh kiko chat in each mode, one run each. After every run the
+// The same TURNS human messages go to a fresh yuki chat in each mode, one run each. After every run the
 // suite reads the agent's token usage, and at the end what memory summaries cost. It prints input,
 // cached, and output tokens per request over the chat, and a weighted cost where a cached token
 // counts CACHE_WEIGHT of a fresh one. A last question checks that a fact from turn 2 survived.
 // Needs a development server. Costs about 2 * TURNS short model calls plus the summaries.
 
-const TURNS = Number(process.env.KIKO_TOKEN_TURNS ?? 30)
+const TURNS = Number(process.env.YUKI_TOKEN_TURNS ?? 30)
 /** ASSUMPTION: a cached input token costs a tenth of a fresh one, as on DeepSeek and OpenAI. */
 const CACHE_WEIGHT = 0.1
 
@@ -96,7 +96,7 @@ const suite: Suite = {
   name: "token-cost",
   model: true,
   async run(v) {
-    const modes = (process.env.KIKO_TOKEN_MODES ?? "classic,memory").split(",") as ("classic" | "memory")[]
+    const modes = (process.env.YUKI_TOKEN_MODES ?? "classic,memory").split(",") as ("classic" | "memory")[]
     const results: Partial<Record<"classic" | "memory", Awaited<ReturnType<typeof chat>>>> = {}
     for (const m of modes) results[m] = await chat(v, m)
     for (const [mode, r] of Object.entries(results) as [string, NonNullable<(typeof results)["memory"]>][]) {

@@ -1,4 +1,4 @@
-import type { AgentSlug, Message, RoomToClient } from "@kiko/protocol"
+import type { AgentSlug, Message, RoomToClient } from "@yuki/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send, until } from "./mid-run"
@@ -23,11 +23,11 @@ const runsOf = (room: Parameters<typeof bubbles>[0], slug: string) => {
 
 async function batch(v: { url: string }, s: Session) {
 	const { room } = await team(v, s, ["ana", "ben", "cy"], "one run for three replies")
-	// ana works for five seconds. ben, cy, and kiko each write to her meanwhile.
+	// ana works for five seconds. ben, cy, and yuki each write to her meanwhile.
 	await send(room, "@ana [tool]")
 	await send(room, "@ben [send ana] alpha")
 	await send(room, "@cy [send ana] bravo")
-	await send(room, "@kiko [send ana] charlie")
+	await send(room, "@yuki [send ana] charlie")
 	await until("all three messages to ana", () => agentSends(room).length >= 3, 30_000)
 	await until("ana's answer to the three", () => runsOf(room, "ana").some((t) => t.includes("charlie") || t.includes("alpha") || t.includes("bravo")), 30_000)
 	await Bun.sleep(3_000)
@@ -104,10 +104,10 @@ async function refused(v: { url: string }, s: Session) {
 async function taskWake(v: { url: string }, s: Session) {
 	const { room } = await team(v, s, ["ana", "ben"], "task authority")
 	room.raw.send({ t: "task", op: { op: "create", id: "t1", title: "first", owner: "ana" as AgentSlug } })
-	// kiko, the lead, makes t2 in a run the human started. t2 waits on t1 and asks its owner to act outside kiko.
+	// yuki, the lead, makes t2 in a run the human started. t2 waits on t1 and asks its owner to act outside yuki.
 	const t2 = JSON.stringify({ title: "[call fake_send] ship it", owner: "ben", depends_on: ["t1"] })
-	await send(room, `@kiko [ws create_task ${t2}]`)
-	await until("kiko's reply", () => runsOf(room, "kiko").length >= 1, 20_000)
+	await send(room, `@yuki [ws create_task ${t2}]`)
+	await until("yuki's reply", () => runsOf(room, "yuki").length >= 1, 20_000)
 	room.raw.send({ t: "task", op: { op: "update", id: "t1", status: "done" } })
 	await until("ben's run on the wake", () => runsOf(room, "ben").length >= 1, 20_000)
 	await Bun.sleep(1_500)

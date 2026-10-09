@@ -1,23 +1,23 @@
 # Orchestrated run rules
 
-These rules replace `docs/task-prompt.md` for a run where one coordinator starts many task agents at once. There is no git remote and there are no pull requests. The coordinator merges your commit into the branch `kiko/build`.
+These rules replace `docs/task-prompt.md` for a run where one coordinator starts many task agents at once. There is no git remote and there are no pull requests. The coordinator merges your commit into the branch `yuki/build`.
 
 ## Steps
 
-1. You are in your own git worktree. Run `git merge kiko/build` first. That gives you every merged dependency. Then run `bun install`.
+1. You are in your own git worktree. Run `git merge yuki/build` first. That gives you every merged dependency. Then run `bun install`.
 2. Read your issue file, `AGENTS.md`, `docs/overview.md`, and only what the issue's "Read first" names.
 3. Do not check dependencies. The coordinator started you because they are merged.
 4. Build what "Build" lists, inside the files "Files" lists.
 5. Run the "Verification" line and "Done when" against the real thing. Run `bun run typecheck` and `bun test` when those scripts exist.
-6. Commit everything on the branch your worktree is already on. The subject is `<id> <task title>`. Do not push. Do not switch branches. Do not touch `kiko/build` or another worktree.
+6. Commit everything on the branch your worktree is already on. The subject is `<id> <task title>`. Do not push. Do not switch branches. Do not touch `yuki/build` or another worktree.
 7. Stop every process you started.
 8. Send the final report.
 
 ## Secrets
 
-- Local secrets are in `~/.config/kiko/dev.vars`. It holds `OPENCODE_API_KEY`, `CREDENTIALS_KEK`, and `BETTER_AUTH_SECRET`.
-- For the Worker, run `cp ~/.config/kiko/dev.vars apps/server/.dev.vars`. That file is ignored by git.
-- For a shell command, run `set -a; source ~/.config/kiko/dev.vars; set +a`.
+- Local secrets are in `~/.config/yuki/dev.vars`. It holds `OPENCODE_API_KEY`, `CREDENTIALS_KEK`, and `BETTER_AUTH_SECRET`.
+- For the Worker, run `cp ~/.config/yuki/dev.vars apps/server/.dev.vars`. That file is ignored by git.
+- For a shell command, run `set -a; source ~/.config/yuki/dev.vars; set +a`.
 - Never print a value, write one into a tracked file, a log, a test fixture, or your report.
 
 ## The model
@@ -67,15 +67,15 @@ The coordinator adds to this list as tasks land.
 - Write server tests for `bun test`, run from `apps/server`. For Durable Object behavior use the Miniflare pattern above. A vitest config also exists (`bun run test:workerd`), but do not add new vitest-only tests.
 - `apps/server/src/user/` has `nextOccurrence(rrule, tz, afterUtc)` built on the `rrule` package. Find it with grep before writing recurrence code.
 - The test model is `opencode-go/deepseek-v4.1-flash` (provider `opencode-go`, model id `deepseek-v4.1-flash`).
-- Wire types are in `@kiko/protocol` (`packages/protocol`). Plain types from `.`, Effect schemas from `./schema`, sample frames from `./fixtures`. Client code imports types only.
+- Wire types are in `@yuki/protocol` (`packages/protocol`). Plain types from `.`, Effect schemas from `./schema`, sample frames from `./fixtures`. Client code imports types only.
 - Never use `git stash`. The stash is shared by every worktree.
-- Sessions: `getSessionUser(request, env)` in `apps/server/src/auth/auth.ts` is the only source of a user id. Locally, run `bunx wrangler d1 migrations apply kiko-auth --local` once in `apps/server`, start the Worker with `NODE_ENV=development`, then `bun kiko login --dev --name alice --url http://localhost:<port>`. The CLI stores cookies per origin; other CLI commands send them with `sessionCookie(url)` from `apps/cli/src/commands/login.ts`. Set `KIKO_SESSION_FILE` to a file in your worktree so agents do not overwrite each other's sessions.
+- Sessions: `getSessionUser(request, env)` in `apps/server/src/auth/auth.ts` is the only source of a user id. Locally, run `bunx wrangler d1 migrations apply kiko-auth --local` once in `apps/server`, start the Worker with `NODE_ENV=development`, then `bun kiko login --dev --name alice --url http://localhost:<port>`. The CLI stores cookies per origin; other CLI commands send them with `sessionCookie(url)` from `apps/cli/src/commands/login.ts`. Set `YUKI_SESSION_FILE` to a file in your worktree so agents do not overwrite each other's sessions.
 - The bubble splitter is `apps/server/src/agent/split-bubbles.ts` (`createSplitter()`). The markdown parser is `parseRichText(markdown)` in `apps/server/src/room/rich-text.ts`.
 - Client routes live in `apps/web-solid/src/app/routes.tsx`; the shell is `app/shell.tsx`, the rail `app/rail.tsx`.
 - `safeFetch(url, fetcher?)` in `packages/durable/src/safe-fetch.ts` returns `{ ok: true, url, status, headers, body, truncated }` or `{ ok: false, reason, url }`. Every fetch of a user or model supplied URL uses it.
 - The warm tier is `apps/web-solid/src/warm/`: `openWarm({ userId })` in `db.ts`, plus `messages.ts`, `chats.ts`, `outbox.ts`, `drafts.ts`. One database per user.
 - Verify suites: create `apps/cli/src/verify/suites/<name>.ts` exporting `{ name, model?, run(v) }`. In `run`, `const s = await v.as("alice")`, `const room = await s.room(id)`, `room.send(text)`, `room.expect(match, ms)`, `(await s.user()).expect(...)`, `reconnect()`. Set `model: true` when it calls a model. Run with `bun kiko verify <name> --url http://localhost:<port>`.
-- Durable Object names and stubs come only from `apps/server/src/lib/names.ts`: `userStub(env.USER, userId)`, `roomStub(env.ROOM, userId, roomId)`, `agentStub(env.AGENT, userId, roomId, slug)`. The Worker passes `x-kiko-user-id` and `x-kiko-room-id` headers (`USER_ID_HEADER`, `ROOM_ID_HEADER`). Sockets are `/api/ws/user` and `/api/ws/room/<ULID>`.
+- Durable Object names and stubs come only from `apps/server/src/lib/names.ts`: `userStub(env.USER, userId)`, `roomStub(env.ROOM, userId, roomId)`, `agentStub(env.AGENT, userId, roomId, slug)`. The Worker passes `x-yuki-user-id` and `x-yuki-room-id` headers (`USER_ID_HEADER`, `ROOM_ID_HEADER`). Sockets are `/api/ws/user` and `/api/ws/room/<ULID>`.
 - pi-durable runs in `AgentDO` through the SQLite facade in `packages/agent/src/sqlite.ts`. See `apps/server/src/experiments/turn.ts` for opening a harness and running a turn. OpenCode Go returns `400 MissingSessionID` unless the request has an `x-opencode-session` header; set it through `settings.stream.headers` when opening the harness.
 - The client sync layer is `apps/web-solid/src/sync/`: `createRoomStore({ roomId, warm, url })`, `createUserStore({ warm, url })`, and `createMockRoom` / `createMockUser` for tests. Wrap `messages()` in `createMemo` to share it.
 - Link previews are `GET /api/preview?url=` returning `{ preview, cache }`. Images are served from `/api/preview-image/<hash>`.
@@ -94,11 +94,11 @@ Run the browser checks your issue names with `agent-browser`, the CLI the owner 
 - Reminders: `UserDO` `createReminder(owner, input)`, `listReminders()`, `cancelReminder(id)`, `snoozeReminder(id, time)`; `RoomDO.deliverReminder(id, { text, target })`. HTTP `/api/reminders`.
 - Files: `PUT /api/files/<room>?path=` for one request, multipart under `/api/files/<room>/uploads`, download `GET /api/files/<room>/<fileId>` with Range. `RoomDO.putFile(NewFile)`; `this.files` is `RoomFiles`.
 - Room search: socket frame `search { query, before?, limit? }` on the room; chat-title search on the user socket.
-- The client talks to the real Worker in dev. `VITE_KIKO_SYNC=mock` switches to the fixture mock. `useApp.chatById`, `members`, `memberById` replace `botById` and `groups`.
+- The client talks to the real Worker in dev. `VITE_YUKI_SYNC=mock` switches to the fixture mock. `useApp.chatById`, `members`, `memberById` replace `botById` and `groups`.
 - Queue jobs: add a job type to the `Job` union in `apps/server/src/jobs/consumer.ts` and one branch in `run()`. A throwing handler is retried with backoff.
 - Agent host: `AgentDO.receive(envelopes, brief) -> { admitted }` and `status()`. `new AgentHost(ctx, { setup, onOpen?, heartbeatMs? })` in `packages/agent/src/host.ts`; `setup()` returns `{ models, registry, agent, settings? }` (the factory plugs in here); `onOpen({ harness, root, storage })` runs once per process before resume. Wakeup keys `inbox` and `heartbeat`. `inbox.ts` exports `Inbox`, `requestIdFor`, `renderInput`.
 - Agent factory: `buildAgent({ role, lead, model })` in `apps/server/src/agent/factory.ts` returns `{ registry, agent }`. Register an extension with one entry in `extensionsFor()`; list order is prompt order. `devModels(apiKey, sessionId)` sets the OpenCode session header; `DEV_MODEL` is the test model.
 - Executor: the owner connected a real Executor account on 2026-10-02 and `executor-connect` passed. Tools from `tools/list`: execute, skills, resume, create-artifact, edit-artifact, list-artifacts, show-artifact. Token lifetime 24 h. Read tool names at run time.
 - Each `wrangler dev` holds about 4,000 open files, and the machine has a 30,720 limit for everything. Run at most one Worker, stop it the moment verification is done, and confirm with `kill -0 <pid>`; wrangler sometimes ignores SIGTERM, so use `kill -9` on your own pid if it is still alive.
-- Full turn (P1-11): RoomDO RPC `post(slug, runId, attempt, index, block)`, `draft(slug, runId, index, text)`, `setStatus(slug, state)`, `endRun(slug, runId)`. `AgentDO.receive(envelopes, brief, home?)` with `home = { userId, roomId, slug }` (`AgentHome`). Run id is `<slug>:<submissionId>`. The only agent's slug is `kiko` (`DEFAULT_AGENT`) until P6. `agent/outbox.ts` has `Outbox` and `RoomPort`. Human messages join the burst in `RoomDO.publish`. A room not in the user's chat list wakes no agent. `bun kiko verify turn` runs a real model turn.
+- Full turn (P1-11): RoomDO RPC `post(slug, runId, attempt, index, block)`, `draft(slug, runId, index, text)`, `setStatus(slug, state)`, `endRun(slug, runId)`. `AgentDO.receive(envelopes, brief, home?)` with `home = { userId, roomId, slug }` (`AgentHome`). Run id is `<slug>:<submissionId>`. The only agent's slug is `yuki` (`DEFAULT_AGENT`) until P6. `agent/outbox.ts` has `Outbox` and `RoomPort`. Human messages join the burst in `RoomDO.publish`. A room not in the user's chat list wakes no agent. `bun kiko verify turn` runs a real model turn.
 - P1-12 hooks: the restart/steer/queue choice goes in `AgentHost.drain()`; the outbox's `posted > 0` is "bubble posted"; `tool_execution_start` is "tool started"; the `stop` case in `room/socket.ts` is empty.

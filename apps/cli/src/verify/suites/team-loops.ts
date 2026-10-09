@@ -1,4 +1,4 @@
-import type { Agent, AgentSlug, Message, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
+import type { Agent, AgentSlug, Message, RoomEvent, RoomId, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle, Session } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -39,8 +39,8 @@ export async function team(v: { url: string }, s: Session, slugs: string[], titl
   user.send({ t: "chat", op: { op: "create", roomId, title, agents: slugs.map((n) => agentOf(n).id) } })
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const room = await s.room(roomId)
-  // A group is seeded with kiko first, as its chief and lead (section 7.11), so kiko is a fake too.
-  const members = slugs.length > 1 ? ["kiko", ...slugs] : slugs
+  // A group is seeded with yuki first, as its chief and lead (section 7.11), so yuki is a fake too.
+  const members = slugs.length > 1 ? ["yuki", ...slugs] : slugs
   await dev(v.url, s.cookie, "fake", { roomId, slugs: members })
   /** Every envelope each agent's inbox ever stored. */
   const received = async () => {
@@ -104,7 +104,7 @@ const suite: Suite = {
     }
 
     // 2. Five agents that broadcast to each other forever. An agent answers a batch once, so with fewer
-    // agents the hop limit trips first. A broadcast reaches every other member (kiko included), and one
+    // agents the hop limit trips first. A broadcast reaches every other member (yuki included), and one
     // root may cause at most 40 deliveries.
     {
       const { room, received, members } = await team(v, s, ["cat", "dov", "eli", "fay", "gus"], "shout forever")

@@ -1,4 +1,4 @@
-import type { Agent, RoomId, SearchHit, Sender } from "@kiko/protocol"
+import type { Agent, RoomId, SearchHit, Sender } from "@yuki/protocol"
 import type { SearchScope } from "./state"
 
 /*

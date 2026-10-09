@@ -1,4 +1,4 @@
-import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from "@kiko/protocol"
+import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from "@yuki/protocol"
 import type { AgentDO } from "../agent/agent-do"
 import type { RoomDO } from "../room/room-do"
 import type { UserDO } from "../user/user-do"
@@ -9,11 +9,11 @@ import { rpc } from "./dev-stats"
 // full name from a client or from model output.
 
 /** The header that carries the session's user id from the Worker to an object. The Worker strips it from client input. */
-export const USER_ID_HEADER = "x-kiko-user-id"
+export const USER_ID_HEADER = "x-yuki-user-id"
 /** The human's handle (`humanHandle` of the session name), set by the Worker on a room socket. */
-export const HANDLE_HEADER = "x-kiko-handle"
+export const HANDLE_HEADER = "x-yuki-handle"
 /** The header that carries the room id from the Worker to a `RoomDO`. */
-export const ROOM_ID_HEADER = "x-kiko-room-id"
+export const ROOM_ID_HEADER = "x-yuki-room-id"
 
 export class NameError extends Error {}
 

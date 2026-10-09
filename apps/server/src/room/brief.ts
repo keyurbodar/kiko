@@ -1,4 +1,4 @@
-import { handleOf, type Task } from "@kiko/protocol"
+import type { Task } from "@yuki/protocol"
 import type { MemberRow } from "./members"
 import { briefTasks } from "./workspace"
 
@@ -22,7 +22,7 @@ export type BriefView = {
 	team?: Record<string, { doing: string | null; holds: readonly string[] }>
 	/** The human's handle, so the agent can @ them. Absent until the human's first socket. */
 	human?: string
-	/** kiko only: the proposal that waits for the human's answer (section 7.11). */
+	/** yuki only: the proposal that waits for the human's answer (section 7.11). */
 	proposal?: string
 }
 
@@ -43,7 +43,7 @@ export function shortBrief(brief: string): string {
 
 /** The brief for `member`. Pure: the room gathers the view from its tables. */
 export function buildBrief(member: MemberRow, view: BriefView): string {
-	const lines = [`room goal: ${oneLine(view.goal) || "none yet"}`, `you are @${handleOf(member.slug)}${member.lead ? ", the lead" : ""}.`]
+	const lines = [`room goal: ${oneLine(view.goal) || "none yet"}`, `you are @${member.slug}${member.lead ? ", the lead" : ""}.`]
 	if (view.human) lines.push(`the human is @${view.human}.${HUMAN_HINT(view.human)}`)
 	lines.push("members:")
 	for (const m of view.members) {
@@ -55,7 +55,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 			now?.doing ? `now ${now.doing}` : m.slug === member.slug ? null : m.status,
 			now?.holds.length ? `holding ${now.holds.map((p) => `/${p}`).join(", ")}` : null,
 		]
-		lines.push(`- @${handleOf(m.slug)} (${m.name}): ${parts.filter(Boolean).join(", ")}`)
+		lines.push(`- @${m.slug} (${m.name}): ${parts.filter(Boolean).join(", ")}`)
 	}
 	lines.push("your tasks:")
 	if (view.tasks.length) for (const t of view.tasks) lines.push(`- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`)

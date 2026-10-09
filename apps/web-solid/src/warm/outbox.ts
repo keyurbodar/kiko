@@ -2,7 +2,7 @@
 // it goes on the socket, and removed on its `ack`. Outbox writes skip the idle
 // wait, so a send survives a tab closed right after it.
 
-import type { ClientToRoom, RoomId } from "@kiko/protocol"
+import type { ClientToRoom, RoomId } from "@yuki/protocol"
 import type { Warm } from "./db"
 
 export type OutboxItem = {

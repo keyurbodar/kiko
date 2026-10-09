@@ -3,7 +3,7 @@ import { createSignal } from "solid-js"
 // The model picked per chat, and the default for new chats. ASSUMPTION: the
 // server has no per-chat model field yet, so the choice lives in this browser's
 // localStorage as a `provider/model` string. It holds no secret.
-const KEY = "kiko.chat-models"
+const KEY = "yuki.chat-models"
 const DEFAULT = "*"
 
 function read(): Record<string, string> {

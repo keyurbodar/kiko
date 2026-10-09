@@ -38,7 +38,7 @@ const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async 
 let providers: Map<string, Provider> | undefined
 
 /**
- * pi-ai's provider with this id, or undefined. Kiko adds no provider of its own. A provider holds
+ * pi-ai's provider with this id, or undefined. Yuki adds no provider of its own. A provider holds
  * no credential (a `Models` resolves auth per request), so one isolate shares one set.
  */
 export function findProvider(id: string): Provider | undefined {

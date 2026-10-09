@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { birdSvg, FLAVOR_IDS, formatBird, OUTFIT_IDS, parseBird, type BirdShape, type BirdState } from "./birds"
 
-const YUKI = { flavor: "yuki", outfit: "none" } as const
+const YUKI_BIRD = { flavor: "yuki", outfit: "none" } as const
 
 describe("bird ids", () => {
   test("every flavor and outfit round-trips", () => {
@@ -41,28 +41,28 @@ describe("drawing", () => {
     ["sending", false],
     ["sleeping", false],
   ])("a %p bird's ink boils: %p", (state, boils) => {
-    expect(birdSvg(YUKI, state, { size: 48 }).includes('attributeName="seed"')).toBe(boils)
+    expect(birdSvg(YUKI_BIRD, state, { size: 48 }).includes('attributeName="seed"')).toBe(boils)
   })
 
   test("a working bird is still under reduced motion, and too small a bird draws a straight line", () => {
-    expect(birdSvg(YUKI, "working", { size: 48, still: true })).not.toContain("<animate")
-    expect(birdSvg(YUKI, "working", { size: 16 })).not.toContain("<filter")
-    expect(birdSvg(YUKI, "idle", { flat: true, size: 64 })).not.toContain("<filter")
+    expect(birdSvg(YUKI_BIRD, "working", { size: 48, still: true })).not.toContain("<animate")
+    expect(birdSvg(YUKI_BIRD, "working", { size: 16 })).not.toContain("<filter")
+    expect(birdSvg(YUKI_BIRD, "idle", { flat: true, size: 64 })).not.toContain("<filter")
   })
 
   test("the ink line never drops under 1 px on screen", () => {
-    const width = (size: number) => Number(/stroke-width="([\d.]+)"/.exec(birdSvg(YUKI, "idle", { size }))![1])
+    const width = (size: number) => Number(/stroke-width="([\d.]+)"/.exec(birdSvg(YUKI_BIRD, "idle", { size }))![1])
     for (const size of [16, 20, 24, 32, 48, 96]) expect((width(size) * size) / 103).toBeGreaterThanOrEqual(0.99)
   })
 
   test("a happy or sleeping bird closes its eyes, so nothing blinks them", () => {
-    for (const state of ["wave", "sending", "sleeping"] as const) expect(birdSvg(YUKI, state)).not.toContain("bird-eyes")
-    expect(birdSvg(YUKI, "idle")).toContain("bird-eyes")
+    for (const state of ["wave", "sending", "sleeping"] as const) expect(birdSvg(YUKI_BIRD, state)).not.toContain("bird-eyes")
+    expect(birdSvg(YUKI_BIRD, "idle")).toContain("bird-eyes")
   })
 
   test("nothing in a bird hops, flaps, or carries a prop", () => {
     for (const state of ["idle", "thinking", "working", "typing", "sending", "wave", "sleeping"] as const) {
-      expect(birdSvg(YUKI, state, { size: 48 })).not.toMatch(/<text|bird-plane|bird-think|bird-spark|bird-zz/)
+      expect(birdSvg(YUKI_BIRD, state, { size: 48 })).not.toMatch(/<text|bird-plane|bird-think|bird-spark|bird-zz/)
     }
   })
 })

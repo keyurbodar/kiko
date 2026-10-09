@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { RoomId } from "@kiko/protocol"
+import type { RoomId } from "@yuki/protocol"
 import { FRESH_SESSION_MS, isFresh } from "../src/auth/account-route"
 import { type DeletionTargets, isDeleteAccountJob, roomPrefix, runDeleteJob, userPrefix } from "../src/jobs/delete-account"
 

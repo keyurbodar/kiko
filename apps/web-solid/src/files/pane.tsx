@@ -1,8 +1,8 @@
-import type { FileOp } from "@kiko/protocol"
-import { FileIcon } from "@kiko/ui/file-icon"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CheckIcon, CloseIcon, CodeIcon, CopyIcon, DownloadIcon, EyeIcon, FileAddIcon, FolderAddIcon, FolderTreeIcon, TableIcon, WrapTextIcon } from "@kiko/ui/icons"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import type { FileOp } from "@yuki/protocol"
+import { FileIcon } from "@yuki/ui/file-icon"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { CheckIcon, CloseIcon, CodeIcon, CopyIcon, DownloadIcon, EyeIcon, FileAddIcon, FolderAddIcon, FolderTreeIcon, TableIcon, WrapTextIcon } from "@yuki/ui/icons"
+import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { closeFile, dropFileTabs, fileReveal, fileTabsOf, moveFileTabs, openFile, openFilePath, setActiveFile } from "../chat/info/state"
@@ -43,12 +43,12 @@ function stored(key: string, fallback: boolean) {
 
 // Reading rendered or as source is a preference, not a property of one file, as in t3code.
 const PREFS = {
-	markdown: stored("kiko:file-render-markdown", false),
-	table: stored("kiko:file-render-table", true),
-	html: stored("kiko:file-render-html", true),
+	markdown: stored("yuki:file-render-markdown", false),
+	table: stored("yuki:file-render-table", true),
+	html: stored("yuki:file-render-html", true),
 }
-const [wrap, setWrap] = stored("kiko:file-word-wrap", false)
-const [explorer, setExplorer] = stored("kiko:file-explorer-open", true)
+const [wrap, setWrap] = stored("yuki:file-word-wrap", false)
+const [explorer, setExplorer] = stored("yuki:file-explorer-open", true)
 
 const RENDERED_LABELS = {
 	markdown: ["Show rendered markdown", "Show markdown source"],

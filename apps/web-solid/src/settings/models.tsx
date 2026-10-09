@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router"
 import { For, Show, Suspense, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
-import { ProviderIcon } from "@kiko/ui/provider-icon"
-import "@kiko/ui/provider-icon.css"
+import { ProviderIcon } from "@yuki/ui/provider-icon"
+import "@yuki/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { Moment } from "../mascot/lazy"
@@ -59,7 +59,7 @@ export function ProvidersPage() {
     }),
   )
 
-  // The first provider is the moment kiko starts working, so the birds cheer once. Only a
+  // The first provider is the moment yuki starts working, so the birds cheer once. Only a
   // change seen on this page counts: a list that loads with providers in it is not a moment.
   const [cheer, setCheer] = createSignal(false)
   createEffect(
@@ -79,7 +79,7 @@ export function ProvidersPage() {
       <Show when={cheer()}>
         <div class="flex items-center gap-3 rounded-lg bg-[var(--accent-wash)] px-4 py-2.5" data-component="first-provider-cheer" role="status">
           <Suspense>
-            <Moment kind="cheer" faces={["kiko", "scout", "budget"]} />
+            <Moment kind="cheer" faces={["yuki", "scout", "budget"]} />
           </Suspense>
           <p class="text-[13px] text-text">Connected. Your agents can reply now.</p>
         </div>
@@ -172,7 +172,7 @@ function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; 
   )
 }
 
-const COLLAPSED_KEY = "kiko.models-collapsed"
+const COLLAPSED_KEY = "yuki.models-collapsed"
 
 function readCollapsed(): Record<string, boolean> {
   try {
@@ -421,7 +421,7 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
                   id="provider-key"
                   ref={input}
                   type="password"
-                  name="kiko-provider-secret"
+                  name="yuki-provider-secret"
                   autocomplete="off"
                   autocapitalize="off"
                   spellcheck={false}

@@ -1,7 +1,7 @@
-// DEV ONLY. A memory server in the browser, for `VITE_KIKO_SYNC=mock`. It answers every op the
+// DEV ONLY. A memory server in the browser, for `VITE_YUKI_SYNC=mock`. It answers every op the
 // way UserDO does, without compression: the view is the pinned lines, then the newest 40.
 
-import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@kiko/protocol"
+import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@yuki/protocol"
 import type { MemoryClient } from "./client"
 
 export function createMockMemory(now: () => number = Date.now): MemoryClient {
@@ -9,10 +9,10 @@ export function createMockMemory(now: () => number = Date.now): MemoryClient {
 	let model: MemoryModel = null
 	const add = (text: string, source: string, daysAgo = 0) =>
 		lines.push({ pos: lines.length, at: now() - daysAgo * 86_400_000, text, source, tainted: false, pinned: false, redacted: false })
-	add("lives in lisbon, works at a small design studio", "@kiko", 40)
-	add("sister is sam; they talk every sunday", "@kiko", 30)
+	add("lives in lisbon, works at a small design studio", "@yuki", 40)
+	add("sister is sam; they talk every sunday", "@yuki", 30)
 	add("planning a japan trip in november with sam", "chat trip", 6)
-	add("prefers short answers before 9am", "@kiko", 1)
+	add("prefers short answers before 9am", "@yuki", 1)
 
 	function handle(op: MemoryOp): MemoryResult {
 		switch (op.op) {

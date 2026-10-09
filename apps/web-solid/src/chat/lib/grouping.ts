@@ -1,12 +1,11 @@
 import { createSignal, type Setter } from "solid-js";
-import { slugOfHandle } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { startsTimeBreak } from "./time-label";
 
 /** Telegram's run window. A gap strictly larger than this splits a run. */
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
 
-/** A senderless line in a group: "kiko joined". Placed by the room's `seq`. */
+/** A senderless line in a group: "yuki joined". Placed by the room's `seq`. */
 export type Notice = { key: string; seq: number; at: number; text: string };
 
 export type TimelineItem =
@@ -95,8 +94,7 @@ export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
  */
 export function addressee(message: ChatMessage, members: ReadonlySet<string>): string | undefined {
   if (message.sender !== "bot") return undefined;
-  const handle = /^\s*@([a-z0-9-]{1,32})(?![\w-])/i.exec(message.body)?.[1]?.toLowerCase();
-  const slug = handle === undefined ? undefined : slugOfHandle(handle);
+  const slug = /^\s*@([a-z0-9-]{1,32})(?![\w-])/i.exec(message.body)?.[1]?.toLowerCase();
   return slug !== undefined && slug !== message.botId && members.has(slug) ? slug : undefined;
 }
 

@@ -13,7 +13,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 
 export function devSession() {
   return {
-    id: "kiko-dev-session",
+    id: "yuki-dev-session",
     endpoints: {
       devSession: createAuthEndpoint(DEV_SESSION_PATH, { method: ["GET", "POST"] }, async (ctx) => {
         // A second guard. A development build that somehow got deployed still refuses.
@@ -26,7 +26,7 @@ export function devSession() {
           throw new APIError("BAD_REQUEST", { message: "name must match [a-z0-9-], 1 to 32 characters" })
         }
 
-        const email = `${name}@dev.kiko.test`
+        const email = `${name}@dev.yuki.test`
         const adapter = ctx.context.internalAdapter
         const user =
           (await adapter.findUserByEmail(email))?.user ??

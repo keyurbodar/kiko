@@ -3,7 +3,7 @@ import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
 // Architecture section 24.7. The parts of the extension store that keep secrets and users apart,
-// inside workerd. The fetcher is an echo server, so each test sees exactly what would have left kiko.
+// inside workerd. The fetcher is an echo server, so each test sees exactly what would have left yuki.
 
 let mf: Miniflare
 let output = ""
@@ -40,7 +40,7 @@ async function seen(user: string) {
 }
 
 const manifest = {
-  kiko: 1,
+  yuki: 1,
   name: "hook",
   version: "1.0.0",
   description: "posts",
@@ -94,11 +94,11 @@ test("only hosts in egress, only https, and no secret the human has not set", as
   const u = fresh()
   await installed(u)
   expect(await call(u, "fetch", "hook", { url: "https://evil.test/" })).toMatchObject({ ok: false, error: 'evil.test is not in "egress" in extension.json' })
-  expect(await call(u, "fetch", "hook", { url: "http://api.example.com/" })).toMatchObject({ ok: false, error: "kiko.fetch only reaches https urls" })
+  expect(await call(u, "fetch", "hook", { url: "http://api.example.com/" })).toMatchObject({ ok: false, error: "yuki.fetch only reaches https urls" })
   expect(await call(u, "fetch", "hook", { url: "https://api.example.com/?k={{secret.TOKEN}}" })).toMatchObject({ ok: false })
   expect((await call(u, "fetch", "hook", { url: "https://api.example.com/?k={{secret.TOKEN}}" })).error).toContain("has not set TOKEN")
   expect(await call(u, "fetch", "hook", { url: "https://a.cdn.example.com/" })).toMatchObject({ ok: true })
-  expect(await call(u, "fetch", "hook", { url: "https://api.example.com/", headers: { cookie: "x" } })).toMatchObject({ ok: false, error: "header cookie is set by kiko" })
+  expect(await call(u, "fetch", "hook", { url: "https://api.example.com/", headers: { cookie: "x" } })).toMatchObject({ ok: false, error: "header cookie is set by yuki" })
 })
 
 test("a switched-off extension reaches nothing, and the agent's scope narrows who runs it", async () => {

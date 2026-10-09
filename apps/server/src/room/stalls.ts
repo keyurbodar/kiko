@@ -1,7 +1,7 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 import type { ChatTasks } from "../user/overview"
 
-// Architecture section 25.6. Grok nudges a stalled handoff; kiko does it without a model. Once an
+// Architecture section 25.6. Grok nudges a stalled handoff; yuki does it without a model. Once an
 // hour while the board has open work, the room looks for tasks nobody touched for a day and wakes
 // whoever should move them: the owner for work in progress, the lead for work waiting for review.
 

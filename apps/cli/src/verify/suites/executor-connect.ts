@@ -1,4 +1,4 @@
-import type { ClientToUser, ExecutorResult, ExecutorStatus } from "@kiko/protocol"
+import type { ClientToUser, ExecutorResult, ExecutorStatus } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
@@ -7,7 +7,7 @@ import type { Suite } from "../runner"
 //
 // Part one needs no account: the sign-in starts, the authorize URL carries PKCE S256,
 // `offline_access`, and this server's callback, and Executor's sign-in page answers it.
-// Part two needs a human to sign in once in a browser. Set KIKO_EXECUTOR_WAIT to the
+// Part two needs a human to sign in once in a browser. Set YUKI_EXECUTOR_WAIT to the
 // seconds the suite should wait for that. `.cursor/skills/verify-kiko-server` has the steps.
 
 const USER = "executor-alice"
@@ -58,14 +58,14 @@ const suite: Suite = {
       }
       console.error(`executor sign-in page reached (${page.status}${next ? ` -> ${new URL(next, url).origin}` : ""})`)
 
-      const wait = Number(process.env.KIKO_EXECUTOR_WAIT ?? 0)
+      const wait = Number(process.env.YUKI_EXECUTOR_WAIT ?? 0)
       const steps = [
         "waiting on a human. in one browser:",
         `  1. open ${new URL(`api/auth/dev/session?name=${USER}`, base).href}`,
         `  2. open ${started.authorizeUrl}`,
-        "  3. sign in to executor and approve kiko",
+        "  3. sign in to executor and approve yuki",
       ].join("\n")
-      if (!wait) throw new VerifyError(`${steps}\nrerun with KIKO_EXECUTOR_WAIT=300 and do the steps while it waits`)
+      if (!wait) throw new VerifyError(`${steps}\nrerun with YUKI_EXECUTOR_WAIT=300 and do the steps while it waits`)
       console.error(steps)
       const told = await user.expect((f) => f.t === "executor" && f.reqId === undefined, wait * 1000)
       const result = (told as { result: ExecutorResult }).result

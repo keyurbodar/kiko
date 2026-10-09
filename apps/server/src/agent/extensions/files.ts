@@ -7,8 +7,8 @@ import type { FsEntry } from "../../room/files"
 import { baseName } from "../../room/files"
 import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
 import { asRun, type RoomFs, SOUL_PATH } from "../../files/room-fs"
-import { declareEffect } from "@kiko/agent/effects"
-import { isRunTainted, markRunTainted, TRUST } from "@kiko/agent/trust"
+import { declareEffect } from "@yuki/agent/effects"
+import { isRunTainted, markRunTainted, TRUST } from "@yuki/agent/trust"
 
 export const FILES = "files"
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024

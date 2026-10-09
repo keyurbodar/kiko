@@ -1,4 +1,4 @@
-import type { ExtensionResult, FileRef } from "@kiko/protocol"
+import type { ExtensionResult, FileRef } from "@yuki/protocol"
 import { useApp } from "../lib/store"
 import { readText } from "./api"
 

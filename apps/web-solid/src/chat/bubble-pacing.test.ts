@@ -53,38 +53,38 @@ function rig(reduced = false) {
 describe("pacer", () => {
 	test("a burst of live bubbles shows one at a time", () => {
 		const r = rig()
-		r.pacer.offer({ id: "a", slug: "kiko", chars: 20, live: true })
-		r.pacer.offer({ id: "b", slug: "kiko", chars: 20, live: true })
-		r.pacer.offer({ id: "c", slug: "kiko", chars: 20, live: true })
+		r.pacer.offer({ id: "a", slug: "yuki", chars: 20, live: true })
+		r.pacer.offer({ id: "b", slug: "yuki", chars: 20, live: true })
+		r.pacer.offer({ id: "c", slug: "yuki", chars: 20, live: true })
 		expect([r.pacer.isHeld("a"), r.pacer.isHeld("b"), r.pacer.isHeld("c")]).toEqual([false, true, true])
-		expect(r.pacer.holding("kiko")).toBe(true)
+		expect(r.pacer.holding("yuki")).toBe(true)
 		r.advance(589)
 		expect(r.pacer.isHeld("b")).toBe(true)
 		r.advance(590)
 		expect([r.pacer.isHeld("b"), r.pacer.isHeld("c")]).toEqual([false, true])
 		r.advance(1180)
 		expect(r.pacer.isHeld("c")).toBe(false)
-		expect(r.pacer.holding("kiko")).toBe(false)
+		expect(r.pacer.holding("yuki")).toBe(false)
 	})
 
 	test("history is never held", () => {
 		const r = rig()
-		for (const id of ["a", "b", "c"]) r.pacer.offer({ id, slug: "kiko", chars: 100, live: false })
+		for (const id of ["a", "b", "c"]) r.pacer.offer({ id, slug: "yuki", chars: 100, live: false })
 		expect(r.pacer.holders()).toEqual([])
 		expect(r.pacer.isHeld("b")).toBe(false)
 	})
 
 	test("reduced motion is never held", () => {
 		const r = rig(true)
-		for (const id of ["a", "b"]) r.pacer.offer({ id, slug: "kiko", chars: 100, live: true })
+		for (const id of ["a", "b"]) r.pacer.offer({ id, slug: "yuki", chars: 100, live: true })
 		expect(r.pacer.isHeld("b")).toBe(false)
 	})
 
 	test("a bubble offered twice is held once", () => {
 		const r = rig()
-		r.pacer.offer({ id: "a", slug: "kiko", chars: 5, live: true })
-		r.pacer.offer({ id: "b", slug: "kiko", chars: 5, live: true })
-		r.pacer.offer({ id: "b", slug: "kiko", chars: 5, live: true })
+		r.pacer.offer({ id: "a", slug: "yuki", chars: 5, live: true })
+		r.pacer.offer({ id: "b", slug: "yuki", chars: 5, live: true })
+		r.pacer.offer({ id: "b", slug: "yuki", chars: 5, live: true })
 		r.advance(10_000)
 		expect(r.pacer.holders()).toEqual([])
 	})
@@ -100,15 +100,15 @@ describe("pacer", () => {
 
 	test("a bubble after a long pause shows at once", () => {
 		const r = rig()
-		r.pacer.offer({ id: "a", slug: "kiko", chars: 20, live: true })
+		r.pacer.offer({ id: "a", slug: "yuki", chars: 20, live: true })
 		r.advance(60_000)
-		r.pacer.offer({ id: "b", slug: "kiko", chars: 20, live: true })
+		r.pacer.offer({ id: "b", slug: "yuki", chars: 20, live: true })
 		expect(r.pacer.isHeld("b")).toBe(false)
 	})
 
 	test("flush shows everything and stops the timers", () => {
 		const r = rig()
-		for (const id of ["a", "b", "c"]) r.pacer.offer({ id, slug: "kiko", chars: 20, live: true })
+		for (const id of ["a", "b", "c"]) r.pacer.offer({ id, slug: "yuki", chars: 20, live: true })
 		r.pacer.flush()
 		expect(r.pacer.holders()).toEqual([])
 		expect(r.pacer.isHeld("c")).toBe(false)

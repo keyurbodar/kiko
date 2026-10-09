@@ -1,10 +1,10 @@
-import type { RoomId, RoomToClient } from "@kiko/protocol"
+import type { RoomId, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 // Architecture section 13. The memory eval: does an agent still know what was said hundreds of turns
 // ago, when only a bounded <memory> block reaches the model? A group chat of 320 turns (the human,
-// kiko, ada, and bob) is seeded straight into the room log, with no runs. Facts are planted from the
+// yuki, ada, and bob) is seeded straight into the room log, with no runs. Facts are planted from the
 // first turns to the last: from the human and from teammates, one buried in a long reply, and two that
 // are corrected later. The room's summaries are made with the real model, then one human message asks
 // every question. An answer scores when it carries the newest value. It also
@@ -15,11 +15,11 @@ import type { Suite } from "../runner"
 
 
 /**
- * Each fact sits on one turn. The human speaks on even turns; on odd turns kiko, ada, and bob take
+ * Each fact sits on one turn. The human speaks on even turns; on odd turns yuki, ada, and bob take
  * turns. A fact may come from an agent, may be buried in a long reply, or may be corrected later: the
  * answer must carry the newest value and not the old one.
  */
-export type Fact = { at: number; from?: "ada" | "bob" | "kiko"; said: string; ask?: string; expect?: RegExp; reject?: RegExp }
+export type Fact = { at: number; from?: "ada" | "bob" | "yuki"; said: string; ask?: string; expect?: RegExp; reject?: RegExp }
 const FACTS: Fact[] = [
   { at: 4, said: "oh and the dog's name is miso, she's a shiba", ask: "what is the dog called?", expect: /miso/i },
   { at: 30, said: "sam's birthday is march 3rd, don't let me forget", ask: "when is sam's birthday?", expect: /march\s*3|3(rd)?\s*march|03\/03|3\/3/i },
@@ -53,7 +53,7 @@ const FILLER_AGENT = [
   "fuunji near the south exit is the classic pick.",
   "works for me.",
 ]
-const AGENTS = ["kiko", "ada", "bob"] as const
+const AGENTS = ["yuki", "ada", "bob"] as const
 
 export type Eval = { name: string; turns: number; facts: Fact[]; pass: number; fillerHuman: string[]; fillerAgent: string[] }
 

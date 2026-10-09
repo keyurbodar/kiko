@@ -57,7 +57,7 @@ export type Message = {
 	run?: RunRef
 	editedAt?: number
 	reactions?: readonly Reaction[]
-	/** A chat this message points to, such as the one kiko just made. The client opens it. */
+	/** A chat this message points to, such as the one yuki just made. The client opens it. */
 	goto?: RoomId
 	/** The words of `replyTo` the sender picked to answer, as Telegram's quote does. */
 	quote?: string
@@ -129,7 +129,7 @@ export type Approval = {
 	state: ApprovalState
 	/** Epoch milliseconds. */
 	expiresAt: number
-	/** Set on a card whose ok lets the agent act outside kiko for this long (section 25.3). */
+	/** Set on a card whose ok lets the agent act outside yuki for this long (section 25.3). */
 	grantMs?: number
 }
 

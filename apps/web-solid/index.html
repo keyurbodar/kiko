@@ -47,7 +47,7 @@
       (function () {
         var n = document.getElementById("snap");
         try {
-          var s = JSON.parse(localStorage.getItem("kiko:snap") || "null");
+          var s = JSON.parse(localStorage.getItem("yuki:snap") || "null");
           if (!s || s.v !== 1 || s.path !== location.pathname) return n.remove();
           var h = document.head, w = s.links.length;
           var show = function () {

@@ -1,14 +1,14 @@
-import { type Agent, type AgentSlug, CHIEF_HANDLE, isAgentSlug, slugOfHandle, tagline } from "@kiko/protocol"
+import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@yuki/protocol"
 import { MAX_CHAT } from "../files/room-fs"
 import { MAX_SOUL } from "../user/souls"
 
-// Architecture section 7.11. kiko, the chief, makes the human's agents and groups. The human never
-// fills in a form: kiko asks what they want, proposes a name and a soul (or a group and its
+// Architecture section 7.11. yuki, the chief, makes the human's agents and groups. The human never
+// fills in a form: yuki asks what they want, proposes a name and a soul (or a group and its
 // /chat.md), and makes it only after the human answers. This file holds the shapes and the checks;
 // RoomDO stores the proposal and does the making.
 
 /** The built-in agent. Only it may propose and create. */
-export const CHIEF = "kiko" as AgentSlug
+export const CHIEF = "yuki" as AgentSlug
 
 export type NewAgentSpec = { name: string; handle: string; description: string; soul: string }
 
@@ -16,19 +16,19 @@ export type ProposalInput =
   | { kind: "agent"; agent: NewAgentSpec }
   | { kind: "group"; title: string; members: readonly string[]; agents: readonly NewAgentSpec[]; chat: string }
 
-/** A stored proposal. `seq` is the log's sequence when kiko made it: a human message after it is the human's answer. */
+/** A stored proposal. `seq` is the log's sequence when yuki made it: a human message after it is the human's answer. */
 export type Proposal = ProposalInput & { id: string; seq: number }
 
 /** ASSUMPTION: the most agents one group proposal makes. */
 const MAX_NEW_AGENTS = 4
-/** ASSUMPTION: a group's members, counting kiko, stay within a room's limit of 8. */
+/** ASSUMPTION: a group's members, counting yuki, stay within a room's limit of 8. */
 const MAX_MEMBERS = 7
 
 const clean = (s: string, max: number) => s.trim().slice(0, max)
 
 /** The proposal ready to store, or why it is refused. `agents` are the human's agents. */
 export function checkProposal(input: ProposalInput, agents: readonly Agent[]): ProposalInput | { error: string } {
-  const taken = new Set([CHIEF, CHIEF_HANDLE, ...agents.map((a) => a.slug as string)])
+  const taken = new Set([CHIEF, ...agents.map((a) => a.slug as string)])
   const checkAgent = (a: NewAgentSpec): NewAgentSpec | string => {
     const handle = a.handle.trim().toLowerCase().replace(/^@/, "")
     const name = clean(a.name, 60)
@@ -47,7 +47,7 @@ export function checkProposal(input: ProposalInput, agents: readonly Agent[]): P
   }
   const title = clean(input.title, 200)
   if (!title) return { error: "the group needs a title" }
-  const members = [...new Set(input.members.map((m) => slugOfHandle(m.trim().toLowerCase().replace(/^@/, ""))).filter((m) => m && m !== CHIEF))]
+  const members = [...new Set(input.members.map((m) => m.trim().toLowerCase().replace(/^@/, "")).filter((m) => m && m !== CHIEF))]
   const unknown = members.filter((m) => !agents.some((a) => a.slug === m))
   if (unknown.length) return { error: `no agent ${unknown.map((m) => `@${m}`).join(", ")}. the human has: ${agents.map((a) => `@${a.slug}`).join(", ") || "no agents yet"}` }
   if (input.agents.length > MAX_NEW_AGENTS) return { error: `make at most ${MAX_NEW_AGENTS} new agents at once` }

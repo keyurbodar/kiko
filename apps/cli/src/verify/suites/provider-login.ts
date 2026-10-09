@@ -1,4 +1,4 @@
-import type { UserToClient } from "@kiko/protocol"
+import type { UserToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
@@ -7,8 +7,8 @@ import type { Suite } from "../runner"
 // sends a device code (`notify`) and asks for it back (`prompt`): a right code stores
 // an OAuth credential, a wrong code fails, and an abandoned login is gone for good.
 
-const FAKE = "kiko-fake"
-const CODE = "KIKO-0000"
+const FAKE = "yuki-fake"
+const CODE = "YUKI-0000"
 
 type Frame<T extends UserToClient["t"]> = Extract<UserToClient, { t: T }>
 
@@ -31,7 +31,7 @@ const suite: Suite = {
     const ofLogin = <T extends UserToClient["t"]>(t: T, loginId: string) => (f: UserToClient) =>
       f.t === t && (f as { loginId?: string }).loginId === loginId
 
-    // Refusals. OpenRouter's flow needs a loopback server, so kiko does not run it.
+    // Refusals. OpenRouter's flow needs a loopback server, so yuki does not run it.
     const refused = id()
     user.send({ t: "login.start", loginId: refused, provider: "openrouter" })
     const unsupported = (await user.expect(ofLogin("login.error", refused))) as Frame<"login.error">

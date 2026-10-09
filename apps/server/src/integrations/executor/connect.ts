@@ -1,4 +1,4 @@
-import type { ExecutorStatus } from "@kiko/protocol"
+import type { ExecutorStatus } from "@yuki/protocol"
 import { McpClient, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
@@ -12,7 +12,7 @@ import type { ExecutorTokenStore } from "./token-store"
 // Architecture section 12.1. Connects one user's Executor Cloud (v2) account. `UserDO` owns the
 // one `ExecutorConnection` for its user, so every token exchange and refresh runs inside it.
 //
-//   start(origin)   registers kiko with Executor's sign-in server (once), and returns the
+//   start(origin)   registers yuki with Executor's sign-in server (once), and returns the
 //                   authorize URL: PKCE S256, scope with `offline_access`.
 //   finish(params)  the browser comes back to /api/integrations/executor/callback. The Worker
 //                   checks the session and hands the code to this user's object.
@@ -39,7 +39,7 @@ export interface CallbackParams {
   error?: string
 }
 
-/** `McpOAuthState` plus when kiko last saw a new access token. */
+/** `McpOAuthState` plus when yuki last saw a new access token. */
 type StoredState = McpOAuthState & { issuedAt?: number }
 
 /** A lowercase message that is safe to show. pi-mcp's errors carry no token. */
@@ -307,7 +307,7 @@ export class ExecutorConnection {
 // user; the request never does. The answer is a short page, and it never holds a token.
 
 function page(status: number, text: string): Response {
-  const html = `<!doctype html><meta charset="utf-8"><title>kiko</title><p style="font:16px system-ui;margin:2rem">${text}</p>`
+  const html = `<!doctype html><meta charset="utf-8"><title>yuki</title><p style="font:16px system-ui;margin:2rem">${text}</p>`
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } })
 }
 
@@ -324,7 +324,7 @@ export async function executorCallbackRoute(
   // No origin check: the browser arrives by a redirect from Executor. The stored `state`,
   // which only this user's object knows, is what ties the code to the user.
   const user = await lookup(request, env)
-  if (!user) return page(401, "sign in to kiko in this browser, then connect executor again")
+  if (!user) return page(401, "sign in to yuki in this browser, then connect executor again")
   const q = url.searchParams
   const params: CallbackParams = {}
   for (const key of ["code", "state", "iss", "error"] as const) {

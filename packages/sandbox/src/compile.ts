@@ -19,8 +19,8 @@ import {
   wrapTool,
 } from "@earendil-works/pi-durable"
 import type { ExtensionBundle, ExtensionManifest, ExtensionStateScope } from "./manifest"
-import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
-import { markRunTainted } from "@kiko/agent/trust"
+import { declareEffect, type Effect, effectOf } from "@yuki/agent/effects"
+import { markRunTainted } from "@yuki/agent/trust"
 import { type Bridge, ScriptError, ScriptVM, type Target } from "./vm"
 
 export type ScriptPorts = {
@@ -122,9 +122,9 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
   }
 
   const stateOp = async (op: string, payload: unknown[], readOnly: boolean): Promise<unknown> => {
-    if (!m.state) throw new Error(`kiko.state needs "state" in extension.json`)
+    if (!m.state) throw new Error(`yuki.state needs "state" in extension.json`)
     const verb = op.slice("state.".length) as "get" | "set" | "delete" | "list"
-    if (readOnly && verb !== "get" && verb !== "list") throw new Error("a section can only read kiko.state")
+    if (readOnly && verb !== "get" && verb !== "list") throw new Error("a section can only read yuki.state")
     return ports.state(name, m.state, verb, String(payload[0] ?? ""), payload[1])
   }
 
@@ -136,7 +136,7 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
       }
       if (op.startsWith("state.")) return stateOp(op, payload, false)
       if (op === "next") {
-        if (!next) throw new Error("kiko.next only works in a tool wrap")
+        if (!next) throw new Error("yuki.next only works in a tool wrap")
         return next((payload[0] ?? {}) as Record<string, unknown>)
       }
       if (op === "fetch") {
@@ -162,14 +162,14 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
         if (result.isError) throw new Error(out || `${tool} failed`)
         return out
       }
-      throw new Error(`kiko.${op} is not available`)
+      throw new Error(`yuki.${op} is not available`)
     }
   }
 
   const quietBridge = (where: string, readOnly: boolean): Bridge => async (op, payload) => {
     if (op === "log") return undefined
     if (op.startsWith("state.")) return stateOp(op, payload, readOnly)
-    throw new Error(`${where} can only use kiko.state and kiko.log`)
+    throw new Error(`${where} can only use yuki.state and yuki.log`)
   }
 
   const tools: ToolRegistration[] = Object.entries(m.tools ?? {}).map(([toolName, t]) =>

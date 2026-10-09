@@ -1,8 +1,8 @@
 import { A } from "@solidjs/router"
 import { Moment } from "../../mascot/lazy"
 import { createSignal, For, Show, Suspense } from "solid-js"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, KeyIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, KeyIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@yuki/ui/icons"
 import { SETTINGS_GROUPS, searchSections, type SettingsSection } from "../../settings/sections"
 import { useApp } from "../../lib/store"
 

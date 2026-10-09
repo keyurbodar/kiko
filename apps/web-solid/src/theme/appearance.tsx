@@ -23,7 +23,7 @@ function AccentPicker(): JSX.Element {
             aria-label={ACCENTS[id].label}
             title={ACCENTS[id].label}
             data-accent={id}
-            class="grid size-7 cursor-pointer place-items-center rounded-full outline-none [&[aria-checked=true]>span]:shadow-[0_0_0_2px_var(--bg),0_0_0_3.5px_var(--text)]"
+            class="grid size-7 cursor-pointer place-items-center rounded-full outline-none [&[aria-checked=true]>span]:shadow-[0_0_0_2px_var(--bg),0_0_0_3px_var(--text)]"
             onClick={() => updateLook({ accent: id })}
           >
             <span class="block size-5 rounded-full" style={{ background: ACCENTS[id][shown()] }} />

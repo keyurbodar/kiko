@@ -1,4 +1,4 @@
-import { handleOf, type Block, type ColumnAlign, type Inline, type RichText } from "@kiko/protocol"
+import type { Block, ColumnAlign, Inline, RichText } from "@yuki/protocol"
 import { chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
 
 /* The rich text tree as plain element data. `RichText.tsx` renders this and
@@ -26,7 +26,7 @@ export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(hr
 const fileChip = (file: FileTarget): RichNode => ({ kind: "file", file, label: chipLabel(file) })
 
 const plain = (nodes: readonly Inline[]): string =>
-  nodes.map((n) => (n.t === "text" || n.t === "code" ? n.text : n.t === "mention" ? `@${handleOf(n.slug)}` : plain(n.children))).join("")
+  nodes.map((n) => (n.t === "text" || n.t === "code" ? n.text : n.t === "mention" ? `@${n.slug}` : plain(n.children))).join("")
 
 export function inline(node: Inline): RichNode {
   switch (node.t) {

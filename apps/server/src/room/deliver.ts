@@ -1,5 +1,5 @@
-import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@kiko/protocol"
-import type { Authority } from "@kiko/agent/authority"
+import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@yuki/protocol"
+import type { Authority } from "@yuki/agent/authority"
 import type { RoomLog } from "./log"
 import type { Chain } from "./mail"
 import { type RecipientMember, resolveRecipients } from "./recipients"

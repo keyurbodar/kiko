@@ -9,7 +9,7 @@ import { type PromptSection, section } from "@earendil-works/pi-durable"
 // /chat.md. Both are files the agent keeps current itself, so it fits the human over time.
 
 /** Section keys in their fixed order. A test asserts this order. */
-export const SECTION_ORDER = ["kiko", "reactions", "soul", "role", "chat", "skills"] as const
+export const SECTION_ORDER = ["yuki", "reactions", "soul", "role", "chat", "skills"] as const
 export type SectionKey = (typeof SECTION_ORDER)[number]
 
 export type RoleInput = {
@@ -20,7 +20,7 @@ export type RoleInput = {
 }
 
 /** The core every agent shares: voice, judgment, the chat's rules, and the files it keeps. */
-export const KIKO_RULES = `you're an agent in yuki, a chat app. you share a chat with one human and maybe other agents. your soul below is who you are.
+export const YUKI_RULES = `you're an agent in yuki, a chat app. you share a chat with one human and maybe other agents. your soul below is who you are.
 
 how you talk
 - text like a sharp friend: all lowercase, short, plain words. no headings, lists, bold, or filler ("great question", "happy to help", "let me know if", "noted"). no restating what they said, no narrating your tools.
@@ -83,7 +83,7 @@ const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
  */
 export function baseSections(input: RoleInput): PromptSection[] {
   return [
-    section("kiko", () => KIKO_RULES),
+    section("yuki", () => YUKI_RULES),
     section("reactions", () => REACTION_LINE),
     slot("soul"),
     section("role", () => roleText(input)),

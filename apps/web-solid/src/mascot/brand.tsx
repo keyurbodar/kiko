@@ -1,5 +1,5 @@
 import { Bird } from "./bird"
-import { YUKI, type BirdState } from "./birds"
+import { YUKI_BIRD, type BirdState } from "./birds"
 
 /**
  * The brand mark: Yuki in profile, the loaf. `size` is its height. While any agent is working its
@@ -7,5 +7,5 @@ import { YUKI, type BirdState } from "./birds"
  */
 export function BrandBird(props: { size: number; working?: boolean }) {
   const state = (): BirdState => (props.working ? "working" : "idle")
-  return <Bird spec={YUKI} shape="loaf" state={state()} size={props.size} class="brand-bird" />
+  return <Bird spec={YUKI_BIRD} shape="loaf" state={state()} size={props.size} class="brand-bird" />
 }

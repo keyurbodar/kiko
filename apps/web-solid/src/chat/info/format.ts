@@ -1,4 +1,4 @@
-import { roomIdTime } from "@kiko/protocol"
+import { roomIdTime } from "@yuki/protocol"
 
 /** The moment a chat was made, read from the time part of its room id (a UUIDv7, or an older ULID). Null when the id is neither. */
 export const startedAt = (roomId: string): number | null => roomIdTime(roomId)

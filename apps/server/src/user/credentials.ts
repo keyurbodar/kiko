@@ -1,5 +1,5 @@
 import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai"
-import { type Keyring, open, seal } from "@kiko/durable/crypto"
+import { type Keyring, open, seal } from "@yuki/durable/crypto"
 
 export interface ProviderInfo {
   provider: string

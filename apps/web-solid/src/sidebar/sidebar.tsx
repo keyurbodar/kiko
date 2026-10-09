@@ -1,9 +1,9 @@
 import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { A, useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ComposeIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { ComposeIcon, SettingsIcon, SidebarLeftIcon } from "@yuki/ui/icons"
+import { TooltipV2 } from "@yuki/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
@@ -11,7 +11,7 @@ import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { BrandBird } from "../mascot/brand"
 import { ChatPanel } from "./chat-panel"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { MenuV2 } from "@yuki/ui/v2/menu-v2"
 import "./sidebar.css"
 
 /*
@@ -75,7 +75,7 @@ export interface SidebarProps {
  * curve; here the column is either there or it is not, because a panel that
  * takes a quarter second to get out of the way is a panel the user waits on.
  */
-const WIDTH_KEY = "kiko:sidebar-width"
+const WIDTH_KEY = "yuki:sidebar-width"
 
 /** The width the reader dragged to, or null for the default. */
 function readWidth(): number | null {

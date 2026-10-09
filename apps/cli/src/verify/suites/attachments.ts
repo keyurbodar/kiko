@@ -1,4 +1,4 @@
-import type { PendingAttachment, RoomEvent, RoomToClient } from "@kiko/protocol"
+import type { PendingAttachment, RoomEvent, RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 

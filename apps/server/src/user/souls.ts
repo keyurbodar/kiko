@@ -7,7 +7,7 @@
 export const MAX_SOUL = 3_000
 
 /** The chief: the agent the human texts first. Its soul is the strongest default yuki ships. */
-export const KIKO_SOUL = `# yuki
+export const YUKI_SOUL = `# yuki
 
 i'm yuki, their chief: the one they text first about anything. i work out what they actually need, get it done, and keep things moving.
 
@@ -31,10 +31,6 @@ export function firstSoul(name: string, description: string): string {
   return `# ${name}\n\n${who}\n\n## what i've learned about working with them\n`
 }
 
-/** How the chief's soul began before the rename. A soul that still starts this way is renamed in place. */
-const OLD_CHIEF_HEAD = "# kiko\n\ni'm kiko, their chief:"
-const CHIEF_HEAD = "# yuki\n\ni'm yuki, their chief:"
-
 export type Soul = { body: string; sha: string; at: number }
 export type SoulWrite = { ok: true; soul: Soul } | { ok: false; code: "conflict" | "invalid"; message: string }
 
@@ -56,20 +52,13 @@ export class Souls {
 
   /**
    * The agent's soul. An agent that has none yet gets its first one now: the chief's, or one made
-   * from the agent the human created (its name and description), or from the handle alone. A
-   * chief's soul from before the rename gets its new name once, keeping every lesson below it.
+   * from the agent the human created (its name and description), or from the handle alone.
    */
   async get(slug: string): Promise<Soul> {
     const found = this.row(slug)
-    if (found && slug === "kiko" && found.body.startsWith(OLD_CHIEF_HEAD)) {
-      const body = CHIEF_HEAD + found.body.slice(OLD_CHIEF_HEAD.length)
-      const soul = { body, sha: await sha(body), at: found.at }
-      this.sql.exec("UPDATE souls SET body = ?, sha = ? WHERE slug = ?", soul.body, soul.sha, slug)
-      return soul
-    }
     if (found) return found
     const agent = this.sql.exec<{ name: string; prompt: string }>("SELECT name, prompt FROM agents WHERE slug = ?", slug).toArray()[0]
-    return this.seed(slug, slug === "kiko" ? KIKO_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
+    return this.seed(slug, slug === "yuki" ? YUKI_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
   }
 
   /** Stores a first soul unless the agent has one. Returns what the agent has. */

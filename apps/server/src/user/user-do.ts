@@ -1,6 +1,6 @@
-import { duplicateDm, newRoomId } from "@kiko/protocol"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
-import { ClientToUser } from "@kiko/protocol/schema"
+import { duplicateDm, newRoomId } from "@yuki/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
+import { ClientToUser } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
@@ -9,10 +9,10 @@ import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } fro
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import type { ExecutorTool } from "../integrations/executor/tools"
-import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
-import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
-import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
-import { keyringFromEnv } from "@kiko/durable/crypto"
+import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
+import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
+import { yukiChatOps, yukiChatRoom, markYukiChat, movesYukiChat } from "./yuki-chat"
+import { keyringFromEnv } from "@yuki/durable/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
@@ -20,18 +20,18 @@ import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsC
 import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
-import { Life } from "@kiko/memory/life"
+import { Life } from "@yuki/memory/life"
 import { importRecords } from "./import-records"
-import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
+import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@yuki/memory/optmem"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
 import { BUDGET_LINE } from "../room/limits"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
-import type { Trigger } from "@kiko/protocol"
-import { safeFetch } from "@kiko/durable/safe-fetch"
+import type { Trigger } from "@yuki/protocol"
+import { safeFetch } from "@yuki/durable/safe-fetch"
 import { defaultFetcher } from "../lib/dev-fixture-fetch"
-import { htmlToText } from "@kiko/durable/html-text"
+import { htmlToText } from "@yuki/durable/html-text"
 import { migrate } from "./schema"
 import { DEFAULT_TIMEZONE, findProvider, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
@@ -41,10 +41,10 @@ import { type ExtensionEvent, ExtensionError, ExtensionStore } from "./extension
 import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "./recurrence"
 import { CHIEF } from "../room/chief"
-import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
-import type { GuestRequest, GuestResponse } from "@kiko/sandbox/compile"
-import { closeSockets, storedRows, wipeStorage } from "@kiko/durable/wipe"
-import type { Authority } from "@kiko/agent/authority"
+import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
+import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
+import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
+import type { Authority } from "@yuki/agent/authority"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }
@@ -132,7 +132,7 @@ export class UserDO extends DurableObject<Env> {
           },
           cancelBy: (createdBy) => this.reminders.cancelCreatedBy(createdBy),
           fallback: () => {
-            const roomId = kikoChatRoom(this.sql)
+            const roomId = yukiChatRoom(this.sql)
             return roomId ? { roomId, target: CHIEF } : null
           },
         },
@@ -267,7 +267,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private checkInFingerprint(): string {
-    return overviewFingerprint(this.sql, this.reminders.list(), this.reminders.runs(), { routineId: this.setting(CHECK_IN), roomId: kikoChatRoom(this.sql) })
+    return overviewFingerprint(this.sql, this.reminders.list(), this.reminders.runs(), { routineId: this.setting(CHECK_IN), roomId: yukiChatRoom(this.sql) })
   }
 
   async chatTasks(roomId: string, tasks: ChatTasks): Promise<void> {
@@ -709,7 +709,7 @@ export class UserDO extends DurableObject<Env> {
   private async awayNotice(now: number): Promise<void> {
     if (this.setting(AWAY_NOTICE) !== null) return
     this.putSetting(AWAY_NOTICE, String(now))
-    const roomId = kikoChatRoom(this.sql)
+    const roomId = yukiChatRoom(this.sql)
     const owner = userIdFromObjectName(this.ctx.id.name)
     if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open yuki.", "limit")
   }
@@ -943,7 +943,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private apply(op: ChatOp): UserEvent | null {
-    if (movesKikoChat(this.sql, op) || this.duplicateOf(op)) return null
+    if (movesYukiChat(this.sql, op) || this.duplicateOf(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
@@ -954,23 +954,23 @@ export class UserDO extends DurableObject<Env> {
 
   private duplicateOf(op: ChatOp): RoomId | null {
     if (op.op !== "create" || op.temp || op.agents?.length !== 1) return null
-    return duplicateDm(listChats(this.sql).map((c) => markKikoChat(this.sql, c)), op)
+    return duplicateDm(listChats(this.sql).map((c) => markYukiChat(this.sql, c)), op)
   }
 
   private lastChat(): RoomId | undefined {
     const stored = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", LAST_CHAT).toArray()[0]?.value
     const chat = stored ? getChat(this.sql, stored) : null
-    return chat && !chat.temp ? chat.roomId : (kikoChatRoom(this.sql) ?? undefined)
+    return chat && !chat.temp ? chat.roomId : (yukiChatRoom(this.sql) ?? undefined)
   }
 
   async ensureHome(): Promise<void> {
-    for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
+    for (const op of yukiChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     await this.ensureCheckIn()
   }
 
   private async ensureCheckIn(): Promise<void> {
     if (this.setting(CHECK_IN) !== null) return
-    const roomId = kikoChatRoom(this.sql)
+    const roomId = yukiChatRoom(this.sql)
     if (!roomId || !getChat(this.sql, roomId)) return
     const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
     const first = nextOccurrence(CHECK_IN_RULE, tz, Date.now())
@@ -1007,7 +1007,7 @@ export class UserDO extends DurableObject<Env> {
 
   private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | ExtensionEvent | null): UserEvent | null {
     if (!change) return null
-    if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
+    if (change.t === "chat") change = { ...change, chat: markYukiChat(this.sql, change.chat) }
     const at = Date.now()
     const seq = this.currentSeq() + 1
     const event = { ...change, seq, at } as UserEvent
@@ -1033,7 +1033,7 @@ export class UserDO extends DurableObject<Env> {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}), extensions: this.extensions.list(), proposals: this.extensions.proposals() },
+        snapshot: { seq, chats: listChats(this.sql).map((c) => markYukiChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}), extensions: this.extensions.list(), proposals: this.extensions.proposals() },
       }
     }
     const events = this.sql

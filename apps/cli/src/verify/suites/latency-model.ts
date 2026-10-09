@@ -3,12 +3,12 @@ import type { Suite } from "../runner"
 import { Samples, timedTurn } from "./latency"
 import { ulid } from "./mid-run"
 
-// `latency` on the test model (opencode-go/deepseek-v4.1-flash): KIKO_LATENCY_RUNS turns (default
+// `latency` on the test model (opencode-go/deepseek-v4.1-flash): YUKI_LATENCY_RUNS turns (default
 // 10) in one room, each asking for two tiny paragraphs so there is a gap between two bubbles. The
 // first turn opens the agent's harness. Prints p50 and p95. Short prompts keep the cost to a few
 // hundred tokens a turn.
 
-const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
+const RUNS = Number(process.env.YUKI_LATENCY_RUNS ?? 10)
 
 const suite: Suite = {
   name: "latency-model",

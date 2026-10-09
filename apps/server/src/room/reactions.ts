@@ -1,4 +1,4 @@
-import type { AgentSlug, MessageId, RoomEvent } from "@kiko/protocol"
+import type { AgentSlug, MessageId, RoomEvent } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
 // Architecture section 6.5. An agent reacts inline with `[react:<emoji>]`. The splitter strips the

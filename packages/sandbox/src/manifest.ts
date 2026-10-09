@@ -38,7 +38,7 @@ export type ExtensionTest = {
 }
 
 export type ExtensionManifest = {
-	kiko: typeof EXTENSION_SDK
+	yuki: typeof EXTENSION_SDK
 	name: string
 	version: string
 	description: string
@@ -83,9 +83,9 @@ const HOST = /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 const PATH = /^(?:[a-z0-9_-][a-z0-9._-]{0,63}\/){0,3}[a-z0-9_-][a-z0-9._-]{0,63}\.(?:js|mjs|json|md|txt)$/i
 const RRULE = /^(?:DTSTART[^\n]*\n)?(?:RRULE:)?FREQ=(?:MINUTELY|HOURLY|DAILY|WEEKLY|MONTHLY|YEARLY)(?:;[A-Z]+=[A-Z0-9,+-]+)*$/
 
-export const PROTECTED_SECTIONS: readonly string[] = ["kiko", "reactions", "role"]
+export const PROTECTED_SECTIONS: readonly string[] = ["yuki", "reactions", "role"]
 
-const KEYS = new Set(["$schema", "kiko", "name", "version", "description", "main", "tools", "sections", "hooks", "wraps", "calls", "egress", "secrets", "state", "triggers", "tests"])
+const KEYS = new Set(["$schema", "yuki", "name", "version", "description", "main", "tools", "sections", "hooks", "wraps", "calls", "egress", "secrets", "state", "triggers", "tests"])
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
@@ -113,7 +113,7 @@ export function checkManifest(value: unknown): ManifestCheck {
 	const bad = (line: string) => problems.push(line)
 	if (!isObject(value)) return { ok: false, problems: ["the manifest must be a json object"] }
 	for (const key of Object.keys(value)) if (!KEYS.has(key)) bad(`unknown key "${key}"`)
-	if (value.kiko !== EXTENSION_SDK) bad(`"kiko" must be ${EXTENSION_SDK}`)
+	if (value.yuki !== EXTENSION_SDK) bad(`"yuki" must be ${EXTENSION_SDK}`)
 	if (typeof value.name !== "string" || !NAME.test(value.name)) bad(`"name" must be 2 to 32 lowercase letters, digits, or dashes, starting with a letter`)
 	if (typeof value.version !== "string" || !VERSION.test(value.version)) bad(`"version" must look like 1.0.0`)
 	if (typeof value.description !== "string" || !value.description.trim()) bad(`"description" is required`)
@@ -191,7 +191,7 @@ export function checkManifest(value: unknown): ManifestCheck {
 			if (w.tools !== undefined && !isStringArray(w.tools)) bad(`"wraps.tools" must be a list of tool names`)
 			if (isStringArray(w.tools)) for (const t of w.tools) if (toolNames.has(t)) bad(`wraps: "${t}" is this extension's own tool; change it in the script instead`)
 			if (w.sections !== undefined && !isStringArray(w.sections)) bad(`"wraps.sections" must be a list of section keys`)
-			if (isStringArray(w.sections)) for (const s of w.sections) if (PROTECTED_SECTIONS.includes(s)) bad(`wraps: section "${s}" holds kiko's safety rules and cannot be wrapped`)
+			if (isStringArray(w.sections)) for (const s of w.sections) if (PROTECTED_SECTIONS.includes(s)) bad(`wraps: section "${s}" holds yuki's safety rules and cannot be wrapped`)
 		}
 	}
 
@@ -290,9 +290,9 @@ export function checkBundle(value: unknown): BundleCheck {
 
 const EFFECT_WORDS: Record<ExtensionEffect, string> = {
 	read: "only reads",
-	write: "changes things in kiko",
+	write: "changes things in yuki",
 	message: "messages your agents",
-	external: "acts outside kiko",
+	external: "acts outside yuki",
 }
 
 const HOOK_WORDS: Record<ExtensionHook, string> = {

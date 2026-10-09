@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { ClientToUser, ExecutorResult, UserToClient } from "@kiko/protocol"
+import type { ClientToUser, ExecutorResult, UserToClient } from "@yuki/protocol"
 import { createExecutorClient } from "./integrations-client"
 import { createUserChannel } from "../sync/user-channel"
 

@@ -9,7 +9,7 @@ export type EffectDeclaration = {
   outside?: string
 }
 
-const DECLARED = Symbol.for("kiko.effect")
+const DECLARED = Symbol.for("yuki.effect")
 
 type Declared = { [DECLARED]?: EffectDeclaration }
 

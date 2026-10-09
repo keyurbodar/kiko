@@ -1,4 +1,4 @@
-import type { Agent, AgentSlug, Approval, RoomId, RoomToClient } from "@kiko/protocol"
+import type { Agent, AgentSlug, Approval, RoomId, RoomToClient } from "@yuki/protocol"
 import { type RoomHandle, VerifyError } from "../client"
 import { agentTexts, dev, eventually, messages, ok, type Routine, runsOf, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -126,21 +126,21 @@ const suite: Suite = {
       user.send({ t: "chat", op: { op: "create", roomId, title: "triggers: taint", agents: [agentOf("ada").id, agentOf("bob").id] } })
       await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
       const room = await s.room(roomId)
-      await ok(url, s, "dev/agent/fake", { roomId, slugs: ["kiko", "ada", "bob"] })
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "relay", agent: "kiko", instructions: "[call fake_note] [call fake_send]", may: ["fake_send"], trigger: { on: "message", from: "agent", contains: "fake_fetch" } })
-      const kikoTools = () => messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "kiko" && m.text.startsWith("tools:")).map((m) => m.text)
+      await ok(url, s, "dev/agent/fake", { roomId, slugs: ["yuki", "ada", "bob"] })
+      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "relay", agent: "yuki", instructions: "[call fake_note] [call fake_send]", may: ["fake_send"], trigger: { on: "message", from: "agent", contains: "fake_fetch" } })
+      const yukiTools = () => messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.text.startsWith("tools:")).map((m) => m.text)
       // ada reads a page, which taints her run, and her reply names the tool she used.
       await send(room, "[fetch] mango season is here @ada")
       await waitRuns(url, s, routine.id, "the tainted event run", (rs) => rs.some((x) => x.status !== "running"), 100_000)
-      await eventually("kiko's answer to the tainted event", () => kikoTools().some((t) => t.includes("fake_send")), 20_000)
-      const tainted = kikoTools().find((t) => t.includes("fake_send"))
+      await eventually("yuki's answer to the tainted event", () => yukiTools().some((t) => t.includes("fake_send")), 20_000)
+      const tainted = yukiTools().find((t) => t.includes("fake_send"))
       if (tainted !== "tools: fake_note ran tainted, fake_send ran") throw new VerifyError(`a tainted message should fire a tainted run that keeps its grant: ${JSON.stringify(tainted)}`)
       // bob's clean reply names it too: the run starts clean.
       await Bun.sleep(61_000)
       await send(room, "@bob [reply] fake_fetch is fine")
       await waitRuns(url, s, routine.id, "the clean event run", (rs) => rs.filter((x) => x.status !== "running").length >= 2, 100_000)
-      await eventually("kiko's answer to the clean event", () => kikoTools().filter((t) => t.includes("fake_send")).length >= 2, 20_000)
-      const clean = kikoTools().filter((t) => t.includes("fake_send"))[1]
+      await eventually("yuki's answer to the clean event", () => yukiTools().filter((t) => t.includes("fake_send")).length >= 2, 20_000)
+      const clean = yukiTools().filter((t) => t.includes("fake_send"))[1]
       if (clean !== "tools: fake_note ran, fake_send ran") throw new VerifyError(`a clean message should fire a clean run: ${JSON.stringify(clean)}`)
       console.log("  ok a message written after reading a web page fired a tainted run, a clean one a clean run; both used the routine's grant")
       room.raw.close()

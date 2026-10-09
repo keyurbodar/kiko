@@ -1,4 +1,4 @@
-import type { ExecutorResult, ExecutorStatus } from "@kiko/protocol"
+import type { ExecutorResult, ExecutorStatus } from "@yuki/protocol"
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
 import { Dialog } from "../lib/dialog"
 import { cn } from "../lib/cn"
@@ -17,7 +17,7 @@ export const EXECUTOR_HOME = "https://v2.executor.sh"
 
 async function openClient(): Promise<ExecutorClient> {
 	// The dev mock, same rule as the chat data layer. A production build drops this branch.
-	if (import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") return createMockExecutor()
+	if (import.meta.env.DEV && import.meta.env.VITE_YUKI_SYNC === "mock") return createMockExecutor()
 	return createExecutorClient()
 }
 
@@ -146,7 +146,7 @@ export function Integrations(props: { client?: ExecutorClient; open?: (url: stri
 											id="integrations-key"
 											ref={key}
 											type="password"
-											name="kiko-integration-secret"
+											name="yuki-integration-secret"
 											autocomplete="off"
 											autocapitalize="off"
 											spellcheck={false}

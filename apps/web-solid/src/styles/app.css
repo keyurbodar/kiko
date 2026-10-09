@@ -14,8 +14,8 @@
 @layer theme, base, v2, components, utilities;
 
 @import "tailwindcss";
-@import "@kiko/ui/v2/styles/tailwind.css";
-@import "@kiko/ui/kat.css";
+@import "@yuki/ui/v2/styles/tailwind.css";
+@import "@yuki/ui/kat.css";
 @import "./motion.css";
 
 /* `FileIcon` has the same trap as `Icon`: it ships `file-icon.css`, which is
@@ -25,8 +25,8 @@
  * chip's own layout apart. Imported at the app level, with `icon.css`, for the
  * same reason: both belong to the package, not to whichever surface first
  * needed an icon. */
-@import "@kiko/ui/icon.css";
-@import "@kiko/ui/file-icon.css";
+@import "@yuki/ui/icon.css";
+@import "@yuki/ui/file-icon.css";
 
 /* The dim behind the mobile sidebar drawer. It sits under the panel (z 30) and over the main panel. */
 .drawer-scrim {

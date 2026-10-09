@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
-import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "@kiko/durable/crypto"
+import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "@yuki/durable/crypto"
 
 const random = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("")
 const V1: Keyring = { current: { version: 1, secret: `kek-one-${random()}` } }

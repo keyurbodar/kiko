@@ -1,18 +1,18 @@
-import { isAgentSlug, tagline } from "@kiko/protocol"
-import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, Sender, SystemReason, TaskOp } from "@kiko/protocol"
+import { isAgentSlug, tagline } from "@yuki/protocol"
+import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, FileRef, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, Sender, SystemReason, TaskOp } from "@yuki/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import type { Env } from "../index"
-import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
-import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
-import { HUMAN, stamp } from "@kiko/agent/authority"
+import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
+import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
+import { HUMAN, stamp } from "@yuki/agent/authority"
 import { BUDGET_LINE, utcDay } from "./limits"
 import { type Inflight, RoomRoutines, ROUTINES_WAKEUP } from "./routines"
 import { chatTasks, LOOPS_WAKEUP, MAX_NUDGES, nextSweep, nudgeBody, openTasks, stalled } from "./stalls"
 import type { RoomRoutine } from "../user/routines"
 import type { RunDelivery } from "../user/reminders"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
-import { closeSockets, storedRows, wipeStorage } from "@kiko/durable/wipe"
+import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
@@ -40,8 +40,8 @@ import { applyTaskOp, RoomWorkspace, runCall, wakeEnvelope, type WorkspaceAnswer
 
 declare const process: { env: { NODE_ENV?: string } }
 
-export const DEFAULT_AGENT = "kiko" as AgentSlug
-/** The chief's display name. Its slug stays `kiko`; people read and type it as Yuki and `@yuki`. */
+export const DEFAULT_AGENT = "yuki" as AgentSlug
+/** The chief's display name. Its slug stays `yuki`; people read and type it as Yuki and `@yuki`. */
 const CHIEF_NAME = "Yuki"
 const DELIVERY_RETRY_MS = 2_000
 const WAKES_WAKEUP = "ws_wakes"

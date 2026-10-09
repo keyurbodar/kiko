@@ -26,7 +26,7 @@ const cases: [string, string, unknown][] = [
 	["mention", "hey @coder and @all!", [p(text("hey "), { t: "mention", slug: "coder" }, text(" and "), { t: "mention", slug: "all" }, text("!"))]],
 	["email autolinks, not a mention", "a@b.co", [p({ t: "link", href: "mailto:a@b.co", children: [text("a@b.co")] })]],
 	["mention not in code", "`@coder`", [p({ t: "code", text: "@coder" })]],
-	["the chief's handle is its slug", "ask @yuki now", [p(text("ask "), { t: "mention", slug: "kiko" }, text(" now"))]],
+	["the chief's handle is its slug", "ask @yuki now", [p(text("ask "), { t: "mention", slug: "yuki" }, text(" now"))]],
 	["raw html block", '<div onclick="x()">hi</div>', [p(text('<div onclick="x()">hi</div>'))]],
 	["raw html inline", "a <b>x</b> b", [p(text("a "), text("<b>"), text("x"), text("</b>"), text(" b"))]],
 	["image becomes alt text", "![cat](https://a.com/c.png)", [p(text("cat"))]],

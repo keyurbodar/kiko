@@ -3,8 +3,8 @@ import type {
   ClientToUser as UserOut,
   RoomToClient as RoomIn,
   UserToClient as UserIn,
-} from "@kiko/protocol"
-import { ClientToRoom, ClientToUser, RoomToClient, UserToClient } from "@kiko/protocol/schema"
+} from "@yuki/protocol"
+import { ClientToRoom, ClientToUser, RoomToClient, UserToClient } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 
 export class VerifyError extends Error {}

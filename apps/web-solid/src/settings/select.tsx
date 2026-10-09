@@ -9,7 +9,7 @@
 // and Escape closes. Tab walks to the option buttons, and out of the panel it closes. Every
 // close puts focus back on the trigger. The buttons sit in their own column beside the listbox,
 // so the listbox holds only options.
-import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
+import { DismissableLayerV2 } from "@yuki/ui/v2/dismissable-layer-v2"
 import { For, Show, createSignal, createUniqueId, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
 import { selectClass } from "./kit"

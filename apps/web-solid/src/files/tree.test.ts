@@ -59,10 +59,10 @@ describe("expanded persistence", () => {
 	})
 	test("bad data and a missing store give an empty set", () => {
 		const s = memory()
-		s.data.set("kiko:files:expanded:r1", "{nope")
+		s.data.set("yuki:files:expanded:r1", "{nope")
 		expect(loadExpanded("r1", s)).toEqual([])
 		expect(loadExpanded("r1", undefined)).toEqual([])
-		s.data.set("kiko:files:expanded:r1", JSON.stringify(["a", 3]))
+		s.data.set("yuki:files:expanded:r1", JSON.stringify(["a", 3]))
 		expect(loadExpanded("r1", s)).toEqual(["a"])
 	})
 	test("a store that throws does not break saving", () => {

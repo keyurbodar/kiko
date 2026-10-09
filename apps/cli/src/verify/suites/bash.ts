@@ -1,4 +1,4 @@
-import type { RoomToClient } from "@kiko/protocol"
+import type { RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"

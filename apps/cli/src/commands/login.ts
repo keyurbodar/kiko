@@ -4,11 +4,11 @@ import { dirname, join } from "node:path"
 import { CliError, type Context } from "../main"
 
 // The CLI keeps one cookie header per server origin in a JSON file.
-// KIKO_SESSION_FILE moves it, so tests never touch the real one.
+// YUKI_SESSION_FILE moves it, so tests never touch the real one.
 type Sessions = Record<string, string>
 
 export function sessionFile(): string {
-  return process.env.KIKO_SESSION_FILE ?? join(homedir(), ".config", "kiko", "cli-session.json")
+  return process.env.YUKI_SESSION_FILE ?? join(homedir(), ".config", "yuki", "cli-session.json")
 }
 
 async function readSessions(): Promise<Sessions> {

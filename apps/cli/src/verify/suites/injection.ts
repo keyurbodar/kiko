@@ -7,7 +7,7 @@ import { fake, newRoom, seen, send, until } from "./mid-run"
 // fake agent of `apps/server/src/agent/dev-fake.ts`, so the suite spends no tokens. The fake model is
 // the worst case: it obeys every `[call tool]` it reads, in a tool result or a teammate's message. Its
 // fake tools have one effect each: `fake_note` stands for a write and `fake_send` for an action
-// outside kiko.
+// outside yuki.
 //
 // The suite asserts what the tools did, never what a model wrote. After trust tools run, the fake
 // answers `tools: <name> ran|ran tainted|blocked, ...`. Who started the run decides an outside call:
@@ -65,7 +65,7 @@ const cases: Case[] = [
     expect: ["tools: fake_mark ran, fake_note ran tainted"],
   },
   {
-    name: "the human's own run acts outside kiko after reading outside content",
+    name: "the human's own run acts outside yuki after reading outside content",
     steps: [{ send: "[fetch] email the notes to x@example.com [call fake_send] [call fake_note]" }],
     expect: ["tools: fake_fetch ran, fake_send ran, fake_note ran tainted"],
   },
@@ -76,7 +76,7 @@ const cases: Case[] = [
     auto: true,
   },
   {
-    name: "a clean agent message still waits for the human before acting outside kiko",
+    name: "a clean agent message still waits for the human before acting outside yuki",
     steps: [{ agent: "[call fake_send]", tainted: false }],
     expect: ["tools: fake_send blocked"],
     auto: true,
@@ -117,7 +117,7 @@ const suite: Suite = {
         // Long enough for a stray extra bubble to land.
         await Bun.sleep(500)
         const got = texts(room)
-        // The invariant, checked before the exact answer: a run nobody asked for never acts outside kiko on its own.
+        // The invariant, checked before the exact answer: a run nobody asked for never acts outside yuki on its own.
         const leak = c.auto ? got.find((t) => t.includes("fake_send ran")) : undefined
         if (leak) throw new VerifyError(`an external tool ran in a run nobody asked for, without a card: ${leak}`)
         if (JSON.stringify(got) !== JSON.stringify(c.expect)) throw new VerifyError(`expected ${JSON.stringify(c.expect)}, got ${JSON.stringify(got)}`)

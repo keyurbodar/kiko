@@ -1,9 +1,9 @@
-import type { RoomId, RoutineRunStatus, Trigger, TriggerKind } from "@kiko/protocol"
+import type { RoomId, RoutineRunStatus, Trigger, TriggerKind } from "@yuki/protocol"
 import type { Env } from "../index"
-import type { Alarms } from "@kiko/durable/alarm"
+import type { Alarms } from "@yuki/durable/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
-import type { Authority } from "@kiko/agent/authority"
+import type { Authority } from "@yuki/agent/authority"
 import { RRule } from "rrule"
 import { nextOccurrence, ruleProblem } from "./recurrence"
 

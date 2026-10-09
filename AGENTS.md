@@ -1,10 +1,10 @@
-# kiko
+# yuki
 
-Kiko is a general-purpose AI chat web app that feels like Telegram. People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Every user brings their own model keys.
+Yuki is a general-purpose AI chat web app that feels like Telegram. People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Every user brings their own model keys.
 
 Read `docs/overview.md` before your first task. `docs/architecture.md` has every decision and its reason. Follow it, or change it in the same pull request and say why.
 
-## What makes kiko special
+## What makes yuki special
 
 These are not negotiable. A change that breaks one is wrong even if it works.
 
@@ -14,7 +14,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 4. **The human outranks every agent.** A human message is handled first and can interrupt work.
 5. **Users never cross.** Only the Worker builds a Durable Object name, always from the session's user id. The one exception is a routine's webhook, which has no session: the Worker uses the user id its D1 row names (architecture D9).
 6. **Keys stay on the server.** A credential is encrypted in `UserDO`, never logged, and never sent to the client.
-7. **Sentence case.** Interface strings are sentence case, as in monocode and t3code: "Accent color", "Sign out". Names keep their own casing: Kiko, Anthropic, Claude Opus 4.6, Open VSX.
+7. **Sentence case.** Interface strings are sentence case, as in monocode and t3code: "Accent color", "Sign out". Names keep their own casing: Yuki, Anthropic, Claude Opus 4.6, Open VSX.
 
 ## Glossary
 
@@ -26,7 +26,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Run.** The model turns from one input to its final answer.
 - **Envelope.** A message as delivered to an agent, with sender, hop count, and root id.
 - **Brief.** The workspace summary the room attaches to each delivery.
-- **Tainted run.** A run that has read outside content. It needs human approval to act outside kiko.
+- **Tainted run.** A run that has read outside content. It needs human approval to act outside yuki.
 - **Tier.** A group of client code by load time. Tier 1 is the HTML shell.
 - **Wave.** A set of tasks that can run at the same time.
 - **Extension.** A user's manifest and script that adds tools, instructions, hooks, or schedules to agents at run time. It runs in QuickJS inside `AgentDO`. Only the human installs one. Architecture section 24.
@@ -43,9 +43,9 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not write a handler that is unsafe to run twice.** Alarms and queues deliver at least once. Give every delivery and post a stable id.
 - **Do not add a tool without an effect.** Every tool declares `read`, `write`, `message`, or `external`.
 - **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions, and the trust extension must always be selected.
-- **Do not give an extension script a way out except the bridge in `packages/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `kiko.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
+- **Do not give an extension script a way out except the bridge in `packages/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `yuki.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
 - **Do not let anything but the human's socket install an extension.** Agents and the catalog only propose.
-- **Do not import `apps/` or `@kiko/protocol` from `packages/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass kiko's behavior in as an option. `scripts/check-imports.ts` fails the build.
+- **Do not import `apps/` or `@yuki/protocol` from `packages/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
 - **Do not import Effect, CodeMirror, or a markdown parser into client tiers 1 to 3.** The budget script fails the build.
 - **Do not add a model list, a provider adapter, or an Executor tool name.** Those come from `pi-ai` and from Executor at run time.
 - **Do not commit a secret.** Keys live in `.dev.vars` and in CI secrets. `OPENCODE_API_KEY` is read from the environment.
@@ -77,7 +77,7 @@ bun scripts/plan.ts --check       # the plan files are in sync
 bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
-- Backend work is verified through the kiko CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
+- Backend work is verified through the yuki CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
 - Frontend work is verified with the `verify-kiko` skill, which drives a real browser. Use it for checks that matter, not for every change.
 - Team and loop behavior is tested with fake agents first, so tests are deterministic and cost no tokens.
 - Do not write a test that only proves the code runs. A test must fail when the behavior breaks.
@@ -117,17 +117,17 @@ apps/
   server/               the Worker                             (planned, P0-01)
     src/user/           UserDO: credentials, memory, reminders
     src/room/           RoomDO: log, burst, delivery, workspace
-    src/agent/          AgentDO: factory, outbox, kiko's extensions
+    src/agent/          AgentDO: factory, outbox, yuki's extensions
     catalog/            extensions reviewed upstream, bundled by scripts/gen-catalog.ts
     src/lib/            names, dev stats
-  cli/                  the kiko verification CLI              (planned, P0-04)
+  cli/                  the yuki verification CLI              (planned, P0-04)
 packages/
-  ui/                   @kiko/ui: Kobalte and Corvu wrappers, kat.css
+  ui/                   @yuki/ui: Kobalte and Corvu wrappers, kat.css
   protocol/             wire types shared by all three apps   (planned, P0-03)
-  durable/              @kiko/durable: alarm, safe-fetch, crypto, wipe
-  agent/                @kiko/agent: pi-durable host, inbox, trust, effects
-  memory/               @kiko/memory: OptMem tree, life log, memory tools
-  sandbox/              @kiko/sandbox: QuickJS VM, manifest, compiler, checker
+  durable/              @yuki/durable: alarm, safe-fetch, crypto, wipe
+  agent/                @yuki/agent: pi-durable host, inbox, trust, effects
+  memory/               @yuki/memory: OptMem tree, life log, memory tools
+  sandbox/              @yuki/sandbox: QuickJS VM, manifest, compiler, checker
 docs/
   overview.md  product.md  architecture.md
   phases/               the plan, one file per phase
@@ -143,7 +143,7 @@ refs/, solid-refs/      read-only references, not in git
 ## Taste
 
 - Prefer deleting to adding. Prefer one code path to two.
-- Use Kobalte, Corvu, `@kiko/ui`, and solid-primitives before writing a component.
+- Use Kobalte, Corvu, `@yuki/ui`, and solid-primitives before writing a component.
 - Put validation at the edge: the socket, the HTTP route, the tool arguments. Trust types inside.
 - Model state as data. A pure function with a table of cases beats scattered conditions.
 - Match the kat screenshots in `~/kat-images` exactly. When the replica and the screenshots disagree, the screenshots win.

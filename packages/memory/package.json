@@ -1,5 +1,5 @@
 {
-  "name": "@kiko/memory",
+  "name": "@yuki/memory",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
   "dependencies": {
     "@earendil-works/pi-ai": "^1.0.0",
     "@earendil-works/pi-durable": "^1.0.0",
-    "@kiko/agent": "workspace:*"
+    "@yuki/agent": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",

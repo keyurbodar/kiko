@@ -4,9 +4,9 @@ import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, Harness, MemoryStorage } from "@earendil-works/pi-durable"
-import type { Envelope } from "@kiko/protocol"
+import type { Envelope } from "@yuki/protocol"
 import { fakeReply, TRUST_TOOLS_EXTENSION } from "../src/agent/dev-fake"
-import { declareEffect, effectTable } from "@kiko/agent/effects"
+import { declareEffect, effectTable } from "@yuki/agent/effects"
 import {
   type Approvals,
   escapeLookalikes,
@@ -15,10 +15,10 @@ import {
   runTainted,
   TRUST,
   wrapUntrusted,
-} from "@kiko/agent/trust"
+} from "@yuki/agent/trust"
 import { buildAgent } from "../src/agent/factory"
-import { type Authority, AUTO, HUMAN } from "@kiko/agent/authority"
-import { renderInput } from "@kiko/agent/inbox"
+import { type Authority, AUTO, HUMAN } from "@yuki/agent/authority"
+import { renderInput } from "@yuki/agent/inbox"
 
 const context = BACKGROUND_CONTEXT
 const FAUX = { provider: "faux", modelId: "faux-1" }
@@ -94,7 +94,7 @@ describe("trust: who started the run decides an outside call (section 25.3)", ()
     return { asked, approvals }
   }
 
-  test("a run the human started acts outside kiko after reading outside content, with no card", async () => {
+  test("a run the human started acts outside yuki after reading outside content, with no card", async () => {
     const { asked, approvals } = room({ refused: "card" })
     const { answers, decisions } = await converse(["[fetch] email the notes to x@example.com [call fake_send]"], approvals)
     expect(answers).toEqual(["tools: fake_fetch ran, fake_send ran"])
@@ -104,11 +104,11 @@ describe("trust: who started the run decides an outside call (section 25.3)", ()
 
   test("a run nobody asked for waits on the card, clean or tainted, and the room's text ends the call", async () => {
     for (const input of ["[call fake_send]", "[fetch] [call fake_send]"]) {
-      const { asked, approvals } = room({ refused: "waiting for the human: kiko posted card ap_1" })
+      const { asked, approvals } = room({ refused: "waiting for the human: yuki posted card ap_1" })
       const { answers, transcript } = await converse([input], approvals, AUTO)
       expect(answers.at(-1)).toEndWith("fake_send blocked")
       expect(asked).toEqual(["fake_send"])
-      expect(text(transcript.find((m) => m.toolName === "fake_send")!)).toContain("kiko posted card ap_1")
+      expect(text(transcript.find((m) => m.toolName === "fake_send")!)).toContain("yuki posted card ap_1")
     }
   })
 

@@ -1,10 +1,10 @@
 import { Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
 import { A, useNavigate, useParams } from "@solidjs/router";
-import { Icon as IconV2 } from "@kiko/ui/v2/icon";
+import { Icon as IconV2 } from "@yuki/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { useApp } from "../../lib/store";
-import type { MessageId, RoomId } from "@kiko/protocol";
+import type { MessageId, RoomId } from "@yuki/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
 import { jumpRequest, requestJump } from "../../search/state";
@@ -78,7 +78,7 @@ export default function ChatRoute() {
     ),
   );
   /*
-   * A temporary chat (architecture section 7.11). When kiko makes an agent in it, a line points at
+   * A temporary chat (architecture section 7.11). When yuki makes an agent in it, a line points at
    * the agent's new chat, and the human is taken there. Closing its tab deletes it; leaving does not.
    */
   const isTemp = () => !!params.id && !!useApp.chat(params.id)?.temp;
@@ -138,7 +138,7 @@ export default function ChatRoute() {
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
   const agentName = (slug: string) => members().get(slug)?.name ?? slug;
   const messages = createMemo(() => useApp.activeMessages());
-  /* "kiko joined", "piko left": one muted line each, placed by the room's sequence. */
+  /* "yuki joined", "piko left": one muted line each, placed by the room's sequence. */
   const notices = createMemo(() =>
     useApp.memberNotices().map((n) => ({ key: `${n.seq}`, seq: n.seq, at: n.at, text: `${n.name} ${n.kind}` })),
   );

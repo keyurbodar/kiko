@@ -290,8 +290,8 @@ document.getElementById("sidebars").innerHTML = SHAPES.map((s) => {
 document.getElementById("marks").innerHTML = SHAPES.map((s) => `
   <div class="mark">
     <div class="line sans">${bird(s, "enaga", s.aspect > 1.3 ? 26 : 32)}<span>Yuki</span><small>Instrument Sans</small></div>
-    <div class="line hand">${bird(s, "enaga", s.aspect > 1.3 ? 26 : 32)}<span>YUKI</span><small>Gochi Hand</small></div>
-    <div class="msgrow">${bird(s, "enaga", s.key === "peek" ? 34 : s.aspect > 1.3 ? 44 : 62)}<span class="nm">YUKI</span><span class="pv">Message 3 of 3: That's the cozy way to do it</span></div>
+    <div class="line hand">${bird(s, "enaga", s.aspect > 1.3 ? 26 : 32)}<span>YUKI_BIRD</span><small>Gochi Hand</small></div>
+    <div class="msgrow">${bird(s, "enaga", s.key === "peek" ? 34 : s.aspect > 1.3 ? 44 : 62)}<span class="nm">YUKI_BIRD</span><span class="pv">Message 3 of 3: That's the cozy way to do it</span></div>
   </div>`).join("")
 
 const root = document.documentElement

@@ -1,4 +1,4 @@
-import { type Agent, type AgentSlug, type Member, type MemberOp, type MemberRefusal, tagline } from "@kiko/protocol"
+import { type Agent, type AgentSlug, type Member, type MemberOp, type MemberRefusal, tagline } from "@yuki/protocol"
 
 /*
  * The pure part of a group's member list: who can be added, what an add sends, and what a

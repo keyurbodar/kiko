@@ -1,4 +1,4 @@
-import type { RoomId } from "@kiko/protocol"
+import type { RoomId } from "@yuki/protocol"
 import { createSignal } from "solid-js"
 import { nextAfterClose, openTabs } from "../app/open-tabs"
 import { useApp } from "../lib/store"
@@ -50,7 +50,7 @@ export function commitRename(id: string, title: string): void {
   useApp.user()?.rename(id as RoomId, next)
 }
 
-/** The kiko chat stays pinned; the store ignores it. */
+/** The yuki chat stays pinned; the store ignores it. */
 export function togglePin(id: string): void {
   useApp.togglePinned(id)
 }

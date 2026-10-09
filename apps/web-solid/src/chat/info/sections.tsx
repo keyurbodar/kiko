@@ -1,8 +1,8 @@
-import type { Chat, Member } from "@kiko/protocol"
+import type { Chat, Member } from "@yuki/protocol"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, type JSX, Show } from "solid-js"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronRightIcon } from "@kiko/ui/icons"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { ChevronRightIcon } from "@yuki/ui/icons"
 import { nextAfterClose, openTabs } from "../../app/open-tabs"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import { MemberList } from "../members/members"
@@ -122,10 +122,10 @@ export function Chevron() {
 }
 
 /*
- * ASSUMPTION: until teams (P6) a room stores no member record, and its one agent is `kiko` (the
+ * ASSUMPTION: until teams (P6) a room stores no member record, and its one agent is `yuki` (the
  * server's DEFAULT_AGENT). The sidebar already falls back to that name, so the panel does too.
  */
-const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "Yuki", lead: true }
+const DEFAULT_MEMBER = { slug: "yuki" as Member["slug"], name: "Yuki", lead: true }
 
 /** The open room's agents with pending changes applied, or the one default agent while the room lists none. */
 export function roomMembers(): readonly Member[] {

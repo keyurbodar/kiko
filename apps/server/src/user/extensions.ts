@@ -11,10 +11,10 @@ import {
   isAgentSlug,
   isRoomId,
   type RoomId,
-} from "@kiko/protocol"
-import { type Keyring, open, seal } from "@kiko/durable/crypto"
-import { type Fetcher, safeRequest, type SafeRequest } from "@kiko/durable/safe-fetch"
-import type { GuestRequest, GuestResponse } from "@kiko/sandbox/compile"
+} from "@yuki/protocol"
+import { type Keyring, open, seal } from "@yuki/durable/crypto"
+import { type Fetcher, safeRequest, type SafeRequest } from "@yuki/durable/safe-fetch"
+import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
 
 export type ExtensionEvent =
   | { t: "extension"; extension: ExtensionInfo }
@@ -365,7 +365,7 @@ export class ExtensionStore {
 
   state(name: string, scope: string, op: "get" | "set" | "delete" | "list", key: string, value?: unknown): unknown {
     const { manifest } = this.live(name)
-    if (!manifest.state) throw new ExtensionError(`kiko.state needs "state" in extension.json`)
+    if (!manifest.state) throw new ExtensionError(`yuki.state needs "state" in extension.json`)
     if (key.length > 200) throw new ExtensionError("a state key is at most 200 characters")
     if (op === "get") {
       const r = this.sql.exec<{ value: string }>("SELECT value FROM extension_state WHERE extension = ? AND scope = ? AND key = ?", name, scope, key).toArray()[0]
@@ -406,7 +406,7 @@ export class ExtensionStore {
     } catch {
       throw new ExtensionError("that is not a url")
     }
-    if (url.protocol !== "https:") throw new ExtensionError("kiko.fetch only reaches https urls")
+    if (url.protocol !== "https:") throw new ExtensionError("yuki.fetch only reaches https urls")
     const host = url.hostname.toLowerCase()
     if (!hostAllowed(host, manifest.egress ?? [])) throw new ExtensionError(`${host} is not in "egress" in extension.json`)
     const method = (request.method ?? (request.body !== undefined || request.json !== undefined ? "POST" : "GET")).toUpperCase()
@@ -414,7 +414,7 @@ export class ExtensionStore {
     const headers: Record<string, string> = {}
     for (const [k, v] of Object.entries(request.headers ?? {})) {
       if (typeof v !== "string" || /[\r\n]/.test(k + v) || !/^[A-Za-z0-9-]{1,64}$/.test(k)) throw new ExtensionError(`header ${k} is not allowed`)
-      if (/^(host|cookie|content-length|transfer-encoding|connection)$/i.test(k)) throw new ExtensionError(`header ${k} is set by kiko`)
+      if (/^(host|cookie|content-length|transfer-encoding|connection)$/i.test(k)) throw new ExtensionError(`header ${k} is set by yuki`)
       headers[k.toLowerCase()] = v
     }
     let body = request.body
@@ -446,7 +446,7 @@ export class ExtensionStore {
     if (body?.includes("{{secret.")) body = await fill(body)
 
     const req: SafeRequest = { method: method as SafeRequest["method"], headers, ...(body !== undefined ? { body } : {}) }
-    const out = await safeRequest(filledUrl, req, this.fetcher, { maxBytes: MAX_FETCH_BYTES, timeoutMs: FETCH_TIMEOUT_MS, userAgent: `kiko-extension/${name}` })
+    const out = await safeRequest(filledUrl, req, this.fetcher, { maxBytes: MAX_FETCH_BYTES, timeoutMs: FETCH_TIMEOUT_MS, userAgent: `yuki-extension/${name}` })
     if (!out.ok) throw new ExtensionError(`the request failed: ${out.reason}`)
     let text = new TextDecoder().decode(out.body)
     for (const ref of Object.keys(secrets)) {

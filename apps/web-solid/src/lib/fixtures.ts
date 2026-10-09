@@ -1,7 +1,7 @@
 // Static transcript states for the chat harness (`chat/harness.tsx`) and the
 // tests. The app reads the sync stores instead, so nothing in the production
 // import graph may import this file. The mock room starts from the protocol
-// fixtures in `@kiko/protocol/fixtures`.
+// fixtures in `@yuki/protocol/fixtures`.
 //
 // Two layers, and the split matters:
 //

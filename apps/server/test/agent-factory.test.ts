@@ -4,7 +4,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, Harness, MemoryStorage, wrapSection } from "@earendil-works/pi-durable"
 import { BASE, type BuildAgentInput, buildAgent } from "../src/agent/factory"
-import { TRUST } from "@kiko/agent/trust"
+import { TRUST } from "@yuki/agent/trust"
 import { SUBAGENT } from "../src/agent/extensions/subagent"
 import { WEB } from "../src/agent/extensions/web"
 import { SKILLS } from "../src/agent/extensions/skills"
@@ -48,8 +48,8 @@ const at = (text: string, key: string) => text.indexOf(`<${key}>`)
 describe("buildAgent", () => {
   test("the system prompt has the base sections in a fixed order", async () => {
     const { system } = await firstRequest({ role: "you plan trips.", lead: true, model: FAUX })
-    for (const key of ["kiko", "reactions", "role"]) expect(at(system, key)).toBeGreaterThanOrEqual(0)
-    expect(at(system, "kiko")).toBeLessThan(at(system, "reactions"))
+    for (const key of ["yuki", "reactions", "role"]) expect(at(system, key)).toBeGreaterThanOrEqual(0)
+    expect(at(system, "yuki")).toBeLessThan(at(system, "reactions"))
     expect(at(system, "reactions")).toBeLessThan(at(system, "role"))
     expect(system).toContain("[react:👍]")
     expect(system).toContain("your job here: you plan trips.")

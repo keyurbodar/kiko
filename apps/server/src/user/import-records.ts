@@ -1,5 +1,5 @@
-import type { Life } from "@kiko/memory/life"
-import { capBytes, LINE_BYTES, oneLine } from "@kiko/memory/optmem"
+import type { Life } from "@yuki/memory/life"
+import { capBytes, LINE_BYTES, oneLine } from "@yuki/memory/optmem"
 
 export function importRecords(sql: SqlStorage, life: Life): number {
   const has = sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'memory_records'").toArray().length > 0

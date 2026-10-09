@@ -13,7 +13,7 @@ export const MAX_TOTAL_IMAGE_BYTES = 80 * MiB
 /** Any other file. */
 export const MAX_ATTACHMENT_FILE_BYTES = 50 * MiB
 
-/** The pictures kiko draws inline and sends to a model as an image. */
+/** The pictures yuki draws inline and sends to a model as an image. */
 export const IMAGE_TYPES: readonly string[] = ["image/gif", "image/jpeg", "image/png", "image/webp"]
 
 const IMAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
@@ -37,12 +37,12 @@ export function attachmentType(file: Named): string {
 	return (dot > 0 && IMAGE_BY_EXTENSION[file.name.slice(dot + 1).toLowerCase()]) || "application/octet-stream"
 }
 
-/** True when the type is a picture kiko draws. */
+/** True when the type is a picture yuki draws. */
 export const isImageType = (type: string) => IMAGE_TYPES.includes(type.toLowerCase())
 
 /**
- * A picture, any other file, or a picture kiko cannot send (an SVG, a HEIC). t3code converts HEIC
- * to JPEG with a decoder library; kiko does not ship one, so a HEIC is refused like an SVG.
+ * A picture, any other file, or a picture yuki cannot send (an SVG, a HEIC). t3code converts HEIC
+ * to JPEG with a decoder library; yuki does not ship one, so a HEIC is refused like an SVG.
  */
 export function attachmentKind(file: Named): "image" | "file" | "unsupported-image" {
 	const type = attachmentType(file)

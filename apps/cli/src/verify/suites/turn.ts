@@ -1,4 +1,4 @@
-import type { Message, RoomToClient, UserToClient } from "@kiko/protocol"
+import type { Message, RoomToClient, UserToClient } from "@yuki/protocol"
 import type { RoomHandle, UserChannel } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -7,13 +7,13 @@ import type { Suite } from "../runner"
 // burst: the room delivers them together, the agent answers in one run, the bubbles reach the
 // room socket, and the user's chat list is touched once when the run ends.
 //
-// Restart check: set KIKO_TURN_RESTART to a shell command that stops the dev server and starts it
+// Restart check: set YUKI_TURN_RESTART to a shell command that stops the dev server and starts it
 // again, returning once it is healthy. The suite runs it as soon as the agent's run starts, or after
-// the first bubble with KIKO_TURN_RESTART_AT=bubble, and reconnects both sockets. It must then
+// the first bubble with YUKI_TURN_RESTART_AT=bubble, and reconnects both sockets. It must then
 // still see one run and one touch, with the bubbles of only one attempt left.
 
-const RESTART = process.env.KIKO_TURN_RESTART
-const RESTART_AT = process.env.KIKO_TURN_RESTART_AT ?? "start"
+const RESTART = process.env.YUKI_TURN_RESTART
+const RESTART_AT = process.env.YUKI_TURN_RESTART_AT ?? "start"
 const TIMEOUT_MS = RESTART ? 120_000 : 60_000
 /** After the touch, how long nothing more may arrive. */
 const QUIET_MS = 3_000

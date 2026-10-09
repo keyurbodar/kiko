@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { RoomLog } from "../src/room/log"
 import { migrate } from "../src/room/schema"

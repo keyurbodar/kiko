@@ -1,4 +1,4 @@
-import type { Approval, RoomToClient } from "@kiko/protocol"
+import type { Approval, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type RoomHandle, type Session, VerifyError } from "../client"
 import { agentTexts, dev, eventually, inSeconds, ok, type Routine, routines, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -7,7 +7,7 @@ import { newRoom, send } from "./mid-run"
 // Architecture section 25 with the real test model (deepseek-v4.1-flash through OpenCode Go). What a
 // model must get right, measured over several tries: it turns a plain request into the right
 // routine or reminder; a run answers in a few short bubbles inside its budget; a run with nothing to
-// report stays quiet; an event run answers once; a webhook's injected instructions change nothing; kiko's
+// report stays quiet; an event run answers once; a webhook's injected instructions change nothing; yuki's
 // check-in offers help when there is work and keeps quiet when nothing changed; a nudge gets one short
 // answer; and repeated runs cost about the same each time with no loop. Each case prints what happened.
 // `ROUTINES_MODEL_N` repeats the run cases (default 3).
@@ -161,41 +161,41 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // F. kiko's check-in: offers help when there is stale work, then stays quiet when nothing changed.
+    // F. yuki's check-in: offers help when there is stale work, then stays quiet when nothing changed.
     {
       await ok(url, s, "me")
       const checkIn = (await routines(url, s)).routines.find((r) => r.name === "check-in")
       if (!checkIn) throw new VerifyError("no check-in routine")
       const { roomId, room } = await newRoom(s, "model: launch prep")
       await ask(room, "we're launching friday. track it here")
-      room.raw.send({ t: "task", op: { op: "create", id: "copy", title: "write the launch email", owner: "kiko" as never } })
+      room.raw.send({ t: "task", op: { op: "create", id: "copy", title: "write the launch email", owner: "yuki" as never } })
       room.raw.send({ t: "task", op: { op: "update", id: "copy", status: "doing" } })
       await Bun.sleep(2_000)
       await dev(url, s, "age", { roomId, ms: 3 * 86_400_000 })
       await Bun.sleep(20_000)
-      const kiko = await s.room(checkIn.roomId)
+      const yuki = await s.room(checkIn.roomId)
       await Bun.sleep(1_000)
-      const before = agentTexts(kiko).length
+      const before = agentTexts(yuki).length
       await ok(url, s, `routines/${checkIn.id}/run`, {})
       let runs = await waitRuns(url, s, checkIn.id, "the first check-in", (rs) => rs.some((x) => x.status !== "running"), 180_000)
       await Bun.sleep(3_000)
-      const first = agentTexts(kiko).slice(before)
+      const first = agentTexts(yuki).slice(before)
       check(runs[0]!.status === "ok" && first.length >= 1 && first.length <= 4, `check-in with stale work: ${runs[0]!.status}: ${JSON.stringify(first.join(" / ").slice(0, 300))}`)
-      const mid = agentTexts(kiko).length
+      const mid = agentTexts(yuki).length
       await ok(url, s, `routines/${checkIn.id}/run`, {})
       runs = await waitRuns(url, s, checkIn.id, "the second check-in", (rs) => rs.filter((x) => x.status !== "running").length >= 2, 180_000)
       await Bun.sleep(3_000)
-      const second = agentTexts(kiko).slice(mid)
+      const second = agentTexts(yuki).slice(mid)
       check(runs[0]!.status === "quiet", `a second check-in with nothing new: ${runs[0]!.status} ${JSON.stringify(second.join(" / ").slice(0, 200))}`)
       room.raw.close()
-      kiko.raw.close()
+      yuki.raw.close()
     }
 
     // G. A stalled task gets one short answer, not a loop.
     {
       const { roomId, room } = await newRoom(s, "model: stall")
       await ask(room, "track the website redesign here")
-      room.raw.send({ t: "task", op: { op: "create", id: "hero", title: "pick the hero image", owner: "kiko" as never } })
+      room.raw.send({ t: "task", op: { op: "create", id: "hero", title: "pick the hero image", owner: "yuki" as never } })
       room.raw.send({ t: "task", op: { op: "update", id: "hero", status: "doing" } })
       await Bun.sleep(2_000)
       const before = agentTexts(room).length

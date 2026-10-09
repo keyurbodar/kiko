@@ -10,7 +10,7 @@ import { birdFor } from "../mascot/choices"
  * The face is a bird from the flock (`src/mascot`), seeded by the same string
  * unless the person picked one. An agent's colour is its bird's body colour,
  * kept readable on both appearances, so its name, its mention chips and its
- * reply quotes match its face. The kiko agent's colour is the theme accent.
+ * reply quotes match its face. The yuki agent's colour is the theme accent.
  */
 
 export type IdentityLook = {
@@ -30,7 +30,7 @@ export const identityTint = (seed: string, percent: number) =>
   `color-mix(in oklch, ${identityLook(seed).color} ${percent}%, transparent)`
 
 /** The agent a chat made without a pick talks to. It matches the server's `DEFAULT_AGENT`. */
-export const DEFAULT_AGENT_SLUG = "kiko"
+export const DEFAULT_AGENT_SLUG = "yuki"
 
 type ChatAgents = { roomId: string; agents?: readonly string[] }
 type AgentIds = readonly { id: string; slug: string }[]
@@ -61,7 +61,7 @@ export const MAX_FACES = 3
  */
 export function chatFaces(chat: ChatAgents, agents: AgentIds, members?: readonly string[]): string[] {
   let slugs = members?.length ? [...members] : (chat.agents ?? []).map((id) => slugOf(id, agents))
-  // The room seeds kiko as the chief of every group, so a closed group shows it too and does not
+  // The room seeds yuki as the chief of every group, so a closed group shows it too and does not
   // change its faces when it opens.
   if (!members?.length && slugs.length > 1 && !slugs.includes(DEFAULT_AGENT_SLUG)) slugs = [DEFAULT_AGENT_SLUG, ...slugs]
   if (slugs.length > 1) return slugs.slice(0, MAX_FACES)

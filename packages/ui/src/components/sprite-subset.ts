@@ -12,7 +12,7 @@
  * it appears, so an icon simply shows once its symbol lands.
  */
 
-const HOST_ID = "kiko-sprite-subset"
+const HOST_ID = "yuki-sprite-subset"
 /** How long the sprite's text stays after the last copy, for icons asked for right after. */
 const KEEP_TEXT_MS = 30_000
 

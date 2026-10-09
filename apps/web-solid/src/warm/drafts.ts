@@ -1,6 +1,6 @@
 // The composer's unsent text per room, so it survives a reload.
 
-import type { MessageId, RoomId } from "@kiko/protocol"
+import type { MessageId, RoomId } from "@yuki/protocol"
 import { createSignal } from "solid-js"
 import type { Warm } from "./db"
 

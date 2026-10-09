@@ -7,9 +7,9 @@ import { sectionOf } from "./sections"
 import { TabStrip } from "./tab-strip"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { SearchIcon, SidebarRightIcon } from "@yuki/ui/icons"
+import { TooltipV2 } from "@yuki/ui/v2/tooltip-v2"
 import { closeInfo, infoOpen, loadInfoPanel, openInfo } from "../chat/info/state"
 
 /*

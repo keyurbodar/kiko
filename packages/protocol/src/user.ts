@@ -24,8 +24,8 @@ export type Chat = {
 	updatedAt: number
 	/** The ids of the agents the chat was created with. Absent for a chat made without any. */
 	agents?: readonly string[]
-	/** The user's kiko chat. It is always there and cannot be deleted. */
-	kiko?: true
+	/** The user's yuki chat. It is always there and cannot be deleted. */
+	yuki?: true
 	/** A private chat (architecture section 7.10): agents in it save no memory, change no soul, and write nothing to /home. */
 	private?: boolean
 	/**
@@ -103,7 +103,7 @@ export type UserSnapshot = {
 	theme?: string | null
 	/** The user's drive, /home. */
 	home: { files: readonly FileRef[]; folders: readonly string[] }
-	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
+	/** The chat the user was last in, so a new device opens there. The yuki chat when that one is gone. */
 	lastChat?: RoomId
 	/** Installed extensions, without their code. */
 	extensions?: readonly ExtensionInfo[]
@@ -221,7 +221,7 @@ export type LoginPrompt =
 	| { type: "select"; message: string; options: readonly { id: string; label: string; description?: string }[] }
 
 export type LoginErrorReason =
-	/** The provider has no sign-in flow that kiko runs on Workers. */
+	/** The provider has no sign-in flow that yuki runs on Workers. */
 	| "unsupported"
 	/** Subscription sign-in is off on this server (`PROVIDER_OAUTH`). */
 	| "disabled"

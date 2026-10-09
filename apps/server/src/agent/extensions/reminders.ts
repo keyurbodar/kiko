@@ -1,12 +1,12 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import type { Trigger } from "@kiko/protocol"
-import { Trigger as TriggerSchema } from "@kiko/protocol/schema"
+import type { Trigger } from "@yuki/protocol"
+import { Trigger as TriggerSchema } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } from "../../user/reminders"
 import type { RoutineResult } from "../../user/routines"
-import { declareEffect } from "@kiko/agent/effects"
-import { isRunTainted, runAuthority } from "@kiko/agent/trust"
+import { declareEffect } from "@yuki/agent/effects"
+import { isRunTainted, runAuthority } from "@yuki/agent/trust"
 
 export const REMINDERS = "reminders"
 

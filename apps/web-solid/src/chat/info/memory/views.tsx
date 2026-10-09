@@ -1,11 +1,11 @@
-import type { LifeLine } from "@kiko/protocol"
+import type { LifeLine } from "@yuki/protocol"
 import { createResource, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { session } from "../../../app/session"
 import { Moment } from "../../../mascot/lazy"
 import { memoryFor } from "./instance"
 import type { MemoryStore } from "./store"
 
-// Architecture section 13. The memory screen: the user's life log, newest first. What kiko knows comes
+// Architecture section 13. The memory screen: the user's life log, newest first. What yuki knows comes
 // from agents' notes and from every chat's history, a line at a time. The human pins what matters, so
 // it heads what every agent reads, redacts what should be gone, and adds a line of their own.
 

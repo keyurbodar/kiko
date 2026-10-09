@@ -1,6 +1,6 @@
 import Calendar from "@corvu/calendar"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "@kiko/ui/icons"
+import { HugeIcon } from "@yuki/ui/huge-icon"
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "@yuki/ui/icons"
 import { Index, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { dayStartOf } from "../lib/grouping"

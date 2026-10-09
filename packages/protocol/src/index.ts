@@ -3,8 +3,8 @@
 // pure chat list rules in `chats.ts`, the small pure helpers of `activity.ts` that the
 // room and the client share, and the attachment limits of `attachments.ts`.
 //
-// `@kiko/protocol/schema` has the Effect schemas, for the server and the CLI.
-// `@kiko/protocol/fixtures` has sample frames, for tests and the mock room.
+// `@yuki/protocol/schema` has the Effect schemas, for the server and the CLI.
+// `@yuki/protocol/fixtures` has sample frames, for tests and the mock room.
 
 export * from "./chats"
 export * from "./activity"

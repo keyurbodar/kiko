@@ -75,7 +75,7 @@ export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[]
 export type BirdSpec = { flavor: FlavorId; outfit: OutfitId }
 
 /** The chief. Its flavor never changes; only what it wears does. */
-export const YUKI: BirdSpec = { flavor: "yuki", outfit: "none" }
+export const YUKI_BIRD: BirdSpec = { flavor: "yuki", outfit: "none" }
 
 // --- ids ---------------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ const SEED_OUTFITS: OutfitId[] = ["beanie", "beret", "bucket", "phones", "crown"
 
 /** The bird a slug wears when nobody picked one. The chief is always Yuki. About a third of the others wear something. */
 export function seedBird(slug: string, chief: string): BirdSpec {
-  if (slug === chief) return YUKI
+  if (slug === chief) return YUKI_BIRD
   const h = hash(slug)
   const flavor = FRIEND_IDS[h % FRIEND_IDS.length]!
   const outfit = (h >>> 16) % 3 === 0 ? SEED_OUTFITS[(h >>> 20) % SEED_OUTFITS.length]! : "none"

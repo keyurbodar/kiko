@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
-import { declareEffect } from "@kiko/agent/effects"
-import { isRunTainted } from "@kiko/agent/trust"
+import { declareEffect } from "@yuki/agent/effects"
+import { isRunTainted } from "@yuki/agent/trust"
 
 export const MEMORY = "memory"
 export const MEMORY_NOTE = "memory-note"

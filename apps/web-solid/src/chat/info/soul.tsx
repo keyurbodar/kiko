@@ -1,4 +1,4 @@
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import { createResource, createSignal, Show } from "solid-js"
 import { buttonClass } from "../../settings/kit"
 

@@ -1,6 +1,6 @@
-import type { Envelope, Message, RoomId } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
-import { MAX_ENTRY_BYTES, MAX_OPEN } from "@kiko/agent/inbox"
+import type { Envelope, Message, RoomId } from "@yuki/protocol"
+import type { Alarms } from "@yuki/durable/alarm"
+import { MAX_ENTRY_BYTES, MAX_OPEN } from "@yuki/agent/inbox"
 
 export const BURST_WAKEUP = "burst"
 

@@ -1,4 +1,4 @@
-import { attachmentMessages, attachmentsError, type FileRef, type PendingAttachment, type RoomEvent } from "@kiko/protocol"
+import { attachmentMessages, attachmentsError, type FileRef, type PendingAttachment, type RoomEvent } from "@yuki/protocol"
 import { cleanPath } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 

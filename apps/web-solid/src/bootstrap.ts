@@ -4,7 +4,7 @@
  * Architecture 19.3.
  */
 
-const RELOAD_KEY = "kiko:preload-reload";
+const RELOAD_KEY = "yuki:preload-reload";
 
 // Same specifiers as `app/routes.tsx`, so the bundler shares the chunks.
 function firstRouteChunk(path: string): Promise<unknown> {

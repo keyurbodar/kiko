@@ -1,5 +1,5 @@
 {
-  "kiko": 1,
+  "yuki": 1,
   "name": "decision-log",
   "version": "1.1.0",
   "description": "agents log each decision with its reason in /decisions.md, and always know the last five.",

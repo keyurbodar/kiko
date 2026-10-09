@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { look, saveLook } from "../theme/live"
 import { Bird } from "./bird"
-import { KIKO } from "@kiko/protocol"
+import { YUKI } from "@yuki/protocol"
 import { FLAVORS, FRIEND_IDS, OUTFITS, OUTFIT_IDS, formatBird, type BirdSpec, type BirdState } from "./birds"
 import { birdFor } from "./choices"
 import { birdPickerSlug, closeBirdPicker } from "./picker-state"
@@ -18,14 +18,14 @@ const MOODS: BirdState[] = ["wave", "thinking", "typing", "working", "sending", 
 
 // The pick is a filled cell with an accent edge; focus is a plain ring, and only from the keyboard.
 const chip =
-  "grid place-items-center rounded-xl outline-none hover:bg-[var(--btn-bg)] [:root[data-input=keys]_&]: [:root[data-input=keys]_&]: aria-checked:bg-[var(--accent-wash)] aria-checked:shadow-[inset_0_0_0_1.5px_var(--accent)]"
+  "grid place-items-center rounded-xl outline-none hover:bg-[var(--btn-bg)] [:root[data-input=keys]_&]: [:root[data-input=keys]_&]: aria-checked:bg-[var(--accent-wash)] aria-checked:shadow-[inset_0_0_0_1px_var(--accent)]"
 
 function Picker(props: { slug: string }) {
   const [draft, setDraft] = createSignal<BirdSpec>(birdFor(props.slug))
   const [mood, setMood] = createSignal(0)
   const timer = setInterval(() => setMood((m) => (m + 1) % MOODS.length), 1800)
   onCleanup(() => clearInterval(timer))
-  const isYuki = () => props.slug === KIKO
+  const isYuki = () => props.slug === YUKI
   const set = (patch: Partial<BirdSpec>) => setDraft({ ...draft(), ...patch })
   const save = () => {
     saveLook({ ...look(), birds: { ...look().birds, [props.slug]: formatBird(draft()) } })

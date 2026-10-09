@@ -3,7 +3,7 @@
 // change is undone and the reason is kept in `error`. The log is append-only: the human pins,
 // redacts, and adds lines, and never rewrites one.
 
-import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@kiko/protocol"
+import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@yuki/protocol"
 import { createStore, produce } from "solid-js/store"
 import type { MemoryClient } from "./client"
 

@@ -1,7 +1,7 @@
 import { beforeAll, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
-import type { ExtensionBundle } from "@kiko/protocol"
-import { ScriptVM } from "@kiko/sandbox/vm"
+import type { ExtensionBundle } from "@yuki/protocol"
+import { ScriptVM } from "@yuki/sandbox/vm"
 
 let wasm: WebAssembly.Module
 
@@ -10,7 +10,7 @@ beforeAll(async () => {
 })
 
 const bundle = (source: string, files: Record<string, string> = {}): ExtensionBundle => ({
-  manifest: { kiko: 1, name: "t", version: "1.0.0", description: "t", tools: { go: { description: "go", effect: "read" } } },
+  manifest: { yuki: 1, name: "t", version: "1.0.0", description: "t", tools: { go: { description: "go", effect: "read" } } },
   files: { "main.js": source, ...files },
 })
 
@@ -28,11 +28,11 @@ test("runs an exported tool with json arguments and returns json", async () => {
 test("the bridge carries calls out and answers back in", async () => {
   const seen: unknown[] = []
   const vm = await ScriptVM.create(
-    bundle(`export const tools = { go: async (_a, kiko) => {
-      const tasks = await kiko.call("list_tasks", { status: "done" })
-      await kiko.state.set("count", tasks.length)
-      kiko.log("counted", tasks.length)
-      return "posted " + tasks.length + " for " + kiko.env.agent
+    bundle(`export const tools = { go: async (_a, yuki) => {
+      const tasks = await yuki.call("list_tasks", { status: "done" })
+      await yuki.state.set("count", tasks.length)
+      yuki.log("counted", tasks.length)
+      return "posted " + tasks.length + " for " + yuki.env.agent
     } }`),
     wasm,
   )
@@ -50,7 +50,7 @@ test("the bridge carries calls out and answers back in", async () => {
 })
 
 test("a refused bridge call becomes an error the script can catch", async () => {
-  const vm = await ScriptVM.create(bundle(`export const tools = { go: async (_a, kiko) => { try { await kiko.fetch("https://x.test") } catch (e) { return "caught: " + e.message } } }`), wasm)
+  const vm = await ScriptVM.create(bundle(`export const tools = { go: async (_a, yuki) => { try { await yuki.fetch("https://x.test") } catch (e) { return "caught: " + e.message } } }`), wasm)
   expect(await vm.invoke({ group: "tools", name: "go" }, [{}], {}, async () => Promise.reject(new Error("fetch is not allowed here")))).toBe("caught: fetch is not allowed here")
   vm.dispose()
 })
@@ -89,9 +89,9 @@ test("a syntax error at load is reported as one line", async () => {
   await expect(ScriptVM.create(bundle(`export const tools = { go: async () => { return ( }`), wasm)).rejects.toThrow(/SyntaxError/)
 })
 
-test("kiko outlives its call only as a refusal", async () => {
+test("yuki outlives its call only as a refusal", async () => {
   const vm = await ScriptVM.create(
-    bundle(`let saved; export const tools = { keep: async (_a, kiko) => { saved = kiko; return "kept" }, use: async () => { try { await saved.state.get("x"); return "used" } catch (e) { return e.message } } }`),
+    bundle(`let saved; export const tools = { keep: async (_a, yuki) => { saved = yuki; return "kept" }, use: async () => { try { await saved.state.get("x"); return "used" } catch (e) { return e.message } } }`),
     wasm,
   )
   await vm.invoke({ group: "tools", name: "keep" }, [{}], {}, async () => "v")
@@ -101,10 +101,10 @@ test("kiko outlives its call only as a refusal", async () => {
 
 test("each bridge call carries its own op and arguments, even when calls overlap and memory churns", async () => {
   const vm = await ScriptVM.create(
-    bundle(`export const tools = { go: async (_a, kiko) => {
-      const out = await Promise.all(Array.from({ length: 40 }, (_, i) => { const junk = "x".repeat(5000 + i); return kiko.state.get("k" + i + junk.slice(0, 0)) }))
-      const a = await kiko.fetch("https://api.example.com/a")
-      const b = await kiko.call("list_tasks", { n: 2 })
+    bundle(`export const tools = { go: async (_a, yuki) => {
+      const out = await Promise.all(Array.from({ length: 40 }, (_, i) => { const junk = "x".repeat(5000 + i); return yuki.state.get("k" + i + junk.slice(0, 0)) }))
+      const a = await yuki.fetch("https://api.example.com/a")
+      const b = await yuki.call("list_tasks", { n: 2 })
       return [out.length, out[39], a, b]
     } }`),
     wasm,
@@ -122,7 +122,7 @@ test("each bridge call carries its own op and arguments, even when calls overlap
 })
 
 test("a vm that grew past the retire size takes no new calls, and the pool starts a fresh one", async () => {
-  const { VmPool } = await import("@kiko/sandbox/compile")
+  const { VmPool } = await import("@yuki/sandbox/compile")
   const installed = { name: "t", hash: "h1", bundle: bundle(`let keep = []; export const tools = { go: async ({ grow }) => { if (grow) for (let i = 0; i < 9000; i++) keep.push("x".repeat(1000)); return keep.length } }`) }
   const pool = new VmPool(() => wasm)
   const first = await pool.get(installed)

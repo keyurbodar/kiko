@@ -1,5 +1,5 @@
-import { isAgentSlug, isRoomId } from "@kiko/protocol"
-import { Trigger } from "@kiko/protocol/schema"
+import { isAgentSlug, isRoomId } from "@yuki/protocol"
+import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
@@ -53,7 +53,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
     if (request.method !== "POST") return error(405, "method not allowed")
     const b = await json(request)
     const roomId = typeof b?.roomId === "string" ? b.roomId : ""
-    const agent = typeof b?.agent === "string" ? b.agent : "kiko"
+    const agent = typeof b?.agent === "string" ? b.agent : "yuki"
     if (!b || !isRoomId(roomId) || !isAgentSlug(agent) || typeof b.name !== "string" || typeof b.instructions !== "string") return error(400, "need roomId, name, instructions, and trigger")
     let trigger: typeof Trigger.Type
     try {

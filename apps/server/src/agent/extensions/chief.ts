@@ -1,8 +1,8 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
-import type { Agent } from "@kiko/protocol"
+import type { Agent } from "@yuki/protocol"
 import type { ProposalInput } from "../../room/chief"
-import { declareEffect } from "@kiko/agent/effects"
+import { declareEffect } from "@yuki/agent/effects"
 
 export const CHIEF_EXT = "chief"
 

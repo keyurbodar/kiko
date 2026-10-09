@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { AgentSlug, RoomEvent, RoomId } from "@kiko/protocol"
+import type { AgentSlug, RoomEvent, RoomId } from "@yuki/protocol"
 import { APPROVAL_TTL_MS, GRANT_MS, RoomApprovals } from "../src/room/approvals"
 import type { RoomLog } from "../src/room/log"
 import { sqlStorage } from "./sql-shim"

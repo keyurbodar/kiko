@@ -1,5 +1,5 @@
 import { checkBundle, describeManifest, type ExtensionBundle, type ExtensionTest } from "./manifest"
-import type { Effect } from "@kiko/agent/effects"
+import type { Effect } from "@yuki/agent/effects"
 import { isPlainGet, mayCall } from "./compile"
 import { ScriptError, ScriptVM } from "./vm"
 
@@ -79,7 +79,7 @@ function mockBridge({ tools, effect, bundle, test, logs }: MockInput, state = ne
       return undefined
     }
     if (op.startsWith("state.")) {
-      if (!m.state) throw new Error(`kiko.state needs "state" in extension.json`)
+      if (!m.state) throw new Error(`yuki.state needs "state" in extension.json`)
       const key = String(payload[0] ?? "")
       if (op === "state.get") return state.get(key) ?? null
       if (op === "state.set") return void state.set(key, payload[1] ?? null)
@@ -106,7 +106,7 @@ function mockBridge({ tools, effect, bundle, test, logs }: MockInput, state = ne
       const out = test.calls[tool]
       return typeof out === "string" ? out : JSON.stringify(out)
     }
-    throw new Error(`kiko.${op} is not available here`)
+    throw new Error(`yuki.${op} is not available here`)
   }
 }
 
