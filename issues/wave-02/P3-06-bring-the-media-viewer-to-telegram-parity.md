@@ -18,6 +18,9 @@ The `verify-kiko` media viewer feature: open from a thumbnail, pinch or wheel zo
 
 ## Task
 
+**Removed.** DEVIATION (2026-10-09): the media viewer is removed. The owner chose t3code's simpler attachments: an attached file is a workspace file under `attachments/`, shown on its message, with no Telegram-style viewer. Architecture section 18.1.
+
+
 **Goal.** Make the lightbox behave exactly like Telegram's.
 
 **Read first.** `docs/research/frontend-refs.md`, section 2a. `solid-refs/tweb/src/components/mediaViewer/base.ts`.

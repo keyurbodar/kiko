@@ -14,9 +14,6 @@ export type FileRow = {
   size: number
   type: string
   sha256: string
-  width: number | null
-  height: number | null
-  thumbhash: string | null
   author: string
   at?: number
 }
@@ -30,19 +27,12 @@ export type NewFile = {
   type: string
   sha256: string
   author: Actor
-  /** What the client measured at upload time. The attachment job computes only what is missing. */
-  width?: number
-  height?: number
-  thumbhash?: string
   /**
    * A precondition for an edit. A SHA-256 means the path must hold exactly those bytes,
    * and "none" means the path must be empty. Anything else is a conflict and nothing is written.
    */
   expectSha256?: string
 }
-
-export type FileMeta = { r2Key: string; size: number; type: string; width?: number; height?: number; thumbhash?: string }
-export type FileMetaPatch = { width?: number; height?: number; thumbhash?: string }
 
 /** One entry of a file space. */
 export type FsEntry =
@@ -116,15 +106,7 @@ function under(dir: string): [string, string | null] {
 
 /** ASSUMPTION: a FileRef's `name` is the full path in its space. The protocol has no separate path field. */
 export function toRef(r: FileRow): FileRef {
-  return {
-    id: r.id,
-    name: r.path,
-    size: r.size,
-    type: r.type,
-    ...(r.width !== null ? { width: r.width } : {}),
-    ...(r.height !== null ? { height: r.height } : {}),
-    ...(r.thumbhash !== null ? { thumbhash: r.thumbhash } : {}),
-  }
+  return { id: r.id, name: r.path, size: r.size, type: r.type }
 }
 
 export type Tables = { files: string; dirs: string }
@@ -149,6 +131,8 @@ export class FileIndex<E> {
     private readonly actorKey: (actor: Actor) => string,
   ) {
     const sql = storage.sql
+    // width, height, and thumbhash are no longer written or read. They stay, empty, because dropping
+    // a column from a live table buys nothing.
     sql.exec(`CREATE TABLE IF NOT EXISTS ${t.files} (
       id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, r2_key TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL,
       sha256 TEXT NOT NULL, width INTEGER, height INTEGER, thumbhash TEXT, author TEXT NOT NULL, at INTEGER NOT NULL)`)
@@ -249,9 +233,6 @@ export class FileIndex<E> {
         size: input.size,
         type: input.type,
         sha256: input.sha256,
-        width: input.width ?? null,
-        height: input.height ?? null,
-        thumbhash: input.thumbhash ?? null,
         author,
       }
       const events = this.addDirs(parents(input.path), author)
@@ -260,16 +241,13 @@ export class FileIndex<E> {
       events.push(this.append(author, { t: "file", file }))
       if (current) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?`, current.id)
       this.sql.exec(
-        `INSERT INTO ${this.t.files} (id, path, r2_key, size, type, sha256, width, height, thumbhash, author, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ${this.t.files} (id, path, r2_key, size, type, sha256, author, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         row.id,
         row.path,
         row.r2_key,
         row.size,
         row.type,
         row.sha256,
-        row.width,
-        row.height,
-        row.thumbhash,
         author,
         at,
       )
@@ -380,9 +358,9 @@ export class FileIndex<E> {
 
   /**
    * `rm`, as on Linux: a folder that holds anything needs `recursive`; an empty one goes like
-   * `rmdir`. Every path is checked first, and `keep` may refuse a file, so a refusal deletes nothing.
+   * `rmdir`. Every path is checked first, so a refusal deletes nothing.
    */
-  remove(paths: readonly string[], recursive: boolean, by: Actor, keep?: (ids: readonly string[]) => string | null): FsChange<E> | FsFail {
+  remove(paths: readonly string[], recursive: boolean, by: Actor): FsChange<E> | FsFail {
     return this.storage.transactionSync(() => {
       const rows = new Map<string, FileRow>()
       const dirs = new Set<string>()
@@ -399,8 +377,6 @@ export class FileIndex<E> {
         for (const r of inside) rows.set(r.id, r)
         for (const d of [path, ...subdirs]) dirs.add(d)
       }
-      const refused = keep?.([...rows.keys()])
-      if (refused) return fail("invalid", refused)
       const author = this.actorKey(by)
       const events: E[] = []
       for (const id of rows.keys()) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?`, id)
@@ -415,7 +391,7 @@ export class FileIndex<E> {
    * Applies a batch in one transaction: every change, or none. Each change is checked against the
    * state it expects first, so a batch built from an old snapshot never overwrites a newer write.
    */
-  commit(changes: readonly IndexChange[], by: Actor, keep?: (ids: readonly string[]) => string | null): CommitResult<E> {
+  commit(changes: readonly IndexChange[], by: Actor): CommitResult<E> {
     const changed = (path: string) => new Refused(path, "changed", true)
     try {
       return this.storage.transactionSync(() => {
@@ -446,7 +422,7 @@ export class FileIndex<E> {
             case "remove": {
               const now = this.stat(c.path)
               if (now?.kind !== "file" || now.sha256 !== c.sha256) throw changed(c.path)
-              take(this.remove([c.path], false, by, keep), c.path)
+              take(this.remove([c.path], false, by), c.path)
               break
             }
             case "rmdir": {
@@ -454,7 +430,7 @@ export class FileIndex<E> {
               if (!Array.isArray(now)) throw changed(c.path)
               const files = now.filter((e) => e.kind === "file")
               if (files.length !== Object.keys(c.files).length || files.some((e) => c.files[e.path] !== e.sha256)) throw changed(c.path)
-              take(this.remove([c.path], true, by, keep), c.path)
+              take(this.remove([c.path], true, by), c.path)
               break
             }
             case "mkdir":
@@ -468,50 +444,5 @@ export class FileIndex<E> {
       if (e instanceof Refused) return { ok: false, path: e.path, message: e.message, conflict: e.conflict }
       throw e
     }
-  }
-
-  /** The files at `paths`, a folder giving everything in it. At most `max`, so one message stays small. */
-  refs(paths: readonly string[], max: number): FileRef[] | FsFail {
-    const out = new Map<string, FileRow>()
-    for (const path of paths) {
-      const entry = this.stat(path)
-      if (!entry) return fail("not_found", `no such file or folder: /${path}`)
-      for (const r of entry.kind === "file" ? [this.row("id", entry.id)!] : this.files(path)) out.set(r.id, r)
-    }
-    if (out.size > max) return fail("invalid", `that is ${out.size} files; a message carries at most ${max}. send a folder's path in the text instead`)
-    return [...out.values()].map(toRef)
-  }
-
-  /** What the attachment job reads. Null when the file is gone. */
-  meta(id: string): FileMeta | null {
-    const r = this.row("id", id)
-    if (!r) return null
-    return {
-      r2Key: r.r2_key,
-      size: r.size,
-      type: r.type,
-      ...(r.width !== null ? { width: r.width } : {}),
-      ...(r.height !== null ? { height: r.height } : {}),
-      ...(r.thumbhash !== null ? { thumbhash: r.thumbhash } : {}),
-    }
-  }
-
-  /**
-   * Fills empty metadata fields and nothing else, so a repeated call changes nothing and stores no
-   * event. Returns the event to publish when something changed.
-   */
-  fillMeta(id: string, patch: FileMetaPatch): E | null {
-    return this.storage.transactionSync(() => {
-      const r = this.row("id", id)
-      if (!r) return null
-      const next = {
-        width: r.width ?? patch.width ?? null,
-        height: r.height ?? patch.height ?? null,
-        thumbhash: r.thumbhash ?? patch.thumbhash ?? null,
-      }
-      if (next.width === r.width && next.height === r.height && next.thumbhash === r.thumbhash) return null
-      this.sql.exec(`UPDATE ${this.t.files} SET width = ?, height = ?, thumbhash = ? WHERE id = ?`, next.width, next.height, next.thumbhash, id)
-      return this.append(r.author, { t: "file", file: toRef({ ...r, ...next }) })
-    })
   }
 }

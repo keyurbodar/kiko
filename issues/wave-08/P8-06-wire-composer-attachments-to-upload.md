@@ -18,6 +18,9 @@ The `verify-kiko` attachments feature: paste an image, drop two files, see all t
 
 ## Task
 
+**Changed.** DEVIATION (2026-10-09): the client no longer computes dimensions or a thumbhash, stores no still, and shows no album. The owner chose t3code's simpler attachments: the upload to `attachments/` and the optimistic send stay. Architecture section 18.1.
+
+
 **Goal.** Make attachments real and optimistic.
 
 **Files.** `apps/web-solid/src/composer/`. Create `apps/web-solid/src/sync/uploads.ts`.

@@ -2,7 +2,6 @@ import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from 
 import type { AgentDO } from "../agent/agent-do"
 import type { RoomDO } from "../room/room-do"
 import type { UserDO } from "../user/user-do"
-import type { WorkDO } from "../jobs/work-do"
 import { rpc } from "./dev-stats"
 
 // Architecture section 4.2. Every Durable Object name starts with the user id, and the
@@ -49,11 +48,6 @@ export function agentName(userId: string, roomId: string, slug: string): string 
   return `agent:${checkUser(userId)}:${checkRoom(roomId)}:${checkSlug(slug)}`
 }
 
-/** The user's job worker (`jobs/work-do.ts`). CPU-heavy job work runs there. */
-export function workName(userId: string): string {
-  return `work:${checkUser(userId)}`
-}
-
 export function userStub(ns: DurableObjectNamespace<UserDO>, userId: string): DurableObjectStub<UserDO> {
   return rpc(ns.get(ns.idFromName(userName(userId))), "user")
 }
@@ -80,10 +74,6 @@ export async function addressRoom(
 ): Promise<DurableObjectStub<RoomDO> | null> {
   const stub = roomStub(env.ROOM, userId, roomId)
   return (await userStub(env.USER, userId).recordRoom(checkRoom(roomId))) ? stub : null
-}
-
-export function workStub(ns: DurableObjectNamespace<WorkDO>, userId: string): DurableObjectStub<WorkDO> {
-  return rpc(ns.get(ns.idFromName(workName(userId))), "work")
 }
 
 /** For `RoomDO` only. It reaches its own agents with the user id and room id the Worker gave it. */

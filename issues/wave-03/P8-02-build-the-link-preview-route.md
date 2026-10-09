@@ -18,6 +18,9 @@
 
 ## Task
 
+**Removed.** DEVIATION (2026-10-09): the preview routes, the room's link card, and the `PREVIEWS` KV namespace are removed, and `bun kiko verify link-preview` with them. The owner chose t3code's model, where a link is a link. The safe fetcher (P8-01) stays for `web_fetch` and watch routines. Architecture section 18.2.
+
+
 **Goal.** Fetch link previews on the server, cache them, and re-host their images.
 
 **Read first.** Architecture section 18.2.

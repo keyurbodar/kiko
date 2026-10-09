@@ -14,20 +14,19 @@
     "bindings": [
       { "name": "USER", "class_name": "UserDO" },
       { "name": "ROOM", "class_name": "RoomDO" },
-      { "name": "AGENT", "class_name": "AgentDO" },
-      // CPU-heavy job work, out of the queue consumer (architecture section 17.3).
-      { "name": "WORK", "class_name": "WorkDO" }
+      { "name": "AGENT", "class_name": "AgentDO" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["UserDO", "RoomDO", "AgentDO"] },
-    { "tag": "v2", "new_sqlite_classes": ["WorkDO"] }
+    { "tag": "v2", "new_sqlite_classes": ["WorkDO"] },
+    // The attachment job and its WorkDO were removed on 2026-10-09 (architecture section 17.3).
+    { "tag": "v3", "deleted_classes": ["WorkDO"] }
   ],
   "d1_databases": [
     { "binding": "AUTH_DB", "database_name": "kiko-auth", "database_id": "6ca8b7aa-6428-4d81-ade5-ceab9cdf76fa" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }],
-  "kv_namespaces": [{ "binding": "PREVIEWS", "id": "fa5a6507f92b413a824f60f08b051483" }],
   "queues": {
     "producers": [{ "binding": "JOBS", "queue": "kiko-jobs" }],
     // 100 is the Queues limit. A job that still fails goes to the dead-letter queue,

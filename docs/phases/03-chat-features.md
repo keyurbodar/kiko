@@ -115,6 +115,8 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-01` `difficulty: 4` `area: frontend`
 
+**Removed.** DEVIATION (2026-10-09): the media viewer is removed. The owner chose t3code's simpler attachments: an attached file is a workspace file under `attachments/`, shown on its message, with no Telegram-style viewer. Architecture section 18.1.
+
 **Verify.** The `verify-kiko` media viewer feature: open from a thumbnail, pinch or wheel zoom to 4x, pan inside bounds, swipe to the next item, swipe down to close, and see the image return to its thumbnail.
 
 **Goal.** Make the lightbox behave exactly like Telegram's.
@@ -137,6 +139,8 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-01` `difficulty: 3` `area: frontend`
 
+**Removed.** DEVIATION (2026-10-09): the album layout is removed. The owner chose t3code's simpler attachments. A human can still attach several files to one message, and the message keeps their `FileRef`s. Architecture section 18.1.
+
 **Verify.** `bun test apps/web-solid/src/lib/album.test.ts` passes layouts for 1 to 10 items against the expected rectangles, and the `verify-kiko` album feature matches Telegram for 2, 3, 4, and 7 images.
 
 **Goal.** Make grouped media look and behave like Telegram.
@@ -158,6 +162,8 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 
 `deps: P2-01` `difficulty: 3` `area: frontend`
 
+**Removed.** DEVIATION (2026-10-09): the media player is removed with the old media system. The owner chose t3code's simpler attachments. Architecture section 18.1.
+
 **Verify.** The `verify-kiko` player feature: play an audio file, scrub, start a second one and see the first stop, and control playback from the keyboard media keys.
 
 **Goal.** Replace native media controls with a Telegram-style player.
@@ -178,6 +184,8 @@ Reference code is in `solid-refs/tweb/src/`, with file pointers in `docs/researc
 ### P3-09 Port the link preview card
 
 `deps: P2-01, P0-03` `difficulty: 3` `area: frontend`
+
+**Removed.** DEVIATION (2026-10-09): link previews are removed on the server and the client. The owner chose t3code's model, where a link is a link. Architecture section 18.2.
 
 **Verify.** The `verify-kiko` link preview feature against the mock: a card with site name, title, description, and image renders in a bubble, and the composer shows the same preview with a remove button.
 

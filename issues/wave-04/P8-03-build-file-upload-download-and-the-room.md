@@ -18,6 +18,9 @@
 
 ## Task
 
+**Changed.** DEVIATION (2026-10-09): the `width`, `height`, and `thumbhash` columns stay in `ws_files` but are no longer written or read, and the `/thumb` still route is removed. Architecture section 18.1.
+
+
 **Goal.** Store bytes in R2 and the index in the room.
 
 **Read first.** Architecture section 18.1.

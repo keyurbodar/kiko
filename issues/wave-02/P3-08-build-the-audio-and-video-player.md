@@ -18,6 +18,9 @@ The `verify-kiko` player feature: play an audio file, scrub, start a second one 
 
 ## Task
 
+**Removed.** DEVIATION (2026-10-09): the media player is removed with the old media system. The owner chose t3code's simpler attachments. Architecture section 18.1.
+
+
 **Goal.** Replace native media controls with a Telegram-style player.
 
 **Read first.** `docs/research/frontend-refs.md`, section 2f.

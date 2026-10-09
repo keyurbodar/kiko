@@ -18,6 +18,9 @@
 
 ## Task
 
+**Removed.** DEVIATION (2026-10-09): the album layout is removed. The owner chose t3code's simpler attachments. A human can still attach several files to one message, and the message keeps their `FileRef`s. Architecture section 18.1.
+
+
 **Goal.** Make grouped media look and behave like Telegram.
 
 **Read first.** `docs/research/frontend-refs.md`, section 2b. `solid-refs/tweb/src/components/groupedLayout.ts`.

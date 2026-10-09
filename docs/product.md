@@ -87,9 +87,10 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 
 ### Files
 
-- Each chat has a file space. Attachments and files that agents write land there.
+- Each chat has a file space. What the human attaches lands under `attachments/`, and files that agents write land there too.
+- A message keeps the files the human attached, and agents read them. Agents attach nothing: they name a path in their text, as t3code's assistant does.
 - The files route shows a file tree that looks and behaves like kat's tree, and a viewer and editor for text files.
-- Images, video, and audio open in a Telegram-style viewer with zoom, swipe, and albums.
+- DEVIATION (2026-10-09): there is no media viewer, album, thumbnail, or media and links catalog. The owner chose t3code's simpler attachments.
 
 ### Skills
 
@@ -104,11 +105,12 @@ Kiko keeps what already works in `apps/web-solid` and adds or fixes the followin
 | Feature | State today | Plan |
 | --- | --- | --- |
 | Reply and quote previews | present | keep, wire to real data |
-| Swipe to reply | icon on the right, drag left | reply icon enters from the left, drag right |
+| Swipe to reply | removed 2026-10-09 | none: on a pointer device, hovering a message shows react, reply and "…" beside the bubble; touch keeps the long-press menu (DEVIATION, the owner's macOS screenshots) |
+| Emoji | system glyphs, own picker, removed Twemoji 2026-10-09 | the platform's emoji font everywhere; kiko's picker, quick reactions from recents, `:shortcode` completion in the composer |
 | Collapsed long messages ("read more") | missing | build, with fade and chevron as in kat |
 | Markdown and code blocks | missing | build, code via sugar-high |
-| Link previews | dev-only proxy in `vite.config.ts` | server-side fetch, tweb-style card |
-| Lightbox, albums, multi-file attachments | present, not Telegram-exact | fix to match tweb behavior |
+| Link previews | removed 2026-10-09 | none: a link is a link (DEVIATION, t3code's model) |
+| Lightbox, albums, multi-file attachments | removed 2026-10-09 | attachments as t3code shows them (DEVIATION) |
 | Audio and video player | native controls only | build |
 | Date divider, unread divider, system events | divider and unread rule present, system events missing | port the astryx `ChatSystemMessage` pattern |
 | Typing indicator | basic row | port the reference component (see the note below) |
@@ -148,7 +150,7 @@ The layout follows the kat screenshots in `~/kat-images`. A 60 px icon rail, a 2
 | `/memory`, `/memory/:id` | none | none | redirects to the active chat with the info panel open on memory (P2-19) |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
-Overlays: command palette, calendar jump, context menus, media viewer, approval card, onboarding.
+Overlays: command palette, calendar jump, context menus, approval card, onboarding. The media viewer was removed on 2026-10-09 (DEVIATION).
 
 ### What replaces kat's terminal and browser panels
 

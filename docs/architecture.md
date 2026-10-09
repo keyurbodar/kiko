@@ -53,15 +53,14 @@ One Cloudflare Worker serves the static client and the API from one origin. Thre
 ```text
 browser (SolidJS)
   |  static assets (free, cached forever)
-  |  HTTPS  /api/*      auth, uploads, downloads, link previews, model catalog
+  |  HTTPS  /api/*      auth, uploads, downloads, model catalog
   |  WebSocket /api/ws/user         one per device, always on
   |  WebSocket /api/ws/room/:id     one per visible chat
   v
 Worker "kiko" (stateless)
   |- Better Auth  -> D1 (users, sessions, accounts)
-  |- link previews -> KV (cache), R2 (re-hosted images)
   |- uploads, downloads -> R2
-  |- queue consumer <- Queues (post-processing jobs)
+  |- queue consumer <- Queues (account deletion)
   v
 UserDO   user:<userId>                    credentials, life log, reminders, chat index, skills, limits
 RoomDO   room:<userId>:<roomId>           chat log and its memory tree, members, debounce, fan-out, task board, file index
@@ -304,7 +303,7 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 
 | Tool | Who | Effect |
 | --- | --- | --- |
-| `send_message(to, text, files?)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `files` hands over files or folders by path: they show on the message and the envelope lists them. Nothing is copied, since every agent in the room shares one file space |
+| `send_message(to, text)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. To hand over a file, the agent names its path in the text: every agent in the room shares one file space. DEVIATION (2026-10-09): the `files` argument is removed (section 18.1) |
 | `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
@@ -362,8 +361,9 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 
 | Job | Why a queue |
 | --- | --- |
-| attachment post-processing (dimensions, thumbhash, text extraction) | CPU work that should not hold a room awake |
 | account deletion fan-out | must reach every Durable Object of a user and survive partial failure |
+
+DEVIATION (2026-10-09): the attachment job (dimensions, thumbhash, and stills) and its `WorkDO` are removed. The owner chose t3code's simpler attachments: a file the human attaches is a workspace file under `attachments/` and the message keeps its `FileRef`, with nothing computed afterwards. The `v3` migration in `wrangler.jsonc` deletes the `WorkDO` class. A leftover attachment job on the queue is no known job and is dropped.
 
 An agent deleted in the middle of a run aborts the run and closes its harness before its storage goes. A harness left running on deleted tables kept the whole isolate busy, so the local server answered nothing more.
 
@@ -484,6 +484,7 @@ On connect the client sends `hello`. The room answers with the events after `las
 The room keeps the user's chat row current. After each change to its newest activity, its read position, or its members, it sends `UserDO.touchChat` one row summary: `last`, `unread`, `mentions`, and `group`. Changes made in one step share one touch. A touch with an older `lastSeq` is ignored.
 
 - `last` is the newest activity as data (`ChatLast` in `packages/protocol/src/activity.ts`): who, a kind (text, photo, video, album, file, voice, audio, link, react, joined, left, renamed, created, approval, notice), and a clipped text. It is the newest of: a live message, an agent's reaction to a human message that still stands, a pending approval, and a member joining or leaving. A deleted newest message falls back to the one before it. A rename of a group is stored by `UserDO` and stays the line until something newer happens.
+- The media kinds (photo, video, album, voice, audio, file) come from the types of a human's attached files (`messageLast`). They are a line in the chat list, not a media system: since 2026-10-09 no thumbnail, album layout, or link card backs them. Agents send no files, so an agent's line is text or link.
 - The client words it in `sidebar/activity.ts`, as Telegram does: `you: text` for your own messages, `ada: text` in a group, `photo, caption`, `ada reacted ❤️ to "hello"`, `ada joined`. A row stored before `last` existed shows `lastPreview`.
 - The row sorts by its newest activity, so reading a chat never moves it.
 - The open room's row uses its own newest message until the server's touch arrives, so a send shows in the list at once.
@@ -793,7 +794,7 @@ The design assumes that a model can be fooled. Marking content lowers the odds. 
 | --- | --- | --- |
 | human | the room WebSocket, authenticated | may instruct |
 | agent | another member, through the room | may request. Cannot change instructions, role, or tools |
-| untrusted | web pages, files, tool results, Executor and MCP results, link previews | data only |
+| untrusted | web pages, files, tool results, Executor and MCP results | data only |
 
 ### 16.2 Marking
 
@@ -822,7 +823,7 @@ DEVIATION from the first version of this section, where a tainted run needed a c
 
 - Executor's own pause stops every action an app marks for a person (section 12.3).
 - Taint still flags what the run stores and sends, and a flagged line reaches later prompts only marked `[outside]`.
-- Section 16.4 still blocks preview exfiltration.
+- Section 16.4: kiko itself fetches no URL an agent wrote.
 - A tainted run cannot write `/me/soul.md`, `skills/`, or `extensions/`, which reach every later system prompt. `RoomFs` refuses it with one line that says the human can ask for the change.
 - A routine a tainted run made keeps no grant (section 25.3).
 - A helper's answer (`spawn_subagent`) and a teammate's answer to `ask` carry their taint back to the run that asked.
@@ -831,7 +832,7 @@ A tainted run's notes and messages are stored flagged, and every summary built f
 
 ### 16.4 Exfiltration through URLs
 
-An injected instruction can ask the model to put private data in a URL and let a preview fetch carry it out. In a tainted run, kiko does not fetch a link preview or an image for a URL the agent wrote unless the same URL appeared in a human message. The link still renders as a link.
+An injected instruction can ask the model to put private data in a URL and let a fetch carry it out. kiko fetches nothing on its own for a URL in a message: there are no link previews (removed on 2026-10-09, section 18.2), so a link renders as a link and nothing more. A URL the agent fetches itself goes through `web_fetch`, which taints the run (section 16.3).
 
 ### 16.5 What never enters a prompt
 
@@ -877,14 +878,14 @@ Per user per day, with 30 turns plus sockets and background jobs: 420 requests, 
 | Durable Object rows read | 5,000,000 | 166 | 166 |
 | Worker requests (about 60 per user) | 100,000 | 1,600 | 1,600 |
 
-The Free plan supports about 4 daily users as shipped and about 24 with coalesced writes. The next ceiling is duration, at about 100. Other Free limits that bind early are KV writes (1,000 a day, one per new link preview), Queues (10,000 operations a day), and 5 GB of total Durable Object storage.
+The Free plan supports about 4 daily users as shipped and about 24 with coalesced writes. The next ceiling is duration, at about 100. Other Free limits that bind early are Queues (10,000 operations a day), and 5 GB of total Durable Object storage.
 
 CPU. One turn uses about 1.5 s of CPU in one invocation. The Durable Objects limits page gives an object 30 s of CPU per incoming request or WebSocket message, reset by each one, on every plan. The Workers limits page gives a Free Worker 10 ms per request, with "some built-in flexibility" for infrequent overruns. Measured on 2026-10-04 on this Free account (the API refuses `limits.cpu_ms` with "CPU limits are not supported for the Free plan"):
 
 - A Durable Object ran 9.9 s of CPU in one call, and six 3.5 s calls in a row, all passing. A turn fits.
 - A plain Worker request is stopped with `exceededCpu` at random once it spends real CPU: 3 of 20 requests at about 0.15 s, 1 of 10 at 1.3 s, and every one at 2.1 s.
 
-So every CPU-heavy step runs inside a Durable Object, and Worker request handlers and the queue consumer stay light. The image decode of the attachment job (section 7.9) moved out of the queue consumer into `WorkDO` (`jobs/work-do.ts`), one stateless object per user that the Worker names from the user id.
+So every CPU-heavy step runs inside a Durable Object, and Worker request handlers and the queue consumer stay light. The image decode of the attachment job once ran in `WorkDO` for this reason. Both were removed on 2026-10-09 (section 7.9), so no job does CPU-heavy work today; a new one would go in a Durable Object the same way.
 
 Subrequests. A Free invocation may make 50 outside requests, and it is enforced inside Durable Objects too, including work that keeps running after the request returned, which is how an agent's run continues after its alarm. Measured: the 51st fetch fails with "Too many subrequests by single Worker invocation", in a request and in the background. RPC calls to Durable Objects do not count against the 50 (120 calls passed), and a fetch made inside an RPC call, even one an object makes to itself, gets that call's own budget (150 background fetches passed that way). So `AgentDO` sends every model request and every `web_fetch` through its own stub (`egress`), and each one is its own invocation. `safeFetch` keeps DNS answers for their TTL (30 s to 5 minutes), so a fetch to a recently seen host costs one subrequest instead of three. pi-ai's Google adapters refuse a custom fetch, so their model requests keep the global one and still count against the run's 50.
 
@@ -949,17 +950,17 @@ DEVIATION: the `Storage` contract says a seq is strictly increasing per commit. 
 
 Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO` and `AgentDO` enforce them. A subscription changes the record. No billing code is planned now.
 
-## 18. Files, media, and link previews
+## 18. Files and attachments
 
 
 **Big tool output.** pi-durable keeps a tool result to 50 KB and cuts at the last line break that fits, so a large one-line JSON document came back as its first line and nothing else. A `web_fetch` or Executor result over 40 KB is saved whole at `/downloads/<name>-<hash>.<ext>`, with JSON pretty-printed and JSON inside its strings opened, and the agent gets its first 8 KB and the path to search with `bash` or `read` (`agent/extensions/spill.ts`). The same content lands at the same path once. `read` and `bash` results are outside content, so a later run that reads the file is tainted as before.
 ### 18.1 Files
 
 - R2 holds bytes. The key is `u/<userId>/r/<roomId>/<fileId>`.
-- `RoomDO` holds the index: path, R2 key, size, type, SHA-256, dimensions, thumbhash, author.
+- `RoomDO` holds the index: path, R2 key, size, type, SHA-256, author. The table still has `width`, `height`, and `thumbhash` columns from the old media system; nothing writes or reads them.
 - Upload goes from the client through the Worker to R2 as a stream. Large files use R2 multipart upload.
 - Download is a Worker route that checks the session, supports `Range`, and sets an immutable cache header keyed by content hash. Video seeks with `Range`, so no service worker is needed for streaming.
-- A picture the human attaches gets a small still at upload. The client already holds the bytes, so it scales them to 840 px on the long edge (WebP, JPEG where WebP cannot be written) and computes the thumbhash. The still is stored beside the file at `<key>/thumb` with `PUT /api/files/<room>/<id>/thumb` and served by `GET` on the same path. `FileRef.thumb` says it exists. The transcript, reply quotes, and the info grid draw the still over the thumbhash; only the media viewer loads the original. A decoded 12 MP photo is about 48 MB, its still about 1 MB. A file without a still (older files, agent files) draws the original, and a video without one draws its thumbhash, never `<img src=video>`. A delete removes the still with the file.
+- A file the human attaches is uploaded like any other, to `attachments/` in the chat's files, and the message carries its `FileRef` (`id`, `name`, `size`, `type`). The agent's envelope lists each one with `attachedLine` (`room/deliver.ts`), and `read` opens it. Agents send no files on messages: an agent names a path in its text. DEVIATION (2026-10-09): the old media system is removed. There are no stills, no thumbhash, no dimensions, no attachment job, no media catalog, and no `send_message` files. The owner chose t3code's simpler model, where a message carries its attachments and the assistant sends none. Stills already in R2 at `<key>/thumb` are no longer served; account deletion removes them with the rest of the user's prefix.
 - The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
 - `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
 - R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again. A write carries the hash of the bytes the agent last read at that path, and the room refuses it if the file changed since, so a whole-file `write` never drops a teammate's edit. `edit` reads the file itself, so it lands on top.
@@ -980,7 +981,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 
 | Space | Who sees it | Who writes it |
 | --- | --- | --- |
-| `/` | everyone in this chat, and only this chat | everyone in it; an agent cannot delete a file attached to a live message |
+| `/` | everyone in this chat, and only this chat | everyone in it |
 | `/home` | the human and every agent, in every chat | the human; an agent when asked, and the chat shows a line for each change |
 | `/me` | that agent, in every chat | that agent and the human |
 
@@ -1010,24 +1011,13 @@ Each file space is atomic on its own. A command that changes both the chat's fil
 
 **Limits.** A room folder named `tmp` or `dev` is hidden from the shell. just-bash adds about 2 MB to the uncompressed Worker (11.7 MB to 13.7 MB, 2.37 MB to 2.80 MB gzipped, measured with `wrangler deploy --dry-run`). The limit is 64 MiB uncompressed on both plans, with no compressed limit (Cloudflare's Workers limits page, read 2026-10-05). A bigger bundle can start slower.
 
-### 18.2 Link previews
+### 18.2 Link previews (removed)
 
-The design follows the spec's additions.
+DEVIATION (2026-10-09): link previews are removed: the `/api/preview` and `/api/preview-image` routes, the room's card on a message's first link, the `PREVIEWS` KV namespace, and the client's preview cache. The owner chose t3code's model, where a link is a link. Old messages keep their stored card in the `messages.preview` column, which nothing reads.
 
-- A Worker route fetches the page. The client never does.
-- `HTMLRewriter` reads `og:title`, `og:description`, `og:image`, `og:site_name`, the `twitter:*` fallbacks, `<title>`, the favicon, and `theme-color`. Attribute values are entity-decoded. The fetch stops reading at `</head>` or `<body>`, or at 512 KB.
-- The fetch sends the user agent `TelegramBot (like TwitterBot)`, because sites serve OpenGraph tags to the bots they know. Reddit answers a plain request with no tags.
-- YouTube and X posts are read from their oEmbed endpoints. YouTube's tags sit 700 KB into a page that took 2 to 9 seconds here. X serves no tags.
-- One resolver (`previews/resolve.ts`) serves `/api/preview` and the room. It reads this isolate's in-flight requests, then the Workers Cache API, then KV, and only then the page. Writes go to `waitUntil`. A result is kept 24 hours, a page with no card 10 minutes, and a timeout or server error 60 seconds.
-- `/api/preview` rate-limits only uncached URLs, and answers with `cache-control: private, max-age=3600`.
-- The fetch allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds (8 for an image).
-- An image path is `/api/preview-image/<token>`, where the token is the image URL sealed with AES-GCM under a key derived from `BETTER_AUTH_SECRET`. The IV is an HMAC of the URL, so one URL always has one path. The token hides the URL from the client and needs no table. The route serves R2 on a hit. On a miss it fetches the image at once, answers with it, and stores it in R2 in the background. So an image works the moment its preview does. A timeout answers 503 and is not cached.
-- The room attaches the card to the message, as Telegram does. After it stores a message or an edit, it resolves the first `http(s)` link in the background, checks the link is still the message's first, and stores a `preview` event. The card lives in the room log, the snapshot, and the client's IndexedDB. Agents never see it. A message with files gets no card.
-- The client keeps a 100-entry LRU in memory over an IndexedDB store of 500 previews, loaded before the first room paints. The composer looks a pasted link up at once and debounces typing by 150 ms. The card's panel colour is the most common vivid hue of its picture, darkened until white text reads at 4.5:1, then the page's `theme-color`, then the bubble surface. The colour is stored with the preview.
+The safe fetcher the previews used stays for `web_fetch` and watch routines (`lib/safe-fetch.ts`). It allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds. On a development server, a host named `fixture-<port>.preview.test` reaches `localhost:<port>` (`lib/dev-fixture-fetch.ts`), so a verify suite can serve a page.
 
-- A tainted run's bubbles (section 16.4) get a card only for a link a human message already holds. The outbox marks a run tainted when it sees a tainted envelope or an `<untrusted>` tool result in the run, keeps the mark in its `outbox` row, and passes it with every `post()`.
-
-UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The route validates on its own and does not rely on the platform. The existing proxy in `apps/web-solid/vite.config.ts` checks hosts by name only and is deleted.
+UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The fetcher validates on its own and does not rely on the platform.
 
 The same fetcher backs a `web_fetch(url)` tool, which returns page text as untrusted content. Web search has no free provider, so it comes from the user's Executor integrations or from a model's own search feature.
 
@@ -1037,14 +1027,14 @@ Facts about the current code are in [research/frontend-current.md](research/fron
 
 ### 19.1 Starting point
 
-`apps/web-solid` has a working transcript on `virtua/solid`, bubbles, replies, reactions, an album layout, a media viewer, a link card, and a composer. It has no router in use, no network code, no persistence, no code splitting, and one fixture store. Typecheck passes and 171 tests pass. The plan keeps the components and replaces the data layer under them.
+`apps/web-solid` has a working transcript on `virtua/solid`, bubbles, replies, reactions, an album layout, a media viewer, a link card, and a composer. It has no router in use, no network code, no persistence, no code splitting, and one fixture store. Typecheck passes and 171 tests pass. The plan keeps the components and replaces the data layer under them. The album layout, media viewer, and link card are removed as of 2026-10-09 with the old media system (section 18.1).
 
 ### 19.2 Three tiers of state
 
 | Tier | Where | Holds |
 | --- | --- | --- |
 | hot | Solid stores and signals | the visible chat's message window, the chat list rows on screen, composer state |
-| warm | IndexedDB | chat list, the last messages of recent chats, drafts, the outbox, media index, `lastSeq` per room |
+| warm | IndexedDB | chat list, the last messages of recent chats, drafts, the outbox, `lastSeq` per room |
 | cold | Durable Objects | full history and everything authoritative |
 
 IndexedDB is used raw with a small promise wrapper, as t3code does (`apps/web/src/connection/storage.ts`). Kiko stores one row per message keyed by `[roomId, seq]`. t3code stores whole thread snapshots, which rewrites a long chat on every message.
@@ -1072,7 +1062,7 @@ Each stored value carries a schema version. A version mismatch drops the warm ti
 | --- | --- | --- |
 | 1 | HTML shell. Inline critical CSS, the app icon, a script that sets theme variables. Target 10 to 20 KB | first response |
 | 2 | Solid runtime, router, stores, sync client, sidebar, transcript, bubbles, plain composer | at once, after the shell |
-| 3 | rich text renderer and sugar-high, media viewer, emoji picker, calendar, command palette, context menus | on idle or on intent |
+| 3 | rich text renderer and sugar-high, emoji picker, calendar, command palette, context menus | on idle or on intent |
 | 4 | the right panel's files tab with headless-tree, its lazy viewers (CodeMirror 6, the markdown parser, table, pdf, media), and settings | on route or tab intent |
 
 Routing uses `@solidjs/router` with lazy routes. Intent means pointer hover for 80 ms, pointer down, or keyboard focus on a link or a chat row. Intent preloads the route chunk and warms the chat from IndexedDB. solid-primitives has no intent-prefetch package, so kiko composes one from `@solid-primitives/event-listener` and `@solid-primitives/scheduled`.
@@ -1097,7 +1087,7 @@ Effect v4 does not ship in tiers 1 to 3. See section 20.
 
 ### 19.5 Motion
 
-Navigation, buttons, menus, tabs, the composer, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, swipe-to-reply feedback (the row follows the pointer 1:1 from the 4th pixel, arms at 36 px, and snaps back in 180 ms on the compositor), attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
+Navigation, buttons, menus, tabs, the composer, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
 
 The typing indicator is a port of [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx) with no React and no `motion` in tier 2.
 
@@ -1130,13 +1120,13 @@ Icons, default avatars, emoji data, theme tokens, the model catalog, and built-i
 
 Kat's top bar shows "notifications off" and share icons. Kiko omits both, because the spec excludes notifications and share links. The bar holds the bird at the far left, the chat tabs, and the model chip. A tab is an icon and a title that fades at its max width; only the active tab has a fill, and its close button shows on hover or when active. The strip has no scrollbar, scrolls with the wheel, and fades only the edge with more tabs. The chat's name and member count are not repeated beside the tabs.
 
-The chat info panel gives each thing one way in: the header (avatar, name, start date), members with add, one memory row (and tasks in a group), what the chat shared as media and links tabs that show only when they have something, and delete. Pin, mute and private live in the chat's menu, the model in the top bar chip, and files in the panel's files tab. Shared files are not listed in the info tab, because every attachment is a workspace file and the files tab already shows them.
+The chat info panel gives each thing one way in: the header (avatar, name, start date), members with add, one memory row (and tasks in a group), and delete. Pin, mute and private live in the chat's menu, the model in the top bar chip, and files in the panel's files tab. Shared files are not listed in the info tab, because every attachment is a workspace file and the files tab already shows them. DEVIATION (2026-10-09): the media and links tabs are removed with the media catalog (section 18.1); attachments are found in the files tab under `attachments/`.
 
 ### 19.9 Components to reuse
 
 Kobalte provides dialog, menus, popover, tooltip, tabs, toast, select, combobox, and switch. Corvu provides drawer, resizable, calendar, and OTP field. The 24 `v2` components that commit 95c2d4b deleted can be restored from git where a screen needs them.
 
-tweb is licensed GPL-3.0 (`solid-refs/tweb/LICENSE`). The app already contains code described as ports of tweb, `src/lib/album.ts` and the entity parser. Code derived from tweb may carry that license into the client that kiko ships to browsers. This is a decision for the owner, not an engineering one. The plan treats tweb as a reference for behavior and asks every task to write its own code.
+tweb is licensed GPL-3.0 (`solid-refs/tweb/LICENSE`). The app already contains code described as ports of tweb, `src/lib/album.ts` (removed with the media system on 2026-10-09) and the entity parser. Code derived from tweb may carry that license into the client that kiko ships to browsers. This is a decision for the owner, not an engineering one. The plan treats tweb as a reference for behavior and asks every task to write its own code.
 
 `@headless-tree/core` 1.7.0 has a React adapter only. Kiko writes a small Solid binding over the core. The core works without React. `docs/research/experiment-9-headless-tree.md` records the run and the 6.0 kB gzip cost.
 
@@ -1217,7 +1207,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 - Pi does not handle user login or user auth. It handles provider credentials for one local user.
 - `packages/durable` has subagent patterns and no Cloudflare code. Kiko writes the Durable Object host.
 - `pi-durable` has no skills and no prompt injection defense.
-- Swipe to reply in the current app matches Telegram (icon on the right). The spec's direction (icon from the left) is a product choice and the plan follows it.
+- DEVIATION: swipe to reply was removed on 2026-10-09 at the owner's request. On a pointer device a message shows react, reply and "…" on hover, as in the owner's macOS screenshots. Touch keeps the long-press menu.
 
 ## 23. Rivet considered
 

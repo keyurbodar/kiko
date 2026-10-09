@@ -36,7 +36,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not edit `refs/` or `solid-refs/`.** They are read-only references and git ignores them. `pi-durable` is an npm dependency. Extend it through its extension points only.
 - **Do not copy code from `solid-refs/tweb`.** It is GPL-3.0. Learn the behavior and write your own.
 - **Do not wait on another Durable Object inside `receive()`.** Store, set an alarm, return. Two agents that wait on each other deadlock.
-- **Do not do CPU-heavy work in a Worker handler or the queue consumer.** On the Free plan they are stopped at random from about 0.15 s of CPU. Put it in a Durable Object, which has 30 s per request (`jobs/work-do.ts`). Architecture section 17.3.
+- **Do not do CPU-heavy work in a Worker handler or the queue consumer.** On the Free plan they are stopped at random from about 0.15 s of CPU. Put it in a Durable Object, which has 30 s per request. Architecture section 17.3.
 - **Do not fetch the outside from an agent's run except through `egress`.** A run's work belongs to one invocation, and Free allows 50 subrequests per invocation. Model requests and `web_fetch` already go through `AgentDO.egress`.
 - **Do not bind one SQL value per item of a list.** A query binds at most 100. Pass the list as one JSON value and read it with `json_each(?)`.
 - **Do not use `setTimeout` to schedule work in a Durable Object.** It does not survive eviction and it blocks hibernation. Use `alarm.ts`.
@@ -105,7 +105,7 @@ Directories marked "planned" do not exist until the task in parentheses creates 
 ```text
 apps/
   web-solid/            the SolidJS client
-    src/chat/           transcript, bubbles, media, typing
+    src/chat/           transcript, bubbles, attachments, typing
     src/composer/       the message input
     src/sidebar/        chat list and pinned tiles
     src/lib/            store, types, helpers

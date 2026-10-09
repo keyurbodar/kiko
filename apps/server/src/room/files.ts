@@ -7,8 +7,6 @@ import { actorKey, type RoomLog } from "./log"
 
 export {
   baseName,
-  type FileMeta,
-  type FileMetaPatch,
   type FsChange,
   type FsEntry,
   type FsFail,

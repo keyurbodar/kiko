@@ -18,6 +18,9 @@
 
 ## Task
 
+**Removed.** DEVIATION (2026-10-09): the attachment job, its `WorkDO`, and `bun kiko verify attachments` are removed. The owner chose t3code's simpler attachments, which compute nothing after upload. The queue consumer stays for account deletion. Architecture section 7.9.
+
+
 **Goal.** Compute image metadata without holding a room awake.
 
 **Read first.** Architecture section 7.9.

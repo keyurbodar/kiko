@@ -1,5 +1,4 @@
-import type { AgentSlug, Envelope, FileRef, RoomEvent, RoomId } from "@kiko/protocol"
-import { attachedLine } from "./deliver"
+import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
@@ -15,11 +14,10 @@ import { AUTO, type Authority, authorityOfAll, combine, stamp } from "../lib/ori
 // except as the answer to a teammate's open ask (asks.ts).
 
 /** One `send_message` call, to one agent or to all. `id` is stable per tool call, so a repeat stores nothing. */
-/** `files` are room paths, files or folders, handed over with the message. */
-export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean; files?: readonly string[] }
+export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean }
 
 /** A stored agent message and who it goes to. */
-export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[]; files?: readonly FileRef[]; authority?: Authority }
+export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[]; authority?: Authority }
 
 /** `fresh` is false for a repeated send id: the send was stored before, and nothing new happened. */
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; fresh: boolean } | { ok: false; error: string; events: RoomEvent[] }
@@ -195,7 +193,7 @@ export class Mail {
 	}
 
 	/** Checks the limits, then stores the message and counts its deliveries. Returns the stored send for a repeated id. */
-	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], files: readonly FileRef[] = []): SendOutcome {
+	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[]): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
 			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [], fresh: false }
@@ -216,8 +214,8 @@ export class Mail {
 			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
 			// The addressee is part of the stored text, as a Telegram mention. ASSUMPTION: no wire field for it.
 			const shown = `@${input.to} ${text}`
-			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), tainted: input.tainted, ...(files.length ? { files } : {}) })
-			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients, authority, ...(files.length ? { files } : {}) }
+			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), tainted: input.tainted })
+			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients, authority }
 			this.count(rootId, recipients.length)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
 			this.prune()
@@ -266,7 +264,7 @@ export class Mail {
 			id: `agent:${send.messageId}:${to}`,
 			roomId,
 			from: { kind: "agent", slug: from },
-			body: send.files?.length ? `${send.text}\n${attachedLine(send.files)}` : send.text,
+			body: send.text,
 			hop: send.hop,
 			rootId: send.rootId,
 			tainted: send.tainted,

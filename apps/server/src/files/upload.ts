@@ -1,6 +1,5 @@
 import { type Actor, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
-import { enqueueAttachment } from "../jobs/attachment"
 import { addressRoom, userStub } from "../lib/names"
 import type { SessionLookup } from "../router"
 import type { NewFile } from "../room/files"
@@ -52,27 +51,14 @@ export function fileKey(userId: string, roomId: string, fileId: string): string 
 
 export const isFileId = (id: string) => FILE_ID.test(id)
 
-/**
- * The R2 key of a file's small still: a picture scaled to fit 840 px, or a video's first frame.
- * The client makes it at upload time, so the transcript never decodes the original.
- */
-export const thumbKey = (key: string) => `${key}/thumb`
-
-/** The keys to delete for dropped files: each object and its still, which may not exist. */
-export const withThumbs = (keys: readonly string[]) => keys.flatMap((k) => [k, thumbKey(k)])
-
 /** R2 deletes at most 1,000 keys per call. */
 const R2_DELETE_LIMIT = 1000
 
-/** Deletes dropped files and their stills, in calls R2 accepts however many there are. */
+/** Deletes dropped files, in calls R2 accepts however many there are. */
 export async function deleteFiles(bucket: R2Bucket, keys: string | readonly string[]): Promise<void> {
-	const all = withThumbs(typeof keys === "string" ? [keys] : keys)
+	const all = typeof keys === "string" ? [keys] : keys
 	for (let i = 0; i < all.length; i += R2_DELETE_LIMIT) await bucket.delete(all.slice(i, i + R2_DELETE_LIMIT))
 }
-
-/** ASSUMPTION: a still at 840 px in WebP or JPEG is far under this. */
-export const MAX_THUMB_BYTES = 1024 * 1024
-const THUMB_TYPES = new Set(["image/webp", "image/jpeg", "image/png"])
 
 export function error(status: number, message: string): Response {
 	return Response.json({ error: message }, { status })
@@ -141,41 +127,18 @@ async function sha256Of(stream: ReadableStream): Promise<string> {
 }
 
 /** Indexes a stored object in its space and deletes whatever the space no longer points to. */
-async function index(env: Env, userId: string, roomId: string, input: NewFile, failures?: number): Promise<Response> {
+async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
 	const room = roomId === HOME ? null : await addressRoom(env, userId, roomId)
 	if (roomId !== HOME && !room) {
 		await env.FILES.delete(input.r2Key)
 		return error(410, "account deleted")
 	}
-	const { file, drop, fresh, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
+	const { file, drop, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
 	if (drop) await deleteFiles(env.FILES, drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	// A stale edit writes nothing. The answer names what the path holds now, so the editor can offer it.
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })
-	// Architecture section 7.9: the room is not held awake for image metadata. A queue job fills what the client did not send.
-	if (fresh && file && room) await enqueueAttachment(env, userId, roomId, file, failures)
 	return Response.json({ file })
-}
-
-/** A dimension or thumbhash the client measured. Anything malformed is ignored and computed later. */
-function measured(raw: { width?: unknown; height?: unknown; thumbhash?: unknown }) {
-	const dim = (v: unknown) => {
-		const n = typeof v === "string" ? Number(v) : v
-		return typeof n === "number" && Number.isSafeInteger(n) && n > 0 && n <= 100_000 ? n : undefined
-	}
-	const width = dim(raw.width)
-	const height = dim(raw.height)
-	const hash = typeof raw.thumbhash === "string" && /^[A-Za-z0-9+/]{8,200}$/.test(raw.thumbhash) ? raw.thumbhash : undefined
-	return { ...(width && height ? { width, height } : {}), ...(hash ? { thumbhash: hash } : {}) }
-}
-
-declare const process: { env: { NODE_ENV?: string } }
-
-/** Development only: a header that makes the attachment job fail that many deliveries first. */
-function testFailures(request: Request): number | undefined {
-	if (process.env.NODE_ENV !== "development") return undefined
-	const n = Number(request.headers.get("x-kiko-test-job-failures"))
-	return Number.isInteger(n) && n > 0 && n <= 5 ? n : undefined
 }
 
 async function json(request: Request): Promise<Record<string, unknown> | null> {
@@ -208,33 +171,11 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 		}),
 		sha256Of(toHash),
 	])
-	const sent = measured({
-		width: request.headers.get("x-kiko-width"),
-		height: request.headers.get("x-kiko-height"),
-		thumbhash: request.headers.get("x-kiko-thumbhash"),
-	})
 	// An edit names the SHA-256 it started from, so a write that landed meanwhile is never overwritten.
 	const expect = request.headers.get("x-kiko-if-sha256")
 	const expectSha256 = expect && /^(none|[0-9a-f]{64})$/.test(expect) ? expect : undefined
 	if (expect && !expectSha256) return error(400, "bad x-kiko-if-sha256")
-	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...sent, ...(expectSha256 ? { expectSha256 } : {}) }, testFailures(request))
-}
-
-/**
- * PUT /api/files/<roomId>/<fileId>/thumb stores the file's still. Only for a file the room
- * indexes, so a still never outlives its file by more than the next delete.
- */
-async function putThumb(request: Request, env: Env, userId: string, roomId: string, fileId: string): Promise<Response> {
-	if (roomId === HOME || !isFileId(fileId)) return error(404, "not found")
-	const type = mime(request.headers.get("content-type"))
-	if (!THUMB_TYPES.has(type)) return error(415, "a still is webp, jpeg, or png")
-	const length = contentLength(request)
-	if (length === null) return error(411, "content-length required")
-	if (length > MAX_THUMB_BYTES) return error(413, "still too large")
-	const room = await addressRoom(env, userId, roomId)
-	if (!room || !(await room.fileMeta(fileId))) return error(404, "not found")
-	await env.FILES.put(thumbKey(fileKey(userId, roomId, fileId)), sized(request, length), { httpMetadata: { contentType: type } })
-	return new Response(null, { status: 204 })
+	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, ...(expectSha256 ? { expectSha256 } : {}) })
 }
 
 async function create(request: Request, env: Env, userId: string, roomId: string): Promise<Response> {
@@ -249,7 +190,7 @@ async function create(request: Request, env: Env, userId: string, roomId: string
 	const fileId = crypto.randomUUID()
 	const upload = await env.FILES.createMultipartUpload(fileKey(userId, roomId, fileId), {
 		httpMetadata: { contentType: mime(body.type) },
-		customMetadata: { path, ...Object.fromEntries(Object.entries(measured(body)).map(([k, v]) => [k, String(v)])) },
+		customMetadata: { path },
 	})
 	return Response.json({ fileId, uploadId: upload.uploadId })
 }
@@ -307,8 +248,7 @@ async function complete(
 	// R2 cannot hash across parts for us, so the Worker reads the object once.
 	const sha256 = await sha256Of(object.body)
 	const type = mime(object.httpMetadata?.contentType)
-	const sent = measured(object.customMetadata ?? {})
-	return index(env, userId, roomId, { id: fileId, path, r2Key: key, size: object.size, type, sha256, author: HUMAN, ...sent }, testFailures(request))
+	return index(env, userId, roomId, { id: fileId, path, r2Key: key, size: object.size, type, sha256, author: HUMAN })
 }
 
 /** Answers the upload routes. Null for any other request. */
@@ -328,7 +268,6 @@ export async function uploadRoute(
 	const [head, fileId = "", n] = rest
 
 	if (!rest.length && request.method === "PUT") return putOne(request, env, user.id, roomId, url)
-	if (rest.length === 2 && rest[1] === "thumb" && request.method === "PUT") return putThumb(request, env, user.id, roomId, head!)
 	if (head !== "uploads") return error(404, "not found")
 	if (rest.length === 1 && request.method === "POST") return create(request, env, user.id, roomId)
 	if (!isFileId(fileId) || !uploadId) return error(404, "not found")

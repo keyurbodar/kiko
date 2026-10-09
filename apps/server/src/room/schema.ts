@@ -66,7 +66,8 @@ const MIGRATIONS: readonly string[] = [
 	`,
 	`
 	-- The room's file index (files.ts). Bytes are in R2 under r2_key. A path holds
-	-- one file. author is an actor key, as in events.
+	-- one file. author is an actor key, as in events. width, height, and thumbhash are no longer
+	-- written or read (2026-10-09); they stay so no migration rewrites a live table.
 	CREATE TABLE ws_files (
 		id TEXT PRIMARY KEY,
 		path TEXT NOT NULL UNIQUE,
@@ -127,7 +128,8 @@ const MIGRATIONS: readonly string[] = [
 	ALTER TABLE messages ADD COLUMN quote TEXT;
 	`,
 	`
-	-- The card for the message's first link, as JSON (architecture section 18.2).
+	-- The card for the message's first link, as JSON. Link previews were removed on 2026-10-09; the
+	-- column stays, unread, so no migration rewrites a live table.
 	ALTER TABLE messages ADD COLUMN preview TEXT;
 	`,
 	`

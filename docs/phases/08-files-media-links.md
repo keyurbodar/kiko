@@ -2,6 +2,8 @@
 
 This phase adds real files. At the end, a user uploads attachments, agents read and write files in the room's file space, the files route shows a tree and an editor, and links get server-side previews.
 
+DEVIATION (2026-10-09): link previews (P8-02), the attachment job (P8-04), and the client's stills and thumbhash (part of P8-06) are removed. The owner chose t3code's simpler attachments.
+
 ## Tasks
 
 ### P8-01 Build the safe fetcher
@@ -30,6 +32,8 @@ This phase adds real files. At the end, a user uploads attachments, agents read 
 
 `deps: P8-01, P1-03` `difficulty: 3` `area: backend`
 
+**Removed.** DEVIATION (2026-10-09): the preview routes, the room's link card, and the `PREVIEWS` KV namespace are removed, and `bun kiko verify link-preview` with them. The owner chose t3code's model, where a link is a link. The safe fetcher (P8-01) stays for `web_fetch` and watch routines. Architecture section 18.2.
+
 **Verify.** `bun kiko verify link-preview` passes against a local fixture server: a page with Open Graph tags returns title, description, site name, and an image URL on kiko's origin, a second call is served from KV, and a page with no tags is cached as a miss.
 
 **Goal.** Fetch link previews on the server, cache them, and re-host their images.
@@ -50,6 +54,8 @@ This phase adds real files. At the end, a user uploads attachments, agents read 
 ### P8-03 Build file upload, download, and the room file index
 
 `deps: P1-04` `difficulty: 4` `area: backend`
+
+**Changed.** DEVIATION (2026-10-09): the `width`, `height`, and `thumbhash` columns stay in `ws_files` but are no longer written or read, and the `/thumb` still route is removed. Architecture section 18.1.
 
 **Verify.** `bun kiko verify files` passes: upload a 30 MB file in parts, download a byte range from the middle, see the file event on the room socket, and get 404 when another user requests it.
 
@@ -72,6 +78,8 @@ This phase adds real files. At the end, a user uploads attachments, agents read 
 ### P8-04 Process attachments in a queue
 
 `deps: P8-03` `difficulty: 3` `area: backend`
+
+**Removed.** DEVIATION (2026-10-09): the attachment job, its `WorkDO`, and `bun kiko verify attachments` are removed. The owner chose t3code's simpler attachments, which compute nothing after upload. The queue consumer stays for account deletion. Architecture section 7.9.
 
 **Verify.** `bun kiko verify attachments` passes: after an image upload, the file row gains width, height, and a thumbhash within 5 seconds, and a job that fails twice succeeds on the third delivery.
 
@@ -114,6 +122,8 @@ This phase adds real files. At the end, a user uploads attachments, agents read 
 ### P8-06 Wire composer attachments to upload
 
 `deps: P8-03, P2-08` `difficulty: 3` `area: frontend`
+
+**Changed.** DEVIATION (2026-10-09): the client no longer computes dimensions or a thumbhash, stores no still, and shows no album. The owner chose t3code's simpler attachments: the upload to `attachments/` and the optimistic send stay. Architecture section 18.1.
 
 **Verify.** The `verify-kiko` attachments feature: paste an image, drop two files, see all three in the tray with progress, send, and see the album appear at once and survive a reload.
 

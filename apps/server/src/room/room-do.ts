@@ -28,13 +28,11 @@ import { changePaths, type CommitResult, type FileIndex, type IndexChange } from
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, type Proposal, type ProposalInput } from "./chief"
-import { type FileMeta, type FileMetaPatch, type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
-import { attachPreview, humanWrote, previewTarget } from "./link-preview"
+import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
 import { migrate } from "./schema"
-import { listCatalog } from "./catalog"
 import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
 import { applyTaskOp, RoomWorkspace, runCall, wakeEnvelope, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
@@ -55,8 +53,6 @@ const DELIVERY_RETRY_MS = 2_000
 const WAKES_WAKEUP = "ws_wakes"
 /** Agent mail that waits for delivery: held behind a human burst, or retried after a failure. */
 const MAIL_WAKEUP = "mail"
-/** ASSUMPTION: the most files one agent message carries. */
-const MAX_SENT_FILES = 50
 /** Log memory (section 13): the summaries still to make, and a chat gone quiet. */
 const MEMORY_WAKEUP = "memory_naps"
 const QUIET_WAKEUP = "memory_quiet"
@@ -563,10 +559,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		const members = this.members.list()
 		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
-		// Files are handed over by reference: every agent in the room reads the same file space.
-		const files = send.files?.length ? this.files.refs(send.files.map((p) => p.replace(/^\/+|\/+$/g, "")), MAX_SENT_FILES) : []
-		if (!Array.isArray(files)) return { ok: false, error: `not sent: ${files.message}` }
-		const out = this.mail.send(slug, send, members, files)
+		const out = this.mail.send(slug, send, members)
 		if (out.ok && out.fresh) this.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
 		this.publish(out.events)
 		if (!out.ok) return out
@@ -867,8 +860,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** Sends stored events to every socket that has said hello. `previews: false` reads only links a human sent. */
-	publish(events: readonly RoomEvent[], { previews = true, touch = true }: { previews?: boolean; touch?: boolean } = {}): void {
+	/** Sends stored events to every socket that has said hello. */
+	publish(events: readonly RoomEvent[], { touch = true }: { touch?: boolean } = {}): void {
 		if (!events.length) return
 		this.broadcast({ t: "events", events })
 		if (touch && events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
@@ -880,12 +873,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		// agent mail until the burst closes and the human's message arrives first.
 		const human = events.flatMap((e) => (e.t === "message" && e.from.kind === "human" ? [e] : []))
 		if (human.length) this.ctx.waitUntil(this.warnBusyAgents(human))
-		// The card for a message's first link follows the message, in its own event.
-		for (const e of events) {
-			const target = previewTarget(e)
-			if (target && !previews && !humanWrote(this.ctx.storage.sql, target.url)) continue
-			if (target) this.ctx.waitUntil(attachPreview(this.log, this.env, target, (w) => this.ctx.waitUntil(w), (out) => this.publish(out)))
-		}
 	}
 
 	#touching = false
@@ -916,10 +903,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** The socket's search, and RPC for the Worker's search across chats (`room/search-route.ts`). */
 	search(query: string, options?: SearchOptions) {
 		return searchMessages(this.ctx.storage.sql, query, options)
-	}
-
-	catalog(kind: "links" | "media", before?: number, limit?: number) {
-		return listCatalog(this.ctx.storage.sql, kind, before, limit)
 	}
 
 	/** RPC for the user's `UserDO`. Returns false when `id` was delivered before. */
@@ -1145,30 +1128,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/** RPC for the Worker's upload route and file tools. Indexes a stored object and broadcasts the change. */
-	async putFile(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
+	async putFile(input: NewFile): Promise<Omit<PutResult, "events"> & { entry: FsEntry | null }> {
 		// An agent writes only where no teammate is working (section 7.12). The human is never refused.
 		const by = input.author.kind === "agent" ? input.author.slug : null
 		if (by) {
 			const held = this.held(by, [input.path])
-			if (held) return { file: null, drop: input.r2Key, refused: held, fresh: false, entry: null }
+			if (held) return { file: null, drop: input.r2Key, refused: held, entry: null }
 		}
 		const { events, ...result } = this.files.put(input)
 		if (by && result.file && !result.conflict && !result.refused) this.working(by, [input.path], `editing /${input.path}`)
 		if (events.length) this.publish(events)
-		const fresh = events.some((e) => e.t === "file")
-		return { ...result, fresh, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
-	}
-
-	/** RPC for the attachment job. */
-	async fileMeta(id: string): Promise<FileMeta | null> {
-		return this.files.meta(id)
-	}
-
-	/** RPC for the attachment job. Fills empty fields only, so a second call returns false and stores nothing. */
-	async setFileMeta(id: string, patch: FileMetaPatch): Promise<boolean> {
-		const event = this.files.fillMeta(id, patch)
-		if (event) this.publish([event])
-		return event !== null
+		return { ...result, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
 	}
 
 	/** RPC for the agent file system. A file, a folder, or null. */
@@ -1188,8 +1158,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	/** RPC for the agent file system: `rm`. */
 	async fsRemove(slug: AgentSlug, paths: readonly string[], recursive: boolean): Promise<FsChange<RoomEvent> | FsFail> {
-		// A file on a message stays: the bubble would point at nothing. The human can still delete it.
-		return this.guarded(slug, paths, `deleting /${paths[0]}`, () => this.files.remove(paths, recursive, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids)))
+		return this.guarded(slug, paths, `deleting /${paths[0]}`, () => this.files.remove(paths, recursive, { kind: "agent", slug }))
 	}
 
 	/**
@@ -1200,7 +1169,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const paths = changes.flatMap(changePaths)
 		const held = this.held(slug, paths)
 		if (held) return { ok: false, path: paths[0] ?? "", message: held.message, conflict: false }
-		const out = this.files.commit(changes, { kind: "agent", slug }, (ids) => this.attachedRefusal(ids))
+		const out = this.files.commit(changes, { kind: "agent", slug })
 		if (!out.ok) return out
 		this.applyFs({ ok: true, events: out.events, drop: out.drop, changed: changes.length })
 		if (paths.length) this.working(slug, paths, `editing /${paths[0]}${paths.length > 1 ? ` and ${paths.length - 1} more` : ""}`)
@@ -1255,23 +1224,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {
 		const now = Date.now()
 		return this.members.list().map((m) => ({ slug: m.slug, name: m.name, status: m.status, doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }))
-	}
-
-	/** Why an agent may not delete these files: some sit on a live message. */
-	private attachedRefusal(ids: readonly string[]): string | null {
-		if (!ids.length) return null
-		// One JSON value, not one bound value per id: a query binds at most 100 (Durable Objects SQL
-		// limits), and `rm -r` can name many more files.
-		const hit = this.ctx.storage.sql
-			.exec<{ id: string }>(
-				`SELECT DISTINCT json_extract(f.value, '$.id') AS id FROM messages m, json_each(m.files) f
-				 WHERE m.deleted_at IS NULL AND m.files IS NOT NULL AND json_extract(f.value, '$.id') IN (SELECT value FROM json_each(?))`,
-				JSON.stringify(ids),
-			)
-			.toArray()
-		if (!hit.length) return null
-		const names = this.files.all().filter((f) => hit.some((h) => h.id === f.id)).map((f) => `/${f.name}`)
-		return `${names.join(", ")} ${names.length === 1 ? "is" : "are"} attached to a message in the chat, so it stays. move it instead, or ask the human to delete it.`
 	}
 
 	/** A human's `files` frame. Returns the refusal for the socket, or null. */
@@ -1496,14 +1448,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * RPC for an agent in this room (section 6.3). Stores one closed block of a run's answer. A repeated
 	 * `(runId, attempt, index)` stores nothing. A higher attempt keeps an earlier bubble it writes again
 	 * unchanged and replaces the rest (bubbles.ts).
-	 * Returns true when this call stored the bubble. A bubble of a `tainted` run gets a link card only
-	 * for a link a human message holds: any other link may carry what outside content made the run
-	 * write, so the room never fetches it (section 16.4).
+	 * Returns true when this call stored the bubble.
 	 */
 	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string, tainted = false): Promise<boolean> {
 		const events = this.bubbles.post(slug, { runId, attempt, index }, block, tainted)
 		// The chat list row is touched once, when the run ends (`endRun`), not once per bubble.
-		this.publish(events, { previews: !tainted, touch: false })
+		this.publish(events, { touch: false })
 		return events.some((e) => e.t === "message")
 	}
 
@@ -1590,7 +1540,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 */
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = []): Promise<void> {
 		const settled = this.bubbles.settle(slug, runId)
-		if (settled) this.publish([settled], { previews: false, touch: false })
+		if (settled) this.publish([settled], { touch: false })
 		const home = this.home()
 		const first = !this.bubbles.ended(runId)
 		if (home && first) {

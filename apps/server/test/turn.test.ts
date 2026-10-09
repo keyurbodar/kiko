@@ -121,7 +121,7 @@ test("a run posts each paragraph once, in order, then ends once", async () => {
 }, 30_000)
 
 test("a run started by a tainted envelope posts every bubble as tainted, and a human's run does not", async () => {
-  // Section 16.4: the room previews no link of a tainted run, so the outbox must say which runs are.
+  // Section 16.4: a bubble of a tainted run is stored as tainted, so the outbox must say which runs are.
   const a = await agent()
   await a.receive([{ ...human("from a teammate"), id: `agent:t${n}`, from: { kind: "agent", slug: "scout" } as Envelope["from"], tainted: true }])
   const tainted = posts(await until(a.calls, ended))

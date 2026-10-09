@@ -23,7 +23,7 @@
 **Build.**
 
 - `note` is its own extension, so a helper keeps `recall` and `zoom` without it.
-- No memory block in the helper's first message: the read tools cost nothing until used. One line after the task says the chat's past is a `recall` away; without it the helper never looked.
+- No memory block in the helper's first message: the read tools cost nothing until used.
 - The dev routes `usage`, `trace`, and `children` no longer open an agent that has had no delivery. Opened that way, the agent was built with no home: no memory tools and no role, for the life of the process. The suites that poll them early measured that broken agent.
 
 ## Rules for this task

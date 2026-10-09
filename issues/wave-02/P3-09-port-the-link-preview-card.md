@@ -18,6 +18,9 @@ The `verify-kiko` link preview feature against the mock: a card with site name, 
 
 ## Task
 
+**Removed.** DEVIATION (2026-10-09): link previews are removed on the server and the client. The owner chose t3code's model, where a link is a link. Architecture section 18.2.
+
+
 **Goal.** Show link previews like Telegram, from data the server supplies.
 
 **Read first.** `docs/research/frontend-refs.md`, section 2c. `solid-refs/tweb/src/components/wrappers/webPage.tsx`.

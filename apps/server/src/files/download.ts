@@ -1,12 +1,11 @@
 
 import type { Env } from "../index"
 import type { SessionLookup } from "../router"
-import { error, fileKey, filesPath, isFileId, isSpace, thumbKey } from "./upload"
+import { error, fileKey, filesPath, isFileId, isSpace } from "./upload"
 
 // Architecture section 18.1. GET /api/files/<roomId>/<fileId>. The key is built from
 // the session's user id, so another user's request finds nothing and gets 404.
 // A file id names one content: new bytes get a new id, so the response is immutable.
-// GET /api/files/<roomId>/<fileId>/thumb is the file's small still, when the client stored one.
 
 type Span = { start: number; end: number }
 
@@ -49,9 +48,8 @@ export async function downloadRoute(
 	const user = await lookup(request, env)
 	if (!user) return error(401, "unauthorized")
 	const [fileId = "", ...extra] = route.rest
-	const thumb = extra.length === 1 && extra[0] === "thumb"
-	if (!isSpace(route.roomId) || !isFileId(fileId) || (extra.length && !thumb)) return error(404, "not found")
-	const key = thumb ? thumbKey(fileKey(user.id, route.roomId, fileId)) : fileKey(user.id, route.roomId, fileId)
+	if (!isSpace(route.roomId) || !isFileId(fileId) || extra.length) return error(404, "not found")
+	const key = fileKey(user.id, route.roomId, fileId)
 
 	const head = await env.FILES.head(key)
 	if (!head) return error(404, "not found")

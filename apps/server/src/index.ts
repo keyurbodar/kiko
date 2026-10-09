@@ -9,7 +9,6 @@ import { accountRoute } from "./auth/account-route"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { consume } from "./jobs/consumer"
-import { previewRoute } from "./previews/route"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
 import { executorCallbackRoute } from "./integrations/executor/connect"
@@ -17,7 +16,6 @@ import { experimentTurnRoute } from "./experiments/turn"
 import { experimentCoalescingRoute } from "./experiments/coalescing"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
-import type { WorkDO } from "./jobs/work-do"
 import { hooksRoute } from "./user/hooks-route"
 import { routinesRoute } from "./user/routines-route"
 import { remindersRoute } from "./user/reminders-route"
@@ -32,7 +30,6 @@ setScriptWasm(quickjsWasm)
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
 export { UserDO } from "./user/user-do"
-export { WorkDO } from "./jobs/work-do"
 
 declare const process: { env: { NODE_ENV?: string } }
 
@@ -40,11 +37,8 @@ export interface Env {
   USER: DurableObjectNamespace<UserDO>
   ROOM: DurableObjectNamespace<RoomDO>
   AGENT: DurableObjectNamespace<AgentDO>
-  /** CPU-heavy job work (section 17.3). Absent in tests that bundle one object. */
-  WORK?: DurableObjectNamespace<WorkDO>
   AUTH_DB: D1Database
   FILES: R2Bucket
-  PREVIEWS: KVNamespace
   JOBS: Queue
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
@@ -56,7 +50,7 @@ export interface Env {
 }
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
     if (url.pathname.startsWith(executorOAuthPrefix)) return executorOAuth(request)
@@ -79,8 +73,6 @@ export default {
     if (searched) return searched
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
-    const previewed = await previewRoute(request, env, ctx)
-    if (previewed) return previewed
     const devAgent = await devAgentRoute(request, env)
     if (devAgent) return devAgent
     const devStats = devStatsRoute(request)

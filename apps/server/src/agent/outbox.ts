@@ -27,7 +27,7 @@ export const DRAFT_INTERVAL_MS = 300
 
 /** What the agent can do in its room. `AgentDO` binds it to the room's RPC and the agent's slug. */
 export interface RoomPort {
-  /** `tainted` is true once the run has read outside content: the room shows no link card for it (section 16.4). */
+  /** `tainted` is true once the run has read outside content (section 16.4). The room stores it on the bubble. */
   post(runId: string, attempt: number, index: number, block: string, tainted: boolean): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>

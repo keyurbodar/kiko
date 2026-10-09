@@ -10,7 +10,7 @@ This page is the short version. [product.md](product.md) covers the product, [ar
 browser (SolidJS, IndexedDB)
   |  static assets, HTTPS /api/*, two WebSockets
   v
-one Worker  ->  D1 (accounts)   KV (link previews)   R2 (files)   Queues (side jobs)
+one Worker  ->  D1 (accounts)   R2 (files)   Queues (account deletion)
   v
 UserDO   one per user            credentials, memory, reminders, chat index
 RoomDO   one per chat            message log, members, debounce, task board, file index
@@ -54,7 +54,7 @@ The plan has 104 tasks in 10 phases and 11 waves. One task is one agent session.
 | 5 | memory, reminders, and skills |
 | 6 | agent teams and the board |
 | 7 | prompt injection defense and Executor integrations |
-| 8 | files, media, and link previews |
+| 8 | files (media and link previews removed on 2026-10-09) |
 | 9 | limits, CI gates, measured cost, and the deploy |
 
 - [tasks.tsv](../tasks.tsv) is the machine-readable plan.

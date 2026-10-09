@@ -7,7 +7,6 @@ import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, RoomEvent, RoomT
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
-import type { CatalogPage } from "./catalog"
 import type { SearchOptions, SearchPage } from "./search"
 
 /** Per-socket state. It survives hibernation. */
@@ -29,8 +28,6 @@ export interface SocketRoom {
 	stop(): void
 	/** Searches the room's live messages. */
 	search(query: string, options?: SearchOptions): SearchPage
-	/** The links or the media sent in the room. */
-	catalog(kind: "links" | "media", before?: number, limit?: number): CatalogPage
 	/** Adds, removes, or renames an agent (section 7.7) and publishes the change. Returns why it was refused, or null. */
 	memberOp(op: MemberOp): MemberRefusal | null
 	/** A human's `rm` or `mv` on the room's files. The refusal for the socket, or null. */
@@ -142,11 +139,10 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			send(ws, { t: "search", query: frame.query, ...(frame.before !== undefined ? { before: frame.before } : {}), ...page })
 			return null
 		}
-		case "catalog": {
-			const page = room.catalog(frame.kind, frame.before, frame.limit)
-			send(ws, { t: "catalog", kind: frame.kind, ...(frame.before !== undefined ? { before: frame.before } : {}), ...page })
+		case "catalog":
+			// The media catalog is gone. An older client still asks, so it gets an empty last page. The protocol phase removes the frame.
+			send(ws, { t: "catalog", kind: frame.kind, ...(frame.before !== undefined ? { before: frame.before } : {}), items: [], next: null })
 			return null
-		}
 		case "history": {
 			const messages = log.around(frame.seq, Math.min(frame.before, MAX_HISTORY), Math.min(frame.after, MAX_HISTORY))
 			send(ws, { t: "history", seq: frame.seq, before: frame.before, after: frame.after, messages })

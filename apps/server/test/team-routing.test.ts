@@ -376,17 +376,16 @@ test("agent mail that fails to deliver is retried until it arrives", async () =>
   ws.ws.close()
 })
 
-test("an agent hands files and folders to another by reference: shown on the message, listed in the envelope", async () => {
+test("an agent's send_message carries text only: no files on the message, none in the envelope", async () => {
   const { room, ws } = await team()
-  for (const path of ["drafts/a.md", "drafts/b.md", "plan.md"]) await call(`/index/${room}?path=${encodeURIComponent(path)}`)
-  const sent = (await call(`/mail/${room}/bob`, { id: "m-files-1", to: "ada", text: "here is the draft", tainted: false, files: ["/drafts", "plan.md"] })) as { ok: boolean }
+  await call(`/index/${room}?path=plan.md`)
+  // An older agent could still pass files. The room drops them.
+  const sent = (await call(`/mail/${room}/bob`, { id: "m-files-1", to: "ada", text: "the plan is in /plan.md", tainted: false, files: ["plan.md"] })) as { ok: boolean }
   expect(sent.ok).toBe(true)
   const got = await delivered(room, "ada", 1)
-  expect(got[0]!.envelopes[0]!.body).toBe("here is the draft\n(attached: /drafts/a.md (text/markdown, 2 kb), /drafts/b.md (text/markdown, 2 kb), /plan.md (text/markdown, 2 kb). open each with read before you answer about it.)")
+  expect(got[0]!.envelopes[0]!.body).toBe("the plan is in /plan.md")
   const shown = ws.events().find((e) => e.t === "message" && e.from.kind === "agent" && e.from.slug === "bob")
-  expect(shown?.t === "message" && shown.files?.map((f) => f.name)).toEqual(["drafts/a.md", "drafts/b.md", "plan.md"])
-  const missing = (await call(`/mail/${room}/bob`, { id: "m-files-2", to: "ada", text: "and this", tainted: false, files: ["nope.md"] })) as { ok: boolean; error: string }
-  expect(missing).toEqual({ ok: false, error: "not sent: no such file or folder: /nope.md" })
+  expect(shown?.t === "message" && shown.files).toBeUndefined()
   ws.ws.close()
 })
 
@@ -406,17 +405,17 @@ test("a group starts with /chat.md listing who does what; it is written once", a
   ws.ws.close()
 })
 
-test("an agent cannot delete a file attached to a message; the human can", async () => {
+test("a human's attachment shows on the message and is listed in the lead's envelope", async () => {
   const { room, ws } = await team()
   const put = (await call(`/index/${room}?path=${encodeURIComponent("attachments/a1-photo.png")}`)) as { file: { id: string; name: string; size: number; type: string } }
-  await call(`/index/${room}?path=loose.md`)
   ws.send({ t: "send", clientId: crypto.randomUUID(), text: "look", files: [put.file] })
-  await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && (e.files?.length ?? 0) > 0))
-  const refused = (await call(`/rm/${room}/bob`, { paths: ["attachments/a1-photo.png", "loose.md"], by: "agent" })) as { refused: string | null }
-  expect(refused.refused).toContain("/attachments/a1-photo.png is attached to a message")
-  // Nothing went: the refusal is for the whole call.
-  expect((await call(`/rm/${room}/bob`, { paths: ["loose.md"], by: "agent" })) as { refused: null }).toEqual({ refused: null })
-  expect((await call(`/rm/${room}/bob`, { paths: ["attachments/a1-photo.png"], by: "human" })) as { refused: null }).toEqual({ refused: null })
+  const frame = (await ws.until((f) => f.t === "events" && f.events.some((e) => e.t === "message" && (e.files?.length ?? 0) > 0))) as Extract<RoomToClient, { t: "events" }>
+  const shown = frame.events.find((e) => e.t === "message")
+  expect(shown?.t === "message" && shown.files?.map((f) => f.name)).toEqual(["attachments/a1-photo.png"])
+  const got = await delivered(room, "kiko", 1)
+  const body = got.flatMap((r) => r.envelopes.map((e) => e.body)).find((b) => b.startsWith("look"))
+  expect(body).toStartWith("look\n(attached: /attachments/a1-photo.png (")
+  expect(body).toEndWith("open each with read before you answer about it.)")
   ws.ws.close()
 })
 
