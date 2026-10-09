@@ -675,12 +675,14 @@
 
 /* ===== Resize handle -------------------------------------------------- */
 
+/* t3code's sidebar rail (components/ui/sidebar.tsx `SidebarRail`): a 16px grab area centred on the
+ * edge, and under the pointer a 2px line in the neutral border tone, never the accent. */
 .sidebar-shell .resize-handle {
   position: absolute;
   top: 0;
-  right: -1.5px;
+  right: -8px;
   z-index: 21;
-  width: 3px;
+  width: 16px;
   height: 100%;
   cursor: col-resize;
   /* Absolutely positioned inside `.panel`, so it must not inherit the
@@ -688,8 +690,7 @@
   min-width: 0;
 }
 
-/* Collapsed, the panel is 0 wide at the window's edge, so the 3px handle centred on that edge
- * left 1.5px to grab. It reaches 8px into the window instead, the panel's clip margin. */
+/* Collapsed, the panel is 0 wide at the window's edge, so the handle reaches into the window. */
 .sidebar-shell .panel[data-collapsed] > .resize-handle {
   right: -8px;
   width: 8px;
@@ -698,10 +699,10 @@
 .sidebar-shell .resize-handle::after {
   position: absolute;
   top: 0;
-  right: 0;
-  left: 0;
+  left: calc(50% - 1px);
+  width: 2px;
   height: 100%;
-  background: var(--accent);
+  background: color-mix(in oklab, var(--text) 14%, transparent);
   opacity: 0;
   content: "";
 }
@@ -715,6 +716,7 @@
 .sidebar-shell .resize-handle:active::after {
   opacity: 1;
 }
+
 /* ===== Narrow --------------------------------------------------------- */
 
 /* Below 768px the panel is a drawer over the transcript, opaque so the chat never shows

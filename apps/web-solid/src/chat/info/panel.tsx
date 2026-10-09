@@ -147,6 +147,18 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
       </Properties>
       <Members members={members()} />
       <NavRows>
+        {/* The agent's soul, one click from the front page as monocode puts a Mono's. A group's
+            other agents keep theirs on their own pages. */}
+        <Show when={lead()}>
+          {(m) => (
+            <NavRow
+              id="soul"
+              label={members().length > 1 ? `${m().name}'s soul` : "Soul"}
+              description="Who it is and how it works with you. It keeps this current itself."
+              onClick={() => pushInfo({ kind: "soul", slug: m().slug })}
+            />
+          )}
+        </Show>
         <NavRow id="memory" label="Memory" description="Facts and preferences your agents remember." count={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
         <NavRow
           id="routines"
