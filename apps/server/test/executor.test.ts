@@ -480,3 +480,16 @@ test("an evicted object serves its last listing without asking executor", async 
   expect([fake.listed, fake.opened]).toEqual([listed, opened])
   ws.close()
 })
+
+test("a program that uses executor's own app makes the next listing load again", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await rpc(user, "executorTools")
+  const listed = fake.listed
+  await rpc(user, "executorCall", "execute", { code: 'return await tools.executor.profiles["ins_0"].apps.install({})' })
+  await rpc(user, "executorTools")
+  await Bun.sleep(100)
+  expect(fake.listed).toBe(listed + 1)
+  ws.close()
+})

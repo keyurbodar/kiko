@@ -30,8 +30,12 @@ const SCOPE = "mcp offline_access"
 const MAX_HELD = 20
 /** A token this close to expiry is refreshed before it is used. */
 const REFRESH_EARLY_MS = 60_000
-/** A tool listing older than this is still served, and a new one loads behind it. */
-const LISTING_FRESH_MS = 60_000
+/**
+ * A tool listing older than this is still served, and a new one loads behind it. A discovery that
+ * overlaps an agent's own call slows that call on Executor, so it runs rarely, and right after a
+ * program that used Executor's own app, which is how apps and accounts change from a chat.
+ */
+const LISTING_FRESH_MS = 10 * 60_000
 
 export class ExecutorError extends Error {}
 
@@ -240,6 +244,7 @@ export class ExecutorConnection {
     const resumed = this.held.get(requestId)
     this.held.delete(requestId)
     const sent = name === "execute" && typeof args.code === "string" && this.catalog ? { ...args, code: withHandles(args.code, this.catalog) } : args
+    if (name === "execute" && typeof args.code === "string" && args.code !== DISCOVER_PROGRAM && args.code.includes("tools.executor.") && this.listing) this.listing = { ...this.listing, at: 0 }
     const run = async (client: McpClient) => {
       const result = await client.callTool(name, sent)
       const content = toLlmContent(result) as ExecutorResultBlock[]
