@@ -7,33 +7,19 @@ import { render } from "solid-js/web"
 import "../styles/app.css"
 import { applyCommitted } from "../theme/apply"
 import { DEFAULT_LOOK } from "../theme/look"
-import { Bird } from "./bird"
+import { Peck } from "./peck"
+import { startSnow } from "./snow"
 import "./backgrounds.css"
 
 const mode = new URLSearchParams(location.search).get("mode") === "light" ? "light" : "dark"
 applyCommitted({ ...DEFAULT_LOOK, mode })
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 
-/** The same hero on every background: the bird, glancing about and beaming now and then. */
-function Hero() {
-  let bird: HTMLSpanElement | undefined
-  onMount(() => {
-    if (reduced()) return
-    const faces = ["", "", "happy", ""]
-    const looks: [number, number][] = [[0, 0], [-1.4, -1], [1.4, -0.6], [0, 0.4]]
-    let i = 0
-    const timer = setInterval(() => {
-      i = (i + 1) % looks.length
-      bird!.style.setProperty("--look-x", `${looks[i]![0]}px`)
-      bird!.style.setProperty("--look-y", `${looks[i]![1]}px`)
-      if (faces[i]) bird!.dataset.face = faces[i]!
-      else delete bird!.dataset.face
-    }, 2600)
-    onCleanup(() => clearInterval(timer))
-  })
+/** The same hero on every background: the chat's birds foraging, the heading, the composer. */
+function Hero(props: { faces?: readonly string[] }) {
   return (
     <div class="bg-hero">
-      <Bird slug="yuki" size={96} alive expressive ref={(el) => (bird = el)} />
+      <Peck faces={props.faces ?? ["yuki"]} />
       <h2>What's on your mind?</h2>
       <div class="bg-composer">Message Yuki</div>
     </div>
@@ -95,52 +81,16 @@ function Seigaiha() {
   )
 }
 
-// ----- 2. Sumi: soft ink clouds blooming and drifting ------------------------------------
-
-const BLOOMS = [
-  { x: 0.2, y: 0.3, r: 0.32, sx: 0.00007, sy: 0.00005, p: 0 },
-  { x: 0.78, y: 0.24, r: 0.28, sx: 0.00005, sy: 0.00008, p: 2 },
-  { x: 0.62, y: 0.78, r: 0.36, sx: 0.00006, sy: 0.00004, p: 4 },
-  { x: 0.14, y: 0.82, r: 0.26, sx: 0.00008, sy: 0.00006, p: 1 },
-]
-
-function Sumi() {
-  return (
-    <>
-      <Canvas
-        draw={(ctx, w, h, t, ink) => {
-          const m = Math.max(w, h)
-          for (const b of BLOOMS) {
-            const x = (b.x + Math.sin(t * b.sx + b.p) * 0.06) * w
-            const y = (b.y + Math.cos(t * b.sy + b.p) * 0.05) * h
-            const r = b.r * m * (1 + Math.sin(t * 0.0002 + b.p) * 0.08)
-            const g = ctx.createRadialGradient(x, y, 0, x, y, r)
-            g.addColorStop(0, ink.replace("rgb(", "rgba(").replace(")", ", 0.13)"))
-            g.addColorStop(0.5, ink.replace("rgb(", "rgba(").replace(")", ", 0.05)"))
-            g.addColorStop(1, ink.replace("rgb(", "rgba(").replace(")", ", 0)"))
-            ctx.fillStyle = g
-            ctx.fillRect(0, 0, w, h)
-          }
-        }}
-      />
-      <svg class="bg-fill paper-grain" aria-hidden="true">
-        <filter id="grain">
-          <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch" />
-          <feColorMatrix values="0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0 0.4  0 0 0 0.6 0" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#grain)" />
-      </svg>
-    </>
-  )
-}
-
 // ----- 3. Washi and petals: paper fibres, and sakura petals on a breeze ---------------------
 
 type Petal = { x: number; y: number; s: number; spin: number; phase: number; v: number }
 
+function Petals(props: { count?: number }) {
+  const petals: Petal[] = Array.from({ length: props.count ?? 26 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 0.8, spin: Math.random() * 6, phase: Math.random() * 6, v: 0.6 + Math.random() * 0.6 }))
+  return <PetalCanvas petals={petals} />
+}
+
 function Washi() {
-  const petals: Petal[] = Array.from({ length: 26 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 0.8, spin: Math.random() * 6, phase: Math.random() * 6, v: 0.6 + Math.random() * 0.6 }))
-  let last = 0
   return (
     <>
       <svg class="bg-fill washi" aria-hidden="true">
@@ -150,6 +100,16 @@ function Washi() {
         </filter>
         <rect width="100%" height="100%" filter="url(#fibres)" />
       </svg>
+      <Petals />
+    </>
+  )
+}
+
+function PetalCanvas(props: { petals: Petal[] }) {
+  const petals = props.petals = Array.from({ length: 26 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 0.8, spin: Math.random() * 6, phase: Math.random() * 6, v: 0.6 + Math.random() * 0.6 }))
+  let last = 0
+  return (
+    <>
       <Canvas
         draw={(ctx, w, h, t) => {
           const dt = last ? Math.min(0.05, (t - last) / 1000) : 0
@@ -201,19 +161,144 @@ function Glow() {
   )
 }
 
-const OPTIONS: { jp: string; name: string; vibe: string; bg: () => JSX.Element }[] = [
+// ----- Cozy, part two ---------------------------------------------------------------------
+
+/** Fireflies: warm specks rising slowly, each glowing in and out on its own breath. */
+function Hotaru() {
+  const flies = Array.from({ length: 30 }, () => ({ x: Math.random(), y: Math.random(), p: Math.random() * 6, v: 0.4 + Math.random() * 0.8, r: 1.4 + Math.random() * 1.8 }))
+  let last = 0
+  return (
+    <>
+      <div class="bg-fill hotaru" />
+      <Canvas
+        draw={(ctx, w, h, t) => {
+          const dt = last ? Math.min(0.05, (t - last) / 1000) : 0
+          last = t
+          for (const f of flies) {
+            f.y -= 0.012 * f.v * dt
+            f.x += Math.sin(t / 1900 + f.p) * 0.004 * dt
+            if (f.y < -0.05) Object.assign(f, { y: 1.05, x: Math.random() })
+            const glow = 0.25 + 0.75 * Math.max(0, Math.sin(t / 900 + f.p * 2)) ** 2
+            const x = (f.x + Math.sin(t / 2600 + f.p) * 0.02) * w
+            const y = f.y * h
+            const g = ctx.createRadialGradient(x, y, 0, x, y, f.r * 7)
+            g.addColorStop(0, `rgba(246, 226, 140, ${0.9 * glow})`)
+            g.addColorStop(0.25, `rgba(240, 210, 110, ${0.35 * glow})`)
+            g.addColorStop(1, "rgba(240, 210, 110, 0)")
+            ctx.fillStyle = g
+            ctx.beginPath()
+            ctx.arc(x, y, f.r * 7, 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }}
+      />
+    </>
+  )
+}
+
+/** A lamp below: a warm pool of light with dust motes turning slowly in it. */
+function Lamplight() {
+  const motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), p: Math.random() * 6, r: 0.5 + Math.random() * 1.3 }))
+  return (
+    <>
+      <div class="bg-fill lamplight" />
+      <Canvas
+        draw={(ctx, w, h, t) => {
+          for (const m of motes) {
+            const x = (m.x + Math.sin(t / 5200 + m.p) * 0.03) * w
+            const y = (m.y + Math.cos(t / 6100 + m.p) * 0.03) * h
+            // Motes catch the light only inside the pool.
+            const dx = (x - w / 2) / (w * 0.45)
+            const dy = (y - h * 0.95) / (h * 0.9)
+            const lit = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy))
+            if (lit <= 0) continue
+            ctx.globalAlpha = lit * (0.5 + 0.5 * Math.sin(t / 800 + m.p))
+            ctx.fillStyle = "#f6d9a0"
+            ctx.beginPath()
+            ctx.arc(x, y, m.r, 0, Math.PI * 2)
+            ctx.fill()
+          }
+          ctx.globalAlpha = 1
+        }}
+      />
+    </>
+  )
+}
+
+/** A frosted window at night: big blurred lantern lights beyond, snow in front, frost at the edges. */
+function FrostedWindow() {
+  let c: HTMLCanvasElement | undefined
+  onMount(() => onCleanup(startSnow(c!, { density: 1.6, sizes: [0.8, 2.4], alpha: [0.35, 0.9], speed: 0.7, bokeh: 0.02 })))
+  return (
+    <>
+      <div class="bg-fill frost-lights">
+        <span style={{ left: "12%", top: "22%", background: "#f2b45c" }} />
+        <span style={{ left: "70%", top: "14%", background: "#e88a6a" }} />
+        <span style={{ left: "38%", top: "62%", background: "#f6cf7a" }} />
+        <span style={{ left: "82%", top: "58%", background: "#9fb7d8" }} />
+        <span style={{ left: "56%", top: "34%", background: "#f2b45c", width: "10%", height: "16%" }} />
+        <span style={{ left: "4%", top: "70%", background: "#e8a2b3", width: "12%", height: "18%" }} />
+      </div>
+      <canvas ref={c} class="bg-canvas frost-snow" />
+      <div class="bg-fill frost-edge" />
+    </>
+  )
+}
+
+/** Shoji: a faint lattice shadow, with warm light behind it brightening and dimming slowly. */
+function Shoji() {
+  return (
+    <>
+      <div class="bg-fill shoji-light" />
+      <div class="bg-fill shoji-grid" />
+    </>
+  )
+}
+
+/** Knit: a soft knitted texture in warm tones, like a blanket over your lap. */
+function Knit() {
+  return (
+    <>
+      <svg class="bg-fill knit" aria-hidden="true">
+        <defs>
+          <pattern id="knit" width="14" height="16" patternUnits="userSpaceOnUse">
+            <path d="M1 2 C3 8 5 12 7 14 M13 2 C11 8 9 12 7 14" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#knit)" />
+      </svg>
+      <div class="bg-fill knit-light" />
+    </>
+  )
+}
+
+function SeigaihaPetals() {
+  return (
+    <>
+      <Seigaiha />
+      <Petals count={16} />
+    </>
+  )
+}
+
+const OPTIONS: { jp: string; name: string; vibe: string; bg: () => JSX.Element; faces?: string[] }[] = [
+  { jp: "蛍", name: "Hotaru", vibe: "Fireflies: warm specks rising slowly through the dark, each glowing in and out on its own breath.", bg: Hotaru },
+  { jp: "灯", name: "Lamplight", vibe: "A lamp below the pane: a warm pool of light with dust motes turning slowly in it. Here with a group of three.", bg: Lamplight, faces: ["yuki", "matcha", "ramune"] },
+  { jp: "雪窓", name: "Frosted window", vibe: "Big blurred lantern lights beyond frosted glass, snow drifting in front, frost at the edges.", bg: FrostedWindow },
+  { jp: "障子", name: "Shoji", vibe: "A faint shoji lattice with warm light behind it, slowly brightening and dimming like the evening moving across paper.", bg: Shoji },
+  { jp: "編み", name: "Knit", vibe: "A soft knitted texture in warm tones, like a blanket over your lap, with a gentle light on it.", bg: Knit },
+  { jp: "青海波と花びら", name: "Seigaiha and petals", vibe: "The wave pattern with its drifting moonlight, and sakura petals tumbling over it.", bg: SeigaihaPetals },
   { jp: "青海波", name: "Seigaiha", vibe: "The traditional wave pattern, faint across the pane, with a slow band of moonlight drifting through it.", bg: Seigaiha },
-  { jp: "墨", name: "Sumi ink wash", vibe: "Soft ink clouds blooming and drifting like ink in water, on a faint paper grain. Nearly monochrome.", bg: Sumi },
   { jp: "和紙", name: "Washi and petals", vibe: "Washi paper fibres, and a few sakura petals tumbling down on a breeze. Snow in winter.", bg: Washi },
-  { jp: "光", name: "Glow", vibe: "Large, very soft lights in indigo, sakura, kincha gold and matcha, drifting slowly behind the bird.", bg: Glow },
+  { jp: "光", name: "Glow", vibe: "Large, very soft lights in indigo, sakura, kincha gold and matcha, drifting slowly behind the birds.", bg: Glow },
 ]
 
 function Page() {
   return (
     <main class="bg-page">
       <header>
-        <h1>The empty chat, four backgrounds</h1>
-        <p>No scenes: a texture or a light behind the same bird, heading and composer. Live. <a href={mode === "light" ? "?mode=dark" : "?mode=light"}>{mode === "light" ? "Dark mode" : "Light mode"}</a></p>
+        <h1>The empty chat, cozy backgrounds</h1>
+        <p>No scenes: a texture or a light behind the same playing birds, heading and composer. Live. <a href={mode === "light" ? "?mode=dark" : "?mode=light"}>{mode === "light" ? "Dark mode" : "Light mode"}</a></p>
       </header>
       <For each={OPTIONS}>
         {(o, i) => (
@@ -227,7 +312,7 @@ function Page() {
             </div>
             <div class="bg-pane">
               <o.bg />
-              <Hero />
+              <Hero faces={o.faces} />
             </div>
           </section>
         )}

@@ -55,3 +55,63 @@ html, body { overflow: auto !important; height: auto !important; background: var
 @keyframes bg-drift-a { from { translate: 0 0; } to { translate: 14% 10%; } }
 @keyframes bg-drift-b { from { translate: 0 0; } to { translate: -16% 12%; } }
 @keyframes bg-drift-c { from { translate: 0 0; } to { translate: 10% -14%; } }
+
+/* ----- Cozy, part two ------------------------------------------------------ */
+
+/* Hotaru: a deep warm dark that fireflies rise through. */
+.hotaru { background: radial-gradient(90% 80% at 50% 60%, color-mix(in oklab, #3a2a14 45%, var(--bg)), var(--bg)); }
+:root[data-appearance="light"] .hotaru { background: radial-gradient(90% 80% at 50% 60%, color-mix(in oklab, #f2dfb4 50%, var(--bg)), var(--bg)); }
+
+/* Lamplight: a warm pool from below the pane. */
+.lamplight {
+  background:
+    radial-gradient(55% 75% at 50% 104%, color-mix(in oklab, #f2b45c 26%, transparent), transparent 72%),
+    radial-gradient(120% 100% at 50% 40%, transparent 55%, oklch(0% 0 none / 0.25));
+}
+:root[data-appearance="light"] .lamplight {
+  background:
+    radial-gradient(55% 75% at 50% 104%, color-mix(in oklab, #f2b45c 30%, transparent), transparent 72%),
+    radial-gradient(120% 100% at 50% 40%, transparent 55%, color-mix(in oklab, #8a6a4a 12%, transparent));
+}
+
+/* Frosted window: lantern lights far beyond, blurred by the glass. */
+.frost-lights { filter: blur(34px); opacity: 0.5; }
+.frost-lights span { position: absolute; width: 14%; height: 22%; border-radius: 50%; }
+:root[data-appearance="light"] .frost-lights { opacity: 0.35; }
+.frost-snow { color: #ffffff; }
+.frost-edge { background: radial-gradient(85% 80% at 50% 50%, transparent 55%, color-mix(in oklab, #dfe8f1 16%, transparent)); }
+:root[data-appearance="light"] .frost-edge { background: radial-gradient(85% 80% at 50% 50%, transparent 50%, color-mix(in oklab, #ffffff 70%, transparent)); }
+
+/* Shoji: warm light behind paper, and the lattice's faint shadow over it. */
+.shoji-light { background: radial-gradient(70% 90% at 30% 40%, color-mix(in oklab, #f2c983 16%, transparent), transparent 75%); }
+:root[data-appearance="light"] .shoji-light { background: radial-gradient(70% 90% at 30% 40%, color-mix(in oklab, #f6dca6 50%, transparent), transparent 75%); }
+.shoji-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--text) 7%, transparent) 1.5px, transparent 1.5px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--text) 7%, transparent) 1.5px, transparent 1.5px);
+  background-size: 70px 96px;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 100%);
+}
+
+/* Knit: stitches in a warm tint, softly lit from one side. */
+.knit { stroke: color-mix(in oklab, #d9a77a 16%, transparent); stroke-width: 2.2px; stroke-linecap: round; fill: none; -webkit-mask-image: radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 100%); mask-image: radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 100%); }
+:root[data-appearance="light"] .knit { stroke: color-mix(in oklab, #b07a54 16%, transparent); }
+.knit-light { background: radial-gradient(60% 70% at 35% 35%, color-mix(in oklab, #f2c983 11%, transparent), transparent 75%); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .frost-lights span { animation: bg-drift-a 28s ease-in-out infinite alternate; }
+  .frost-lights span:nth-child(2n) { animation-name: bg-drift-b; animation-duration: 34s; }
+  .shoji-light { animation: bg-evening 18s ease-in-out infinite alternate; }
+  .knit-light { animation: bg-evening 20s ease-in-out infinite alternate; }
+}
+
+@keyframes bg-evening {
+  from { opacity: 0.55; translate: -8% 0; }
+  to { opacity: 1; translate: 12% 4%; }
+}
+
+/* The moving lights are larger than the pane, so drifting never shows their edge. */
+.bg-fill.shoji-light,
+.bg-fill.knit-light { inset: -25%; width: 150%; height: 150%; }
