@@ -1132,7 +1132,7 @@ In lists, the mascot is an ink drawing, not a character: it carries no props and
 
 Three places let the birds play, each where nobody is waiting on the interface and each still under reduced motion. They scoot and lean; they never hop.
 
-- The empty chat is a snow day (`chat/ui/EmptyState.tsx`): soft snow on a changing wind (`mascot/snow.ts`, one canvas at 30 frames a second that stops when hidden), and the chief building a snowman on a snowbank while the chat's other birds watch (`mascot/snowman.tsx`, a timeline of steps).
+- The empty chat is a winter morning (`chat/ui/EmptyState.tsx`): one frosted branch across the top of the pane, painted in the theme's own paper and ink over a blurred forest, with a huddle of Shima Enaga keeping warm on it (`mascot/hoarfrost.tsx`, built from the painting kit in `mascot/paint.ts`). The birds blink, glance and lean on their own clocks, and now and then one shuffles and knocks snow loose. Snow falls through it on one canvas (`mascot/snow.ts`, 30 frames a second, stopped when hidden). It loads lazily, so a chat with messages never fetches it, and it is a still picture under reduced motion.
 - The sidebar's header has the same quiet snow, and every 22 to 42 seconds a small Shima Enaga crosses it in the real bird's bounding flight (`sidebar/header-snow.tsx`).
 - While an agent works on your message, its bird pushes a growing snowball along the composer's top edge, and the snowball bursts into a puff when the reply lands (`composer/snowball.tsx`), after monocode's composer runner.
 

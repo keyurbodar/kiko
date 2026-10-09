@@ -24,53 +24,28 @@
   font-size: 13px;
 }
 
-/* The empty pane: the transcript steps aside, and the room and the composer sit together a little
-   above the middle. */
+/* The empty pane: the transcript steps aside, the frosted branch fills the top, and the heading and the
+   composer sit together under it. */
 [data-component="chat-shell"] {
   position: relative;
 }
 
+/* `safe` keeps the composer reachable on a short window: the pane scrolls instead of clipping. */
 [data-component="chat-shell"][data-session-empty="true"] {
-  justify-content: center;
-  padding-bottom: 4vh;
+  justify-content: safe center;
+  padding-top: 18vh;
+  overflow-y: auto;
 }
 
 [data-component="chat-shell"][data-session-empty="true"] > [data-component="chat-transcript"] {
   display: none;
 }
 
-[data-component="chat-shell"][data-session-empty="true"] > :not(.chat-empty-wall) {
+[data-component="chat-shell"][data-session-empty="true"] > :not(.hoarfrost) {
   position: relative;
   z-index: 1;
 }
 
 [data-component="chat-shell"][data-session-empty="true"] .composer-dock {
   --dock-bg: transparent;
-}
-
-/* Holds the room's place while it loads, so the heading and composer never jump. */
-.nook-placeholder {
-  width: min(1060px, 100%);
-  aspect-ratio: 900 / 312;
-}
-
-/* ----- The room ------------------------------------------------------- */
-
-/* The wall: warm where the candle is, softer toward the corners. */
-.chat-empty-wall {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(60% 55% at 62% 30%, color-mix(in oklab, #f5c46a 9%, transparent), transparent 70%),
-    radial-gradient(120% 90% at 50% 35%, transparent 45%, color-mix(in oklab, #000 22%, transparent) 100%),
-    color-mix(in oklab, #3a2a1d 30%, var(--bg));
-}
-
-:root[data-appearance="light"] .chat-empty-wall {
-  background:
-    radial-gradient(60% 55% at 50% 25%, color-mix(in oklab, #ffffff 45%, transparent), transparent 70%),
-    radial-gradient(120% 90% at 50% 35%, transparent 50%, color-mix(in oklab, #8a6a4a 10%, transparent) 100%),
-    color-mix(in oklab, #e9dcc8 45%, var(--bg));
 }
