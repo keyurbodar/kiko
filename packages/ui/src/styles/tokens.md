@@ -31,8 +31,7 @@ The sidebar is darker than the panel.
 | `--content-max-w` | 768px (column) |
 | `--topbar-h` | 50px |
 | `--bubble-pad-y`, `--bubble-pad-x` | 7px, 12px |
-| `--radius-bubble` | 18px |
-| `--radius-bubble-tight` | 8px (stacked corners) |
+| `--radius-bubble` | 16px (one line is a pill, see chat/ui/bubble.css) |
 | `--bubble-gap` | 2px (inside a stack) |
 | `--row-gap`, `--run-gap` | 1px between messages in a run, 8px before a new run |
 | `--font-base`, `--line-height` | 14px, 1.45 |

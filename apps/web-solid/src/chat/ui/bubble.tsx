@@ -2,11 +2,13 @@ import {
   type ComponentProps,
   type JSX,
   mergeProps,
+  onCleanup,
   splitProps,
   type ValidComponent,
 } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { cn } from "../../lib/cn"
+import "./bubble.css"
 
 /**
  * The bubble primitives, ported from zaidan's bubble section.
@@ -20,8 +22,8 @@ import { cn } from "../../lib/cn"
  *
  * Every size, colour and radius below is a Tailwind utility bound to a kat
  * role, so there is no second stylesheet to keep in sync: a token change moves
- * the bubble with it. Our density is the padding and the type step - `px-3
- * py-[7px]` and `text-base` are the 7/12px and 14px the transcript is set in.
+ * the bubble with it. The density is monocode's: 12px by 8px of padding around
+ * 14px text on a 20px line, which follow the interface font size.
  *
  * The element contracts are the `data-slot` values and the `data-variant` /
  * `data-align` / `data-side` attributes, so a caller restyles a part by
@@ -55,21 +57,14 @@ export type BubbleProps = ComponentProps<"div"> & {
   position?: BubblePosition
 }
 
-const SENDER_CORNERS =
-  "data-[align=start]:data-[position=first]:[&>[data-slot=bubble-content]]:rounded-es-bubble-tight " +
-  "data-[align=start]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-ss-bubble-tight " +
-  "data-[align=start]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-es-bubble-tight " +
-  "data-[align=start]:data-[position=last]:[&>[data-slot=bubble-content]]:rounded-ss-bubble-tight " +
-  "data-[align=end]:data-[position=first]:[&>[data-slot=bubble-content]]:rounded-ee-bubble-tight " +
-  "data-[align=end]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-se-bubble-tight " +
-  "data-[align=end]:data-[position=middle]:[&>[data-slot=bubble-content]]:rounded-ee-bubble-tight " +
-  "data-[align=end]:data-[position=last]:[&>[data-slot=bubble-content]]:rounded-se-bubble-tight"
+/** The last bubble of a run carries the tail (bubble.css). */
+const TAILED: ReadonlySet<BubblePosition> = new Set(["only", "last"])
 
 /**
  * The positioned, unclipped parent of one bubble's contents.
  *
- * `data-align="end"` is what places the bubble in a column-stacked row, and
- * `max-w-[80%]` is the transcript's width cap.
+ * `data-align="end"` is what places the bubble in a column-stacked row. The width cap is
+ * monocode's: 36rem, and never closer than 3.5rem to the far edge of the row.
  */
 export function Bubble(rawProps: BubbleProps) {
   const props = mergeProps(
@@ -87,11 +82,11 @@ export function Bubble(rawProps: BubbleProps) {
       data-variant={local.variant}
       data-align={local.align}
       data-position={local.position}
+      data-tail={(local.variant === "default" || local.variant === "secondary") && TAILED.has(local.position) ? "" : undefined}
       class={cn(
-        "relative flex w-fit min-w-0 max-w-[80%] flex-col gap-1",
+        "relative flex w-fit min-w-0 max-w-[min(calc(100%-3.5rem),36rem)] flex-col gap-1",
         "data-[align=end]:self-end data-[variant=ghost]:max-w-full",
         VARIANTS[local.variant],
-        local.variant !== "ghost" && SENDER_CORNERS,
         local.class,
       )}
       {...others}
@@ -123,8 +118,31 @@ export type BubbleContentProps<T extends ValidComponent = "div"> = {
    *  itself interactive, so it is focusable and exposes the right role. */
   as?: T
   class?: string | undefined
+  /** Plain text only: a bubble that fits one line becomes a pill, as monocode draws it. */
+  measureLines?: boolean
   children?: JSX.Element
-} & Omit<ComponentProps<T>, "as" | "class" | "children">
+} & Omit<ComponentProps<T>, "as" | "class" | "children" | "measureLines">
+
+let observer: ResizeObserver | undefined
+
+/**
+ * One observer for every measured bubble, so a long transcript costs one callback per reflow
+ * rather than one per message. Each batch reads the line height once: it moves with the font
+ * size, never with a resize. A bubble is one line while its content box is under a line and a
+ * half, and the answer is an attribute, so nothing re-renders.
+ */
+function lineObserver(): ResizeObserver {
+  observer ??= new ResizeObserver((entries) => {
+    let line = 0
+    for (const entry of entries) {
+      const element = entry.target as HTMLElement
+      line ||= Number.parseFloat(getComputedStyle(element).lineHeight) || 20
+      if (entry.contentRect.height < line * 1.5) element.dataset.lines = "one"
+      else delete element.dataset.lines
+    }
+  })
+  return observer
+}
 
 /**
  * The painted, clipping surface. Text and rich content go here.
@@ -137,13 +155,18 @@ export function BubbleContent<T extends ValidComponent = "div">(
   rawProps: BubbleContentProps<T>,
 ) {
   const props = mergeProps({ as: "div" as T } as const, rawProps)
-  const [local, others] = splitProps(props as BubbleContentProps, ["as", "class"])
+  const [local, others] = splitProps(props as BubbleContentProps, ["as", "class", "measureLines"])
   return (
     <Dynamic
+      ref={(element: HTMLElement) => {
+        if (!local.measureLines) return
+        lineObserver().observe(element)
+        onCleanup(() => lineObserver().unobserve(element))
+      }}
       component={local.as}
       data-slot="bubble-content"
       class={cn(
-        "w-fit min-w-0 max-w-full overflow-hidden rounded-bubble px-(--bubble-pad-x) py-(--bubble-pad-y) text-base wrap-break-word",
+        "w-fit min-w-0 max-w-full overflow-hidden rounded-(--bubble-r) px-(--bubble-pad-x) py-(--bubble-pad-y) text-base leading-[calc(var(--font-base)+6px)] wrap-break-word",
         local.class,
       )}
       {...others}

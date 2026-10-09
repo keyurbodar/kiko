@@ -5,15 +5,15 @@ import { graphemes, jumboEmojiClass } from "./reply";
 import { CARD_IMAGE_ASPECT, CARD_WIDTH, hasWebPageContent, isLinkOnly } from "./linkPreview";
 
 const FONT_BASE = 14;
-const LINE_BOX = FONT_BASE * 1.45;
+// A bubble's line is the font size plus 6px (bubble.tsx).
+const LINE_BOX = FONT_BASE + 6;
 const LINE_BOX_CHROME = 11 * 1.45;
 
-const BUBBLE_PAD_TOP = 7;
+const BUBBLE_PAD_TOP = 8;
 const BUBBLE_PAD_Y = BUBBLE_PAD_TOP * 2;
-const ROW_PAD_Y = 2;
-const RUN_GAP_PX = 8;
+const ROW_GAP_PX = 1;
+const RUN_GAP_PX = 16;
 
-const DAY_DIVIDER_PAD_Y = 24;
 const UNREAD_RULE_PAD_Y = 20;
 
 const CHARS_PER_LINE = 87;
@@ -76,7 +76,8 @@ function bubbleTextLines(body: string): number {
 }
 
 export function estimateRowHeight(item: TimelineItem): number {
-  if (item.kind === "day-divider") return Math.ceil(DAY_DIVIDER_PAD_Y + LINE_BOX_CHROME);
+  // Monocode's day pill: 24px above, 12px below, and a 16px line in 4px of padding each way.
+  if (item.kind === "day-divider") return 24 + 12 + 16 + 8;
   if (item.kind === "unread-divider") return Math.ceil(UNREAD_RULE_PAD_Y + LINE_BOX_CHROME);
   // A notice is one `py-1` line of 12px text; a thread line is a 28px pill with the run gap above.
   if (item.kind === "notice") return Math.ceil(8 + LINE_BOX_CHROME);
@@ -102,6 +103,6 @@ export function estimateRowHeight(item: TimelineItem): number {
   const card = cardHeight(message.webPage);
   const quote = message.replyToId === undefined ? 0 : QUOTE_LINE * QUOTE_LINES + QUOTE_CHROME_Y;
 
-  const rowPadTop = item.hasRunGapBefore ? RUN_GAP_PX : 1;
-  return Math.ceil(bubble + card + quote + rowPadTop + 1);
+  const rowPadTop = item.hasRunGapBefore ? RUN_GAP_PX : ROW_GAP_PX;
+  return Math.ceil(bubble + card + quote + rowPadTop + ROW_GAP_PX);
 }

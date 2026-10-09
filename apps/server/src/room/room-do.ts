@@ -1663,9 +1663,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	/** Development only. Writes `turns` into the log with no burst and no run (`verify memory-eval`). Returns the turn count. */
 	async devSeed(turns: { from: string; text: string }[]): Promise<number> {
 		if (process.env.NODE_ENV !== "development") throw new Error("not found")
+		// The log drops a second message for a run it has seen, as a retried post. Each call
+		// gets its own run ids, so a second seed into the same room is not mistaken for one.
+		const call = crypto.randomUUID()
 		for (const [i, t] of turns.entries()) {
 			const from: Sender = t.from === "human" ? { kind: "human" } : { kind: "agent", slug: t.from as AgentSlug }
-			this.log.addMessage({ from, text: t.text, ...(from.kind === "agent" ? { run: { runId: `seed:${i}`, attempt: 0, index: 0 } } : {}) })
+			this.log.addMessage({ from, text: t.text, ...(from.kind === "agent" ? { run: { runId: `seed:${call}:${i}`, attempt: 0, index: 0 } } : {}) })
 		}
 		const count = this.memory.sync()
 		await this.armMemory()

@@ -60,7 +60,7 @@ export function DateChip(props: {
           // The translucent raised fill let the text scrolling under it show through.
           "bg-menu",
           // The shadow belongs to the open calendar. On the closed pill it read as a halo.
-          open() ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full shadow-popover motion-calendar-open" : "rounded-[15px]",
+          open() ? "rounded-[calc(20px*var(--brm))] w-[320px] max-w-full shadow-popover motion-calendar-open" : "rounded-full",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
@@ -68,7 +68,7 @@ export function DateChip(props: {
         <div
           class={cn(
             "relative flex items-center justify-center",
-            open() ? "min-h-11 px-3 pt-2" : "min-h-[30px]",
+            open() ? "min-h-11 px-3 pt-2" : "min-h-6",
           )}
         >
           <button
@@ -77,10 +77,11 @@ export function DateChip(props: {
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto cursor-pointer px-[11px] py-1 text-xs hover:bg-btn-hover aria-expanded:bg-btn-hover",
+              "chat-chip pointer-events-auto cursor-pointer hover:bg-btn-hover aria-expanded:bg-btn-hover",
               open()
                 ? "min-h-7 rounded-full bg-btn px-3 text-sm hover:bg-btn-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                : "min-h-[30px]",
+                : // Monocode's day pill: 12px, the day semibold at 75%.
+                  "min-h-6 rounded-full px-3 py-1 text-[12px] leading-4 font-semibold text-[color-mix(in_oklab,var(--text)_75%,transparent)]",
             )}
             data-component="chat-day-chip"
             aria-expanded={open()}

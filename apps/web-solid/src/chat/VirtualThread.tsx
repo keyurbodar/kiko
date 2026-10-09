@@ -16,7 +16,7 @@ import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type Notice, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
-import { dividerLabel } from "./lib/time-label"
+import { dividerLabel, dividerParts } from "./lib/time-label"
 import { animate } from "../lib/motion"
 import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
@@ -815,16 +815,21 @@ export function VirtualThread(props: {
 
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
+      // Monocode's day separator (AgentTranscript.tsx `DaySeparator`): a soft pill, the day
+      // strong and the time faint.
+      const parts = () => dividerParts(item.firstSentAt, now())
       return (
-        <SystemMessage
-          variant="divider"
-          label={dividerLabel(item.firstSentAt, now())}
+        <div
+          class="flex items-center justify-center px-4 pt-6 pb-3 text-[12px]"
+          role="separator"
+          aria-label={dividerLabel(item.firstSentAt, now())}
           data-component="chat-divider"
         >
-          <span class="font-medium" data-component="chat-day-label">
-            {dividerLabel(item.firstSentAt, now())}
+          <span class="rounded-full bg-[color-mix(in_oklab,var(--text)_7%,transparent)] px-3 py-1 leading-4" data-component="chat-day-label">
+            <span class="font-semibold text-[color-mix(in_oklab,var(--text)_75%,transparent)]">{parts().day}</span>{" "}
+            <span class="text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{parts().time}</span>
           </span>
-        </SystemMessage>
+        </div>
       )
     }
     if (item.kind === "notice") {

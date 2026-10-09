@@ -12,7 +12,7 @@
 .rich-link { text-decoration: underline; color: inherit; }
 .rich-mention { font-weight: 500; }
 .rich-inline-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-family-mono);
   font-size: 0.9em;
   padding: 0.1em 0.35em;
   border-radius: 4px;
@@ -51,8 +51,8 @@
   margin: 0;
   padding: 0.25em 0.75em 0.75em;
   overflow-x: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85em;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-code);
   line-height: 1.45;
   white-space: pre;
   tab-size: 2;
@@ -60,4 +60,3 @@
 
 /* Inside a chat bubble: the block uses the bubble's width, and a lone block has no extra gap. */
 .bubble-rich .rich-code { margin-block: 0.25em; background: rgb(0 0 0 / 0.28); }
-.bubble-rich .rich-code-pre { font-size: 0.8em; }

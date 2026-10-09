@@ -20,7 +20,7 @@ export type SelectOption<T> = {
 
 const PANEL_H = 320
 
-export function Select<T>(props: { label: string; value: T; options: readonly SelectOption<T>[]; onChange: (value: T) => void; width?: number; "data-component"?: string }): JSX.Element {
+export function Select<T>(props: { label: string; value: T; options: readonly SelectOption<T>[]; onChange: (value: T) => void; width?: number; class?: string; "data-component"?: string }): JSX.Element {
   const [open, setOpen] = createSignal(false)
   const [place, setPlace] = createSignal<JSX.CSSProperties>({})
   let trigger: HTMLButtonElement | undefined
@@ -45,7 +45,7 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
       <button
         ref={trigger}
         type="button"
-        class={selectClass}
+        class={props.class ? `${selectClass} ${props.class}` : selectClass}
         aria-haspopup="listbox"
         aria-expanded={open()}
         aria-label={`${props.label}: ${chosen()?.label ?? ""}`}

@@ -467,8 +467,10 @@
   --font-xs: 11px;
   --font-sm: 12px;
   --font-md: 13px;
-  /* Monocode sets reading text at 13px. */
-  --font-base: 13px;
+  /* t3code sets reading text at 14px (text-sm). Appearance can change it. */
+  --font-base: 14px;
+  --font-size-prompt: 14px;
+  --font-size-code: 13px;
   --line-height: 1.45;
   --line-height-code: 1.5;
   --font-weight-regular: 400;
@@ -490,18 +492,19 @@
   --brm: 0.5;
 
   /* layout constants */
-  --content-max-w: 768px;
+  /* t3code's comfortable lane, 46rem. */
+  --content-max-w: 736px;
   --sidebar-content-w: 280px;
   --sidebar-nav-w: 60px;
   --topbar-h: 50px;
 
-  /* Bubbles, measured from the screenshots. */
-  --bubble-pad-y: 7px;
+  /* Bubbles, monocode's chat bubble (px-3 py-2). Corners are in chat/ui/bubble.css. */
+  --bubble-pad-y: 8px;
   --bubble-pad-x: 12px;
   --bubble-gap: 2px;
   /* Between messages: `--row-gap` inside a run, `--run-gap` before a new run. */
   --row-gap: 1px;
-  --run-gap: 8px;
+  --run-gap: 16px;
   --popup-max-w: 560px;
 
   /* Sidebar component constants. The rail is `--sidebar-nav-w` wide, so the
@@ -1141,8 +1144,7 @@
    * them back. Every other `rounded-*` step is still a Tailwind default —
    * use these two, or the `calc(Npx * var(--brm))` idiom. */
   --radius-sm: 8px;
-  --radius-bubble: 18px;
-  --radius-bubble-tight: 8px;
+  --radius-bubble: 16px;
   --radius-row: 10px;
   --radius-field: 999px;
 }

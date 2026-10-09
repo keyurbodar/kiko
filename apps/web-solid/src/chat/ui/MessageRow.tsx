@@ -134,6 +134,7 @@ export function MessageRow(props: {
         }
       >
         <BubbleContent
+          measureLines={!hasAttachment() && !props.parent && !props.jumboClass}
           class={cn(
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
@@ -145,7 +146,7 @@ export function MessageRow(props: {
         >
           <Show when={grouped() && props.isRunStart && !props.jumboClass}>
             <div
-              class={cn("truncate text-sm font-medium", hasAttachment() ? "px-3 pt-2" : "pb-0.5")}
+              class={cn("truncate text-[13px] leading-5 font-semibold", hasAttachment() ? "px-3 pt-2" : "pb-0.5")}
               style={{ color: identityLook(props.message.botId!).color }}
               data-component="chat-sender"
             >

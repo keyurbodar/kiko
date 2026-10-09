@@ -80,8 +80,9 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
     if (!day || day.kind !== "day-divider" || !unread || unread.kind !== "unread-divider") {
       throw new Error("expected both dividers");
     }
-    // 14+10 of day padding against 12+8 of unread padding.
-    expect(estimateRowHeight(day) - estimateRowHeight(unread)).toBe(4);
+    // The day pill is 24+12 of padding around a 24px pill: 60px. The unread rule is 20px of
+    // padding around one 16px chrome line.
+    expect(estimateRowHeight(day) - estimateRowHeight(unread)).toBe(24);
   });
 });
 
@@ -101,24 +102,24 @@ describe("estimateRowHeight on bubbles", () => {
     const opener = heightOf(bot("a", at(0), { body: "same body" }));
     const continuation = heightOf(bot("b", at(1_000), { body: "same body" }), false);
 
-    // 8px of .group-gap padding-top in place of the row's 1px.
-    expect(opener - continuation).toBe(7);
+    // 16px of run gap above in place of the row's 1px.
+    expect(opener - continuation).toBe(15);
   });
 
-  test("each wrapped line adds one 20.3px line box, rounded up", () => {
+  test("each wrapped line adds one 20px line box", () => {
     const one = heightOf(bot("a", at(0), { body: "short" }));
     const three = heightOf(bot("b", at(0), { body: "z".repeat(200) }));
     // 200 graphemes is three lines at 87 per line; two extra line boxes.
     expect(three - one).toBe(40);
   });
 
-  test("jumbo emoji stays one line however many clusters, and grows past text", () => {
-    const text = heightOf(bot("a", at(0), { body: "short" }));
-    const group = heightOf(bot("b", at(0), { body: "😀🎉" }));
+  test("jumbo emoji stays one line however many clusters, and a lone one is the tallest", () => {
+    const pair = heightOf(bot("a", at(0), { body: "😀🎉" }));
+    const three = heightOf(bot("b", at(0), { body: "😀🎉🚀" }));
     const single = heightOf(bot("c", at(0), { body: "😀" }));
 
-    expect(group).toBeGreaterThan(text);
-    expect(single).toBeGreaterThan(group);
+    expect(three).toBe(pair);
+    expect(single).toBeGreaterThan(pair);
   });
 
   test("a quote sits inside the bubble, so a reply is taller than the same bare text", () => {
@@ -127,7 +128,7 @@ describe("estimateRowHeight on bubbles", () => {
 
     // A 12px/1.35 label line plus two clamped text lines is 48.6px, and the
     // quote adds 5px of padding above, 5px below and a 4px margin.
-    expect(quoting - bare).toBe(62);
+    expect(quoting - bare).toBe(63);
   });
 });
 
@@ -142,14 +143,14 @@ function video(width: number, height: number): MediaItem {
 }
 
 describe("estimateRowHeight on media", () => {
-  test("a picture reserves its fitted box, not a text bubble's 34px", () => {
+  test("a picture reserves its fitted box, not a text bubble's 45px", () => {
     const text = heightOf(bot("a", at(0), { body: "short" }));
-    // 1600x900 fitted into the 420x400 box is 420x236 - over five times the
+    // 1600x900 fitted into the 420x400 box is 420x236 - over four times the
     // height of the one-line bubble beside it, which is why an estimate that
     // ignored media could not be corrected into place.
     const picture = heightOf(bot("b", at(0), { body: "", media: [photo(1600, 900)] }));
 
-    expect(picture).toBeGreaterThan(text * 5);
+    expect(picture).toBeGreaterThan(text * 4);
   });
 
   test("an album reserves the layouter's own height, not the sum of its cells", () => {
@@ -169,8 +170,8 @@ describe("estimateRowHeight on media", () => {
       bot("b", at(0), { body: "short", media: [photo(1000, 1000)] }),
     );
 
-    // 7px of padding above and below, plus one 20.3px line box.
-    expect(captioned - bare).toBe(33);
+    // 5px of padding above and 7px below, plus one 20px line box.
+    expect(captioned - bare).toBe(32);
   });
 
   test("a card on a media-only message still pays the caption block's padding", () => {

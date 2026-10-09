@@ -20,22 +20,31 @@ const fmt = (at: number, o: Intl.DateTimeFormatOptions, opts: TimeLabelOptions) 
     .format(at)
     .replace(/[  ]/g, " ");
 
-/** The label for a divider placed before the message sent at `at`, by its age at `now`. */
-export function dividerLabel(at: number, now: number, opts: TimeLabelOptions = {}): string {
+/**
+ * A divider's day and time, apart, so the day can be the stronger of the two as monocode sets
+ * it (AgentTranscript.tsx `DaySeparator`). A date older than a week keeps its comma.
+ */
+export function dividerParts(at: number, now: number, opts: TimeLabelOptions = {}): { day: string; time: string; dated: boolean } {
   const time = fmt(at, { hour: "numeric", minute: "2-digit", hour12: true }, opts);
   const day = dayStartOf(at);
   const today = dayStartOf(now);
   const t = new Date(today);
   const daysAgo = (n: number) => new Date(t.getFullYear(), t.getMonth(), t.getDate() - n).getTime();
 
-  if (day === today) return `Today ${time}`;
-  if (day === daysAgo(1)) return `Yesterday ${time}`;
+  if (day === today) return { day: "Today", time, dated: false };
+  if (day === daysAgo(1)) return { day: "Yesterday", time, dated: false };
   for (let n = 2; n <= 6; n += 1) {
-    if (day === daysAgo(n)) return `${fmt(at, { weekday: "long" }, opts)} ${time}`;
+    if (day === daysAgo(n)) return { day: fmt(at, { weekday: "long" }, opts), time, dated: false };
   }
   const sameYear = new Date(at).getFullYear() === t.getFullYear();
-  if (sameYear) return `${fmt(at, { month: "short", day: "numeric" }, opts)}, ${time}`;
-  return `${fmt(at, { month: "short", day: "numeric", year: "numeric" }, opts).replace(/,/g, "")}, ${time}`;
+  if (sameYear) return { day: fmt(at, { month: "short", day: "numeric" }, opts), time, dated: true };
+  return { day: fmt(at, { month: "short", day: "numeric", year: "numeric" }, opts).replace(/,/g, ""), time, dated: true };
+}
+
+/** The label for a divider placed before the message sent at `at`, by its age at `now`. */
+export function dividerLabel(at: number, now: number, opts: TimeLabelOptions = {}): string {
+  const { day, time, dated } = dividerParts(at, now, opts);
+  return dated ? `${day}, ${time}` : `${day} ${time}`;
 }
 
 /** The whole rule: a label when a divider belongs between `prev` and `at`, else nothing. */
