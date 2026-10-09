@@ -10,8 +10,9 @@ import { SharedContent } from "./lists"
 import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { BackIcon, CloseIcon, MemoryIcon, TasksIcon } from "@kiko/ui/icons"
-import { Card, DeleteChat, Header, ListRow, Members, roomMembers } from "./sections"
+import { BackIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers } from "./sections"
+import { shortDate, startedAt } from "./format"
 import {
   closeFile,
   closeInfo,
@@ -42,13 +43,13 @@ const loadFiles = () => import("../../files/pane")
 const FilesPane = lazy(loadFiles)
 const FilesActions = lazy(() => loadFiles().then((m) => ({ default: m.FilesActions })))
 const TABS: readonly InfoTab[] = ["info", "files"]
-const TAB_LABELS: Record<InfoTab, string> = { info: "Info", files: "Files" }
+const TAB_LABELS: Record<InfoTab, string> = { info: "Details", files: "Files" }
 /** "idle" reads "Idle": the status is a wire value, its label is interface. */
 const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 /*
  * The chat info panel: everything about one chat behind one click on its name. It is the
- * right-hand column of the shell, 360 px by default and resizable by its left edge. The
+ * right-hand column of the shell, 340 px by default as monocode's and resizable by its left edge. The
  * shell loads this file on the first open, so the chat route does not carry it.
  *
  * Each card opens its full list inside the panel, and the back arrow returns. Nothing here
@@ -59,66 +60,60 @@ const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 const scrolls = new Map<string, number>()
 
 const TITLES: Record<InfoView["kind"], string> = {
-  home: "Chat info",
+  home: "Details",
   memory: "Memory",
   agent: "Agent",
+  soul: "Soul",
   tasks: "Tasks",
 }
 
-function AgentCard(props: { slug: string; chatId: string }) {
+/** A page's title: an agent's page and its soul carry the agent's name. */
+function titleOf(view: InfoView): string {
+  if (view.kind === "agent") return roomMembers().find((m) => m.slug === view.slug)?.name ?? view.slug
+  if (view.kind === "soul") return `${roomMembers().find((m) => m.slug === view.slug)?.name ?? view.slug}'s soul`
+  return TITLES[view.kind]
+}
+
+/** One agent, as monocode shows a Mono: its face and name, its facts, its soul, and remove at the bottom. */
+function AgentPage(props: { slug: string; chatId: string }) {
   const member = () => roomMembers().find((m) => m.slug === props.slug)
   const status = () => useApp.room()?.state.status[props.slug as never] ?? "idle"
   return (
-    <div class="flex flex-col gap-3" data-component="info-agent" data-slug={props.slug}>
-      <div class="flex flex-col items-center gap-2 pt-2">
-        <button
-          type="button"
-          class="rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-          aria-label="Change bird"
-          title="Change bird"
-          data-action="change-bird"
-          onClick={() => openBirdPicker(props.slug)}
-        >
-          <IdentityAvatar seed={props.slug} size={72} state={status() === "working" ? "working" : status() === "typing" ? "typing" : undefined} />
-        </button>
-        <h2 class="text-lg font-medium text-text">{member()?.name ?? props.slug}</h2>
-      </div>
-      <Card id="agent-facts" title="Details">
-        <dl class="flex flex-col gap-1 px-2 py-1 text-sm">
-          <div class="flex justify-between">
-            <dt class="text-weak">Role</dt>
-            <dd data-field="role">{member()?.lead ? "Lead" : "Agent"}</dd>
-          </div>
-          <div class="flex justify-between">
-            <dt class="text-weak">Model</dt>
-            <dd class="truncate" data-field="model">
-              {chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "None"}
-            </dd>
-          </div>
-          <div class="flex justify-between">
-            <dt class="text-weak">Status</dt>
-            <dd data-field="status">{sentence(status())}</dd>
-          </div>
-        </dl>
-      </Card>
-      <SoulCard slug={props.slug} />
-      <Show when={member()}>
-        {(m) => (
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="h-8 rounded-lg bg-btn px-3 text-sm text-[var(--danger)] disabled:opacity-40"
-              disabled={roomMembers().length < 2}
-              data-action="remove-agent"
-              onClick={() => {
-                useApp.memberOp({ op: "remove", slug: m().slug })
-                popInfo()
-              }}
-            >
-              Remove
-            </button>
-          </div>
-        )}
+    <div class="flex min-h-full flex-col" data-component="info-agent" data-slug={props.slug}>
+      <Profile
+        face={
+          <button
+            type="button"
+            class="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            aria-label="Change bird"
+            title="Change bird"
+            data-action="change-bird"
+            onClick={() => openBirdPicker(props.slug)}
+          >
+            <IdentityAvatar seed={props.slug} size={56} state={status() === "working" ? "working" : status() === "typing" ? "typing" : undefined} />
+          </button>
+        }
+      >
+        <h2 class="text-[15px] font-semibold text-text">{member()?.name ?? props.slug}</h2>
+      </Profile>
+      <Properties>
+        <Property label="Role" field="role">{member()?.lead ? "Lead" : "Agent"}</Property>
+        <Property label="Model" field="model">{chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "None"}</Property>
+        <Property label="Status" field="status">{sentence(status())}</Property>
+      </Properties>
+      <NavRows>
+        <NavRow id="soul" label="Soul" description="Who it is and how it works with you. It keeps this current itself." onClick={() => pushInfo({ kind: "soul", slug: props.slug })} />
+      </NavRows>
+      <Show when={member() && roomMembers().length > 1}>
+        <DangerRow
+          action="remove-agent"
+          label="Remove from chat"
+          description="It leaves this chat. Its soul and memory stay."
+          onClick={() => {
+            useApp.memberOp({ op: "remove", slug: props.slug as never })
+            popInfo()
+          }}
+        />
       </Show>
     </div>
   )
@@ -134,16 +129,25 @@ function Home(props: { chatId: string; links: ReturnType<typeof createCatalog>; 
   const memory = useMemoryStore()
   const memoryCount = () => count(memory()?.state.lines.filter((l) => !l.redacted).length ?? 0)
   const extras = createMemo(() => infoSections().filter((s) => !s.when || s.when(props.chatId)))
+  const lead = () => members().find((m) => m.lead) ?? members()[0]
+  const started = () => startedAt(props.chatId)
   return (
-    <div class="flex flex-col gap-5" data-component="info-home">
-      <Header chatId={props.chatId} members={members()} />
-      <Members members={members()} />
-      <div class="flex flex-col" data-component="info-rows">
-        <ListRow id="memory" label="Memory" icon={MemoryIcon} value={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
-        <Show when={roomMembers().length > 1}>
-          <ListRow id="tasks" label="Tasks" icon={TasksIcon} value={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
+    <div class="flex min-h-full flex-col" data-component="info-home">
+      <Header chatId={props.chatId} />
+      <Properties>
+        <Property label="Model" field="model">{chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "None"}</Property>
+        <Show when={lead()}>
+          {(m) => <Property label="Status" field="status">{sentence(useApp.room()?.state.status[m().slug as never] ?? "idle")}</Property>}
         </Show>
-      </div>
+        <Show when={started()}>{(at) => <Property label="Started" field="started">{shortDate(at())}</Property>}</Show>
+      </Properties>
+      <Members members={members()} />
+      <NavRows>
+        <NavRow id="memory" label="Memory" description="Facts and preferences your agents remember." count={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
+        <Show when={members().length > 1}>
+          <NavRow id="tasks" label="Tasks" description="Work the lead split up for the team." count={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
+        </Show>
+      </NavRows>
       <SharedContent media={props.media} links={props.links} />
       <For each={extras()}>
         {(section) => (
@@ -165,7 +169,7 @@ function MemoryViews() {
   return (
     <Show when={store()} fallback={<p class="p-2 text-sm text-weak">Loading</p>}>
       {(s) => (
-        <div class="flex flex-col gap-3" data-component="info-memory">
+        <div class="flex flex-col gap-3 px-2.5 py-3" data-component="info-memory">
           <MemoryError store={s()} />
           <MemoryList store={s()} />
         </div>
@@ -273,40 +277,56 @@ export default function InfoPanel(props: { chatId: string }) {
   // Beside the chat the panel leaves the chat at least 400 px. Below 760 px it covers the chat instead.
   return (
     <aside
-      class="info-pane relative flex min-h-0 shrink-0 flex-col overflow-hidden @min-[761px]/main:max-w-[calc(100%-400px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:bg-[var(--sidebar-solid)] @max-[760px]/main:shadow-[var(--popover-shadow)]"
+      class="info-pane relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-[var(--panel-edge)] @min-[761px]/main:max-w-[calc(100%-400px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:bg-[var(--sidebar-solid)] @max-[760px]/main:shadow-[var(--popover-shadow)]"
       style={{ width: `min(${panelWidth(props.chatId)}px, 100%)` }}
       data-component="info-panel"
       data-tab={infoTab()}
       aria-label="Chat panel"
     >
       <Resizer chatId={props.chatId} />
-      <div class="flex h-12 shrink-0 items-center gap-1 pr-2 pl-2.5">
-        <div class="flex min-w-0 items-center gap-0.5 rounded-lg bg-[var(--tint-subtle)] p-0.5" role="tablist" aria-label="Panel" data-component="info-tabs">
-          <For each={TABS}>
-            {(tab) => (
-              <button
-                type="button"
-                role="tab"
-                class="h-6 rounded-md px-2.5 text-xs font-medium text-muted hover:text-text aria-selected:bg-[var(--tab-bg-active)] aria-selected:text-text aria-selected:shadow-[var(--tab-shadow)]"
-                aria-selected={infoTab() === tab}
-                data-tab={tab}
-                onClick={() => setInfoTab(tab)}
-              >
-                {TAB_LABELS[tab]}
-              </button>
-            )}
-          </For>
-        </div>
-        <span class="flex-1" aria-hidden="true" />
-        <Show when={infoTab() === "files"}>
-          <Suspense>
-            <FilesActions />
-          </Suspense>
-        </Show>
-        <button type="button" class={iconButton} data-action="close" aria-label="Close panel" title="Close panel" onClick={() => closeInfo()}>
-          <HugeIcon icon={CloseIcon} size={15} />
-        </button>
-      </div>
+      {/* Monocode's sidebar header: 40px over a hairline. A page inside info replaces it with a back
+          button and the page's title, as a Mono's pages do; the tabs come back with the front page. */}
+      <Show
+        when={infoTab() === "info" && infoDepth() > 1}
+        fallback={
+          <header class={`flex h-10 shrink-0 items-center gap-0.5 border-b ${EDGE} pr-2 pl-2`}>
+            <div class="flex min-w-0 items-center" role="tablist" aria-label="Panel" data-component="info-tabs">
+              <For each={TABS}>
+                {(tab) => (
+                  <button
+                    type="button"
+                    role="tab"
+                    class="h-7 rounded-md px-2 text-[13px] font-medium text-[color-mix(in_oklab,var(--text)_45%,transparent)] hover:text-text aria-selected:text-text"
+                    aria-selected={infoTab() === tab}
+                    data-tab={tab}
+                    onClick={() => setInfoTab(tab)}
+                  >
+                    {TAB_LABELS[tab]}
+                  </button>
+                )}
+              </For>
+            </div>
+            <span class="flex-1" aria-hidden="true" />
+            <Show when={infoTab() === "files"}>
+              <Suspense>
+                <FilesActions />
+              </Suspense>
+            </Show>
+            <button type="button" class={iconButton} data-action="close" aria-label="Hide details" title="Hide details" onClick={() => closeInfo()}>
+              <HugeIcon icon={SidebarRightIcon} size={15} />
+            </button>
+          </header>
+        }
+      >
+        <header class={`flex h-10 shrink-0 items-center gap-1 border-b ${EDGE} pr-2 pl-2`}>
+          <button type="button" class={iconButton} data-action="back" aria-label="Back" onClick={() => popInfo()}>
+            <Back />
+          </button>
+          <h2 class="min-w-0 flex-1 truncate text-[13px] font-medium text-text" data-component="info-title">
+            {titleOf(view())}
+          </h2>
+        </header>
+      </Show>
       <Switch>
         <Match when={infoTab() === "files"}>
           <div class="flex min-h-0 flex-1 flex-col" role="tabpanel" data-component="info-files-tab">
@@ -316,19 +336,9 @@ export default function InfoPanel(props: { chatId: string }) {
           </div>
         </Match>
         <Match when={infoTab() === "info"}>
-          <Show when={infoDepth() > 1}>
-            <div class="flex h-10 shrink-0 items-center gap-1 px-2.5">
-              <button type="button" class={iconButton} data-action="back" aria-label="Back" onClick={() => popInfo()}>
-                <Back />
-              </button>
-              <h2 class="min-w-0 flex-1 truncate text-[13px] font-medium text-muted" data-component="info-title">
-                {TITLES[view().kind]}
-              </h2>
-            </div>
-          </Show>
           <div
             ref={scroller}
-            class="min-h-0 flex-1 overflow-y-auto px-2.5 pb-4"
+            class="min-h-0 flex-1 overflow-y-auto overscroll-none"
             role="tabpanel"
             data-component="info-scroll"
             onScroll={(event) => scrolls.set(key(), event.currentTarget.scrollTop)}
@@ -341,10 +351,15 @@ export default function InfoPanel(props: { chatId: string }) {
                 <MemoryViews />
               </Match>
               <Match when={view().kind === "agent"}>
-                <AgentCard slug={(view() as { slug: string }).slug} chatId={props.chatId} />
+                <AgentPage slug={(view() as { slug: string }).slug} chatId={props.chatId} />
+              </Match>
+              <Match when={view().kind === "soul"}>
+                <SoulCard slug={(view() as { slug: string }).slug} />
               </Match>
               <Match when={view().kind === "tasks"}>
-                <TasksView />
+                <div class="px-2.5 py-3">
+                  <TasksView />
+                </div>
               </Match>
             </Switch>
           </div>

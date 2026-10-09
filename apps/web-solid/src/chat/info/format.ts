@@ -1,4 +1,4 @@
-import { type Member, roomIdTime } from "@kiko/protocol"
+import { roomIdTime } from "@kiko/protocol"
 
 /** The moment a chat was made, read from the time part of its room id (a UUIDv7, or an older ULID). Null when the id is neither. */
 export const startedAt = (roomId: string): number | null => roomIdTime(roomId)
@@ -9,12 +9,6 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export function shortDate(at: number): string {
   const d = new Date(at)
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
-}
-
-/** `Started <date>`. A group's member count is the members section's title, not repeated here. */
-export function subtitle(roomId: string, _members: readonly Member[]): string {
-  const at = startedAt(roomId)
-  return at === null ? "Chat" : `Started ${shortDate(at)}`
 }
 
 /** `12 B`, `3.4 KB`, `1.2 MB`. */

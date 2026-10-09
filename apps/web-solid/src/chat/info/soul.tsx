@@ -1,6 +1,6 @@
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createResource, createSignal, Show } from "solid-js"
-import { Card } from "./sections"
+import { buttonClass } from "../../settings/kit"
 
 /*
  * An agent's soul (architecture section 8.4): who it is and how it works with you, in every chat.
@@ -48,17 +48,17 @@ export function SoulCard(props: { slug: string }) {
 	}
 
 	return (
-		<Card id="agent-soul" title="Profile" hint="Who it is and how it works with you. It keeps this current itself.">
-			<Show when={soul()} fallback={<p class="px-2 py-1 text-sm text-weak">{soul.loading ? "Loading" : "Could not load"}</p>}>
+		<div class="flex flex-col gap-2 px-2 py-3" data-card="agent-soul">
+			<Show when={soul()} fallback={<p class="px-2 py-1 text-[13px] text-weak">{soul.loading ? "Loading" : "Could not load"}</p>}>
 				{(s) => (
 					<Show
 						when={draft() !== null}
 						fallback={
 							<div class="flex flex-col gap-2 px-2 py-1">
-								<pre class="max-h-72 overflow-auto whitespace-pre-wrap font-sans text-sm text-text" data-component="soul-text">
+								<pre class="whitespace-pre-wrap font-sans text-[13px] leading-5 text-text" data-component="soul-text">
 									{s().body}
 								</pre>
-								<button type="button" class="h-8 self-start rounded-lg bg-btn px-3 text-sm" data-action="edit-soul" onClick={() => setDraft(s().body)}>
+								<button type="button" class={buttonClass("secondary", "self-start")} data-action="edit-soul" onClick={() => setDraft(s().body)}>
 									Edit
 								</button>
 							</div>
@@ -66,17 +66,17 @@ export function SoulCard(props: { slug: string }) {
 					>
 						<div class="flex flex-col gap-2 px-2 py-1">
 							<textarea
-								class="min-h-56 w-full resize-y rounded-lg bg-bg-subtle p-2 font-mono text-[13px] text-text outline-none"
+								class="min-h-72 w-full resize-y rounded-lg bg-bg-subtle p-2 font-mono text-[13px] text-text outline-none"
 								value={draft() ?? ""}
 								maxLength={MAX_SOUL}
 								data-component="soul-editor"
 								onInput={(e) => setDraft(e.currentTarget.value)}
 							/>
 							<div class="flex items-center gap-2">
-								<button type="button" class="h-8 rounded-lg bg-btn px-3 text-sm disabled:opacity-40" data-action="save-soul" disabled={saving() || !draft()?.trim()} onClick={() => void save()}>
+								<button type="button" class={buttonClass("primary")} data-action="save-soul" disabled={saving() || !draft()?.trim()} onClick={() => void save()}>
 									{saving() ? "Saving" : "Save"}
 								</button>
-								<button type="button" class="h-8 rounded-lg px-3 text-sm text-weak" onClick={() => setDraft(null)}>
+								<button type="button" class={buttonClass("ghost")} onClick={() => setDraft(null)}>
 									Cancel
 								</button>
 								<span class="ml-auto text-xs text-faint">
@@ -87,6 +87,6 @@ export function SoulCard(props: { slug: string }) {
 					</Show>
 				)}
 			</Show>
-		</Card>
+		</div>
 	)
 }

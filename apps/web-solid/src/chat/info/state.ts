@@ -11,13 +11,14 @@ export type InfoView =
   | { kind: "home" }
   | { kind: "memory" }
   | { kind: "agent"; slug: string }
+  | { kind: "soul"; slug: string }
   | { kind: "tasks" }
 
 const HOME: InfoView = { kind: "home" }
 
 export const MIN_WIDTH = 280
 export const MAX_WIDTH = 560
-export const DEFAULT_WIDTH = 360
+export const DEFAULT_WIDTH = 340
 /** An open file widens the panel, the way t3code's file preview does. */
 export const FILE_MIN_WIDTH = 420
 export const FILE_MAX_WIDTH = 1200

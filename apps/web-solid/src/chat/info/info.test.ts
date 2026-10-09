@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, CatalogItem, Member } from "@kiko/protocol"
+import type { CatalogItem } from "@kiko/protocol"
 import { newRoomId } from "../../sync/user-store"
 import { mergeCatalog } from "./catalog"
-import { formatBytes, shortDate, startedAt, subtitle } from "./format"
+import { formatBytes, shortDate, startedAt } from "./format"
 import { clampWidth, closeFile, closeInfo, DEFAULT_WIDTH, FILE_DEFAULT_WIDTH, infoOpen, infoSections, infoTab, infoView, openFile, openFilePath, openInfo, panelWidth, popInfo, pushInfo, registerInfoSection, toggleFiles, toggleInfo } from "./state"
 
-const member = (slug: string, lead = false): Member => ({ slug: slug as AgentSlug, name: slug, lead })
 const link = (seq: number): CatalogItem => ({ kind: "link", url: `https://a.dev/${seq}`, site: "a.dev", messageId: `m${seq}` as never, seq, at: seq })
 
 describe("header text", () => {
@@ -17,12 +16,9 @@ describe("header text", () => {
     expect(startedAt("!!!!!!!!!!0000000000000000")).toBeNull()
   })
 
-  test("the header says when the chat started, for one agent or a group", () => {
+  test("a chat started reads back as its date", () => {
     const at = new Date(2026, 9, 2, 12).getTime()
-    const id = newRoomId(at)
-    expect(shortDate(at)).toBe("Oct 2, 2026")
-    expect(subtitle(id, [member("kiko", true)])).toBe("Started Oct 2, 2026")
-    expect(subtitle(id, [member("kiko", true), member("ada"), member("bo")])).toBe("Started Oct 2, 2026")
+    expect(shortDate(startedAt(newRoomId(at))!)).toBe("Oct 2, 2026")
   })
 
   test("sizes", () => {

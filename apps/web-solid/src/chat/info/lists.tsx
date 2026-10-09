@@ -5,12 +5,13 @@ import type { MediaItem } from "../../lib/types"
 import { createMediaViewer } from "../media/mediaViewer"
 import { peekLinkPreview, resolveLinkPreview } from "../lib/linkPreview"
 import type { createCatalog } from "./catalog"
+import { EDGE } from "./sections"
 
 type Catalog = ReturnType<typeof createCatalog>
 type Link = Extract<CatalogItem, { kind: "link" }>
 type Media = Extract<CatalogItem, { kind: "media" }>
 
-const rowClass = "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm text-text hover:bg-nav-hover"
+const rowClass = "flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-[13px] text-text hover:bg-[color-mix(in_oklab,var(--text)_5%,transparent)]"
 
 // Link titles, from the shared preview resolver and its bounded cache. A page that cannot be
 // previewed keeps its site name and path. The signal lives as long as the row that shows it.
@@ -43,12 +44,12 @@ function LinkRow(props: { link: Link }) {
       data-component="info-link"
       data-url={props.link.url}
     >
-      <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-btn text-xs text-weak" aria-hidden="true">
+      <span class="grid size-7 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--text)_7%,transparent)] text-[12px] text-weak uppercase" aria-hidden="true">
         {props.link.site.slice(0, 1)}
       </span>
       <span class="min-w-0 flex-1">
         <span class="block truncate">{title() ?? `${props.link.site}${path()}`}</span>
-        <span class="block truncate text-xs text-weak">{props.link.site}</span>
+        <span class="block truncate text-[12px] text-[color-mix(in_oklab,var(--text)_40%,transparent)]">{props.link.site}</span>
       </span>
     </a>
   )
@@ -57,7 +58,7 @@ function LinkRow(props: { link: Link }) {
 function Empty(props: { loaded: boolean; text: string }) {
   return (
     <Show when={props.loaded}>
-      <p class="px-2 py-2 text-sm text-weak">{props.text}</p>
+      <p class="px-3 py-2 text-[12px] text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{props.text}</p>
     </Show>
   )
 }
@@ -169,14 +170,15 @@ export function SharedContent(props: { media: Catalog; links: Catalog }) {
   })
   return (
     <Show when={kinds().length}>
-      <section class="flex flex-col gap-1" data-component="info-shared">
-        <div class="flex items-center gap-1 px-1" role="tablist" aria-label="Shared">
+      <section class={`border-t ${EDGE} px-2 pt-3 pb-4`} data-component="info-shared">
+        {/* The section's label is its tabs: each kind a label of its own, the open one brighter. */}
+        <div class="flex items-center gap-3 px-2 pb-2" role="tablist" aria-label="Shared">
           <For each={kinds()}>
             {(kind) => (
               <button
                 type="button"
                 role="tab"
-                class="h-7 rounded-lg px-2.5 text-[13px] font-medium text-muted hover:text-text aria-selected:bg-[var(--selected-bg)] aria-selected:text-text"
+                class="text-[11px] font-medium tracking-wide text-[color-mix(in_oklab,var(--text)_40%,transparent)] uppercase hover:text-[color-mix(in_oklab,var(--text)_75%,transparent)] aria-selected:text-[color-mix(in_oklab,var(--text)_75%,transparent)]"
                 aria-selected={shown() === kind}
                 data-tab={kind}
                 onClick={() => setPicked(kind)}

@@ -20,7 +20,7 @@ import { addable, addOp, refusalText, renameOp, roleLabel } from "./model"
  */
 
 // Monocode's rows and buttons: 13px text on an 8px-cornered hover fill; small 12px buttons.
-const row = "flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-[13px] text-text outline-none hover:bg-[var(--hover-bg)] focus-visible:bg-[var(--hover-bg)] data-[expanded]:bg-[var(--selected-bg)]"
+const row = "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-[13px] text-text outline-none hover:bg-[var(--hover-bg)] focus-visible:bg-[var(--hover-bg)] data-[expanded]:bg-[var(--selected-bg)]"
 const secondary = "h-7 rounded-md px-2.5 text-[12px] text-muted shadow-[inset_0_0_0_1px_var(--hairline)] outline-none hover:bg-[var(--hover-bg)] hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 const primary = "h-7 rounded-md bg-[var(--accent-fill)] px-2.5 text-[12px] font-medium text-[var(--on-accent)] outline-none hover:bg-[var(--accent-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
@@ -112,7 +112,7 @@ function AgentRow(props: { member: Member; canRemove: boolean; onOpen: (slug: st
       <MenuV2.Context>
         <MenuV2.Context.Trigger class="min-w-0 flex-1">
           <button type="button" class={`${row} pr-9`} onClick={() => props.onOpen(props.member.slug)}>
-            <IdentityAvatar seed={props.member.slug} size={30} state={moodOf(props.member.slug)} />
+            <IdentityAvatar seed={props.member.slug} size={28} state={moodOf(props.member.slug)} />
             <span class="flex min-w-0 flex-1 flex-col">
               <span class="truncate font-medium">{props.member.name}</span>
               <span class="truncate text-[11px] text-weak" data-component="member-facts">
@@ -129,7 +129,7 @@ function AgentRow(props: { member: Member; canRemove: boolean; onOpen: (slug: st
       </MenuV2.Context>
       <MenuV2 gutter={4} placement="bottom-end">
         <MenuV2.Trigger
-          class="absolute right-1.5 grid size-7 place-items-center rounded-md text-weak opacity-0 outline-none hover:bg-[var(--hover-bg)] hover:text-text focus-visible:opacity-100 group-hover/member:opacity-100 data-[expanded]:opacity-100"
+          class="absolute right-1.5 grid size-7 place-items-center rounded-md text-faint outline-none hover:bg-[var(--hover-bg)] hover:text-text data-[expanded]:text-text"
           aria-label={`${props.member.name} actions`}
           data-action="member-actions"
         >
@@ -159,7 +159,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
       <ul class="flex flex-col" data-component="info-members">
         <li>
           <div class={row} data-member="human">
-            <IdentityAvatar seed={me()?.id ?? "you"} size={30} />
+            <IdentityAvatar seed={me()?.id ?? "you"} size={28} />
             <span class="min-w-0 flex-1 truncate">{me()?.name ?? "You"}</span>
             <span class="text-xs text-weak">You</span>
           </div>
@@ -170,7 +170,7 @@ export function MemberList(props: { members: readonly Member[]; onOpen: (slug: s
       </ul>
       <MenuV2 gutter={4} placement="bottom-start">
         <MenuV2.Trigger class={`${row} text-weak`} data-action="add-agent">
-          <span class="grid size-[30px] place-items-center rounded-full bg-[var(--tint-subtle)]">
+          <span class="grid size-7 place-items-center rounded-full bg-[var(--tint-subtle)]">
             <HugeIcon icon={PlusIcon} size={14} />
           </span>
           Add

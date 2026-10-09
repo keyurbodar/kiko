@@ -152,10 +152,10 @@ export function TabStrip() {
                 class="flex min-w-0 flex-1 items-center gap-[6px]"
                 data-component="tab-identity"
                 data-hint={active() ? "chat.info" : undefined}
-                data-hint-label="Chat info"
+                data-hint-label="Details"
                 data-info-toggle={active() ? "" : undefined}
                 aria-expanded={active() ? infoOpen() : undefined}
-                title={active() ? "Chat info" : undefined}
+                title={active() ? "Details" : undefined}
                 onPointerEnter={() => active() && void loadInfoPanel()}
                 onClick={(event) => {
                   if (!active()) return
