@@ -1,7 +1,7 @@
 import type { ExecutorStatus } from "@yuki/protocol"
 import { McpClient, McpSessionExpiredError, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
-import { DISCOVER_PROGRAM, describeExecute, parseCatalog } from "./catalog"
+import { DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, parseCatalog, withHandles } from "./catalog"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
@@ -62,6 +62,8 @@ export class ExecutorConnection {
   private shared: Promise<McpClient> | undefined
   /** The tools agents get, with the user's apps in execute's description. Lost with this object. */
   private listing: { at: number; tools: Promise<ExecutorTool[]> } | undefined
+  /** The apps the newest listing described. A program the agent writes gets their handles. */
+  private catalog: ExecutorCatalog | undefined
   /**
    * Executor v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only
    * from that session. A held session is never closed until its program is resumed or expires, even
@@ -148,6 +150,7 @@ export class ExecutorConnection {
   disconnect(): number {
     this.refreshing = undefined
     this.listing = undefined
+    this.catalog = undefined
     const shared = this.shared
     this.shared = undefined
     void shared?.then((c) => c.close()).catch(() => {})
@@ -206,6 +209,7 @@ export class ExecutorConnection {
         .then((out) => parseCatalog(out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")))
         .catch(() => null),
     ])
+    if (catalog) this.catalog = catalog
     return listed.map((t) => ({
       name: t.name,
       ...(t.name === "execute" && catalog ? { description: describeExecute(catalog) } : t.description ? { description: t.description } : {}),
@@ -223,8 +227,9 @@ export class ExecutorConnection {
     const requestId = typeof args.requestId === "string" ? args.requestId : ""
     const resumed = this.held.get(requestId)
     this.held.delete(requestId)
+    const sent = name === "execute" && typeof args.code === "string" && this.catalog ? { ...args, code: withHandles(args.code, this.catalog) } : args
     const run = async (client: McpClient) => {
-      const result = await client.callTool(name, args)
+      const result = await client.callTool(name, sent)
       const content = toLlmContent(result) as ExecutorResultBlock[]
       const pending = pendingInteraction(content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n"))
       if (pending) {

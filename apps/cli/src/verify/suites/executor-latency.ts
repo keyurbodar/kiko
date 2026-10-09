@@ -54,10 +54,12 @@ const suite: Suite = {
         await Bun.sleep(300)
         const c = await readStats(v, s)
         const calls = Object.entries(c).filter(([k]) => k.startsWith("executor.call.")).reduce((n, [, x]) => n + x, 0)
-        if (calls === 0) throw new VerifyError(`${task.tag}: the agent made no executor call. is executor connected for ${USER}? it said: ${text}`)
+        // A follow-up may answer from what the chat already fetched, which is right and fast.
+        if (calls === 0 && task.tag === "new chat") throw new VerifyError(`${task.tag}: the agent made no executor call. is executor connected for ${USER}? it said: ${text}`)
         samples.add(`${task.tag}: send to idle (s)`, Math.round(total / 100) / 10)
         samples.add(`${task.tag}: send to first bubble (s)`, Math.round(first / 100) / 10)
         samples.add(`${task.tag}: model turns`, c["model.turns"] ?? 0)
+        samples.add(`${task.tag}: model (s)`, Math.round((c["model.ms"] ?? 0) / 100) / 10)
         samples.add(`${task.tag}: executor calls`, calls)
         samples.add(`${task.tag}: executor http requests`, c["executor.http"] ?? 0)
         samples.add(`${task.tag}: executor http (s)`, Math.round((c["executor.httpMs"] ?? 0) / 100) / 10)

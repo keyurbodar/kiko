@@ -34,6 +34,8 @@ const fake = {
   /** `tools/list` requests, and whether the discovery program fails. */
   listed: 0,
   discoveryFails: false,
+  /** The last program `execute` received. */
+  code: "",
 }
 let n = 0
 
@@ -137,6 +139,7 @@ async function executor(request: Request): Promise<Response> {
     if (msg.method === "tools/call") {
       const text = (value: unknown) => json({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })
       const code = String(msg.params?.arguments?.code ?? "")
+      if (msg.params?.name === "execute") fake.code = code
       if (msg.params?.name === "execute" && code.includes("tools.search")) {
         if (fake.discoveryFails) return text({ status: "completed", execution: { ok: false, error: { message: "boom" } } })
         return text({ status: "completed", execution: { ok: true, value: [{ path: 'tools.github.profiles["ins_1"]', accounts: ["acc_1"], tools: [{ name: "get_me", input: "{}" }] }] }, unavailableApps: [] })
@@ -435,7 +438,7 @@ test("agents get the user's apps in execute's description, from a listing that d
   const ws = await connected(user)
   const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
   const execute = tools.find((t) => t.name === "execute")!
-  expect(execute.description).toContain('tools.github.profiles["ins_1"].<tool>({ accountId: "acc_1", input })')
+  expect(execute.description).toContain("github: for example await github.get_me({ ... }).")
   const listed = fake.listed
   await rpc(user, "executorTools")
   expect(fake.listed).toBe(listed)
@@ -453,5 +456,15 @@ test("a discovery that fails keeps executor's own description", async () => {
   } finally {
     fake.discoveryFails = false
   }
+  ws.close()
+})
+
+test("a program that names an app reaches executor with that app's handle defined", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })
+  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"]);')
+  expect(fake.code.endsWith("return await github.get_me()")).toBe(true)
   ws.close()
 })
