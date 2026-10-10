@@ -17,6 +17,26 @@ export const HIDDEN: Readonly<Record<string, string>> = {
   COMPOSIO_USE_SKILL: "yuki has its own skills",
 }
 
+const requiredFlags = (schema: unknown): string[] => {
+  const s = schema as { properties?: Record<string, { type?: unknown }>; required?: unknown } | null
+  if (!s || !Array.isArray(s.required)) return []
+  return s.required.filter((k): k is string => typeof k === "string" && s.properties?.[k]?.type === "boolean")
+}
+
+/** Models often omit a required boolean that Composio accepts as false, so the schema stops requiring it. */
+export function relaxSchema<T>(schema: T): T {
+  const flags = requiredFlags(schema)
+  if (!flags.length) return schema
+  const s = schema as unknown as { required: string[] }
+  return { ...schema, required: s.required.filter((k) => !flags.includes(k)) }
+}
+
+/** Sets each boolean the schema required but the model left out to false. */
+export const fillFlags = (schema: unknown, args: Record<string, unknown>): Record<string, unknown> => {
+  const flags = requiredFlags(schema).filter((k) => args[k] === undefined)
+  return flags.length ? { ...args, ...Object.fromEntries(flags.map((k) => [k, false])) } : args
+}
+
 /** `COMPOSIO_SEARCH_TOOLS` becomes `composio_search_tools`. */
 export const toolName = (name: string) => `composio_${name.replace(/^COMPOSIO_/, "").toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
 
@@ -36,11 +56,11 @@ export function composioExtension(tools: readonly ComposioTool[], call: Composio
           defineTool({
             name,
             description: t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.name === SEARCH ? skip : ""}${t.description?.trim() || t.name} (through composio, the human's connected apps)`,
-            parameters: t.inputSchema as never,
+            parameters: relaxSchema(t.inputSchema) as never,
             replay: t.readOnly ? "safe" : "unsafe",
             execute: (args) =>
               timed(name, fs, async () => {
-                const sent = (args ?? {}) as Record<string, unknown>
+                const sent = fillFlags(t.inputSchema, (args ?? {}) as Record<string, unknown>)
                 if (!t.direct) return call(t.name, sent)
                 const { text, isError } = directResult(await call(MULTI_EXECUTE, { tools: [{ tool_slug: t.direct.slug, arguments: sent }], sync_response_to_workbench: false, thought: "direct call" }))
                 return { content: [{ type: "text" as const, text }], isError }

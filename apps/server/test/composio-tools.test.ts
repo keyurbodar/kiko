@@ -85,6 +85,21 @@ describe("composio tools", () => {
   })
 })
 
+describe("composio required booleans", () => {
+  test("the shown schema no longer requires a boolean, and an omitted one is sent as false", async () => {
+    const inputSchema = { type: "object", properties: { thought: { type: "string" }, sync_response_to_workbench: { type: "boolean" } }, required: ["thought", "sync_response_to_workbench"] }
+    const sent: unknown[] = []
+    const [tool] = composioExtension([{ name: "COMPOSIO_MULTI_EXECUTE_TOOL", inputSchema }], async (_n, args) => {
+      sent.push(args)
+      return { content: [] }
+    }).tools ?? []
+    expect((tool as unknown as { parameters: { required: string[] } }).parameters.required).toEqual(["thought"])
+    expect(inputSchema.required).toEqual(["thought", "sync_response_to_workbench"])
+    await (tool as unknown as { execute: (a: unknown, api: unknown) => Promise<unknown> }).execute({ thought: "x" }, { conversationId: "c", callId: "1" })
+    expect(sent).toEqual([{ thought: "x", sync_response_to_workbench: false }])
+  })
+})
+
 describe("composio search trim", () => {
   test("the real search result drops snippets, toolkit blurbs, and the time notice, and keeps the rest", () => {
     const before = JSON.stringify(search)
