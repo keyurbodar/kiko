@@ -649,6 +649,7 @@ export class UserDO extends DurableObject<Env> {
       return m !== null && Number(m[1]) <= pos && pos < Number(m[2])
     })
     if (this.life.redactRefs(refs).length) await this.armNaps()
+    this.#loops.forgetTurn(roomId, pos)
   }
 
   async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
@@ -855,14 +856,14 @@ export class UserDO extends DurableObject<Env> {
   #compressing = 0
 
   /** `page` names a room's page of raw turns: the same call then also lists open loops (section 26). */
-  async compress(prompt: string, page?: { roomId: RoomId; at: number }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
+  async compress(prompt: string, page?: { roomId: RoomId; at: number; span?: { lo: number; hi: number } }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
     if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
     this.#compressing++
     try {
       const loops = page ? this.#initiative.napPrompt(page.roomId, prompt, page.at) : null
       const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, loops?.system ?? NAP_SYSTEM, loops?.prompt ?? prompt)
       if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
-      const line = cleanLine(loops && page ? (this.#initiative.napApply(page.roomId, answer, loops.known, page.at, prompt.includes("[outside] ")) ?? "") : answer)
+      const line = cleanLine(loops && page ? (this.#initiative.napApply(page.roomId, answer, loops.known, page.at, prompt.includes("[outside] "), page.span) ?? "") : answer)
       return line ? { text: line } : { error: "the model wrote no line" }
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) }
@@ -1219,6 +1220,7 @@ export class UserDO extends DurableObject<Env> {
         const chat = getChat(this.sql, roomId)
         return chat && !chat.private ? chat.title : null
       },
+      off: () => this.initiativeLevel() === "off",
       count: (delta) => this.count(delta),
       close: (id, status, at) => this.closeLoop(id, status, at),
       noticed: (roomId, skip) => this.#engine.noticed(roomId, skip),
@@ -1280,8 +1282,10 @@ export class UserDO extends DurableObject<Env> {
 
   async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; same?: number; tainted: boolean; reminderId?: string }): Promise<OpenResult> {
     if (!this.capturable(roomId)) return { ok: false, error: "this chat is private: nothing here is kept." }
-    const { reminderId, ...loop } = input
-    const out = this.#loops.open({ ...loop, owner, room: roomId, ref, source: "tool" }, input.same)
+    const { reminderId, same, ...loop } = input
+    // `same` names a loop of this chat only: an agent never reaches into another chat's loops.
+    const here = same !== undefined && this.#loops.get(same)?.room === roomId ? same : undefined
+    const out = this.#loops.open({ ...loop, owner, room: roomId, ref, source: "tool" }, here)
     if (out.ok) {
       this.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
       if (reminderId) this.#engine.link(reminderId, out.id)
@@ -1290,13 +1294,14 @@ export class UserDO extends DurableObject<Env> {
     return out
   }
 
-  async loopClose(id: number, status: "done" | "dropped"): Promise<boolean> {
-    return this.closeLoop(id, status, Date.now())
+  /** `roomId`: an agent's close, which reaches only the loops of its own chat. */
+  async loopClose(id: number, status: "done" | "dropped", roomId?: RoomId): Promise<boolean> {
+    return this.closeLoop(id, status, Date.now(), roomId)
   }
 
   /** Every close goes through here: a drop settles a nudge about the loop as dismissed (section 26.6). */
-  private closeLoop(id: number, status: "done" | "dropped", at: number): boolean {
-    const closed = this.#loops.close(id, status, at)
+  private closeLoop(id: number, status: "done" | "dropped", at: number, roomId?: RoomId): boolean {
+    const closed = this.#loops.close(id, status, at, roomId)
     if (closed) this.count({ loops_closed: 1 })
     if (closed && status === "dropped") this.#engine.dropped(id, at)
     return closed
@@ -1310,9 +1315,9 @@ export class UserDO extends DurableObject<Env> {
     return this.#initiative.brief(roomId, slug, burst)
   }
 
-  /** Queues a human burst for one Jev pass. Without a judge, or with capture off, nothing is queued. */
+  /** Queues a human burst for one Jev pass. Without a judge, with capture off, or with initiative off, nothing is queued. */
   private async loopsHear(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
-    if (!this.judgeKey() || this.policy().capture === "off" || !this.capturable(roomId)) return
+    if (!this.judgeKey() || this.policy().capture === "off" || this.initiativeLevel() === "off" || !this.capturable(roomId)) return
     const rows = items.filter((i) => i.messageId && i.text.trim()).map((i) => ({ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }))
     if (!rows.length) return
     this.sql.exec(
@@ -1339,6 +1344,8 @@ export class UserDO extends DurableObject<Env> {
   private apply(op: ChatOp): UserEvent | null {
     if (movesYukiChat(this.sql, op) || this.duplicateOf(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
+    // A private or deleted chat keeps no loops (section 26.1).
+    if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#loops.forgetRoom(op.roomId)
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))
@@ -1429,7 +1436,7 @@ export class UserDO extends DurableObject<Env> {
 
   async loopAct(id: number, action: LoopAction): Promise<boolean> {
     if (this.#loops.get(id)?.owner !== "human") return false
-    if (action.action === "snooze") return this.#loops.snooze(id, action.until)
+    if (action.action === "snooze") return this.#loops.snooze(id, action.until, Date.now())
     return this.loopClose(id, action.action === "done" ? "done" : "dropped")
   }
 

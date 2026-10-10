@@ -690,7 +690,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				if (this.members.list().some((m) => m.status !== "idle")) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))
 				const spans = this.memory.pending(NAPS_AT_ONCE)
 				if (!spans.length) return void (await (this.memory.changes() ? this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000) : this.alarms.clearWakeup(MEMORY_WAKEUP)))
-				const outs = await Promise.all(spans.map((span) => this.memory.nap(span, (prompt, page) => user.compress(prompt, rollup && page ? { roomId: home.roomId, at: page.at } : undefined), rollup)))
+				const outs = await Promise.all(spans.map((span) => this.memory.nap(span, (prompt, page) => user.compress(prompt, rollup && page ? { roomId: home.roomId, at: page.at, span: page.span } : undefined), rollup)))
 				const retryAt = outs.find((o) => o.retryAt)?.retryAt
 				if (retryAt) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, retryAt))
 			}
@@ -712,7 +712,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (!home || this.log.meta("private") === "1") return
 		const user = userStub(this.env.USER, home.userId)
-		const out = await this.memory.rollupQuiet((prompt, page) => user.compress(prompt, page ? { roomId: home.roomId, at: page.at } : undefined), (text, tainted, at, span) => user.lifeRollup(home.roomId, text, tainted, at, span))
+		const out = await this.memory.rollupQuiet((prompt, page) => user.compress(prompt, page ? { roomId: home.roomId, at: page.at, span: page.span } : undefined), (text, tainted, at, span) => user.lifeRollup(home.roomId, text, tainted, at, span))
 		if (out.retryAt) await this.alarms.setWakeup(QUIET_WAKEUP, out.retryAt)
 	}
 

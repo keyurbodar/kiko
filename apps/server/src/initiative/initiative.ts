@@ -19,6 +19,8 @@ export type InitiativeDeps = {
   quickJudge: () => Judge | null
   /** The chat's title, or null for a private or missing chat. Nothing is learned from those. */
   title: (roomId: string) => string | null
+  /** Initiative is off: no Jev pass, no summary loop lines, and no lines in a run. The agent's own loop tool still keeps loops. */
+  off: () => boolean
   count: (delta: Record<string, number>) => void
   /** Closes a loop the one way every closer does, so a drop settles a nudge about it. */
   close: (id: number, status: "done" | "dropped", at: number) => boolean
@@ -45,7 +47,7 @@ export class Initiative {
   /** One batched Jev call over a burst and the open loops its sentences touch. Without Jev it does nothing. */
   async heard(roomId: string, burst: readonly Heard[]): Promise<"done" | "later"> {
     const judge = this.deps.judge()
-    if (!judge || this.deps.title(roomId) === null) return "done"
+    if (!judge || this.deps.off() || this.deps.title(roomId) === null) return "done"
     const sentences = sentencesOf(burst.map((h) => h.text))
     if (!sentences.length) return "done"
     // Each sentence is checked against the open loops that share its words and every loop its own
@@ -67,7 +69,7 @@ export class Initiative {
         continue
       }
       const out = this.deps.loops.open(
-        { kind: op.kind, certainty: op.certainty, owner: "human", text: sentences[op.sentence]!.text, source: "jev", room: roomId, ref: ref(roomId, from.messageId), at: from.at },
+        { kind: op.kind, certainty: op.certainty, owner: "human", text: sentences[op.sentence]!.text, source: "jev", room: roomId, ref: ref(roomId, from.messageId), at: from.at, tainted: false },
         op.same,
       )
       if (out.ok) this.deps.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
@@ -75,17 +77,17 @@ export class Initiative {
     return "done"
   }
 
-  /** The page prompt with the loop part, or null when the chat is private. */
+  /** The page prompt with the loop part, or null when the chat is private or initiative is off. */
   napPrompt(roomId: string, prompt: string, endsAt: number): { system: string; prompt: string; known: Set<number> } | null {
-    if (this.deps.title(roomId) === null) return null
+    if (this.deps.off() || this.deps.title(roomId) === null) return null
     const mine = this.deps.loops.list({ room: roomId, status: ["open"], limit: NAP_KNOWN })
     const near = this.deps.loops.similar(prompt, NAP_KNOWN - mine.length, mine.map((l) => l.id))
     const known = [...mine, ...near]
     return { system: NAP_LOOPS_SYSTEM, prompt: napLoopsPrompt(prompt, known, endsAt), known: new Set(known.map((l) => l.id)) }
   }
 
-  /** Writes what the summary pass saw and returns its summary line. */
-  napApply(roomId: string, answer: string, known: ReadonlySet<number>, endsAt: number, tainted: boolean): string | null {
+  /** Writes what the summary pass saw and returns its summary line. `turns` names the page, so forgetting a turn forgets its loops. */
+  napApply(roomId: string, answer: string, known: ReadonlySet<number>, endsAt: number, tainted: boolean, turns?: { lo: number; hi: number }): string | null {
     const { summary, ops } = parseNapLoops(answer, known)
     for (const op of ops) {
       if (op.op === "close") {
@@ -93,7 +95,7 @@ export class Initiative {
         continue
       }
       if (op.owner !== "human" && !isAgentSlug(op.owner)) continue
-      const out = this.deps.loops.open({ kind: op.kind, certainty: op.certainty, owner: op.owner, text: op.text, due: op.due, source: "nap", room: roomId, at: endsAt, tainted })
+      const out = this.deps.loops.open({ kind: op.kind, certainty: op.certainty, owner: op.owner, text: op.text, due: op.due, source: "nap", room: roomId, ...(turns ? { ref: `room:${roomId}:turns:${turns.lo}-${turns.hi}` } : {}), at: endsAt, tainted })
       if (out.ok) this.deps.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
     }
     return summary
@@ -103,8 +105,11 @@ export class Initiative {
    * The lines a run starts with when the human writes: what this agent owes, and at most three open
    * loops or life lines related to the burst. Without a judge, relation is shared words; with one,
    * the judge reranks keyword matches and the newest open loops, so a related loop needs no shared word.
+   * These lines sit in the human's input, which the trust extension never taints, so nothing tainted
+   * goes in: a tainted loop or life line stays reachable only through the loop tool and memory recall.
    */
   async brief(roomId: string, slug: string, burst: { text: string; messageIds: readonly string[] }): Promise<{ owe: string[]; related: string[]; noticed: string[] }> {
+    if (this.deps.off()) return { owe: [], related: [], noticed: [] }
     const { owe, related, shown } = await this.ownAndRelated(roomId, slug, burst)
     const skip = new Set([...shown, ...burst.messageIds.flatMap((id) => this.deps.loops.fromRef(ref(roomId, id)).map((l) => l.id))])
     const noticed = this.deps.title(roomId) === null ? [] : this.deps.noticed(roomId, skip).map(escape)
@@ -115,8 +120,10 @@ export class Initiative {
     const here = this.deps.title(roomId)
     if (here === null) return { owe: [], related: [], shown: [] }
     const where = (l: Loop) => (l.room && l.room !== roomId ? this.deps.title(l.room) : null)
+    // A loop of a private or deleted chat stays there.
+    const shown = (l: Loop) => !l.tainted && (!l.room || l.room === roomId || this.deps.title(l.room) !== null)
     // Only this chat's: a promise is kept where it was made, and one from another chat invited a duplicate.
-    const owed = this.deps.loops.list({ owner: slug, room: roomId, status: ["open"], limit: OWE_MAX })
+    const owed = this.deps.loops.list({ owner: slug, room: roomId, status: ["open"], limit: 20 }).filter(shown).slice(0, OWE_MAX)
     const owe = owed.map((l) => escape(`L${l.id} ${l.text}${l.due ? ` (due ${l.due})` : ""}`))
     const words = keywords(burst.text)
     const ids = (picked: readonly string[]) => [...owed.map((l) => l.id), ...picked.filter((id) => id.startsWith("l")).map((id) => Number(id.slice(1)))]
@@ -125,18 +132,18 @@ export class Initiative {
     const skip = owed.map((l) => l.id)
     const judge = this.deps.judge() !== null
     const loops = new Map<number, Loop>()
-    for (const l of this.deps.loops.similar(burst.text, 8, skip)) if (!fresh.has(l.ref)) loops.set(l.id, l)
-    if (judge) for (const l of this.deps.loops.list({ status: ["open"], limit: JUDGE_POOL })) if (!fresh.has(l.ref) && !skip.includes(l.id) && loops.size < JUDGE_POOL) loops.set(l.id, l)
+    for (const l of this.deps.loops.similar(burst.text, 8, skip)) if (!fresh.has(l.ref) && shown(l)) loops.set(l.id, l)
+    if (judge) for (const l of this.deps.loops.list({ status: ["open"], limit: JUDGE_POOL })) if (!fresh.has(l.ref) && !skip.includes(l.id) && shown(l) && loops.size < JUDGE_POOL) loops.set(l.id, l)
     const lines = [
       ...[...loops.values()].map((l) => ({
         id: `l${l.id}`,
-        text: `open L${l.id}: ${l.text}${l.due ? ` (due ${l.due})` : ""} (${l.owner === "human" ? "said" : `@${l.owner} promised`} ${day(l.openedAt)}${where(l) ? `, in chat ${where(l)}` : ""})${l.tainted ? " [outside]" : ""}`,
+        text: `open L${l.id}: ${l.text}${l.due ? ` (due ${l.due})` : ""} (${l.owner === "human" ? "said" : `@${l.owner} promised`} ${day(l.openedAt)}${where(l) ? `, in chat ${where(l)}` : ""})`,
         words: keywords(l.text),
       })),
       ...this.deps.life
         .recall(words.join(" "), 8, { skipCard: true })
-        .filter((l) => l.source !== `chat ${here}`)
-        .map((l) => ({ id: `m${l.pos}`, text: `memory: ${l.source ? `${l.source}: ` : ""}${l.text}${l.tainted ? " [outside]" : ""}`, words: keywords(l.text) })),
+        .filter((l) => l.source !== `chat ${here}` && !l.tainted)
+        .map((l) => ({ id: `m${l.pos}`, text: `memory: ${l.source ? `${l.source}: ` : ""}${l.text}`, words: keywords(l.text) })),
     ]
     if (!lines.length) return { owe, related: [], shown: ids([]) }
     let picked = judge ? await this.related(burst.text, lines) : null

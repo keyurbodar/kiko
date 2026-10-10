@@ -181,7 +181,7 @@ export class AgentDO extends DurableObject<Env> {
         // A reminder an agent sets for itself is its promise to come back: it is owed until kept (section 26).
         if (out.ok && out.reminder.target === home.slug && !out.reminder.rrule) {
           await user()
-            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, tainted: false, reminderId: out.reminder.id })
+            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, tainted: input.tainted, reminderId: out.reminder.id })
             .catch(() => {})
         }
         return out
@@ -433,8 +433,8 @@ export class AgentDO extends DurableObject<Env> {
     const user = () => userStub(this.env.USER, home.userId)
     return {
       open: (input) => user().loopOpen(input.mine ? home.slug : "human", home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", input),
-      close: (id, status) => user().loopClose(id, status),
-      list: async () => [...(await user().loopList({ room: home.roomId })), ...(await user().loopList({ owner: home.slug }))].filter((l, i, all) => all.findIndex((x) => x.id === l.id) === i),
+      close: (id, status) => user().loopClose(id, status, home.roomId),
+      list: () => user().loopList({ room: home.roomId }),
     }
   }
 

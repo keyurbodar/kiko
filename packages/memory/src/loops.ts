@@ -70,6 +70,7 @@ type Row = {
 }
 
 const LIVE = "status IN ('open', 'snoozed')"
+export const SNOOZE_MAX_MS = 365 * 86_400_000
 const encoder = new TextEncoder()
 
 /** An ISO time, or null when `due` is missing or not a time. A bare date stays a date. */
@@ -148,7 +149,8 @@ export class Loops {
           at,
           firmer ? "explicit" : old.certainty,
           due,
-          old.tainted && input.tainted ? 1 : 0,
+          // Outside content stays outside: one tainted mention taints the loop for good.
+          old.tainted || input.tainted ? 1 : 0,
           old.id,
         )
         return { ok: true, id: old.id, merged: true } as const
@@ -178,11 +180,14 @@ export class Loops {
     return this.sql.exec(`UPDATE loops SET mentions = mentions + 1, last_seen = max(last_seen, ?) WHERE id = ? AND ${LIVE}`, at, id).rowsWritten > 0
   }
 
-  close(id: number, status: "done" | "dropped", at = Date.now()): boolean {
-    return this.sql.exec(`UPDATE loops SET status = ?, closed_at = ?, snoozed_until = NULL WHERE id = ? AND ${LIVE}`, status, at, id).rowsWritten > 0
+  /** `room` limits the close to one chat's loops: an agent touches only the loops of its own chat. */
+  close(id: number, status: "done" | "dropped", at = Date.now(), room?: string): boolean {
+    return this.sql.exec(`UPDATE loops SET status = ?, closed_at = ?, snoozed_until = NULL WHERE id = ? AND (? IS NULL OR room = ?) AND ${LIVE}`, status, at, id, room ?? null, room ?? null).rowsWritten > 0
   }
 
-  snooze(id: number, until: number): boolean {
+  /** `until` must be after `now` and at most a year away. */
+  snooze(id: number, until: number, now = Date.now()): boolean {
+    if (!Number.isFinite(until) || until <= now || until > now + SNOOZE_MAX_MS) return false
     return this.sql.exec(`UPDATE loops SET status = 'snoozed', snoozed_until = ? WHERE id = ? AND ${LIVE}`, until, id).rowsWritten > 0
   }
 
@@ -238,13 +243,34 @@ export class Loops {
   /** Forgets every loop learned from one of `refs`, as the life log forgets a deleted message. */
   redactRefs(refs: readonly string[]): number {
     if (!refs.length) return 0
+    return this.drop(this.sql.exec<{ id: number }>("SELECT id FROM loops WHERE ref IN (SELECT value FROM json_each(?))", JSON.stringify(refs)).toArray())
+  }
+
+  /** Forgets every loop of a chat that became private or was deleted. */
+  forgetRoom(room: string): number {
+    return room ? this.drop(this.sql.exec<{ id: number }>("SELECT id FROM loops WHERE room = ?", room).toArray()) : 0
+  }
+
+  /** Forgets the loops a summary pass learned from a page of turns that holds turn `pos` (ref `room:<id>:turns:<lo>-<hi>`). */
+  forgetTurn(room: string, pos: number): number {
+    const prefix = `room:${room}:turns:`
+    const rows = this.sql.exec<{ id: number; ref: string }>("SELECT id, ref FROM loops WHERE substr(ref, 1, ?) = ?", prefix.length, prefix).toArray()
+    return this.drop(
+      rows.filter((r) => {
+        const m = /^(\d+)-(\d+)$/.exec(r.ref.slice(prefix.length))
+        return m !== null && Number(m[1]) <= pos && pos < Number(m[2])
+      }),
+    )
+  }
+
+  private drop(rows: readonly { id: number }[]): number {
+    if (!rows.length) return 0
     return this.transaction(() => {
-      const gone = this.sql.exec<{ id: number }>("SELECT id FROM loops WHERE ref IN (SELECT value FROM json_each(?))", JSON.stringify(refs)).toArray()
-      for (const r of gone) {
+      for (const r of rows) {
         this.sql.exec("DELETE FROM loops WHERE id = ?", r.id)
         this.sql.exec("DELETE FROM loops_fts WHERE rowid = ?", r.id)
       }
-      return gone.length
+      return rows.length
     })
   }
 }

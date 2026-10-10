@@ -5,6 +5,7 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import { originAllowed } from "../router"
+import { SNOOZE_MAX_MS } from "@yuki/memory/loops"
 
 // Architecture section 26. The human's view of their open loops, and the two settings that steer
 // initiative. The Worker checks the session and reaches only the session user's `UserDO`.
@@ -55,6 +56,7 @@ export async function loopsRoute(request: Request, env: Env): Promise<Response |
   } catch {
     return error(400, "need { action: done | drop } or { action: snooze, until }")
   }
-  if (body.action === "snooze" && !Number.isFinite(body.until)) return error(400, "bad until")
+  const now = Date.now()
+  if (body.action === "snooze" && !(Number.isFinite(body.until) && body.until > now && body.until <= now + SNOOZE_MAX_MS)) return error(400, "until must be after now and within a year")
   return (await stub.loopAct(Number(action[1]), body)) ? Response.json({ ok: true }) : error(404, "no such loop")
 }

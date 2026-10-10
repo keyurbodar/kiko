@@ -18,7 +18,7 @@ const FORWARDED = "mem_forwarded"
 type TurnRow = { pos: number; key: string; first_seq: number | null; last_seq: number | null; at: number; at_last: number; trace: string | null }
 
 /** `page` is set for a page of raw turns, ending at `at`: UserDO then also reads open loops from it (section 26). */
-export type Compress = (prompt: string, page?: { at: number }) => Promise<{ text: string } | { retryAt: number } | { error: string }>
+export type Compress = (prompt: string, page?: { at: number; span: Span }) => Promise<{ text: string } | { retryAt: number } | { error: string }>
 export type Rollup = (text: string, tainted: boolean, at: number, span: Span) => Promise<void>
 
 export type Changes = { upto: number; deleted: string[]; edited: { messageId: string; text: string; at: number }[]; positions: number[] }
@@ -269,7 +269,7 @@ export class RoomMemory {
     const input = this.tree.input(span)
     if (!input) return {}
     const free = this.tree.free(input)
-    const out = free !== null ? { text: free } : await compress(napPrompt(input, "turns"), "items" in input ? { at: input.items[input.items.length - 1]?.at ?? Date.now() } : undefined)
+    const out = free !== null ? { text: free } : await compress(napPrompt(input, "turns"), "items" in input ? { at: input.items[input.items.length - 1]?.at ?? Date.now(), span } : undefined)
     if ("retryAt" in out) return { retryAt: out.retryAt }
     if ("error" in out && this.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
     const node = this.tree.nodeFor(input, "text" in out ? out.text : this.tree.fallback(input))
@@ -287,7 +287,7 @@ export class RoomMemory {
     if (count - rolled < ROLLUP_MIN) return { done: false }
     const lo = Math.max(rolled, count - ROLLUP_MAX)
     const input: NapInput = { span: { lo, hi: count }, items: this.items(lo, count) }
-    const out = await compress(napPrompt(input, "turns"), { at: input.items[input.items.length - 1]?.at ?? Date.now() })
+    const out = await compress(napPrompt(input, "turns"), { at: input.items[input.items.length - 1]?.at ?? Date.now(), span: input.span })
     if ("retryAt" in out) return { done: false, retryAt: out.retryAt }
     if ("error" in out) throw new Error(out.error)
     const items = input.items
