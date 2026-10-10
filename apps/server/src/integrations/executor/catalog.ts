@@ -25,6 +25,14 @@ const MANAGEMENT = "tools.executor."
 /** The management app, when the user's listing has it. */
 export const managementApp = (catalog: ExecutorCatalog | undefined) => catalog?.apps.find((a) => a.path.startsWith(MANAGEMENT))
 
+/**
+ * A program that only names the user's apps. Executor loads every app a program names, and an app
+ * it has not loaded for a while costs the next call 1.2 to 2.8 s, so a run sends this first.
+ */
+export function warmProgram(catalog: ExecutorCatalog): string {
+  return `return [${catalog.apps.filter((a) => !a.path.startsWith(MANAGEMENT)).map((a) => `typeof ${a.path}`).join(", ")}].length`
+}
+
 /** Whether an app lists a tool. Every Executor tool yuki names is checked this way first. */
 export const hasTool = (app: ExecutorApp | undefined, name: string) => Boolean(app?.tools.some((t) => t.name === name))
 

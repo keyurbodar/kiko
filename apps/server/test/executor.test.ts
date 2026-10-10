@@ -38,6 +38,8 @@ const fake = {
   code: "",
   /** Pages of the app catalog read for the index. */
   indexReads: 0,
+  /** Warm-up programs, which only name the user's apps. */
+  warms: [] as string[],
 }
 let n = 0
 
@@ -141,6 +143,10 @@ async function executor(request: Request): Promise<Response> {
     if (msg.method === "tools/call") {
       const text = (value: unknown) => json({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })
       const code = String(msg.params?.arguments?.code ?? "")
+      if (msg.params?.name === "execute" && code.startsWith("return [typeof ")) {
+        fake.warms.push(code)
+        return text({ status: "completed", execution: { ok: true, value: 1 } })
+      }
       if (msg.params?.name === "execute" && !code.includes("tools.search") && !code.includes(".organization.catalog(")) fake.code = code
       if (msg.params?.name === "execute" && code.includes(".organization.catalog(")) {
         fake.indexReads++
@@ -202,7 +208,7 @@ beforeAll(async () => {
     },
   })
   origin = (await mf.ready).origin
-})
+}, 30_000)
 
 afterAll(async () => {
   await mf?.dispose()
@@ -559,5 +565,16 @@ test("connecting loads the listing and the app index before any chat asks", asyn
   await Bun.sleep(300)
   expect(fake.listed).toBe(before.listed + 1)
   expect(fake.indexReads).toBe(before.reads + 1)
+  ws.close()
+})
+
+test("a run warms the user's apps in executor, unless executor just saw a call", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  const before = fake.warms.length
+  await rpc(user, "executorWarm")
+  expect(fake.warms.length).toBe(before)
+  await rpc(user, "executorWarm", Date.now() + 30_000)
+  expect(fake.warms.slice(before)).toEqual(['return [typeof tools.github.profiles["ins_1"]].length'])
   ws.close()
 })

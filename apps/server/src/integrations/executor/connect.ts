@@ -1,7 +1,7 @@
 import type { ExecutorStatus } from "@yuki/protocol"
 import { McpClient, McpSessionExpiredError, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
-import { type CatalogRow, DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, findApps, hasTool, INDEX_PAGE, indexProgram, managementApp, parseCatalog, parseIndexPage, usesApp, withHandles } from "./catalog"
+import { type CatalogRow, DISCOVER_PROGRAM, warmProgram, describeExecute, type ExecutorCatalog, findApps, hasTool, INDEX_PAGE, indexProgram, managementApp, parseCatalog, parseIndexPage, usesApp, withHandles } from "./catalog"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
@@ -38,6 +38,8 @@ const REFRESH_EARLY_MS = 60_000
 const LISTING_FRESH_MS = 10 * 60_000
 /** The catalog of apps Executor can add changes slowly, so its index is read again once a day. */
 const INDEX_FRESH_MS = 24 * 3_600_000
+/** Executor is still warm this long after a call, so a warm-up then is skipped. */
+const WARM_MS = 20_000
 /** Index pages read at once. */
 const INDEX_PARALLEL = 6
 
@@ -80,6 +82,8 @@ export class ExecutorConnection {
   /** Executor's catalog of apps it can add, compact, for `findApps`. */
   private index: SavedIndex | undefined
   private indexing: Promise<CatalogRow[]> | undefined
+  /** When yuki last sent Executor anything. */
+  private lastSent = 0
   /**
    * Executor v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only
    * from that session. A held session is never closed until its program is resumed or expires, even
@@ -301,7 +305,16 @@ export class ExecutorConnection {
   }
 
   /** Sends one call as it is. A resume runs in the session that paused its program, and a call that pauses keeps its session open. */
+  /** Loads the user's apps in Executor ahead of a run's first call, unless a call just did. */
+  async warm(now = Date.now()): Promise<void> {
+    if (now - this.lastSent < WARM_MS) return
+    this.catalog ??= (await this.store.get<SavedListing>("listing"))?.catalog
+    if (!this.catalog) return
+    await this.send("execute", { code: warmProgram(this.catalog) }, now)
+  }
+
   private async send(name: string, args: Record<string, unknown>, now = Date.now()): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
+    this.lastSent = now
     await this.dropExpired(now)
     const requestId = typeof args.requestId === "string" ? args.requestId : ""
     const resumed = this.held.get(requestId)

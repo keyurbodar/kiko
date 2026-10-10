@@ -762,6 +762,10 @@ export class UserDO extends DurableObject<Env> {
     return this.#executor.bench()
   }
 
+  async executorWarm(now = Date.now()): Promise<void> {
+    if ((await this.#executor.status()).connected) await this.#executor.warm(now).catch(() => undefined)
+  }
+
   async executorFindApps(query: string, limit?: number) {
     return this.#executor.findApps(query, limit)
   }

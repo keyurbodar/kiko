@@ -15,6 +15,8 @@ const RUNS = Number(process.env.YUKI_EXECUTOR_RUNS ?? 3)
 const USER = process.env.YUKI_EXECUTOR_USER ?? "dev"
 /** A model for the chats, such as `opencode-go/muse-spark-1.3-contributor`. Unset leaves the server default. */
 const MODEL = process.env.YUKI_EXECUTOR_MODEL
+/** Seconds to wait before each task, as a person pauses between messages. Executor cools down in the gap. */
+const GAP_S = Number(process.env.YUKI_EXECUTOR_GAP ?? 0)
 // Each asks for live data, so memory cannot answer it.
 const TASKS = [
   { tag: "new chat", text: "check github now: what is the newest commit message on my most recently pushed repo? one line." },
@@ -47,6 +49,7 @@ const suite: Suite = {
         await Bun.sleep(500)
       }
       for (const task of i === RUNS - 1 ? [...TASKS, FIND] : TASKS) {
+        if (GAP_S) await Bun.sleep(GAP_S * 1000)
         await resetStats(v, s)
         const t0 = performance.now()
         const clientId = room.send(task.text)

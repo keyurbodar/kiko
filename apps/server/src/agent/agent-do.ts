@@ -318,6 +318,8 @@ export class AgentDO extends DurableObject<Env> {
       env: fs,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
+        // Executor loads the user's apps while the model writes its first turn.
+        if (Array.isArray(executor) && home) this.ctx.waitUntil(userStub(this.env.USER, home.userId).executorWarm().catch(() => undefined))
         if (!(await this.beginRun(batch.requestId, root))) return false
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true
