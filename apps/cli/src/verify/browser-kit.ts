@@ -35,11 +35,16 @@ export async function browserUser(v: Verifier, name: string, jev: boolean): Prom
   } else {
     await s.disconnectProvider("typesafe").catch(() => {})
   }
+  await connectKernel(s)
+  return s
+}
+
+/** Connects the user's Kernel key. */
+export async function connectKernel(s: Session): Promise<void> {
   const user = await s.user()
   user.send({ t: "connectKernel", apiKey: kernelKey(), reqId: "k1" } as never)
   const answer = (await user.expect((f) => (f as { t: string }).t === "kernel", 60_000)) as unknown as { result: { ok: boolean; error?: string } }
   if (!answer.result.ok) throw new VerifyError(`connecting the Kernel key failed: ${answer.result.error}`)
-  return s
 }
 
 export async function browserRoom(s: Session, title: string): Promise<{ roomId: string; room: RoomHandle }> {

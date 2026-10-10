@@ -1,5 +1,6 @@
 import { type Session, type Verifier, VerifyError } from "../client"
 import { activeBrowsers, browserRoom, browserUser, closeBrowser, mainTurns, turn } from "../browser-kit"
+import { fakeBrowserRun } from "../browser-fake"
 import type { Suite } from "../runner"
 import { api } from "../routine-kit"
 import { readStats, resetStats } from "./latency"
@@ -27,6 +28,8 @@ const suite: Suite = {
   model: true,
   human: true,
   async run(v) {
+    // `--fake`: the scripted agent drives the real browser tools with no model key (browser-fake.ts).
+    if (v.fake) return fakeBrowserRun(v)
     if ((await activeBrowsers()).length) console.log("  note: Kernel already lists active browsers on this key")
     const s = await browserUser(v, USER, false)
     try {

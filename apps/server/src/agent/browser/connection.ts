@@ -155,8 +155,9 @@ export class BrowserConnection {
       this.current.url = url
       return tab
     }
-    const session = await this.socket()
+    // A full browser says so before this agent opens a socket of its own.
     await this.room(1)
+    const session = await this.socket()
     const held: Held = { url }
     const t = performance.now()
     held.tab = this.track(held, await session.openTab(url))
@@ -167,8 +168,8 @@ export class BrowserConnection {
 
   /** Opens one tab per entry for one call. They count as the agent's until `done` closes them. */
   async borrow(urls: (string | undefined)[]): Promise<{ tabs: Tab[]; done: () => Promise<void> }> {
-    const session = await this.socket()
     await this.room(urls.length)
+    const session = await this.socket()
     const opened = await Promise.allSettled(urls.map(() => session.openTab()))
     const tabs = opened.flatMap((o) => (o.status === "fulfilled" ? [o.value] : []))
     for (const [i, t] of tabs.entries()) this.borrowed.set(t.id, urls[i] ?? "about:blank")

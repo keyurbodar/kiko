@@ -1,5 +1,5 @@
 import { awaitWithContext } from "@earendil-works/chord/context"
-import { Type } from "@earendil-works/pi-ai"
+import { getCurrentTools, Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
@@ -39,6 +39,7 @@ const textOf = (m: Message) =>
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
 
 export function fakeReply(transcript: readonly Message[]) {
+  const toolNames = () => getCurrentTools(transcript as never).map((t) => t.name).sort().join(",")
   const messages = transcript.filter((m) => m.role !== "system")
   const answered = messages.findLastIndex((m) => m.role === "assistant" && !callsTool(m) && m.stopReason !== "aborted")
   const since = messages.slice(answered + 1)
@@ -49,6 +50,12 @@ export function fakeReply(transcript: readonly Message[]) {
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
   const fetchFirst = last?.role === "user" && /^\[(fetch|mark)\]/.test(textOf(last))
   const page = last?.role === "toolResult" && (last.toolName === "fake_fetch" || last.toolName === "fake_mark")
+  // `[tools]` alone in a message: say which tools this conversation has (the browser suite asks a helper).
+  if (last?.role === "user" && textOf(last) === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
+  // `[browse <url> click <label>]`: browse the url, then click the control with that label by the id the summary showed.
+  const browse = browseScript(messages, users)
+  if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
+  if (last?.role === "toolResult" && last.toolName?.startsWith("browse")) return fauxAssistantMessage(browsed(textOf(last)))
   const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!), messages) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
   // One model turn is one bubble, so a two-part answer is two turns: a short note with a tool call, then the rest.
@@ -81,6 +88,27 @@ export function fakeReply(transcript: readonly Message[]) {
   if (newest.includes("[quiet]") && !results.length) return fauxAssistantMessage("[skip]")
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
   return fauxAssistantMessage(heard)
+}
+
+const BROWSE_LINE = /\[browse (\S+) click ([^\]]+)\]/
+
+function browseScript(messages: readonly Message[], users: readonly string[]) {
+  const last = messages.at(-1)
+  const ask = users.map((u) => BROWSE_LINE.exec(u)).findLast(Boolean)
+  if (!ask) return null
+  if (last?.role === "user") return BROWSE_LINE.test(textOf(last)) ? fauxToolCall("browse", { urls: [ask[1]!] }) : null
+  if (last?.role !== "toolResult" || last.toolName !== "browse") return null
+  const label = ask[2]!.trim().toLowerCase()
+  const id = textOf(last).split("\n").map((l) => /^(\d+) \S+ "(.*)"$/.exec(l)).find((m) => m && m[2]!.trim().toLowerCase() === label)?.[1]
+  return id === undefined ? null : fauxToolCall("browser_act", { steps: [{ op: "click", id: Number(id) }] })
+}
+
+/** A page summary is long and the fake streams slowly, so a browser result is answered with its first facts: `browsed: did: <steps> | <title> | <url>`. An error is answered whole. */
+function browsed(result: string): string {
+  const lines = result.split("\n").filter((l) => l.trim() && !/^<\/?untrusted/.test(l))
+  const did = lines.findIndex((l) => l.startsWith("did:"))
+  const [title, url] = lines.slice(did + 1)
+  return url?.startsWith("http") ? `browsed: ${did >= 0 ? `${lines[did]} | ` : ""}${title} | ${url}` : `browsed: ${result.slice(0, 400)}`
 }
 
 function anyToolCall(raw: string, messages: readonly Message[]) {
@@ -188,7 +216,7 @@ function teamCall(turn: string) {
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals, scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "authority" | "reminders" | "chief" | "loops"> = {}) {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals, scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "authority" | "reminders" | "chief" | "loops" | "browser"> = {}) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
