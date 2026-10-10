@@ -123,7 +123,7 @@ A worker step costs about one Jev call, one action, and one page read. That is a
 | `browser_look` | `read`, outside `web` | A JPEG of the agent's tab, about 50 KB, for a model that sees images. |
 | `browser_share` | `message` | Post a card asking the human to watch or take over, with a reason. |
 
-`browse` taints the run, like `web_fetch`. `browser_act` and `browser_run` are `external`, so the trust gate asks the human in a routine or in a run another agent started. A human-started run acts without asking, as with every `external` tool.
+`browse` taints the run, like `web_fetch`. `browser_act` and `browser_run` declare `external`, and the trust extension lets them through without an approval card in every run. The owner asked on 2026-10-10 for the browser to work directly. DEVIATION from section 16.3, where an `external` tool in a routine or an agent-started run waits for the human. The factory passes the two tool names to the trust extension as ungated, so the effect stays truthful and the exemption is one list in one place.
 
 Helpers do not get browser tools. `browser` joins `NOT_FOR_HELPERS`. Parallel browsing is `browser_run`, which is cheaper than a helper because it runs no model.
 
@@ -246,7 +246,7 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 
 `deps: P17-01, P17-02` `difficulty: 4` `area: backend` `parallel: no`
 
-**Verify.** `bun yuki verify browser --fake` passes with no model key. A scripted agent browses, acts in one batch, and reads a fresh summary. A routine's `browser_act` raises an approval card. A helper has no browser tools. The ninth tab gets a busy answer naming the holders. Then `bun yuki verify browser` passes with real keys. An agent asked for the top story on Hacker News answers correctly in under 20 s, with no screenshot and its socket closed 15 s later.
+**Verify.** `bun yuki verify browser --fake` passes with no model key. A scripted agent browses, acts in one batch, and reads a fresh summary. A routine's `browser_act` runs with no approval card. A helper has no browser tools. The ninth tab gets a busy answer naming the holders. Then `bun yuki verify browser` passes with real keys. An agent asked for the top story on Hacker News answers correctly in under 20 s, with no screenshot and its socket closed 15 s later.
 
 **Goal.** Every agent of a user with a Kernel key can read and act on real pages.
 
