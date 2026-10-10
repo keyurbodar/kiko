@@ -131,6 +131,17 @@ export type ComposioResult =
 	  }
 	| { ok: false; error: string }
 
+/** A user's Kernel browser as the client may see it. It never holds the key or a URL. */
+export type KernelStatus = {
+	connected: boolean
+	/** Kernel rejected the stored key. */
+	broken: boolean
+	/** The user's one browser, when one is running: its mode and how many tabs each agent holds. */
+	browser: { mode: "headless" | "headful"; tabs: Readonly<Record<string, number>> } | null
+}
+
+export type KernelResult = { ok: true; status: KernelStatus } | { ok: false; error: string }
+
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
@@ -150,6 +161,11 @@ export type ClientToUser =
 	| { t: "disconnectComposio"; reqId: string }
 	/** `tools` lists the tools with the stored key. */
 	| { t: "composioStatus"; reqId: string; tools?: boolean }
+	/** Stores a pasted Kernel key once Kernel accepts it. */
+	| { t: "connectKernel"; reqId: string; apiKey: string }
+	/** Closes the browser and deletes the Kernel key. */
+	| { t: "disconnectKernel"; reqId: string }
+	| { t: "kernelStatus"; reqId: string }
 	/** Starts a provider sign-in (architecture 11.4). `loginId` is the client's own id for it. */
 	| { t: "login.start"; loginId: string; provider: string }
 	/** The answer to one `login.prompt`. */
@@ -174,6 +190,8 @@ export type UserToClient =
 	 * after a connect or a disconnect.
 	 */
 	| { t: "composio"; reqId?: string; result: ComposioResult }
+	/** The answer to one Kernel request. Without `reqId` it goes to the user's other sockets. */
+	| { t: "kernel"; reqId?: string; result: KernelResult }
 	// Provider sign-in. Not stored. Sent only to the socket that started the login.
 	| { t: "login.notify"; loginId: string; event: LoginEvent }
 	| { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }

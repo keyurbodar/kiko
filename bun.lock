@@ -29,6 +29,7 @@
         "@earendil-works/chord": "1.0.0",
         "@earendil-works/pi-ai": "^1.0.0",
         "@earendil-works/pi-durable": "^1.0.0",
+        "@onkernel/sdk": "^0.123.0",
         "@yuki/agent": "workspace:*",
         "@yuki/durable": "workspace:*",
         "@yuki/memory": "workspace:*",
@@ -508,6 +509,8 @@
     "@noble/hashes": ["@noble/hashes@2.4.0", "", {}, "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="],
 
     "@nodable/entities": ["@nodable/entities@3.1.0", "", {}, "sha512-LsS/DjHr+uDM647Gru/cA8+J3a3HfhttwCKLyuoyN7yXTFCxKBtSgMQBvrW9yNPa2/zDRUNuGPaH5QUFoa4arQ=="],
+
+    "@onkernel/sdk": ["@onkernel/sdk@0.123.0", "", {}, "sha512-E2KCAgnw+H/0zwyPFLCoCTh3dJ3VH63iFnMjX9/jYZkGIGCX1UbxyXKRr30mcMVke6vjKTLmDzT7jwq/h7v9/g=="],
 
     "@opentelemetry/semantic-conventions": ["@opentelemetry/semantic-conventions@1.43.0", "", {}, "sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg=="],
 

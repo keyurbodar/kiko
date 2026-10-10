@@ -27,6 +27,7 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/attention { action: "age", ms } | { action: "rhythm", mode: "now" | "clear" } | { action: "pass" } | { action: "state" }
 //        the initiative engine (section 26.8): age its clock state, set a known rhythm, run a pass now (returns its
 //        verdicts and wakes), or read the rhythm, appetite, marks, and wakes
+//   POST /api/dev/agent/browser { action, agentId?, mode?, ms? }  -> the user's Kernel lease: lease, touch, dead, age, reap, switch, state (section 27, `verify kernel`)
 //   POST /api/dev/agent/pending { roomId, ms }  -> { pending }   ages the room's pending uploads and sweeps them (section 18.1)
 //
 // `seed` writes messages straight into the room's log, with no burst and no run, so a long chat costs
@@ -45,7 +46,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "initiative", "attention"].includes(action ?? "")) return null
+  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "initiative", "attention", "browser"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -77,6 +78,19 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     const body = (await request.json().catch(() => null)) as { ago?: unknown } | null
     await userStub(env.USER, user.id).devSeen(Number(body?.ago ?? 0))
     return Response.json({ ok: true })
+  }
+  if (action === "browser") {
+    const user = await getSessionUser(request, env)
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+    const body = (await request.json().catch(() => null)) as { action?: unknown; agentId?: unknown; mode?: unknown; ms?: unknown } | null
+    const known = ["lease", "touch", "dead", "age", "reap", "switch", "state"] as const
+    const op = known.find((k) => k === body?.action)
+    if (!op) return Response.json({ error: "bad action" }, { status: 400 })
+    try {
+      return Response.json(await userStub(env.USER, user.id).devBrowser({ action: op, agentId: body?.agentId as string, mode: body?.mode === "headful" ? "headful" : "headless", ms: Number(body?.ms ?? 0) }))
+    } catch (e) {
+      return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
+    }
   }
   if (action === "attention") {
     const user = await getSessionUser(request, env)
