@@ -13,6 +13,6 @@ test("a turn is allowed up to the plan's count, then refused until the next UTC 
 
 test("the stored record overrides the defaults, and junk is ignored", () => {
   expect(resolveLimits(null)).toEqual(DEFAULT_LIMITS)
-  const r = resolveLimits({ plan: "pro", turnsPerDay: 5000, hops: -1, nope: 3 } as never)
-  expect([r.plan, r.turnsPerDay, r.hops]).toEqual(["pro", 5000, DEFAULT_LIMITS.hops])
+  const r = resolveLimits({ plan: "pro", turnsPerDay: 5000, membersPerRoom: -1, nope: 3 } as never)
+  expect([r.plan, r.turnsPerDay, r.membersPerRoom]).toEqual(["pro", 5000, DEFAULT_LIMITS.membersPerRoom])
 })

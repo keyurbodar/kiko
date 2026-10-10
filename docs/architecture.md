@@ -1460,14 +1460,15 @@ Work that starts without a human message: routines on a schedule or an event, nu
 
 **Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Dots keeps its background research read-only "in code"; yuki gets the same from the effect table of section 16.3 plus the run's origin, without a second research model.
 
-| Wake | `SystemReason` | Starts in | `rootId` | `origin` |
-| --- | --- | --- | --- | --- |
-| a routine's time, its "run now", a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine`, with the grant |
-| a stalled task | `stalled` | `RoomDO` `loops` wakeup | `stalled:<taskId>:<utcDay>` | `auto` |
-| a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | unchanged | `auto` |
-| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | unchanged | `auto` |
+| Wake | `SystemReason` | Starts in | `rootId` | `origin` | Budget | Held |
+| --- | --- | --- | --- | --- | --- | --- |
+| a routine's time, a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine`, with the grant | `user` when the human made it, else `room` | recorded `held` |
+| a routine's "run now" | `routine` | the human's route or an agent's tool | `routine:<id>:test:<time>:<n>` | `routine`, with the grant | `paid` when the human pressed it, else as above | recorded `held` |
+| a stalled task | `stalled` | `RoomDO` `loops` wakeup | the task's chain, else `stalled:<taskId>:<updated_at>` | the task's chain | `room` | the next sweep asks again |
+| a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | the task's chain, else `unblocked:<taskId>` | the task's chain | `room` | the room's outbox |
+| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | the chain that made it; a recurring one its own | the authority of the run that made it | `user` when the human set it, else `room` | the room's outbox |
 
-Every one of these goes through `RoomDO.deliverAuto`, which takes the budget (25.5), hands the agent its envelope, and records the chain.
+Every one of these is a `Wake` (`room/wake.ts`) and goes through `RoomDO.wake`, the only code that takes the budgets (25.5), holds, hands the agent its envelope, and records the chain.
 
 ### 25.2 Routines
 
@@ -1488,13 +1489,13 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 - **Time budget.** A run whose origin is not `human` gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice the budget the host aborts it and the run is `timeout`.
 - **Breaker.** Three `failed` or `timeout` runs in a row pause the routine, and its chat says so.
 - **Missed times.** A routine runs its newest missed occurrence once when it is less than an hour late, and skips older ones.
-- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (agent-target reminders too; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
+- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (every reminder too, the human's included, and a row stored before that rule never fires sooner; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
 
 **Tools** (`agent/extensions/reminders.ts`).
 
 | Tool | Effect | Does |
 | --- | --- | --- |
-| `create_reminder` | write | unchanged |
+| `create_reminder` | write | stores the authority and taint of the run that made it; the wake carries them (25.3) |
 | `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok, even in a tainted run (the routine is then stored tainted); a routine nobody asked for, or one with a grant, posts an approval card that waits a day and makes the routine when the human accepts. A routine the human accepted is stored clean, so its grant works, unless its instructions were longer than the card shows |
 | `update_routine(id, ..., status?, run_now?)` | write | pausing and running now need nobody; any other change follows the same rule as create |
 | `list_reminders` | read | reminders and routines, with each routine's last run |
@@ -1527,41 +1528,53 @@ type Origin = "human" | "routine" | "auto"
 - A card waits 30 minutes. One that expires closes quietly and wakes nobody. An agent has one open card at a time.
 - The human's answer reaches the agent as an `approval_result` envelope with `origin: "human"`, and the room records it as the agent's chain like any delivery.
 - A routine a tainted run made is stored `tainted`, and its runs carry no grant (`runGrant` in `user/reminders.ts`). One the human made, or accepted on a card that showed all of it, keeps its grant.
+- A reminder stores the authority and taint of the run that made it. **Taint never carries the human's authority to a later run**: `wakeAuthority` in `room/wake.ts` runs a tainted wake on a human chain as `auto`, so a page that told a human's run to schedule a reminder cannot act outside yuki from it without a card. A routine's grant is not touched there; it was settled when the routine was made.
 - An extension's trigger runs as a routine granted that extension's own tools. The human reviewed and installed it.
 - `create_routine` and `update_routine` post a card only for a run the human did not start, or a tainted run that grants tools (for `update_routine`, a change to a routine that holds a grant).
 - DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Section 16.3 says why and what still holds.
 
 ### 25.4 Triggers
 
-**Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` matches each stored event with `eventLine` and `matches` (`room/routines.ts`, pure): a task changing to a status, a human or agent message with optional text, or a file under a path.
+**Signals.** One bus carries what happened: `Signal` in `room/signals.ts`, an Effect Schema union of `burst` (a human message), `agent_final` (a message an agent posted), `task`, `file`, `routine_result`, `reminder_fired`, and `watch_change`. Each says who did it and whether it is tainted. A room sends its signals to `UserDO.signals` in batches; `UserDO` sends its own (`reminder_fired`, `watch_change`) to the same entry. Event routines consume it; anything that later starts work on its own subscribes there.
 
-- Events for one routine within 60 seconds of the first become one run, like the human burst. The window lives in `routine_windows` and flushes on the `routine_events` wakeup, ten windows a pass. A run lists at most 20 events; a full window stops writing.
-- A window is tainted when an agent's act opened or joined it, unless that act is a message stored clean (section 16), so an injected instruction an agent relayed cannot reach a routine's grant.
+**Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` turns each stored event into a signal (`signalOf`) and keeps it when some routine's trigger `matches` it: a task changing to a status, a human or agent message with optional text, or a file under a path.
+
+- A room's signals within 60 seconds of the first become one batch, like the human burst. The window lives in `signal_window` and flushes on the `routine_events` wakeup. A batch keeps at most 20 signals and counts the rest. `UserDO.signals` gives each event routine one run per batch (`routineRun`), with occurrence `event:<openedAt>`, so a retried batch runs once.
+- A run is tainted when an agent's act it lists is, unless that act is a message stored clean (section 16), so an injected instruction an agent relayed cannot reach a routine's grant.
 - An agent's own acts never fire its own routines (the event's actor, from the `events` table). Acts of a run that an event, a webhook, or a watch started fire no event routine at all, so one event starts at most one level of work and two routines cannot feed each other.
+- A routine run's end reaches `UserDO` as a `routine_result` signal, which closes its record.
+- DEVIATION from the first version, where each routine kept its own window: one window per room, opened by the first signal any routine looks at.
 
 **Webhooks.** `POST /api/hooks/<token>`, at most 64 KB.
 
 - The Worker hashes the token and reads one D1 row, `hooks(token_hash -> user_id, routine_id)`, then calls `UserDO.routineHook`, which checks the token against the routine's own hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
 - **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker builds the object name from a user id in a D1 row that `UserDO` wrote when the human's routine was made. The request never supplies an id.
 - A sender's own delivery id (`x-github-delivery`, `idempotency-key`, `x-request-id`), or else the body's hash within the same minute, makes a retried post run once. The body is read with a 64 KB cap, so a chunked post cannot grow past it.
-- The run is tainted and its post is labeled outside content, so a granted tool still waits for the human.
+- The run is tainted and its post is labeled outside content. The routine's grant still holds when a clean run made it (25.3), as `verify routine-triggers` checks; every other outside tool waits for the human.
 - The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
 
-**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content, and the new fingerprint is saved only once the room has the run. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
+**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content. The new fingerprint is saved unless the run was held, so a change found while the budget is out is reported by the first check after it resets. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
 
 DEVIATION from the first plan: watches do not run extension code from an alarm. Fetching in `UserDO` reuses the extension's egress and secrets with no new `yuki.*` power and no VM outside a run.
 
 ### 25.5 The budget and the away pause
 
-`RoomDO.deliverAuto`, for every wake in the table of 25.1:
+`RoomDO.wake(w)`, for every wake in the table of 25.1, in this order:
 
-1. **The room's budget.** 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per envelope id (`auto_taken`).
-2. **The user's budget.** `UserDO.takeAutonomous`: `limits.autonomousRunsPerDay` (100) across every chat, and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When the user's budget refuses, the room's run is refunded. A routine's run is counted by `UserDO` before it calls the room, so a held run costs no call.
-3. A held wake is recorded as a `held` run. The chat says so once a day, and the yuki chat says once per absence: "i paused your routines and check-ins while you were away. they start again when you open yuki." While the human is away, scheduled routines and watches are skipped without a call.
+1. **Once.** A wake id the delivery ledger has, delivered or refused, is a duplicate. One already held is held.
+2. **The room's budget,** for a `room` wake. 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per wake id (`auto_taken`).
+3. **The user's budget,** for a `room` or `user` wake. `UserDO.takeAutonomous(id)`: `limits.autonomousRunsPerDay` (100) across every chat, paid once per wake id (`autonomous_taken`), and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When it refuses, the room's run is refunded.
+4. **Taint.** The envelope's authority comes from `wakeAuthority` (25.3).
+5. **The hand-over.** A refused delivery refunds both budgets and is recorded in the ledger. A full inbox throws with the budgets kept; the retry carries the same id and pays nothing more.
+6. **Held.** A wake that may retry (a reminder, a task wake) waits in `held_wakes`, the room's outbox. It is retried, oldest first and ten a pass, on the next UTC midnight (the `held_wakes` wakeup) and after every human burst the room delivers, after that burst. One held for a week is dropped (ASSUMPTION). A routine's held run is recorded `held` instead, and a watch keeps its old fingerprint (25.4).
+
+The chat says once a day that the budget is out, and the yuki chat says once per absence: "i paused your routines and check-ins while you were away. they start again when you open yuki." While the human is away, watches fetch nothing; every other wake asks `RoomDO.wake`, which holds it.
+
+DEVIATION from the first version: `UserDO` took the user's budget before it called the room, so a run the room then held or the agent refused was never refunded, and a held reminder or task wake was marked done and lost. Every path now goes through `wake`.
 
 ### 25.6 The stall sweep
 
-A task in `doing` or `blocked` untouched for 24 hours nudges its owner; one in `review` nudges the lead (`room/stalls.ts`). The `loops` wakeup is set to the moment the first such task goes stale, never sooner than an hour away, and is cleared when there is none, so a board of todo items or of work already nudged costs no wakeup. A nudge's id names the task's last change, so one stretch of staleness is nudged once: an answer that does not move the task is not asked again until someone touches it. At most five a day per room, through the budget. Each room reports its open tasks to `UserDO.chatTasks` when they change. Promises to come back are reminders an agent sets for itself, which the core prompt asks for.
+A task in `doing` or `blocked` untouched for 24 hours nudges its owner; one in `review` nudges the lead (`room/stalls.ts`). The `loops` wakeup is set to the moment the first such task goes stale, never sooner than an hour away, and is cleared when there is none, so a board of todo items or of work already nudged costs no wakeup. A nudge's id, `stalled:<taskId>:<updated_at>`, names the task's last change, so one stretch of staleness is nudged once: an answer that does not move the task is not asked again until someone touches it. At most five a day per room, through the budget. Each room reports its open tasks to `UserDO.chatTasks` when they change. Promises to come back are reminders an agent sets for itself, which the core prompt asks for.
 
 ### 25.7 Yuki checks in
 
@@ -1601,7 +1614,9 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; a c
 
 | Check | Proves |
 | --- | --- |
-| `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and event matching, the watch grid, the budget and away rules, stale-task nudges |
+| `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and signal matching, one run per batch, the watch grid, the budget and away rules, stale-task nudges |
+| `test/wake.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; a tainted run's reminder wakes tainted and `auto` |
+| `test/reminder-rules.test.ts` | a held watch run keeps the old fingerprint; a reminder for the human repeats at most every 30 minutes, even one stored before the rule |
 | `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for gets a card and accept makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
 | `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its injected payload cannot use a granted tool; a watch wakes only on change |
 | `bun yuki verify proactive` | a stale task nudges its owner once a day; away 8 days holds runs with one line and a hello resumes; every user has one check-in; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |

@@ -27,6 +27,7 @@ const TABLES = [
     window_start INTEGER NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS user_events (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS autonomous_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS capture_queue (
     room_id TEXT NOT NULL,
     message_id TEXT NOT NULL,

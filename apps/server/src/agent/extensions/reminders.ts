@@ -7,11 +7,13 @@ import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } fro
 import type { RoutineResult } from "../../user/routines"
 import { declareEffect } from "@yuki/agent/effects"
 import { isRunTainted, runAuthority } from "@yuki/agent/trust"
+import type { Authority } from "@yuki/agent/authority"
 
 export const REMINDERS = "reminders"
 
 export type RemindersPort = {
-  create(input: { text: string; time: string; tz?: string; rrule?: string; target?: string }): Promise<{ ok: true; reminder: Reminder } | { ok: false; error: string }>
+  /** `authority` and `tainted` are the creating run's: its reminder wakes with no more than that run had (section 25.3). */
+  create(input: { text: string; time: string; tz?: string; rrule?: string; target?: string; authority: Authority; tainted: boolean }): Promise<{ ok: true; reminder: Reminder } | { ok: false; error: string }>
   list(): Promise<Reminder[]>
   cancel(id: string): Promise<{ ok: true } | { ok: false; error: string }>
   createRoutine(input: { name: string; instructions: string; trigger: Trigger; grant: string[]; target?: string; tainted: boolean }): Promise<RoutineResult>
@@ -73,11 +75,11 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             target: Type.Optional(Type.String({ description: "human (default), or an agent slug in this room" })),
           }),
           replay: "unsafe",
-          execute: async (args) => {
+          execute: async (args, api) => {
             const time = whenOf(args)
             if (!time) return { content: text("give in_seconds (a positive number) or a valid time_iso."), isError: true }
             if (Date.parse(time) < Date.now() - 1000) return { content: text("that time is in the past. pick a future time."), isError: true }
-            const out = await user().create({ text: args.text, time, tz: tz(), rrule: args.rrule, target: args.target?.replace(/^@/, "") })
+            const out = await user().create({ text: args.text, time, tz: tz(), rrule: args.rrule, target: args.target?.replace(/^@/, ""), authority: runAuthority(api), tainted: isRunTainted(api) })
             if (!out.ok) return { content: text(`not scheduled: ${out.error}`), isError: true }
             return { content: text(`scheduled ${line(out.reminder, tz())}`) }
           },

@@ -28,9 +28,11 @@ import { type Answer, boolOf, type Judge, type Question } from "@yuki/memory/jud
 import type { NoteAnswer } from "@yuki/memory/tools"
 import type { JsonObject } from "@earendil-works/pi-ai"
 import { ProviderLogins } from "./provider-login"
-import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
+import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant } from "./reminders"
+import { sha256Hex } from "@yuki/durable/hash"
+import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
-import { BUDGET_LINE } from "../room/limits"
+import { routineRun, type SignalBatch } from "../room/signals"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
 import type { Trigger } from "@yuki/protocol"
 import { safeFetch } from "@yuki/durable/safe-fetch"
@@ -119,13 +121,8 @@ export class UserDO extends DurableObject<Env> {
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner(), (by) => this.triggerAuthority(by)), Date.now, {
-        deliverRun: async ({ deliveryId, routine, body, tainted }) => {
-          const paid = this.takeAutonomous()
-          if (!paid.ok) {
-            if (paid.reason === "limit") await this.budgetNotice(routine.roomId)
-            return "held"
-          }
-          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: runGrant(routine) })
+        deliverRun: async ({ deliveryId, routine, body, tainted, budget }) => {
+          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: runGrant(routine), budget })
           if (out === "delivered" && routine.id === this.setting(CHECK_IN)) this.putSetting(CHECK_IN_SEEN, this.checkInFingerprint())
           return out
         },
@@ -140,6 +137,7 @@ export class UserDO extends DurableObject<Env> {
           },
           unchanged: async (routine) => routine.id === this.setting(CHECK_IN) && this.setting(CHECK_IN_SEEN) === this.checkInFingerprint(),
         },
+        signal: (s) => this.ctx.waitUntil(this.signals({ roomId: s.roomId, openedAt: s.at, signals: [s], more: 0 })),
       })
       this.extensions = new ExtensionStore(
         this.sql,
@@ -148,7 +146,7 @@ export class UserDO extends DurableObject<Env> {
         (event) => this.commit(event),
         {
           create: async ({ text, rrule, roomId, target, createdBy }) => {
-            const tz = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'").toArray()[0]?.value ?? DEFAULT_TIMEZONE
+            const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
             const first = nextOccurrence(rrule, tz, Date.now())
             if (!first) throw new Error("the rule has no next time")
             await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
@@ -326,20 +324,27 @@ export class UserDO extends DurableObject<Env> {
     return this.setting(PUBLIC_ORIGIN)
   }
 
-  async runRoutine(id: string): Promise<RunDelivery | null> {
-    return this.reminders.runNow(id)
+  /** `byHuman`: the human pressed run now, so the run spends no budget. */
+  async runRoutine(id: string, byHuman = false): Promise<RunDelivery | null> {
+    return this.reminders.runNow(id, byHuman)
   }
 
   async routineRuns(id?: string): Promise<RoutineRun[]> {
     return this.reminders.runs(id)
   }
 
-  async routineRunDone(routineId: string, occurrence: string, status: "ok" | "quiet" | "failed" | "timeout", seq: number | null): Promise<void> {
-    await this.reminders.finishRun(routineId, occurrence, status, seq)
-  }
-
-  async routineEvent(routineId: string, occurrence: string, what: string, events: string, tainted: boolean): Promise<RunDelivery | null> {
-    return this.reminders.fireEvent(routineId, occurrence, what, events, tainted)
+  /**
+   * The bus of what happened (room/signals.ts). Event routines start from a room's batch; a routine
+   * run's result closes its record. Reminders firing and watched pages changing come here too, for
+   * whatever starts work on its own next.
+   */
+  async signals(batch: SignalBatch): Promise<void> {
+    for (const s of batch.signals) if (s.kind === "routine_result") await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
+    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final" || s.kind === "task" || s.kind === "file")) return
+    for (const routine of this.reminders.roomRoutines(batch.roomId)) {
+      const run = routineRun(roomRoutine(routine), batch)
+      if (run) await this.reminders.fireEvent(routine.id, `event:${batch.openedAt}`, "events in this chat", run.body, run.tainted)
+    }
   }
 
   async eventRoutines(roomId: string): Promise<RoomRoutine[]> {
@@ -371,7 +376,7 @@ export class UserDO extends DurableObject<Env> {
     if (!token) return
     try {
       await this.env.AUTH_DB.prepare('insert into "hooks" ("token_hash", "user_id", "routine_id", "created_at") values (?, ?, ?, ?)')
-        .bind(await sha256(token), owner, routine.id, Date.now())
+        .bind(await sha256Hex(token), owner, routine.id, Date.now())
         .run()
     } catch (e) {
       console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
@@ -546,11 +551,11 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private setting(key: string): string | null {
-    return this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
+    return getSetting(this.sql, key)
   }
 
   private putSetting(key: string, value: string): void {
-    this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value)
+    setSetting(this.sql, key, value)
   }
 
   private async memoryCall(op: MemoryOp): Promise<MemoryResult> {
@@ -584,7 +589,7 @@ export class UserDO extends DurableObject<Env> {
       case "set_model":
         if (op.model && !findProvider(op.model.provider)?.getModels().some((m) => m.id === op.model!.modelId)) return { ok: false, error: "no such model" }
         if (op.model) this.putSetting(MEMORY_MODEL, JSON.stringify(op.model))
-        else this.sql.exec("DELETE FROM settings WHERE key = ?", MEMORY_MODEL)
+        else deleteSetting(this.sql, MEMORY_MODEL)
         return { ok: true }
     }
   }
@@ -919,30 +924,44 @@ export class UserDO extends DurableObject<Env> {
 
   private async keyChanged(provider: string): Promise<void> {
     if (!providerUses(provider).judge) return
-    this.sql.exec("DELETE FROM settings WHERE key = ?", refusedKey(provider))
+    deleteSetting(this.sql, refusedKey(provider))
     await this.armCapture()
   }
 
   limits(): Limits {
-    const raw = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value
+    const raw = this.setting("limits")
     return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
   }
 
   setLimits(patch: Partial<Limits>): Limits {
-    const next = { ...JSON.parse(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value ?? "{}"), ...patch }
-    this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('limits', ?)", JSON.stringify(next))
+    const next = { ...JSON.parse(this.setting("limits") ?? "{}"), ...patch }
+    this.putSetting("limits", JSON.stringify(next))
     return this.limits()
   }
 
-  takeAutonomous(): AutonomousAnswer {
+  /** One run nobody's message started, paid once per wake id however often the room asks (section 25.5). */
+  takeAutonomous(id: string): AutonomousAnswer {
     const now = Date.now()
-    const key = `autonomous:${utcDay(now)}`
+    const day = utcDay(now)
+    const key = `autonomous:${day}`
     const used = Number(this.setting(key) ?? 0)
+    if (this.sql.exec("SELECT 1 FROM autonomous_taken WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
     const lastSeen = this.setting(LAST_SEEN)
     const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
-    if (answer.ok) this.putSetting(key, String(answer.used))
-    else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
+    if (answer.ok) {
+      this.putSetting(key, String(answer.used))
+      this.sql.exec("DELETE FROM autonomous_taken WHERE day != ?", day)
+      this.sql.exec("INSERT OR IGNORE INTO autonomous_taken (id, day) VALUES (?, ?)", id, day)
+    } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
     return answer
+  }
+
+  /** The agent refused the wake `id`: the run it paid for goes back to today's count. */
+  refundAutonomous(id: string): void {
+    const day = utcDay(Date.now())
+    if (!this.sql.exec("DELETE FROM autonomous_taken WHERE id = ? AND day = ?", id, day).rowsWritten) return
+    const key = `autonomous:${day}`
+    this.putSetting(key, String(Math.max(0, Number(this.setting(key) ?? 0) - 1)))
   }
 
   private seen(): void {
@@ -951,17 +970,7 @@ export class UserDO extends DurableObject<Env> {
     const wasAway = last > 0 && now - last > this.limits().awayDays * 86_400_000
     if (now - last < 3_600_000) return
     this.putSetting(LAST_SEEN, String(now))
-    if (wasAway) this.sql.exec("DELETE FROM settings WHERE key = ?", AWAY_NOTICE)
-  }
-
-  private async budgetNotice(roomId: RoomId): Promise<void> {
-    const day = utcDay(Date.now())
-    const key = `budget_notice:${roomId}`
-    if (this.setting(key) === day) return
-    this.putSetting(key, day)
-    await roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId)
-      .systemNotice(`budget:${day}`, BUDGET_LINE("your account"))
-      .catch(() => {})
+    if (wasAway) deleteSetting(this.sql, AWAY_NOTICE)
   }
 
   private async awayNotice(now: number): Promise<void> {
@@ -975,15 +984,15 @@ export class UserDO extends DurableObject<Env> {
   takeTurn(): TurnAnswer {
     const now = Date.now()
     const key = `turns:${utcDay(now)}`
-    const used = Number(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? 0)
+    const used = Number(this.setting(key) ?? 0)
     const answer = takeTurn(used, this.limits(), now)
-    if (answer.ok) this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", key, String(answer.used))
+    if (answer.ok) this.putSetting(key, String(answer.used))
     return answer
   }
 
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
-      this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
+      getSetting(this.sql, key)
     const limits = setting("limits")
     const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
     return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.captures() }, agent)
@@ -1112,7 +1121,7 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "open") {
-      this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", LAST_CHAT, frame.roomId)
+      this.putSetting(LAST_CHAT, frame.roomId)
       return
     }
     if (frame.t === "extension") {
@@ -1286,7 +1295,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private lastChat(): RoomId | undefined {
-    const stored = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", LAST_CHAT).toArray()[0]?.value
+    const stored = this.setting(LAST_CHAT)
     const chat = stored ? getChat(this.sql, stored) : null
     return chat && !chat.temp ? chat.roomId : (yukiChatRoom(this.sql) ?? undefined)
   }
