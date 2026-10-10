@@ -1,6 +1,11 @@
-// Architecture section 17.7, P9-01. A plan is one record. Every limit number lives here and in the
-// stored record, nowhere else. `UserDO` keeps the record and counts turns per UTC day; the room asks
-// before it delivers a human burst, and a refused burst starts no run.
+import { nextReset, utcDay } from "../room/limits"
+
+// Architecture section 17.7, P9-01. A plan is one record of the limits that are per user. `UserDO`
+// keeps the record and counts turns per UTC day; the room asks before it delivers a human burst, and
+// a refused burst starts no run. The loop limits of one room (hops, deliveries per root, runs a day)
+// are not per user and live only in room/limits.ts.
+
+export { nextReset, utcDay }
 
 export type Limits = {
   plan: string
@@ -12,8 +17,6 @@ export type Limits = {
   awayDays: number
   storageBytes: number
   membersPerRoom: number
-  hops: number
-  deliveriesPerRoot: number
 }
 
 /** ASSUMPTION: the free plan's numbers. */
@@ -24,15 +27,7 @@ export const DEFAULT_LIMITS: Limits = {
   awayDays: 7,
   storageBytes: 1024 * 1024 * 1024,
   membersPerRoom: 8,
-  hops: 8,
-  deliveriesPerRoot: 40,
 }
-
-/** `2026-10-02`, the UTC day a count belongs to. */
-export const utcDay = (now: number) => new Date(now).toISOString().slice(0, 10)
-
-/** Epoch ms of the next UTC midnight, when the counts reset. */
-export const nextReset = (now: number) => Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate() + 1)
 
 /** The stored record over the defaults. Unknown keys and non-numbers are ignored. */
 export function resolveLimits(stored: Partial<Limits> | null): Limits {

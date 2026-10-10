@@ -25,8 +25,11 @@ export function checkSend(hop: number, delivered: number, recipients: number): S
 	return { ok: true }
 }
 
-/** The UTC day of `now`, as `yyyy-mm-dd`. The daily counter is keyed by it. */
+/** The UTC day of `now`, as `yyyy-mm-dd`. Every daily counter is keyed by it. */
 export const utcDay = (now: number): string => new Date(now).toISOString().slice(0, 10)
+
+/** Epoch ms of the next UTC midnight, when the daily counters reset. */
+export const nextReset = (now: number): number => Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate() + 1)
 
 /** Whether one more autonomous run may start, given the runs counted for `day`. A new day starts at 0. */
 export function autonomousRunAllowed(counter: { day: string; runs: number } | null, day: string): boolean {
