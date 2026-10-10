@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-142 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+144 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -18,6 +18,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P13-04](wave-00/P13-04-give-helpers-the-chat-s-memory.md) | Give helpers the chat's memory | backend | 2 | none | yes |
 | [P13-05](wave-00/P13-05-retry-a-summary-whose-call-failed.md) | Retry a summary whose call failed | backend | 2 | none | yes |
 | [P14-01](wave-00/P14-01-composio-as-the-tier-1-integration.md) | Composio as the tier 1 integration | backend | 3 | none | no |
+| [P15-01](wave-00/P15-01-facts-with-sources-replacement-and-a-card.md) | Facts with sources, replacement, and a card | backend | 4 | none | no |
+| [P15-02](wave-00/P15-02-team-fixes-from-the-bops-comparison.md) | Team fixes from the bops comparison | backend | 2 | none | yes |
 
 ## Wave 1
 
