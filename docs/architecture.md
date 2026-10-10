@@ -747,32 +747,51 @@ Vector search is added only if `recall`'s keyword search proves too weak. Nothin
 
 ### 13.6 Capture, replacement, and Jev
 
-Phase 15, after comparing yuki with bops, memoryrepo, and Honcho on 2026-10-10.
+Phase 15, after comparing yuki with bops, memoryrepo, and Honcho on 2026-10-10. Judge-only capture came after a token-cost measurement the same day.
 
-**Decision.** Yuki keeps its own memory in `UserDO` SQLite. It takes four ideas from those systems: facts come from what the human says, a correction replaces the old fact, every fact knows the message it came from, and a short card of stable facts leads the life view. Jev (TypeSafe) is an optional judge.
+**Decision.** Yuki keeps its own memory in `UserDO` SQLite. It takes four ideas from those systems: facts come from what the human says, a correction replaces the old fact, every fact knows the message it came from, and a short card of stable facts leads the life view. Jev (TypeSafe) is an optional judge. Automatic capture runs only when a judge is connected.
 
 **Why not Honcho.** Honcho is AGPL-3.0, needs Postgres with pgvector and Redis, and reads one model key from its server config (`src/llm/credentials.py`). It cannot run on Workers, and it cannot use each user's own key. Hosted Honcho would send every chat to another company. Its good ideas fit in a few hundred lines here.
 
+**Judge-only capture.** Base-path capture without a judge cost too much for what it found. Measured with Muse Spark 1.3 on 2026-10-10 by `bun yuki verify token-cost`: in a 30-turn chat, capture made 4 to 7 background model calls and found no new fact. Background spend rose from 1,179 to 8,076 and 18,557 tokens, while the agent's own spend stayed flat (44,838 and 41,250 against 45,027). UNVERIFIED beyond these runs.
+
+So the `capture` field of `memory_policy` has three values:
+
+- `auto` (default). Capture runs only when a judge is connected. Without one, agents keep the `note` rule at no extra cost.
+- `always`. Capture runs on the base path when there is no judge, for users who want it.
+- `off`. No automatic capture. `note` still saves facts.
+
 **Capture.** `RoomDO` hands each delivered burst's human messages to `UserDO.captureHuman`. Private chats hand nothing. `UserDO` queues them (`capture_queue`) and works in its own wakeup, never on the path of a reply.
 
-- With a TypeSafe key, code splits each message into sentences and one Jev request judges all of them. Per sentence it asks: worth keeping for months, private, a standing rule for how to help, a card tag, and, for each known fact nearby, "says the same" and "makes it no longer true". The kept sentence is stored word for word, so Jev picks text and never writes it. A first version asked one choice over every known fact. Two copies of "lives in Bangalore" split the replace vote 0.41 and 0.10, and "new" won at 0.49. One yes or no per fact fixed it, and a correction now replaces every copy.
-- Without one, the memory model reads a batch (12 messages, or the oldest 10 minutes old) and answers in a four-line format: new, same, replaces, with an optional card tag. Each fact names the message it came from.
-- Nearby facts are keyword matches, then the card, then the newest facts. A correction often shares no word with what it corrects ("i moved to pune" against "lives in Bangalore").
-- `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. Its rule says the human's own words are saved without it. A note carries the ref of the human message it answers.
+A sentence that ends in "?" or opens with a question or request word never reaches a judge or a model. Questions and requests to the agent are not facts.
 
-**Replacement and forgetting.** `life` gains `ref`, `superseded_by`, and `card`. A replaced line leaves recall and the card, and the summaries above it rebuild. Deleting or editing a message redacts every line with its ref, and an edit is queued again. A redacted correction brings back what it replaced. A rollup's ref is its turn span, so a deleted turn takes its rollup too.
+- With a judge, code splits each message into sentences and one request judges all of them. Per sentence it asks: worth keeping for months, private, a standing rule for how to help, a card tag, and, for each nearby fact, "says the same" and "makes it no longer true". Each question points at the sentence data by a backticked path into the classifier `state`, which is written once, so the text is not repeated per question. The kept sentence is stored word for word, so the judge picks text and never writes it. A first version asked one choice over every known fact. Two copies of "lives in Bangalore" split the replace vote 0.41 and 0.10, and "new" won at 0.49. One yes or no per fact fixed it, and a correction now replaces every copy.
+- Privacy: a diagnosis, condition, or medication is private. Food allergies and diets, a city, an employer, or a job are not.
+- The judge is pi-ai's own `typesafe` classifier provider (api `typesafe-system-one`, model from the pi-ai catalog). Yuki adds no client and no model list.
+- Under `always` without a judge, the memory model reads a batch (12 messages, or the oldest 10 minutes old) and answers in a four-line format: new, same, replaces, with an optional card tag. Each fact names the message it came from.
+- Nearby facts are keyword matches, then the card, then the newest facts. A correction often shares no word with what it corrects ("i moved to pune" against "lives in Bangalore").
+
+**The note rule.** `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. The rule is chosen per run. With capture active, it says the human's own words are saved without `note`. Otherwise the agent gets the original rule, which asks it to call `note` for lasting facts from the human too. ASSUMPTION: the no-capture wording is not yet in `packages/memory/src/tools.ts`, which still has one wording. A note carries the ref of the human message it answers.
+
+**Judge availability.** Settings decides "model provider" from the pi-ai catalog's chat models, and "judge" from its classifier models. Neither list has a hardcoded id. A provider is a judge when the catalog gives it classifier models and the user has a credential. Every judgment reads the credential when it runs, so adding or removing a key mid-session changes the next capture and nothing else. A key the API refuses is marked, and Settings says "Key refused". Under `auto`, capture then stops and `note` carries the facts. Under `always`, capture takes the base path. Any judge failure returns no answer, and the caller falls back the same way.
+
+**Replacement and forgetting.** `life` gains `ref`, `superseded_by`, and `card`. `note` gains an optional `replaces`, a life id such as `life:12`, so a user without a judge still gets corrections that replace the old fact. A replaced line leaves recall and the card, and the summaries above it rebuild. Deleting or editing a message redacts every line with its ref, and an edit is queued again. A redacted correction brings back what it replaced. A rollup's ref is its turn span, so a deleted turn takes its rollup too.
 
 **The card.** Pinned lines, then card-tagged lines, newest first, at most 12, at the top of the life view. A card line is one unlikely to change within six months (Honcho's rule). `recall` leaves card lines out, since every fresh block shows them.
 
-**Recall reads nothing twice.** `recall` leaves out chat lines that are verbatim in the agent's context and lines it already returned since the context last started fresh, and says so in one line. With Jev, more than six hits are reranked and weak ones dropped.
+**Recall reads nothing twice.** `recall` leaves out chat lines that are verbatim in the agent's context and lines it already returned since the context last started fresh, and says so in one line. With a judge, more than six hits are reranked and weak ones dropped.
 
-**Jev is dynamic.** The key is a provider credential (`typesafe`), sealed like any other and listed in Settings. It is not a model provider and never counts as one. Every judgment reads the key when it runs, so adding or removing it mid-session, with agents running, changes the next capture and nothing else. A key the API refuses is marked, Settings says "Key refused", and capture takes the base path. Any Jev failure returns no answer and the caller takes the base path. DEVIATION: this is the one credential kind not taken from pi-ai. It adds no model list and no chat adapter.
+**Policy.** Thresholds, timings, and the `capture` field are one user setting, `memory_policy`, merged over defaults in `packages/memory/src/capture.ts`, so they change without a deploy.
 
-**Policy.** Thresholds and timings are one user setting, `memory_policy`, merged over defaults in `packages/memory/src/capture.ts`, so they change without a deploy.
+**Measured, 2026-10-10.**
 
-**Measured, 2026-10-10.** `bun yuki verify memory-jev` with Muse Spark 1.3 and the real Jev API passed all eight steps in 45 s: base capture, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister is a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key falling back and shown in Settings, and capture continuing after the key was removed. A Jev capture request of 20 questions took 290 to 400 ms.
+- `bun yuki verify memory-jev` with Muse Spark 1.3 and the real Jev API passed all eight steps in 45 s: base capture, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister is a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key falling back and shown in Settings, and capture continuing after the key was removed.
+- `bun yuki verify memory-edge` covers private chats, capture off, edits, two chats at once, a repeated fact, a key added while capture is queued, and deleting a correction. Those seven passed in three rounds on 2026-10-10.
+- UNVERIFIED: the long-message, rerank, and group-chat cases of `memory-edge`. They are being rerun.
+- UNVERIFIED after the `state` change: a judge request of 20 questions took 290 to 400 ms before it.
 
-**Not done.** Dreaming (a rare rewrite of the whole log) waits until evals show duplicates that capture misses. A Jev check before each run and Jev burst-end detection were left out, because both put a network call in front of the agent's first token.
+**Not done.** Dreaming (a rare rewrite of the whole log) waits until evals show duplicates that capture misses. A judge check before each run and judge burst-end detection were left out, because both put a network call in front of the agent's first token.
+
 
 ## 14. Reminders and scheduling
 
