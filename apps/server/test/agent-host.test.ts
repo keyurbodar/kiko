@@ -254,3 +254,11 @@ test("the request id depends on the ids and their order only", async () => {
     '<system-event reason="reminder">\nstand up &lt;now&gt;\n</system-event>',
   )
 })
+
+test("an idle check that began before a human batch was drained does not wipe its authority", async () => {
+  const a = await agent()
+  await a.receive([human("first")])
+  await until(a.status, settled(1))
+  const { origin } = await a.call<{ origin: string }>({ op: "stale-idle", envelope: human(`${SLOW} second`) })
+  expect(origin).toBe("human")
+})

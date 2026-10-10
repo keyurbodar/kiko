@@ -26,6 +26,7 @@ type Body =
   | { op: "epoch" }
   | { op: "human-coming" }
   | { op: "begins" }
+  | { op: "stale-idle"; envelope: Envelope }
   | { op: "joined" }
   | { op: "fresh-starts"; set?: number }
 
@@ -83,6 +84,25 @@ export class T extends AgentDO {
     if (body.op === "human-coming") {
       await this.humanComing()
       return Response.json({ ok: true })
+    }
+    if (body.op === "stale-idle") {
+      // An idle check whose snapshot is taken before a human batch is drained, as watchIdle does.
+      const host = this.host as unknown as { open(): Promise<{ harness: { inspect(c: unknown): Promise<unknown> } }>; drain(o: unknown): Promise<void>; pulse(h: unknown): Promise<void>; authority(): { origin: string }; receive(e: Envelope[], b: string): Promise<unknown> }
+      const opened = await host.open()
+      const inspect = opened.harness.inspect.bind(opened.harness)
+      let armed = true
+      opened.harness.inspect = async (c) => {
+        const live = await inspect(c)
+        if (armed) {
+          armed = false
+          await host.receive([body.envelope], "")
+          await host.drain(opened)
+        }
+        return live
+      }
+      await host.pulse(opened.harness)
+      opened.harness.inspect = inspect
+      return Response.json({ origin: host.authority().origin })
     }
     if (body.op === "begins") return Response.json({ begins: (await this.ctx.storage.get<number>("begins")) ?? 0 })
     if (body.op === "joined") return Response.json({ joined: (await this.ctx.storage.get<number[]>("joined")) ?? null })
