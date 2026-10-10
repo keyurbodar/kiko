@@ -1,3 +1,4 @@
+import { sha256Hex } from "@yuki/durable/hash"
 // Architecture section 7.10. Each of the user's agents has a soul: one short markdown file that says
 // who it is and how it works with this person. The agent reads it in its system prompt on every
 // request and keeps it current itself, at /me/soul.md; the human edits it in the app. It lives in
@@ -36,11 +37,6 @@ export type SoulWrite = { ok: true; soul: Soul } | { ok: false; code: "conflict"
 
 type Row = { body: string; sha: string; at: number }
 
-async function sha(body: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body))
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
-}
-
 export class Souls {
   constructor(private readonly sql: SqlStorage) {
     sql.exec("CREATE TABLE IF NOT EXISTS souls (slug TEXT PRIMARY KEY, body TEXT NOT NULL, sha TEXT NOT NULL, at INTEGER NOT NULL)")
@@ -65,7 +61,7 @@ export class Souls {
   async seed(slug: string, body: string): Promise<Soul> {
     const found = this.row(slug)
     if (found) return found
-    const soul = { body: body.slice(0, MAX_SOUL), sha: await sha(body.slice(0, MAX_SOUL)), at: Date.now() }
+    const soul = { body: body.slice(0, MAX_SOUL), sha: await sha256Hex(body.slice(0, MAX_SOUL)), at: Date.now() }
     this.sql.exec("INSERT INTO souls (slug, body, sha, at) VALUES (?, ?, ?, ?)", slug, soul.body, soul.sha, soul.at)
     return soul
   }
@@ -78,7 +74,7 @@ export class Souls {
     }
     const current = await this.get(slug)
     if (current.sha !== expectSha) return { ok: false, code: "conflict", message: "your soul changed since you read it (the human edited it). read it again." }
-    const soul = { body, sha: await sha(body), at: Date.now() }
+    const soul = { body, sha: await sha256Hex(body), at: Date.now() }
     this.sql.exec("UPDATE souls SET body = ?, sha = ?, at = ? WHERE slug = ?", soul.body, soul.sha, soul.at, slug)
     return { ok: true, soul }
   }

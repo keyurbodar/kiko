@@ -1,3 +1,4 @@
+import { toHex } from "@yuki/durable/hash"
 import type { Context } from "@earendil-works/chord"
 import type { Message } from "@earendil-works/pi-ai"
 import {
@@ -97,9 +98,7 @@ export function taints(m: Message): boolean {
   return (m.role === "user" && TAINTED_ENVELOPE.test(textOf(m))) || (m.role === "toolResult" && UNTRUSTED_BLOCK.test(textOf(m)))
 }
 
-const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")
-
-const nonceFor = (api: HookApi, context: Context) => api.memo<string>("trust:nonce", hex(crypto.getRandomValues(new Uint8Array(16))), context)
+const nonceFor = (api: HookApi, context: Context) => api.memo<string>("trust:nonce", toHex(crypto.getRandomValues(new Uint8Array(16))), context)
 
 async function wrapResult(result: ToolExecutionResult, source: string, api: HookApi, context: Context): Promise<ToolExecutionResult> {
   const parts = result.content ?? []
