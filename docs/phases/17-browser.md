@@ -16,7 +16,7 @@ These become architecture section 26 in P17-01. Each task fills in its part.
 
 ### One browser per user, one tab per agent
 
-A tab is free. A browser costs a create (0.25 to 0.75 s), one of the user's Kernel slots, and one of Kernel's 10 creates per minute. So the user's agents share one browser, and each agent works in its own tabs.
+Every limit and every cent here is the user's own. Each user's browsers run on their own Kernel key and account, and yuki has no Kernel account of its own. A tab is free. A browser costs a create (0.25 to 0.75 s), one of the user's Kernel slots, and one of Kernel's 10 creates per minute. So the user's agents share one browser, and each agent works in its own tabs.
 
 Sharing one browser also settles three other problems. Every agent sees the same logins, because they share one profile. Only one browser writes the profile, and Kernel does not merge concurrent saves, so there is never a second writer. And the human has one live view that shows every agent's work.
 
