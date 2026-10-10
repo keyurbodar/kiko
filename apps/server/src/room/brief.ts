@@ -1,3 +1,4 @@
+import { escapeXml } from "@yuki/agent/text"
 import type { Task } from "@yuki/protocol"
 import type { MemberRow } from "./members"
 import { briefTasks } from "./workspace"
@@ -26,8 +27,7 @@ export type BriefView = {
 	proposal?: string
 }
 
-/** Message text is escaped, so it cannot close the `<context>` block or forge a tag (section 16.2). */
-const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+/** Message text is escaped with `escapeXml`, so it cannot close the `<context>` block or forge a tag (section 16.2). */
 const oneLine = (text: string) => {
 	const flat = text.replace(/\s+/g, " ").trim()
 	return flat.length > MAX_LINE ? `${flat.slice(0, MAX_LINE)}...` : flat
@@ -60,8 +60,8 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 	lines.push("your tasks:")
 	if (view.tasks.length) for (const t of view.tasks) lines.push(`- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`)
 	else lines.push("- none")
-	if (view.proposal) lines.push(escape(view.proposal))
-	if (view.reactions) lines.push(escape(view.reactions))
+	if (view.proposal) lines.push(escapeXml(view.proposal))
+	if (view.reactions) lines.push(escapeXml(view.reactions))
 	return lines.join("\n")
 }
 

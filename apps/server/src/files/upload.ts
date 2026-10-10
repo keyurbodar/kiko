@@ -1,3 +1,4 @@
+import { sha256Stream } from "@yuki/durable/hash"
 import { type Actor, isRoomId } from "@yuki/protocol"
 import type { Env } from "../index"
 import { addressRoom, userStub } from "../lib/names"
@@ -91,10 +92,6 @@ function mime(raw: unknown): string {
 	return /^[a-z0-9][\w.+-]*\/[\w.+-]+$/.test(type) ? type : "application/octet-stream"
 }
 
-function hex(buffer: ArrayBuffer): string {
-	return Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, "0")).join("")
-}
-
 function contentLength(request: Request): number | null {
 	const raw = request.headers.get("content-length")
 	const n = raw === null ? Number.NaN : Number(raw)
@@ -124,12 +121,6 @@ export async function refuse(bucket: R2Bucket, userId: string, size: number): Pr
 	if (size > MAX_FILE_BYTES) return error(413, "file too large")
 	if ((await usedBytes(bucket, userId)) + size > STORAGE_LIMIT_BYTES) return error(413, "storage limit reached")
 	return null
-}
-
-async function sha256Of(stream: ReadableStream): Promise<string> {
-	const digest = new crypto.DigestStream("SHA-256")
-	await stream.pipeTo(digest)
-	return hex(await digest.digest)
 }
 
 /** Indexes a stored object in its space and deletes whatever the space no longer points to. */
@@ -177,7 +168,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 			httpMetadata: { contentType: type },
 			customMetadata: { path },
 		}),
-		sha256Of(toHash),
+		sha256Stream(toHash),
 	])
 	return index(env, userId, roomId, { id, path, r2Key: key, size: length, type, sha256, author: HUMAN, expectSha256 })
 }
@@ -252,7 +243,7 @@ async function complete(
 		return error(413, object.size > MAX_FILE_BYTES ? "file too large" : "storage limit reached")
 	}
 	// R2 cannot hash across parts for us, so the Worker reads the object once.
-	const sha256 = await sha256Of(object.body)
+	const sha256 = await sha256Stream(object.body)
 	const type = mime(object.httpMetadata?.contentType)
 	const expectSha256 = expectOf(object.customMetadata?.expect)
 	if (!expectSha256) return error(400, EXPECT_ERROR)
