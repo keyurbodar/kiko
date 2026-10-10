@@ -85,6 +85,10 @@ async function user(v: Parameters<Suite["run"]>[0], arm: Arm, tag: string) {
   return {
     s,
     channel,
+    // With no judge only the summary pass opens a loop from a sentence (proved in initiative-loops), so this puts it there.
+    roll: async (roomId: string, text: string, due: string | null = null) => {
+      if (!arm.jev) await dev(v.url, s.cookie, "loops", { open: { roomId, text, due } })
+    },
     rhythm: () => call({ action: "rhythm", mode: "now" }),
     age: (ms: number) => call({ action: "age", ms }),
     pass: async () => {
@@ -140,6 +144,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const u = await user(v, arm, "d")
     const room = await openChat(u.channel, u.s, "trip")
     console.log(`       agent: ${(await say(room, `Heads up, I need to renew my US passport before my trip to Lisbon on ${inDays(10)}. Nothing to do right now.`)).slice(0, 140)}`)
+    await u.roll(room.id, "I need to renew my US passport before my trip to Lisbon")
     const loop = await poll("an open passport loop", 60_000, async () => (await u.loops()).find((l) => l.status === "open" && /passport/i.test(l.text)))
     await u.age(DAY)
     const before = agentMessages(room).length
@@ -189,6 +194,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const u = await user(v, arm, "b")
     const room = await openChat(u.channel, u.s, "admin")
     await say(room, `I have to file my tax return by ${inDays(1)} at 6pm.`)
+    await u.roll(room.id, "file my tax return", new Date(Date.now() + DAY).toISOString())
     const loop = await poll("an explicit tax loop", 60_000, async () => (await u.loops()).find((l) => l.status === "open" && /tax/i.test(l.text)))
     console.log(`       loop: L${loop.id} ${loop.kind}/${loop.certainty} due ${loop.due}`)
     await u.rhythm()
@@ -235,6 +241,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const u = await user(v, arm, "c")
     const room = await openChat(u.channel, u.s, "health")
     await say(room, `I have to call the dentist to move my appointment, by ${inDays(1)} at noon.`)
+    await u.roll(room.id, "call the dentist to move my appointment", new Date(Date.now() + DAY).toISOString())
     const loop = await poll("an explicit dentist loop", 60_000, async () => (await u.loops()).find((l) => l.status === "open" && /dentist/i.test(l.text)))
     await u.rhythm()
     let p: Pass | null = null
@@ -307,6 +314,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const u = await user(v, arm, "f")
     const room = await openChat(u.channel, u.s, "errands")
     await say(room, `I have to pick up my new glasses by ${inDays(1)} at 5pm.`)
+    await u.roll(room.id, "pick up my new glasses", new Date(Date.now() + DAY).toISOString())
     await poll("an open glasses loop", 60_000, async () => (await u.loops()).find((l) => l.status === "open" && /glasses/i.test(l.text)))
     await u.rhythm()
     await u.age(DAY)

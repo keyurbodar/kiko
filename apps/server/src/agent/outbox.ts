@@ -55,6 +55,14 @@ type Run = {
   bubbled: boolean
   toolStarted: boolean
   toolsRunning: number
+  quiet: boolean
+}
+
+/** A run started by a system event (routine, reminder, nudge) and no human message. Its text before a tool call is not posted. */
+const quietInput = (entry: EntryRecord): boolean => {
+  const content = (entry.model?.[0] as { content?: string | readonly { text?: string }[] } | undefined)?.content
+  const text = typeof content === "string" ? content : (content ?? []).map((p) => p.text ?? "").join("\n")
+  return text.includes("<system-event") && !text.includes("<context>message id")
 }
 
 const hasToolCall = (message: AssistantLike | undefined) => (message?.content ?? []).some((part) => part.type === "toolCall")
@@ -87,8 +95,11 @@ export class Outbox {
   }
 
   private taintPending = false
+  private nextQuiet = false
 
   private see(entry: EntryRecord | undefined): void {
+    if (entry?.kind === "pi.user" && this.run) this.run.quiet = this.run.quiet && quietInput(entry)
+    else if (entry?.kind === "pi.user") this.nextQuiet = quietInput(entry)
     const message = entry?.model?.[0] as Message | undefined
     if (!message || !taints(message)) return
     if (this.run) this.run.tainted = true
@@ -187,8 +198,10 @@ export class Outbox {
         run.bubbled = this.run.bubbled
         run.toolStarted = this.run.toolStarted
         run.toolsRunning = this.run.toolsRunning
+        run.quiet = this.run.quiet
       }
       for (const entry of entries) {
+        if (entry.kind === "pi.user") run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
         if (entry.id <= run.cursor) continue
         if (row.run_id !== liveId && entry.kind === "pi.user") break
         if (entry.model?.[0] && taints(entry.model[0])) run.tainted = true
@@ -200,9 +213,11 @@ export class Outbox {
       if (row.run_id !== liveId) await this.end(row.run_id)
     }
     if (liveId && this.run?.id !== liveId) {
-      const input = entries.findLast((e) => e.kind === "pi.user")?.id ?? 0
+      const last = entries.findLast((e) => e.kind === "pi.user")
+      const input = last?.id ?? 0
       await this.start(liveId, input)
       const run = this.run!
+      run.quiet = last ? quietInput(last) : false
       for (const entry of entries) {
         if (entry.id >= input && entry.model?.[0] && taints(entry.model[0])) run.tainted = true
         if (entry.id > input) this.finishGeneration(run, entry)
@@ -228,6 +243,7 @@ export class Outbox {
     this.sql.exec("INSERT OR IGNORE INTO outbox (run_id, attempt, cursor, blocks, posted) VALUES (?, 0, ?, '[]', 0)", id, cursor)
     const row = this.sql.exec<Row>("SELECT * FROM outbox WHERE run_id = ?", id).one()
     this.run = this.load(row)
+    this.run.quiet = this.nextQuiet
     if (this.taintPending) this.run.tainted = true
     this.taintPending = false
     await this.setStatus("typing")
@@ -236,7 +252,7 @@ export class Outbox {
   private async stream(text: string): Promise<void> {
     const run = this.run
     const generation = run?.generation
-    if (!run || !generation) return
+    if (!run || !generation || run.quiet) return
     if (!text.startsWith(generation.fed)) return
     const out = generation.splitter.push(text.slice(generation.fed.length))
     generation.fed = text
@@ -267,6 +283,7 @@ export class Outbox {
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
+    if (run.quiet && hasToolCall(message)) return false
     const { blocks: final, reactions } = partsOf(textOf(message))
     run.blocks.push(...final)
     run.reactions.push(...reactions)
@@ -333,6 +350,7 @@ export class Outbox {
       bubbled: false,
       toolStarted: false,
       toolsRunning: 0,
+      quiet: false,
     }
   }
 

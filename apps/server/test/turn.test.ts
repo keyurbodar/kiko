@@ -119,6 +119,14 @@ test("a run started by a tainted envelope posts every bubble as tainted, and a h
   expect(clean.every((p) => p.tainted === false)).toBe(true)
 }, 30_000)
 
+test("a system-event run posts only the final turn, not the note before a tool call", async () => {
+  const a = await agent()
+  await a.receive([{ ...human("check the board"), id: `system:t${n}`, from: { kind: "system", reason: "routine" } as Envelope["from"] }])
+  const quiet = posts(await until(a.calls, ended))
+  expect(quiet.map((p) => p.block)).toEqual(blocksOf(BEFORE[1]!))
+  expect(quiet.some((p) => p.block === BEFORE[0])).toBe(false)
+}, 30_000)
+
 test("a crash after a finished turn keeps its bubble and resumes with the next turn", async () => {
   const a = await agent()
   await a.receive([human("hello")])
