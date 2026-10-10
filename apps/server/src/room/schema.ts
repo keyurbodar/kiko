@@ -173,6 +173,11 @@ const MIGRATIONS: readonly string[] = [
 	);
 	CREATE INDEX pending_uploads_created ON pending_uploads (created_at);
 	`,
+	`
+	-- Who an agent's send_message or ask was for (an agent slug, or all), so the client folds agent mail by
+	-- fact and never by the text. Null on every other message, and on agent mail stored before.
+	ALTER TABLE messages ADD COLUMN addressed TEXT;
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

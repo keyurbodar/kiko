@@ -63,7 +63,7 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
     defineTool({
       name: "ask",
       description:
-        "ask one teammate a question and wait for the answer, which comes back as this tool's result. use it when you need their answer to go on. it waits up to two minutes, and stops at once if the human writes.",
+        "ask one teammate a question and wait for the answer, which comes back as this tool's result. use it when you need their answer to go on. it waits up to two minutes, and stops at once if the human writes. to ask several teammates, call ask once per teammate in the same reply, and they wait together.",
       parameters: Type.Object({ to: slug("the agent's slug, without @"), question: Type.String() }),
       replay: "safe",
       execute: async ({ to, question }, api) => {

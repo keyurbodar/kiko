@@ -12,10 +12,14 @@ import type { Approval } from "@yuki/protocol"
  * room's `approval` event confirms it.
  */
 
-/** What the agent wants, in one plain line. Executor tools read as the human's connected apps. */
-function title(a: Approval): string {
+/**
+ * What the agent wants, in one plain line. Executor tools read as the human's connected apps. A yes
+ * to a card with `grantMs` lets the agent use every tool outside yuki for that long (architecture
+ * section 16.3), so the line says so and names the first one.
+ */
+export function title(a: Approval): string {
   const apps = a.tool.startsWith("executor_")
-  if (a.grantMs) return `${a.slug} wants to use ${apps ? "your connected apps" : a.tool.replace(/_/g, " ")} for ${Math.round(a.grantMs / 60_000)} minutes`
+  if (a.grantMs) return `${a.slug} wants to act outside yuki for ${Math.round(a.grantMs / 60_000)} minutes, starting with ${apps ? "your connected apps" : a.tool.replace(/_/g, " ")}`
   if (apps) return `${a.slug} wants to go ahead with an action in your connected apps`
   return `${a.slug} wants to use ${a.tool.replace(/_/g, " ")}`
 }

@@ -315,7 +315,7 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 | Tool | Who | Effect |
 | --- | --- | --- |
 | `send_message(to, text)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. To hand over a file, the agent names its path in the text: every agent in the room shares one file space. DEVIATION (2026-10-09): the `files` argument is removed (section 18.1) |
-| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`) |
+| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`). Several asks in one reply, to several teammates, wait together, since `pi-durable` runs a round's tool calls in parallel |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
@@ -329,6 +329,8 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 **Reasoning.** One place enforces the hop limit and the budgets. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
 
 Agent mail is queued in the room's `mail_queue` table before any delivery, one row per recipient, and drained in order for each recipient (`room/mail.ts`). The sender's `send_message` returns once the mail is stored; it never waits for another agent's inbox. A broadcast reaches every recipient at once. A failed delivery or a full inbox stays queued and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. Mail to a member the open human burst addresses waits for that burst. Mail to anyone else goes at once (section 7.8).
+
+The stored message records who it was for (`Message.to`: a slug, or `all`). The client folds a stretch of such messages into one collapsed thread by that field and never by the text, so a reply to the human that starts with a teammate's name stays in view.
 
 A plain reply bubble wakes nobody. Only `send_message`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
 
@@ -651,7 +653,7 @@ A human who declines does not call `resume`, so the program waits until Executor
 
 **One ok per task, not per step.** In code mode a task is many `execute` calls, each with new code. yuki's own card (section 25.3) is a 30-minute grant for that agent over every `external` tool, so one ok covers the task. A run the human started needs no yuki card at all. Executor's own approvals still stop every action an app marks for a person, and `resume` answers only to its own pause card, bound to the `requestId`, never to a grant (`room/approvals.ts`).
 
-The card above the composer shows only while it waits, as one line: "yuki wants to use your connected apps for 30 minutes", with the raw call behind "details".
+The card above the composer shows only while it waits, as one line: "yuki wants to act outside yuki for 30 minutes, starting with your connected apps", with the raw call behind "details". A yes covers every outside tool for that agent, so the line says so.
 
 This gate is the only Executor-specific code in yuki. It keys on the tool name `resume` and on the paused result shape (`integrations/executor/approval.ts`).
 

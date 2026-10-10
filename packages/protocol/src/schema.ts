@@ -112,6 +112,7 @@ export const Message = Schema.Struct({
 	reactions: Schema.optionalKey(Schema.Array(Reaction)),
 	goto: Schema.optionalKey(RoomId),
 	quote: Schema.optionalKey(Schema.String),
+	to: Schema.optionalKey(Schema.Union([AgentSlug, Schema.Literal("all")])),
 })
 
 export const Member = Schema.Struct({

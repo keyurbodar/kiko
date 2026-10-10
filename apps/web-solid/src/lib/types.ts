@@ -103,6 +103,8 @@ export interface ChatMessage {
   goto?: string
   /** The words of the replied-to message this one answers, shown in its reply header. */
   quote?: string
+  /** The teammate, or "all", an agent's message was sent to. Absent on a reply meant for the human. */
+  to?: string
   /** Marks the message as pinned in its thread. */
   pinned?: boolean
   /**

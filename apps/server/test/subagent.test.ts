@@ -109,6 +109,48 @@ test("a teammate's answer from a tainted run taints the asker's run; a clean one
   expect(await askThenNote(false)).toBe("noted")
 })
 
+test("two asks in one reply, to two teammates, wait together and each gets its own answer", async () => {
+  let waiting = 0
+  let peak = 0
+  const port: MessagingPort = {
+    send: async () => ({ ok: true, to: [] }),
+    spawn: async () => ({ ok: false, error: "no" }),
+    ask: async (input) => ({ ok: true, to: [input.to as never] }),
+    askState: async () => null,
+    waitAnswer: async (id) => {
+      waiting++
+      peak = Math.max(peak, waiting)
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      waiting--
+      return { text: `answer for ${id.split(":").at(-1)}`, tainted: false }
+    },
+    closeAsk: async () => null,
+    humanWaiting: () => false,
+    team: async () => [],
+  }
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, messaging: () => port })
+  const faux = fauxProvider()
+  let results: string[] = []
+  faux.setResponses([
+    () =>
+      fauxAssistantMessage([fauxToolCall("ask", { to: "ada", question: "which port?" }), fauxToolCall("ask", { to: "bob", question: "which host?" })], { stopReason: "toolUse" }),
+    (r: Request) => {
+      results = (r.messages as Msg[]).filter((m) => m.role === "toolResult" && m.toolName === "ask").map((m) => (m.content ?? []).map((p) => p.text ?? "").join(""))
+      return fauxAssistantMessage("done")
+    },
+  ])
+  const models = createModels()
+  models.setProvider(faux.provider)
+  const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
+  const root = await harness.root(context, { agent: built.agent })
+  expect((await (await root.submit({ type: "input", content: "go" }, context)).wait(context)).status).toBe("done")
+  await harness.close(context)
+  expect(peak).toBe(2)
+  expect(results).toHaveLength(2)
+  expect(results.filter((r) => r.startsWith("@ada answered: ")).length).toBe(1)
+  expect(results.filter((r) => r.startsWith("@bob answered: ")).length).toBe(1)
+})
+
 test("helpers called in one reply run side by side, at most three at a time", async () => {
   const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } })
   const faux = fauxProvider()
@@ -141,6 +183,67 @@ test("helpers called in one reply run side by side, at most three at a time", as
   await harness.close(context)
   expect(peak).toBe(3)
   expect(answers.sort()).toEqual(["answer to task 1", "answer to task 2", "answer to task 3", "answer to task 4"])
+})
+
+test("a helper call waiting for a slot leaves the queue when its run is aborted, and the slots are all free afterwards", async () => {
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } })
+  const faux = fauxProvider()
+  const wait = <T>(p: Promise<T>, ms = 3000) => Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(new Error(`still waiting after ${ms} ms`)), ms))])
+  const started: string[] = []
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  let firstThree!: () => void
+  const threeHeld = new Promise<void>((resolve) => (firstThree = resolve))
+  let freshStarted = 0
+  let freshAll!: () => void
+  const freshMeet = new Promise<void>((resolve) => (freshAll = resolve))
+  const text = (m: Msg) => JSON.stringify(m.content ?? "")
+  const step = async (r: Request) => {
+    const messages = r.messages as Msg[]
+    const first = text(messages.find((m) => m.role === "user")!)
+    const task = /task \w+/.exec(first)?.[0]
+    if (task === undefined) {
+      const last = messages.map((m) => m.role).lastIndexOf("user")
+      const again = text(messages[last]!).includes("again")
+      if (messages.slice(last).some((m) => m.role === "toolResult")) return fauxAssistantMessage("done")
+      const tasks = again ? ["task f1", "task f2", "task f3"] : ["task a1", "task a2", "task a3", "task a4"]
+      return fauxAssistantMessage(tasks.map((t) => fauxToolCall("spawn_subagent", { task: t })), { stopReason: "toolUse" })
+    }
+    started.push(task)
+    if (task.startsWith("task f")) {
+      if (++freshStarted === 3) freshAll()
+      await freshMeet
+      return fauxAssistantMessage("fresh answer")
+    }
+    if (started.filter((t) => t.startsWith("task a")).length === 3) firstThree()
+    await held
+    return fauxAssistantMessage("late answer")
+  }
+  faux.setResponses(Array.from({ length: 30 }, () => step))
+  const models = createModels()
+  models.setProvider(faux.provider)
+  const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
+  const root = await harness.root(context, { agent: built.agent })
+  const run = await root.submit({ type: "input", content: "go" }, context)
+  await wait(threeHeld)
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  expect(started.sort()).toEqual(["task a1", "task a2", "task a3"])
+
+  // The abort waits for the busy helpers, so let it reach the run first, then free them: slots open while the run is going down.
+  const aborting = root.abort(context)
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  release()
+  await wait(aborting)
+  expect((await wait(run.wait(context))).status).not.toBe("done")
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  expect(started.filter((t) => t === "task a4")).toEqual([])
+
+  // The aborted run's three slots and its waiting call are all gone: three new helpers start together.
+  const again = await root.submit({ type: "input", content: "again" }, context)
+  expect((await wait(again.wait(context))).status).toBe("done")
+  expect(started.filter((t) => t.startsWith("task f")).sort()).toEqual(["task f1", "task f2", "task f3"])
+  expect(started).not.toContain("task a4")
+  await harness.close(context)
 })
 
 /** The chat's files in a map, with the room's rule: a write names the hash it read there, or "none". */

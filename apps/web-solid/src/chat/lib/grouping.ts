@@ -85,18 +85,8 @@ export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
   return gap >= 0 && gap <= MESSAGE_GROUPING_WINDOW_MS;
 }
 
-/**
- * The agent another agent's message opens by addressing, or undefined.
- *
- * ASSUMPTION: the client cannot see a message's hop count, so "agent to agent" is read from
- * the text: an agent's message that starts with `@<another member>` is spoken to that agent,
- * not to the human.
- */
-export function addressee(message: ChatMessage, members: ReadonlySet<string>): string | undefined {
-  if (message.sender !== "bot") return undefined;
-  const slug = /^\s*@([a-z0-9-]{1,32})(?![\w-])/i.exec(message.body)?.[1]?.toLowerCase();
-  return slug !== undefined && slug !== message.botId && members.has(slug) ? slug : undefined;
-}
+/** Who an agent's message was sent to: a teammate, "all", or undefined for a reply meant for the human. The room records it. */
+const addressee = (message: ChatMessage): string | undefined => (message.sender === "bot" ? message.to : undefined);
 
 type Entry =
   | { kind: "message"; message: ChatMessage; inThread: boolean }
@@ -122,7 +112,7 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
       close();
       out.push({ kind: "notice", notice: notices[n++] });
     }
-    const to = options.members ? addressee(message, options.members) : undefined;
+    const to = options.members ? addressee(message) : undefined;
     if (to === undefined) {
       close();
       out.push({ kind: "message", message, inThread: false });
@@ -133,7 +123,7 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
       thread = { kind: "thread", key, messages: [], slugs: [], expanded: options.expanded?.has(key) ?? false };
     }
     thread.messages.push(message);
-    for (const slug of [message.botId!, to]) if (!thread.slugs.includes(slug)) thread.slugs.push(slug);
+    for (const slug of [message.botId!, to]) if (slug !== "all" && !thread.slugs.includes(slug)) thread.slugs.push(slug);
   }
   close();
   while (n < notices.length) out.push({ kind: "notice", notice: notices[n++] });

@@ -324,6 +324,27 @@ test("add, rename, and remove members, with the limit of 8, and yuki always stay
   ws.ws.close()
 })
 
+test("agent mail records who it was for, so the client folds it by fact, and the human's message records nothing", async () => {
+  const { room, ws } = await team()
+  await ws.say("@ada start")
+  await delivered(room, "ada", 1)
+  await call(`/mail/${room}/ada`, { id: "m1", to: "bob", text: "over to you", tainted: false })
+  await call(`/mail/${room}/ada`, { id: "m2", to: "all", text: "heads up", tainted: false })
+  const late = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
+  const snapshot = await new Promise<RoomToClient>((resolve) => {
+    late.onopen = () => late.send(JSON.stringify({ t: "hello", lastSeq: 1_000_000 }))
+    late.onmessage = (e) => resolve(JSON.parse(String(e.data)))
+  })
+  late.close()
+  if (snapshot.t !== "reset") throw new Error(`expected a reset, got ${snapshot.t}`)
+  expect(snapshot.snapshot.messages.map((m) => [m.from.kind, m.text, m.to ?? null])).toEqual([
+    ["human", "@ada start", null],
+    ["agent", "@bob over to you", "bob"],
+    ["agent", "@all heads up", "all"],
+  ])
+  ws.ws.close()
+})
+
 test("the room stores only the latest status, and only for members", async () => {
   const { room, ws } = await team()
   await ws.until(() => ws.members().length === 4)
@@ -563,6 +584,37 @@ test("a question sent with ask never settles the asker's own open ask; asking ba
   // The same tool call replayed after a crash must not answer the new ask.
   await call(`/mail/${room}/bob`, { id: "x-answer", to: "ada", text: "8797", tainted: false })
   expect(await askOf(room, "x4")).toEqual({ state: "open", answer: null })
+  ws.ws.close()
+})
+
+test("one agent has two asks open at once, to two teammates, and each answer reaches the ask it belongs to", async () => {
+  const { room, ws } = await team()
+  const asked = (await Promise.all([
+    call(`/ask/${room}/ada`, { id: "m1", to: "bob", text: "which port?", tainted: false }),
+    call(`/ask/${room}/ada`, { id: "m2", to: "cy", text: "which host?", tainted: false }),
+  ])) as { ok: boolean }[]
+  expect(asked.map((a) => a.ok)).toEqual([true, true])
+  expect(await Promise.all([askOf(room, "m1"), askOf(room, "m2")])).toEqual([
+    { state: "open", answer: null },
+    { state: "open", answer: null },
+  ])
+  // cy answers first. Only cy's ask settles; bob's stays open.
+  await call(`/mail/${room}/cy`, { id: "m-cy", to: "ada", text: "localhost", tainted: false })
+  expect(await Promise.all([askOf(room, "m1"), askOf(room, "m2")])).toEqual([
+    { state: "open", answer: null },
+    { state: "answered", answer: "localhost" },
+  ])
+  await call(`/mail/${room}/bob`, { id: "m-bob", to: "ada", text: "8797", tainted: false })
+  expect(await Promise.all([askOf(room, "m1"), askOf(room, "m2")])).toEqual([
+    { state: "answered", answer: "8797" },
+    { state: "answered", answer: "localhost" },
+  ])
+  await until("both pushed answers", async () => (await received(room, "ada")).answers.length === 2)
+  const pushed = (await received(room, "ada")).answers
+  expect(pushed.find((a) => a.id === "m1")?.answer).toBe("8797")
+  expect(pushed.find((a) => a.id === "m2")?.answer).toBe("localhost")
+  // Neither answer was delivered to ada's inbox.
+  expect((await counts(room)).ada).toBe(0)
   ws.ws.close()
 })
 

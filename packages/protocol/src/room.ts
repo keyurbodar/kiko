@@ -61,6 +61,8 @@ export type Message = {
 	goto?: RoomId
 	/** The words of `replyTo` the sender picked to answer, as Telegram's quote does. */
 	quote?: string
+	/** The teammate an agent addressed with `send_message` or `ask`, or every other agent. Absent on a reply meant for the human. */
+	to?: AgentSlug | "all"
 }
 
 export type Member = {

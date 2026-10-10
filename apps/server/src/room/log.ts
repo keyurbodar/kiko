@@ -6,6 +6,7 @@
 
 import type {
 	Actor,
+	AgentSlug,
 	FileRef,
 	Message,
 	MessageId,
@@ -50,6 +51,7 @@ type MessageRow = {
 	deleted_at: number | null
 	goto: string | null
 	quote: string | null
+	addressed: string | null
 }
 
 export type NewMessage = {
@@ -67,6 +69,8 @@ export type NewMessage = {
 	quote?: string
 	/** Written by a run that read outside content (section 16). */
 	tainted?: boolean
+	/** The teammate, or all, an agent's send_message or ask was for. */
+	to?: AgentSlug | "all"
 }
 
 /** The stored form of an actor or sender: "human", "agent:<slug>", or "system:<reason>". */
@@ -261,6 +265,7 @@ export class RoomLog {
 				...(input.run ? { run: input.run } : {}),
 				...(input.goto ? { goto: input.goto } : {}),
 				...(input.quote ? { quote: input.quote } : {}),
+				...(input.to ? { to: input.to } : {}),
 			}
 			const event = this.append(actorKey(input.from), {
 				t: "message",
@@ -268,8 +273,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, tainted)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, tainted, addressed)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -284,6 +289,7 @@ export class RoomLog {
 				input.goto ?? null,
 				input.quote ?? null,
 				input.tainted ? 1 : 0,
+				input.to ?? null,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
@@ -414,6 +420,7 @@ export class RoomLog {
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(r.quote ? { quote: r.quote } : {}),
+			...(r.addressed ? { to: r.addressed as AgentSlug | "all" } : {}),
 			...(reactions.length ? { reactions } : {}),
 		}
 	}
