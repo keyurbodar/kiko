@@ -44,6 +44,8 @@ const TABLES = [
     at INTEGER NOT NULL,
     PRIMARY KEY (room_id, message_id)
   )`,
+  // Summary pages whose loop lines were applied: a retried page applies them once (section 26).
+  `CREATE TABLE IF NOT EXISTS nap_applied (id TEXT PRIMARY KEY, at INTEGER NOT NULL)`,
 ]
 
 export function migrate(sql: SqlStorage): void {

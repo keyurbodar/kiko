@@ -12,12 +12,23 @@ import { SNOOZE_MAX_MS } from "@yuki/memory/loops"
 //
 //   GET  /api/loops?room=<id>      the human's open and snoozed loops, optionally one chat's
 //   POST /api/loops/<id>           { action: "done" | "drop" } or { action: "snooze", until }
-//   GET  /api/settings             { initiative, capture }
-//   POST /api/settings             { initiative?, capture? }, each from a fixed list
+//   GET  /api/settings             { initiative, capture, timezone? }
+//   POST /api/settings             { initiative?, capture?, timezone? }, each from a fixed list or a known zone
 
 const ACTION = /^\/api\/loops\/(\d{1,12})$/
 const decodeAction = Schema.decodeUnknownSync(LoopAction)
 const decodePatch = Schema.decodeUnknownSync(UserSettingsPatch)
+
+/** True for a zone this runtime knows. A zone it does not would make every local date throw. */
+function knownZone(tz: string): boolean {
+  if (!tz || tz.length > 64) return false
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}
 
 const error = (status: number, message: string) => Response.json({ error: message }, { status })
 
@@ -35,11 +46,14 @@ export async function loopsRoute(request: Request, env: Env): Promise<Response |
   if (settings) {
     if (request.method === "GET") return Response.json(await stub.userSettings())
     if (request.method !== "POST") return error(405, "method not allowed")
+    let patch: UserSettingsPatch
     try {
-      return Response.json(await stub.setUserSettings(decodePatch(await request.json().catch(() => null))))
+      patch = decodePatch(await request.json().catch(() => null))
     } catch {
       return error(400, "initiative is off, chat, digest or active. capture is auto, always or off")
     }
+    if (patch.timezone !== undefined && !knownZone(patch.timezone)) return error(400, "timezone must be an IANA time zone, such as Europe/Berlin")
+    return Response.json(await stub.setUserSettings(patch))
   }
 
   if (!action) {

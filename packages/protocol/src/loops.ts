@@ -34,10 +34,14 @@ export const CAPTURE_MODES = ["auto", "always", "off"] as const
 export const UserSettings = Schema.Struct({
 	initiative: Schema.Literals(INITIATIVE_LEVELS),
 	capture: Schema.Literals(CAPTURE_MODES),
+	/** The human's IANA time zone, which the client sends from the browser. Absent until it does. */
+	timezone: Schema.optionalKey(Schema.String),
 })
 export type UserSettings = typeof UserSettings.Type
 export const UserSettingsPatch = Schema.Struct({
 	initiative: Schema.optionalKey(Schema.Literals(INITIATIVE_LEVELS)),
 	capture: Schema.optionalKey(Schema.Literals(CAPTURE_MODES)),
+	/** Checked against the runtime's zones by the route. */
+	timezone: Schema.optionalKey(Schema.String),
 })
 export type UserSettingsPatch = typeof UserSettingsPatch.Type
