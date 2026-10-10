@@ -1608,3 +1608,45 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; a c
 | `test/recurrence.test.ts` | `ruleProblem` passes the rule shapes people ask for and refuses, in microseconds, every shape `rrule` could loop on |
 | `bun yuki verify routines-scale` | 300 users with a routine due the same second: each runs exactly once, none lost (the last confirmed 26 s after the due time under `wrangler dev`) |
 | `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder with no card; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine; the check-in offers help with stale work and is quiet the second time; a nudge gets one short answer. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
+
+## 26. Initiative: open loops
+
+**Decision.** Yuki keeps the human's open loops: goals, plans, deadlines, things they wait on, and what an agent promised. Detection is judged by a model, never by cue words or a date parser. Saying nothing is the common case: this wave only remembers and informs the agent's own runs. When to speak up unasked is the next wave, the attention pass, which reads `Loops.candidates()`.
+
+**Reasoning.** The owner rejected regex cue lists and chrono-node (the first plan's D2 and D11). A model already reads every message, so the cheapest judge is the agent's own run, then Jev, then the summary call the memory already makes.
+
+### 26.1 The store
+
+`packages/memory/src/loops.ts`, table `loops` in `UserDO` beside the life log, with `loops_fts` (FTS5). A row has `kind` (goal, intention, commitment, waiting, project), `certainty` (explicit, tentative), `owner` (`human` or an agent slug), `room`, `ref` (the human message it came from, as life refs), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, `surfaced`, `ignored`, `tainted`, and `source` (tool, jev, nap).
+
+- `open` merges a repeat into the same loop: one the caller names (`same`), one with the same words, or a commitment from the same message (a promise kept as both a loop and a reminder). A merge never crosses owners, keeps the first words, can firm a tentative loop up and add a due time, and never softens an explicit one.
+- Deleting a message forgets the loops learned from it, as it forgets life lines.
+- A private chat keeps no loops.
+
+### 26.2 Three detectors, one write path
+
+1. **The agent's run.** The `loop` tool (open, close, list; effect `write`), selected in `factory.ts`, with a five-line rule (`LOOP_RULE` in `loop-tool.ts`): open on a stated goal, plan, deadline, or wait; open a commitment with `mine` for its own promise; close when done; never announce it. A reminder an agent sets for itself also opens its commitment. No extra model call.
+2. **Jev**, when the user saved a judge key. Each human burst is queued (`loop_heard`) and read 15 s later (ASSUMPTION: so a loop the run opened is there to merge with) in one batched classify: per sentence, a kind choice with `none`, an explicit or tentative bool, and per FTS-matched open loop a done, dropped, same, or other choice. A choice counts only when it holds most of the probability. Capture `off` turns it off.
+3. **The summary pass**, with no judge as well. When a room summarizes a page of raw turns, or rolls up a quiet chat, the same call also lists `loop + ...`, `loop done <id>`, and `loop dropped <id>` lines after its summary line (`napLoopsPrompt`). No extra call; a page is summarized once 48 turns follow it, so this net is slow on purpose.
+
+A tentative loop never becomes a reminder: no code path creates one from a loop, and the prompt and `create_reminder` say a reminder is only for an explicit ask or a yes to an offer.
+
+### 26.3 The judge service
+
+`apps/server/src/initiative/judge.ts`: `LoopJudge` is an Effect v4 `Context.Service` with `classifyBurst` and `worthNow` (for the next wave). `JevJudge` wraps the judge from `UserDO.judge`, so the key is read where it always was. `ModelFreeJudge` answers `unknown`, which leaves the decision to the agent's run. `JudgeUnavailable` falls back to model-free for that call.
+
+### 26.4 What a run starts with
+
+DEVIATION from the first plan: the lines are asked for by `AgentDO` when a run starts, not built by `RoomDO` at delivery. The room's delivery path stays untouched, so it never waits on `UserDO`, and the run start already asks `UserDO` for memory. `beginRun` starts `UserDO.initiativeBrief` while the run sets up; `inputContext` waits at most 1.5 s for it (ASSUMPTION) and adds a second `<context>` block (`initiativeBrief` in `room/brief.ts`):
+
+- `you owe:` the agent's own open commitments in this chat, at most three. Only this chat's: one from another chat made the real model set a duplicate reminder.
+- `related:` at most three open loops or life lines that bear on the burst. Without a judge, a line must share two keywords with it. With one, Jev asks "related?" over the keyword matches plus the newest open loops, so a related loop needs no shared word.
+
+### 26.5 Verification
+
+| Check | Proves |
+| --- | --- |
+| `test/loops.test.ts` | merge, firming, owners never merging, close, redaction; Jev answers to ops by majority; the summary pass's loop lines |
+| `bun yuki verify initiative-loops` | with Muse Spark 1.3, once with no judge and once with Jev: a stated deadline is an open explicit loop and makes no reminder; "maybe" is tentative and makes no reminder; the agent's promise is its commitment and its next run starts with `you owe:`; "finally done" closes the loop; a later chat starts with a `related:` line; the summary pass opens loops from seeded turns in its one call |
+
+Measured 2026-10-10: the summary call for a page with three loops took 506 input and 503 to 584 output tokens. UNVERIFIED: the same page without the loop part was not measured side by side. With Jev, a session of four bursts spent 6,050 Jev input tokens across capture, one loop classify, and four related checks, about $0.0003.

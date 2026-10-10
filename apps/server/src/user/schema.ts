@@ -35,6 +35,14 @@ const TABLES = [
     queued_at INTEGER NOT NULL,
     PRIMARY KEY (room_id, message_id)
   )`,
+  // Human bursts waiting for one Jev pass over open loops (section 26).
+  `CREATE TABLE IF NOT EXISTS loop_heard (
+    room_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (room_id, message_id)
+  )`,
 ]
 
 export function migrate(sql: SqlStorage): void {

@@ -15,7 +15,8 @@ import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { ChiefPort } from "./extensions/chief"
-import { shortBrief } from "../room/brief"
+import { initiativeBrief, shortBrief } from "../room/brief"
+import type { LoopPort } from "@yuki/memory/loop-tool"
 import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
 import { mergeRecall, RECALL_MAX, tagHits } from "./recall"
@@ -45,6 +46,9 @@ import { Outbox, type RoomPort } from "./outbox"
 const DEV_FAKE_KEY = "dev-fake"
 const DEV_CLASSIC_KEY = "dev-classic"
 const DEV_BUDGET_KEY = "dev:auto-budget-ms"
+const DEV_INITIATIVE_KEY = "dev:initiative"
+// ASSUMPTION: a run waits this long for its initiative lines. They are asked for while it sets up.
+const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
@@ -172,7 +176,16 @@ export class AgentDO extends DurableObject<Env> {
     const mine = async (id: string) => (await user().listReminders()).some((r) => r.id === id && r.roomId === home.roomId)
     const notHere = { ok: false as const, error: "no such reminder in this chat" }
     return {
-      create: async (input) => user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug, chain: await room().chainOf(home.slug) }),
+      create: async (input) => {
+        const out = await user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug, chain: await room().chainOf(home.slug) })
+        // A reminder an agent sets for itself is its promise to come back: it is owed until kept (section 26).
+        if (out.ok && out.reminder.target === home.slug && !out.reminder.rrule) {
+          await user()
+            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, tainted: false })
+            .catch(() => {})
+        }
+        return out
+      },
       list: async () => (await user().listReminders()).filter((r) => r.roomId === home.roomId),
       cancel: async (id) => {
         if (!(await mine(id))) return notHere
@@ -315,13 +328,14 @@ export class AgentDO extends DurableObject<Env> {
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
       env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
+        this.prefetchInitiative(batch)
         if (!(await this.beginRun(batch.requestId, root))) return false
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true
@@ -333,7 +347,8 @@ export class AgentDO extends DurableObject<Env> {
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
-        return [clock, down, learned, quiet, extensions].filter(Boolean).join("\n\n")
+        const initiative = await this.takeInitiative()
+        return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
       },
       // A tool another agent learned since this one opened shows up at its next run.
       ...(home ? { stale: () => signature === "unreachable" ? Promise.resolve(false) : userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false) } : {}),
@@ -380,6 +395,48 @@ export class AgentDO extends DurableObject<Env> {
       return roomStub(this.env.ROOM, home.userId, home.roomId).memorySince(home.slug, seen, seqs)
     })().catch(() => null)
     this.#delta = { requestId: batch.requestId, since }
+  }
+
+  #initiative?: Promise<string>
+
+  /**
+   * Section 26. Asks UserDO for what this agent owes and what bears on the human's burst, while the
+   * run sets up. The run waits at most `INITIATIVE_WAIT_MS` for it; late or failed means no lines.
+   */
+  private prefetchInitiative(batch: Batch): void {
+    this.#initiative = undefined
+    const home = this.home()
+    const human = batch.envelopes.filter((e) => e.from.kind === "human")
+    if (!home || home.private || !human.length) return
+    const ask = userStub(this.env.USER, home.userId)
+      .initiativeBrief(home.roomId, home.slug, { text: human.map((e) => e.body).join("\n").slice(0, 4_000), messageIds: human.map((e) => e.rootId) })
+      .then((view) => initiativeBrief(view))
+      .catch(() => "")
+    this.#initiative = Promise.race([ask, scheduler.wait(INITIATIVE_WAIT_MS).then(() => "")])
+  }
+
+  private async takeInitiative(): Promise<string> {
+    const pending = this.#initiative
+    this.#initiative = undefined
+    const text = pending ? await pending : ""
+    if (process.env.NODE_ENV === "development" && pending) await this.ctx.storage.put(DEV_INITIATIVE_KEY, text)
+    return text
+  }
+
+  private loopPort(): LoopPort | null {
+    const home = this.home()
+    if (!home) return null
+    const user = () => userStub(this.env.USER, home.userId)
+    return {
+      open: (input) => user().loopOpen(input.mine ? home.slug : "human", home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", input),
+      close: (id, status) => user().loopClose(id, status),
+      list: async () => [...(await user().loopList({ room: home.roomId })), ...(await user().loopList({ owner: home.slug }))].filter((l, i, all) => all.findIndex((x) => x.id === l.id) === i),
+    }
+  }
+
+  async devInitiative(): Promise<string | null> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    return (await this.ctx.storage.get<string>(DEV_INITIATIVE_KEY)) ?? null
   }
 
   private async carryUsage(harness: Harness): Promise<void> {

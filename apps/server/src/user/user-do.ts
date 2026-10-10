@@ -49,6 +49,8 @@ import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
 import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import type { Authority } from "@yuki/agent/authority"
+import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult } from "@yuki/memory/loops"
+import { Initiative } from "../initiative/initiative"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }
@@ -87,6 +89,11 @@ const CHECK_IN_RULE = "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0"
 const CHECK_IN_INSTRUCTIONS = `call overview, then decide if anything needs the human today: a task stuck for days, a routine that failed or was paused, something due soon, a chat they left mid-thread. if something does, send one short message: at most three things you could take off their plate, one line each, and ask which to do. if nothing is new since your last check-in, or they ignored the same offer before, reply [skip].`
 
 const LAST_CHAT = "last_chat"
+const LOOPS_WAKEUP = "loops_heard"
+// ASSUMPTION: Jev reads a burst this long after it arrives, so a loop the agent opened in its run is
+// already there to merge with.
+const LOOPS_DELAY_MS = 15_000
+const BRIEF_JUDGE_MS = 1_000
 
 const DELETING = "deleting"
 
@@ -611,6 +618,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
+    await this.loopsHear(roomId, items)
     if (!this.captures() || !this.capturable(roomId)) return
     const rows = items.flatMap((i) => (i.messageId && candidates(i.text).length ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
     if (!rows.length) return
@@ -627,6 +635,7 @@ export class UserDO extends DurableObject<Env> {
   async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[]): Promise<void> {
     const ids = [...new Set([...messageIds, ...requeue.map((r) => r.messageId)])]
     const gone = this.life.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
+    this.#loops.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
     this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(ids))
     if (gone.length) await this.armNaps()
     await this.captureHuman(roomId, requeue)
@@ -844,13 +853,15 @@ export class UserDO extends DurableObject<Env> {
 
   #compressing = 0
 
-  async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
+  /** `page` names a room's page of raw turns: the same call then also lists open loops (section 26). */
+  async compress(prompt: string, page?: { roomId: RoomId; at: number }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
     if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
     this.#compressing++
     try {
-      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, NAP_SYSTEM, prompt)
+      const loops = page ? this.#initiative.napPrompt(page.roomId, prompt, page.at) : null
+      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, loops?.system ?? NAP_SYSTEM, loops?.prompt ?? prompt)
       if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
-      const line = cleanLine(answer)
+      const line = cleanLine(loops && page ? (this.#initiative.napApply(page.roomId, answer, loops.known, page.at, prompt.includes("[outside] ")) ?? "") : answer)
       return line ? { text: line } : { error: "the model wrote no line" }
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) }
@@ -1141,6 +1152,7 @@ export class UserDO extends DurableObject<Env> {
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
       [LIFE_WAKEUP]: () => this.napLife(),
       [CAPTURE_WAKEUP]: () => this.captureNow(),
+      [LOOPS_WAKEUP]: () => this.loopsNow(),
     })
     this.#loginState?.expire(due)
   }
@@ -1179,6 +1191,83 @@ export class UserDO extends DurableObject<Env> {
 
   async storedRows(): Promise<number> {
     return this.#wiped ? 0 : storedRows(this.ctx.storage)
+  }
+
+  // Initiative (architecture section 26): open loops and the lines a run starts with.
+
+  #loopsStore?: Loops
+  #initiativeInstance?: Initiative
+
+  get #loops(): Loops {
+    this.#loopsStore ??= new Loops(this.sql, (fn) => this.ctx.storage.transactionSync(fn))
+    return this.#loopsStore
+  }
+
+  get #initiative(): Initiative {
+    this.#initiativeInstance ??= new Initiative({
+      loops: this.#loops,
+      life: this.life,
+      judge: () => (this.judgeKey() ? this.judge(CAPTURE_TIMEOUT_MS) : null),
+      quickJudge: () => (this.judgeKey() ? this.judge(BRIEF_JUDGE_MS) : null),
+      title: (roomId) => {
+        const chat = getChat(this.sql, roomId)
+        return chat && !chat.private ? chat.title : null
+      },
+      count: (delta) => this.count(delta),
+    })
+    return this.#initiativeInstance
+  }
+
+  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; same?: number; tainted: boolean }): Promise<OpenResult> {
+    if (!this.capturable(roomId)) return { ok: false, error: "this chat is private: nothing here is kept." }
+    const out = this.#loops.open({ ...input, owner, room: roomId, ref, source: "tool" }, input.same)
+    if (out.ok) this.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
+    return out
+  }
+
+  async loopClose(id: number, status: "done" | "dropped"): Promise<boolean> {
+    const closed = this.#loops.close(id, status)
+    if (closed) this.count({ loops_closed: 1 })
+    return closed
+  }
+
+  async loopList(filter: { status?: Loop["status"][]; owner?: string; room?: string; limit?: number } = {}): Promise<Loop[]> {
+    return this.#loops.list(filter)
+  }
+
+  /** For the attention pass (next wave). */
+  async loopCandidates(): Promise<Loop[]> {
+    return this.#loops.candidates()
+  }
+
+  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string; messageIds: string[] }): Promise<{ owe: string[]; related: string[] }> {
+    return this.#initiative.brief(roomId, slug, burst)
+  }
+
+  /** Queues a human burst for one Jev pass. Without a judge, or with capture off, nothing is queued. */
+  private async loopsHear(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
+    if (!this.judgeKey() || this.policy().capture === "off" || !this.capturable(roomId)) return
+    const rows = items.filter((i) => i.messageId && i.text.trim()).map((i) => ({ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }))
+    if (!rows.length) return
+    this.sql.exec(
+      "INSERT OR IGNORE INTO loop_heard (room_id, message_id, text, at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at') FROM json_each(?)",
+      roomId,
+      JSON.stringify(rows),
+    )
+    await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + LOOPS_DELAY_MS)
+  }
+
+  private async loopsNow(): Promise<void> {
+    const rows = this.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
+    const rooms = new Map<RoomId, typeof rows>()
+    for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
+    for (const [roomId, burst] of rooms) {
+      const out = await this.#initiative.heard(roomId, burst.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at })))
+      // Jev failed: the agent's own run and the summary pass still see these words, so nothing waits.
+      if (out === "later") this.count({ loops_jev_failed: 1 })
+      this.sql.exec("DELETE FROM loop_heard WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(burst.map((r) => r.message_id)))
+    }
+    if (this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM loop_heard").one().n) await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now())
   }
 
   private apply(op: ChatOp): UserEvent | null {

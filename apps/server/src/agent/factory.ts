@@ -10,6 +10,7 @@ import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
 import type { Fetcher } from "@yuki/durable/safe-fetch"
 import { type MemoryPort, memoryExtensions } from "@yuki/memory/tools"
+import { type LoopPort, loopExtension } from "@yuki/memory/loop-tool"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
@@ -34,6 +35,8 @@ export type BuildAgentInput = RoleInput & {
   chief?: ChiefPort
   presence?: (doing: string) => Promise<unknown>
   memory?: MemoryPort
+  /** The human's open loops (initiative). */
+  loops?: () => LoopPort | null
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
   reminders?: { port: () => RemindersPort | null; tz: () => string }
@@ -59,6 +62,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
     ...(input.memory ? memoryExtensions(input.memory) : []),
+    ...(input.loops ? [loopExtension(input.loops)] : []),
     ...(input.files ? [filesExtension(input.files)] : []),
     skillsExtension(input.files?.fs, input.runStamp),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
