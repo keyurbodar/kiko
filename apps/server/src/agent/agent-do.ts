@@ -25,8 +25,6 @@ import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
 import type { ExecutorTool } from "../integrations/executor/tools"
 
-const EXECUTOR_TOOLS_KEY = "executor_tools"
-const EXECUTOR_TOOLS_TTL_MS = 5 * 60_000
 import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
 import type { GuestResponse, Installed, ScriptPorts } from "@yuki/sandbox/compile"
 import { hasScriptWasm, scriptWasm } from "@yuki/sandbox/wasm"
@@ -189,18 +187,13 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
+  /** `UserDO` serves a cached listing, so this waits on Executor only for a user's first run. */
   private async executorTools(): Promise<ExecutorTool[] | null | "unreachable"> {
     const home = this.home()
     if (!home) return null
-    const cached = await this.ctx.storage.get<{ at: number; tools: ExecutorTool[] | null }>(EXECUTOR_TOOLS_KEY)
-    if (cached && Date.now() - cached.at < EXECUTOR_TOOLS_TTL_MS) return cached.tools
-    try {
-      const tools = await userStub(this.env.USER, home.userId).executorTools()
-      await this.ctx.storage.put(EXECUTOR_TOOLS_KEY, { at: Date.now(), tools })
-      return tools
-    } catch {
-      return cached?.tools ?? "unreachable"
-    }
+    return userStub(this.env.USER, home.userId)
+      .executorTools()
+      .catch(() => "unreachable" as const)
   }
 
   async humanComing(): Promise<void> {
@@ -320,13 +313,15 @@ export class AgentDO extends DurableObject<Env> {
     const memory = this.memoryPort()
     const executor = await this.executorTools()
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req), find: (query, limit) => userStub(this.env.USER, home.userId).executorFindApps(query, limit) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
       env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
+        // Executor loads the user's apps while the model writes its first turn.
+        if (Array.isArray(executor) && home) this.ctx.waitUntil(userStub(this.env.USER, home.userId).executorWarm().catch(() => undefined))
         if (!(await this.beginRun(batch.requestId, root))) return false
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true

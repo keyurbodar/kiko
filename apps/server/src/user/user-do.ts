@@ -744,6 +744,8 @@ export class UserDO extends DurableObject<Env> {
   async finishExecutor(params: CallbackParams): Promise<ExecutorResult> {
     const result = await this.executorResult(async () => ({ status: await this.#executor.finish(params) }))
     this.broadcast({ t: "executor", result })
+    // The listing and the app index load now, so the first chat that uses Executor waits for neither.
+    if (result.ok) this.ctx.waitUntil(this.#executor.tools().catch(() => undefined))
     return result
   }
 
@@ -754,6 +756,18 @@ export class UserDO extends DurableObject<Env> {
 
   async executorCall(name: string, args: Record<string, unknown>) {
     return this.#executor.call(name, args)
+  }
+
+  async executorBench(): Promise<Record<string, unknown>> {
+    return this.#executor.bench()
+  }
+
+  async executorWarm(now = Date.now()): Promise<void> {
+    if ((await this.#executor.status()).connected) await this.#executor.warm(now).catch(() => undefined)
+  }
+
+  async executorFindApps(query: string, limit?: number) {
+    return this.#executor.findApps(query, limit)
   }
 
   async executorToken(): Promise<string | null> {
@@ -789,7 +803,11 @@ export class UserDO extends DurableObject<Env> {
         return {}
       }
       if (frame.t === "connectExecutor") {
-        if (frame.apiKey !== undefined) return { status: await executor.connectApiKey(frame.apiKey) }
+        if (frame.apiKey !== undefined) {
+          const status = await executor.connectApiKey(frame.apiKey)
+          this.ctx.waitUntil(executor.tools().catch(() => undefined))
+          return { status }
+        }
         const origin = (ws.deserializeAttachment() as Attachment | null)?.origin
         if (!origin) throw new ExecutorError("this socket has no origin")
         return { authorizeUrl: await executor.start(origin) }

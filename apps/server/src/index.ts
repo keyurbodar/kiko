@@ -87,6 +87,26 @@ export default {
     if (authResponse) return authResponse
     if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
     if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/coalescing") return experimentCoalescingRoute(request, env)
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/executor-bench") {
+      const user = await getSessionUser(request, env)
+      if (!user) return new Response("sign in first", { status: 401 })
+      return Response.json(await userStub(env.USER, user.id).executorBench())
+    }
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/executor-find") {
+      const user = await getSessionUser(request, env)
+      if (!user) return new Response("sign in first", { status: 401 })
+      const t = performance.now()
+      const found = await userStub(env.USER, user.id).executorFindApps(url.searchParams.get("q") ?? "", Number(url.searchParams.get("limit") ?? 8))
+      return Response.json({ ms: Math.round(performance.now() - t), found })
+    }
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/executor-exec" && request.method === "POST") {
+      const user = await getSessionUser(request, env)
+      if (!user) return new Response("sign in first", { status: 401 })
+      const { code } = (await request.json()) as { code: string }
+      const t = performance.now()
+      const out = await userStub(env.USER, user.id).executorCall("execute", { code })
+      return Response.json({ ms: Math.round(performance.now() - t), out })
+    }
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
   },

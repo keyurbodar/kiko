@@ -18,11 +18,12 @@ import { selfExtension } from "./extensions/self"
 import { type ChiefPort, chiefExtension } from "./extensions/chief"
 import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
-import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
+import { type ExecutorCall, type ExecutorFind, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
+import { count } from "../lib/dev-stats"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
@@ -34,7 +35,7 @@ export type BuildAgentInput = RoleInput & {
   presence?: (doing: string) => Promise<unknown>
   memory?: MemoryPort
   workspace?: WorkspacePort
-  executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall; gate?: ApprovalGate }
+  executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall; gate?: ApprovalGate; find?: ExecutorFind }
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
@@ -66,7 +67,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.chief ? [chiefExtension(input.chief)] : []),
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
-    ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate, input.files?.fs)] : []),
+    ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate, input.files?.fs, input.executor.find)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
     subagentExtension(),
     ...(input.testExtensions ?? []),
@@ -80,7 +81,10 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const registry = createRegistry()
   for (const extension of [...builtins, trust]) registry.install(extension)
   const extensions = new UserExtensions(registry, builtins, trust, effects, input.scripts)
-  return { registry, agent: { model: input.model, extensions: [...builtins, trust] }, extensions }
+  // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
+  // supports. A chat reply waits on every turn, and on Executor tasks the default level made each
+  // turn take 2 to 5 s longer with the same answers.
+  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: [...builtins, trust] }, extensions }
 }
 
 export type ExtensionProblem = { name: string; hash: string; error: string }
@@ -142,10 +146,20 @@ export class UserExtensions {
   }
 }
 
-export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "deepseek-v4.1-flash" }
+/** Muse Spark at minimal reasoning answered an Executor task in 9.3 s where DeepSeek V4.1 Flash took 16.6 s (executor-latency, 2026-10-09). */
+export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }
 
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
+
+/** Counts a model turn and its time for the dev stats. Returns the stream itself. */
+function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S): S {
+  const t = performance.now()
+  count("model.turns")
+  count(`model.id.${modelId}`)
+  void stream.result().then(() => count("model.ms", Math.round(performance.now() - t)), () => {})
+  return stream
+}
 
 export type RunAuth = (provider: string) => Promise<AuthResult | undefined>
 
@@ -160,12 +174,10 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of builtinProviders()) {
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
-    const routed = egress
-      ? {
-          stream: ((model, context, options) => provider.stream(model, context, via(model, options) as never)) as typeof provider.stream,
-          streamSimple: ((model, context, options) => provider.streamSimple(model, context, via(model, options) as never)) as typeof provider.streamSimple,
-        }
-      : {}
+    const routed = {
+      stream: ((model, context, options) => timed(model.id, provider.stream(model, context, via(model, options) as never))) as typeof provider.stream,
+      streamSimple: ((model, context, options) => timed(model.id, provider.streamSimple(model, context, via(model, options) as never))) as typeof provider.streamSimple,
+    }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }
   return { models, settings: { stream: { headers: { "x-opencode-session": sessionId } } } }

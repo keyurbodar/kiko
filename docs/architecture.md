@@ -638,6 +638,16 @@ At the start of a run, `AgentDO` asks `UserDO` for the tools `https://v2.executo
 
 The URL carries no query options. v2's default `elicitation_mode` is `model`, which is the one yuki needs: `pi-mcp` does not support MCP elicitation, and `browser` mode would send the human to Executor's own approval page.
 
+**What every agent knows before its first call.** An agent that learned a user's apps by reading Executor's guides and searching spent most of a task on it, and repeated it in every new chat. So `UserDO` learns them once and every agent starts with them (`integrations/executor/catalog.ts`).
+
+- One program run through `execute` lists every app's exact path, account ids, and input signatures. `execute`'s description carries them, and `skills` is left out once it does.
+- Each app is a handle in the agent's program, `github.list_commits({ owner, repo })`. Yuki defines the handles a program names in one line before it; a handle fills in the account, wraps the fields in `input`, and parses the result.
+- Executor publishes no output formats, so an agent new to a tool returned raw results only to see their shape, one more call and one more turn. The handles record the shape of each result they return; yuki takes the shapes out before the model reads the result and adds them to the listing, so every later agent knows what each tool returns.
+- `UserDO` keeps one MCP session for every call, and keeps the listing in the sealed Executor rows. It serves the saved listing at once and loads a new one behind the run after ten minutes, or right after a program used Executor's own app. Connecting loads both the listing and the app index.
+- Executor's catalog of apps it can add is 5,562 entries and 2 MB. `UserDO` reads it in pages into a compact index once a day, and the `executor_find_apps` tool ranks it in place, in milliseconds.
+
+DEVIATION from "nothing hardcoded": the index program and `execute`'s description name Executor's own tools (`organization.catalog`, `apps.install`, `apps.importCustom`, `profiles.create`, `accounts.connect`). Without them an agent probed input shapes until one passed, 14 programs for one request, and a search of the catalog inside Executor took 10 s. Every name is checked against the listing before it is used, so an upstream rename removes a hint and does not break a call.
+
 ### 12.3 Approvals
 
 v2 pauses a program for the human and returns JSON: `{status: "approval-required" | "input-required", requestId, elicitation, expiresAt}`. The model could answer with `resume` itself. Yuki stops that.

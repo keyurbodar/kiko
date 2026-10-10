@@ -1,9 +1,11 @@
 import type { ExecutorStatus } from "@yuki/protocol"
-import { McpClient, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
+import { McpClient, McpSessionExpiredError, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
+import { type CatalogRow, DISCOVER_PROGRAM, keepShapes, learnShapes, unwrapResult, warmProgram, describeExecute, type ExecutorCatalog, findApps, hasTool, INDEX_PAGE, indexProgram, managementApp, parseCatalog, parseIndexPage, usesApp, withHandles } from "./catalog"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
+import { count } from "../../lib/dev-stats"
 import { userStub } from "../../lib/names"
 import type { SessionLookup } from "../../router"
 import { checkApiKey, CredentialError } from "../../user/credentials"
@@ -28,8 +30,25 @@ const SCOPE = "mcp offline_access"
 const MAX_HELD = 20
 /** A token this close to expiry is refreshed before it is used. */
 const REFRESH_EARLY_MS = 60_000
+/**
+ * A tool listing older than this is still served, and a new one loads behind it. A discovery that
+ * overlaps an agent's own call slows that call on Executor, so it runs rarely, and right after a
+ * program that used Executor's own app, which is how apps and accounts change from a chat.
+ */
+const LISTING_FRESH_MS = 10 * 60_000
+/** The catalog of apps Executor can add changes slowly, so its index is read again once a day. */
+const INDEX_FRESH_MS = 24 * 3_600_000
+/** Executor is still warm this long after a call, so a warm-up then is skipped. */
+const WARM_MS = 20_000
+/** Index pages read at once. */
+const INDEX_PARALLEL = 6
 
 export class ExecutorError extends Error {}
+
+type SavedListing = { at: number; tools: ExecutorTool[]; catalog?: ExecutorCatalog }
+type SavedIndex = { at: number; rows: CatalogRow[] }
+
+const textOf = (out: { content: ExecutorResultBlock[] }) => out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")
 
 /** What the authorization server sent back to the callback. */
 export interface CallbackParams {
@@ -51,16 +70,44 @@ export function errorText(e: unknown): string {
 export class ExecutorConnection {
   private refreshing: Promise<void> | undefined
   /**
+   * One MCP session for every call, opened on first use. Opening one costs two requests and closing
+   * one a third; each takes Executor 0.4 to 1.5 s, so a fresh session per call tripled every step.
+   * Lost with this object. A session Executor has forgotten is opened again on the next call.
+   */
+  private shared: Promise<McpClient> | undefined
+  /** The tools agents get, with the user's apps in execute's description. Saved, so a cold object serves the last one. */
+  private listing: { at: number; tools: Promise<ExecutorTool[]> } | undefined
+  /** The apps the newest listing described. A program the agent writes gets their handles. */
+  private catalog: ExecutorCatalog | undefined
+  /** Executor's catalog of apps it can add, compact, for `findApps`. */
+  private index: SavedIndex | undefined
+  private indexing: Promise<CatalogRow[]> | undefined
+  /** When yuki last sent Executor anything. */
+  private lastSent = 0
+  /**
    * Executor v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only
-   * from that session. So the session stays open until its program is resumed or Executor lets it go.
-   * Lost with this object; a resume after that gets Executor's "unavailable", which the agent reports.
+   * from that session. A held session is never closed until its program is resumed or expires, even
+   * after the shared session moves on. Lost with this object; a resume after that gets Executor's
+   * "unavailable", which the agent reports.
    */
   private readonly held = new Map<string, { client: McpClient; expiresAt: number }>()
 
+  private readonly fetcher: typeof fetch
+
   constructor(
     private readonly store: ExecutorTokenStore,
-    private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
-  ) {}
+    fetcher: typeof fetch = (input, init) => fetch(input, init),
+  ) {
+    this.fetcher = async (input, init) => {
+      const t = performance.now()
+      try {
+        return await fetcher(input, init)
+      } finally {
+        count("executor.http")
+        count("executor.httpMs", Math.round(performance.now() - t))
+      }
+    }
+  }
 
   /** Begins an OAuth sign-in. Returns the URL the browser opens. */
   async start(origin: string): Promise<string> {
@@ -84,6 +131,7 @@ export class ExecutorConnection {
 
   /** Exchanges the code from the callback for tokens. A pasted key, if any, is replaced. */
   async finish(params: CallbackParams): Promise<ExecutorStatus> {
+    this.listing = undefined
     const generation = this.store.generation
     const state = await this.store.get<StoredState>("oauth")
     const redirectUrl = await this.store.get<string>("redirect")
@@ -112,6 +160,7 @@ export class ExecutorConnection {
   /** Stores a pasted API key in place of any OAuth grant. */
   async connectApiKey(apiKey: unknown): Promise<ExecutorStatus> {
     const key = checkApiKey(apiKey)
+    this.listing = undefined
     this.store.clear()
     await this.store.put("api_key", key)
     return this.status()
@@ -120,6 +169,12 @@ export class ExecutorConnection {
   /** Deletes every Executor row for the user. Returns how many there were. */
   disconnect(): number {
     this.refreshing = undefined
+    this.listing = undefined
+    this.catalog = undefined
+    this.index = undefined
+    const shared = this.shared
+    this.shared = undefined
+    void shared?.then((c) => c.close()).catch(() => {})
     for (const h of this.held.values()) void h.client.close().catch(() => {})
     this.held.clear()
     return this.store.clear()
@@ -151,16 +206,89 @@ export class ExecutorConnection {
     return (await this.tools()).map((t) => t.name)
   }
 
-  /** Every tool Executor offers this user, as plain data for the agent (P7-04). */
-  async tools(): Promise<ExecutorTool[]> {
-    return this.withClient(async (client) =>
-      (await client.listTools()).map((t) => ({
-        name: t.name,
-        ...(t.description ? { description: t.description } : {}),
-        inputSchema: t.inputSchema,
-        ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
-      })),
-    )
+  /**
+   * Every tool Executor offers this user, as plain data for the agent (P7-04). A run never waits
+   * for Executor once a listing exists: an old one is served while a new one loads.
+   */
+  async tools(now = Date.now()): Promise<ExecutorTool[]> {
+    const kept = this.listing ?? (await this.savedListing())
+    if (kept && now - kept.at < LISTING_FRESH_MS) return kept.tools
+    const loading = this.discover()
+    const next = { at: now, tools: loading }
+    this.listing = next
+    loading.catch(() => {
+      if (this.listing === next) this.listing = kept
+    })
+    return kept ? kept.tools : loading
+  }
+
+  /** Lists the tools, and the user's apps for execute's description. Without the apps, Executor's own description stays. */
+  private async savedListing(): Promise<{ at: number; tools: Promise<ExecutorTool[]> } | undefined> {
+    const saved = await this.store.get<SavedListing>("listing")
+    if (!saved) return undefined
+    this.catalog ??= saved.catalog
+    return { at: saved.at, tools: Promise.resolve(saved.tools) }
+  }
+
+  private async discover(): Promise<ExecutorTool[]> {
+    const generation = this.store.generation
+    const [listed, catalog] = await Promise.all([
+      this.inSession((client) => client.listTools()),
+      this.send("execute", { code: DISCOVER_PROGRAM })
+        .then((out) => parseCatalog(textOf(out)))
+        .catch(() => null),
+    ])
+    if (catalog) this.catalog = keepShapes(catalog, this.catalog ?? (await this.store.get<SavedListing>("listing"))?.catalog)
+    // With the apps described, skills only sent agents to read guides, so it is left out.
+    const tools: ExecutorTool[] = listed.filter((t) => !(catalog && t.name === "skills")).map((t) => ({
+      name: t.name,
+      ...(t.name === "execute" && catalog ? { description: describeExecute(this.catalog!) } : t.description ? { description: t.description } : {}),
+      inputSchema: t.inputSchema,
+      ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
+    }))
+    await this.store.put("listing", { at: Date.now(), tools, ...(catalog ? { catalog: this.catalog } : {}) } satisfies SavedListing, generation)
+    if (hasTool(managementApp(catalog ?? undefined), "organization.catalog")) void this.indexRows().catch(() => {})
+    return tools
+  }
+
+  /** The apps Executor can add that best match `query`, from Yuki's index of its catalog. */
+  async findApps(query: string, limit?: number): Promise<ReturnType<typeof findApps>> {
+    return findApps(await this.indexRows(), query, limit)
+  }
+
+  /** The index, read again behind a caller once a day. Only the first read for a user waits. */
+  private async indexRows(now = Date.now()): Promise<CatalogRow[]> {
+    const kept = this.index ?? (this.index = await this.store.get<SavedIndex>("index"))
+    // An index saved before rows carried keywords is read again.
+    if (!kept || kept.rows[0]?.length !== 8) return this.buildIndex()
+    if (now - kept.at >= INDEX_FRESH_MS) void this.buildIndex().catch(() => {})
+    return kept.rows
+  }
+
+  private buildIndex(): Promise<CatalogRow[]> {
+    this.indexing ??= (async () => {
+      const generation = this.store.generation
+      this.catalog ??= (await this.store.get<SavedListing>("listing"))?.catalog
+      const manage = managementApp(this.catalog)
+      if (!manage || !hasTool(manage, "organization.catalog")) throw new ExecutorError("executor's own app offers no catalog to search")
+      const page = async (offset: number) => {
+        const read = parseIndexPage(textOf(await this.send("execute", { code: indexProgram(manage.path, offset) })))
+        if (!read) throw new ExecutorError("executor's catalog did not load")
+        return read
+      }
+      const first = await page(0)
+      const pages = [first]
+      const offsets: number[] = []
+      for (let at = INDEX_PAGE; at < first.total; at += INDEX_PAGE) offsets.push(at)
+      for (let i = 0; i < offsets.length; i += INDEX_PARALLEL) pages.push(...(await Promise.all(offsets.slice(i, i + INDEX_PARALLEL).map(page))))
+      const index = { at: Date.now(), rows: pages.flatMap((p) => p.rows) }
+      if (generation === this.store.generation) this.index = index
+      await this.store.put("index", index, generation)
+      return index.rows
+    })().finally(() => {
+      this.indexing = undefined
+    })
+    return this.indexing
   }
 
   /**
@@ -168,34 +296,114 @@ export class ExecutorConnection {
    * in the session that paused its program, and a call that pauses keeps its session open.
    */
   async call(name: string, args: Record<string, unknown>, now = Date.now()): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
+    // The agent was promised handles by a listing that may predate this instance.
+    this.catalog ??= (await this.store.get<SavedListing>("listing"))?.catalog
+    let sent = args
+    if (name === "execute" && typeof args.code === "string") {
+      const manage = managementApp(this.catalog)
+      if (manage && usesApp(args.code, manage) && this.listing) this.listing = { ...this.listing, at: 0 }
+      if (this.catalog) sent = { ...args, code: withHandles(args.code, this.catalog) }
+    }
+    const out = await this.send(name, sent, now)
+    // A program that paused returns its wrapped result from resume, so both are unwrapped.
+    let shapes: Record<string, string> = {}
+    const content = out.content.map((b) => {
+      if (b.type !== "text") return b
+      const read = unwrapResult(b.text)
+      shapes = { ...shapes, ...read.shapes }
+      return { ...b, text: read.text }
+    })
+    await this.learn(shapes)
+    return { ...out, content }
+  }
+
+  /** Puts result shapes in the listing, so the next agent knows what each tool returns. */
+  private async learn(shapes: Record<string, string>): Promise<void> {
+    const learned = this.catalog && Object.keys(shapes).length ? learnShapes(this.catalog, shapes) : null
+    if (!learned) return
+    const generation = this.store.generation
+    this.catalog = learned
+    const saved = await this.store.get<SavedListing>("listing")
+    if (!saved) return
+    const tools = saved.tools.map((t) => (t.name === "execute" ? { ...t, description: describeExecute(learned) } : t))
+    const listing = { ...saved, tools, catalog: learned }
+    if (this.listing) this.listing = { at: this.listing.at, tools: Promise.resolve(tools) }
+    await this.store.put("listing", listing, generation)
+  }
+
+  /** Sends one call as it is. A resume runs in the session that paused its program, and a call that pauses keeps its session open. */
+  /** Loads the user's apps in Executor ahead of a run's first call, unless a call just did. */
+  async warm(now = Date.now()): Promise<void> {
+    if (now - this.lastSent < WARM_MS) return
+    this.catalog ??= (await this.store.get<SavedListing>("listing"))?.catalog
+    if (!this.catalog) return
+    await this.send("execute", { code: warmProgram(this.catalog) }, now)
+  }
+
+  private async send(name: string, args: Record<string, unknown>, now = Date.now()): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
+    this.lastSent = now
     await this.dropExpired(now)
     const requestId = typeof args.requestId === "string" ? args.requestId : ""
     const resumed = this.held.get(requestId)
     this.held.delete(requestId)
-    const client = resumed?.client ?? (await this.open())
-    let keep = false
-    try {
+    const run = async (client: McpClient) => {
       const result = await client.callTool(name, args)
       const content = toLlmContent(result) as ExecutorResultBlock[]
       const pending = pendingInteraction(content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n"))
       if (pending) {
         this.held.set(pending.requestId, { client, expiresAt: pending.expiresAt })
-        keep = true
         await this.dropOldest()
       }
       return { content, ...(result.isError ? { isError: true } : {}) }
+    }
+    if (!resumed) return this.inSession(run)
+    try {
+      return await run(resumed.client)
     } finally {
-      if (!keep) await client.close().catch(() => {})
+      await this.release(resumed.client)
     }
   }
 
-  private async withClient<T>(run: (client: McpClient) => Promise<T>): Promise<T> {
-    const client = await this.open()
-    try {
-      return await run(client)
-    } finally {
-      await client.close().catch(() => {})
+  /** Experiment: times calls on the shared session, the way an agent makes them. Dev only. */
+  async bench(rounds = 3): Promise<Record<string, unknown>> {
+    const time = async (fn: () => Promise<unknown>) => {
+      const t = performance.now()
+      await fn()
+      return Math.round(performance.now() - t)
     }
+    const list = await time(() => this.tools())
+    const execute: number[] = []
+    for (let i = 0; i < rounds; i++) execute.push(await time(() => this.call("execute", { code: "return 1" })))
+    return { list, execute }
+  }
+
+  /**
+   * Runs on the shared session. A session Executor no longer knows answers 404 before it runs
+   * anything, so that one case opens a new session and tries once more. Any other failure drops the
+   * session and is not retried: the call may have run.
+   */
+  private async inSession<T>(run: (client: McpClient) => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      const shared = (this.shared ??= this.open())
+      const client = await shared.catch((e) => {
+        if (this.shared === shared) this.shared = undefined
+        throw e
+      })
+      try {
+        return await run(client)
+      } catch (e) {
+        if (this.shared === shared) this.shared = undefined
+        await this.release(client)
+        if (attempt > 0 || !(e instanceof McpSessionExpiredError)) throw e
+      }
+    }
+  }
+
+  /** Closes a session that is neither the shared one nor holding a paused program. */
+  private async release(client: McpClient): Promise<void> {
+    if (this.shared && (await this.shared.catch(() => null)) === client) return
+    for (const h of this.held.values()) if (h.client === client) return
+    await client.close().catch(() => {})
   }
 
   private async open(): Promise<McpClient> {
@@ -215,7 +423,7 @@ export class ExecutorConnection {
     for (const [id, h] of this.held) {
       if (h.expiresAt > now) continue
       this.held.delete(id)
-      await h.client.close().catch(() => {})
+      await this.release(h.client)
     }
   }
 
@@ -223,7 +431,7 @@ export class ExecutorConnection {
     for (const [id, h] of this.held) {
       if (this.held.size <= MAX_HELD) return
       this.held.delete(id)
-      await h.client.close().catch(() => {})
+      await this.release(h.client)
     }
   }
 

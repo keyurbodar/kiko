@@ -144,6 +144,8 @@ export class AgentHost {
   private failures = 0
   private watchingIdle = false
   private resumed = false
+  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not wipe the new run's authority.
+  private inputs = 0
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -333,12 +335,14 @@ export class AgentHost {
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : [])] }, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
+      this.inputs++
       if (shown.key) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
   }
 
   private joinAuthority(batch: Batch, fresh: boolean): void {
+    this.inputs++
     const incoming = authorityOfAll(batch.envelopes) ?? AUTO
     const row = this.ctx.storage.sql.exec<{ authority: string }>("SELECT authority FROM run_authority WHERE id = 1").toArray()[0]
     if (fresh || !row) {
@@ -423,10 +427,12 @@ export class AgentHost {
   }
 
   private async pulse(harness: Harness): Promise<void> {
+    const seen = this.inputs
     const live = await harness.inspect(context)
-    if (live.tasks.length === 0 && live.submissions.length === 0) {
-      await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
+    if (live.tasks.length === 0 && live.submissions.length === 0 && this.inputs === seen) {
+      // Nothing awaits between the check and idle's delete, so no input can join in between.
       await this.idle()
+      await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
       this.options.onIdle?.()
       if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
       return
@@ -442,11 +448,13 @@ export class AgentHost {
       .waitForIdle(context)
       .then(async () => {
         this.watchingIdle = false
+        const seen = this.inputs
         const live = await harness.inspect(context)
         if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
-        if (live.tasks.length === 0 && live.submissions.length === 0) {
-          await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
+        if (live.tasks.length === 0 && live.submissions.length === 0 && this.inputs === seen) {
+          // Nothing awaits between the check and idle's delete, so no input can join in between.
           await this.idle()
+          await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
           this.options.onIdle?.()
         } else this.watchIdle(harness)
       })

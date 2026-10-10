@@ -29,6 +29,17 @@ const fake = {
   /** Open MCP sessions, and the session each paused program waits in. */
   sessions: new Set<string>(),
   paused: new Map<string, string>(),
+  /** `initialize` requests, one per session opened. */
+  opened: 0,
+  /** `tools/list` requests, and whether the discovery program fails. */
+  listed: 0,
+  discoveryFails: false,
+  /** The last program `execute` received. */
+  code: "",
+  /** Pages of the app catalog read for the index. */
+  indexReads: 0,
+  /** Warm-up programs, which only name the user's apps. */
+  warms: [] as string[],
 }
 let n = 0
 
@@ -112,9 +123,12 @@ async function executor(request: Request): Promise<Response> {
       return new Response(null, { status: 200 })
     }
     if (request.method !== "POST") return new Response(null, { status: 405 })
+    // Like any streamable HTTP server, a session it does not know answers 404.
+    if (session && !fake.sessions.has(session)) return new Response("session not found", { status: 404 })
     const msg = (await request.json()) as { id?: number; method: string; params?: { protocolVersion?: string; name?: string; arguments?: Record<string, unknown> } }
     if (msg.id === undefined) return new Response(null, { status: 202 })
     if (msg.method === "initialize") {
+      fake.opened++
       const id = `s-${crypto.randomUUID()}`
       fake.sessions.add(id)
       return Response.json(
@@ -123,10 +137,43 @@ async function executor(request: Request): Promise<Response> {
       )
     }
     if (msg.method === "tools/list") {
-      return json({ jsonrpc: "2.0", id: msg.id, result: { tools: [{ name: "execute", inputSchema: { type: "object" } }] } })
+      fake.listed++
+      return json({ jsonrpc: "2.0", id: msg.id, result: { tools: [{ name: "execute", inputSchema: { type: "object" } }, { name: "skills", inputSchema: { type: "object" } }] } })
     }
     if (msg.method === "tools/call") {
       const text = (value: unknown) => json({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })
+      const code = String(msg.params?.arguments?.code ?? "")
+      if (msg.params?.name === "execute" && code.startsWith("return [typeof ")) {
+        fake.warms.push(code)
+        return text({ status: "completed", execution: { ok: true, value: 1 } })
+      }
+      if (msg.params?.name === "execute" && !code.includes("tools.search") && !code.includes(".organization.catalog(")) fake.code = code
+      if (msg.params?.name === "execute" && code.includes("__main") && code.includes("github.get_me()")) {
+        return text({ status: "completed", execution: { ok: true, value: { __yuki: 1, value: { login: "me" }, shapes: { "github.get_me": "{ login: string }" } } } })
+      }
+      if (msg.params?.name === "execute" && code.includes(".organization.catalog(")) {
+        fake.indexReads++
+        const rows = [
+          ["mcp/similarweb", "Similarweb", "mcp", "similarweb.com", "Research any website", 0, 9000, "research website"],
+          ["curated/firecrawl-dev-mcp", "Firecrawl", "mcp", "firecrawl.dev", "Firecrawl's hosted MCP server", 1, 0, "firecrawl search web scrape pages"],
+        ]
+        return text({ status: "completed", execution: { ok: true, value: { total: rows.length, rows } } })
+      }
+      if (msg.params?.name === "execute" && code.includes("tools.search")) {
+        if (fake.discoveryFails) return text({ status: "completed", execution: { ok: false, error: { message: "boom" } } })
+        return text({
+          status: "completed",
+          execution: {
+            ok: true,
+            value: [
+              { path: 'tools.github.profiles["ins_1"]', accounts: ["acc_1"], tools: [{ name: "get_me", input: "{}" }] },
+              { path: 'tools.executor.profiles["ins_0"]', accounts: [], tools: [{ name: "apps.install", input: "{ body?: { entry: string, name: string } }" }, { name: "organization.catalog", input: "{}" }] },
+            ],
+          },
+          unavailableApps: [],
+        })
+      }
+      if (msg.params?.name === "execute" && msg.params.arguments?.code === "return 1") return text({ status: "completed", execution: { ok: true, value: 1 } })
       if (msg.params?.name === "execute") {
         const requestId = `apr_${crypto.randomUUID().slice(0, 8)}`
         fake.paused.set(requestId, session)
@@ -164,7 +211,7 @@ beforeAll(async () => {
     },
   })
   origin = (await mf.ready).origin
-})
+}, 30_000)
 
 afterAll(async () => {
   await mf?.dispose()
@@ -226,6 +273,9 @@ async function connected(user: string) {
   expect(started.ok).toBe(true)
   const page = await approve(user, started.authorizeUrl)
   expect(page.status).toBe(200)
+  // Connecting loads the listing and the app index behind the callback. Let them settle.
+  await rpc(user, "executorTools")
+  await Bun.sleep(100)
   return ws
 }
 
@@ -260,7 +310,7 @@ test("the callback stores sealed tokens, tells every socket, and lists tools", a
   expect(told.result.status).toMatchObject({ connected: true, kind: "oauth", pending: false, refreshable: true })
 
   const raw = (await rpc(user, "rawExecutorRows")) as { name: string; ciphertext: string }[]
-  expect(raw.map((r) => r.name)).toEqual(["oauth", "redirect"])
+  expect(raw.map((r) => r.name)).toEqual(["index", "listing", "oauth", "redirect"])
   for (const secret of fake.issued) for (const r of raw) expect(r.ciphertext).not.toContain(secret)
 
   const listed = await ws.ask({ t: "executorStatus", tools: true })
@@ -297,6 +347,7 @@ test("a forced refresh rotates the tokens and the new token works", async () => 
   expect(refreshed.ok).toBe(true)
   expect(refreshed.status.issuedAt).toBeGreaterThan(first.issuedAt)
   expect(refreshed.tools).toEqual(["execute"])
+  await rpc(user, "executorCall", "execute", { code: "return 1" })
   expect(fake.bearers.at(-1)).toBe(fake.issued.at(-2)!)
   ws.close()
 })
@@ -386,8 +437,158 @@ test("a paused program resumes in the session that paused it, which stays open u
 
   const done = (await rpc(user, "executorCall", "resume", { requestId: pending.requestId, response: { action: "accept", content: {} } })) as { content: { text: string }[] }
   expect(JSON.parse(done.content[0]!.text)).toMatchObject({ status: "completed" })
-  // The session closes once its program is done.
+  ws.close()
+})
+
+test("calls share one session instead of opening one each", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  const before = fake.opened
+  for (let i = 0; i < 3; i++) {
+    const out = (await rpc(user, "executorCall", "execute", { code: "return 1" })) as { content: { text: string }[] }
+    expect(JSON.parse(out.content[0]!.text)).toMatchObject({ status: "completed" })
+  }
+  await rpc(user, "executorTools")
+  expect(fake.opened).toBe(before)
+  ws.close()
+})
+
+test("a session executor forgot is opened again, and the call runs once", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorCall", "execute", { code: "return 1" })
+  const before = fake.opened
+  fake.sessions.clear()
+  const out = (await rpc(user, "executorCall", "execute", { code: "return 1" })) as { content: { text: string }[] }
+  expect(JSON.parse(out.content[0]!.text)).toMatchObject({ status: "completed" })
+  expect(fake.opened).toBe(before + 1)
+  ws.close()
+})
+
+test("agents get the user's apps in execute's description, from a listing that does not wait", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+  const execute = tools.find((t) => t.name === "execute")!
+  expect(execute.description).toContain("github: for example await github.get_me({ ... }).")
+  const listed = fake.listed
+  await rpc(user, "executorTools")
+  expect(fake.listed).toBe(listed)
+  ws.close()
+})
+
+test("a discovery that fails keeps executor's own description", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  fake.discoveryFails = true
+  try {
+    const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+    expect(tools.map((t) => t.name)).toContain("execute")
+    expect(tools.find((t) => t.name === "execute")?.description ?? "").not.toContain("tools.github")
+  } finally {
+    fake.discoveryFails = false
+  }
+  ws.close()
+})
+
+test("a program that names an app reaches executor with that app's handle defined", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })
+  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"], "github");')
+  expect(fake.code).toContain("return await github.get_me()")
+  ws.close()
+})
+
+test("an evicted object serves its last listing without asking executor", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await mf.dispatchFetch(`http://do/rpc/${user}`, { method: "POST", body: JSON.stringify({ method: "evict", args: [] }) }).catch(() => {})
+  const [listed, opened] = [fake.listed, fake.opened]
+  const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+  expect(tools.find((t) => t.name === "execute")?.description).toContain("github: for example await github.get_me({ ... }).")
+  expect([fake.listed, fake.opened]).toEqual([listed, opened])
+  ws.close()
+})
+
+test("a program that uses executor's own app makes the next listing load again", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await rpc(user, "executorTools")
+  const listed = fake.listed
+  await rpc(user, "executorCall", "execute", { code: "return await executor.apps.install({ body: { entry: 'x', name: 'x' } })" })
+  await rpc(user, "executorTools")
   await Bun.sleep(100)
-  expect(fake.sessions.has(session)).toBe(false)
+  expect(fake.listed).toBe(listed + 1)
+  ws.close()
+})
+
+test("a program still gets its handles after the object was evicted between listing and call", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await mf.dispatchFetch(`http://do/rpc/${user}`, { method: "POST", body: JSON.stringify({ method: "evict", args: [] }) }).catch(() => {})
+  await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })
+  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"], "github");')
+  ws.close()
+})
+
+test("with the apps known, agents get no skills tool to read guides with", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  const tools = (await rpc(user, "executorTools")) as { name: string }[]
+  expect(tools.map((t) => t.name)).toEqual(["execute"])
+  ws.close()
+})
+
+test("finding an app reads executor's catalog once, and later searches ask executor nothing", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await Bun.sleep(200)
+  const reads = fake.indexReads
+  const first = (await rpc(user, "executorFindApps", "web search")) as { entry: string }[]
+  const again = (await rpc(user, "executorFindApps", "scrape pages", 1)) as { entry: string }[]
+  expect(first.map((r) => r.entry)).toEqual(["curated/firecrawl-dev-mcp"])
+  expect(again.map((r) => r.entry)).toEqual(["curated/firecrawl-dev-mcp"])
+  expect(fake.indexReads).toBe(reads)
+  ws.close()
+})
+
+test("connecting loads the listing and the app index before any chat asks", async () => {
+  const before = { listed: fake.listed, reads: fake.indexReads }
+  const user = fresh()
+  const ws = await socket(user)
+  const started = await ws.ask({ t: "connectExecutor" })
+  await approve(user, started.authorizeUrl)
+  await Bun.sleep(300)
+  expect(fake.listed).toBe(before.listed + 1)
+  expect(fake.indexReads).toBe(before.reads + 1)
+  ws.close()
+})
+
+test("a run warms the user's apps in executor, unless executor just saw a call", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  const before = fake.warms.length
+  await rpc(user, "executorWarm")
+  expect(fake.warms.length).toBe(before)
+  await rpc(user, "executorWarm", Date.now() + 30_000)
+  expect(fake.warms.slice(before)).toEqual(['return [typeof tools.github.profiles["ins_1"]].length'])
+  ws.close()
+})
+
+test("the agent reads its program's value, and the next agent knows what the tool returns", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  const out = (await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })) as { content: { text: string }[] }
+  expect(JSON.parse(out.content[0]!.text)).toEqual({ status: "completed", execution: { ok: true, value: { login: "me" } } })
+  const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+  expect(tools.find((t) => t.name === "execute")?.description).toContain("  get_me {} returns { login: string }")
   ws.close()
 })
