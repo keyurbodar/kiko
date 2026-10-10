@@ -4,6 +4,7 @@ import { Dialog } from "../lib/dialog"
 import { chatModel, setChatModel } from "./chat-model"
 import { formatContext, formatPrice, loadCatalog, modelRef, searchModels } from "./catalog"
 import { connectedProviders } from "./connected"
+import { hasModelProvider, modelProviders } from "./provider-kinds"
 import { hiddenModels } from "./model-prefs"
 
 // At most this many rows render for one search. A catalog holds hundreds of
@@ -19,7 +20,7 @@ const MAX_ROWS = 150
 export function ModelList(props: { current?: string; onPick: (ref: string) => void; autofocus?: boolean }) {
   const [catalog] = createResource(loadCatalog)
   const [query, setQuery] = createSignal("")
-  const connectedIds = createMemo(() => new Set(connectedProviders().map((p) => p.provider)))
+  const connectedIds = createMemo(() => new Set(modelProviders(connectedProviders()).map((p) => p.provider)))
   // Settings decide what this list offers: a model switched off there is left out, unless it is the one picked.
   const rows = createMemo(() => {
     const providers = catalog()?.providers.filter((p) => connectedIds().has(p.id)) ?? []
@@ -129,7 +130,7 @@ export const openModelPicker = () => setPickerOpen(true)
  */
 export function ModelPickerButton(props: { chatId: string | null }) {
   const current = () => chatModel(props.chatId)
-  const ready = () => connectedProviders().length > 0
+  const ready = () => hasModelProvider(connectedProviders())
   return (
     <>
       <Show when={ready()}>
