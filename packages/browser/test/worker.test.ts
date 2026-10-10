@@ -3,7 +3,7 @@ import { BROWSER } from "../src/config"
 import { jevDecider } from "../src/decide/jev"
 import { modelDecider, parseReply } from "../src/decide/model"
 import type { JevPort } from "../src/decide/ports"
-import { runTask, runTasks } from "../src/worker/run"
+import { chainOf, runTask, runTasks } from "../src/worker/run"
 import { fakeTab, live, page, scripted, type Site } from "./site"
 
 const deps = (decider: ReturnType<typeof scripted>, paused = () => false) => ({ decider, paused, signal: live() })
@@ -207,11 +207,18 @@ describe("deciders", () => {
 
   test("parseReply finds the first key, unsure, and junk", () => {
     const keys = ["k7", "k70", "done", "stuck"]
-    expect(parseReply("k7", keys)).toEqual({ key: "k7", unsure: false })
-    expect(parseReply("k7 unsure", keys)).toEqual({ key: "k7", unsure: true })
-    expect(parseReply("**K70**.", keys)).toEqual({ key: "k70", unsure: false })
-    expect(parseReply("I think the answer is k7, but unsure", keys)).toEqual({ key: "k7", unsure: true })
+    expect(parseReply("k7", keys)).toEqual({ key: "k7", unsure: false, after: [] })
+    expect(parseReply("k7 unsure", keys)).toEqual({ key: "k7", unsure: true, after: [] })
+    expect(parseReply("**K70**.", keys)).toEqual({ key: "k70", unsure: false, after: [] })
+    expect(parseReply("I think the answer is k7, but unsure", keys)).toEqual({ key: "k7", unsure: true, after: [] })
     expect(parseReply("no idea", keys)).toBeNull()
+  })
+
+  test("parseReply chains only a reply made of keys, at most chainMax", () => {
+    const keys = ["k1", "k2", "k3", "k4", "done"]
+    expect(parseReply("k1 k2 k3 k4", keys)?.after).toEqual(["k2", "k3"])
+    expect(parseReply("k1, then k2", keys)?.after).toEqual([])
+    expect(parseReply("k1 k2 unsure", keys)?.after).toEqual([])
   })
 
   test("model decider: null confidence, 0 when unsure, stuck at 0 on junk", async () => {
@@ -244,5 +251,63 @@ describe("deciders", () => {
     expect(req?.instructions).toContain("untrusted")
     expect(out.confidence).toBe(0.81)
     expect(out.runnersUp.map((c) => c.key)).toEqual(["sd", "stuck"])
+  })
+})
+
+describe("chains", () => {
+  // name, email, a box, a submit button, and a link; submit goes to "sent"
+  const form: Site = {
+    pages: {
+      form: page("form", [
+        { role: "textbox", label: "Name" },
+        { role: "textbox", label: "Email" },
+        { role: "checkbox", label: "Bacon" },
+        { role: "button", label: "Submit" },
+        { role: "link", label: "Help" },
+      ]),
+      sent: page("sent", [{ label: "again" }]),
+      help: page("help", [{ label: "home" }]),
+    },
+    go: { "form:click:4": "sent", "form:click:5": "help" },
+  }
+  const values = { name: "Ada", email: "a@b.c" }
+  const chained = (keys: string[]) => {
+    const d = scripted((n, input) => (n === 0 ? { key: keys[0] as string } : { key: "done" }))
+    const base = d.decide.bind(d)
+    d.decide = async (input, signal) => {
+      const r = await base(input, signal)
+      if (d.calls === 1) r.after = keys.slice(1).map((k) => input.options.find((o) => o.key === k)!)
+      return r
+    }
+    return d
+  }
+
+  test("fills two fields and ticks a box with one decision and one read", async () => {
+    const { tab, acted } = fakeTab(form, "form")
+    let reads = 0
+    const read = tab.read
+    tab.read = async () => (reads++, read())
+    const r = await runTask(tab, { goal: "order", values }, deps(chained(["t1v0", "t2v1", "k3"])))
+    expect(acted.map((s) => s.op)).toEqual(["type", "type", "click"])
+    expect(r.stop).toBe("done")
+    expect(reads).toBe(2)
+  })
+
+  test("a chain stops after a step that can navigate", () => {
+    const options = (keys: string[]) => keys.map((k) => ({ key: k, text: k, step: k.startsWith("t") ? { op: "type" as const, id: Number(k[1]), text: "x" } : { op: "click" as const, id: Number(k.slice(1)) } }))
+    const p = form.pages.form as NonNullable<Site["pages"][string]>
+    const keys = (ks: string[]) => chainOf({ choice: options(ks)[0]!, confidence: null, runnersUp: [], after: options(ks).slice(1) }, p).map((c) => c.key)
+    expect(keys(["k5", "t1", "t2"])).toEqual(["k5"])
+    expect(keys(["k4", "k3"])).toEqual(["k4"])
+    expect(keys(["t1", "k3", "k4"])).toEqual(["t1", "k3", "k4"])
+    expect(keys(["t1", "k4", "t2"])).toEqual(["t1", "k4"])
+  })
+
+  test("a failed step ends the chain", async () => {
+    const broken: Site = { ...form, go: { ...form.go, "form:type:1": { fail: "gone" } } }
+    const { tab, acted } = fakeTab(broken, "form")
+    const r = await runTask(tab, { goal: "order", values }, deps(chained(["t1v0", "t2v1", "k4"])))
+    expect(acted.map((s) => s.op)).toEqual(["type"])
+    expect(r.actions[0]).toContain("failed: gone")
   })
 })

@@ -1,6 +1,6 @@
 import { BROWSER } from "../config"
 import { choices } from "../plan/candidates"
-import type { Decider, Decision } from "../decide/types"
+import type { Choice, Decider, Decision } from "../decide/types"
 import type { PageView, Step, Tab } from "../page/types"
 import type { Stop, Task, TaskResult } from "./types"
 
@@ -22,6 +22,34 @@ const flags = (state?: string) => state?.split(" ") ?? []
  */
 const secretInView = (page: PageView) =>
   page.controls.some((c) => flags(c.state).includes("secret") && !flags(c.state).includes("offscreen"))
+
+// A click on these changes the field, not the page.
+const TICKS = new Set(["checkbox", "radio", "switch"])
+
+/** Fills a field or ticks a box without a submit: a step that cannot navigate, so a chain may go on after it. */
+export function inPage(choice: Choice, page: PageView): boolean {
+  const s = choice.step
+  if (s.op === "type") return s.text !== "" && !s.submit
+  if (s.op === "select") return true
+  if (s.op === "click") return TICKS.has(page.controls.find((c) => c.id === s.id)?.role ?? "")
+  return false
+}
+
+/**
+ * The steps to run for a decision, read once at the end: the choice, then its chain while every step before the
+ * last stays in the page. done, stuck, and a missing value never ride in a chain.
+ */
+export function chainOf(decision: Decision, page: PageView): Choice[] {
+  const out = [decision.choice]
+  for (const next of decision.after ?? []) {
+    if (out.length >= BROWSER.chainMax || !inPage(out[out.length - 1] as Choice, page)) break
+    const op = next.step.op
+    if (op === "done" || op === "stuck" || (op === "type" && next.step.text === "")) break
+    if (out.some((c) => c.key === next.key)) break
+    out.push(next)
+  }
+  return out
+}
 
 export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<TaskResult> {
   const values = task.values ?? {}
@@ -76,19 +104,29 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
       if (deps.paused()) return end("paused")
 
       const before = last.key
-      const result = await tab.act(step as Step)
-      if (!result.ok) {
-        if (result.reason === "dialog") return end("dialog", { note: result.detail })
-        if (result.reason === "crashed") return end("crashed", { note: result.detail })
-        if (result.reason === "stale" && !staleRetry) {
-          // The page moved under us. Read again and decide again, once.
-          staleRetry = true
-          steps--
+      const chain = chainOf(decision, last)
+      let retry = false
+      for (const [n, c] of chain.entries()) {
+        if (n > 0 && (steps >= BROWSER.stepsPerWorker || deps.paused() || deps.signal.aborted)) break
+        if (n > 0) steps++
+        const result = await tab.act(c.step as Step)
+        if (result.ok) {
+          actions.push(c.text)
           continue
         }
-        actions.push(`${choice.text} failed: ${result.reason}`)
-      } else {
-        actions.push(choice.text)
+        if (result.reason === "dialog") return end("dialog", { note: result.detail })
+        if (result.reason === "crashed") return end("crashed", { note: result.detail })
+        if (n === 0 && result.reason === "stale" && !staleRetry) {
+          // The page moved under us. Read again and decide again, once.
+          retry = true
+          steps--
+        } else actions.push(`${c.text} failed: ${result.reason}`)
+        // A failed step ends the chain: the page is not what the decider saw.
+        break
+      }
+      if (retry) {
+        staleRetry = true
+        continue
       }
       staleRetry = false
 

@@ -10,7 +10,8 @@ export type DecideInput = {
   history: string[]
 }
 
-export type Decision = { choice: Choice; confidence: number | null; runnersUp: Choice[] }
+/** `after`: more choices to run after this one before the next read. The worker keeps only a safe prefix. */
+export type Decision = { choice: Choice; confidence: number | null; runnersUp: Choice[]; after?: Choice[] }
 
 export interface Decider {
   readonly name: string

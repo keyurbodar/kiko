@@ -19,6 +19,8 @@ export const BROWSER = {
   passagesPerRank: 20,
   confidenceFloor: 0.6,
   historyForDecision: 3,
+  /** Most steps one decision may chain: fills and ticks, then one final step, read once at the end. */
+  chainMax: 3,
 } as const
 
 export type BrowserConfig = typeof BROWSER
