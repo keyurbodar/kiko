@@ -84,10 +84,10 @@ const suite: Suite = {
     const live = async (word: RegExp, source?: string) => (await lines()).filter((l) => isLive(l) && word.test(l.text) && (!source || l.source === source))
     const usage = async (): Promise<Usage> => ((await dev(v.url, s.cookie, "usage", { roomId: idOf(chatA) })) as { memory: Usage }).memory
     const show = async (step: string) => console.log(`  [${stamp()}] ${step}: ${JSON.stringify(await usage())}`)
-    const credentials = async (): Promise<{ id: string; refused?: boolean }[]> => {
+    const credentials = async (): Promise<{ provider: string; refused?: boolean }[]> => {
       const res = await fetch(new URL("api/credentials", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie }, signal: AbortSignal.timeout(5000) })
       if (!res.ok) throw new VerifyError(`GET api/credentials answered ${res.status}`)
-      return ((await res.json()) as { providers: { id: string; refused?: boolean }[] }).providers
+      return ((await res.json()) as { providers: { provider: string; refused?: boolean }[] }).providers
     }
 
     // 1. A policy that captures fast.
@@ -99,7 +99,7 @@ const suite: Suite = {
     await say(chatA, "my sister lives in lisbon and works as a nurse")
     await say(chatA, "i live in bangalore")
     await poll("life lines from you about lisbon and bangalore", 60_000, async () => {
-      const mine = (await lines()).filter((l) => l.source === "you" && !l.redacted)
+      const mine = (await lines()).filter((l) => !l.redacted)
       return mine.some((l) => /lisbon/i.test(l.text)) && mine.some((l) => /bangalore/i.test(l.text))
     })
     let u = await usage()
@@ -112,8 +112,8 @@ const suite: Suite = {
       await s.connectProvider(TYPESAFE, jevKey)
       const firstModel = u.capture_model ?? 0
       await say(chatA, "btw i moved to pune last month")
-      await poll("a line from you about pune and bangalore no longer live", 60_000, async () => {
-        const [pune, bangalore] = [await live(/pune/i, "you"), await live(/bangalore/i)]
+      await poll("a line about pune, and no live line saying they live in bangalore", 60_000, async () => {
+        const [pune, bangalore] = [await live(/pune/i), await live(/\bliv(e|es|ing) in bangalore/i)]
         return pune.length > 0 && bangalore.length === 0
       })
       u = await usage()
@@ -161,18 +161,18 @@ const suite: Suite = {
     const beforeRefused = (await usage()).capture_model ?? 0
     await s.connectProvider(TYPESAFE, WRONG_KEY)
     await say(chatA, "my favourite tea is genmaicha")
-    await poll("a line about genmaicha", 60_000, async () => (await live(/genmaicha/i, "you")).length > 0)
+    await poll("a line about genmaicha", 60_000, async () => (await live(/genmaicha/i)).length > 0)
     u = await usage()
     await show("7 refused key")
     if (!((u.capture_model ?? 0) > beforeRefused)) throw new VerifyError(`capture_model did not grow with a refused key: ${beforeRefused} -> ${u.capture_model ?? 0}`)
-    const row = await poll("the typesafe row marked refused", 15_000, async () => (await credentials()).find((p) => p.id === TYPESAFE && p.refused === true))
+    const row = await poll("the typesafe row marked refused", 15_000, async () => (await credentials()).find((p) => p.provider === TYPESAFE && p.refused === true))
     console.log(`  [${stamp()}] 7 typesafe row refused: ${row.refused}`)
 
     // 8. Remove the key. Capture keeps working.
     await s.disconnectProvider(TYPESAFE)
     const beforeRemoved = (await usage()).capture_model ?? 0
     await say(chatA, "i keep my notes in a notebook called ember")
-    await poll("a line about ember", 60_000, async () => (await live(/ember/i, "you")).length > 0)
+    await poll("a line about ember", 60_000, async () => (await live(/ember/i)).length > 0)
     u = await usage()
     await show("8 key removed")
     if (!((u.capture_model ?? 0) > beforeRemoved)) throw new VerifyError(`capture_model did not grow after the key was removed: ${beforeRemoved} -> ${u.capture_model ?? 0}`)

@@ -9,12 +9,13 @@ export type CapturePolicy = {
   worthMin: number
   privateMax: number
   cardMin: number
+  relationMin: number
   rerankMin: number
   recallMax: number
   capture: boolean
 }
 
-export const DEFAULT_POLICY: CapturePolicy = { batch: 12, idleMs: 600_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, rerankMin: 0.3, recallMax: 6, capture: true }
+export const DEFAULT_POLICY: CapturePolicy = { batch: 12, idleMs: 600_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: true }
 
 /** The stored setting over the defaults. A field of the wrong type keeps its default. */
 export function mergePolicy(raw: string | null): CapturePolicy {
@@ -52,7 +53,7 @@ export function candidates(text: string): string[] {
   return out
 }
 
-const NEIGHBORS = 3
+const NEIGHBORS = 8
 
 const WORTH: Omit<Extract<Question, { type: "noul" }>, "instructions"> = {
   type: "noul",
@@ -82,13 +83,18 @@ export function captureQuestions(items: { candidate: string; known: { pos: numbe
   const questions: Record<string, Question> = {}
   items.forEach(({ candidate, known }, i) => {
     questions[`c${i}_worth`] = { ...WORTH, instructions: { candidate, question: "Is `candidate` a lasting fact about the human worth remembering for months?" } }
-    questions[`c${i}_private`] = { ...PRIVATE, instructions: { candidate, question: "Does `candidate` hold a private detail about the human?" } }
-    const relation: Record<string, unknown> = { new: "a fact not already known" }
-    for (const k of known) {
-      relation[`same_${k.pos}`] = { known: k.text, meaning: "says the same as this known fact" }
-      relation[`replaces_${k.pos}`] = { known: k.text, meaning: "updates or corrects this known fact, so it is no longer true" }
+    questions[`c${i}_standing`] = {
+      type: "noul",
+      instructions: { candidate, question: "Is `candidate` a standing rule for how to help the human from now on, rather than a request about the current message only?" },
     }
-    questions[`c${i}_relation`] = { type: "choice", instructions: { candidate, question: "How does `candidate` relate to what is already known about the human?" }, criteria: relation }
+    questions[`c${i}_private`] = { ...PRIVATE, instructions: { candidate, question: "Does `candidate` hold a private detail about the human?" } }
+    for (const k of known) {
+      questions[`c${i}_same_${k.pos}`] = { type: "noul", instructions: { candidate, known: k.text, question: "Does `candidate` say the same thing about the human as `known`, even in other words?" } }
+      questions[`c${i}_replaces_${k.pos}`] = {
+        type: "noul",
+        instructions: { candidate, known: k.text, question: "Does `candidate` make `known` no longer true, as an update or a correction of the same thing?" },
+      }
+    }
     questions[`c${i}_card`] = {
       type: "choice",
       instructions: { candidate, question: "Does `candidate` belong on the human's profile card? Only facts unlikely to change within six months belong there." },
@@ -109,17 +115,22 @@ export async function captureWithJudge(life: Life, judge: Judge, heard: Heard, r
   const answers = await judge({ message: heard.text }, captureQuestions(items))
   if (!answers) return null
   if (!keep()) return count
-  items.forEach(({ candidate }, i) => {
+  items.forEach(({ candidate, known }, i) => {
     if (noulOf(answers[`c${i}_private`]) > policy.privateMax) return void count.private++
     const answer = choiceOf(answers[`c${i}_card`])
     const card = answer && isCardTag(answer.choice) && answer.p >= policy.cardMin ? answer.choice : null
-    // Jev scores a standing instruction ("keep answers short") low on worth but high as a card line.
-    if (!card && noulOf(answers[`c${i}_worth`]) < policy.worthMin) return
-    const relation = choiceOf(answers[`c${i}_relation`])?.choice ?? "new"
-    if (relation.startsWith("same_")) return void count.same++
-    const replaces = /^replaces_(\d+)$/.exec(relation)
-    const op: CaptureOp = replaces ? { kind: "replace", pos: Number(replaces[1]), text: candidate, card, from: 0 } : { kind: "new", text: candidate, card, from: 0 }
-    apply(life, op, ref, heard.at, count)
+    // Jev scores a standing instruction ("keep answers short from now on") low on worth, so it is asked
+    // separately; a one-off request ("answer in one short line") is neither.
+    const standing = card === "INSTRUCTION" && noulOf(answers[`c${i}_standing`]) >= policy.worthMin
+    if (!standing && noulOf(answers[`c${i}_worth`]) < policy.worthMin) return
+    const replaced = known.filter((k) => noulOf(answers[`c${i}_replaces_${k.pos}`]) >= policy.relationMin).map((k) => k.pos)
+    if (!replaced.length && known.some((k) => noulOf(answers[`c${i}_same_${k.pos}`]) >= policy.relationMin)) return void count.same++
+    const out = life.append(candidate, SOURCE, false, heard.at, { ref, card })
+    if (!out.ok) return
+    if (out.duplicate) return void count.same++
+    const superseded = replaced.filter((pos) => life.supersede(pos, out.pos)).length
+    if (superseded) count.replaced += superseded
+    else count.added++
   })
   return count
 }
@@ -144,6 +155,7 @@ export function capturePrompt(heard: readonly Heard[], known: readonly { pos: nu
     "+ m<i> <fact>        a new fact, from message m<i>",
     "= <n>                the same as known fact #n",
     "~ <n> m<i> <fact>    replaces known fact #n, which is no longer true",
+    "a fact a known fact already covers, even in other words, is = <n>. keep one fact on one line; do not split it.",
     "end a fact with [IDENTITY], [ATTRIBUTE], [RELATIONSHIP], or [INSTRUCTION] only when it is unlikely to change within six months.",
     "if nothing is worth keeping, answer: none",
     "",

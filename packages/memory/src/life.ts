@@ -153,9 +153,20 @@ export class Life {
   }
 
   /** The live lines closest to `text`, matched on its content words. */
+  /**
+   * Facts a new line may repeat or correct: keyword matches first, then the card and the newest lines,
+   * because a correction often shares no word with what it corrects ("i moved to pune" against "lives in bangalore").
+   */
   nearest(text: string, limit: number): LifeLine[] {
     const words = [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
-    return words.length ? this.recall(words.join(" "), limit) : []
+    const hits = words.length ? this.recall(words.join(" "), limit) : []
+    const card = this.card().map((c) => c.pos)
+    const rows = this.sql
+      .exec<Row>(`SELECT * FROM life WHERE ${LIVE} AND (pos IN (SELECT value FROM json_each(?)) OR pos >= ?) ORDER BY pos DESC`, JSON.stringify(card), this.count() - limit)
+      .toArray()
+    const out = new Map(hits.map((l) => [l.pos, l]))
+    for (const r of rows) if (out.size < limit && !out.has(r.pos)) out.set(r.pos, toLine(r))
+    return [...out.values()]
   }
 
   /** Marks `oldPos` replaced by `newPos`. A pin moves to the new line. Summaries over the old line rebuild. */

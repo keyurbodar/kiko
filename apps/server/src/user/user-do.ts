@@ -577,8 +577,9 @@ export class UserDO extends DurableObject<Env> {
     return raw ? (JSON.parse(raw) as MemoryModel) : null
   }
 
-  async lifeNote(author: string, text: string, tainted: boolean): Promise<{ ok: true; duplicate?: true } | { ok: false; error: string }> {
-    const out = this.life.append(text, `@${author}`, tainted)
+  /** `ref` names the human message the note answers, so deleting that message forgets the note too. */
+  async lifeNote(author: string, text: string, tainted: boolean, ref = ""): Promise<{ ok: true; duplicate?: true } | { ok: false; error: string }> {
+    const out = this.life.append(text, `@${author}`, tainted, Date.now(), { ref })
     if (!out.ok) return out
     if (!out.duplicate) await this.armNaps()
     return out.duplicate ? { ok: true, duplicate: true } : { ok: true }

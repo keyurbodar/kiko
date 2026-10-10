@@ -198,7 +198,7 @@ test("a TypeSafe success maps answers, sends the documented body, and rejects an
   expect(bad.usage.jev_errors).toBe(1)
 })
 
-type Verdict = { worth: number; private?: number; relation?: string; card?: string; cardP?: number }
+type Verdict = { worth: number; standing?: number; private?: number; same?: number[]; replaces?: number[]; card?: string; cardP?: number }
 
 function fakeJudge(verdicts: Record<string, Verdict>, seen: Question[][] = []): Judge {
   return (async (_state: unknown, questions: Record<string, Question>) => {
@@ -207,35 +207,38 @@ function fakeJudge(verdicts: Record<string, Verdict>, seen: Question[][] = []): 
     for (const [key, q] of Object.entries(questions)) {
       const v = verdicts[(q.instructions as { candidate: string }).candidate]!
       const kind = key.slice(key.indexOf("_") + 1)
+      const about = Number(kind.split("_")[1])
       if (kind === "worth") out[key] = { type: "noul", noul: v.worth }
       else if (kind === "private") out[key] = { type: "noul", noul: v.private ?? 0 }
-      else if (kind === "relation") out[key] = { type: "choice", choice: v.relation ?? "new", confidence: 0.9, probabilities: { [v.relation ?? "new"]: 0.9 } }
+      else if (kind === "standing") out[key] = { type: "noul", noul: v.standing ?? 0 }
+      else if (kind.startsWith("same_")) out[key] = { type: "noul", noul: v.same?.includes(about) ? 0.9 : 0.05 }
+      else if (kind.startsWith("replaces_")) out[key] = { type: "noul", noul: v.replaces?.includes(about) ? 0.9 : 0.05 }
       else out[key] = { type: "choice", choice: v.card ?? "not_card", confidence: 0.9, probabilities: { [v.card ?? "not_card"]: v.cardP ?? 0.9 } }
     }
     return out
   }) as Judge
 }
 
-test("the judged path keeps only worthy, non-private facts, and a replacement supersedes its neighbor", async () => {
+test("the judged path keeps only worthy, non-private facts, and a replacement supersedes every copy it corrects", async () => {
   const l = life()
   l.append("I live in Lisbon.", "you", false, 1)
-  const text = "I live in Porto now. The weather is nice today. My passport number is X1234567. My partner Ana is a chef. Please keep answers short."
+  l.append("Human lives in Lisbon", "@yuki", false, 2)
+  const text = "I live in Porto now. The weather is nice today. My passport number is X1234567. My partner Ana is a chef. Please keep answers short. Answer in one short line."
   const seen: Question[][] = []
   const judge = fakeJudge(
     {
-      "I live in Porto now.": { worth: 0.9, relation: "replaces_0", card: "IDENTITY", cardP: 0.8 },
+      "I live in Porto now.": { worth: 0.9, replaces: [0, 1], card: "IDENTITY", cardP: 0.8 },
       "The weather is nice today.": { worth: 0.1 },
       "My passport number is X1234567.": { worth: 0.9, private: 0.95 },
       "My partner Ana is a chef.": { worth: 0.8, card: "RELATIONSHIP", cardP: 0.5 },
-      "Please keep answers short.": { worth: 0.25, card: "INSTRUCTION", cardP: 0.86 },
+      "Please keep answers short.": { worth: 0.25, standing: 0.8, card: "INSTRUCTION", cardP: 0.86 },
+      "Answer in one short line.": { worth: 0.2, standing: 0.1, card: "INSTRUCTION", cardP: 0.9 },
     },
     seen,
   )
   const count = await captureWithJudge(l, judge, { messageId: "m1", text, at: 10 }, "room:r:msg:m1", DEFAULT_POLICY)
-  expect(count).toEqual({ added: 2, replaced: 1, same: 0, private: 1 })
+  expect(count).toEqual({ added: 2, replaced: 2, same: 0, private: 1 })
   expect(seen.length).toBe(1)
-  const relation = seen[0]!.find((q) => q.type === "choice" && "replaces_0" in q.criteria)
-  expect(relation).toBeDefined()
   expect(l.recall("lisbon")).toEqual([])
   expect(l.recall("passport")).toEqual([])
   expect(l.recall("weather")).toEqual([])
@@ -254,4 +257,12 @@ test("an unavailable judge writes nothing, and a message changed meanwhile is no
   expect((await captureWithJudge(l, judge, { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, "room:r:msg:m1", DEFAULT_POLICY))!.added).toBe(1)
   expect((await captureWithJudge(l, judge, { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, "room:r:msg:m1", DEFAULT_POLICY))!.same).toBe(1)
   expect(l.count()).toBe(1)
+})
+
+test("nearest offers a correction the facts it shares no word with", () => {
+  const l = life()
+  l.append("Human lives in Bangalore.", "@yuki", false, 1)
+  l.append("the human likes green tea", "you", false, 2)
+  expect(l.nearest("btw i moved to pune last month", 8).map((x) => x.text)).toContain("Human lives in Bangalore.")
+  expect(l.nearest("tea", 1).map((x) => x.text)).toEqual(["the human likes green tea"])
 })

@@ -350,6 +350,7 @@ export class AgentDO extends DurableObject<Env> {
     const room = roomStub(this.env.ROOM, home.userId, home.roomId)
     const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
     this.#seqs = seqs
+    this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
     const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
     if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
@@ -365,6 +366,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   #seqs: number[] = []
+  #heard: string | null = null
   #shown = new Set<string>()
   #delta?: { requestId: string; since: Promise<{ text: string; count: number } | null> }
 
@@ -542,7 +544,7 @@ export class AgentDO extends DurableObject<Env> {
     const user = () => userStub(this.env.USER, home.userId)
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
-      note: async (text, tainted) => (this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted)),
+      note: async (text, tainted) => (this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "")),
       recall: async (query) => {
         const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
         const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, this.#seqs)])

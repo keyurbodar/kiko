@@ -456,6 +456,7 @@ export const LifeLine = Schema.Struct({
 	tainted: Schema.Boolean,
 	pinned: Schema.Boolean,
 	redacted: Schema.Boolean,
+	supersededBy: Schema.optionalKey(Schema.NullOr(Count)),
 })
 
 const MemoryModel = Schema.NullOr(Schema.Struct({ provider: Id, modelId: Id }))
