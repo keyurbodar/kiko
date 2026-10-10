@@ -9,6 +9,14 @@ test("a skill with no description is skipped with a warning, as in pi", () => {
   expect(parseSkill(md("name: haiku"), "haiku", "builtin")).toEqual({ warning: "skill haiku: description is required, skipped" })
 })
 
+test("a skill with invalid YAML frontmatter is skipped with a warning instead of throwing", () => {
+  expect(parseSkill("---\ndescription: [unclosed\n---\nbody", "broken", "room")).toEqual({ warning: "skill broken: the frontmatter is not valid YAML, skipped" })
+})
+
+test("a name that differs from the folder is skipped with a warning", () => {
+  expect(parseSkill(md("name: other\ndescription: x"), "haiku", "room")).toEqual({ warning: "skill other: the name must match its folder haiku, skipped" })
+})
+
 test("the name defaults to the directory, and disable-model-invocation hides it from the prompt", () => {
   const s = parseSkill(md("description: secret\ndisable-model-invocation: true"), "quiet-one", "room")
   expect("warning" in s ? null : [s.name, s.disableModelInvocation]).toEqual(["quiet-one", true])

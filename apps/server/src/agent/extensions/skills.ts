@@ -45,13 +45,18 @@ export function skillsExtension(files?: RoomFs, stamp?: () => number): Extension
         "read",
         defineTool({
           name: "read_skill",
-          description: "load a skill's instructions by its name from <available_skills>. follow them for the task.",
-          parameters: Type.Object({ name: Type.String() }),
+          description:
+            "load a skill's instructions by its name from <available_skills>. follow them for the task. a room skill may name other files in its folder: pass path (like references/api.md) to read one.",
+          parameters: Type.Object({ name: Type.String(), path: Type.Optional(Type.String()) }),
           replay: "safe",
-          execute: async ({ name }) => {
+          execute: async ({ name, path }) => {
             const skill = (await all()).find((s) => s.name === name.trim())
             if (!skill) return { content: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
-            return { content: [{ type: "text" as const, text: skill.body }] }
+            if (!path) return { content: [{ type: "text" as const, text: skill.body }] }
+            if (skill.source !== "room" || !files || path.split("/").includes("..")) return { content: [{ type: "text" as const, text: `${skill.name} has no readable file ${path}` }], isError: true }
+            const file = await files.readTextFile(`${ROOM_PREFIX}/${skill.name}/${path.replace(/^\/+/, "")}`)
+            if (!file.ok) return { content: [{ type: "text" as const, text: file.error.message }], isError: true }
+            return { content: [{ type: "text" as const, text: file.value }] }
           },
         }),
       ),
