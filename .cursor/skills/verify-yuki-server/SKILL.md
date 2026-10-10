@@ -63,4 +63,5 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `composio` | [composio](./features/composio.md) |
 | `memory-jev` | [memory-jev](./features/memory-jev.md) |
 | `memory-edge` | [memory-edge](./features/memory-edge.md) |
+| `memory-isolation` | [memory-isolation](./features/memory-isolation.md) |
 | `selftest` | runner self check, no feature file |

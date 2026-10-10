@@ -89,6 +89,9 @@ async function dev(url: string, cookie: string, path: string, body: unknown): Pr
   return res.json()
 }
 
+/** With lastSeq 0 the room sends a `reset` snapshot when its log is long and `events` otherwise; the client takes both. */
+const opened = (f: RoomToClient) => f.t === "events" || f.t === "reset"
+
 export const memorySuite = (e: Eval): Suite => ({
   name: e.name,
   model: true,
@@ -102,7 +105,7 @@ export const memorySuite = (e: Eval): Suite => ({
     user.send({ t: "chat", op: { op: "create", roomId, title: "japan trip" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     let room = await s.room(roomId)
-    await room.expect((f) => f.t === "events")
+    await room.expect(opened)
 
     const seeded = await dev(v.url, s.cookie, "seed", { roomId, turns: script(e) })
     if (seeded.turns !== TURNS) throw new VerifyError(`seeded ${seeded.turns} turns, wanted ${TURNS}`)
@@ -131,7 +134,7 @@ export const memorySuite = (e: Eval): Suite => ({
     // On a busy machine the summaries take long enough for the idle socket to drop: ask on a fresh one.
     room.raw.close()
     room = await s.room(roomId)
-    await room.expect((f) => f.t === "events")
+    await room.expect(opened)
     const quiz = ["quick quiz from everything we talked about. answer each in a few words, numbered, all in one bubble:", ...ASKED.map((f, i) => `${i + 1}) ${f.ask}`)].join("\n")
     const before = room.raw.log.length
     room.send(quiz)

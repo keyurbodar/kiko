@@ -22,5 +22,6 @@ Each case prints `ok <case>: <evidence>`:
 8. long message (Jev): lasting facts kept, small talk never stored.
 9. rerank (Jev): `rerank_jev` after a recall of 8 matching facts. Prints a note, and does not fail, if it did not move.
 10. group chat: a fact told in a two-agent chat is one live line, and a new chat recalls it.
+11. non-English fact (Jev): "mi hermana se llama Ximena y vive en Valencia" gets a live line, and a new chat answers ximena and valencia.
 
 Fail: a leaked or missing line, a fact that does not come back or go away, or a timeout (the message names what it waited for).
