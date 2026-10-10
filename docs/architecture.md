@@ -690,6 +690,26 @@ Apps (imported MCP, OpenAPI, and GraphQL servers, and apps the user writes), acc
 
 v2 is a beta (`2.0.0-beta.8`), separate from v1: a v1 account and its integrations do not carry over. Its MCP contract is documented in `apps/docs/content/mcp.md` but may change between betas. All Executor code sits in one module, and `bun yuki verify executor-connect` checks the sign-in against the real server. The license is MIT.
 
+### 12.7 Composio is tier 1
+
+**Decision.** Each user brings their own Composio consumer key (`ck_...`). Yuki sends it as a bearer token to Composio's hosted MCP server at `https://connect.composio.dev/mcp`. When a user has a key, Composio's tools replace Executor's for that user's agents, and `AgentDO` passes no Executor tools and skips the Executor warm-up. Executor stays for users without a key, until a review decides to delete it.
+
+**Reasons.**
+
+- The server is stateless: no session id, and `tools/list` and `tools/call` work with a bare POST. There is nothing to warm and nothing to lose when `UserDO` is evicted. Executor's paused programs and session cache (section 12.3) have no counterpart.
+- Tools are typed, and `COMPOSIO_MULTI_EXECUTE_TOOL` runs several in parallel. `COMPOSIO_REMOTE_WORKBENCH` is Composio's code mode, so section 12.4 still holds: yuki runs no model-written code.
+- Connections live in the user's own Composio account. Yuki holds the key, sealed in `UserDO` with AAD `composio/key`, and never an app token. The key never goes to the client or a log. Users never cross.
+
+**Effects.** A tool is `read` when its `readOnlyHint` is true, and `external` otherwise. `read` tools replay safely. `external` tools do not. Section 16.3 gates them.
+
+**Hidden tools.** Yuki does not register `COMPOSIO_REMOTE_BASH_TOOL` (the workbench covers it), `COMPOSIO_SUBMIT_FEEDBACK`, `COMPOSIO_MANAGE_SKILL`, `COMPOSIO_SEARCH_SKILLS`, and `COMPOSIO_USE_SKILL` (yuki has its own skills). The set is one small table with a reason per entry.
+
+**Risks.**
+
+- Composio keeps tool payloads for up to a year. The owner accepted this on 2026-10-10.
+- A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A tainted run needs a card for reads through it too. UNVERIFIED: that every app tool run through it honors read-only intent. It is classed `external` for that reason.
+- The MCP contract is Composio's and may change. All Composio code sits in `integrations/composio/`, and `bun yuki verify composio` checks it against the real server.
+
 ## 13. Memory
 
 **Decision.** Memory is a log, not a set of records and not a transcript. Two logs exist: a room's own messages, read as turns, and each user's life log. Over each sits a binary tree of one-line summaries. Every run starts from a bounded view of both, the `<memory>` block, and the model sees nothing older than that run. The design follows OptMem (github.com/VictorTaelin/OptMem, read at commit 1fb164c) and keeps its one rule: the history is the memory, and context is a view of it.
@@ -842,7 +862,7 @@ Every tool declares one effect.
 | `read` | `recall`, `zoom`, `read`, `ls`, `team` | allowed |
 | `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
-| `external` | Executor `execute` and `invoke` | decided by who started the run, not by taint (section 25.3) |
+| `external` | Executor `execute` and `invoke`, Composio tools without `readOnlyHint` | decided by who started the run, not by taint (section 25.3) |
 
 The `beforeTool` hook enforces the table.
 

@@ -143,6 +143,22 @@ export type ExecutorResult =
 	  }
 	| { ok: false; error: string }
 
+/** A user's Composio connection as the client may see it. It never holds the key. */
+export type ComposioStatus = {
+	connected: boolean
+	/** How many Composio rows the user has. Zero after a disconnect. */
+	rows: number
+}
+
+export type ComposioResult =
+	| {
+			ok: true
+			status: ComposioStatus
+			/** After `connectComposio`, or `composioStatus` with `tools`: the names `tools/list` returned. */
+			tools?: readonly string[]
+	  }
+	| { ok: false; error: string }
+
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
@@ -160,6 +176,12 @@ export type ClientToUser =
 	| { t: "disconnectExecutor"; reqId: string }
 	/** `refresh` forces a token refresh. `tools` calls `tools/list` with the stored credential. */
 	| { t: "executorStatus"; reqId: string; refresh?: boolean; tools?: boolean }
+	/** Stores a pasted Composio consumer key once `tools/list` accepts it. */
+	| { t: "connectComposio"; reqId: string; apiKey: string }
+	/** Deletes every Composio row for the user. */
+	| { t: "disconnectComposio"; reqId: string }
+	/** `tools` lists the tools with the stored key. */
+	| { t: "composioStatus"; reqId: string; tools?: boolean }
 	/** Starts a provider sign-in (architecture 11.4). `loginId` is the client's own id for it. */
 	| { t: "login.start"; loginId: string; provider: string }
 	/** The answer to one `login.prompt`. */
@@ -184,6 +206,11 @@ export type UserToClient =
 	 * `reqId` it goes to every socket, when a sign-in finishes in the browser.
 	 */
 	| { t: "executor"; reqId?: string; result: ExecutorResult }
+	/**
+	 * The answer to one Composio request. Without `reqId` it goes to the user's other sockets,
+	 * after a connect or a disconnect.
+	 */
+	| { t: "composio"; reqId?: string; result: ComposioResult }
 	// Provider sign-in. Not stored. Sent only to the socket that started the login.
 	| { t: "login.notify"; loginId: string; event: LoginEvent }
 	| { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }

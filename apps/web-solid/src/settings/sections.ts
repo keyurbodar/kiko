@@ -5,7 +5,7 @@
 export const SETTINGS_SECTIONS = [
   { id: "providers", group: "agents", label: "Providers", hint: undefined, keywords: "provider key api openai anthropic google opencode connect sign in disconnect" },
   { id: "models", group: "agents", label: "Models", hint: "The models the chat picker offers.", keywords: "model picker hide show default" },
-  { id: "integrations", group: "agents", label: "Integrations", hint: "Apps your agents reach through Executor.", keywords: "executor mcp tools apps" },
+  { id: "integrations", group: "agents", label: "Integrations", hint: "Apps your agents reach through Composio or Executor.", keywords: "composio executor mcp tools apps" },
   { id: "extensions", group: "agents", label: "Extensions", hint: undefined, keywords: "extension plugin addon tool hook script catalog install instructions schedules" },
   { id: "skills", group: "agents", label: "Skills", hint: undefined, keywords: "skill" },
   { id: "appearance", group: "you", label: "Appearance", hint: undefined, keywords: "theme json dark light font radius spacing wallpaper background glass blur colors picture" },

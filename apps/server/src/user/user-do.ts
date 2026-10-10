@@ -1,5 +1,5 @@
 import { duplicateDm, newRoomId } from "@yuki/protocol"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ExecutorResult, ExecutorStatus, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, ExecutorResult, ExecutorStatus, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
 import { ClientToUser } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -9,6 +9,9 @@ import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } fro
 import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import type { ExecutorTool } from "../integrations/executor/tools"
+import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
+import { ComposioStore } from "../integrations/composio/store"
+import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
 import { yukiChatOps, yukiChatRoom, markYukiChat, movesYukiChat } from "./yuki-chat"
@@ -818,6 +821,48 @@ export class UserDO extends DurableObject<Env> {
     send(ws, { t: "executor", reqId: frame.reqId, result })
   }
 
+  /** Null when no key is stored. A cold object serves the saved listing and refreshes it behind. */
+  async composioTools(): Promise<ComposioTool[] | null> {
+    return this.#composio.tools()
+  }
+
+  async composioCall(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
+    return this.#composio.call(name, args)
+  }
+
+  #composioConnection?: ComposioConnection
+  get #composio(): ComposioConnection {
+    this.#composioConnection ??= new ComposioConnection(
+      new ComposioStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name)),
+    )
+    return this.#composioConnection
+  }
+
+  private async composioFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectComposio" | "disconnectComposio" | "composioStatus" }>) {
+    const composio = this.#composio
+    let result: ComposioResult
+    try {
+      if (frame.t === "connectComposio") result = { ok: true, ...(await composio.connect(frame.apiKey)) }
+      else if (frame.t === "disconnectComposio") {
+        composio.disconnect()
+        result = { ok: true, status: composio.status() }
+      } else {
+        const tools = frame.tools ? await composio.tools() : null
+        result = { ok: true, status: composio.status(), ...(tools ? { tools: tools.map((t) => t.name) } : {}) }
+      }
+    } catch (e) {
+      result = { ok: false, error: composioErrorText(e) }
+    }
+    send(ws, { t: "composio", reqId: frame.reqId, result })
+    if (result.ok && frame.t !== "composioStatus") {
+      const { tools: _, ...others } = result
+      const text = JSON.stringify({ t: "composio", result: others } satisfies UserToClient)
+      for (const other of this.ctx.getWebSockets()) {
+        if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
+      }
+    }
+  }
+
   #loginState?: ProviderLogins<WebSocket>
   get #logins(): ProviderLogins<WebSocket> {
     this.#loginState ??= new ProviderLogins<WebSocket>({
@@ -862,6 +907,10 @@ export class UserDO extends DurableObject<Env> {
     }
     if (frame.t === "connectExecutor" || frame.t === "disconnectExecutor" || frame.t === "executorStatus") {
       await this.executorFrame(ws, frame)
+      return
+    }
+    if (frame.t === "connectComposio" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
+      await this.composioFrame(ws, frame)
       return
     }
     if (frame.t === "memory") {

@@ -24,6 +24,7 @@ import { type Approvals, isRunTainted } from "@yuki/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
 import type { ExecutorTool } from "../integrations/executor/tools"
+import type { ComposioTool } from "../integrations/composio/client"
 
 import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
 import type { GuestResponse, Installed, ScriptPorts } from "@yuki/sandbox/compile"
@@ -196,6 +197,14 @@ export class AgentDO extends DurableObject<Env> {
       .catch(() => "unreachable" as const)
   }
 
+  private async composioTools(): Promise<ComposioTool[] | null | "unreachable"> {
+    const home = this.home()
+    if (!home) return null
+    return userStub(this.env.USER, home.userId)
+      .composioTools()
+      .catch(() => "unreachable" as const)
+  }
+
   async humanComing(): Promise<void> {
     this.host.humanComing()
     this.answers.interrupt()
@@ -311,9 +320,11 @@ export class AgentDO extends DurableObject<Env> {
     const views = roomViews(id, space, (conversationId) => isRunTainted({ registry: built.registry.snapshot(), conversationId }))
     const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
-    const executor = await this.executorTools()
+    const [composio, listedExecutor] = await Promise.all([this.composioTools(), this.executorTools()])
+    // While Composio replaces Executor, a user with Composio tools gets only those.
+    const executor = Array.isArray(composio) && composio.length ? null : listedExecutor
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req), find: (query, limit) => userStub(this.env.USER, home.userId).executorFindApps(query, limit) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req), find: (query, limit) => userStub(this.env.USER, home.userId).executorFindApps(query, limit) } } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -329,7 +340,10 @@ export class AgentDO extends DurableObject<Env> {
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
-        const down = executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
+        const down = [
+          executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined,
+          composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined,
+        ].filter(Boolean).join("\n") || undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
         return [clock, down, quiet, extensions].filter(Boolean).join("\n\n")

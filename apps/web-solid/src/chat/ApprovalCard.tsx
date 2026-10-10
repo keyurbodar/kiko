@@ -18,7 +18,7 @@ import type { Approval } from "@yuki/protocol"
  * section 16.3), so the line says so and names the first one.
  */
 export function title(a: Approval): string {
-  const apps = a.tool.startsWith("executor_")
+  const apps = a.tool.startsWith("executor_") || a.tool.startsWith("composio_")
   if (a.grantMs) return `${a.slug} wants to act outside yuki for ${Math.round(a.grantMs / 60_000)} minutes, starting with ${apps ? "your connected apps" : a.tool.replace(/_/g, " ")}`
   if (apps) return `${a.slug} wants to go ahead with an action in your connected apps`
   return `${a.slug} wants to use ${a.tool.replace(/_/g, " ")}`

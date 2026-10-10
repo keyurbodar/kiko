@@ -20,6 +20,8 @@ import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import { type ExecutorCall, type ExecutorFind, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
+import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
+import { composioExtension } from "../integrations/composio/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
@@ -36,6 +38,7 @@ export type BuildAgentInput = RoleInput & {
   memory?: MemoryPort
   workspace?: WorkspacePort
   executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall; gate?: ApprovalGate; find?: ExecutorFind }
+  composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
@@ -68,6 +71,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate, input.files?.fs, input.executor.find)] : []),
+    ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
     subagentExtension(),
     ...(input.testExtensions ?? []),
