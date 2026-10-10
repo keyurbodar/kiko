@@ -1,6 +1,11 @@
-import { choiceOf, type Judge, noulOf, type Question } from "./judge"
+import type { JsonObject } from "@earendil-works/pi-ai"
+import { boolOf, choiceOf, type Judge, type Question } from "./judge"
 import { type CardTag, isCardTag, type Life } from "./life"
 import { LINE_BYTES } from "./optmem"
+
+/** "auto" captures only with a judge, "always" falls back to the memory model, "off" never captures. */
+export type CaptureMode = "auto" | "always" | "off"
+const MODES: readonly CaptureMode[] = ["auto", "always", "off"]
 
 export type CapturePolicy = {
   batch: number
@@ -12,12 +17,12 @@ export type CapturePolicy = {
   relationMin: number
   rerankMin: number
   recallMax: number
-  capture: boolean
+  capture: CaptureMode
 }
 
-export const DEFAULT_POLICY: CapturePolicy = { batch: 8, idleMs: 60_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: true }
+export const DEFAULT_POLICY: CapturePolicy = { batch: 8, idleMs: 60_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: "auto" }
 
-/** The stored setting over the defaults. A field of the wrong type keeps its default. */
+/** The stored setting over the defaults. A field of the wrong type keeps its default; a stored boolean `capture` means "auto" or "off". */
 export function mergePolicy(raw: string | null): CapturePolicy {
   let stored: Record<string, unknown> = {}
   try {
@@ -26,10 +31,16 @@ export function mergePolicy(raw: string | null): CapturePolicy {
   } catch {}
   const out = { ...DEFAULT_POLICY }
   for (const key of Object.keys(DEFAULT_POLICY) as (keyof CapturePolicy)[]) {
-    if (typeof stored[key] === typeof DEFAULT_POLICY[key] && (typeof stored[key] !== "number" || Number.isFinite(stored[key]))) (out as Record<string, unknown>)[key] = stored[key]
+    if (key !== "capture" && Number.isFinite(stored[key])) (out as Record<string, unknown>)[key] = stored[key]
   }
+  const capture = stored.capture
+  if (typeof capture === "boolean") out.capture = capture ? "auto" : "off"
+  else if (MODES.includes(capture as CaptureMode)) out.capture = capture as CaptureMode
   return out
 }
+
+/** Whether the human's own words are captured now. Agents read it to know what `note` is for. */
+export const captureActive = (policy: CapturePolicy, judgeReady: boolean): boolean => policy.capture === "always" || (policy.capture === "auto" && judgeReady)
 
 export type Heard = { messageId: string; text: string; at: number }
 
@@ -41,17 +52,15 @@ const MAX_CANDIDATES = 6
 const MIN_CHARS = 12
 const encoder = new TextEncoder()
 
-// A question or a request to the agent is never a fact about the human. Dropping them in code keeps
-// most chat messages away from any model call.
-const ASKING = /^(?:can|could|would|will|what|what's|whats|how|why|when|where|who|which|should|do|does|did|is|are|give|tell|show|remind|suggest|help|find|make|write|list|explain|let's|lets|ok|okay|thanks|thank)\b/i
+const NOT_A_FACT = /^(?:can|could|would|will|what|what's|whats|how|why|when|where|who|which|should|do|does|did|is|are|give|tell|show|remind|suggest|help|find|make|write|list|explain|let's|lets|ok|okay|thanks|thank)\b/i
 
-/** The sentences of a message that could each be one fact. */
+/** The sentences of a message that could each be one fact. Questions and requests to the agent never are. */
 export function candidates(text: string): string[] {
   const out: string[] = []
   for (const part of text.split(/\n+|(?<=[.!?])\s+/)) {
     const line = part.replace(/\s+/g, " ").trim()
     if (line.length < MIN_CHARS || encoder.encode(line).byteLength > LINE_BYTES || out.includes(line)) continue
-    if (line.endsWith("?") || ASKING.test(line)) continue
+    if (line.endsWith("?") || NOT_A_FACT.test(line)) continue
     out.push(line)
     if (out.length === MAX_CANDIDATES) break
   }
@@ -60,21 +69,21 @@ export function candidates(text: string): string[] {
 
 const NEIGHBORS = 8
 
-const WORTH: Omit<Extract<Question, { type: "noul" }>, "instructions"> = {
-  type: "noul",
-  criteria: {
-    true: "a lasting fact about the human worth remembering for months: who they are, their people, places, work, plans, preferences, or how they want to be helped",
-    false: "small talk, a passing mood, a question, or a request to the agent",
-  },
+const WORTH = {
+  true: "a lasting fact about the human worth remembering for months: who they are, their people, places, work, plans, preferences, or how they want to be helped",
+  false: "small talk, a passing mood, a question, or a request to the agent",
 }
 
-const PRIVATE: Omit<Extract<Question, { type: "noul" }>, "instructions"> = {
-  type: "noul",
-  criteria: {
-    true: "a street address, phone number, government id, account number, password, pin or key, a health detail, or something they asked to keep secret",
-    false: "none of these. A city, country, employer, job, or who someone is to them is not private",
-  },
+const STANDING = { true: "a rule for how to help the human from now on", false: "a request about the current message only, or no rule at all" }
+
+const PRIVATE = {
+  true: "a street address, phone number, government id, account number, password, pin or key, a medical diagnosis, condition, or medication, or something they asked to keep secret",
+  false: "none of these. A city, employer, job, who someone is to them, tastes, and food allergies or diets are not private",
 }
+
+const SAME = { true: "the same fact, maybe in other words", false: "a different fact. A different name, person, place, or detail makes it a different fact, even when the sentences look alike" }
+
+const REPLACES = { true: "an update or correction of the same detail about the same person, place, or thing, so the known fact is no longer true", false: "both can be true at once, or they are about different people, places, or things" }
 
 const CARD: Record<CardTag | "not_card", string> = {
   IDENTITY: "who they are: name, age, pronouns, where they live, what they do",
@@ -84,29 +93,29 @@ const CARD: Record<CardTag | "not_card", string> = {
   not_card: "anything that may change within six months, or a minor detail",
 }
 
-export function captureQuestions(items: { candidate: string; known: { pos: number; text: string }[] }[]): Record<string, Question> {
+export type CaptureItem = { candidate: string; known: { pos: number; text: string }[] }
+
+/** Each sentence and its known facts are in `state` once, and every question points at them by path. */
+export function captureQuestions(message: string, items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
   const questions: Record<string, Question> = {}
-  items.forEach(({ candidate, known }, i) => {
-    questions[`c${i}_worth`] = { ...WORTH, instructions: { candidate, question: "Is `candidate` a lasting fact about the human worth remembering for months?" } }
-    questions[`c${i}_standing`] = {
-      type: "noul",
-      instructions: { candidate, question: "Is `candidate` a standing rule for how to help the human from now on, rather than a request about the current message only?" },
-    }
-    questions[`c${i}_private`] = { ...PRIVATE, instructions: { candidate, question: "Does `candidate` hold a private detail about the human?" } }
-    for (const k of known) {
-      questions[`c${i}_same_${k.pos}`] = { type: "noul", instructions: { candidate, known: k.text, question: "Does `candidate` say the same thing about the human as `known`, even in other words?" } }
-      questions[`c${i}_replaces_${k.pos}`] = {
-        type: "noul",
-        instructions: { candidate, known: k.text, question: "Does `candidate` make `known` no longer true, as an update or a correction of the same thing?" },
-      }
-    }
+  items.forEach(({ known }, i) => {
+    const c = `\`candidates[${i}].text\``
+    questions[`c${i}_worth`] = { type: "bool", instructions: `Is ${c} a lasting fact about the human worth remembering for months?`, criteria: WORTH }
+    questions[`c${i}_standing`] = { type: "bool", instructions: `Is ${c} a standing rule for how to help the human from now on?`, criteria: STANDING }
+    questions[`c${i}_private`] = { type: "bool", instructions: `Does ${c} hold a private detail about the human?`, criteria: PRIVATE }
+    known.forEach((k, j) => {
+      const fact = `\`candidates[${i}].known[${j}].text\``
+      questions[`c${i}_same_${k.pos}`] = { type: "bool", instructions: `Does ${c} state the very same fact as ${fact}: the same person, place, or thing, and the same detail about it?`, criteria: SAME }
+      questions[`c${i}_replaces_${k.pos}`] = { type: "bool", instructions: `Does ${c} make ${fact} no longer true?`, criteria: REPLACES }
+    })
     questions[`c${i}_card`] = {
       type: "choice",
-      instructions: { candidate, question: "Does `candidate` belong on the human's profile card? Only facts unlikely to change within six months belong there." },
+      instructions: `Does ${c} belong on the human's profile card? Only facts unlikely to change within six months belong there.`,
       criteria: CARD,
     }
   })
-  return questions
+  const state = { message, candidates: items.map((it) => ({ text: it.candidate, known: it.known.map((k) => ({ pos: k.pos, text: k.text })) })) }
+  return { state, questions }
 }
 
 /**
@@ -117,19 +126,20 @@ export async function captureWithJudge(life: Life, judge: Judge, heard: Heard, r
   const count: CaptureCount = { added: 0, replaced: 0, same: 0, private: 0 }
   const items = candidates(heard.text).map((candidate) => ({ candidate, known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })) }))
   if (!items.length) return count
-  const answers = await judge({ message: heard.text }, captureQuestions(items))
+  const { state, questions } = captureQuestions(heard.text, items)
+  const answers = await judge(state, questions)
   if (!answers) return null
   if (!keep()) return count
   items.forEach(({ candidate, known }, i) => {
-    if (noulOf(answers[`c${i}_private`]) > policy.privateMax) return void count.private++
+    if (boolOf(answers[`c${i}_private`]) > policy.privateMax) return void count.private++
     const answer = choiceOf(answers[`c${i}_card`])
     const card = answer && isCardTag(answer.choice) && answer.p >= policy.cardMin ? answer.choice : null
     // Jev scores a standing instruction ("keep answers short from now on") low on worth, so it is asked
     // separately; a one-off request ("answer in one short line") is neither.
-    const standing = card === "INSTRUCTION" && noulOf(answers[`c${i}_standing`]) >= policy.worthMin
-    if (!standing && noulOf(answers[`c${i}_worth`]) < policy.worthMin) return
-    const replaced = known.filter((k) => noulOf(answers[`c${i}_replaces_${k.pos}`]) >= policy.relationMin).map((k) => k.pos)
-    if (!replaced.length && known.some((k) => noulOf(answers[`c${i}_same_${k.pos}`]) >= policy.relationMin)) return void count.same++
+    const standing = card === "INSTRUCTION" && boolOf(answers[`c${i}_standing`]) >= policy.worthMin
+    if (!standing && boolOf(answers[`c${i}_worth`]) < policy.worthMin) return
+    const replaced = known.filter((k) => boolOf(answers[`c${i}_replaces_${k.pos}`]) >= policy.relationMin).map((k) => k.pos)
+    if (!replaced.length && known.some((k) => boolOf(answers[`c${i}_same_${k.pos}`]) >= policy.relationMin)) return void count.same++
     const out = life.append(candidate, SOURCE, false, heard.at, { ref, card })
     if (!out.ok) return
     if (out.duplicate) return void count.same++
@@ -154,7 +164,7 @@ const MESSAGE_CUT = 2_000
 export function capturePrompt(heard: readonly Heard[], known: readonly { pos: number; text: string }[]): string {
   return [
     "read the human's messages and the facts already known. write one line for each fact worth remembering for months: who they are, their people, places, work, plans, tastes, and how they want to be helped.",
-    "skip small talk, passing moods, questions, requests to the agent, and private details (a street address, phone number, government id, account number, password, pin or key, health detail, or anything they asked to keep secret). a city, employer, or job is not private.",
+    "skip small talk, passing moods, questions, requests to the agent, and private details (a street address, phone number, government id, account number, password, pin or key, a medical diagnosis, condition, or medication, or something they asked to keep secret). a city, employer, job, who someone is to them, tastes, and food allergies or diets are not private.",
     `write each fact in the third person about the human, in one line of at most ${LINE_BYTES} bytes. copy names, numbers, and dates exactly. invent nothing.`,
     "use only these line formats:",
     "+ m<i> <fact>        a new fact, from message m<i>",

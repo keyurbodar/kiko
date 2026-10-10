@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
-import type { Conversation, Harness, ModelRef, SubmissionId } from "@earendil-works/pi-durable"
+import type { Conversation, ConversationId, Harness, ModelRef, SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope, RoomId } from "@yuki/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
@@ -544,10 +544,11 @@ export class AgentDO extends DurableObject<Env> {
     const user = () => userStub(this.env.USER, home.userId)
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
-      note: async (text, tainted) => (this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "")),
+      note: async (text, tainted, replaces) =>
+        this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", replaces),
+      captures: () => this.#run?.captures ?? false,
       recall: async (query, conversationId) => {
-        // A helper's context holds none of the root's <memory> block, so only the root skips what it already has.
-        const root = conversationId === (await this.host.rootId())
+        const root = await this.isRootConversation(conversationId)
         const seen = root ? await this.ctx.storage.get<number>(MEMORY_POS_KEY) : undefined
         const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, root ? this.#seqs : [])])
         return mergeRecall(tagHits("life", life), tagHits("chat", chat), root ? this.#shown : new Set(), (lines) => user().rerank(query, lines), RECALL_MAX)
@@ -560,7 +561,12 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  #run: { provider: string; auth: AuthResult | null; timezone: string; extensions?: { name: string; hash: string }[]; soul?: Soul } | null = null
+  /** Only the root conversation holds the <memory> block; a helper's context starts without it. */
+  private async isRootConversation(conversationId: ConversationId): Promise<boolean> {
+    return conversationId === (await this.host.rootId())
+  }
+
+  #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; extensions?: { name: string; hash: string }[]; soul?: Soul } | null = null
   #runStamp = 0
 
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
@@ -588,7 +594,7 @@ export class AgentDO extends DurableObject<Env> {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider, home.slug) : null
-    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", ...(context?.agent ? { extensions: context.agent.extensions, soul: context.agent.soul } : {}) }
+    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.agent ? { extensions: context.agent.extensions, soul: context.agent.soul } : {}) }
     return this.#run.auth
   }
 

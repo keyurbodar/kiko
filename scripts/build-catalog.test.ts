@@ -41,3 +41,10 @@ test("the file name is a hash of the content", () => {
   expect(catalogFile(catalog).fileName).toBe(a.fileName);
   expect(catalogFile({ providers: catalog.providers.slice(1) }).fileName).not.toBe(a.fileName);
 });
+
+test("a provider's classifier models are counted, so the client can tell a judge from a chat provider", () => {
+  const typesafe = catalog.providers.find((p) => p.id === "typesafe");
+  expect(typesafe?.models).toEqual([]);
+  expect(typesafe?.classifiers).toBeGreaterThan(0);
+  expect(catalog.providers.find((p) => p.id === "anthropic")?.classifiers).toBe(0);
+});

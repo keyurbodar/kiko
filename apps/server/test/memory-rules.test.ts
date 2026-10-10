@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { Envelope } from "@yuki/protocol"
-import { parseZoomId } from "@yuki/memory/tools"
+import { MEMORY_NOTE, memoryExtensions, parseZoomId } from "@yuki/memory/tools"
 import { perRun } from "../src/agent/extensions/self"
 import { briefToShow } from "@yuki/agent/host"
 import { renderInput } from "@yuki/agent/inbox"
@@ -100,4 +100,19 @@ test("the prompt reads a file once per run, and again when the run changes", asy
   await every()
   await every()
   expect(reads).toBe(4)
+})
+
+test("the note rule follows capture on every render, and both versions mention replaces", async () => {
+  let captures = false
+  const port = { note: async () => ({ ok: true as const, pos: 0 }), recall: async () => "", zoom: async () => null, captures: () => captures }
+  const section = memoryExtensions(port).find((e) => e.name === MEMORY_NOTE)!.sections![0]!
+  const render = () => section.render({} as never, {} as never)
+  const off = await render()
+  expect(off).toContain("the moment you learn it")
+  expect(off).not.toContain("saved on its own")
+  captures = true
+  const on = await render()
+  expect(on).toContain("saved on its own")
+  expect(on).not.toContain("the moment you learn it")
+  for (const rule of [off, on]) expect(rule).toContain("replaces: life:n")
 })

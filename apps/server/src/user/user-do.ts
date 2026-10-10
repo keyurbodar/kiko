@@ -23,9 +23,10 @@ import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Tou
 import { Life } from "@yuki/memory/life"
 import { importRecords } from "./import-records"
 import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@yuki/memory/optmem"
-import { applyOps, CAPTURE_SYSTEM, candidates, type CaptureCount, type CapturePolicy, capturePrompt, captureWithJudge, type Heard, knownFor, mergePolicy, parseCapture } from "@yuki/memory/capture"
-import { type Judge, noulOf, type Question } from "@yuki/memory/judge"
-import { TYPESAFE, TYPESAFE_REFUSED, typesafeJudge } from "./jev"
+import { applyOps, CAPTURE_SYSTEM, captureActive, candidates, type CaptureCount, type CapturePolicy, capturePrompt, captureWithJudge, type Heard, knownFor, mergePolicy, parseCapture } from "@yuki/memory/capture"
+import { type Answer, boolOf, type Judge, type Question } from "@yuki/memory/judge"
+import type { NoteAnswer } from "@yuki/memory/tools"
+import type { JsonObject } from "@earendil-works/pi-ai"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
@@ -36,7 +37,7 @@ import { safeFetch } from "@yuki/durable/safe-fetch"
 import { defaultFetcher } from "../lib/dev-fixture-fetch"
 import { htmlToText } from "@yuki/durable/html-text"
 import { migrate } from "./schema"
-import { DEFAULT_TIMEZONE, findProvider, resolveTurnContext, type TurnContext } from "./turn-context"
+import { DEFAULT_TIMEZONE, findProvider, pickJudge, providerUses, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { DEFAULT_MODEL, userModels } from "../agent/factory"
 import { roomStub } from "../lib/names"
@@ -65,11 +66,15 @@ const COMPRESS_TIMEOUT_MS = 120_000
 const MEMORY_USAGE = "memory_usage"
 const MEMORY_MODEL = "memory_model"
 const MEMORY_POLICY = "memory_policy"
+const JUDGE_MODEL = "judge_model"
+const refusedKey = (provider: string) => `${provider}_refused`
+// pi-ai's System One error text carries the HTTP status as "(401)".
+const REFUSED = /\((401|403)\)/
 const CAPTURE_WAKEUP = "life_capture"
 const CAPTURE_QUEUE_MAX = 200
 const CAPTURE_PER_ALARM = 24
 const CAPTURE_TEXT_MAX = 8_000
-const CAPTURE_TIMEOUT_MS = 4_000
+const CAPTURE_TIMEOUT_MS = 8_000
 const RERANK_TIMEOUT_MS = 1_500
 const RERANK_LINES_MAX = 30
 const LAST_SEEN = "last_seen"
@@ -294,6 +299,11 @@ export class UserDO extends DurableObject<Env> {
   async devSetting(key: "memory_policy", value: string): Promise<void> {
     if (process.env.NODE_ENV !== "development" || key !== "memory_policy") throw new Error("not found")
     this.putSetting(key, value)
+  }
+
+  async devCaptureQueue(): Promise<number> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n
   }
 
   async devDue(id: string): Promise<void> {
@@ -578,11 +588,13 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** `ref` names the human message the note answers, so deleting that message forgets the note too. */
-  async lifeNote(author: string, text: string, tainted: boolean, ref = ""): Promise<{ ok: true; duplicate?: true } | { ok: false; error: string }> {
+  async lifeNote(author: string, text: string, tainted: boolean, ref = "", replaces?: string): Promise<NoteAnswer> {
     const out = this.life.append(text, `@${author}`, tainted, Date.now(), { ref })
     if (!out.ok) return out
-    if (!out.duplicate) await this.armNaps()
-    return out.duplicate ? { ok: true, duplicate: true } : { ok: true }
+    const old = replaces === undefined ? null : /^(?:life:)?\s*#?(\d+)$/i.exec(replaces.trim())
+    const replaced = old ? this.life.supersede(Number(old[1]), out.pos) : false
+    if (!out.duplicate || replaced) await this.armNaps()
+    return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
   }
 
   async lifeRollup(roomId: RoomId, text: string, tainted: boolean, at: number, span?: { lo: number; hi: number }): Promise<void> {
@@ -599,7 +611,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
-    if (!this.policy().capture || !this.capturable(roomId)) return
+    if (!this.captures() || !this.capturable(roomId)) return
     const rows = items.flatMap((i) => (i.messageId && candidates(i.text).length ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
     if (!rows.length) return
     this.sql.exec(
@@ -630,19 +642,19 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
-    if (!this.jevReady()) return null
+    if (!this.judgeKey()) return null
     const shown = lines.slice(0, RERANK_LINES_MAX)
     if (!shown.length) return []
     const questions: Record<string, Question> = {}
-    shown.forEach((l, i) => {
-      questions[`l${i}`] = { type: "noul", instructions: { line: l.text, query, question: "Does `line` help answer `query`?" } }
+    shown.forEach((_, i) => {
+      questions[`l${i}`] = { type: "bool", instructions: `Does \`lines[${i}]\` help answer \`query\`?`, criteria: { true: "it holds part of the answer", false: "it does not help answer it" } }
     })
-    const answers = await this.judge(RERANK_TIMEOUT_MS)({ query }, questions)
+    const answers = await this.judge(RERANK_TIMEOUT_MS)({ query, lines: shown.map((l) => l.text) }, questions)
     if (!answers) return null
     this.count({ rerank_jev: 1 })
     const policy = this.policy()
     return shown
-      .map((l, i) => ({ id: l.id, p: noulOf(answers[`l${i}`]) }))
+      .map((l, i) => ({ id: l.id, p: boolOf(answers[`l${i}`]) }))
       .filter((x) => x.p >= policy.rerankMin)
       .sort((a, b) => b.p - a.p)
       .slice(0, policy.recallMax)
@@ -658,25 +670,48 @@ export class UserDO extends DurableObject<Env> {
     return chat !== null && !chat.private
   }
 
-  /** A TypeSafe key is stored and was not refused. Reads one row; the judge itself reads the key. */
-  private jevReady(): boolean {
-    const info = this.#credentials.listProviders().find((p) => p.provider === TYPESAFE)
-    return info !== undefined && (info.last4 === "" || this.setting(TYPESAFE_REFUSED) !== info.last4)
+  private captures(): boolean {
+    return captureActive(this.policy(), this.judgeKey() !== null)
   }
 
+  private refused(p: ProviderInfo): boolean {
+    return this.setting(refusedKey(p.provider)) === p.last4
+  }
+
+  private judgeKey(): { key: ProviderInfo; model: string | null } | null {
+    return pickJudge(this.#credentials.listProviders(), (p) => this.refused(p), this.setting(JUDGE_MODEL))
+  }
+
+  // The key is looked up on every judgment, so adding, replacing, or removing it changes the next one.
   private judge(timeoutMs: number): Judge {
-    return typesafeJudge(
-      {
-        key: async () => {
-          const credential = await this.#credentials.read(TYPESAFE)
-          return credential?.type === "api_key" && credential.key ? credential.key : null
-        },
-        setting: (key) => this.setting(key),
-        putSetting: (key, value) => (value === null ? void this.sql.exec("DELETE FROM settings WHERE key = ?", key) : this.putSetting(key, value)),
-        count: (key, n = 1) => this.count({ [key]: n }),
-      },
-      timeoutMs,
-    )
+    return async <K extends string>(state: JsonObject, questions: Record<K, Question>): Promise<Record<K, Answer> | null> => {
+      const picked = this.judgeKey()
+      if (!picked) return null
+      const { key } = picked
+      try {
+        const auth = (await this.turnContext(key.provider)).auth
+        if (!auth) return null
+        const { models } = userModels(async () => auth, `memory-${this.ctx.id.toString()}`)
+        const model = (picked.model ? models.getModelOfType("classifier", key.provider, picked.model) : undefined) ?? models.getModelsOfType("classifier", key.provider)[0]
+        if (!model) return null
+        const result = await models.classify(model, { state, questions }, { signal: AbortSignal.timeout(timeoutMs) })
+        this.count({ jev_input: result.usage?.input ?? 0, jev_output: result.usage?.output ?? 0 })
+        if (result.stopReason === "stop") return result.answers as Record<K, Answer>
+        if (REFUSED.test(result.errorMessage ?? "")) {
+          this.putSetting(refusedKey(key.provider), key.last4)
+          this.count({ jev_refused: 1 })
+        } else {
+          this.count({ jev_errors: 1 })
+          // Only the status: a provider's error body could echo the key.
+          console.error(`judge ${key.provider} ${result.stopReason} ${/\((\d{3})\)/.exec(result.errorMessage ?? "")?.[1] ?? ""}`)
+        }
+        return null
+      } catch (error) {
+        this.count({ jev_errors: 1 })
+        console.error(`judge ${key.provider} failed: ${error instanceof Error ? error.name : "error"}`)
+        return null
+      }
+    }
   }
 
   private count(delta: Record<string, number>): void {
@@ -691,9 +726,10 @@ export class UserDO extends DurableObject<Env> {
 
   private async armCapture(): Promise<void> {
     const q = this.sql.exec<{ n: number; oldest: number | null; newest: number | null }>("SELECT count(*) AS n, min(queued_at) AS oldest, max(queued_at) AS newest FROM capture_queue").one()
+    if (q.n && !this.captures()) return this.captureNow()
     if (!q.n) return this.alarms.clearWakeup(CAPTURE_WAKEUP)
     const p = this.policy()
-    await this.alarms.setWakeup(CAPTURE_WAKEUP, this.jevReady() ? q.newest! + p.jevDelayMs : q.n >= p.batch ? Date.now() : q.oldest! + p.idleMs)
+    await this.alarms.setWakeup(CAPTURE_WAKEUP, this.judgeKey() ? q.newest! + p.jevDelayMs : q.n >= p.batch ? Date.now() : q.oldest! + p.idleMs)
   }
 
   private queued(roomId: string, messageId: string, text: string): boolean {
@@ -706,13 +742,16 @@ export class UserDO extends DurableObject<Env> {
 
   private async captureNow(): Promise<void> {
     const policy = this.policy()
-    if (!policy.capture) return void this.sql.exec("DELETE FROM capture_queue")
+    if (!this.captures()) {
+      this.sql.exec("DELETE FROM capture_queue")
+      return this.alarms.clearWakeup(CAPTURE_WAKEUP)
+    }
     type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number; queued_at: number }
     let rows = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at, queued_at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
     for (const r of rows.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
     rows = rows.filter((r) => this.capturable(r.room_id))
     let learned = false
-    if (this.jevReady()) {
+    if (this.judgeKey()) {
       const judge = this.judge(CAPTURE_TIMEOUT_MS)
       const left: QueueRow[] = []
       for (const r of rows) {
@@ -731,11 +770,15 @@ export class UserDO extends DurableObject<Env> {
         if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
       }
       rows = left
+      // "auto" never spends the memory model: rows the judge failed on wait for it.
+      if (rows.length && policy.capture === "auto") {
+        if (learned) await this.armNaps()
+        return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + policy.idleMs))
+      }
     } else {
       const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n
       if (total < policy.batch && (rows[0]?.queued_at ?? Date.now()) + policy.idleMs > Date.now()) rows = []
     }
-    // Without Jev, or when it failed mid-pass, the model reads the rest: one call per chat.
     const rooms = new Map<RoomId, QueueRow[]>()
     for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
     for (const [roomId, batch] of rooms) {
@@ -755,7 +798,8 @@ export class UserDO extends DurableObject<Env> {
     let answer: string | null
     try {
       answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, CAPTURE_SYSTEM, capturePrompt(heard, known))
-    } catch {
+    } catch (error) {
+      console.error(`capture by model failed: ${error instanceof Error ? error.message.slice(0, 200) : "error"}`)
       return "later"
     }
     if (answer === null) return "later"
@@ -843,24 +887,28 @@ export class UserDO extends DurableObject<Env> {
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
     const info = await this.#credentials.connect(provider, apiKey)
-    if (provider === TYPESAFE) await this.judgeChanged()
-    return info
+    await this.keyChanged(provider)
+    return this.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
-    if (provider === TYPESAFE) await this.judgeChanged()
+    await this.keyChanged(provider)
     return removed
   }
 
   async listProviders(): Promise<ProviderInfo[]> {
-    const refused = this.setting(TYPESAFE_REFUSED)
-    return this.#credentials.listProviders().map((p) => (p.provider === TYPESAFE && refused !== null && p.last4 === refused ? { ...p, refused: true as const } : p))
+    return this.#credentials.listProviders().map((p) => this.describe(p))
   }
 
-  /** A new or removed TypeSafe key: forget the old refusal and move the capture wakeup to the path now in use. */
-  private async judgeChanged(): Promise<void> {
-    this.sql.exec("DELETE FROM settings WHERE key = ?", TYPESAFE_REFUSED)
+  private describe(p: ProviderInfo): ProviderInfo {
+    const uses = providerUses(p.provider)
+    return { ...p, ...uses, ...(uses.judge && this.refused(p) ? { refused: true as const } : {}) }
+  }
+
+  private async keyChanged(provider: string): Promise<void> {
+    if (!providerUses(provider).judge) return
+    this.sql.exec("DELETE FROM settings WHERE key = ?", refusedKey(provider))
     await this.armCapture()
   }
 
@@ -927,7 +975,7 @@ export class UserDO extends DurableObject<Env> {
       this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
     const limits = setting("limits")
     const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null }, agent)
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.captures() }, agent)
   }
 
   async lifeView(): Promise<string> {

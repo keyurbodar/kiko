@@ -1,8 +1,7 @@
 import { expect, test } from "bun:test"
-import { applyOps, candidates, captureWithJudge, DEFAULT_POLICY, mergePolicy, parseCapture } from "@yuki/memory/capture"
+import { applyOps, candidates, captureActive, captureQuestions, captureWithJudge, DEFAULT_POLICY, mergePolicy, parseCapture } from "@yuki/memory/capture"
 import type { Answer, Judge, Question } from "@yuki/memory/judge"
 import { CARD_MAX, Life } from "@yuki/memory/life"
-import { TYPESAFE_REFUSED, TYPESAFE_URL, typesafeJudge } from "../src/user/jev"
 import { sqlStorage } from "./sql-shim"
 
 function life(sql = sqlStorage()) {
@@ -124,99 +123,72 @@ test("candidates are the sentences between 12 characters and 280 bytes, at most 
 
 test("the policy setting merges over the defaults and ignores fields of the wrong type", () => {
   expect(mergePolicy(null)).toEqual(DEFAULT_POLICY)
-  expect(mergePolicy('{"batch": 3, "worthMin": "high", "capture": false}')).toEqual({ ...DEFAULT_POLICY, batch: 3, capture: false })
+  expect(DEFAULT_POLICY.capture).toBe("auto")
+  expect(mergePolicy('{"batch": 3, "worthMin": "high", "capture": "always"}')).toEqual({ ...DEFAULT_POLICY, batch: 3, capture: "always" })
+  expect(mergePolicy('{"capture": "sometimes"}').capture).toBe("auto")
   expect(mergePolicy("not json")).toEqual(DEFAULT_POLICY)
 })
 
-function jevDeps(key: string | null, fetcher: typeof fetch) {
-  const settings = new Map<string, string>()
-  const usage: Record<string, number> = {}
-  return {
-    settings,
-    usage,
-    deps: {
-      key: async () => key,
-      setting: (k: string) => settings.get(k) ?? null,
-      putSetting: (k: string, v: string | null) => void (v === null ? settings.delete(k) : settings.set(k, v)),
-      count: (k: string, n = 1) => void (usage[k] = (usage[k] ?? 0) + n),
-      fetch: fetcher,
-    },
-  }
-}
-
-const ONE: Record<string, Question> = { worth: { type: "noul", instructions: "Is it worth it?" } }
-
-test("a refused TypeSafe key is marked by its last four and not sent again until the key changes", async () => {
-  let calls = 0
-  const refuse = (async () => {
-    calls++
-    return new Response("{}", { status: 401 })
-  }) as unknown as typeof fetch
-  const a = jevDeps("ts-key-abcd", refuse)
-  expect(await typesafeJudge(a.deps, 1000)("state", ONE)).toBeNull()
-  expect(a.settings.get(TYPESAFE_REFUSED)).toBe("abcd")
-  expect(a.usage.jev_refused).toBe(1)
-  expect(await typesafeJudge(a.deps, 1000)("state", ONE)).toBeNull()
-  expect(calls).toBe(1)
-  const ok = (async () => Response.json({ model: "jev-1", answers: { worth: { type: "noul", noul: 0.8 } }, usage: { input_tokens: 10, output_tokens: 2 } })) as unknown as typeof fetch
-  const b = jevDeps("ts-key-wxyz", ok)
-  b.settings.set(TYPESAFE_REFUSED, "abcd")
-  expect(await typesafeJudge(b.deps, 1000)("state", ONE)).toEqual({ worth: { type: "noul", noul: 0.8 } })
-  expect(b.settings.has(TYPESAFE_REFUSED)).toBe(false)
-  expect(await typesafeJudge(jevDeps(null, ok).deps, 1000)("state", ONE)).toBeNull()
+test("a stored boolean capture means auto or off", () => {
+  expect(mergePolicy('{"capture": true}').capture).toBe("auto")
+  expect(mergePolicy('{"capture": false}').capture).toBe("off")
 })
 
-test("a slow TypeSafe answer times out to null", async () => {
-  const hang = ((_: string, init: RequestInit) =>
-    new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as unknown as typeof fetch
-  const { deps, usage } = jevDeps("ts-key-abcd", hang)
-  const started = Date.now()
-  expect(await typesafeJudge(deps, 50)("state", ONE)).toBeNull()
-  expect(Date.now() - started).toBeLessThan(1000)
-  expect(usage.jev_errors).toBe(1)
+test("capture is active with always, with auto only when a judge is ready, and never when off", () => {
+  const at = (capture: "auto" | "always" | "off") => ({ ...DEFAULT_POLICY, capture })
+  expect(captureActive(at("auto"), false)).toBe(false)
+  expect(captureActive(at("auto"), true)).toBe(true)
+  expect(captureActive(at("always"), false)).toBe(true)
+  expect(captureActive(at("off"), true)).toBe(false)
 })
 
-test("a TypeSafe success maps answers, sends the documented body, and rejects answers of the wrong shape", async () => {
-  let sent: { url: string; auth: string | null; body: Record<string, unknown> } | null = null
-  const questions: Record<string, Question> = { ...ONE, kind: { type: "choice", instructions: "Which?", criteria: { a: null, b: null } } }
-  const reply = (answers: unknown) =>
-    (async (url: string, init: RequestInit) => {
-      sent = { url, auth: new Headers(init.headers).get("authorization"), body: JSON.parse(init.body as string) }
-      return Response.json({ model: "jev-1", answers, usage: { input_tokens: 300, output_tokens: 20 } })
-    }) as unknown as typeof fetch
-  const good = jevDeps("ts-key-abcd", reply({ worth: { type: "noul", noul: 0.2 }, kind: { type: "choice", choice: "b", confidence: 0.9, probabilities: { a: 0.05, b: 0.95 } } }))
-  expect(await typesafeJudge(good.deps, 1000)({ message: "hi" }, questions)).toEqual({
-    worth: { type: "noul", noul: 0.2 },
-    kind: { type: "choice", choice: "b", confidence: 0.9, probabilities: { a: 0.05, b: 0.95 } },
+test("capture questions are pi-ai bool and choice questions that point into the state by path", () => {
+  const { state, questions } = captureQuestions("I moved to Pune. The weather is nice.", [
+    { candidate: "I moved to Pune.", known: [{ pos: 3, text: "lives in Bangalore" }, { pos: 9, text: "likes tea" }] },
+    { candidate: "The weather is nice.", known: [] },
+  ])
+  expect(state).toEqual({
+    message: "I moved to Pune. The weather is nice.",
+    candidates: [
+      { text: "I moved to Pune.", known: [{ pos: 3, text: "lives in Bangalore" }, { pos: 9, text: "likes tea" }] },
+      { text: "The weather is nice.", known: [] },
+    ],
   })
-  expect(sent!.url).toBe(TYPESAFE_URL)
-  expect(sent!.auth).toBe("Bearer ts-key-abcd")
-  expect(sent!.body).toEqual({ state: { message: "hi" }, model: "jev-latest", questions })
-  expect(good.usage).toEqual({ jev_input: 300, jev_output: 20 })
-  const bad = jevDeps("ts-key-abcd", reply({ worth: { type: "choice", choice: "x" } }))
-  expect(await typesafeJudge(bad.deps, 1000)("s", questions)).toBeNull()
-  expect(bad.usage.jev_errors).toBe(1)
+  expect(Object.keys(questions).sort()).toEqual(
+    ["c0_card", "c0_private", "c0_replaces_3", "c0_replaces_9", "c0_same_3", "c0_same_9", "c0_standing", "c0_worth", "c1_card", "c1_private", "c1_standing", "c1_worth"].sort(),
+  )
+  expect(questions.c0_replaces_9).toMatchObject({ type: "bool", instructions: "Does `candidates[0].text` make `candidates[0].known[1].text` no longer true?" })
+  expect(questions.c1_worth!.instructions).toContain("`candidates[1].text`")
+  for (const q of Object.values(questions)) {
+    expect(typeof q.instructions).toBe("string")
+    expect(q.instructions).not.toContain("Bangalore")
+    if (q.type === "bool") expect([typeof q.criteria.true, typeof q.criteria.false]).toEqual(["string", "string"])
+  }
+  expect((questions.c0_private as { criteria: { false: string } }).criteria.false).toContain("food allergies or diets are not private")
+  expect(questions.c0_card).toMatchObject({ type: "choice" })
 })
 
 type Verdict = { worth: number; standing?: number; private?: number; same?: number[]; replaces?: number[]; card?: string; cardP?: number }
 
+type CaptureState = { candidates: { text: string; known: { pos: number; text: string }[] }[] }
+
 function fakeJudge(verdicts: Record<string, Verdict>, seen: Question[][] = []): Judge {
-  return (async (_state: unknown, questions: Record<string, Question>) => {
+  return (async (state: CaptureState, questions: Record<string, Question>) => {
     seen.push(Object.values(questions))
     const out: Record<string, Answer> = {}
-    for (const [key, q] of Object.entries(questions)) {
-      const v = verdicts[(q.instructions as { candidate: string }).candidate]!
-      const kind = key.slice(key.indexOf("_") + 1)
-      const about = Number(kind.split("_")[1])
-      if (kind === "worth") out[key] = { type: "noul", noul: v.worth }
-      else if (kind === "private") out[key] = { type: "noul", noul: v.private ?? 0 }
-      else if (kind === "standing") out[key] = { type: "noul", noul: v.standing ?? 0 }
-      else if (kind.startsWith("same_")) out[key] = { type: "noul", noul: v.same?.includes(about) ? 0.9 : 0.05 }
-      else if (kind.startsWith("replaces_")) out[key] = { type: "noul", noul: v.replaces?.includes(about) ? 0.9 : 0.05 }
+    const yes = (probability: number): Answer => ({ type: "bool", probability })
+    for (const key of Object.keys(questions)) {
+      const [, index, kind, about] = /^c(\d+)_([a-z]+)(?:_(\d+))?$/.exec(key)!
+      const v = verdicts[state.candidates[Number(index)]!.text]!
+      if (kind === "worth") out[key] = yes(v.worth)
+      else if (kind === "private") out[key] = yes(v.private ?? 0)
+      else if (kind === "standing") out[key] = yes(v.standing ?? 0)
+      else if (kind === "same") out[key] = yes(v.same?.includes(Number(about)) ? 0.9 : 0.05)
+      else if (kind === "replaces") out[key] = yes(v.replaces?.includes(Number(about)) ? 0.9 : 0.05)
       else out[key] = { type: "choice", choice: v.card ?? "not_card", confidence: 0.9, probabilities: { [v.card ?? "not_card"]: v.cardP ?? 0.9 } }
     }
     return out
-  }) as Judge
+  }) as unknown as Judge
 }
 
 test("the judged path keeps only worthy, non-private facts, and a replacement supersedes every copy it corrects", async () => {

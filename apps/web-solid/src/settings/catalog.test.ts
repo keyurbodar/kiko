@@ -10,8 +10,8 @@ const model = (id: string, name: string) => ({
   pricing: { input: 1, output: 2 },
 })
 const providers: CatalogProvider[] = [
-  { id: "alpha", name: "Alpha", connect: ["api_key"], models: [model("a-fast", "Alpha Fast"), model("a-big", "Alpha Big")] },
-  { id: "beta", name: "Beta Labs", connect: ["device_code"], models: [model("b-fast", "Beta Fast")] },
+  { id: "alpha", name: "Alpha", connect: ["api_key"], models: [model("a-fast", "Alpha Fast"), model("a-big", "Alpha Big")], classifiers: 0 },
+  { id: "beta", name: "Beta Labs", connect: ["device_code"], models: [model("b-fast", "Beta Fast")], classifiers: 0 },
 ]
 
 describe("catalog helpers", () => {

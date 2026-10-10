@@ -1,6 +1,6 @@
 import type { AuthContext, AuthResult, CredentialStore, Provider } from "@earendil-works/pi-ai"
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth"
-import { createModels } from "@earendil-works/pi-ai/models"
+import { createModels, isModelType } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 
 // Architecture section 11.3. At the start of a run, `AgentDO` calls `UserDO.turnContext(provider)`
@@ -24,6 +24,8 @@ export type TurnContext = {
   auth: AuthResult | null
   timezone: string
   limits: Limits
+  /** The human's own words are captured this run, so `note` is only for what the agent found itself. */
+  captures: boolean
   /**
    * For an agent: the extension versions it runs (section 24.5) and its soul (section 7.10), so a run
    * learns both from this one call. The life log is not here: only a run that starts fresh reads it,
@@ -46,6 +48,27 @@ export function findProvider(id: string): Provider | undefined {
   return providers.get(id)
 }
 
+/** What pi-ai's catalog says a provider is for: chat models, classifier models (a judge), or both. */
+export function providerUses(id: string): { chat: boolean; judge: boolean } {
+  const found = findProvider(id)
+  return { chat: (found?.getModels().length ?? 0) > 0, judge: (found?.getAllModels?.() ?? []).some((m) => isModelType(m, "classifier")) }
+}
+
+/**
+ * The connected provider that judges memory, skipping a refused key. A provider with only classifier
+ * models (TypeSafe) is picked on its own. One that also runs chat models (OpenCode, OpenRouter) is
+ * picked only when `preferred` ("provider/model") names it, so a chat key never starts background
+ * judgments the human did not ask for.
+ */
+export function pickJudge<T extends { provider: string }>(connected: readonly T[], refused: (p: T) => boolean, preferred: string | null = null): { key: T; model: string | null } | null {
+  const usable = connected.filter((p) => !refused(p) && providerUses(p.provider).judge)
+  const slash = preferred?.indexOf("/") ?? -1
+  const named = slash > 0 ? usable.find((p) => p.provider === preferred!.slice(0, slash)) : undefined
+  if (named) return { key: named, model: preferred!.slice(slash + 1) }
+  const own = usable.find((p) => !providerUses(p.provider).chat)
+  return own ? { key: own, model: slash < 0 ? preferred : null } : null
+}
+
 /**
  * Resolves the request auth for `provider` from the user's vault. pi-ai refreshes an OAuth token
  * that expires within five minutes and writes the new token back through the vault, all inside
@@ -55,10 +78,10 @@ export function findProvider(id: string): Provider | undefined {
 export async function resolveTurnContext(
   store: CredentialStore,
   provider: string,
-  settings: { timezone: string | null; limits: Partial<Limits> | null },
+  settings: { timezone: string | null; limits: Partial<Limits> | null; captures: boolean },
   agent?: TurnContext["agent"],
 ): Promise<TurnContext> {
-  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), ...(agent ? { agent } : {}) }
+  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), captures: settings.captures, ...(agent ? { agent } : {}) }
   const found = findProvider(provider)
   if (!found) return { ...base, auth: null }
   const models = createModels({ credentials: store, authContext: NO_AMBIENT })

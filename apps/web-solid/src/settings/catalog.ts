@@ -19,6 +19,8 @@ export interface CatalogProvider {
   name: string
   connect: ConnectMethod[]
   models: CatalogModel[]
+  /** How many classifier models the provider serves. */
+  classifiers: number
 }
 
 export interface Catalog {
