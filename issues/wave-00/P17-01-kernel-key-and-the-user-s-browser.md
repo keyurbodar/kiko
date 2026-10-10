@@ -25,12 +25,12 @@
 **Build.**
 
 - `KernelStore` copies `ComposioStore`. It seals the key with AAD `kernel/key`, and the lease's CDP and live view URLs with `kernel/lease`.
-- Measure the bundle with and without `@onkernel/sdk`. Keep the SDK only if it adds less than 50 KB gzipped. Record the number in section 26.
+- Measure the bundle with and without `@onkernel/sdk`. Keep the SDK only if it adds less than 50 KB gzipped. Record the number in section 27.
 - `leaseBrowser(agentId)` creates once, with `headless: true`, `timeout_seconds: 600`, and the user's profile with `save_changes: true`. `switchMode(mode)` deletes the browser, then creates one in the other mode on the same profile, and returns the tabs' URLs to reopen. It returns the CDP URL. `releaseTabs(agentId)` stamps last use.
 - The reaper, wipe, 401, 429, and 529 behave as in the tables above.
 - Connecting checks the key with `GET /browsers?status=active`. Only a 200 stores it.
 - A `KeyField` labeled "Kernel browser" below Composio, with the placeholder `sk_...`.
-- Write architecture section 26 from this phase's decisions.
+- Write architecture section 27 from this phase's decisions.
 
 ## Rules for this task
 
