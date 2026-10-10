@@ -175,11 +175,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
         try {
           const pages = await Promise.all([
             conn.goto(first as string).then((tab) => tab.read()),
-            ...(borrowed?.tabs ?? []).map(async (tab, i) => {
-              const went = await tab.act({ op: "goto", url: rest[i] as string })
-              if (!went.ok) throw new Error(`could not open ${rest[i]}: ${went.reason}`)
-              return tab.read()
-            }),
+            ...(borrowed?.tabs ?? []).map((tab) => tab.read()),
           ])
           const shown = await Promise.all(pages.map(show))
           return shown.length === 1 ? (shown[0] as string) : shown.map((s, i) => `--- page ${i + 1}\n${s}`).join("\n\n")
@@ -262,7 +258,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
         const { tabs, done } = await deps.connection().borrow(tasks.map((t) => t.url))
         try {
           const timedTabs = tabs.map(timedTab)
-          const results = await runTasks(timedTabs, tasks.map(({ find: _, ...t }) => t), { decider: watched, paused: () => paused, signal })
+          const results = await runTasks(timedTabs, tasks.map(({ find: _, ...t }) => t), { decider: watched, paused: () => paused, signal, opened: true })
           const found = await Promise.all(
             results.map(async (r, i) => {
               const tab = timedTabs[i]

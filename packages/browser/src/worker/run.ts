@@ -9,6 +9,8 @@ export type WorkerDeps = {
   paused(): boolean
   signal: AbortSignal
   now?: () => number
+  /** Each tab was opened at its task's url (openTab(url)), so the worker does not navigate there again. */
+  opened?: boolean
 }
 
 const flags = (state?: string) => state?.split(" ") ?? []
@@ -40,7 +42,7 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
   let fresh: PageView | null = null
 
   try {
-    if (task.url) {
+    if (task.url && !deps.opened) {
       const r = await tab.act({ op: "goto", url: task.url })
       if (!r.ok) return end(r.reason === "dialog" ? "dialog" : r.reason === "crashed" ? "crashed" : "stuck", { note: `goto ${r.reason}` })
     }

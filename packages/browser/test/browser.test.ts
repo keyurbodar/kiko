@@ -144,6 +144,27 @@ test("type with submit sends the text and Enter in one round trip, text first", 
   await browser.close()
 })
 
+test("a tab opened at a url is created there and waits for its load, with no second navigation", async () => {
+  let loadFired = false
+  fake = fakeCdp({
+    "Target.createTarget": () => ({ targetId: "T1" }),
+    "Target.attachToTarget": () => ({ sessionId: "S1" }),
+    "Runtime.evaluate": (_m, _ws, f) => {
+      setTimeout(() => {
+        loadFired = true
+        f.emit("Page.loadEventFired", { timestamp: 1 }, "S1")
+      }, 30)
+      return { result: { type: "boolean", value: false } }
+    },
+  })
+  const browser = await connect(fake.url)
+  await browser.openTab("https://a.test/")
+  expect(loadFired).toBe(true)
+  expect(sentTo(fake, "Target.createTarget")[0]?.params.url).toBe("https://a.test/")
+  expect(sentTo(fake, "Page.navigate")).toHaveLength(0)
+  await browser.close()
+})
+
 test("nothing in src brings a tab to the front", () => {
   const root = join(import.meta.dir, "../src")
   const files = readdirSync(root, { recursive: true }).map(String).filter((f) => f.endsWith(".ts"))

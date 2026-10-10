@@ -1,6 +1,6 @@
 import { BROWSER } from "../config"
-import { act, goto, screenshot } from "../page/act"
-import { type PageState, read } from "../page/read"
+import { act, screenshot } from "../page/act"
+import { evaluate, type PageState, read } from "../page/read"
 import type { BrowserSession, DialogPolicy, Tab } from "../page/types"
 import { openSession, type SessionOptions } from "./session"
 
@@ -37,10 +37,14 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     page.channel.on("Inspector.targetCrashed", () => {
       page.crashed = true
     })
-    await Promise.all([
+    // A tab created at its url loads while we attach. Wait for load unless it already finished.
+    const loaded = url ? page.channel.waitFor("Page.loadEventFired", BROWSER.loadMs) : undefined
+    const [, , ready] = await Promise.all([
       page.channel.send("Page.enable"),
       page.channel.send("Emulation.setFocusEmulationEnabled", { enabled: true }),
+      url ? evaluate<boolean>(page, `location.href !== "about:blank" && document.readyState === "complete"`).catch(() => false) : true,
     ])
+    if (!ready) await loaded
     const tab: Tab = {
       id: targetId,
       read: () => read(page),
@@ -52,7 +56,6 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       },
     }
     tabs.set(targetId, tab)
-    if (url) await goto(page, url)
     return tab
   }
 
@@ -77,7 +80,7 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     openTab: async (url) => {
       // A background tab in a shared window gets ~0 animation frames, so screenshots took 1.5 s to over 10 s on Kernel.
       // Its own unactivated window keeps it rendering (about 0.3 s) without stealing focus.
-      const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank", background: true, newWindow: true })
+      const { targetId } = await cdp.send("Target.createTarget", { url: url ?? "about:blank", background: true, newWindow: true })
       return adopt(targetId, url)
     },
     tab: (id) => tabs.get(id),

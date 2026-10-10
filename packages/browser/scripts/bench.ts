@@ -34,11 +34,15 @@ const WHICH = arg("decider", "both")
 /** Same as DECIDER_MAX_TOKENS and reasoning "minimal" in the server's modelPort. Overridable to try settings. */
 const MAX_TOKENS = Number(arg("max-tokens", "256"))
 const REASONING = arg("reasoning", "minimal")
+const AT_URL = !process.argv.includes("--blank")
 
 // ---- CDP round trips: a round trip starts when a tab's session goes from zero commands in flight to one.
 const inflight = new Map<string, number>()
 const owner = new Map<number, string>()
 const trips = new Map<string, number>()
+/** targetId to sessionId, from Target.attachToTarget replies. */
+const sessionOfTarget = new Map<string, string>()
+const attachFor = new Map<number, string>()
 const Native = globalThis.WebSocket
 class CountingSocket extends Native {
   constructor(url: string | URL, protocols?: string | string[]) {
@@ -48,6 +52,12 @@ class CountingSocket extends Native {
       const m = /^\{"id":(\d+),/.exec(raw)
       if (!m) return
       const id = Number(m[1])
+      const target = attachFor.get(id)
+      if (target) {
+        attachFor.delete(id)
+        const sid = /"sessionId":"([^"]+)"/.exec(raw)?.[1]
+        if (sid) sessionOfTarget.set(target, sid)
+      }
       const s = owner.get(id)
       if (s === undefined) return
       owner.delete(id)
@@ -56,7 +66,8 @@ class CountingSocket extends Native {
   }
   override send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
     if (typeof data === "string") {
-      const msg = JSON.parse(data) as { id: number; sessionId?: string }
+      const msg = JSON.parse(data) as { id: number; method: string; params?: { targetId?: string }; sessionId?: string }
+      if (msg.method === "Target.attachToTarget" && msg.params?.targetId) attachFor.set(msg.id, msg.params.targetId)
       const s = msg.sessionId ?? "browser"
       owner.set(msg.id, s)
       const n = inflight.get(s) ?? 0
@@ -198,13 +209,16 @@ function scriptDecider(): Decider {
 // ---- Per-step stamps, the same cut as the server's timedTab: read before a decision to read after its action.
 type Sample = { step: number; decide: number; act: number; read: number; rtt: number }
 const samples: Sample[] = []
+/** From opening the tab to the worker's first read, per task. */
+const starts: number[] = []
 
-function timed(tab: Tab, sessionOf: () => string): Tab {
+function timed(tab: Tab, sessionOf: () => string, opening: number): Tab {
   let since = 0
   let acted = false
   let actMs = 0
   let tripsAt = 0
   let decideAt = 0
+  let first = true
   return {
     id: tab.id,
     screenshot: () => tab.screenshot(),
@@ -222,6 +236,8 @@ function timed(tab: Tab, sessionOf: () => string): Tab {
       const page = await tab.read()
       const now = performance.now()
       const t = trips.get(sessionOf()) ?? 0
+      if (first) starts.push(now - opening)
+      first = false
       if (acted && since) samples.push({ step: now - since, decide: decideAt - since, act: actMs, read: now - readAt, rtt: t - tripsAt })
       acted = false
       since = now
@@ -241,6 +257,7 @@ const pct = (xs: number[], p: number) => {
 
 async function pass(name: string, cdpUrl: string, make: (run: number) => Decider) {
   samples.length = 0
+  starts.length = 0
   tokens.length = 0
   outTokens.length = 0
   empties.length = 0
@@ -251,17 +268,10 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
     let phase = "connect"
     const session = await connect(cdpUrl)
     try {
-      const raw = await Promise.all(BENCH.map(() => session.openTab()))
-      // Session ids are known only inside the page layer; map each tab to its session by the trips it adds.
-      const sessionOf = new Map<string, string>()
-      const tabs = raw.map((t) => timed(t, () => sessionOf.get(t.id) ?? ""))
-      phase = "bind"
-      // A first cheap read binds each tab's session id for the round trip counter.
-      for (const t of raw) {
-        const before = new Map(trips)
-        await t.read()
-        for (const [s, n] of trips) if ((before.get(s) ?? 0) !== n && s !== "browser") sessionOf.set(t.id, s)
-      }
+      // The server's browser_run: one tab per task, at the task's url (with --blank: blank, then the worker's goto).
+      const opening = performance.now()
+      const raw = await Promise.all(BENCH.map((b) => session.openTab(AT_URL ? b.task.url : undefined)))
+      const tabs = raw.map((t) => timed(t, () => sessionOfTarget.get(t.id) ?? "", opening))
       let decisions = 0
       const base = make(run)
       const decider: Decider = {
@@ -273,7 +283,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
       }
       phase = "run"
       const t0 = performance.now()
-      const results = await runTasks(tabs, BENCH.map((b) => b.task), { decider, paused: () => false, signal: AbortSignal.timeout(120_000) })
+      const results = await runTasks(tabs, BENCH.map((b) => b.task), { decider, paused: () => false, signal: AbortSignal.timeout(120_000), opened: AT_URL })
       const wall = performance.now() - t0
       decisionsPerTask.push(decisions / BENCH.length)
       phase = "final read"
@@ -307,6 +317,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
     decisions_per_task: +(decisionsPerTask.reduce((a, b) => a + b, 0) / (decisionsPerTask.length || 1)).toFixed(2),
     tokens_per_decision: Math.round(tokens.reduce((a, b) => a + b, 0) / (tokens.length || 1)),
     p50_out_tokens: pct(outTokens, 0.5),
+    p50_start: Math.round(pct(starts, 0.5)),
   }
   for (const f of failures) console.log(`  FAIL ${f}`)
   if (empties.length) console.log(`  empty model answers: ${empties.length}: ${[...new Set(empties)].slice(0, 4).join("; ")}`)
