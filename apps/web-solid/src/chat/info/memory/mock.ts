@@ -13,6 +13,8 @@ export function createMockMemory(now: () => number = Date.now): MemoryClient {
 	add("sister is sam; they talk every sunday", "@yuki", 30)
 	add("planning a japan trip in november with sam", "chat trip", 6)
 	add("prefers short answers before 9am", "@yuki", 1)
+	add("moved to porto, still at the studio", "@yuki", 0)
+	lines[0]!.supersededBy = 4
 
 	function handle(op: MemoryOp): MemoryResult {
 		switch (op.op) {

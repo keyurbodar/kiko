@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import type { MemoryOp, MemoryResult } from "@yuki/protocol"
 import type { MemoryClient } from "./client"
+import { replacedMark } from "./views"
 import { createMockMemory } from "./mock"
 import { createMemoryStore } from "./store"
 
@@ -10,8 +11,8 @@ test("loads the newest lines first, with the view and the model", async () => {
 	const store = createMemoryStore(createMockMemory())
 	await store.load()
 	expect(store.state.loaded).toBe(true)
-	expect(store.state.lines.map((l) => l.pos)).toEqual([3, 2, 1, 0])
-	expect(store.state.view.length).toBe(4)
+	expect(store.state.lines.map((l) => l.pos)).toEqual([4, 3, 2, 1, 0])
+	expect(store.state.view.length).toBe(5)
 	expect(store.state.model).toBeNull()
 })
 
@@ -34,7 +35,16 @@ test("a note shows at once and stays after the server agrees", async () => {
 	const done = store.note("  allergic to   peanuts ")
 	expect(store.state.lines[0]!.text).toBe("allergic to peanuts")
 	await done
-	expect(store.state.lines[0]).toMatchObject({ pos: 4, text: "allergic to peanuts", source: "you" })
+	expect(store.state.lines[0]).toMatchObject({ pos: 5, text: "allergic to peanuts", source: "you" })
+})
+
+test("a line a later fact replaced says so, and one that was not does not", async () => {
+	const store = createMemoryStore(createMockMemory())
+	await store.load()
+	const old = store.state.lines.find((l) => l.pos === 0)!
+	const current = store.state.lines.find((l) => l.pos === 4)!
+	expect(replacedMark(old)).toBe("Replaced")
+	expect(replacedMark(current)).toBeNull()
 })
 
 test("a refused change is undone and says why", async () => {

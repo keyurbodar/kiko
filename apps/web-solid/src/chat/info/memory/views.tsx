@@ -23,17 +23,25 @@ export function ago(at: number, now = Date.now()): string {
 	return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
+/** The mark on a line that a later fact corrected, or null. */
+export function replacedMark(l: Pick<LifeLine, "supersededBy">): string | null {
+	return l.supersededBy != null ? "Replaced" : null
+}
+
 function Line(props: { line: LifeLine; store: MemoryStore }) {
 	const l = () => props.line
 	const [sure, setSure] = createSignal(false)
 	return (
 		<div class="flex flex-col gap-0.5 rounded-xl px-2.5 py-2 hover:bg-nav-hover" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
 			<Show when={!l().redacted} fallback={<span class="text-sm text-faint">Removed</span>}>
-				<span class="text-[15px] leading-snug text-text">{l().text}</span>
+				<span class={`text-[15px] leading-snug ${replacedMark(l()) ? "text-weak" : "text-text"}`}>{l().text}</span>
 				<span class="flex items-center gap-1 text-xs text-faint">
 					<span>{l().source || "Yuki"}</span>
 					<span>·</span>
 					<span>{ago(l().at)}</span>
+					<Show when={replacedMark(l())}>
+						{(mark) => <span>· {mark()}</span>}
+					</Show>
 					<Show when={l().tainted}>
 						<span title="Written after reading outside content">· from outside</span>
 					</Show>
