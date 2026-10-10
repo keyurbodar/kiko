@@ -280,6 +280,11 @@ export class UserDO extends DurableObject<Env> {
     this.putSetting(LAST_SEEN, String(Date.now() - ago))
   }
 
+  async devSetting(key: "memory_policy", value: string): Promise<void> {
+    if (process.env.NODE_ENV !== "development" || key !== "memory_policy") throw new Error("not found")
+    this.putSetting(key, value)
+  }
+
   async devDue(id: string): Promise<void> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     await this.reminders.makeDue(id)

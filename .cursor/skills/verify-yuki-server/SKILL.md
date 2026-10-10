@@ -17,6 +17,8 @@ bunx wrangler d1 migrations apply kiko-auth --local   # once
 NODE_ENV=development bunx wrangler dev --port 8787 --inspector-port 9229
 ```
 
+If the inspector port 9229 is taken, start wrangler with `--port 8790 --inspector-port 9240` and pass `--url http://localhost:8790` to every command.
+
 If wrangler complains about the assets directory, run `bun run build` in `apps/web-solid`. Stop it with `lsof -ti :8787 | xargs kill`.
 
 ## Check it is up
@@ -59,4 +61,5 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | --- | --- |
 | `yuki health` | [health](./features/health.md) |
 | `composio` | [composio](./features/composio.md) |
+| `memory-jev` | [memory-jev](./features/memory-jev.md) |
 | `selftest` | runner self check, no feature file |
