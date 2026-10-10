@@ -18,6 +18,7 @@ import type { ChiefPort } from "./extensions/chief"
 import { shortBrief } from "../room/brief"
 import { CHIEF } from "../room/chief"
 import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
+import { mergeRecall, RECALL_MAX, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@yuki/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
 import { type Approvals, isRunTainted } from "@yuki/agent/trust"
@@ -348,6 +349,7 @@ export class AgentDO extends DurableObject<Env> {
     if (!home) return { fresh }
     const room = roomStub(this.env.ROOM, home.userId, home.roomId)
     const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
+    this.#seqs = seqs
     const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
     if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
@@ -358,9 +360,12 @@ export class AgentDO extends DurableObject<Env> {
     }
     const [view, life] = await Promise.all([room.memoryView(seqs), withLife ? userStub(this.env.USER, home.userId).lifeView() : ""])
     await this.ctx.storage.put(MEMORY_POS_KEY, view.count)
+    this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text) }
   }
 
+  #seqs: number[] = []
+  #shown = new Set<string>()
   #delta?: { requestId: string; since: Promise<{ text: string; count: number } | null> }
 
   private prefetchDelta(batch: Batch): void {
@@ -539,8 +544,9 @@ export class AgentDO extends DurableObject<Env> {
     return {
       note: async (text, tainted) => (this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted)),
       recall: async (query) => {
-        const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query)])
-        return [life.length ? `life:\n${life.join("\n")}` : "", chat.length ? `chat:\n${chat.join("\n")}` : ""].filter(Boolean).join("\n\n")
+        const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
+        const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, this.#seqs)])
+        return mergeRecall(tagHits("life", life), tagHits("chat", chat), this.#shown, (lines) => user().rerank(query, lines), RECALL_MAX)
       },
       zoom: async (raw) => {
         const id = parseZoomId(raw)
