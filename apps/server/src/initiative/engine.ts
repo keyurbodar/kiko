@@ -32,15 +32,15 @@ const JEV_MAX = 10
 /** The human counts as busy in a room this long after they wrote there. The room also steps back while they type. */
 const BUSY_MS = 120_000
 const NOTICED_MAX = 2
-/** Without a judge, a burst that shares this many words with an open loop keeps it fresh. */
-const SHARED_WORDS = 2
+/** A burst or a line must share this many words with a loop to count as about it. */
+export const SHARED_WORDS = 2
 const LAST_PASS = "initiative_last_pass"
 /** The room resolves this to its lead. */
 const LEAD = "@lead"
 
 export type WakeInput = { id: string; to: AgentSlug | null; body: string; reason: string; tainted: boolean }
 
-export type EngineDeps = {
+type EngineDeps = {
   sql: SqlStorage
   loops: Loops
   tz: () => string
@@ -66,7 +66,7 @@ type Item = { c: Candidate; text: string; line: string; reason: string; skipped:
 /** What happened to one item: nudges that reached the human, ones they let pass, wakes the agent declined. */
 type Mark = { surfaced: number; ignored: number; skipped: number; last_at: number | null }
 
-export type PassReport = {
+type PassReport = {
   at: number
   rhythm: { known: boolean; activeNow: boolean; cycle: number }
   jev: boolean
@@ -427,7 +427,7 @@ function worthItem(i: Item, now: number): WorthItem {
 
 const loopIdOf = (id: string): number | null => (id.startsWith("loop:") ? Number(id.slice(5)) : null)
 
-const day = (at: number, tz: string) => new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })
+export const day = (at: number, tz: string) => new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })
 const localNow = (now: number, tz: string) => new Date(now).toLocaleString("en-US", { timeZone: tz, weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
 
 function span(ms: number): string {

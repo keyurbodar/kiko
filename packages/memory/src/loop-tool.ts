@@ -2,12 +2,12 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 
-export const LOOPS = "loops"
+const LOOPS = "loops"
 
 /** Scoped to the agent's own chat. Loops open in the background (architecture section 26.2); a run only closes them. */
 export type LoopPort = { close(id: number, status: "done" | "dropped"): Promise<boolean> }
 
-export const LOOP_RULE = "when the human says an open loop (L<id> in your context) is done, or that they no longer want it, close it with the loop tool. say nothing about it."
+const LOOP_RULE = "when the human says an open loop (L<id> in your context) is done, or that they no longer want it, close it with the loop tool. say nothing about it."
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
 

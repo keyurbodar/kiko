@@ -6,14 +6,14 @@ import { LINE_BYTES } from "./optmem"
 // Open loops: what the human means to do, what they wait on, and what an agent promised. One row per
 // loop, next to the life log. Detection lives elsewhere and writes only through `open` and `close`.
 
-export const LOOP_KINDS = ["goal", "intention", "commitment", "waiting", "project"] as const
+const LOOP_KINDS = ["goal", "intention", "commitment", "waiting", "project"] as const
 export type LoopKind = (typeof LOOP_KINDS)[number]
 export type Certainty = "explicit" | "tentative"
 export type LoopStatus = "open" | "done" | "dropped" | "snoozed"
 /** Who saw it: a reminder an agent set for itself (`tool`), Jev after a burst, or the memory model's summary pass. */
 export type LoopSource = "tool" | "jev" | "nap"
 
-export const isLoopKind = (value: unknown): value is LoopKind => LOOP_KINDS.includes(value as LoopKind)
+const isLoopKind = (value: unknown): value is LoopKind => LOOP_KINDS.includes(value as LoopKind)
 
 export type Loop = {
   id: number
@@ -74,7 +74,7 @@ export const SNOOZE_MAX_MS = 365 * 86_400_000
 const encoder = new TextEncoder()
 
 /** An ISO time, or null when `due` is missing or not a time. A bare date stays a date. */
-export function cleanDue(due: string | null | undefined): string | null {
+function cleanDue(due: string | null | undefined): string | null {
   const raw = due?.trim()
   if (!raw || Number.isNaN(Date.parse(raw))) return null
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : new Date(raw).toISOString()

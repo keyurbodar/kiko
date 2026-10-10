@@ -85,7 +85,7 @@ export function known(r: Rhythm): boolean {
 }
 
 /** The window starts after `now`, at most `limit`, within the horizon. */
-export function upcoming(r: Rhythm, now: number, tz: string, limit = 7): number[] {
+function upcoming(r: Rhythm, now: number, tz: string, limit = 7): number[] {
   if (!known(r)) return []
   const active = activeSlots(r)
   const out: number[] = []

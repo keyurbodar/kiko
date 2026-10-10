@@ -2,6 +2,7 @@ import type { Judge } from "@yuki/memory/judge"
 import { keywords, type Life } from "@yuki/memory/life"
 import { type BurstCheck, type Loop, type Loops, NAP_LOOPS_SYSTEM, napLoopsPrompt, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
 import { isAgentSlug } from "@yuki/protocol"
+import { day, SHARED_WORDS } from "./engine"
 import { classifyBurst } from "./judge"
 
 // Architecture section 26. The part of initiative that lives in UserDO: what a human burst and the
@@ -11,7 +12,7 @@ import { classifyBurst } from "./judge"
 /** `by` is the agent's slug for its answer; a human message has none. */
 export type Heard = { messageId: string; text: string; at: number; by?: string }
 
-export type InitiativeDeps = {
+type InitiativeDeps = {
   loops: Loops
   life: Life
   /** The user's judge, or null with no judge key. */
@@ -31,12 +32,9 @@ const NEAR_PER_SENTENCE = 3
 const OWE_MAX = 3
 const RELATED_MAX = 3
 const NAP_KNOWN = 12
-/** A line must share this many words with the human's message to count as related. */
-const SHARED_WORDS = 2
 
 const ref = (roomId: string, messageId: string) => `room:${roomId}:msg:${messageId}`
 const escape = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-const day = (at: number) => new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
 
 export class Initiative {
   constructor(private readonly deps: InitiativeDeps) {}
@@ -125,7 +123,7 @@ export class Initiative {
     const lines = [
       ...this.deps.loops.similar(burst.text, 8, owed.map((l) => l.id)).filter(shown).map((l) => ({
         id: `l${l.id}`,
-        text: `open L${l.id}: ${l.text}${l.due ? ` (due ${l.due})` : ""} (${l.owner === "human" ? "said" : `@${l.owner} promised`} ${day(l.openedAt)}${where(l) ? `, in chat ${where(l)}` : ""})`,
+        text: `open L${l.id}: ${l.text}${l.due ? ` (due ${l.due})` : ""} (${l.owner === "human" ? "said" : `@${l.owner} promised`} ${day(l.openedAt, "UTC")}${where(l) ? `, in chat ${where(l)}` : ""})`,
         words: keywords(l.text),
       })),
       ...this.deps.life

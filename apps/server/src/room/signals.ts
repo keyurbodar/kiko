@@ -26,15 +26,15 @@ export const Signal = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("watch_change"), ...base, routineId: Schema.String, url: Schema.String }),
 ])
 export type Signal = typeof Signal.Type
-export type SignalKind = Signal["kind"]
+type SignalKind = Signal["kind"]
 
 export const SignalBatch = Schema.Struct({ roomId: Schema.String, openedAt: Schema.Number, signals: Schema.Array(Signal), more: Schema.Number })
 export type SignalBatch = typeof SignalBatch.Type
 
 export const SIGNALS_WAKEUP = "routine_events"
-export const WINDOW_MS = 60_000
+const WINDOW_MS = 60_000
 /** The most signals one window keeps. The rest are counted, so a busy chat costs no write per bubble. */
-export const MAX_SIGNALS = 20
+const MAX_SIGNALS = 20
 
 type Act = Extract<Signal, { kind: "burst" | "agent_final" | "task" | "file" }>
 type By = typeof By.Type
@@ -56,7 +56,7 @@ export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by
 }
 
 /** What happened, as the agent reads it. */
-export function signalLine(s: Act): string {
+function signalLine(s: Act): string {
 	switch (s.kind) {
 		case "burst":
 		case "agent_final":

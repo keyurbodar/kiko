@@ -33,7 +33,7 @@ export type WakeResult = "delivered" | "held" | "refused" | "gone" | "duplicate"
  * tainted wake on a human chain runs as `auto`, so an outside instruction that scheduled it cannot act
  * outside yuki without the human's yes. A routine's grant was settled when the routine was made (25.3).
  */
-export function wakeAuthority(w: Pick<Wake, "chain" | "tainted">): Authority {
+function wakeAuthority(w: Pick<Wake, "chain" | "tainted">): Authority {
 	const authority = w.chain?.authority ?? AUTO
 	return w.tainted && authority.origin === "human" ? AUTO : authority
 }
@@ -45,7 +45,7 @@ export function wakeStamp(w: Pick<Wake, "id" | "chain" | "tainted">, stopped: (r
 }
 
 /** How long a held wake waits. ASSUMPTION: a week, the same as the away pause. */
-export const KEEP_HELD_MS = 7 * 86_400_000
+const KEEP_HELD_MS = 7 * 86_400_000
 /** Held wakes retried in one pass. Each costs subrequests, and an invocation has 50 (section 17.3). */
 export const HELD_PER_PASS = 10
 export const HELD_WAKEUP = "held_wakes"
