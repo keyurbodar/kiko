@@ -3,6 +3,8 @@ import { BROWSER } from "../src/config"
 import { jevDecider } from "../src/decide/jev"
 import { modelDecider, parseReply } from "../src/decide/model"
 import type { JevPort } from "../src/decide/ports"
+import { choices } from "../src/plan/candidates"
+import { fastSteps } from "../src/plan/fast"
 import { chainOf, runTask, runTasks } from "../src/worker/run"
 import { fakeTab, live, page, scripted, type Site } from "./site"
 
@@ -85,7 +87,7 @@ describe("runTask", () => {
     const s: Site = { pages: { f: page("f", [{ role: "searchbox", label: "Search" }]), r: page("r") }, go: { "f:type:1": "r" } }
     const d = scripted((n) => ({ key: n === 0 ? "t1v0" : "done" }))
     const { tab, acted } = fakeTab(s, "f")
-    const r = await runTask(tab, { goal: "search", values: { query: "kernel" } }, deps(d))
+    const r = await runTask(tab, { goal: "look up kernel", values: { query: "kernel" } }, deps(d))
     expect(r.stop).toBe("done")
     expect(acted[0]).toMatchObject({ op: "type", id: 1, text: "kernel" })
   })
@@ -270,7 +272,8 @@ describe("chains", () => {
     },
     go: { "form:click:4": "sent", "form:click:5": "help" },
   }
-  const values = { name: "Ada", email: "a@b.c" }
+  // Names that match no label, so the decider, not the fast path, picks.
+  const values = { who: "Ada", where: "a@b.c" }
   const chained = (keys: string[]) => {
     const d = scripted((n, input) => (n === 0 ? { key: keys[0] as string } : { key: "done" }))
     const base = d.decide.bind(d)
@@ -309,5 +312,36 @@ describe("chains", () => {
     const r = await runTask(tab, { goal: "order", values }, deps(chained(["t1v0", "t2v1", "k4"])))
     expect(acted.map((s) => s.op)).toEqual(["type"])
     expect(r.actions[0]).toContain("failed: gone")
+  })
+})
+
+describe("fast path", () => {
+  const fields = (labels: string[]) => page("f", [...labels.map((label) => ({ role: "textbox", label })), { role: "button", label: "Send" }])
+  const picks = (p: ReturnType<typeof page>, goal: string, values: Record<string, string>) =>
+    fastSteps(p, goal, values, choices(p, goal, values)).map((c) => c.key)
+
+  test("fills each field its value's name names, with no decider call", async () => {
+    const p = fields(["Customer name:", "E-mail address:", "Comments"])
+    expect(picks(p, "order", { name: "Ada", email: "a@b.c" })).toEqual(["t1v0", "t2v1"])
+    const d = scripted(() => ({ key: "done" }))
+    const { tab, acted } = fakeTab({ pages: { f: p }, go: {} }, "f")
+    await runTask(tab, { goal: "order", values: { name: "Ada", email: "a@b.c" } }, deps(d))
+    expect(acted.map((s) => s.op === "type" && s.text)).toEqual(["Ada", "a@b.c"])
+    expect(d.calls).toBe(1)
+  })
+
+  test("never fires when two choices tie", () => {
+    expect(picks(fields(["First name", "Last name"]), "sign up", { name: "Ada" })).toEqual([])
+    expect(picks(fields(["Your name and email"]), "sign up", { name: "Ada", email: "a@b.c" })).toEqual([])
+    const two = page("s", [{ role: "searchbox", label: "Search" }, { role: "textbox", label: "Find" }])
+    expect(picks(two, "search kernel", { query: "kernel" })).toEqual([])
+  })
+
+  test("skips a filled or secret field, and a search box when the goal does not say search", () => {
+    expect(picks(page("f", [{ role: "textbox", label: "Name", value: "Bo" }]), "x", { name: "Ada" })).toEqual([])
+    expect(picks(page("f", [{ role: "textbox", label: "Password", state: "secret" }]), "x", { password: "p" })).toEqual([])
+    const search = page("s", [{ role: "searchbox", label: "Search" }])
+    expect(picks(search, "look up kernel", { query: "kernel" })).toEqual([])
+    expect(picks(search, "search for kernel", { query: "kernel" })).toEqual(["t1v0"])
   })
 })

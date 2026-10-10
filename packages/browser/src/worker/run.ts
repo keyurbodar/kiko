@@ -1,5 +1,6 @@
 import { BROWSER } from "../config"
 import { choices } from "../plan/candidates"
+import { fastSteps } from "../plan/fast"
 import type { Choice, Decider, Decision } from "../decide/types"
 import type { PageView, Step, Tab } from "../page/types"
 import type { Stop, Task, TaskResult } from "./types"
@@ -66,6 +67,7 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
   let unchanged = 0
   let steps = 0
   let staleRetry = false
+  const fastIds = new Set<number>()
   // The read taken after an action doubles as the read before the next decision.
   let fresh: PageView | null = null
 
@@ -80,12 +82,16 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
       last = fresh ?? (await tab.read())
       fresh = null
 
+      const options = choices(last, task.goal, values)
+      // A fill so certain that no decider is asked; the guards still check each control.
+      // A field filled once this way that still reads empty goes to the decider, so the fast path never loops.
+      const fast = fastSteps(last, task.goal, values, options).filter((c) => !("id" in c.step && fastIds.has(c.step.id)))
+      for (const c of fast) if ("id" in c.step) fastIds.add(c.step.id)
       let decision: Decision
       try {
-        decision = await deps.decider.decide(
-          { goal: task.goal, values, page: last, options: choices(last, task.goal, values), history: actions },
-          deps.signal,
-        )
+        decision = fast[0]
+          ? { choice: fast[0], confidence: null, runnersUp: [], after: fast.slice(1) }
+          : await deps.decider.decide({ goal: task.goal, values, page: last, options, history: actions }, deps.signal)
       } catch (e) {
         if (deps.signal.aborted) return end("paused")
         throw e

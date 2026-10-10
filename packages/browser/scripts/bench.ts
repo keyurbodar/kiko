@@ -10,6 +10,10 @@ import type { JevPort, ModelPort } from "../src/decide/ports"
 import type { Choice, Decider } from "../src/decide/types"
 import type { PageView, Tab } from "../src/page/types"
 import { runTask } from "../src/worker/run"
+import { choices } from "../src/plan/candidates"
+import { fastSteps } from "../src/plan/fast"
+/** Every fast-path pick the worker could make on a page it read, to judge by hand: a wrong one rejects the rule. */
+const fastSeen = new Set<string>()
 import type { Task, TaskResult } from "../src/worker/types"
 
 const dev = (() => {
@@ -226,7 +230,7 @@ const samples: Sample[] = []
 /** From opening the tab to the worker's first read, per task. */
 const starts: number[] = []
 
-function timed(tab: Tab, sessionOf: () => string, opening: number): Tab {
+function timed(tab: Tab, sessionOf: () => string, opening: number, task?: Task): Tab {
   let since = 0
   let acted = false
   let actMs = 0
@@ -248,6 +252,11 @@ function timed(tab: Tab, sessionOf: () => string, opening: number): Tab {
     read: async () => {
       const readAt = performance.now()
       const page = await tab.read()
+      if (task) {
+        const values = task.values ?? {}
+        const fast = fastSteps(page, task.goal, values, choices(page, task.goal, values))
+        if (fast.length) fastSeen.add(`${task.url} @ ${page.url}: ${fast.map((c) => c.text).join(" | ")}`)
+      }
       const now = performance.now()
       const t = trips.get(sessionOf()) ?? 0
       if (first) starts.push(now - opening)
@@ -288,7 +297,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
       // The server's browser_run: one tab per task, at the task's url (with --blank: blank, then the worker's goto).
       const opening = performance.now()
       const raw = await Promise.all(BENCH.map((b) => session.openTab(AT_URL ? b.task.url : undefined)))
-      const tabs = raw.map((t) => timed(t, () => sessionOfTarget.get(t.id) ?? "", opening))
+      const tabs = raw.map((t, i) => timed(t, () => sessionOfTarget.get(t.id) ?? "", opening, BENCH[i]?.task))
       let decisions = 0
       const base = make(run)
       const deciderFor = (i: number): Decider => ({
@@ -361,6 +370,8 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
     ),
   }
   for (const f of failures) console.log(`  FAIL ${f}`)
+  for (const f of fastSeen) console.log(`  FAST ${f}`)
+  fastSeen.clear()
   if (empties.length) console.log(`  empty model answers: ${empties.length}: ${[...new Set(empties)].slice(0, 4).join("; ")}`)
   return row
 }
