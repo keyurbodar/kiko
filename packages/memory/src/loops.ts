@@ -147,6 +147,12 @@ export class Loops {
         )
         return { ok: true, id: old.id, merged: true } as const
       }
+      // An agent's message is one promise: a later pass over the same message must not open it again once
+      // the follow-up run has closed it. A human's message can hold several intentions, so it is exempt.
+      if (input.source !== "tool" && input.ref && owner !== "human") {
+        const seen = this.sql.exec<{ id: number }>("SELECT id FROM loops WHERE ref = ? AND owner = ? LIMIT 1", input.ref, owner).toArray()[0]
+        if (seen) return { ok: true, id: seen.id, merged: true } as const
+      }
       this.sql.exec(
         "INSERT INTO loops (kind, certainty, owner, room, ref, due, text, norm, source, opened_at, last_seen, tainted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         input.kind,

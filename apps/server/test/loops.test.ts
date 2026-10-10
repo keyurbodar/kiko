@@ -128,3 +128,21 @@ test("the summary pass keeps its line first and drops loop lines it cannot trust
     ],
   })
 })
+
+test("a pass over an agent's message cannot open its promise again after the promise closed", () => {
+  const loops = store()
+  const ref = "room:r:msg:m9"
+  const agent = { ...base, owner: "ada", kind: "commitment" as const, certainty: "explicit" as const, source: "jev" as const, ref }
+  const first = loops.open({ ...agent, text: "come back with options tomorrow" })
+  if (!first.ok) throw new Error("open failed")
+  expect(loops.close(first.id, "done")).toBe(true)
+  // The queued Jev pass runs late and words the same promise differently: still the same message.
+  expect(loops.open({ ...agent, text: "I'll bring options tomorrow" })).toEqual({ ok: true, id: first.id, merged: true })
+  expect(loops.list()).toEqual([])
+  // The follow-up is a new message with a new promise, so it opens.
+  expect(loops.open({ ...agent, ref: "room:r:msg:m10", text: "check prices again friday" })).toMatchObject({ merged: false })
+  // A human message may hold several intentions.
+  const h = { ...base, certainty: "explicit" as const, source: "jev" as const, ref: "room:r:msg:h1" }
+  expect(loops.open({ ...h, text: "run more" })).toMatchObject({ merged: false })
+  expect(loops.open({ ...h, text: "learn guitar" })).toMatchObject({ merged: false })
+})
