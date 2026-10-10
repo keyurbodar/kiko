@@ -64,7 +64,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P11-04](wave-02/P11-04-start-every-run-from-memory.md) | Start every run from memory | backend | 4 | P11-02, P11-03 | yes |
 | [P11-06](wave-02/P11-06-show-the-life-log.md) | Show the life log | frontend | 3 | P11-03 | yes |
 | [P12-03](wave-02/P12-03-store-and-run-routines.md) | Store and run routines | backend | 4 | P12-02 | yes |
-| [P17-04](wave-02/P17-04-jev-workers-and-jev-ranking.md) | Jev workers and Jev ranking | backend | 4 | P17-03 | no |
+| [P17-04](wave-02/P17-04-workers-with-the-model-or-jev.md) | Workers with the model or Jev | backend | 4 | P17-03 | no |
 | [P17-05](wave-02/P17-05-watch-and-take-over.md) | Watch and take over | frontend | 3 | P17-03 | yes |
 | [P2-02](wave-02/P2-02-build-the-app-shell-and-the-routes.md) | Build the app shell and the routes | frontend | 3 | P0-02, P0-14 | yes |
 | [P2-05](wave-02/P2-05-build-the-indexeddb-warm-tier.md) | Build the IndexedDB warm tier | frontend | 4 | P0-02, P0-03 | yes |

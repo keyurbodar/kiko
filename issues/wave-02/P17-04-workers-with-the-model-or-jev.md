@@ -1,4 +1,4 @@
-# P17-04 Jev workers and Jev ranking
+# P17-04 Workers with the model or Jev
 
 | Field | Value |
 | --- | --- |
@@ -10,15 +10,15 @@
 | Parallel with its wave | no |
 | Needs a worktree | no |
 | Needs a human step | no |
-| Branch | `yuki/p17-04-jev-workers-and-jev-ranking` |
+| Branch | `yuki/p17-04-workers-with-the-model-or-jev` |
 
 ## Verification
 
-`bun yuki verify browser-jev` passes with real Kernel and TypeSafe keys. One `browser_run` with 3 tasks on 3 sites finishes all 3 at once. The suite prints, and checks, p50 Jev input tokens per decision under 1,500, p50 step time under 1.2 s, and main-model turns per task at most 2. A forced low-confidence page hands back with the top 3 options. A login page stops and asks for a takeover.
+`bun yuki verify browser-run` passes twice with real keys, once with only Kernel and OpenCode Go, once with a TypeSafe key added. Each time, one `browser_run` with 3 tasks on 3 sites finishes all 3 at once, and main-model turns per task are at most 2. The suite prints and checks p50 step time, under 1.2 s with Jev and under 2.5 s without, and p50 Jev input tokens per decision under 1,500. A forced low-confidence page hands back with the top 3 options. A login page stops and asks for a takeover.
 
 ## Task
 
-**Goal.** Jev drives the clicks, the main model plans, and parallel tasks run at once.
+**Goal.** A worker takes the clicks, the main model plans, and parallel tasks run at once. Jev is used only when the user has a TypeSafe key.
 
 **Files.** `apps/server/src/agent/extensions/browser.ts`, `agent/browser-worker.ts`, `apps/server/test/browser-worker.test.ts`, `apps/cli/src/verify/suites/browser-jev.ts`.
 

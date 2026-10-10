@@ -1,3 +1,4 @@
 ts	phase	decision	why	evidence	result
 2026-10-10T16:59:19Z	frame	owner changed four design points: headless default, headful only on watch/take over/share, per-user profile with save_changes, Jev optional with a fast non-Jev path	owner message 2026-10-10	docs/phases/17-browser.md	open
 2026-10-10T16:59:19Z	design	one @yuki/browser package (cdp, page, plan, decide, worker) with no yuki imports; deciders are pluggable (jev, model)	Jev must be optional and the default path must stay fast; one loop with two deciders beats two loops	packages/browser/src/decide/types.ts	open
+2026-10-10T17:01:39Z	design	plan rewritten: headless default, headful only on watch/take over/share, one browser per user so the profile has one writer, focus emulation per tab and no bringToFront, model decider default and Jev optional	owner corrections 2026-10-10	docs/phases/17-browser.md	done

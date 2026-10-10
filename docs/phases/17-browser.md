@@ -1,14 +1,14 @@
 # Phase 17. A fast, cheap browser with Kernel and Jev
 
-The owner asked for this on 2026-10-10. Agents get a real browser for pages that need JavaScript, a login, or clicks. Kernel runs the browser. Jev, not the agent's main model, makes most browser decisions. The human can watch any browser or take it over at any time.
+The owner asked for this on 2026-10-10. Agents get a real browser for pages that need JavaScript, a login, or clicks. Kernel runs the browser. A small worker loop takes the browser steps, so the main model plans instead of clicking. The human can watch any browser or take it over at any time.
 
-A user brings a Kernel key in Settings, as with Composio. Jev uses the TypeSafe key the user already set for memory. A user without a Kernel key has no browser tools. A user with Kernel but no Jev still gets every tool except the Jev workers.
+A user brings a Kernel key in Settings, as with Composio. A user without a Kernel key has no browser tools. Jev is optional. With no TypeSafe key, the worker loop asks the agent's own model in a compact prompt. With one, Jev makes the step choice faster and cheaper. Both paths have the same tools and the same loop.
 
 Phase 16 is taken by the initiative work on the `proactiveness` branch, so this phase is 17. Every number below was measured against the live APIs on 2026-10-10, unless it says UNVERIFIED.
 
 ## The strategy in one paragraph
 
-Each user gets one headful Kernel browser, created lazily and kept for a warm window. Each agent drives its own tab in it over a raw CDP WebSocket, at about 200 ms a command instead of 1 to 2 s a call through Kernel's execute endpoint. One script reads the page in one call. Code cuts the page to about 35 candidates. Jev picks the next step as one Choice for about $0.00005 and 300 ms. The main model plans, writes the values to type, and reads only the short result. Parallel work is several Jev workers on several tabs of the same browser. The live view link goes only to the human, through a button, never through a model.
+Each user gets one Kernel browser on their own key. It is headless by default and becomes headful only when the human presses Watch or Take over, or an agent calls `browser_share`. A switch makes a new browser, so logins live in a per-user Kernel profile that every browser saves. Each agent drives its own tab over a raw CDP WebSocket, at about 200 ms a command instead of 1 to 2 s a call through Kernel's execute endpoint. One script reads the page in one call. Code cuts the page to about 35 choices. A decider picks the next step. The decider is the agent's own model by default, or Jev when the user has a TypeSafe key, for about $0.00005 and 300 ms. The main model plans, writes the values to type, and reads only the short result. Parallel work is several workers on several tabs of the same browser. The live view link goes only to the human, through a button, never through a model.
 
 ## The decisions
 
@@ -18,17 +18,24 @@ These become architecture section 26 in P17-01. Each task fills in its part.
 
 Every limit and every cent here is the user's own. Each user's browsers run on their own Kernel key and account, and yuki has no Kernel account of its own. A tab is free. A browser costs a create (0.25 to 0.75 s), one of the user's Kernel slots, and one of Kernel's 10 creates per minute. So the user's agents share one browser, and each agent works in its own tabs.
 
-Sharing one browser also settles three other problems. Every agent sees the same logins, because they share one profile. Only one browser writes the profile, and Kernel does not merge concurrent saves, so there is never a second writer. And the human has one live view that shows every agent's work.
+Sharing one browser also settles three other problems. Each tab gets `Emulation.setFocusEmulationEnabled` so Chrome does not throttle it in the background, and nothing ever calls `Page.bringToFront`, so agents never steal focus from each other. Every agent sees the same logins, because they share one profile. Only one browser writes the profile, and Kernel does not merge concurrent saves, so there is never a second writer. And the human has one live view that shows every agent's work.
 
 A browser holds at most 8 tabs. Past that, the tool answers at once with who holds the tabs, and the agent can `ask` one of them. Nothing waits.
 
-### Headful, so the human can always take over
+### Headless by default, headful on demand
 
-Live view exists only for a headful browser. A browser cannot change mode after create. PATCH with `headless: false` returned 200 and changed nothing. So every browser is headful.
+Headless costs $0.06 an hour of active time and headful $0.48. Live view exists only for a headful browser, and a browser cannot change mode after create. PATCH with `headless: false` returned 200 and changed nothing. So the browser starts headless and is replaced by a headful one on demand.
 
-Headful costs $0.48 an hour of active time, against $0.06 headless. Active time is short. A browser goes to standby 5 s after its last request, and standby costs nothing. A 30 s task costs about $0.004. Headful is also detected as a bot less often, which saves stealth retries. One mode means one code path.
+A switch happens when the human presses Watch or Take over, or an agent calls `browser_share`. The broker deletes the headless browser, which saves the profile, then creates a headful one on the same profile and reopens each tab's URL. Page state that is not in the profile, like a half-filled form, is lost. The tool says so. The browser stays headful until the warm window ends, then the next browser is headless again.
 
-The only real cost risk is a CDP socket left open, because Kernel counts an open CDP client as activity. So an agent closes its socket 15 s after its last browser call. Reconnecting costs about 1.3 s, measured.
+An open CDP socket counts as activity to Kernel. So an agent closes its socket 15 s after its last browser call. Reconnecting costs about 1.3 s, measured.
+
+### Logins live in a per-user profile
+
+Every browser a user gets, headless or headful, attaches the user's one Kernel profile with `save_changes: true`. Kernel saves the profile when the browser is deleted, by us or by its own timeout. So a login survives the warm window, a mode switch, and a restart.
+
+There is never more than one browser per user at a time. That makes the browser the only writer of the profile, and Kernel does not merge concurrent saves. A switch deletes the old browser before it creates the new one.
+
 
 ### Where each piece runs
 
@@ -74,6 +81,8 @@ The full accessibility tree is never sent to anyone. It was 619 KB for Hacker Ne
 
 ### How a step is chosen
 
+One worker loop takes the steps. A decider makes each choice. The default decider is the agent's own model with a compact prompt, at most about 1,200 tokens, one line out. The Jev decider is used when the user has a TypeSafe key. Both get the same choices and follow the same hand-back table. Everything below about Jev's cost applies only to the Jev decider.
+
 Jev bills every question for the full state, measured. Five questions cost 2.8 times one. So a step is one Choice question, not one per operation.
 
 - Code first cuts the candidates to about 35. It keeps the navigation links and the 25 best word matches to the goal. When nothing matches, as on a page in another language, it keeps the first 35 in reading order.
@@ -88,7 +97,7 @@ Jev never writes text. The main model passes named values with the task, such as
 
 | Situation | What happens |
 |---|---|
-| The chosen option's confidence is under 0.6 | Stop. Return the top 3 options and the page summary to the main model. |
+| Jev's confidence is under 0.6, or the model answers `unsure` | Stop. Return the top 3 options and the page summary to the main model. |
 | Jev picks `stuck`, or 3 actions leave the page unchanged | Stop with the page summary. |
 | Jev picks `done` | Stop. The main model checks the result. A Noul "is the goal done" check scored 0.85 on a page where the goal was not done, so it is not used. |
 | A password field, a payment form, or a one-time code | Stop. Ask the human to take over. |
@@ -98,7 +107,7 @@ The thresholds are one exported table. The `browser-jev` suite sets them from re
 
 ### Parallel work
 
-`browser_run` takes up to 4 tasks. Each task gets a worker with its own tab, and the workers run at the same time over the agent's one socket. The tool returns when all of them stop. Jev handled 20 requests at once with no 429 and a p50 of 400 ms. Kernel ran three tabs' work in parallel.
+`browser_run` takes up to 4 tasks, with or without Jev. Each task gets a worker with its own tab, and the workers run at the same time over the agent's one socket. The tool returns when all of them stop. Jev handled 20 requests at once with no 429 and a p50 of 400 ms. Kernel ran three tabs' work in parallel.
 
 A worker step costs about one Jev call, one action, and one page read. That is about 0.8 to 1.1 s. A step taken by the main model costs a full turn.
 
@@ -110,7 +119,7 @@ A worker step costs about one Jev call, one action, and one page read. That is a
 |---|---|---|
 | `browse` | `read`, outside `web` | Open up to 4 URLs, or read the agent's current tab. With `find`, return only the relevant passages, at most 1,500 characters. Otherwise return the page summary. |
 | `browser_act` | `external` | Up to 10 steps on the agent's tab, by id: `click`, `type`, `select`, `press`, `scroll`, `back`. Returns the page summary. |
-| `browser_run` | `external` | Up to 4 Jev workers, each with a goal, an optional URL, and named values. Needs a Jev key. |
+| `browser_run` | `external` | Up to 4 workers, each with a goal, an optional URL, and named values. Uses Jev when the user has a TypeSafe key, otherwise the agent's own model. |
 | `browser_look` | `read`, outside `web` | A JPEG of the agent's tab, about 50 KB, for a model that sees images. |
 | `browser_share` | `message` | Post a card asking the human to watch or take over, with a reason. |
 
@@ -183,10 +192,10 @@ A typical 12-step task on one site, using the measured numbers:
 | Part | Cost |
 |---|---|
 | Jev, 12 decisions at about 1,000 tokens | $0.0005 |
-| Kernel headful, about 15 s of active time | $0.002 |
+| Kernel headless, about 15 s of active time | $0.0003 |
 | Main model | 2 turns instead of about 12 |
 
-The main model's turns dominate the bill. Jev's job is to remove them.
+The main model's turns dominate the bill. The worker loop's job is to remove them. Without Jev, each worker step costs a short model call instead of a full turn.
 
 ## Later, if measurements ask for it
 
@@ -198,9 +207,9 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 
 `deps: none` `difficulty: 3` `area: backend` `parallel: yes`
 
-**Verify.** `bun yuki verify kernel` passes with `KERNEL_API_KEY` set. A bad key is refused and nothing is stored. Two agents asking at once get the same browser. The reaper deletes it after the warm window. Account wipe deletes it. At the end, Kernel's active list is empty. No frame sent to the client contains the key or a CDP URL.
+**Verify.** `bun yuki verify kernel` passes with `KERNEL_API_KEY` set. A bad key is refused and nothing is stored. Two agents asking at once get the same browser, headless. A cookie set before the reaper deletes the browser is still there in the next browser, and still there after a switch to headful and back. The reaper deletes it after the warm window. Account wipe deletes it. At the end, Kernel's active list is empty. No frame sent to the client contains the key or a CDP URL.
 
-**Goal.** A user pastes a Kernel key, and `UserDO` can lease one headful browser to any of the user's agents.
+**Goal.** A user pastes a Kernel key, and `UserDO` can lease the user's one browser to any of their agents, headless by default and headful on demand, with logins kept in the user's profile.
 
 **Files.** `apps/server/src/integrations/kernel/`, `user/user-do.ts`, `packages/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/integrations.tsx`, `integrations-client.ts`, `apps/cli/src/commands/kernel.ts`, `apps/cli/src/verify/suites/kernel.ts`, `apps/server/test/kernel-lease.test.ts`, `docs/architecture.md`.
 
@@ -208,7 +217,7 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 
 - `KernelStore` copies `ComposioStore`. It seals the key with AAD `kernel/key`, and the lease's CDP and live view URLs with `kernel/lease`.
 - Measure the bundle with and without `@onkernel/sdk`. Keep the SDK only if it adds less than 50 KB gzipped. Record the number in section 26.
-- `leaseBrowser(agentId)` creates once, with `headless: false`, `timeout_seconds: 600`, and the user's profile with `save_changes: true`. It returns the CDP URL. `releaseTabs(agentId)` stamps last use.
+- `leaseBrowser(agentId)` creates once, with `headless: true`, `timeout_seconds: 600`, and the user's profile with `save_changes: true`. `switchMode(mode)` deletes the browser, then creates one in the other mode on the same profile, and returns the tabs' URLs to reopen. It returns the CDP URL. `releaseTabs(agentId)` stamps last use.
 - The reaper, wipe, 401, 429, and 529 behave as in the tables above.
 - Connecting checks the key with `GET /browsers?status=active`. Only a 200 stores it.
 - A `KeyField` labeled "Kernel browser" below Composio, with the placeholder `sk_...`.
@@ -252,13 +261,13 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 - `browser` joins `NOT_FOR_HELPERS`.
 - The factory adds the extension only when the user has a Kernel key, the way Composio is added.
 
-### P17-04 Jev workers and Jev ranking
+### P17-04 Workers with the model or Jev
 
 `deps: P17-03` `difficulty: 4` `area: backend` `parallel: no`
 
-**Verify.** `bun yuki verify browser-jev` passes with real Kernel and TypeSafe keys. One `browser_run` with 3 tasks on 3 sites finishes all 3 at once. The suite prints, and checks, p50 Jev input tokens per decision under 1,500, p50 step time under 1.2 s, and main-model turns per task at most 2. A forced low-confidence page hands back with the top 3 options. A login page stops and asks for a takeover.
+**Verify.** `bun yuki verify browser-run` passes twice with real keys, once with only Kernel and OpenCode Go, once with a TypeSafe key added. Each time, one `browser_run` with 3 tasks on 3 sites finishes all 3 at once, and main-model turns per task are at most 2. The suite prints and checks p50 step time, under 1.2 s with Jev and under 2.5 s without, and p50 Jev input tokens per decision under 1,500. A forced low-confidence page hands back with the top 3 options. A login page stops and asks for a takeover.
 
-**Goal.** Jev drives the clicks, the main model plans, and parallel tasks run at once.
+**Goal.** A worker takes the clicks, the main model plans, and parallel tasks run at once. Jev is used only when the user has a TypeSafe key.
 
 **Files.** `apps/server/src/agent/extensions/browser.ts`, `agent/browser-worker.ts`, `apps/server/test/browser-worker.test.ts`, `apps/cli/src/verify/suites/browser-jev.ts`.
 
