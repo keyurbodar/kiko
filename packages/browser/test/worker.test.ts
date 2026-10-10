@@ -19,6 +19,14 @@ const site: Site = {
 }
 
 describe("runTask", () => {
+  test("goes to the task's url first, unless the tab was opened there", async () => {
+    for (const opened of [false, true]) {
+      const { tab, acted } = fakeTab(site, "home")
+      await runTask(tab, { goal: "x", url: "https://site.test/home" }, { ...deps(scripted(() => ({ key: "done" }))), opened })
+      expect(acted.some((s) => s.op === "goto")).toBe(!opened)
+    }
+  })
+
   test("follows choices to done and logs short actions", async () => {
     const d = scripted((n) => ({ key: ["k1", "k2", "done"][n] }))
     const { tab } = fakeTab(site, "home")

@@ -72,6 +72,99 @@ test("a page our tab opens becomes a tab reported to onPopup; a stranger's page 
   await browser.close()
 })
 
+const view = (url: string) => JSON.stringify({ key: url, url, title: "", controls: [{ id: 1, role: "link", label: "next" }], text: "", omitted: 0 })
+
+test("an action's settle rides in the next read's evaluate, so act then read costs one round trip less", async () => {
+  fake = fakeCdp({
+    "Target.createTarget": () => ({ targetId: "T1" }),
+    "Target.attachToTarget": () => ({ sessionId: "S1" }),
+    "Runtime.evaluate": (m) => ({ result: { type: "string", value: String(m.params.expression).includes("data-yuki-id") ? view("https://a.test/") : "" } }),
+  })
+  const browser = await connect(fake.url)
+  const tab = await browser.openTab()
+  expect((await tab.read()).url).toBe("https://a.test/")
+  const before = sentTo(fake, "Runtime.evaluate").length
+  expect(await tab.act({ op: "scroll", direction: "down" })).toEqual({ ok: true })
+  await tab.read()
+  const sent = sentTo(fake, "Runtime.evaluate").slice(before)
+  expect(sent).toHaveLength(2)
+  expect(String(sent[1]?.params.expression)).toContain("requestAnimationFrame")
+  expect(sent[1]?.params.awaitPromise).toBe(true)
+  await browser.close()
+})
+
+test("a navigation that starts while the read settles waits for load and reads the new page", async () => {
+  let reads = 0
+  fake = fakeCdp({
+    "Target.createTarget": () => ({ targetId: "T1" }),
+    "Target.attachToTarget": () => ({ sessionId: "S1" }),
+    "Runtime.evaluate": (m, _ws, f) => {
+      if (!String(m.params.expression).includes("data-yuki-id")) return { result: { type: "undefined" } }
+      reads++
+      if (reads === 2) {
+        f.emit("Page.frameStartedLoading", { frameId: "T1" }, "S1")
+        setTimeout(() => f.emit("Page.loadEventFired", { timestamp: 1 }, "S1"), 30)
+      }
+      return { result: { type: "string", value: view(reads >= 3 ? "https://b.test/" : "https://a.test/") } }
+    },
+  })
+  const browser = await connect(fake.url)
+  const tab = await browser.openTab()
+  await tab.read()
+  await tab.act({ op: "scroll", direction: "down" })
+  expect((await tab.read()).url).toBe("https://b.test/")
+  await browser.close()
+})
+
+test("type with submit sends the text and Enter in one round trip, text first", async () => {
+  let enterBeforeTextAnswered = false
+  fake = fakeCdp({
+    "Target.createTarget": () => ({ targetId: "T1" }),
+    "Target.attachToTarget": () => ({ sessionId: "S1" }),
+    "Runtime.evaluate": (m) => {
+      const expression = String(m.params.expression)
+      if (expression.includes("data-yuki-id")) return { result: { type: "string", value: view("https://a.test/") } }
+      return { result: { type: "object", value: { status: "ok", x: 5, y: 5, menu: false } } }
+    },
+    "Input.insertText": (m, ws, f) => {
+      setTimeout(() => {
+        enterBeforeTextAnswered = f.sent.some((s) => s.method === "Input.dispatchKeyEvent" && s.params.key === "Enter")
+        ws.send(JSON.stringify({ id: m.id, result: {}, sessionId: m.sessionId }))
+      }, 30)
+      return undefined
+    },
+  })
+  const browser = await connect(fake.url)
+  const tab = await browser.openTab()
+  await tab.read()
+  expect(await tab.act({ op: "type", id: 1, text: "Cloudflare", submit: true })).toEqual({ ok: true })
+  const order = fake.sent.filter((s) => s.method.startsWith("Input.")).map((s) => s.method)
+  expect(order[0]).toBe("Input.insertText")
+  expect(enterBeforeTextAnswered).toBe(true)
+  await browser.close()
+})
+
+test("a tab opened at a url is created there and waits for its load, with no second navigation", async () => {
+  let loadFired = false
+  fake = fakeCdp({
+    "Target.createTarget": () => ({ targetId: "T1" }),
+    "Target.attachToTarget": () => ({ sessionId: "S1" }),
+    "Runtime.evaluate": (_m, _ws, f) => {
+      setTimeout(() => {
+        loadFired = true
+        f.emit("Page.loadEventFired", { timestamp: 1 }, "S1")
+      }, 30)
+      return { result: { type: "boolean", value: false } }
+    },
+  })
+  const browser = await connect(fake.url)
+  await browser.openTab("https://a.test/")
+  expect(loadFired).toBe(true)
+  expect(sentTo(fake, "Target.createTarget")[0]?.params.url).toBe("https://a.test/")
+  expect(sentTo(fake, "Page.navigate")).toHaveLength(0)
+  await browser.close()
+})
+
 test("nothing in src brings a tab to the front", () => {
   const root = join(import.meta.dir, "../src")
   const files = readdirSync(root, { recursive: true }).map(String).filter((f) => f.endsWith(".ts"))

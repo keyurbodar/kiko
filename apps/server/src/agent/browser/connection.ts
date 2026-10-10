@@ -166,11 +166,11 @@ export class BrowserConnection {
     return held.tab
   }
 
-  /** Opens one tab per entry for one call. They count as the agent's until `done` closes them. */
+  /** Opens one tab per entry, already at its url, for one call. They count as the agent's until `done` closes them. */
   async borrow(urls: (string | undefined)[]): Promise<{ tabs: Tab[]; done: () => Promise<void> }> {
     await this.room(urls.length)
     const session = await this.socket()
-    const opened = await Promise.allSettled(urls.map(() => session.openTab()))
+    const opened = await Promise.allSettled(urls.map((url) => session.openTab(url)))
     const tabs = opened.flatMap((o) => (o.status === "fulfilled" ? [o.value] : []))
     for (const [i, t] of tabs.entries()) this.borrowed.set(t.id, urls[i] ?? "about:blank")
     const done = async () => {
