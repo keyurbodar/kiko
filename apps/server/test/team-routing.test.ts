@@ -386,6 +386,34 @@ test("a burst whose delivery fails once is retried, and counts as one turn", asy
   ws.ws.close()
 })
 
+test("mail an agent refuses costs its root nothing and the sender is told once", async () => {
+  const { room } = await team()
+  await call(`/refusenext/${room}/ada/30`)
+  for (let i = 0; i < 30; i++) {
+    const sent = (await call(`/mail/${room}/bob`, { id: `big-${i}`, to: "ada", text: `part ${i}`, tainted: false })) as { ok: boolean }
+    expect(sent.ok).toBe(true)
+  }
+  const end = Date.now() + 15_000
+  const notices = async () => (await received(room, "bob")).received.flatMap((r) => r.envelopes).filter((e) => e.from.kind === "system")
+  while ((await notices()).length < 30) {
+    if (Date.now() > end) throw new Error(`bob got ${(await notices()).length} notices`)
+    await Bun.sleep(100)
+  }
+  const told = await notices()
+  expect(new Set(told.map((e) => e.id)).size).toBe(30)
+  expect(told[0]!.body).toContain("@ada")
+  expect(told[0]!.body).toContain("too large")
+  expect((await received(room, "ada")).received).toEqual([])
+  // 30 refused sends must not have used the root's 40 deliveries: 15 more still go through.
+  for (let i = 0; i < 15; i++) {
+    const sent = (await call(`/mail/${room}/bob`, { id: `ok-${i}`, to: "ada", text: `again ${i}`, tainted: false })) as { ok: boolean; error?: string }
+    expect(sent).toEqual({ ok: true, to: ["ada"] })
+  }
+  await delivered(room, "ada", 15)
+  await Bun.sleep(300)
+  expect((await notices()).length).toBe(30)
+})
+
 test("agent mail that fails to deliver is retried until it arrives", async () => {
   const { room, ws } = await team()
   await call(`/fail/${room}/ada/2`)

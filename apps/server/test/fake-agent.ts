@@ -30,8 +30,18 @@ export class FakeAgent extends DurableObject {
     await this.ctx.storage.put("fail", n)
   }
 
+  /** The next `n` receives are refused as too large, as an oversized inbox entry would be. */
+  async refuseNext(n: number) {
+    await this.ctx.storage.put("refuse", n)
+  }
+
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     this.log()
+    const refuse = (await this.ctx.storage.get<number>("refuse")) ?? 0
+    if (refuse > 0) {
+      await this.ctx.storage.put("refuse", refuse - 1)
+      return { admitted: [], refused: "too_large" as const }
+    }
     const fail = (await this.ctx.storage.get<number>("fail")) ?? 0
     if (fail > 0) {
       await this.ctx.storage.put("fail", fail - 1)
@@ -167,6 +177,7 @@ const ALICE = "alice"
 // `POST /task/<roomId>/<slug>`      the agent calls a workspace tool (WorkspaceCall)
 // `/refuse/<state>`                 alice's day of turns is used ("1") or not ("0"); `/touches` counts chat list touches
 // `/fail/<roomId>/<slug>/<n>`       the agent's next n receives throw
+// `/refusenext/<roomId>/<slug>/<n>` the agent's next n receives are refused as too large
 // `/turns`                          the turns alice has taken
 // `POST /mail/<roomId>/<slug>`      the agent sends an agent message (AgentSend)
 // `POST /memory/<roomId>` seqs      the room's <memory> view, without the messages `seqs`
@@ -189,6 +200,10 @@ export default {
     const room = roomStub(env.ROOM, ALICE, roomId!)
     if (kind === "fail") {
       await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).failNext(Number(state))
+      return Response.json({ ok: true })
+    }
+    if (kind === "refusenext") {
+      await env.AGENT.get(env.AGENT.idFromName(agentName(ALICE, roomId!, slug!))).refuseNext(Number(state))
       return Response.json({ ok: true })
     }
     if (kind === "index") {

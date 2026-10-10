@@ -167,10 +167,12 @@ export class Inbox {
     this.sql.exec("UPDATE inbox SET in_flight_at = NULL, in_flight_by = NULL WHERE submitted = 0 AND in_flight_by = ?", this.process)
   }
 
+  /** Stop clears what agents sent. A human's message that has not started a run stays, so it is still answered. */
   discard(): number {
-    return this.sql.exec(
-      "UPDATE inbox SET request_id = coalesce(request_id, 'stopped'), submitted = 1, in_flight_at = NULL, in_flight_by = NULL WHERE submitted = 0",
-    ).rowsWritten
+    const where = "submitted = 0 AND (priority != ? OR in_flight_at IS NOT NULL)"
+    const n = this.sql.exec<{ n: number }>(`SELECT count(*) AS n FROM inbox WHERE ${where}`, PRIORITY.human).one().n
+    this.sql.exec(`UPDATE inbox SET request_id = coalesce(request_id, 'stopped'), submitted = 1, in_flight_at = NULL, in_flight_by = NULL WHERE ${where}`, PRIORITY.human)
+    return n
   }
 
   counts(): { waiting: number; claimed: number; submitted: number } {
