@@ -263,6 +263,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
   empties.length = 0
   let okCount = 0
   const decisionsPerTask: number[] = []
+  const walls: number[] = []
   const failures: string[] = []
   for (let run = 0; run < RUNS; run++) {
     let phase = "connect"
@@ -286,6 +287,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
       const results = await runTasks(tabs, BENCH.map((b) => b.task), { decider, paused: () => false, signal: AbortSignal.timeout(120_000), opened: AT_URL })
       const wall = performance.now() - t0
       decisionsPerTask.push(decisions / BENCH.length)
+      walls.push(performance.now() - opening)
       phase = "final read"
       for (const [i, r] of results.entries()) {
         phase = `final read ${i}`
@@ -295,6 +297,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
         else failures.push(`run ${run} task ${i}: ${r.stop} ${r.note ?? ""} ${r.actions.join(" | ")} @ ${page.url}`.slice(0, 300))
       }
       console.log(`  ${name} run ${run}: ${(wall / 1000).toFixed(1)} s, ${results.map((r) => `${r.stop}(${r.actions.length})`).join(" ")}`)
+      if (process.argv.includes("--verbose")) for (const r of results) console.log(`    ${r.actions.join(" | ")} @ ${r.url}`)
       await Promise.all(raw.map((t) => t.close()))
     } catch (e) {
       failures.push(`run ${run} threw in ${phase}: ${String(e).slice(0, 200)}`)
@@ -318,6 +321,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
     tokens_per_decision: Math.round(tokens.reduce((a, b) => a + b, 0) / (tokens.length || 1)),
     p50_out_tokens: pct(outTokens, 0.5),
     p50_start: Math.round(pct(starts, 0.5)),
+    p50_run_wall: Math.round(pct(walls, 0.5)),
   }
   for (const f of failures) console.log(`  FAIL ${f}`)
   if (empties.length) console.log(`  empty model answers: ${empties.length}: ${[...new Set(empties)].slice(0, 4).join("; ")}`)
