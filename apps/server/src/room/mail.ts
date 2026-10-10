@@ -38,6 +38,7 @@ export class Mail {
 		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS autonomous_runs (id INTEGER PRIMARY KEY CHECK (id = 1), day TEXT NOT NULL, runs INTEGER NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS stopped_roots (root_id TEXT PRIMARY KEY)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_refused (id TEXT PRIMARY KEY, at INTEGER NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS auto_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_queue (n INTEGER PRIMARY KEY, sender TEXT NOT NULL, send TEXT NOT NULL)")
 		const chainColumns = new Set(this.sql.exec<{ name: string }>("PRAGMA table_info(agent_chains)").toArray().map((c) => c.name))
@@ -83,6 +84,15 @@ export class Mail {
 
 	done(n: number): void {
 		this.sql.exec("DELETE FROM mail_queue WHERE n = ?", n)
+	}
+
+	/** The recipient refused this delivery. Its count goes back to the root once, however often the refusal is seen. */
+	refused(envelopeId: string, rootId: string): void {
+		this.storage.transactionSync(() => {
+			if (this.sql.exec("SELECT 1 FROM mail_refused WHERE id = ?", envelopeId).toArray().length) return
+			this.sql.exec("INSERT INTO mail_refused (id, at) VALUES (?, ?)", envelopeId, this.now())
+			this.sql.exec("UPDATE root_counts SET deliveries = max(0, deliveries - 1) WHERE root_id = ?", rootId)
+		})
 	}
 
 	stop(): void {
@@ -203,7 +213,7 @@ export class Mail {
 	private prune(): void {
 		const now = this.now()
 		if (now - Number(this.log.meta("mail_pruned_at") ?? 0) < PRUNE_EVERY_MS) return
-		for (const table of ["agent_sends", "root_counts", "stopped_roots"]) this.sql.exec(`DELETE FROM ${table} WHERE at < ?`, now - KEEP_SENDS_MS)
+		for (const table of ["agent_sends", "root_counts", "stopped_roots", "mail_refused"]) this.sql.exec(`DELETE FROM ${table} WHERE at < ?`, now - KEEP_SENDS_MS)
 		this.log.setMeta("mail_pruned_at", String(now))
 	}
 

@@ -586,9 +586,24 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const d = this.delivery(member, members, await this.title(home), [this.mail.envelope(home.roomId, mail.from, mail.send, mail.to)])
 		const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, mail.to).receive(d.envelopes, d.brief, this.agentHome(home, mail.to, member))
 		if (refused === "full") throw new Error(`${mail.to}'s inbox is full`)
-		if (refused) return console.error(`agent message to ${mail.to} refused: ${refused}`)
+		if (refused) return this.mailRefused(home, mail, refused)
 		this.mail.delivered(mail.to, d.envelopes)
 		markReactionsBriefed(this.log, mail.to, d.reactionsUpTo)
+	}
+
+	/** A refused message is not a delivery: its count returns to the root and the sender reads one notice, with the same id on every retry. */
+	private async mailRefused(home: { userId: string; roomId: RoomId }, mail: QueuedMail, why: string): Promise<void> {
+		console.error(`agent message to ${mail.to} refused: ${why}`)
+		const envelopeId = this.mail.envelope(home.roomId, mail.from, mail.send, mail.to).id
+		this.mail.refused(envelopeId, mail.send.rootId)
+		const members = this.members.list()
+		const sender = members.find((m) => m.slug === mail.from)
+		if (!sender) return
+		const id = `refused:${envelopeId}`
+		const reason = why === "too_large" ? "it was too large" : "its inbox could not take it"
+		const notice: Envelope = { id, roomId: home.roomId, from: { kind: "system", reason: "run_budget" }, body: `your message to @${mail.to} was not delivered: ${reason}. send a shorter one, or put the detail in a file.`, hop: 0, rootId: id, tainted: false, seq: this.log.lastSeq() }
+		const d = this.delivery(sender, members, await this.title(home), [notice])
+		await agentStub(this.env.AGENT, home.userId, home.roomId, mail.from).receive(d.envelopes, d.brief, this.agentHome(home, mail.from, sender))
 	}
 
 	async memoryView(seqs: number[]): Promise<{ text: string; count: number }> {
