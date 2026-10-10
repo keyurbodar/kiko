@@ -3,7 +3,7 @@ import { For, Show, Suspense, createEffect, createMemo, createResource, createSi
 import { ProviderIcon } from "@yuki/ui/provider-icon"
 import "@yuki/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
-import { modelProviders, TYPESAFE_ID, TYPESAFE_NOTE, TYPESAFE_PROVIDER } from "./provider-kinds"
+import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { Moment } from "../mascot/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
@@ -44,23 +44,21 @@ const POPULAR: readonly { id: string; note: string }[] = [
 function useProviders() {
   const [catalog] = createResource(loadCatalog)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
-  const withTypesafe = (list: CatalogProvider[]) => [...list, TYPESAFE_PROVIDER]
-  const connected = createMemo(() => withTypesafe(catalog()?.providers ?? []).filter((p) => saved(p.id)))
-  // Providers that run a model, for the models page.
-  const modelConnected = createMemo(() => connected().filter((p) => p.id !== TYPESAFE_ID))
-  return { catalog, saved, connected, modelConnected, withTypesafe }
+  const connected = createMemo(() => (catalog()?.providers ?? []).filter((p) => saved(p.id)))
+  const modelConnected = createMemo(() => connected().filter((p) => p.models.length > 0))
+  return { catalog, saved, connected, modelConnected }
 }
 
 export function ProvidersPage() {
-  const { catalog, saved, connected, withTypesafe } = useProviders()
+  const { catalog, saved, connected } = useProviders()
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
   const [browsing, setBrowsing] = createSignal(false)
-  const available = createMemo(() => withTypesafe(catalog()?.providers ?? []).filter((p) => !saved(p.id)))
+  const available = createMemo(() => (catalog()?.providers ?? []).filter((p) => !saved(p.id)))
   const popular = createMemo(() =>
     POPULAR.flatMap(({ id, note }) => {
       const provider = available().find((p) => p.id === id)
       return provider ? [{ provider, note }] : []
-    }).concat(saved(TYPESAFE_ID) ? [] : [{ provider: TYPESAFE_PROVIDER, note: TYPESAFE_NOTE }]),
+    }).concat(available().filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE }))),
   )
 
   // The first provider is the moment yuki starts working, so the birds cheer once. Only a
@@ -435,8 +433,8 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
                   class={cn(fieldClass, "w-full")}
                   data-component="provider-key"
                 />
-                <Show when={props.provider?.id === TYPESAFE_ID}>
-                  <Hint>{TYPESAFE_NOTE}</Hint>
+                <Show when={props.provider && isJudgeOnly(props.provider)}>
+                  <Hint>{JUDGE_NOTE}</Hint>
                 </Show>
                 <Show when={error()}>
                   <Notice data-component="connect-error">{error()!}</Notice>

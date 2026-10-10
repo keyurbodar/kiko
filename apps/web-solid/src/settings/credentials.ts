@@ -9,6 +9,9 @@ export interface ProviderInfo {
   last4: string
   /** The provider turned this key down; the row says so. */
   refused?: boolean
+  /** From pi-ai's catalog, so a list without the catalog can tell a chat provider from a judge. */
+  chat?: boolean
+  judge?: boolean
 }
 
 async function request(path: string, init?: RequestInit): Promise<any> {

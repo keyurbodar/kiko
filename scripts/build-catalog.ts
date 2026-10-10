@@ -23,6 +23,8 @@ export interface CatalogProvider {
   name: string;
   connect: ConnectMethod[];
   models: CatalogModel[];
+  /** How many classifier models the provider serves. One with classifiers and no chat models only judges memory. */
+  classifiers: number;
 }
 
 export interface Catalog {
@@ -83,7 +85,8 @@ export async function buildCatalog(): Promise<Catalog> {
       },
     }));
     models.sort((a, b) => a.id.localeCompare(b.id));
-    providers.push({ id: provider.id, name: provider.name ?? provider.id, connect, models });
+    const classifiers = (provider.getAllModels?.() ?? []).filter((model: any) => model.type === "classifier").length;
+    providers.push({ id: provider.id, name: provider.name ?? provider.id, connect, models, classifiers });
   }
   providers.sort((a, b) => a.id.localeCompare(b.id));
   return { providers };
