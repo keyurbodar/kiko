@@ -114,6 +114,7 @@
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260101.0",
+        "@types/bun": "1.3.14",
         "devtools-protocol": "0.0.1716261",
         "typescript": "^5.9.0",
       },
