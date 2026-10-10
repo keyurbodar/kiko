@@ -30,8 +30,6 @@ export type Loop = {
   openedAt: number
   lastSeen: number
   mentions: number
-  surfaced: number
-  ignored: number
   tainted: boolean
   closedAt: number | null
   snoozedUntil: number | null
@@ -66,8 +64,6 @@ type Row = {
   opened_at: number
   last_seen: number
   mentions: number
-  surfaced: number
-  ignored: number
   tainted: number
   closed_at: number | null
   snoozed_until: number | null
@@ -81,6 +77,12 @@ export function cleanDue(due: string | null | undefined): string | null {
   const raw = due?.trim()
   if (!raw || Number.isNaN(Date.parse(raw))) return null
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : new Date(raw).toISOString()
+}
+
+/** An FTS query for any of the text's keywords, or null when it has none. */
+function match(text: string): string | null {
+  const words = keywords(text).slice(0, 12)
+  return words.length ? words.map((w) => `"${w}"*`).join(" OR ") : null
 }
 
 export class Loops {
@@ -103,8 +105,6 @@ export class Loops {
       opened_at INTEGER NOT NULL,
       last_seen INTEGER NOT NULL,
       mentions INTEGER NOT NULL DEFAULT 1,
-      surfaced INTEGER NOT NULL DEFAULT 0,
-      ignored INTEGER NOT NULL DEFAULT 0,
       tainted INTEGER NOT NULL DEFAULT 0,
       closed_at INTEGER,
       snoozed_until INTEGER
@@ -116,11 +116,13 @@ export class Loops {
 
   /**
    * Opens a loop, or adds a mention to the same one: `same` when the caller judged it, else a live loop
-   * with the same words. Either must have the same owner: one's promise never merges into another's
-   * plan. A mention can firm a tentative loop up and give it a due time; it never makes an explicit
-   * loop tentative, and the loop keeps its first words.
+   * with the same words, else one from the same message that shares words with it (the agent's run and
+   * Jev both read every message, in either order). `same: null` means the caller judged it different
+   * from every loop of that message. All must have the same owner: one's promise never merges into
+   * another's plan. A mention can firm a tentative loop up and give it a due time; it never makes an
+   * explicit loop tentative, and the loop keeps its first words.
    */
-  open(input: NewLoop, same?: number): OpenResult {
+  open(input: NewLoop, same?: number | null): OpenResult {
     const text = input.text.replace(/\s+/g, " ").trim()
     if (!text) return { ok: false, error: "empty. a loop is one line of text." }
     if (encoder.encode(text).byteLength > LINE_BYTES) return { ok: false, error: `too long: a loop is at most ${LINE_BYTES} bytes. say it shorter.` }
@@ -130,13 +132,15 @@ export class Loops {
     const due = cleanDue(input.due)
     const key = norm(text)
     return this.transaction(() => {
+      const words = match(text)
       const old =
-        (same === undefined ? undefined : this.sql.exec<Row>(`SELECT * FROM loops WHERE id = ? AND owner = ? AND ${LIVE}`, same, owner).toArray()[0]) ??
+        (typeof same === "number" ? this.sql.exec<Row>(`SELECT * FROM loops WHERE id = ? AND owner = ? AND ${LIVE}`, same, owner).toArray()[0] : undefined) ??
         this.sql.exec<Row>(`SELECT * FROM loops WHERE norm = ? AND owner = ? AND ${LIVE}`, key, owner).toArray()[0] ??
-        // One message answered with one promise, kept two ways (a loop and a reminder), is one commitment.
-        (input.kind === "commitment" && input.ref
-          ? this.sql.exec<Row>(`SELECT * FROM loops WHERE kind = 'commitment' AND owner = ? AND ref = ? AND ${LIVE}`, owner, input.ref).toArray()[0]
-          : undefined)
+        (same === null || !input.ref || !words
+          ? undefined
+          : this.sql
+              .exec<Row>(`SELECT l.* FROM loops_fts f JOIN loops l ON l.id = f.rowid WHERE loops_fts MATCH ? AND l.ref = ? AND l.owner = ? AND l.${LIVE} ORDER BY bm25(loops_fts) LIMIT 1`, words, input.ref, owner)
+              .toArray()[0])
       if (old) {
         const firmer = input.certainty === "explicit" && old.certainty === "tentative"
         this.sql.exec(
@@ -182,15 +186,6 @@ export class Loops {
     return this.sql.exec(`UPDATE loops SET status = 'snoozed', snoozed_until = ? WHERE id = ? AND ${LIVE}`, until, id).rowsWritten > 0
   }
 
-  /** The next wave's attention pass reports what it raised and what the human let pass. */
-  surfaced(id: number): void {
-    this.sql.exec("UPDATE loops SET surfaced = surfaced + 1 WHERE id = ?", id)
-  }
-
-  ignored(id: number): void {
-    this.sql.exec("UPDATE loops SET ignored = ignored + 1 WHERE id = ?", id)
-  }
-
   get(id: number): Loop | null {
     const row = this.sql.exec<Row>("SELECT * FROM loops WHERE id = ?", id).toArray()[0]
     return row ? toLoop(row) : null
@@ -214,12 +209,12 @@ export class Loops {
 
   /** Live loops that share words with `text`, best match first. */
   similar(text: string, limit = 5, skip: readonly number[] = []): Loop[] {
-    const words = keywords(text).slice(0, 12)
-    if (!words.length) return []
+    const words = match(text)
+    if (!words) return []
     return this.sql
       .exec<Row>(
         `SELECT l.* FROM loops_fts f JOIN loops l ON l.id = f.rowid WHERE loops_fts MATCH ? AND l.status IN ('open', 'snoozed') AND l.id NOT IN (SELECT value FROM json_each(?)) ORDER BY bm25(loops_fts) LIMIT ?`,
-        words.map((w) => `"${w}"*`).join(" OR "),
+        words,
         JSON.stringify(skip),
         limit,
       )
@@ -227,10 +222,12 @@ export class Loops {
       .map(toLoop)
   }
 
-  /**
-   * Every loop that could deserve attention at `now`: open ones, and snoozed ones whose time has come.
-   * The attention pass (next wave) ranks these. It decides; this only gathers.
-   */
+  /** Live loops learned from one message. */
+  fromRef(ref: string): Loop[] {
+    return ref ? this.sql.exec<Row>(`SELECT * FROM loops WHERE ref = ? AND ${LIVE}`, ref).toArray().map(toLoop) : []
+  }
+
+  /** Every loop that could deserve attention at `now`: open ones, and snoozed ones whose time has come. */
   candidates(now = Date.now()): Loop[] {
     return this.sql
       .exec<Row>("SELECT * FROM loops WHERE status = 'open' OR (status = 'snoozed' AND snoozed_until <= ?) ORDER BY last_seen DESC LIMIT 200", now)
@@ -267,8 +264,6 @@ function toLoop(r: Row): Loop {
     openedAt: r.opened_at,
     lastSeen: r.last_seen,
     mentions: r.mentions,
-    surfaced: r.surfaced,
-    ignored: r.ignored,
     tainted: r.tainted === 1,
     closedAt: r.closed_at,
     snoozedUntil: r.snoozed_until,
@@ -345,7 +340,8 @@ export function loopQuestions(check: BurstCheck): { state: JsonObject; questions
 }
 
 export type LoopOp =
-  | { op: "open"; sentence: number; kind: LoopKind; certainty: Certainty; same?: number }
+  /** `same`: the loop it repeats, or null when the judge found it unlike every loop it was shown. */
+  | { op: "open"; sentence: number; kind: LoopKind; certainty: Certainty; same?: number | null }
   | { op: "close"; sentence: number; id: number; status: "done" | "dropped" }
 
 /** The winning choice, when it holds most of the probability. Below that the judge was unsure. */
@@ -359,19 +355,20 @@ function decided(answer: Answer | undefined): string | null {
 export function loopOps(check: BurstCheck, answers: Record<string, Answer>): LoopOp[] {
   const ops: LoopOp[] = []
   check.sentences.forEach((_, i) => {
-    let same: number | undefined
+    let same: number | null | undefined
     let closed = false
-    for (const { sentence, loop } of check.near) {
-      if (sentence !== i) continue
-      const rel = decided(answers[`s${i}_l${loop.id}`])
+    const near = check.near.filter((n) => n.sentence === i)
+    const rels = near.map(({ loop }) => ({ id: loop.id, rel: decided(answers[`s${i}_l${loop.id}`]) }))
+    for (const { id, rel } of rels) {
       if (rel === "done" || rel === "dropped") {
-        ops.push({ op: "close", sentence: i, id: loop.id, status: rel })
+        ops.push({ op: "close", sentence: i, id, status: rel })
         closed = true
-      } else if (rel === "same" && same === undefined) same = loop.id
+      } else if (rel === "same" && same === undefined) same = id
     }
     if (closed) return
     const kind = decided(answers[`s${i}_kind`])
     if (!isLoopKind(kind)) return
+    if (same === undefined && rels.length && rels.every((r) => r.rel === "other")) same = null
     const certain = answers[`s${i}_certain`]
     const certainty: Certainty = certain?.type === "bool" && certain.probability > 0.5 ? "explicit" : "tentative"
     ops.push({ op: "open", sentence: i, kind, certainty, ...(same === undefined ? {} : { same }) })

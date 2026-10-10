@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { allowance, type Appetite, emptyAppetite, kindOpen, nudged, restUntil, settle } from "../src/initiative/attention/appetite"
+import { allowance, type Appetite, emptyAppetite, kindOpen, learn, nudged, restUntil, settle } from "../src/initiative/attention/appetite"
 import { type AttendContext, attend } from "../src/initiative/attention/attend"
 import { emptyRhythm, ignoreDeadline, nextMoment, type Rhythm, record, slotOf, view } from "../src/initiative/attention/rhythm"
 import { AttentionStore } from "../src/initiative/attention/store"
@@ -88,30 +88,47 @@ describe("appetite", () => {
     expect(allowance(ignoreN(emptyAppetite(), 2), 4 * DAY + 60 * DAY)).toBe(1)
   })
 
-  test("a reply in the nudge's room is engagement; a reply elsewhere is not", () => {
+  test("a reply in the nudge's room is engagement at the deadline; a reply elsewhere is not", () => {
     const app = nudged(emptyAppetite(), pending("a", 0))
-    const elsewhere = settle(app, [{ kind: "burst", id: "b1", room: "r2", at: HOUR, from: "human" }], 2 * HOUR)
-    expect(elsewhere.outcomes).toEqual([])
-    expect(elsewhere.appetite.pending).toHaveLength(1)
-    const here = settle(app, [{ kind: "burst", id: "b2", room: "r1", at: HOUR, from: "human" }], 2 * HOUR)
-    expect(here.outcomes.map((o) => o.result)).toEqual(["engaged"])
+    const elsewhere = settle(app, [{ kind: "burst", id: "b1", room: "r2", at: HOUR }], 2 * DAY)
+    expect(elsewhere.outcomes.map((o) => o.result)).toEqual(["ignored"])
+    const noted = settle(app, [{ kind: "burst", id: "b2", room: "r1", at: HOUR }], 2 * HOUR)
+    expect(noted.outcomes).toEqual([])
+    expect(noted.appetite.pending[0]?.engaged).toBe(HOUR)
+    const here = settle(noted.appetite, [], 2 * DAY)
+    expect(here.outcomes.map((o) => `${o.result}@${o.at}`)).toEqual([`engaged@${HOUR}`])
     expect(here.appetite.pending).toEqual([])
     // Three engagements earn a second nudge per pass.
     let keen = emptyAppetite()
-    for (let i = 0; i < 3; i++) keen = settle(nudged(keen, pending(`k${i}`, i * DAY)), [{ kind: "burst", id: `kb${i}`, room: "r1", at: i * DAY + HOUR, from: "human" }], i * DAY + 2 * HOUR).appetite
+    for (let i = 0; i < 3; i++) keen = settle(nudged(keen, pending(`k${i}`, i * DAY)), [{ kind: "burst", id: `kb${i}`, room: "r1", at: i * DAY + HOUR }], i * DAY + DAY).appetite
     expect(allowance(keen, 3 * DAY)).toBe(2)
   })
 
-  test("a dismissal beats the reply that carried it and closes only that kind", () => {
+  test("a drop wins over the reply that carried it, in either order, and closes only that kind", () => {
     const app = nudged(emptyAppetite(), pending("a", 0, "goal"))
-    const signals: Signal[] = [
-      { kind: "burst", id: "b", room: "r1", at: HOUR, from: "human" },
-      { kind: "dismiss", id: "d", room: "r1", at: HOUR, nudge: "a" },
-    ]
-    const { appetite, outcomes } = settle(app, signals, 2 * HOUR)
-    expect(outcomes.map((o) => o.result)).toEqual(["dismissed"])
-    expect(kindOpen(appetite, "goal", 2 * HOUR)).toBe(false)
-    expect(kindOpen(appetite, "waiting", 2 * HOUR)).toBe(true)
+    const reply: Signal = { kind: "burst", id: "b", room: "r1", at: HOUR }
+    const drop: Signal = { kind: "dismiss", id: "d", room: "r1", at: HOUR + 60_000, loop: "loop-a" }
+    const together = settle(app, [reply, drop], 2 * HOUR)
+    // The reply reached the pass first; the loop was dropped a minute later.
+    const first = settle(app, [reply], HOUR + 1)
+    const later = settle(first.appetite, [drop], 2 * HOUR)
+    for (const { appetite, outcomes } of [together, { appetite: later.appetite, outcomes: [...first.outcomes, ...later.outcomes] }]) {
+      expect(outcomes.map((o) => o.result)).toEqual(["dismissed"])
+      expect(kindOpen(appetite, "goal", 2 * HOUR)).toBe(false)
+      expect(kindOpen(appetite, "waiting", 2 * HOUR)).toBe(true)
+    }
+  })
+
+  test("a [skip] teaches the kind, never the human's allowance", () => {
+    const skips = (n: number) => {
+      let a = emptyAppetite()
+      for (let i = 0; i < n; i++) a = learn(a, "intention", "skipped", i * DAY)
+      return a
+    }
+    expect(kindOpen(skips(1), "intention", DAY)).toBe(true)
+    expect(kindOpen(skips(2), "intention", 2 * DAY)).toBe(false)
+    expect(kindOpen(skips(2), "waiting", 2 * DAY)).toBe(true)
+    expect(allowance(skips(2), 2 * DAY)).toBe(1)
   })
 })
 
@@ -128,34 +145,33 @@ function ctx(over: Partial<AttendContext> = {}): AttendContext {
 
 describe("attend", () => {
   const cases: [string, Partial<Candidate>, Partial<AttendContext>, string, string?][] = [
-    ["due before the next moment, no Jev: the lead decides", {}, {}, "ask_lead", "r1/yuki"],
-    ["an agent's own promise goes to that agent", { kind: "commitment", owner: "scout", due: undefined }, {}, "ask_lead", "r1/scout"],
+    ["due before the next moment, no Jev: the score decides", {}, {}, "nudge", "r1/yuki"],
+    ["an agent's own promise goes to that agent", { kind: "commitment", owner: "scout", due: undefined }, {}, "nudge", "r1/scout"],
     ["Jev says worth it", {}, { worthNow: { c: 0.9 } }, "nudge", "r1/yuki"],
     ["Jev says not now", {}, { worthNow: { c: 0.2 } }, "brief:worth"],
-    ["initiative off", {}, { level: "off" }, "drop:off"],
+    ["Jev answered but did not read it", {}, { worthNow: { other: 0.9 } }, "brief:worth"],
+    ["initiative off", {}, { level: "off" }, "brief:off"],
     ["in chat only", {}, { level: "chat" }, "brief:quiet"],
-    ["the human is typing in that room", {}, { busyRooms: ["r1"] }, "brief:typing"],
-    ["typing in another room does not hold this one", {}, { busyRooms: ["r2"] }, "ask_lead", "r1/yuki"],
+    ["the human wrote in that room moments ago", {}, { busyRooms: ["r1"] }, "brief:typing"],
+    ["writing in another room does not hold this one", {}, { busyRooms: ["r2"] }, "nudge", "r1/yuki"],
     ["cold start", {}, { rhythm: { known: false, activeNow: false, moments: [], cycle: DAY } }, "brief:cold"],
     ["away", {}, { away: true }, "brief:away"],
     ["no budget", {}, { budget: 0 }, "brief:budget"],
     ["tentative without Jev never interrupts", { certainty: "tentative" }, {}, "brief:tentative"],
     ["far due, mentioned long ago", { due: NOW + 30 * DAY, lastSeen: NOW - 60 * DAY, mentions: 1 }, {}, "brief:worth"],
     ["outside the usual window", {}, { rhythm: { ...known, activeNow: false } }, "brief:moment"],
-    ["prep before the moment", { preparable: true }, { rhythm: { ...known, activeNow: false }, prepare: true, worthNow: { c: 0.9 } }, "prepare", "r1/yuki"],
-    ["a tainted loop is never prepared", { preparable: true, tainted: true }, { rhythm: { ...known, activeNow: false }, prepare: true, worthNow: { c: 0.9 } }, "brief:moment"],
     ["no lead in the room", { room: "r9" }, {}, "brief:no_lead"],
     ["said an hour ago, not due yet", { lastSeen: NOW - HOUR }, {}, "brief:fresh"],
     ["promised an hour ago, due a week out", { kind: "commitment", owner: "scout", lastSeen: NOW - 2 * DAY, due: NOW + 7 * DAY }, {}, "brief:worth"],
     ["nudged an hour ago", { surfaced: 1, lastSurfaced: NOW - HOUR }, {}, "rest"],
     ["two ignores of the kind", {}, { appetite: ignoreN(emptyAppetite(), 2, "intention", NOW - 4 * DAY) }, "brief:appetite"],
-    ["dismissed kind", { kind: "goal" }, { appetite: settle(nudged(emptyAppetite(), pending("x", NOW - DAY, "goal")), [{ kind: "dismiss", id: "d", room: "r1", at: NOW - HOUR, nudge: "x" }], NOW).appetite }, "brief:appetite"],
+    ["dismissed kind", { kind: "goal" }, { appetite: settle(nudged(emptyAppetite(), pending("x", NOW - DAY, "goal")), [{ kind: "dismiss", id: "d", room: "r1", at: NOW - HOUR, loop: "loop-x" }], NOW).appetite }, "brief:appetite"],
   ]
 
   for (const [name, c, x, want, target] of cases) {
     test(name, () => {
       const [v] = attend([cand(c)], ctx(x))
-      const got = v!.verdict === "drop" || v!.verdict === "brief" ? `${v!.verdict}${v!.reason ? `:${v!.reason}` : ""}` : v!.verdict
+      const got = v!.verdict === "brief" ? `brief:${v!.reason}` : v!.verdict
       expect(got).toBe(want)
       if (target) expect("target" in v! ? `${v.target.room}/${v.target.slug}` : "").toBe(target)
     })
@@ -171,12 +187,12 @@ describe("attend", () => {
 
   test("one interruption per room, the most worthwhile wins", () => {
     const vs = attend([cand({ id: "weak", due: NOW + 2.5 * DAY, mentions: 3, lastSeen: NOW - DAY }), cand({ id: "strong", due: NOW - HOUR })], ctx({ appetite: keenAppetite() }))
-    expect(vs.map((v) => (v.verdict === "brief" ? `brief:${v.reason}` : v.verdict))).toEqual(["brief:room_taken", "ask_lead"])
+    expect(vs.map((v) => (v.verdict === "brief" ? `brief:${v.reason}` : v.verdict))).toEqual(["brief:room_taken", "nudge"])
   })
 
   test("the appetite caps interruptions across rooms; digest allows one", () => {
     const two = [cand({ id: "a", room: "r1" }), cand({ id: "b", room: "r2" })]
-    const count = (x: Partial<AttendContext>) => attend(two, ctx(x)).filter((v) => v.verdict === "ask_lead").length
+    const count = (x: Partial<AttendContext>) => attend(two, ctx(x)).filter((v) => v.verdict === "nudge").length
     expect(count({})).toBe(1)
     expect(count({ appetite: keenAppetite() })).toBe(2)
     expect(count({ appetite: keenAppetite(), level: "digest" })).toBe(1)
@@ -188,7 +204,7 @@ function keenAppetite(): Appetite {
   let a = emptyAppetite()
   for (let i = 0; i < 4; i++) {
     const at = NOW - 10 * DAY + i * DAY
-    a = settle(nudged(a, pending(`k${i}`, at)), [{ kind: "burst", id: `kb${i}`, room: "r1", at: at + HOUR, from: "human" }], at + 2 * HOUR).appetite
+    a = settle(nudged(a, pending(`k${i}`, at)), [{ kind: "burst", id: `kb${i}`, room: "r1", at: at + HOUR }], at + DAY).appetite
   }
   return a
 }
@@ -197,7 +213,7 @@ describe("store", () => {
   test("a redelivered batch counts once, and outcomes survive a new object", () => {
     const sql = sqlStorage()
     const store = new AttentionStore(sql)
-    const batch: Signal[] = Array.from({ length: 12 }, (_, i) => ({ kind: "burst", id: `b${i}`, room: "r1", at: MON + i * DAY + 9 * HOUR, from: "human" }))
+    const batch: Signal[] = Array.from({ length: 12 }, (_, i) => ({ kind: "burst", id: `b${i}`, room: "r1", at: MON + i * DAY + 9 * HOUR }))
     store.observe(batch, MON + 12 * DAY, NY)
     const once = store.rhythm().w.reduce((a, b) => a + b, 0)
     store.observe(batch, MON + 12 * DAY, NY)

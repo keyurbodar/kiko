@@ -1,22 +1,24 @@
 import type { Judge } from "@yuki/memory/judge"
+import { keywords } from "@yuki/memory/life"
 import { type Loops, loopLine } from "@yuki/memory/loops"
 import type { AgentSlug } from "@yuki/protocol"
-import type { WakeResult } from "../room/wake"
 import type { SignalBatch } from "../room/signals"
+import type { WakeResult } from "../room/wake"
 import type { ChatTasks } from "../user/overview"
 import type { Reminder, RoutineRun } from "../user/reminders"
 import { allowance, type Outcome, restUntil } from "./attention/appetite"
 import { attend, score } from "./attention/attend"
 import { decayed, emptyRhythm, known, nextMoment, slotOf, view } from "./attention/rhythm"
-import type { AttentionStore } from "./attention/store"
-import type { Candidate, Level, Signal, Verdict } from "./attention/types"
-import { judged, type WorthItem } from "./judge"
+import { AttentionStore } from "./attention/store"
+import { getSetting, setSetting } from "../lib/settings"
+import type { Candidate, Kind, Level, Signal, Verdict } from "./attention/types"
+import { type WorthItem, worthNow } from "./judge"
 
 // Architecture section 26.6. The initiative engine in `UserDO`: it reads the signal bus into the
-// attention store and the loops, gathers candidates (open loops, stalled tasks, routines in trouble),
-// and once a day at the human's own next moment runs `attend`. A nudge is one wake through
-// `RoomDO.initiativeWake` to the room's lead, or to the agent that owns the item. The agent may
-// answer [skip]; only a run that spoke counts as a nudge sent. Everything else stays in the brief.
+// attention store, gathers candidates (open loops, stalled tasks, routines in trouble), and once a
+// day at the human's own next moment runs `attend`. A nudge is one wake through
+// `RoomDO.initiativeWake` to the owner of the item or the room's lead, about one item. Everything
+// else stays in the brief. A wake the agent answers with [skip] is an outcome like an ignore.
 
 /** The routine ids under which the room follows initiative and reminder runs (room-do.ts). */
 export const INITIATIVE_RUN = "initiative"
@@ -25,13 +27,13 @@ export const INITIATIVE_WAKEUP = "initiative_pass"
 
 /** A pass runs at most once in this long. ASSUMPTION: a little under a day, so a daily moment that drifts is kept. */
 const MIN_GAP = 20 * 3_600_000
-/** The human counts as busy in a room this long after they wrote there. */
-const BUSY_MS = 120_000
 /** Jev reads at most this many candidates a pass. */
 const JEV_MAX = 10
-/** A lead's shortlist holds the main item and at most this many more. */
-const SHORTLIST_MORE = 2
+/** The human counts as busy in a room this long after they wrote there. The room also steps back while they type. */
+const BUSY_MS = 120_000
 const NOTICED_MAX = 2
+/** Without a judge, a burst that shares this many words with an open loop keeps it fresh. */
+const SHARED_WORDS = 2
 const LAST_PASS = "initiative_last_pass"
 /** The room resolves this to its lead. */
 const LEAD = "@lead"
@@ -41,7 +43,6 @@ export type WakeInput = { id: string; to: AgentSlug | null; body: string; reason
 export type EngineDeps = {
   sql: SqlStorage
   loops: Loops
-  store: AttentionStore
   tz: () => string
   level: () => Level
   away: () => boolean
@@ -54,17 +55,16 @@ export type EngineDeps = {
   routines: () => { routine: Reminder; last: RoutineRun | null }[]
   judge: () => Judge | null
   wake: (roomId: string, input: WakeInput) => Promise<WakeResult | "busy">
-  setting: (key: string) => string | null
-  putSetting: (key: string, value: string) => void
   count: (delta: Record<string, number>) => void
   setWakeup: (at: number) => Promise<void>
   clearWakeup: () => Promise<void>
 }
 
 /** One candidate with the words the agent and the human read. */
-type Item = { c: Candidate; text: string; line: string; reason: string; loopId?: number; taskId?: string }
+type Item = { c: Candidate; text: string; line: string; reason: string; skipped: number; loopId?: number }
 
-type Mark = { surfaced: number; ignored: number; skipped: number; dismissed: number; last_at: number | null }
+/** What happened to one item: nudges that reached the human, ones they let pass, wakes the agent declined. */
+type Mark = { surfaced: number; ignored: number; skipped: number; last_at: number | null }
 
 export type PassReport = {
   at: number
@@ -75,9 +75,12 @@ export type PassReport = {
 }
 
 export class InitiativeEngine {
+  private readonly store: AttentionStore
+
   constructor(private readonly d: EngineDeps) {
+    this.store = new AttentionStore(d.sql)
     const { sql } = d
-    sql.exec("CREATE TABLE IF NOT EXISTS initiative_marks (id TEXT PRIMARY KEY, surfaced INTEGER NOT NULL DEFAULT 0, ignored INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, dismissed INTEGER NOT NULL DEFAULT 0, last_at INTEGER)")
+    sql.exec("CREATE TABLE IF NOT EXISTS initiative_marks (id TEXT PRIMARY KEY, surfaced INTEGER NOT NULL DEFAULT 0, ignored INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, last_at INTEGER)")
     sql.exec("CREATE TABLE IF NOT EXISTS initiative_wakes (id TEXT PRIMARY KEY, room TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, ids TEXT NOT NULL, at INTEGER NOT NULL, status TEXT NOT NULL)")
     sql.exec("CREATE TABLE IF NOT EXISTS initiative_rooms (room_id TEXT PRIMARY KEY, human_at INTEGER NOT NULL)")
     sql.exec("CREATE TABLE IF NOT EXISTS loop_reminders (reminder_id TEXT PRIMARY KEY, loop_id INTEGER NOT NULL)")
@@ -90,48 +93,50 @@ export class InitiativeEngine {
 
   /** One batch from the bus: the human's rhythm, nudge outcomes, kept promises, and loops talked about again. */
   async signals(batch: SignalBatch, now = Date.now()): Promise<void> {
-    const tz = this.d.tz()
     const heard: Signal[] = []
     for (const s of batch.signals) {
       if (s.kind === "routine_result" && s.routineId === INITIATIVE_RUN) this.ran(s.occurrence, s.outcome, now)
       else if (s.kind === "routine_result" && s.routineId === REMINDER_RUN && s.outcome === "ok") this.kept(s.occurrence, now)
       else if (s.kind === "burst" && s.by.kind === "human") {
-        heard.push({ kind: "burst", id: `burst:${s.roomId}:${s.seq}`, room: s.roomId, at: s.at, from: "human" })
+        heard.push({ kind: "burst", id: `burst:${s.roomId}:${s.seq}`, room: s.roomId, at: s.at })
         this.d.sql.exec("INSERT INTO initiative_rooms (room_id, human_at) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET human_at = max(human_at, excluded.human_at)", s.roomId, s.at)
         // The human talking about a loop again keeps it fresh. Shared words only bump it; closing is the judge's or the agent's.
-        if (this.d.title(s.roomId) !== null) for (const l of this.d.loops.similar(s.text, 2)) if (sharedWords(l.text, s.text) >= 2) this.d.loops.touch(l.id, s.at)
+        if (this.d.title(s.roomId) !== null) {
+          const said = new Set(keywords(s.text))
+          for (const l of this.d.loops.similar(s.text, 2)) if (keywords(l.text).filter((w) => said.has(w)).length >= SHARED_WORDS) this.d.loops.touch(l.id, s.at)
+        }
       } else if (s.kind === "task") heard.push({ kind: "task", id: `task:${s.roomId}:${s.seq}`, room: s.roomId, at: s.at, by: s.by?.kind === "agent" ? s.by.slug : "human" })
     }
-    this.apply(this.d.store.observe(heard, now, tz))
+    this.apply(this.store.observe(heard, now, this.d.tz()))
     await this.arm(now)
   }
 
-  /** The human or an agent dropped loop `id`. A nudge about it waiting for its outcome counts as dismissed. */
+  /** Loop `id` was closed as dropped. A nudge about it still in its window counts as dismissed, even after a reply. */
   dropped(id: number, now = Date.now()): void {
-    const key = `loop:${id}`
-    const pending = this.d.store.appetite().pending.find((p) => p.loop === key)
-    if (!pending) return
-    this.apply(this.d.store.observe([{ kind: "dismiss", id: `dismiss:${key}:${now}`, room: pending.room, at: now, loop: key }], now, this.d.tz()))
+    const loop = `loop:${id}`
+    const pending = this.store.appetite().pending.find((p) => p.loop === loop)
+    if (pending) this.apply(this.store.observe([{ kind: "dismiss", id: `dismiss:${loop}:${now}`, room: pending.room, at: now, loop }], now, this.d.tz()))
   }
 
-  /** The wake's run ended. Only a run that posted is a nudge; [skip] rests the items like a nudge without teaching the appetite. */
+  /**
+   * The wake's run ended. A run that posted is a nudge sent. [skip] is the agent judging it not worth
+   * it: the item rests as after an ignore and the kind's appetite learns it. A failed run only rests.
+   */
   private ran(wakeId: string, outcome: string, now: number): void {
-    const row = this.d.sql.exec<{ room: string; slug: string; kind: string; ids: string; at: number; status: string }>("SELECT * FROM initiative_wakes WHERE id = ?", wakeId).toArray()[0]
+    const row = this.d.sql.exec<{ room: string; slug: string; kind: string; ids: string; status: string }>("SELECT * FROM initiative_wakes WHERE id = ?", wakeId).toArray()[0]
     if (!row || row.status !== "pending") return
-    const ids = JSON.parse(row.ids) as string[]
-    // A run that failed rests the items like a [skip], so the next pass asks again later, under a new id.
-    const status = outcome === "ok" ? "spoke" : "skipped"
+    const id = (JSON.parse(row.ids) as string[])[0]!
+    const kind = row.kind as Kind
+    const status = outcome === "ok" ? "spoke" : outcome === "quiet" ? "skipped" : "failed"
     this.d.sql.exec("UPDATE initiative_wakes SET status = ? WHERE id = ?", status, wakeId)
-    for (const id of ids) {
-      this.mark(id, status === "spoke" ? "surfaced" : "skipped", now)
+    this.mark(id, status === "spoke" ? "surfaced" : status === "skipped" ? "skipped" : null, now)
+    if (status === "spoke") {
+      this.store.sent({ id: wakeId, room: row.room, kind, loop: id, at: now }, this.d.tz())
       const loop = loopIdOf(id)
-      if (loop === null || status !== "spoke") continue
-      this.d.loops.surfaced(loop)
       // The owner was woken for its own promise and spoke: it kept it, or said why it cannot. Either way it is not owed again.
-      if (row.slug !== LEAD && this.d.loops.get(loop)?.owner === row.slug) this.d.loops.close(loop, "done", now)
-    }
-    if (status === "spoke") this.d.store.sent({ id: wakeId, room: row.room, kind: row.kind as Candidate["kind"], loop: ids[0]!, at: now }, this.d.tz())
-    this.d.count(status === "spoke" ? { initiative_spoke: 1 } : { initiative_skipped: 1 })
+      if (loop !== null && row.slug !== LEAD && this.d.loops.get(loop)?.owner === row.slug) this.d.loops.close(loop, "done", now)
+    } else if (status === "skipped") this.store.skipped(kind, now)
+    this.d.count({ [`initiative_${status}`]: 1 })
   }
 
   /** A reminder an agent set for itself fired and the agent posted: its promise is kept. */
@@ -144,41 +149,38 @@ export class InitiativeEngine {
 
   private apply(outcomes: Outcome[]): void {
     for (const o of outcomes) {
-      const loop = loopIdOf(o.nudge.loop)
-      if (o.result === "ignored") {
-        this.mark(o.nudge.loop, "ignored", o.at)
-        if (loop !== null) this.d.loops.ignored(loop)
-      } else if (o.result === "dismissed") {
-        this.mark(o.nudge.loop, "dismissed", o.at)
+      if (o.result === "ignored") this.mark(o.nudge.loop, "ignored", null)
+      else if (o.result === "dismissed") {
+        const loop = loopIdOf(o.nudge.loop)
         if (loop !== null) this.d.loops.close(loop, "dropped", o.at)
       }
       this.d.count({ [`initiative_${o.result}`]: 1 })
     }
   }
 
-  private mark(id: string, field: "surfaced" | "ignored" | "skipped" | "dismissed", at: number): void {
-    const stamp = field === "surfaced" || field === "skipped"
+  /** Counts one outcome for an item. `at` restarts its rest; a null field only restarts it. */
+  private mark(id: string, field: "surfaced" | "ignored" | "skipped" | null, at: number | null): void {
+    const add = (f: string) => (f === field ? 1 : 0)
     this.d.sql.exec(
-      `INSERT INTO initiative_marks (id, ${field}, last_at) VALUES (?, 1, ?) ON CONFLICT(id) DO UPDATE SET ${field} = ${field} + 1${stamp ? ", last_at = excluded.last_at" : ""}`,
+      `INSERT INTO initiative_marks (id, surfaced, ignored, skipped, last_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET surfaced = surfaced + excluded.surfaced, ignored = ignored + excluded.ignored, skipped = skipped + excluded.skipped, last_at = coalesce(excluded.last_at, last_at)`,
       id,
-      stamp ? at : null,
+      add("surfaced"),
+      add("ignored"),
+      add("skipped"),
+      at,
     )
-  }
-
-  private marks(): Map<string, Mark> {
-    return new Map(this.d.sql.exec<Mark & { id: string }>("SELECT * FROM initiative_marks").toArray().map((m) => [m.id, m]))
   }
 
   /** Everything that could deserve attention now, with the words for it. */
   private items(now: number, cycle: number): Item[] {
     const tz = this.d.tz()
-    const marks = this.marks()
+    const marks = new Map(this.d.sql.exec<Mark & { id: string }>("SELECT * FROM initiative_marks").toArray().map((m) => [m.id, m]))
     const out: Item[] = []
     const home = this.d.home()
-    const add = (id: string, c: Omit<Candidate, "id" | "surfaced" | "ignored" | "lastSurfaced">, rest: Omit<Item, "c">) => {
+    const add = (id: string, c: Omit<Candidate, "id" | "surfaced" | "ignored" | "lastSurfaced">, rest: Omit<Item, "c" | "skipped">) => {
       const m = marks.get(id)
-      if (m?.dismissed) return
-      out.push({ c: { ...c, id, surfaced: m?.surfaced ?? 0, ignored: (m?.ignored ?? 0) + (m?.skipped ?? 0), ...(m?.last_at ? { lastSurfaced: m.last_at } : {}) }, ...rest })
+      out.push({ c: { ...c, id, surfaced: m?.surfaced ?? 0, ignored: (m?.ignored ?? 0) + (m?.skipped ?? 0), ...(m?.last_at ? { lastSurfaced: m.last_at } : {}) }, skipped: m?.skipped ?? 0, ...rest })
     }
     const kept = new Set(
       this.d.sql
@@ -207,7 +209,7 @@ export class InitiativeEngine {
         add(
           `task:${r.room_id}:${t.id}:${t.updatedAt}`,
           { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, mentions: 1, lastSeen: t.updatedAt, tainted: false },
-          { text: t.title, line: `task ${t.id} "${t.title}" is ${t.status}${t.owner ? `, owner @${t.owner}` : ""}, untouched ${ago(t.updatedAt, now)}`, reason: `Untouched for ${span(now - t.updatedAt)}`, taskId: t.id },
+          { text: t.title, line: `task ${t.id} "${t.title}" is ${t.status}${t.owner ? `, owner @${t.owner}` : ""}, untouched ${ago(t.updatedAt, now)}`, reason: `Untouched for ${span(now - t.updatedAt)}` },
         )
       }
     }
@@ -226,7 +228,7 @@ export class InitiativeEngine {
   }
 
   private lastPass(): number {
-    return Number(this.d.setting(LAST_PASS) ?? 0)
+    return Number(getSetting(this.d.sql, LAST_PASS) ?? 0)
   }
 
   /**
@@ -236,7 +238,7 @@ export class InitiativeEngine {
    */
   async arm(now = Date.now()): Promise<number | null> {
     const level = this.d.level()
-    const rhythm = decayed(this.d.store.rhythm(), now)
+    const rhythm = decayed(this.store.rhythm(), now)
     if (level === "off" || level === "chat" || !known(rhythm) || !this.items(now, view(rhythm, now, this.d.tz()).cycle).length) {
       await this.d.clearWakeup()
       return null
@@ -250,35 +252,34 @@ export class InitiativeEngine {
   /** One attention pass. The alarm calls it at the moment `arm` picked; a development route calls it any time. */
   async pass(now = Date.now()): Promise<PassReport> {
     const tz = this.d.tz()
-    const store = this.d.store
+    const store = this.store
     this.apply(store.observe([], now, tz))
-    this.d.putSetting(LAST_PASS, String(now))
+    setSetting(this.d.sql, LAST_PASS, String(now))
     const rhythm = view(store.rhythm(), now, tz)
     const items = this.items(now, rhythm.cycle)
     const report: PassReport = { at: now, rhythm: { known: rhythm.known, activeNow: rhythm.activeNow, cycle: rhythm.cycle }, jev: false, verdicts: [], woke: [] }
-    if (!items.length) {
-      await this.arm(now)
-      return report
-    }
     const level = this.d.level()
     const appetite = store.appetite()
     const busyRooms = this.d.sql.exec<{ room_id: string }>("SELECT room_id FROM initiative_rooms WHERE human_at > ?", now - BUSY_MS).toArray().map((r) => r.room_id)
-    const leads = Object.fromEntries(items.map((i) => [i.c.room, LEAD]))
     const away = this.d.away()
     const budget = this.d.budget()
-    const ctx = { now, level, away, budget, busyRooms, leads, rhythm, appetite }
-    let worthNow: Record<string, number> | undefined
+    const ctx = { now, level, away, budget, busyRooms, leads: Object.fromEntries(items.map((i) => [i.c.room, LEAD])), rhythm, appetite }
+    let worth: Record<string, number> | null = null
     const judge = this.d.judge()
-    // Jev is asked only when a nudge could go out at all, and only about what is past its rest.
-    if (judge && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && budget > 0 && allowance(appetite, now) > 0) {
+    // Jev is asked only when a nudge could go out at all, and only about what is past its rest. Its answer gates every wake.
+    if (judge && items.length && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && budget > 0 && allowance(appetite, now) > 0) {
       const eligible = items
         .filter((i) => now >= restUntil(appetite, i.c, rhythm.cycle, now) && !busyRooms.includes(i.c.room))
         .sort((a, b) => score(b.c, ctx) - score(a.c, ctx))
         .slice(0, JEV_MAX)
       if (eligible.length) {
-        const worth = await judged(judge, (j) => j.worthNow(eligible.map((i) => worthItem(i)), { now: localNow(now, tz), human_usually_writes_now: true }))
-        if (worth !== "unknown") {
-          worthNow = Object.fromEntries(worth.map((w) => [w.id, w.p]))
+        const u = appetite.user
+        worth = await worthNow(
+          judge,
+          eligible.map((i) => worthItem(i, now)),
+          { now: localNow(now, tz), the_agent_is_told: NUDGE_RULE, nudges_the_human_answered_lately: Math.round(u.a), nudges_the_human_let_pass_lately: Math.round(u.b) },
+        )
+        if (worth) {
           report.jev = true
           this.d.count({ initiative_jev: 1 })
         }
@@ -286,31 +287,23 @@ export class InitiativeEngine {
     }
     const verdicts = attend(
       items.map((i) => i.c),
-      { ...ctx, ...(worthNow ? { worthNow } : {}) },
+      { ...ctx, ...(worth ? { worthNow: worth } : {}) },
     )
     const byId = new Map(items.map((i) => [i.c.id, i]))
     report.verdicts = verdicts.map((v) => ({ ...v, text: byId.get(v.id)!.text }))
     for (const v of verdicts) {
-      if (v.verdict !== "nudge" && v.verdict !== "ask_lead" && v.verdict !== "prepare") continue
-      const main = byId.get(v.id)!
-      const own = main.c.owner !== "human" && v.target.slug !== LEAD
-      // A lead with no judge gets the shortlist of what else in the room was worth it, and picks or skips.
-      const more = own
-        ? []
-        : verdicts
-            .filter((x): x is Extract<Verdict, { verdict: "brief" }> => x.verdict === "brief" && (x.reason === "room_taken" || x.reason === "allowance") && byId.get(x.id)!.c.room === main.c.room && byId.get(x.id)!.c.owner === "human")
-            .sort((a, b) => b.score - a.score)
-            .slice(0, SHORTLIST_MORE)
-            .map((x) => byId.get(x.id)!)
-      const list = [main, ...more]
-      // Named by the item and its history, so a retried pass wakes once, and a new nudge after an outcome gets a new id.
-      const id = `${main.c.id}#${main.c.surfaced}.${main.c.ignored}`
-      const result = await this.d.wake(main.c.room, { id, to: own ? (v.target.slug as AgentSlug) : null, body: own ? ownBody(main) : leadBody(list, v.verdict === "nudge"), reason: main.reason, tainted: list.some((i) => i.c.tainted) })
+      if (v.verdict !== "nudge") continue
+      const item = byId.get(v.id)!
+      const own = item.c.owner !== "human"
+      const slug = own ? v.target.slug : LEAD
+      // Named by the item and its history, so a retried pass wakes once and a later nudge is a new wake.
+      const id = `${item.c.id}#${item.c.lastSurfaced ?? 0}`
+      const result = await this.d.wake(item.c.room, { id, to: own ? (slug as AgentSlug) : null, body: wakeBody(item, own), reason: item.reason, tainted: item.c.tainted })
       if (result === "delivered") {
-        this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')", id, main.c.room, own ? v.target.slug : LEAD, main.c.kind, JSON.stringify(list.map((i) => i.c.id)), now)
+        this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')", id, item.c.room, slug, item.c.kind, JSON.stringify([item.c.id]), now)
         this.d.count({ initiative_woke: 1 })
       }
-      report.woke.push({ id, room: main.c.room, to: own ? v.target.slug : "lead", result, ids: list.map((i) => i.c.id) })
+      report.woke.push({ id, room: item.c.room, to: own ? slug : "lead", result, ids: [item.c.id] })
     }
     await this.arm(now)
     return report
@@ -322,14 +315,11 @@ export class InitiativeEngine {
    */
   noticed(roomId: string, skip: ReadonlySet<number>, now = Date.now()): string[] {
     if (this.d.level() === "off") return []
-    const tz = this.d.tz()
-    const store = this.d.store
-    const rhythm = view(store.rhythm(), now, tz)
-    const appetite = store.appetite()
-    const ctx = { now, level: this.d.level(), away: false, budget: 0, busyRooms: [], leads: {}, rhythm, appetite }
+    const rhythm = view(this.store.rhythm(), now, this.d.tz())
+    const appetite = this.store.appetite()
     return this.items(now, rhythm.cycle)
       .filter((i) => i.loopId !== undefined && i.c.owner === "human" && i.c.room === roomId && !skip.has(i.loopId) && now >= restUntil(appetite, i.c, rhythm.cycle, now))
-      .map((i) => ({ i, s: score(i.c, ctx) }))
+      .map((i) => ({ i, s: score(i.c, { now, rhythm }) }))
       .sort((a, b) => b.s - a.s)
       .slice(0, NOTICED_MAX)
       .map(({ i }) => i.line)
@@ -348,8 +338,8 @@ export class InitiativeEngine {
     sql.exec("UPDATE initiative_marks SET last_at = last_at - ?", ms)
     sql.exec("UPDATE initiative_wakes SET at = at - ?", ms)
     sql.exec("UPDATE initiative_rooms SET human_at = human_at - ?", ms)
-    this.d.putSetting(LAST_PASS, String(this.lastPass() - ms))
-    this.d.store.devShift(ms)
+    setSetting(this.d.sql, LAST_PASS, String(this.lastPass() - ms))
+    this.store.devShift(ms)
   }
 
   /** `now`: the human writes every day at this hour, so the pass may speak now. `clear`: no rhythm. */
@@ -360,55 +350,60 @@ export class InitiativeEngine {
       for (let d = 0; d < 7; d++) r.w[d * 24 + hour] = 2
       r.at = now
     }
-    this.d.store.devRhythm(r)
+    this.store.devRhythm(r)
   }
 
   devState(): { rhythm: ReturnType<typeof view>; appetite: ReturnType<AttentionStore["appetite"]>; marks: (Mark & { id: string })[]; wakes: unknown[] } {
-    const now = Date.now()
     return {
-      rhythm: view(this.d.store.rhythm(), now, this.d.tz()),
-      appetite: this.d.store.appetite(),
+      rhythm: view(this.store.rhythm(), Date.now(), this.d.tz()),
+      appetite: this.store.appetite(),
       marks: this.d.sql.exec<Mark & { id: string }>("SELECT * FROM initiative_marks").toArray(),
       wakes: this.d.sql.exec("SELECT * FROM initiative_wakes ORDER BY at").toArray(),
     }
   }
 }
 
-const RULES = [
-  "nobody asked for this. if it is not worth raising right now, reply only [skip]. silence is fine and usual.",
-  "if it is worth it: one short message in your own words, at most two sentences, ending with a question. ask, don't schedule: no reminder, routine, or task unless the human says yes.",
-  "if it is a teammate's work, message that teammate with send_message instead of the human.",
-  "if the human says they no longer want something, close its loop as dropped with the loop tool.",
-].join("\n")
+/** What a woken agent is told to do, and what Jev reads as the agent's instructions. */
+const NUDGE_RULE = "one short message in your own words, at most two sentences, that asks. no text around tool calls. reply only [skip] when this chat shows it is already handled."
 
-function leadBody(list: readonly Item[], judged: boolean): string {
+const ASK_FIRST = "nobody asked yet, so ask first: no file, task, reminder, or routine until the human says yes."
+
+/** The wake: one item, why now, and one short message. */
+function wakeBody(i: Item, own: boolean): string {
+  if (own && i.loopId !== undefined) {
+    return [
+      `initiative: you promised this and it is still open: ${i.line}.`,
+      "keep it now in one short message: the result, or one line on why you cannot. no text around tool calls.",
+      `then close L${i.loopId} done with the loop tool. if this chat shows it was already kept, close it and reply only [skip].`,
+    ].join("\n")
+  }
+  if (own) return [`initiative: your ${i.line}.`, `tell the human where it stands or what is in the way, and ask whether to go on: ${NUDGE_RULE}`, ASK_FIRST].join("\n")
   return [
-    `initiative: the human usually writes around now.${judged ? " this one looked worth raising." : " decide if one of these is worth raising; at most one."}`,
-    ...list.map((i) => `- ${i.line}`),
-    RULES,
-  ].join("\n")
+    `initiative: the human usually writes around now, and this looks worth raising:\n- ${i.line}`,
+    `raise it now: ${NUDGE_RULE} if it is a teammate's work, ask that teammate with send_message instead.`,
+    ASK_FIRST,
+    i.loopId === undefined ? "" : `if the human says they no longer want it, close L${i.loopId} as dropped with the loop tool.`,
+  ]
+    .filter(Boolean)
+    .join("\n")
 }
 
-function ownBody(i: Item): string {
-  if (i.c.kind === "task") return [`initiative: your ${i.line}.`, "move it forward, or tell the human in one line what is in the way. if it is fine as it is, reply only [skip]."].join("\n")
-  return [
-    `initiative: you promised this and it is still open: ${i.line}.`,
-    `keep it now: do the work and post the result in one short message, or say in one line why you cannot. then close L${i.loopId} done with the loop tool. if it was already kept, close L${i.loopId} done and reply only [skip].`,
-    "ask, don't schedule: no reminder or routine unless the human says yes.",
-  ].join("\n")
-}
-
-function worthItem(i: Item): WorthItem {
-  return { id: i.c.id, text: i.text, kind: i.c.kind, certainty: i.c.certainty, owner: i.c.owner, due: i.c.due ? new Date(i.c.due).toISOString() : null, lastSeen: i.c.lastSeen, surfaced: i.c.surfaced, ignored: i.c.ignored }
+function worthItem(i: Item, now: number): WorthItem {
+  const c = i.c
+  return {
+    id: c.id,
+    what: i.text,
+    whose: c.kind === "task" ? `a task ${c.owner === "human" ? "waiting on the human" : `owned by agent @${c.owner}`}` : c.kind === "routine" ? "the human's routine, in trouble" : c.owner === "human" ? `the human's own ${c.kind}` : `a promise agent @${c.owner} made to the human`,
+    certainty: c.certainty,
+    due: c.due === undefined ? "none" : c.due <= now ? `${span(now - c.due)} ago` : `in ${span(c.due - now)}`,
+    last_mentioned: ago(c.lastSeen, now),
+    raised_before: c.surfaced,
+    human_let_pass: c.ignored - i.skipped,
+    agent_declined_before: i.skipped,
+  }
 }
 
 const loopIdOf = (id: string): number | null => (id.startsWith("loop:") ? Number(id.slice(5)) : null)
-
-function sharedWords(a: string, b: string): number {
-  const words = (t: string) => new Set(t.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? [])
-  const mine = words(b)
-  return [...words(a)].filter((w) => mine.has(w)).length
-}
 
 const day = (at: number, tz: string) => new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })
 const localNow = (now: number, tz: string) => new Date(now).toLocaleString("en-US", { timeZone: tz, weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })

@@ -329,7 +329,7 @@ export class AgentDO extends DurableObject<Env> {
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), nudge: () => this.#nudge, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -337,6 +337,7 @@ export class AgentDO extends DurableObject<Env> {
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
         this.prefetchInitiative(batch)
+        this.#nudge = batch.envelopes.length > 0 && batch.envelopes.every((e) => e.from.kind === "system" && e.from.reason === "initiative")
         if (!(await this.beginRun(batch.requestId, root))) return false
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true
@@ -399,6 +400,8 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   #initiative?: Promise<string>
+  /** The run answers an initiative wake and nothing else (section 26.6). */
+  #nudge = false
 
   /**
    * Section 26. Asks UserDO for what this agent owes and what bears on the human's burst, while the

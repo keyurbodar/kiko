@@ -2,7 +2,7 @@ import { boolOf, type Judge, type Question } from "@yuki/memory/judge"
 import { keywords, type Life } from "@yuki/memory/life"
 import { type BurstCheck, type Loop, type Loops, NAP_LOOPS_SYSTEM, napLoopsPrompt, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
 import { isAgentSlug } from "@yuki/protocol"
-import { judged } from "./judge"
+import { classifyBurst } from "./judge"
 
 // Architecture section 26. The part of initiative that lives in UserDO: what a human burst opens or
 // closes (Jev), what a summary pass saw (the memory model, in the call it already makes), and the
@@ -20,6 +20,8 @@ export type InitiativeDeps = {
   /** The chat's title, or null for a private or missing chat. Nothing is learned from those. */
   title: (roomId: string) => string | null
   count: (delta: Record<string, number>) => void
+  /** Closes a loop the one way every closer does, so a drop settles a nudge about it. */
+  close: (id: number, status: "done" | "dropped", at: number) => boolean
   /** The attention engine's brief channel: open loops of this chat worth keeping in view, best first. */
   noticed: (roomId: string, skip: ReadonlySet<number>) => string[]
 }
@@ -46,18 +48,22 @@ export class Initiative {
     if (!judge || this.deps.title(roomId) === null) return "done"
     const sentences = sentencesOf(burst.map((h) => h.text))
     if (!sentences.length) return "done"
+    // Each sentence is checked against the open loops that share its words and every loop its own
+    // message already opened (the agent's run may have kept it first, in other words).
     const near: BurstCheck["near"] = []
     sentences.forEach((s, i) => {
-      for (const loop of this.deps.loops.similar(s.text, NEAR_PER_SENTENCE)) near.push({ sentence: i, loop })
+      const own = this.deps.loops.fromRef(ref(roomId, burst[s.from]!.messageId))
+      const similar = this.deps.loops.similar(s.text, NEAR_PER_SENTENCE, own.map((l) => l.id))
+      for (const loop of [...own, ...similar]) near.push({ sentence: i, loop })
     })
     const check = { sentences, near }
-    const ops = await judged(judge, (j) => j.classifyBurst(check))
-    if (ops === "unknown") return "later"
+    const ops = await classifyBurst(judge, check)
+    if (!ops) return "later"
     this.deps.count({ loops_jev: 1 })
     for (const op of ops) {
       const from = burst[sentences[op.sentence]!.from]!
       if (op.op === "close") {
-        if (this.deps.loops.close(op.id, op.status, from.at)) this.deps.count({ loops_closed: 1 })
+        this.deps.close(op.id, op.status, from.at)
         continue
       }
       const out = this.deps.loops.open(
@@ -83,7 +89,7 @@ export class Initiative {
     const { summary, ops } = parseNapLoops(answer, known)
     for (const op of ops) {
       if (op.op === "close") {
-        if (this.deps.loops.close(op.id, op.status, endsAt)) this.deps.count({ loops_closed: 1 })
+        this.deps.close(op.id, op.status, endsAt)
         continue
       }
       if (op.owner !== "human" && !isAgentSlug(op.owner)) continue
@@ -100,8 +106,7 @@ export class Initiative {
    */
   async brief(roomId: string, slug: string, burst: { text: string; messageIds: readonly string[] }): Promise<{ owe: string[]; related: string[]; noticed: string[] }> {
     const { owe, related, shown } = await this.ownAndRelated(roomId, slug, burst)
-    const fresh = new Set(burst.messageIds.map((id) => ref(roomId, id)))
-    const skip = new Set([...shown, ...this.deps.loops.list({ room: roomId, status: ["open"], limit: 200 }).filter((l) => fresh.has(l.ref)).map((l) => l.id)])
+    const skip = new Set([...shown, ...burst.messageIds.flatMap((id) => this.deps.loops.fromRef(ref(roomId, id)).map((l) => l.id))])
     const noticed = this.deps.title(roomId) === null ? [] : this.deps.noticed(roomId, skip).map(escape)
     return { owe, related, noticed }
   }

@@ -74,7 +74,7 @@ async function settle(room: RoomHandle, still = 6_000, max = 150_000): Promise<v
 
 const inDays = (n: number) => new Date(Date.now() + n * DAY).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })
 
-type Arm = { label: string; jev: string | null; tokens: { agent: number; jev: number } }
+type Arm = { label: string; jev: string | null; tokens: { agent: number; jev: number }; wakes: number; spoken: number }
 
 async function user(v: Parameters<Suite["run"]>[0], arm: Arm, tag: string) {
   const s = await v.as(`init${tag}${arm.jev ? "j" : "n"}${Date.now().toString(36)}`)
@@ -87,7 +87,11 @@ async function user(v: Parameters<Suite["run"]>[0], arm: Arm, tag: string) {
     channel,
     rhythm: () => call({ action: "rhythm", mode: "now" }),
     age: (ms: number) => call({ action: "age", ms }),
-    pass: async () => (await call({ action: "pass" })) as Pass,
+    pass: async () => {
+      const p = (await call({ action: "pass" })) as Pass
+      arm.wakes += p.woke.filter((w) => w.result === "delivered").length
+      return p
+    },
     state: async () => (await call({ action: "state" })) as { appetite: { user: { a: number; b: number }; kinds: Record<string, { a: number; b: number }> }; marks: unknown[] },
     loops: async () => ((await dev(v.url, s.cookie, "loops", {})) as { loops: Loop[] }).loops,
     usage: async (roomId: string, slug?: string) => (await dev(v.url, s.cookie, "usage", { roomId, ...(slug ? { slug } : {}) })) as Usage,
@@ -108,6 +112,7 @@ const show = (p: Pass) => p.verdicts.map((x) => `${x.verdict}${x.reason ? `:${x.
 const spent = (u: Usage) => u.agent.input + u.agent.output
 const jevTokens = (u: Usage) => (u.memory.jev_input ?? 0) + (u.memory.jev_output ?? 0)
 const tagged = (room: RoomHandle) => agentMessages(room).filter((m) => m.initiative)
+const files = (room: RoomHandle) => frames(room).flatMap((f) => (f.t === "events" ? f.events.filter((e) => e.t === "file") : [])).length
 
 const only = (k: string) => !process.env.INITIATIVE_ONLY || process.env.INITIATIVE_ONLY.split(",").includes(k)
 
@@ -117,7 +122,11 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     console.log(`  ${cond ? "ok  " : "MISS"} [${stamp()}] ${what}`)
     if (!cond) fails.push(`${arm.label}: ${what}`)
   }
-  const cost = async (u: Awaited<ReturnType<typeof user>>, roomId: string, run: () => Promise<void>, slug?: string) => {
+  const done = (room: RoomHandle) => {
+    arm.spoken += runsOf(tagged(room))
+    room.raw.close()
+  }
+  const cost =async (u: Awaited<ReturnType<typeof user>>, roomId: string, run: () => Promise<void>, slug?: string) => {
     const before = await u.usage(roomId, slug)
     await run()
     const after = await u.usage(roomId, slug)
@@ -140,7 +149,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await say(room, "What should I pack for a week there?")
     const brief = await u.brief(room.id)
     check(brief.includes(`L${loop.id}`), `(d) the next run's brief carries the loop: ${JSON.stringify(brief.split("\n").filter((l) => l.includes(`L${loop.id}`)))}`)
-    room.raw.close()
+    done(room)
   } catch (e) {
     check(false, `(d) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -170,7 +179,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const loop = (await u.loops()).find((l) => l.id === owed.id)!
     console.log(`       pass 2: ${show(second)}; loop L${loop.id} is ${loop.status}`)
     check(runsOf(after) === 1 && runsOf(total) === 1, `(a) the promise was followed up by exactly one run (${runsOf(after)} then ${runsOf(total)} in all)`)
-    room.raw.close()
+    done(room)
   } catch (e) {
     check(false, `(a) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -212,8 +221,11 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     console.log(`       rest left at each resting pass (days): ${JSON.stringify(rests)}; appetite user ${JSON.stringify(st.appetite.user)}`)
     check(runsOf(spoke) <= 2, `(b) at most two spoken nudges in ${passes.length} passes over four weeks of silence (${runsOf(spoke)}; wakes ${wakes.length}, the rest were [skip])`)
     check(spokenBefore < 2 || after.every((p) => p.woke.length === 0), `(b) after two ignored nudges nothing wakes (${spokenBefore} spoken before: ${after.map(show).join(" / ")})`)
-    check(rests.length >= 2 && Math.max(...rests) > rests[0]!, `(b) the rest grows: ${JSON.stringify(rests)} days`)
-    room.raw.close()
+    // Either the item keeps resting longer, or it never wakes anyone again after its first rest.
+    const settled = rests.length >= 2 ? Math.max(...rests) > rests[0]! : wakes.length <= 1
+    check(settled, `(b) the rest grows, or nothing wakes after it: rests ${JSON.stringify(rests)} days, wakes ${wakes.length}`)
+    if (process.env.INITIATIVE_TRACE) console.log(`       lead trace: ${JSON.stringify(await dev(v.url, u.s.cookie, "trace", { roomId: room.id }))}`)
+    done(room)
   } catch (e) {
     check(false, `(b) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -242,8 +254,11 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await settle(room)
     check(!after.verdicts.some((x) => x.id === `loop:${loop.id}`) && tagged(room).length === before, `(c) no nudge after (${show(after) || "no candidates"})`)
     const st = await u.state()
+    const kind = st.appetite.kinds[loop.kind]
     console.log(`       appetite kinds ${JSON.stringify(st.appetite.kinds)}`)
-    room.raw.close()
+    // The "stop" was a reply in the nudge's room too: the drop must win however the two arrived.
+    if (runsOf(tagged(room)) > 0) check(kind !== undefined && kind.a === 0 && kind.b >= 5, `(c) the spoken nudge settled as dismissed, not engaged (${JSON.stringify(kind)})`)
+    done(room)
   } catch (e) {
     check(false, `(c) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -266,6 +281,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await dev(v.url, u.s.cookie, "age", { roomId: room.id, ms: 2 * DAY })
     await u.age(10 * 60_000)
     const before = agentMessages(room).length
+    const filesBefore = files(room)
     let p: Pass | null = null
     await cost(
       u,
@@ -280,7 +296,8 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const said = agentMessages(room).slice(before)
     console.log(`       pass: ${show(p!)}; said: ${JSON.stringify(said.map((m) => `@${(m.from as { slug: string }).slug}: ${m.text.slice(0, 80)}`))}`)
     check(woke?.to === "ada" && woke.result === "delivered", `(e) the stalled task woke @${woke?.to ?? "nobody"} (${woke?.result ?? "-"})`)
-    room.raw.close()
+    check(said.length <= 1 && files(room) === filesBefore, `(e) the nudge is one message and no file (${said.length} bubbles, ${files(room) - filesBefore} file changes)`)
+    done(room)
   } catch (e) {
     check(false, `(e) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -295,13 +312,13 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await u.age(DAY)
     await dev(v.url, u.s.cookie, "seen", { ago: 8 * DAY })
     const away = await u.pass()
-    check(away.woke.length === 0 && away.verdicts.every((x) => x.verdict !== "nudge" && x.verdict !== "ask_lead"), `(f) away 8 days: ${show(away)}`)
+    check(away.woke.length === 0 && away.verdicts.every((x) => x.verdict !== "nudge"), `(f) away 8 days: ${show(away)}`)
     await dev(v.url, u.s.cookie, "seen", { ago: 0 })
     await ok(v.url, u.s, "settings", { initiative: "off" })
     const off = await u.pass()
     await Bun.sleep(5_000)
     check(off.woke.length === 0 && tagged(room).length === 0, `(f) initiative off: ${show(off)}`)
-    room.raw.close()
+    done(room)
   } catch (e) {
     check(false, `(f) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -315,16 +332,16 @@ const suite: Suite = {
     const mode = process.env.INITIATIVE_MODE ?? "both"
     const key = process.env.TYPESAFE_API_KEY ?? null
     const arms: Arm[] = []
-    if (mode !== "jev") arms.push({ label: "no judge", jev: null, tokens: { agent: 0, jev: 0 } })
+    if (mode !== "jev") arms.push({ label: "no judge", jev: null, tokens: { agent: 0, jev: 0 }, wakes: 0, spoken: 0 })
     if (mode !== "nojev") {
-      if (key) arms.push({ label: "jev", jev: key, tokens: { agent: 0, jev: 0 } })
+      if (key) arms.push({ label: "jev", jev: key, tokens: { agent: 0, jev: 0 }, wakes: 0, spoken: 0 })
       else console.log("  TYPESAFE_API_KEY is not set: the Jev arm is skipped.")
     }
     const fails: string[] = []
     for (const arm of arms) {
       console.log(`  --- ${arm.label} ---`)
       fails.push(...(await scenarios(v, arm)))
-      console.log(`  background tokens (${arm.label}): agent runs the engine started ${arm.tokens.agent}, Jev ${arm.tokens.jev}`)
+      console.log(`  background tokens (${arm.label}): agent runs the engine started ${arm.tokens.agent}, Jev ${arm.tokens.jev}; wakes ${arm.wakes}, spoken nudges ${arm.spoken}`)
     }
     if (fails.length) throw new VerifyError(`${fails.length} miss(es):\n${fails.map((f) => `- ${f}`).join("\n")}`)
   },

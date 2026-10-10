@@ -54,7 +54,6 @@ import type { Authority } from "@yuki/agent/authority"
 import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult } from "@yuki/memory/loops"
 import { Initiative } from "../initiative/initiative"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, InitiativeEngine, REMINDER_RUN } from "../initiative/engine"
-import { AttentionStore } from "../initiative/attention/store"
 import type { Level } from "../initiative/attention/types"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
@@ -1221,6 +1220,7 @@ export class UserDO extends DurableObject<Env> {
         return chat && !chat.private ? chat.title : null
       },
       count: (delta) => this.count(delta),
+      close: (id, status, at) => this.closeLoop(id, status, at),
       noticed: (roomId, skip) => this.#engine.noticed(roomId, skip),
     })
     return this.#initiativeInstance
@@ -1232,7 +1232,6 @@ export class UserDO extends DurableObject<Env> {
     this.#engineInstance ??= new InitiativeEngine({
       sql: this.sql,
       loops: this.#loops,
-      store: (this.#attention ??= new AttentionStore(this.sql)),
       tz: () => this.setting("timezone") ?? DEFAULT_TIMEZONE,
       level: () => this.initiativeLevel(),
       away: () => {
@@ -1251,16 +1250,12 @@ export class UserDO extends DurableObject<Env> {
       },
       judge: () => (this.judgeKey() ? this.judge(CAPTURE_TIMEOUT_MS) : null),
       wake: (roomId, input) => roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).initiativeWake(input),
-      setting: (key) => this.setting(key),
-      putSetting: (key, value) => this.putSetting(key, value),
       count: (delta) => this.count(delta),
       setWakeup: (at) => this.alarms.setWakeup(INITIATIVE_WAKEUP, at),
       clearWakeup: () => this.alarms.clearWakeup(INITIATIVE_WAKEUP),
     })
     return this.#engineInstance
   }
-
-  #attention?: AttentionStore
 
   private initiativeLevel(): Level {
     const level = this.setting("initiative")
@@ -1296,19 +1291,19 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async loopClose(id: number, status: "done" | "dropped"): Promise<boolean> {
-    const closed = this.#loops.close(id, status)
+    return this.closeLoop(id, status, Date.now())
+  }
+
+  /** Every close goes through here: a drop settles a nudge about the loop as dismissed (section 26.6). */
+  private closeLoop(id: number, status: "done" | "dropped", at: number): boolean {
+    const closed = this.#loops.close(id, status, at)
     if (closed) this.count({ loops_closed: 1 })
-    if (closed && status === "dropped") this.#engine.dropped(id)
+    if (closed && status === "dropped") this.#engine.dropped(id, at)
     return closed
   }
 
   async loopList(filter: { status?: Loop["status"][]; owner?: string; room?: string; limit?: number } = {}): Promise<Loop[]> {
     return this.#loops.list(filter)
-  }
-
-  /** For the attention pass (next wave). */
-  async loopCandidates(): Promise<Loop[]> {
-    return this.#loops.candidates()
   }
 
   async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string; messageIds: string[] }): Promise<{ owe: string[]; related: string[] }> {

@@ -2,22 +2,26 @@ import type { Kind, Signal } from "./types"
 
 /**
  * How much the human wants to be nudged, learned from what happened after past nudges. Each
- * estimate is a Beta posterior over "the human engages with a nudge": a neutral Beta(1, 1) prior
+ * estimate is a Beta posterior over "a nudge of this kind is welcome": a neutral Beta(1, 1) prior
  * plus outcome counts that fade with time, so an old run of ignores stops counting and the agent
  * tries again, carefully. One estimate for the user, one per kind.
  *
  * A gate reads the posterior's mean plus one standard deviation. Little evidence leaves room to
- * try; repeated ignores close it; time reopens it as the counts fade.
+ * try; repeated ignores (or [skip]s) close it; time reopens it as the counts fade.
  */
 
 export type Counts = { a: number; b: number; at: number }
 
-/** A nudge waiting for its outcome. `deadline` comes from `ignoreDeadline` when it was sent. */
-export type Pending = { id: string; room: string; kind: Kind; loop: string; at: number; deadline: number }
+/**
+ * A nudge waiting for its outcome. `deadline` comes from `ignoreDeadline` when it was sent; `engaged`
+ * is when the human answered, kept until the deadline so a dismissal in the same window still wins.
+ */
+export type Pending = { id: string; room: string; kind: Kind; loop: string; at: number; deadline: number; engaged?: number }
 
 export type Appetite = { user: Counts; kinds: Partial<Record<Kind, Counts>>; pending: Pending[] }
 
-export type Result = "engaged" | "ignored" | "dismissed"
+/** `skipped`: the woken agent answered [skip]. It never reached the human, so it teaches only the kind. */
+export type Result = "engaged" | "ignored" | "dismissed" | "skipped"
 export type Outcome = { nudge: Pending; result: Result; at: number }
 
 const DAY = 86_400_000
@@ -28,6 +32,14 @@ const DISMISS_WEIGHT = 5
 /** The most nudges one pass may allow, however keen the human is. */
 const MAX_PER_PASS = 3
 const GATE = 0.5
+
+/** Counts each result adds: user welcome, user not, kind welcome, kind not. */
+const WEIGHTS: Record<Result, [number, number, number, number]> = {
+  engaged: [1, 0, 1, 0],
+  ignored: [0, 1, 0, 1],
+  dismissed: [0, 1, 0, DISMISS_WEIGHT],
+  skipped: [0, 0, 0, 1],
+}
 
 export const emptyAppetite = (): Appetite => ({ user: { a: 0, b: 0, at: 0 }, kinds: {}, pending: [] })
 
@@ -51,7 +63,7 @@ function posterior(c: Counts | undefined, now: number): { mean: number; sd: numb
   return { mean: a / n, sd: Math.sqrt((a * b) / (n * n * (n + 1))) }
 }
 
-/** The chance the human engages with a nudge of this kind. 0.5 with no evidence. */
+/** The chance a nudge of this kind is welcome. 0.5 with no evidence. */
 export function kindMean(app: Appetite, kind: Kind, now: number): number {
   return posterior(app.kinds[kind], now).mean
 }
@@ -76,9 +88,9 @@ export function allowance(app: Appetite, now: number): number {
 }
 
 /**
- * When a loop that was nudged before may come up again. One rhythm cycle for a loop never ignored
- * of a kind the human answers half the time; it doubles with each ignore of this loop and stretches
- * as the kind's engagement falls. Zero for a loop never nudged.
+ * When an item nudged (or skipped) before may come up again. One rhythm cycle for an item never
+ * ignored of a kind welcome half the time; it doubles with each ignore or [skip] of this item and
+ * stretches as the kind's welcome falls. Zero for an item never raised.
  */
 export function restUntil(app: Appetite, c: { kind: Kind; lastSurfaced?: number; ignored: number }, cycle: number, now: number): number {
   if (c.lastSurfaced === undefined) return 0
@@ -94,27 +106,26 @@ export function nudged(app: Appetite, p: Pending): Appetite {
 
 /** Apply one outcome to the counts. */
 export function learn(app: Appetite, kind: Kind, result: Result, now: number): Appetite {
-  const [ua, ub, ka, kb] = result === "engaged" ? [1, 0, 1, 0] : result === "ignored" ? [0, 1, 0, 1] : [0, 1, 0, DISMISS_WEIGHT]
+  const [ua, ub, ka, kb] = WEIGHTS[result]
   return { ...app, user: add(app.user, now, ua, ub), kinds: { ...app.kinds, [kind]: add(app.kinds[kind], now, ka, kb) } }
 }
 
 /**
- * Settle pending nudges from the signals that arrived and the clock. A dismissal of the nudge, its
- * loop, or its room after it was sent wins. Otherwise a human burst or a human task change in the
- * nudge's room before its deadline is engagement. A nudge past its deadline with neither is ignored.
- * Anything else stays pending.
+ * Settle pending nudges from the signals that arrived and the clock. Within a nudge's window (from
+ * when it was sent to its deadline), a dismissal of its loop wins whatever the order: the human's
+ * "stop" is itself a reply, and the loop may be closed after that reply was read. So a reply in the
+ * nudge's room is only noted, and counts as engagement at the deadline. With neither, it is ignored.
  */
-export function settle(app: Appetite, signals: Signal[], now: number): { appetite: Appetite; outcomes: Outcome[] } {
+export function settle(app: Appetite, signals: readonly Signal[], now: number): { appetite: Appetite; outcomes: Outcome[] } {
   const outcomes: Outcome[] = []
   const pending: Pending[] = []
   for (const p of app.pending) {
-    const after = signals.filter((s) => s.at >= p.at && s.at <= p.deadline)
-    const dismiss = after.find((s) => s.kind === "dismiss" && (s.nudge === p.id || s.loop === p.loop || (!s.nudge && !s.loop && s.room === p.room)))
-    const engaged = after.find((s) => s.room === p.room && (s.kind === "burst" || (s.kind === "task" && s.by === "human")))
+    const inside = signals.filter((s) => s.at >= p.at && s.at <= p.deadline)
+    const dismiss = inside.find((s) => s.kind === "dismiss" && s.loop === p.loop)
+    const engaged = p.engaged ?? inside.find((s) => s.room === p.room && (s.kind === "burst" || (s.kind === "task" && s.by === "human")))?.at
     if (dismiss) outcomes.push({ nudge: p, result: "dismissed", at: dismiss.at })
-    else if (engaged) outcomes.push({ nudge: p, result: "engaged", at: engaged.at })
-    else if (now >= p.deadline) outcomes.push({ nudge: p, result: "ignored", at: p.deadline })
-    else pending.push(p)
+    else if (now >= p.deadline) outcomes.push({ nudge: p, result: engaged === undefined ? "ignored" : "engaged", at: engaged ?? p.deadline })
+    else pending.push(engaged === undefined ? p : { ...p, engaged })
   }
   let next: Appetite = { ...app, pending }
   for (const o of outcomes) next = learn(next, o.nudge.kind, o.result, o.at)

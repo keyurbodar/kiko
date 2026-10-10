@@ -1,4 +1,4 @@
-import { type Appetite, emptyAppetite, nudged, type Outcome, settle } from "./appetite"
+import { type Appetite, emptyAppetite, learn, nudged, type Outcome, settle } from "./appetite"
 import { emptyRhythm, ignoreDeadline, type Rhythm, record } from "./rhythm"
 import type { Kind, Signal } from "./types"
 
@@ -53,21 +53,20 @@ export class AttentionStore {
     this.#put("appetite", nudged(this.appetite(), { ...n, deadline }))
   }
 
+  /** The agent answered a wake with [skip]: the kind learns it, the human's own appetite does not. */
+  skipped(kind: Kind, at: number): void {
+    this.#put("appetite", learn(this.appetite(), kind, "skipped", at))
+  }
+
   /** Development only: move every pending nudge `ms` into the past, as if that much time went by. */
   devShift(ms: number): void {
     const app = this.appetite()
-    this.#put("appetite", { ...app, pending: app.pending.map((p) => ({ ...p, at: p.at - ms, deadline: p.deadline - ms })) })
+    this.#put("appetite", { ...app, pending: app.pending.map((p) => ({ ...p, at: p.at - ms, deadline: p.deadline - ms, ...(p.engaged === undefined ? {} : { engaged: p.engaged - ms }) })) })
   }
 
   /** Development only: replace the rhythm. */
   devRhythm(r: Rhythm): void {
     this.#put("rhythm", r)
-  }
-
-  /** Forget everything (account wipe or the user resetting initiative). */
-  clear(): void {
-    this.sql.exec("DELETE FROM attention")
-    this.sql.exec("DELETE FROM attention_seen")
   }
 
   #get<T>(name: string): T | undefined {
