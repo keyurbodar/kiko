@@ -23,7 +23,7 @@ import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Tou
 import { Life } from "@yuki/memory/life"
 import { importRecords } from "./import-records"
 import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@yuki/memory/optmem"
-import { applyOps, CAPTURE_SYSTEM, type CaptureCount, type CapturePolicy, capturePrompt, captureWithJudge, type Heard, knownFor, mergePolicy, parseCapture } from "@yuki/memory/capture"
+import { applyOps, CAPTURE_SYSTEM, candidates, type CaptureCount, type CapturePolicy, capturePrompt, captureWithJudge, type Heard, knownFor, mergePolicy, parseCapture } from "@yuki/memory/capture"
 import { type Judge, noulOf, type Question } from "@yuki/memory/judge"
 import { TYPESAFE, TYPESAFE_REFUSED, typesafeJudge } from "./jev"
 import { ProviderLogins } from "./provider-login"
@@ -600,7 +600,7 @@ export class UserDO extends DurableObject<Env> {
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
     if (!this.policy().capture || !this.capturable(roomId)) return
-    const rows = items.flatMap((i) => (i.messageId && i.text.trim() ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
+    const rows = items.flatMap((i) => (i.messageId && candidates(i.text).length ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
     if (!rows.length) return
     this.sql.exec(
       "INSERT OR IGNORE INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at'), ? FROM json_each(?)",

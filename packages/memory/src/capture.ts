@@ -15,7 +15,7 @@ export type CapturePolicy = {
   capture: boolean
 }
 
-export const DEFAULT_POLICY: CapturePolicy = { batch: 6, idleMs: 30_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: true }
+export const DEFAULT_POLICY: CapturePolicy = { batch: 8, idleMs: 60_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: true }
 
 /** The stored setting over the defaults. A field of the wrong type keeps its default. */
 export function mergePolicy(raw: string | null): CapturePolicy {
@@ -41,12 +41,17 @@ const MAX_CANDIDATES = 6
 const MIN_CHARS = 12
 const encoder = new TextEncoder()
 
+// A question or a request to the agent is never a fact about the human. Dropping them in code keeps
+// most chat messages away from any model call.
+const ASKING = /^(?:can|could|would|will|what|what's|whats|how|why|when|where|who|which|should|do|does|did|is|are|give|tell|show|remind|suggest|help|find|make|write|list|explain|let's|lets|ok|okay|thanks|thank)\b/i
+
 /** The sentences of a message that could each be one fact. */
 export function candidates(text: string): string[] {
   const out: string[] = []
   for (const part of text.split(/\n+|(?<=[.!?])\s+/)) {
     const line = part.replace(/\s+/g, " ").trim()
     if (line.length < MIN_CHARS || encoder.encode(line).byteLength > LINE_BYTES || out.includes(line)) continue
+    if (line.endsWith("?") || ASKING.test(line)) continue
     out.push(line)
     if (out.length === MAX_CANDIDATES) break
   }

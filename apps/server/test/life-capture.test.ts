@@ -266,3 +266,12 @@ test("nearest offers a correction the facts it shares no word with", () => {
   expect(l.nearest("btw i moved to pune last month", 8).map((x) => x.text)).toContain("Human lives in Bangalore.")
   expect(l.nearest("tea", 1).map((x) => x.text)).toEqual(["the human likes green tea"])
 })
+
+test("questions and requests to the agent are never candidates", () => {
+  expect(candidates("can you suggest a quick lunch idea")).toEqual([])
+  expect(candidates("what's a good name for a houseplant")).toEqual([])
+  expect(candidates("remind me how long to boil an egg for jammy yolks")).toEqual([])
+  expect(candidates("where do i live now and what does my sister do?")).toEqual([])
+  expect(candidates("oh and the dog's name is miso, she's a shiba")).toEqual(["oh and the dog's name is miso, she's a shiba"])
+  expect(candidates("thanks! my sister lives in lisbon.")).toEqual(["my sister lives in lisbon."])
+})
