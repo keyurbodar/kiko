@@ -95,7 +95,11 @@ const CARD: Record<CardTag | "not_card", string> = {
 
 export type CaptureItem = { candidate: string; known: { pos: number; text: string }[] }
 
-/** Each sentence and its known facts are in `state` once, and every question points at them by path. */
+/**
+ * The sentences are in `state` once and questions point at them by path. Known facts go only into the
+ * same and replaces questions: in `state` they made Jev rate a new friend lower with each friend it
+ * already knew (worth 0.61, then 0.47, then 0.35).
+ */
 export function captureQuestions(message: string, items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
   const questions: Record<string, Question> = {}
   items.forEach(({ known }, i) => {
@@ -103,8 +107,8 @@ export function captureQuestions(message: string, items: readonly CaptureItem[])
     questions[`c${i}_worth`] = { type: "bool", instructions: `Is ${c} a lasting fact about the human worth remembering for months?`, criteria: WORTH }
     questions[`c${i}_standing`] = { type: "bool", instructions: `Is ${c} a standing rule for how to help the human from now on?`, criteria: STANDING }
     questions[`c${i}_private`] = { type: "bool", instructions: `Does ${c} hold a private detail about the human?`, criteria: PRIVATE }
-    known.forEach((k, j) => {
-      const fact = `\`candidates[${i}].known[${j}].text\``
+    known.forEach((k) => {
+      const fact = `this known fact: ${JSON.stringify(k.text)}`
       questions[`c${i}_same_${k.pos}`] = { type: "bool", instructions: `Does ${c} state the very same fact as ${fact}: the same person, place, or thing, and the same detail about it?`, criteria: SAME }
       questions[`c${i}_replaces_${k.pos}`] = { type: "bool", instructions: `Does ${c} make ${fact} no longer true?`, criteria: REPLACES }
     })
@@ -114,7 +118,7 @@ export function captureQuestions(message: string, items: readonly CaptureItem[])
       criteria: CARD,
     }
   })
-  const state = { message, candidates: items.map((it) => ({ text: it.candidate, known: it.known.map((k) => ({ pos: k.pos, text: k.text })) })) }
+  const state = { message, candidates: items.map((it) => ({ text: it.candidate })) }
   return { state, questions }
 }
 

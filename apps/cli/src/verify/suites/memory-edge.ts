@@ -246,10 +246,17 @@ const suite: Suite = {
       {
         const names = ["odalys", "brannock", "teodora", "ximena", "cuthbert", "perpetua", "lucan", "marisol"]
         for (let i = 0; i < names.length; i += 2) await say(home, `my friend ${names[i]} likes jazz. my friend ${names[i + 1]} likes jazz.`)
-        await poll("lines for all eight friends", 120_000, async () => {
-          const jazz = await live(/jazz/i)
-          return names.every((nm) => jazz.some((l) => l.text.toLowerCase().includes(nm)))
-        })
+        let missing = names
+        try {
+          await poll("lines for all eight friends", 120_000, async () => {
+            const jazz = await live(/jazz/i)
+            missing = names.filter((nm) => !jazz.some((l) => l.text.toLowerCase().includes(nm)))
+            return missing.length === 0
+          })
+        } catch (error) {
+          const all = (await lines()).filter((l) => /jazz|friend/i.test(l.text)).map((l) => `${l.pos} ${l.source} ${isLive(l) ? "live" : "gone"} ${l.text}`)
+          throw new VerifyError(`friends missing: ${missing.join(", ")}; lines: ${JSON.stringify(all)}; usage ${JSON.stringify(await usage())}`)
+        }
         await settle()
         const before = (await usage()).rerank_jev ?? 0
         const chat = await openChat(user, s, "memory edge recall")

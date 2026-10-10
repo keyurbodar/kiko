@@ -150,18 +150,19 @@ test("capture questions are pi-ai bool and choice questions that point into the 
   expect(state).toEqual({
     message: "I moved to Pune. The weather is nice.",
     candidates: [
-      { text: "I moved to Pune.", known: [{ pos: 3, text: "lives in Bangalore" }, { pos: 9, text: "likes tea" }] },
-      { text: "The weather is nice.", known: [] },
+      { text: "I moved to Pune." },
+      { text: "The weather is nice." },
     ],
   })
   expect(Object.keys(questions).sort()).toEqual(
     ["c0_card", "c0_private", "c0_replaces_3", "c0_replaces_9", "c0_same_3", "c0_same_9", "c0_standing", "c0_worth", "c1_card", "c1_private", "c1_standing", "c1_worth"].sort(),
   )
-  expect(questions.c0_replaces_9).toMatchObject({ type: "bool", instructions: "Does `candidates[0].text` make `candidates[0].known[1].text` no longer true?" })
+  expect(questions.c0_replaces_9).toMatchObject({ type: "bool", instructions: 'Does `candidates[0].text` make this known fact: "likes tea" no longer true?' })
   expect(questions.c1_worth!.instructions).toContain("`candidates[1].text`")
   for (const q of Object.values(questions)) {
     expect(typeof q.instructions).toBe("string")
-    expect(q.instructions).not.toContain("Bangalore")
+    // Known facts appear only in their own same and replaces questions, never where worth is judged.
+    if (!/_(same|replaces)_/.test(Object.keys(questions).find((k) => questions[k] === q)!)) expect(q.instructions).not.toContain("Bangalore")
     if (q.type === "bool") expect([typeof q.criteria.true, typeof q.criteria.false]).toEqual(["string", "string"])
   }
   expect((questions.c0_private as { criteria: { false: string } }).criteria.false).toContain("food allergies or diets are not private")
