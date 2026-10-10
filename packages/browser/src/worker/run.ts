@@ -12,6 +12,8 @@ export type WorkerDeps = {
   now?: () => number
   /** Each tab was opened at its task's url (openTab(url)), so the worker does not navigate there again. */
   opened?: boolean
+  /** Sees each fast-path pick before it runs, for measuring. */
+  onFast?: (picks: Choice[], page: PageView) => void
 }
 
 const flags = (state?: string) => state?.split(" ") ?? []
@@ -67,7 +69,6 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
   let unchanged = 0
   let steps = 0
   let staleRetry = false
-  const fastIds = new Set<number>()
   // The read taken after an action doubles as the read before the next decision.
   let fresh: PageView | null = null
 
@@ -84,9 +85,8 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
 
       const options = choices(last, task.goal, values)
       // A fill so certain that no decider is asked; the guards still check each control.
-      // A field filled once this way that still reads empty goes to the decider, so the fast path never loops.
-      const fast = fastSteps(last, task.goal, values, options).filter((c) => !("id" in c.step && fastIds.has(c.step.id)))
-      for (const c of fast) if ("id" in c.step) fastIds.add(c.step.id)
+      const fast = fastSteps(last, task.goal, values, options, actions)
+      if (fast.length) deps.onFast?.(fast, last)
       let decision: Decision
       try {
         decision = fast[0]

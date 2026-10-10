@@ -13,19 +13,30 @@ const labelWords = (label: string) => {
 }
 
 /**
- * Steps so certain that no decider is asked. Only fills, never a click:
+ * Steps so certain that no decider is asked:
  * - a value whose name's words all appear in exactly one empty field's label, and that field matches no other name;
- * - or, for a goal that says search, the one value into the one empty field on the page, when that field is a search box.
- * A tie of any kind gives no fast step. Fills run in page order, at most chainMax; a search submit runs alone.
+ * - or, for a goal that says search, the one value into the one empty field on the page, when that field is a search box;
+ * - or, for a goal that says search on a page with no empty field, a click on the one link or button named exactly Search.
+ * A tie of any kind gives no fast step. A value typed once (even if it failed) and a Search control clicked once are
+ * the decider's from then on, so the fast path never repeats itself. Fills run in page order, at most chainMax.
  */
-export function fastSteps(page: PageView, goal: string, values: Record<string, string>, options: Choice[]): Choice[] {
+export function fastSteps(page: PageView, goal: string, values: Record<string, string>, options: Choice[], history: string[] = []): Choice[] {
   const names = Object.keys(values)
-  if (names.length === 0) return []
+  const fresh = names.map((name) => !history.some((h) => h.includes(` type ${name} into `)))
+  if (!fresh.includes(true)) return []
   const fields = page.controls.filter((c) => TEXT_ROLES.has(c.role) && !c.value && !flags(c).includes("secret") && !flags(c).includes("disabled"))
   const option = (id: number, n: number) => options.find((o) => o.key === `t${id}v${n}`)
-  if (names.length === 1 && fields.length === 1 && goalWords(goal).includes("search")) {
+  const search = names.length === 1 && goalWords(goal).includes("search")
+  if (search && fields.length === 1) {
     const only = option((fields[0] as Control).id, 0)
-    if (only?.step.op === "type" && only.step.submit) return [only]
+    return only?.step.op === "type" && only.step.submit ? [only] : []
+  }
+  if (search && fields.length === 0) {
+    // A narrow window folds the search box behind one control named Search (Wikipedia): open it, once.
+    if (history.some((h) => / click (link|button) "Search"/.test(h))) return []
+    const opener = page.controls.filter((c) => (c.role === "link" || c.role === "button") && c.label.trim().toLowerCase() === "search")
+    const open = opener.length === 1 ? options.find((o) => o.key === `k${(opener[0] as Control).id}`) : undefined
+    return open ? [open] : []
   }
   const words = fields.map((f) => labelWords(f.label))
   const fits = (n: number, i: number) => {
@@ -37,7 +48,7 @@ export function fastSteps(page: PageView, goal: string, values: Record<string, s
     const matches = names.map((_, n) => n).filter((n) => fits(n, i))
     if (matches.length !== 1) continue
     const n = matches[0] as number
-    if (fields.filter((_, j) => fits(n, j)).length !== 1) continue
+    if (!fresh[n] || fields.filter((_, j) => fits(n, j)).length !== 1) continue
     const o = option(field.id, n)
     if (o?.step.op === "type" && !o.step.submit) out.push(o)
   }

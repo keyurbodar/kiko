@@ -335,6 +335,21 @@ describe("fast path", () => {
     expect(picks(fields(["Your name and email"]), "sign up", { name: "Ada", email: "a@b.c" })).toEqual([])
     const two = page("s", [{ role: "searchbox", label: "Search" }, { role: "textbox", label: "Find" }])
     expect(picks(two, "search kernel", { query: "kernel" })).toEqual([])
+    const folded = (labels: string[]) => page("w", labels.map((label) => ({ role: "link", label })))
+    expect(picks(folded(["Main page", "Search", "Search"]), "search for kernel", { query: "kernel" })).toEqual([])
+    expect(picks(folded(["Main page", "Search"]), "search for kernel", { query: "kernel" })).toEqual(["k2"])
+    expect(picks(folded(["Main page", "Search"]), "find kernel", { query: "kernel" })).toEqual([])
+  })
+
+  test("never repeats itself: a typed value and a clicked Search go to the decider", () => {
+    const p = page("w", [{ role: "link", label: "Search" }])
+    const values = { query: "kernel" }
+    const run = (history: string[]) => fastSteps(p, "search for kernel", values, choices(p, "search", values), history).map((c) => c.key)
+    expect(run([])).toEqual(["k1"])
+    expect(run(['1 click link "Search" (top nav)'])).toEqual([])
+    expect(run(['7 type query into combobox "Search"'])).toEqual([])
+    const form = fields(["Name"])
+    expect(fastSteps(form, "x", { name: "Ada" }, choices(form, "x", { name: "Ada" }), ['1 type name into textbox "Name" failed: gone'])).toEqual([])
   })
 
   test("skips a filled or secret field, and a search box when the goal does not say search", () => {
