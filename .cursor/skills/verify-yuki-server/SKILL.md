@@ -62,4 +62,5 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `yuki health` | [health](./features/health.md) |
 | `composio` | [composio](./features/composio.md) |
 | `memory-jev` | [memory-jev](./features/memory-jev.md) |
+| `memory-edge` | [memory-edge](./features/memory-edge.md) |
 | `selftest` | runner self check, no feature file |
