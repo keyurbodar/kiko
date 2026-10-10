@@ -163,6 +163,7 @@ const suite: Suite = {
       ok("note replaces without Jev", outcomes[outcomes.length - 1]!)
     }
     {
+      await policy({ ...FAST, capture: "always" })
       await say(home, "my favourite colour is teal")
       await poll("a live teal line", 60_000, async () => (await live(/teal/i)).length > 0)
       const m = humanMessage(home, /teal/i)
@@ -170,6 +171,7 @@ const suite: Suite = {
       const t = Date.now()
       await poll("no live teal line and a live ochre line", 60_000, async () => (await live(/teal/i)).length === 0 && (await live(/ochre/i)).length > 0)
       ok("edit", `teal gone and ochre live ${((Date.now() - t) / 1000).toFixed(1)}s after the edit`)
+      await policy(FAST)
     }
     {
       const x = await openChat(user, s, "memory edge x")

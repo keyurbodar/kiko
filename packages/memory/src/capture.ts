@@ -81,9 +81,9 @@ const PRIVATE = {
   false: "none of these. A city, employer, job, who someone is to them, tastes, and food allergies or diets are not private",
 }
 
-const SAME = { true: "the same thing about the human, even in other words", false: "something different" }
+const SAME = { true: "the same fact, maybe in other words", false: "a different fact. A different name, person, place, or detail makes it a different fact, even when the sentences look alike" }
 
-const REPLACES = { true: "an update or correction of the same thing, so the known fact is no longer true", false: "both can be true at once" }
+const REPLACES = { true: "an update or correction of the same detail about the same person, place, or thing, so the known fact is no longer true", false: "both can be true at once, or they are about different people, places, or things" }
 
 const CARD: Record<CardTag | "not_card", string> = {
   IDENTITY: "who they are: name, age, pronouns, where they live, what they do",
@@ -105,7 +105,7 @@ export function captureQuestions(message: string, items: readonly CaptureItem[])
     questions[`c${i}_private`] = { type: "bool", instructions: `Does ${c} hold a private detail about the human?`, criteria: PRIVATE }
     known.forEach((k, j) => {
       const fact = `\`candidates[${i}].known[${j}].text\``
-      questions[`c${i}_same_${k.pos}`] = { type: "bool", instructions: `Does ${c} say the same thing about the human as ${fact}?`, criteria: SAME }
+      questions[`c${i}_same_${k.pos}`] = { type: "bool", instructions: `Does ${c} state the very same fact as ${fact}: the same person, place, or thing, and the same detail about it?`, criteria: SAME }
       questions[`c${i}_replaces_${k.pos}`] = { type: "bool", instructions: `Does ${c} make ${fact} no longer true?`, criteria: REPLACES }
     })
     questions[`c${i}_card`] = {

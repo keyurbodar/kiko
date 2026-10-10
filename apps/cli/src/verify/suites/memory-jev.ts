@@ -134,7 +134,8 @@ const suite: Suite = {
       u = await usage()
       await show("jev added mid-session, auto: the correction replaced bangalore")
       if (!((u.capture_jev ?? 0) >= 1)) throw new VerifyError(`capture_jev is ${u.capture_jev ?? 0} after the key was added mid-session`)
-      if (!((u.facts_replaced ?? 0) >= 1)) throw new VerifyError(`facts_replaced is ${u.facts_replaced ?? 0}`)
+      // The agent may correct the fact first with note replaces; then Jev sees no live bangalore line to replace.
+      if (!((u.facts_replaced ?? 0) >= 1) && !(await lines()).some((l) => /bangalore/i.test(l.text) && l.supersededBy != null)) throw new VerifyError("no bangalore line was replaced, by Jev or by a note")
       if ((u.capture_model ?? 0) !== firstModel) throw new VerifyError(`capture_model moved with Jev ready: ${firstModel} -> ${u.capture_model}`)
     }
 
