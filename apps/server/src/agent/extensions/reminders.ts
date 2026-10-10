@@ -46,6 +46,12 @@ function tidyTrigger(value: unknown): unknown {
   return out
 }
 
+/** The handle of a teammate, or undefined when the model means itself ("you", "me", "self") or sent nothing. */
+function otherAgent(agent: string | undefined): string | undefined {
+  const handle = agent?.trim().replace(/^@/, "").toLowerCase()
+  return handle && !["you", "me", "self", "myself", "yourself", "default", "none"].includes(handle) ? handle : undefined
+}
+
 function parseTrigger(value: unknown): Trigger | string {
   try {
     return decodeTrigger(tidyTrigger(value)) as Trigger
@@ -112,7 +118,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),
             trigger: Type.Unknown({ description: "when it runs" }),
             may: Type.Optional(Type.Array(Type.String(), { description: "tool names it may use outside yuki" })),
-            agent: Type.Optional(Type.String({ description: "who runs it: you (default) or a teammate's handle" })),
+            agent: Type.Optional(Type.String({ description: "who runs it: omit for yourself, or a teammate's handle" })),
           }),
           replay: "unsafe",
           execute: async (args, api) => {
@@ -121,7 +127,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             const grant = args.may ?? []
             const tainted = isRunTainted(api)
             if (runAuthority(api).origin !== "human" || (tainted && grant.length)) return { content: text(NOT_YET), isError: true }
-            const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, grant, ...(args.agent ? { target: args.agent.replace(/^@/, "") } : {}), tainted })
+            const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, grant, ...(otherAgent(args.agent) ? { target: otherAgent(args.agent)! } : {}), tainted })
             if (!out.ok) return { content: text(`not set: ${out.error}`), isError: true }
             const hook = out.token ? `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.` : ""
             return { content: text(`routine set: ${routineLine(out.routine, [])}${hook}`) }
