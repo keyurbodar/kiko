@@ -131,3 +131,64 @@ test("a reminder a tainted run made wakes the agent tainted and without the huma
   expect(wake).toMatchObject({ tainted: true, origin: "auto" })
   expect(wake!.grant).toBeUndefined()
 })
+
+const room = async (user: string, method: string, ...args: unknown[]) => (await post(`/room/${user}/${ROOM}`, { method, args })).result
+
+async function tickRoutine(user: string): Promise<string> {
+  const made = await rpc(user, "createRoutine", user, { name: "tick", instructions: "say tick", trigger: { on: "task" }, grant: [], tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  expect(made.ok).toBe(true)
+  return made.routine.id
+}
+
+/** One run of the agent's own object: it starts, maybe posts one bubble, and ends. */
+async function run(user: string, id: string, say?: string): Promise<void> {
+  await room(user, "setStatus", "yuki", "working")
+  if (say) expect(await room(user, "post", "yuki", id, 0, 0, say)).toBe(true)
+  await room(user, "endRun", "yuki", id)
+}
+
+test("a routine result lost on its way to UserDO is sent again, so the run does not stay running", async () => {
+  const user = await userWithChat()
+  const id = await tickRoutine(user)
+  expect(await rpc(user, "runRoutine", id)).toBe("delivered")
+  await rpc(user, "loseResults", 1)
+  await run(user, "run-1", "tick")
+  const done = await until("the run's result", async () => (await rpc(user, "routineRuns", id)).find((r: { status: string }) => r.status !== "running"))
+  expect(done.status).toBe("ok")
+})
+
+test("what an earlier run posts after a routine was handed over does not count as the routine's answer", async () => {
+  const user = await userWithChat()
+  const id = await tickRoutine(user)
+  await room(user, "setStatus", "yuki", "working")
+  expect(await rpc(user, "runRoutine", id)).toBe("delivered")
+  expect(await room(user, "post", "yuki", "run-a", 0, 0, "still on the earlier question")).toBe(true)
+  await room(user, "endRun", "yuki", "run-a")
+  await run(user, "run-b")
+  const done = await until("the run's result", async () => (await rpc(user, "routineRuns", id)).find((r: { status: string }) => r.status !== "running"))
+  expect(done.status).toBe("quiet")
+})
+
+test("a held reminder is followed when it is delivered later, so its run can keep the promise", async () => {
+  const user = await userWithChat()
+  await rpc(user, "setLimits", { autonomousRunsPerDay: 0 })
+  await rpc(user, "createReminder", user, { text: "send the summary", time: soon(400), tz: "UTC", roomId: ROOM, target: "yuki" })
+  await until("the reminder to fire", async () => (await rpc(user, "listReminders"))[0].status === "done")
+  expect(await room(user, "followed")).toEqual([])
+  await rpc(user, "setLimits", { autonomousRunsPerDay: 100 })
+  await humanSays(user, "i am back")
+  await until("the held reminder", async () => (await wakes(user, "reminder:")).length > 0)
+  expect((await room(user, "followed")).map((r: { routineId: string }) => r.routineId)).toEqual(["reminder"])
+})
+
+test("one held wake that fails to arrive does not stop the others", async () => {
+  const user = await userWithChat()
+  await rpc(user, "setLimits", { autonomousRunsPerDay: 0 })
+  await rpc(user, "createReminder", user, { text: "first", time: soon(300), tz: "UTC", roomId: ROOM, target: "yuki" })
+  await rpc(user, "createReminder", user, { text: "second", time: soon(300), tz: "UTC", roomId: ROOM, target: "yuki" })
+  await until("both reminders to fire", async () => (await rpc(user, "listReminders")).every((r: { status: string }) => r.status === "done"))
+  await rpc(user, "setLimits", { autonomousRunsPerDay: 100 })
+  await post(`/fail/${user}/${ROOM}/yuki/1`)
+  await room(user, "retryHeld")
+  expect((await wakes(user, "reminder:")).length).toBe(1)
+})

@@ -47,6 +47,13 @@ export class AttentionStore {
     return outcomes
   }
 
+  /** The ids among `ids` that no batch has brought yet. */
+  unseen(ids: readonly string[]): Set<string> {
+    if (!ids.length) return new Set()
+    const seen = new Set(this.sql.exec<{ id: string }>("SELECT id FROM attention_seen WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(ids)).toArray().map((r) => r.id))
+    return new Set(ids.filter((id) => !seen.has(id)))
+  }
+
   /** Record a nudge that went out, with its ignore deadline read from the rhythm. Idempotent by id. */
   sent(n: { id: string; room: string; kind: Kind; loop: string; at: number }, tz: string): void {
     const deadline = ignoreDeadline(this.rhythm(), n.at, tz)

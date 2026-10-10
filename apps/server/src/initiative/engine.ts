@@ -96,6 +96,7 @@ export class InitiativeEngine {
   /** One batch from the bus: the human's rhythm, nudge outcomes, kept promises, and loops talked about again. */
   async signals(batch: SignalBatch, now = Date.now()): Promise<void> {
     const heard: Signal[] = []
+    const fresh = this.store.unseen(batch.signals.flatMap((s) => (s.kind === "burst" ? [`burst:${s.roomId}:${s.seq}`] : [])))
     for (const s of batch.signals) {
       if (s.kind === "routine_result" && s.routineId === INITIATIVE_RUN) this.ran(s.occurrence, s.outcome, now)
       else if (s.kind === "routine_result" && s.routineId === REMINDER_RUN && s.outcome === "ok") this.kept(s.occurrence, now)
@@ -103,7 +104,8 @@ export class InitiativeEngine {
         heard.push({ kind: "burst", id: `burst:${s.roomId}:${s.seq}`, room: s.roomId, at: s.at })
         this.d.sql.exec("INSERT INTO initiative_rooms (room_id, human_at) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET human_at = max(human_at, excluded.human_at)", s.roomId, s.at)
         // The human talking about a loop again keeps it fresh. Shared words only bump it; closing is the judge's or the agent's.
-        if (this.d.title(s.roomId) !== null) {
+        // Only a burst not heard before: the bus delivers at least once.
+        if (fresh.has(`burst:${s.roomId}:${s.seq}`) && this.d.title(s.roomId) !== null) {
           const said = new Set(keywords(s.text))
           for (const l of this.d.loops.similar(s.text, 2)) if (keywords(l.text).filter((w) => said.has(w)).length >= SHARED_WORDS) this.d.loops.touch(l.id, s.at)
         }
@@ -304,6 +306,10 @@ export class InitiativeEngine {
       if (result === "delivered") {
         this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')", id, item.c.room, slug, item.c.kind, JSON.stringify([item.c.id]), now)
         this.d.count({ initiative_woke: 1 })
+      } else if (result === "duplicate" && !this.d.sql.exec("SELECT 1 FROM initiative_wakes WHERE id = ?", id).toArray().length) {
+        // The room took this wake once, but its result never reached us: count it failed, so the item rests and the next nudge is a new wake.
+        this.mark(item.c.id, null, now)
+        this.d.count({ initiative_failed: 1 })
       }
       report.woke.push({ id, room: item.c.room, to: own ? slug : "lead", result, ids: [item.c.id] })
     }

@@ -12,9 +12,28 @@ import type { FakeAgent } from "./fake-agent"
 // `POST /task/<user>/<room>/<slug>` call    an agent calls a workspace tool
 // `GET /calls/<user>/<room>/<slug>`         what the fake agent received
 // `GET /refuse/<user>/<room>/<slug>/<n>`    the agent's next n receives are refused
+// `GET /fail/<user>/<room>/<slug>/<n>`      the agent's next n receives throw
+// `POST /room/<user>/<room>` { method, args } one RoomDO RPC, as an agent's own object makes them
 
-export { UserDO } from "../src/user/user-do"
+import { UserDO as BaseUser } from "../src/user/user-do"
+import type { SignalBatch } from "../src/room/signals"
 export { FakeAgent } from "./fake-agent"
+
+export class UserDO extends BaseUser {
+  /** The next `n` batches that carry a routine result fail, as a call lost between objects would. */
+  async loseResults(n: number) {
+    await this.ctx.storage.put("lose_results", n)
+  }
+
+  override async signals(batch: SignalBatch) {
+    const lose = (await this.ctx.storage.get<number>("lose_results")) ?? 0
+    if (lose > 0 && batch.signals.some((s) => s.kind === "routine_result")) {
+      await this.ctx.storage.put("lose_results", lose - 1)
+      throw new Error("network connection lost")
+    }
+    return super.signals(batch)
+  }
+}
 
 export class RoomDO extends BaseRoom {
   /** What the first socket does: the room learns whose it is and seeds its members. */
@@ -23,6 +42,11 @@ export class RoomDO extends BaseRoom {
     const home = room.adopt(userId)
     const chat = await room.chat(home)
     if (chat) await room.seedMembers(home, chat)
+  }
+
+  /** The routine runs the room follows, for a test to see what it will report. */
+  async followed() {
+    return this.ctx.storage.sql.exec("SELECT routine_id AS routineId, occurrence, started FROM routine_inflight ORDER BY routine_id, occurrence").toArray()
   }
 
   async say(text: string) {
@@ -42,11 +66,16 @@ export default {
       return Response.json({ result: result ?? null })
     }
     const room = roomStub(env.ROOM, user!, roomId!) as unknown as DurableObjectStub<RoomDO>
+    if (kind === "room") {
+      const { method, args } = (await request.json()) as { method: string; args: unknown[] }
+      return Response.json({ result: (await (room as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[method]!(...args)) ?? null })
+    }
     if (kind === "adopt") return Response.json((await room.adoptFor(user!)) ?? null)
     if (kind === "say") return Response.json((await room.say(((await request.json()) as { text: string }).text)) ?? null)
     if (kind === "task") return Response.json(await room.workspaceCall(slug as never, (await request.json()) as never))
     const agent = env.AGENT.get(env.AGENT.idFromName(agentName(user!, roomId!, slug!)))
     if (kind === "refuse") return Response.json((await agent.refuseNext(Number(n))) ?? null)
+    if (kind === "fail") return Response.json((await agent.failNext(Number(n))) ?? null)
     return Response.json(await agent.calls())
   },
 }

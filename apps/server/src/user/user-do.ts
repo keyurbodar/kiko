@@ -51,7 +51,7 @@ import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
 import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import type { Authority } from "@yuki/agent/authority"
-import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult } from "@yuki/memory/loops"
+import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult, parseNapLoops } from "@yuki/memory/loops"
 import { Initiative } from "../initiative/initiative"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, InitiativeEngine, REMINDER_RUN } from "../initiative/engine"
 import type { Level } from "../initiative/attention/types"
@@ -96,6 +96,9 @@ const LOOPS_WAKEUP = "loops_heard"
 // ASSUMPTION: Jev reads a burst this long after it arrives, so a loop the agent opened in its run is
 // already there to merge with.
 const LOOPS_DELAY_MS = 15_000
+const LOOPS_ROOMS_PER_PASS = 8
+/** How long a summary page's id is kept to drop a retry. A page is retried within minutes. */
+const NAP_APPLIED_FOR = 7 * 86_400_000
 const BRIEF_JUDGE_MS = 1_000
 
 const DELETING = "deleting"
@@ -863,13 +866,23 @@ export class UserDO extends DurableObject<Env> {
       const loops = page ? this.#initiative.napPrompt(page.roomId, prompt, page.at) : null
       const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, loops?.system ?? NAP_SYSTEM, loops?.prompt ?? prompt)
       if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
-      const line = cleanLine(loops && page ? (this.#initiative.napApply(page.roomId, answer, loops.known, page.at, prompt.includes("[outside] "), page.span) ?? "") : answer)
+      const line = cleanLine(loops && page ? ((await this.napOnce(page, prompt)) ? this.#initiative.napApply(page.roomId, answer, loops.known, page.at, prompt.includes("[outside] "), page.span) : parseNapLoops(answer, loops.known).summary) ?? "" : answer)
       return line ? { text: line } : { error: "the model wrote no line" }
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) }
     } finally {
       this.#compressing--
     }
+  }
+
+  /** True the first time a page with these exact turns is applied. A retry of the same page, after an error or a lost answer, is not. */
+  private async napOnce(page: { roomId: RoomId; span?: { lo: number; hi: number } }, prompt: string): Promise<boolean> {
+    if (!page.span) return true
+    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(prompt)))
+    const id = `${page.roomId}:${page.span.lo}-${page.span.hi}:${[...hash.slice(0, 8)].map((b) => b.toString(16).padStart(2, "0")).join("")}`
+    const now = Date.now()
+    this.sql.exec("DELETE FROM nap_applied WHERE at < ?", now - NAP_APPLIED_FOR)
+    return this.sql.exec("INSERT OR IGNORE INTO nap_applied (id, at) VALUES (?, ?)", id, now).rowsWritten > 0
   }
 
   private async complete(ref: { provider: string; modelId: string }, system: string, prompt: string): Promise<string | null> {
@@ -1320,19 +1333,22 @@ export class UserDO extends DurableObject<Env> {
     if (!this.judgeKey() || this.policy().capture === "off" || this.initiativeLevel() === "off" || !this.capturable(roomId)) return
     const rows = items.filter((i) => i.messageId && i.text.trim()).map((i) => ({ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }))
     if (!rows.length) return
+    // A wakeup is already set while anything waits: pushing it on each burst would starve Jev in a steady chat.
+    const waiting = this.sql.exec("SELECT 1 FROM loop_heard LIMIT 1").toArray().length > 0
     this.sql.exec(
       "INSERT OR IGNORE INTO loop_heard (room_id, message_id, text, at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at') FROM json_each(?)",
       roomId,
       JSON.stringify(rows),
     )
-    await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + LOOPS_DELAY_MS)
+    if (!waiting) await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + LOOPS_DELAY_MS)
   }
 
   private async loopsNow(): Promise<void> {
     const rows = this.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
     const rooms = new Map<RoomId, typeof rows>()
     for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
-    for (const [roomId, burst] of rooms) {
+    // One Jev call per chat, and an invocation has 50 subrequests: the rest wait for the next alarm.
+    for (const [roomId, burst] of [...rooms].slice(0, LOOPS_ROOMS_PER_PASS)) {
       const out = await this.#initiative.heard(roomId, burst.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at })))
       // Jev failed: the agent's own run and the summary pass still see these words, so nothing waits.
       if (out === "later") this.count({ loops_jev_failed: 1 })
@@ -1441,10 +1457,16 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async userSettings(): Promise<UserSettings> {
-    return { initiative: this.initiativeLevel(), capture: this.policy().capture }
+    const timezone = this.setting("timezone")
+    return { initiative: this.initiativeLevel(), capture: this.policy().capture, ...(timezone ? { timezone } : {}) }
   }
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
+    // The route checked the zone. The rhythm reads hours in it, so the pass is set again.
+    if (patch.timezone) {
+      this.putSetting("timezone", patch.timezone)
+      await this.#engine.arm()
+    }
     if (patch.initiative) {
       this.putSetting("initiative", patch.initiative)
       await this.#engine.arm()

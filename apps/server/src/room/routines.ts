@@ -36,9 +36,9 @@ export class RoomRoutines {
 		this.sql.exec("DELETE FROM routine_inflight WHERE routine_id = ? AND occurrence = ?", run.routineId, run.occurrence)
 	}
 
-	/** The agent began a run: every routine run waiting for it is in it. */
-	started(slug: AgentSlug): void {
-		this.sql.exec("UPDATE routine_inflight SET started = 1 WHERE slug = ? AND started = 0", slug)
+	/** The agent began a run at log position `seq`: every routine run waiting for it is in it, and only what it posts after `seq` counts. */
+	started(slug: AgentSlug, seq: number): void {
+		this.sql.exec("UPDATE routine_inflight SET started = 1, seq = max(seq, ?) WHERE slug = ? AND started = 0", seq, slug)
 	}
 
 	/** The agent's run ended: the routine runs it carried, removed. */
