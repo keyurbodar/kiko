@@ -633,8 +633,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
-	async memoryRecall(query: string): Promise<string[]> {
-		return this.memory.recall(query.slice(0, 200), Date.now())
+	async memoryRecall(query: string, seen?: number, skip: number[] = []): Promise<string[]> {
+		return this.memory.recall(query.slice(0, 200), Date.now(), 10, seen, new Set(skip))
 	}
 
 	async memoryZoom(id: string): Promise<string | null> {

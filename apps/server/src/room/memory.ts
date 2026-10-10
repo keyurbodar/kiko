@@ -208,15 +208,25 @@ export class RoomMemory {
     return lines.length ? lines.join("\n") : null
   }
 
-  recall(query: string, now: number, limit = 10): string[] {
-    this.sync()
-    let hits = searchMessages(this.sql, query, { limit }).results
+  recall(query: string, now: number, limit = 10, seen?: number, skip: ReadonlySet<number> = new Set()): string[] {
+    const count = this.sync()
+    const lo = region(count, ROOM_SHAPE)
+    const fetch = seen === undefined && !skip.size ? limit : limit * 3
+    let hits = searchMessages(this.sql, query, { limit: fetch }).results
     if (!hits.length) {
       const words = [...new Set(query.toLowerCase().split(/\W+/).filter((w) => w.length > 2))].sort((a, b) => b.length - a.length).slice(0, 4)
-      const seen = new Map<string, (typeof hits)[number]>()
-      for (const w of words) for (const h of searchMessages(this.sql, w, { limit }).results) seen.set(h.id, h)
-      hits = [...seen.values()].sort((a, b) => b.seq - a.seq).slice(0, limit)
+      const found = new Map<string, (typeof hits)[number]>()
+      for (const w of words) for (const h of searchMessages(this.sql, w, { limit: fetch }).results) found.set(h.id, h)
+      hits = [...found.values()].sort((a, b) => b.seq - a.seq).slice(0, fetch)
     }
+    const poss = new Map(hits.map((h) => [h.id, this.posOfMessage(h.id)]))
+    hits = hits
+      .filter((h) => {
+        if (skip.has(h.seq)) return false
+        const pos = poss.get(h.id)
+        return seen === undefined || pos === null || pos === undefined || pos < lo || pos >= seen
+      })
+      .slice(0, limit)
     const texts = new Map(
       this.sql
         .exec<{ id: string; text: string | null }>("SELECT id, text FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(hits.map((h) => h.id)))
@@ -224,7 +234,7 @@ export class RoomMemory {
         .map((r) => [r.id, r.text ?? ""]),
     )
     return hits.map((hit) => {
-      const pos = this.posOfMessage(hit.id)
+      const pos = poss.get(hit.id) ?? null
       const text = oneLine(texts.get(hit.id) ?? hit.snippet.replace(/[\u0002\u0003]/g, ""), RECALL_CUT)
       const rest = text.endsWith("…") && pos !== null ? ` (cut, zoom chat:${pos})` : ""
       return `${pos === null ? "" : `#${pos} `}${dayOf(hit.at, now)} ${who(hit.from)}: ${text}${rest}`
