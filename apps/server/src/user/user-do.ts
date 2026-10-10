@@ -1,5 +1,5 @@
 import { duplicateDm, newRoomId } from "@yuki/protocol"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, KernelResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
 import { ClientToUser, INITIATIVE_LEVELS, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -9,6 +9,10 @@ import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, take
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
+import { KernelConnection, kernelErrorText, profileName } from "../integrations/kernel/connect"
+import { REAP_WAKEUP } from "../integrations/kernel/lease"
+import { KernelStore } from "../integrations/kernel/store"
+import type { Mode } from "../integrations/kernel/client"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
 import { yukiChatOps, yukiChatRoom, markYukiChat, movesYukiChat } from "./yuki-chat"
@@ -1054,6 +1058,81 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
+  #kernelConnection?: KernelConnection
+  get #kernel(): KernelConnection {
+    const userId = userIdFromObjectName(this.ctx.id.name)
+    this.#kernelConnection ??= new KernelConnection({
+      store: new KernelStore(this.sql, keyringFromEnv(this.env), userId),
+      userId,
+      wake: { set: (at) => this.alarms.setWakeup(REAP_WAKEUP, at), clear: () => this.alarms.clearWakeup(REAP_WAKEUP) },
+    })
+    return this.#kernelConnection
+  }
+
+  // The user's one Kernel browser, leased to their agents (architecture section 27). The CDP URL
+  // goes to the agent that asked and nowhere else. The Kernel key never leaves this object.
+
+  /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
+  async browserLease(agentId: string): Promise<{ cdpUrl: string; mode: Mode; restarted: boolean; reopen: string[] }> {
+    return this.#kernel.leaseFor(agentId)
+  }
+
+  /** Stamps last use. `tabs` (tab id to last URL) replaces the agent's tabs. False when the browser it knew is gone. */
+  async browserTouch(agentId: string, tabs?: Record<string, string>): Promise<boolean> {
+    return this.#kernel.touch(agentId, tabs)
+  }
+
+  /** The agent's socket died: the next lease makes a new browser. */
+  async browserDead(agentId: string): Promise<void> {
+    this.#kernel.markDead(agentId)
+  }
+
+  /** The agent closed its tabs. */
+  async browserRelease(agentId: string): Promise<void> {
+    this.#kernel.release(agentId)
+  }
+
+  // DEVELOPMENT ONLY: `verify kernel` drives the lease and the reaper without waiting minutes.
+  async devBrowser(op: { action: "lease" | "touch" | "dead" | "age" | "reap" | "switch" | "state"; agentId?: string; mode?: Mode; ms?: number }): Promise<Record<string, unknown>> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    const kernel = this.#kernel
+    if (op.action === "lease") {
+      const { cdpUrl: _, ...rest } = await kernel.leaseFor(op.agentId)
+      return { ...rest, sessionId: kernel.sessionId() }
+    }
+    if (op.action === "touch") return { ok: kernel.touch(op.agentId) }
+    if (op.action === "dead") kernel.markDead(op.agentId)
+    if (op.action === "age") kernel.age(op.ms ?? 0)
+    if (op.action === "reap") await kernel.reap()
+    if (["dead", "age", "reap"].includes(op.action)) return { sessionId: kernel.sessionId() }
+    if (op.action === "switch") {
+      const { cdpUrl: _, ...rest } = await kernel.lease.switchMode(op.mode === "headful" ? "headful" : "headless")
+      return { ...rest, sessionId: kernel.sessionId() }
+    }
+    return { sessionId: kernel.sessionId(), status: kernel.status(), profile: await profileName(userIdFromObjectName(this.ctx.id.name)) }
+  }
+
+  private async kernelFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectKernel" | "disconnectKernel" | "kernelStatus" }>) {
+    const kernel = this.#kernel
+    let result: KernelResult
+    try {
+      if (frame.t === "connectKernel") result = { ok: true, status: await kernel.connect(frame.apiKey) }
+      else if (frame.t === "disconnectKernel") {
+        await kernel.disconnect()
+        result = { ok: true, status: kernel.status() }
+      } else result = { ok: true, status: kernel.status() }
+    } catch (e) {
+      result = { ok: false, error: kernelErrorText(e) }
+    }
+    send(ws, { t: "kernel", reqId: frame.reqId, result })
+    if (result.ok && frame.t !== "kernelStatus") {
+      const text = JSON.stringify({ t: "kernel", result } satisfies UserToClient)
+      for (const other of this.ctx.getWebSockets()) {
+        if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
+      }
+    }
+  }
+
   #loginState?: ProviderLogins<WebSocket>
   get #logins(): ProviderLogins<WebSocket> {
     this.#loginState ??= new ProviderLogins<WebSocket>({
@@ -1098,6 +1177,10 @@ export class UserDO extends DurableObject<Env> {
     }
     if (frame.t === "connectComposio" || frame.t === "setComposioDeveloperKey" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
       await this.composioFrame(ws, frame)
+      return
+    }
+    if (frame.t === "connectKernel" || frame.t === "disconnectKernel" || frame.t === "kernelStatus") {
+      await this.kernelFrame(ws, frame)
       return
     }
     if (frame.t === "memory") {
@@ -1159,6 +1242,7 @@ export class UserDO extends DurableObject<Env> {
       [CAPTURE_WAKEUP]: () => this.captureNow(),
       [LOOPS_WAKEUP]: () => this.loopsNow(),
       [INITIATIVE_WAKEUP]: () => this.#engine.pass(),
+      [REAP_WAKEUP]: () => this.#kernel.reap(),
     })
     this.#loginState?.expire(due)
   }
@@ -1174,6 +1258,8 @@ export class UserDO extends DurableObject<Env> {
   async beginDeletion(): Promise<RoomId[]> {
     if (this.#wiped) return []
     await this.ctx.storage.put(DELETING, Date.now())
+    // The user's Kernel account is theirs, so a failure here must not stop the deletion.
+    await this.#kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
     await this.ctx.storage.deleteAlarm()
     closeSockets(this.ctx)
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")

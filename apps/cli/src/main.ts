@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util"
 import { composio } from "./commands/composio"
+import { kernel } from "./commands/kernel"
 import { health } from "./commands/health"
 import { login, whoami } from "./commands/login"
 import { measure } from "./commands/measure"
@@ -25,9 +26,9 @@ export interface Context {
   tail?: string
 }
 
-const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, composio, measure }
+const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, composio, kernel, measure }
 
-export const usage = "usage: yuki <health | ws <path> | login --dev [--name <name>] | whoami | composio <connect | developer [remove] | disconnect | status> | measure turn [--runs <n>] [--tail <file>] | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>]"
+export const usage = "usage: yuki <health | ws <path> | login --dev [--name <name>] | whoami | composio <connect | developer [remove] | disconnect | status> | kernel <connect | disconnect | status> | measure turn [--runs <n>] [--tail <file>] | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>]"
 
 export async function main(argv: string[]): Promise<number> {
   try {
