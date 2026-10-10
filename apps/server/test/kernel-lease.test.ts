@@ -57,6 +57,7 @@ function fakeKernel(script: { createErrors?: KernelError[]; deleteError?: Kernel
       if (!live.delete(id)) throw new KernelError("not_found", "gone")
     },
     listActive: async () => [...live],
+    alive: async (id) => live.has(id),
     async createProfile(name) {
       calls.push(`profile ${name}`)
     },
@@ -151,12 +152,23 @@ describe("lease", () => {
     const t = setup()
     await t.lease.lease("a")
     t.lease.touch("a", { t1: "https://a.test/" })
-    t.lease.dead()
+    t.kernel.live.delete("s1")
+    expect(await t.lease.dead("s1")).toBe(true)
     expect(t.lease.touch("a")).toBe(false)
     const next = await t.lease.lease("a")
     expect(next).toMatchObject({ restarted: true, reopen: ["https://a.test/"], cdpUrl: "wss://cdp/s2" })
     expect(t.kernel.calls.slice(-2)).toEqual(["delete s1", "create headless yuki-test"])
     expect(t.kernel.maxLive()).toBe(1)
+  })
+
+  test("a dropped socket on a live browser, or a report about an old browser, keeps every agent's tabs", async () => {
+    const t = setup()
+    await t.lease.lease("a")
+    await t.lease.lease("b")
+    expect(await t.lease.dead("s1")).toBe(false)
+    expect(await t.lease.dead("s0")).toBe(false)
+    expect(t.lease.touch("b")).toBe(true)
+    expect((await t.lease.lease("a")).sessionId).toBe("s1")
   })
 
   test("releasing an agent drops its tabs and keeps the browser", async () => {

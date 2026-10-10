@@ -27,6 +27,8 @@ export interface KernelClient {
   deleteBrowser(sessionId: string): Promise<void>
   /** Session ids of the key's active browsers. Also the cheapest check that a key works. */
   listActive(): Promise<string[]>
+  /** False only when Kernel says the browser is gone. */
+  alive(sessionId: string): Promise<boolean>
   /** A profile that already exists is `conflict`. */
   createProfile(name: string): Promise<void>
   deleteProfile(name: string): Promise<void>
@@ -75,6 +77,15 @@ export function sdkClient(apiKey: string, fetcher?: typeof fetch): KernelClient 
         const page = await kernel.browsers.list({ status: "active" })
         return page.getPaginatedItems().map((b) => b.session_id)
       }),
+    alive: async (sessionId) => {
+      try {
+        await call(() => kernel.browsers.retrieve(sessionId))
+        return true
+      } catch (e) {
+        if (e instanceof KernelError && e.kind === "not_found") return false
+        throw e
+      }
+    },
     createProfile: (name) => call(async () => void (await kernel.profiles.create({ name }))),
     deleteProfile: (name) => call(() => kernel.profiles.delete(name)),
   }

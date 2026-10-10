@@ -1106,9 +1106,10 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** The agent's socket died: the next lease makes a new browser. */
-  async browserDead(agentId: string): Promise<void> {
-    this.#kernel.markDead(agentId)
-    this.#pushBrowser()
+  async browserDead(agentId: string, sessionId: string): Promise<boolean> {
+    const dead = await this.#kernel.markDead(agentId, sessionId)
+    if (dead) this.#pushBrowser()
+    return dead
   }
 
   /** The agent closed its tabs. */
@@ -1169,7 +1170,10 @@ export class UserDO extends DurableObject<Env> {
       return { ...rest, sessionId: kernel.sessionId() }
     }
     if (op.action === "touch") return { ok: kernel.touch(op.agentId) }
-    if (op.action === "dead") kernel.markDead(op.agentId)
+    if (op.action === "dead") {
+      const gone = await kernel.lease.killForDev()
+      if (gone) await kernel.markDead(op.agentId, gone)
+    }
     if (op.action === "age") kernel.age(op.ms ?? 0)
     if (op.action === "reap") await kernel.reap()
     if (["dead", "age", "reap"].includes(op.action)) return { sessionId: kernel.sessionId() }

@@ -31,6 +31,7 @@ export function reapDecision(row: Pick<LeaseRow, "createdAt" | "lastUse" | "take
 }
 
 export type LeaseInfo = {
+  sessionId: string
   cdpUrl: string
   mode: Mode
   /** The browser was dead and this one replaced it. */
@@ -86,14 +87,14 @@ export class KernelLease {
         const urls = await store.urls()
         if (urls) {
           this.#touch(row, agentId)
-          return { cdpUrl: urls.cdpUrl, mode: row.mode, restarted: false, reopen: [] }
+          return { sessionId: row.sessionId, cdpUrl: urls.cdpUrl, mode: row.mode, restarted: false, reopen: [] }
         }
       }
       const reopen = row ? Object.values(row.tabs[agentId] ?? {}) : []
       if (row) await this.#destroy(row)
       const made = await this.#create("headless", { takeover: false, watchUntil: 0 })
       this.#touch(made.row, agentId)
-      return { cdpUrl: made.cdpUrl, mode: "headless", restarted: row?.dead === true, reopen: row?.dead ? reopen : [] }
+      return { sessionId: made.row.sessionId, cdpUrl: made.cdpUrl, mode: "headless", restarted: row?.dead === true, reopen: row?.dead ? reopen : [] }
     })
   }
 
@@ -113,9 +114,27 @@ export class KernelLease {
     this.deps.store.patchLease({ tabs, lastUse: this.#now() })
   }
 
-  /** An agent's socket died. The next lease makes a new browser. */
-  dead(): void {
-    this.deps.store.patchLease({ dead: true })
+  /**
+   * An agent's socket to `sessionId` died. A socket also dies on our own idle close, a network blip,
+   * or a mode switch, so the browser is marked dead only when it is still the current one and Kernel
+   * says it is gone. Otherwise every other agent would lose its tabs.
+   */
+  dead(sessionId: string): Promise<boolean> {
+    return this.#serial(async () => {
+      const row = this.deps.store.lease()
+      if (!row || row.dead || row.sessionId !== sessionId) return false
+      if (await (await this.deps.client()).alive(sessionId)) return false
+      this.deps.store.patchLease({ dead: true })
+      return true
+    })
+  }
+
+  /** DEVELOPMENT ONLY: ends the browser on Kernel's side, as Kernel's own timeout would. */
+  async killForDev(): Promise<string | undefined> {
+    const row = this.deps.store.lease()
+    if (!row) return undefined
+    await (await this.deps.client()).deleteBrowser(row.sessionId).catch(() => undefined)
+    return row.sessionId
   }
 
   setTakeover(on: boolean): void {

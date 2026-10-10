@@ -123,9 +123,10 @@ export class KernelConnection {
   }
 
   /** The agent saw its socket die. */
-  markDead(agentId: unknown): void {
+  markDead(agentId: unknown, sessionId: unknown): Promise<boolean> {
     checkAgentId(agentId)
-    this.lease.dead()
+    if (typeof sessionId !== "string" || !sessionId) return Promise.resolve(false)
+    return this.lease.dead(sessionId)
   }
 
   browserState(switching: boolean, resolve: (agentId: string) => { slug: string; name: string }): BrowserState {
