@@ -7,6 +7,7 @@ import { useApp } from "../../lib/store";
 import type { MessageId, RoomId } from "@yuki/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
+import { hasModelProvider } from "../../settings/provider-kinds";
 import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
@@ -350,7 +351,7 @@ export default function ChatRoute() {
             {(r) => <ApprovalCards approvals={r().approvals()} onDecide={(id, action) => r().approve(id, action)} />}
           </Show>
           {/* The one place that says no model can run: the room's refusal, or no provider at all. */}
-          <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && connectedProviders().length === 0)}>
+          <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders()))}>
             {(np) => (
               <div
                 class="mx-1.5 mb-1.5 flex items-center gap-3 rounded-lg bg-[color-mix(in_oklab,var(--text)_3%,transparent)] py-1 pr-1 pl-3 text-[13px] text-text shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text)_10%,transparent)] backdrop-blur-sm"

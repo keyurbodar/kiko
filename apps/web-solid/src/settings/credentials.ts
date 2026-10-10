@@ -7,6 +7,8 @@ export interface ProviderInfo {
   provider: string
   kind: string
   last4: string
+  /** The provider turned this key down; the row says so. */
+  refused?: boolean
 }
 
 async function request(path: string, init?: RequestInit): Promise<any> {

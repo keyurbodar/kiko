@@ -3,6 +3,7 @@ import { For, Show, Suspense, createEffect, createMemo, createResource, createSi
 import { ProviderIcon } from "@yuki/ui/provider-icon"
 import "@yuki/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
+import { modelProviders, TYPESAFE_ID, TYPESAFE_NOTE, TYPESAFE_PROVIDER } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { Moment } from "../mascot/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
@@ -43,20 +44,23 @@ const POPULAR: readonly { id: string; note: string }[] = [
 function useProviders() {
   const [catalog] = createResource(loadCatalog)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
-  const connected = createMemo(() => (catalog()?.providers ?? []).filter((p) => saved(p.id)))
-  return { catalog, saved, connected }
+  const withTypesafe = (list: CatalogProvider[]) => [...list, TYPESAFE_PROVIDER]
+  const connected = createMemo(() => withTypesafe(catalog()?.providers ?? []).filter((p) => saved(p.id)))
+  // Providers that run a model, for the models page.
+  const modelConnected = createMemo(() => connected().filter((p) => p.id !== TYPESAFE_ID))
+  return { catalog, saved, connected, modelConnected, withTypesafe }
 }
 
 export function ProvidersPage() {
-  const { catalog, saved, connected } = useProviders()
+  const { catalog, saved, connected, withTypesafe } = useProviders()
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
   const [browsing, setBrowsing] = createSignal(false)
-  const available = createMemo(() => (catalog()?.providers ?? []).filter((p) => !saved(p.id)))
+  const available = createMemo(() => withTypesafe(catalog()?.providers ?? []).filter((p) => !saved(p.id)))
   const popular = createMemo(() =>
     POPULAR.flatMap(({ id, note }) => {
       const provider = available().find((p) => p.id === id)
       return provider ? [{ provider, note }] : []
-    }),
+    }).concat(saved(TYPESAFE_ID) ? [] : [{ provider: TYPESAFE_PROVIDER, note: TYPESAFE_NOTE }]),
   )
 
   // The first provider is the moment yuki starts working, so the birds cheer once. Only a
@@ -64,7 +68,7 @@ export function ProvidersPage() {
   const [cheer, setCheer] = createSignal(false)
   createEffect(
     on(
-      () => (connectedReady() ? connectedProviders().length : -1),
+      () => (connectedReady() ? modelProviders(connectedProviders()).length : -1),
       (count, prev) => {
         if (prev !== 0 || count < 1) return
         setCheer(true)
@@ -145,7 +149,7 @@ export function ProvidersPage() {
 }
 
 /** A connected provider: its name, how it is connected, and a way to disconnect it. */
-function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; last4: string } }) {
+function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; last4: string; refused?: boolean } }) {
   const [removing, setRemoving] = createSignal(false)
   async function remove() {
     setRemoving(true)
@@ -162,7 +166,9 @@ function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; 
       data-connected="true"
       icon={<ProviderIcon id={props.provider.id} width="16" height="16" />}
       title={props.provider.name}
-      meta={props.info.kind === "api_key" ? `API key ••${props.info.last4}` : "Signed in"}
+      meta={props.info.refused ? "Key refused" : props.info.kind === "api_key" ? `API key ••${props.info.last4}` : "Signed in"}
+      trouble={props.info.refused}
+      data-refused={props.info.refused ? "true" : undefined}
       actions={
         <Button variant="danger" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
           Disconnect
@@ -184,7 +190,7 @@ function readCollapsed(): Record<string, boolean> {
 }
 
 export function ModelsPage() {
-  const { catalog, connected } = useProviders()
+  const { catalog, modelConnected: connected } = useProviders()
   const [query, setQuery] = createSignal("")
   const [collapsed, setCollapsed] = createSignal<Record<string, boolean>>(readCollapsed())
   const fold = (id: string, value: boolean) => {
@@ -429,6 +435,9 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
                   class={cn(fieldClass, "w-full")}
                   data-component="provider-key"
                 />
+                <Show when={props.provider?.id === TYPESAFE_ID}>
+                  <Hint>{TYPESAFE_NOTE}</Hint>
+                </Show>
                 <Show when={error()}>
                   <Notice data-component="connect-error">{error()!}</Notice>
                 </Show>
