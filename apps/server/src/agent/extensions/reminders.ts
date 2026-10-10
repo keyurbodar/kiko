@@ -26,11 +26,37 @@ export type RemindersPort = {
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
 const NOT_YET = `not set. ${ASK_FIRST}`
 
+const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'task',status?:['review']} | {on:'message',from:'human'|'agent'|'any',contains?} | {on:'file',path} | {on:'webhook',match?} | {on:'watch',url,everyMinutes:15 or more}"
+
+/** A model often sends the trigger as a JSON string, a bare status, or null for a field it skips. Accept those; the schema stays strict. */
+function tidyTrigger(value: unknown): unknown {
+  let v = value
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v)
+    } catch {
+      return v
+    }
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return v
+  const out: Record<string, unknown> = {}
+  for (const [k, x] of Object.entries(v)) if (x !== null && x !== undefined && x !== "") out[k] = x
+  if (typeof out.status === "string") out.status = [out.status]
+  if (typeof out.everyMinutes === "string" && out.everyMinutes.trim() !== "") out.everyMinutes = Number(out.everyMinutes)
+  return out
+}
+
+/** The handle of a teammate, or undefined when the model means itself ("you", "me", "self") or sent nothing. */
+function otherAgent(agent: string | undefined): string | undefined {
+  const handle = agent?.trim().replace(/^@/, "").toLowerCase()
+  return handle && !["you", "me", "self", "myself", "yourself", "default", "none"].includes(handle) ? handle : undefined
+}
+
 function parseTrigger(value: unknown): Trigger | string {
   try {
-    return decodeTrigger(value) as Trigger
+    return decodeTrigger(tidyTrigger(value)) as Trigger
   } catch (e) {
-    return `bad trigger: ${(e instanceof Error ? e.message : String(e)).split("\n").slice(0, 4).join(" ").slice(0, 300)}`
+    return `bad trigger: ${(e instanceof Error ? e.message : String(e)).split("\n").slice(0, 3).join(" ").slice(0, 200)}. ${SHAPES}`
   }
 }
 
@@ -86,13 +112,13 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
         defineTool({
           name: "create_routine",
           description:
-            "give an agent in this chat a standing job that runs on its own and answers here. use it whenever the human wants something done on a schedule (every day, each monday) or when something happens (whenever, when a task, if a page changes); saying \"got it\" sets nothing. triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes; {on:'task', status?:['blocked']} when a task here changes; {on:'message', from:'human'|'agent'|'any', contains?} when someone posts here; {on:'file', path:'invoices'} when files under a folder change; {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service; {on:'watch', url, everyMinutes>=15} to notice a page change, which checks without running you, so use it instead of a frequent schedule. may lists tools it can use outside yuki without asking; leave it empty unless the human asked. a plain one-off nudge for the human is create_reminder.",
+            "give an agent in this chat a standing job that runs on its own and answers here. use it whenever the human wants something done on a schedule (every day, each monday) or when something happens (whenever, when a task, if a page changes); saying \"got it\" sets nothing. triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and tell them which zone you used; never ask for a zone first); {on:'task', status?:['blocked']} when a task here changes; {on:'message', from:'human'|'agent'|'any', contains?} when someone posts here; {on:'file', path:'invoices'} when files under a folder change; {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service; {on:'watch', url, everyMinutes>=15} to notice a page change, which checks without running you, so use it instead of a frequent schedule. may lists tools it can use outside yuki without asking; leave it empty unless the human asked. a plain one-off nudge for the human is create_reminder.",
           parameters: Type.Object({
             name: Type.String({ description: "short, lowercase" }),
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),
             trigger: Type.Unknown({ description: "when it runs" }),
             may: Type.Optional(Type.Array(Type.String(), { description: "tool names it may use outside yuki" })),
-            agent: Type.Optional(Type.String({ description: "who runs it: you (default) or a teammate's handle" })),
+            agent: Type.Optional(Type.String({ description: "who runs it: omit for yourself, or a teammate's handle" })),
           }),
           replay: "unsafe",
           execute: async (args, api) => {
@@ -101,7 +127,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             const grant = args.may ?? []
             const tainted = isRunTainted(api)
             if (runAuthority(api).origin !== "human" || (tainted && grant.length)) return { content: text(NOT_YET), isError: true }
-            const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, grant, ...(args.agent ? { target: args.agent.replace(/^@/, "") } : {}), tainted })
+            const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, grant, ...(otherAgent(args.agent) ? { target: otherAgent(args.agent)! } : {}), tainted })
             if (!out.ok) return { content: text(`not set: ${out.error}`), isError: true }
             const hook = out.token ? `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.` : ""
             return { content: text(`routine set: ${routineLine(out.routine, [])}${hook}`) }

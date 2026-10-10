@@ -85,8 +85,8 @@ const suite: Suite = {
       await waitRuns(url, s, made.routine.id, "the webhook run", (rs) => rs.some((x) => x.status !== "running"), 40_000)
       await eventually("the answer", () => agentTexts(room).some((t) => t.startsWith("tools:")), 10_000)
       const said = agentTexts(room).find((t) => t.startsWith("tools:"))
-      // The payload is outside content, so the run is tainted, and a tainted run never acts outside yuki, grant or not.
-      if (said !== "tools: fake_note ran tainted, fake_send blocked") throw new VerifyError(`expected a tainted run whose granted call is refused, got ${JSON.stringify(said)}`)
+      // The payload is outside content, so the run is tainted; the routine was made clean, so its grant holds.
+      if (said !== "tools: fake_note ran tainted, fake_send ran") throw new VerifyError(`expected a tainted run that uses its grant, got ${JSON.stringify(said)}`)
       const repeat = await hook(payload, { "x-github-delivery": "d-1" })
       const other = await hook(JSON.stringify({ action: "closed", pull_request: { title: "fix" } }), { "x-github-delivery": "d-2" })
       const big = await hook(JSON.stringify({ action: "opened", pad: "x".repeat(70_000) }))
@@ -101,12 +101,12 @@ const suite: Suite = {
       await ok(url, s, `reminders/${made.routine.id}/cancel`, {})
       const gone = await hook(payload, { "x-github-delivery": "d-3" })
       if (gone.status !== 404) throw new VerifyError(`a cancelled routine's hook answered ${gone.status}`)
-      console.log(`  ok a matching post ran once with the payload as outside content (tainted, granted fake_send refused); repeat, mismatch, 70 KB, unknown token, and a cancelled hook answered ${JSON.stringify(answers)}, 404`)
+      console.log(`  ok a matching post ran once with the payload as outside content (tainted, granted fake_send ran); repeat, mismatch, 70 KB, unknown token, and a cancelled hook answered ${JSON.stringify(answers)}, 404`)
       room.raw.close()
     }
 
     // 5. Taint crosses an event: a teammate's message written after reading a web page fires a routine
-    //    whose run starts tainted, so its granted outside call is refused. A clean message fires a clean
+    //    whose run starts tainted and still uses its granted outside call. A clean message fires a clean
     //    run, which uses the grant (section 25.3).
     {
       const user = await s.user()
@@ -124,7 +124,7 @@ const suite: Suite = {
       await waitRuns(url, s, routine.id, "the tainted event run", (rs) => rs.some((x) => x.status !== "running"), 100_000)
       await eventually("yuki's answer to the tainted event", () => yukiTools().some((t) => t.includes("fake_send")), 20_000)
       const tainted = yukiTools().find((t) => t.includes("fake_send"))
-      if (tainted !== "tools: fake_note ran tainted, fake_send blocked") throw new VerifyError(`a tainted message should fire a tainted run whose outside call is refused: ${JSON.stringify(tainted)}`)
+      if (tainted !== "tools: fake_note ran tainted, fake_send ran") throw new VerifyError(`a tainted message should fire a tainted run that uses the grant: ${JSON.stringify(tainted)}`)
       // bob's clean reply names it too: the run starts clean.
       await Bun.sleep(61_000)
       await send(room, "@bob [reply] fake_fetch is fine")
@@ -132,7 +132,7 @@ const suite: Suite = {
       await eventually("yuki's answer to the clean event", () => yukiTools().filter((t) => t.includes("fake_send")).length >= 2, 20_000)
       const clean = yukiTools().filter((t) => t.includes("fake_send"))[1]
       if (clean !== "tools: fake_note ran, fake_send ran") throw new VerifyError(`a clean message should fire a clean run: ${JSON.stringify(clean)}`)
-      console.log("  ok a message written after reading a web page fired a tainted run that could not act outside yuki; a clean one fired a clean run that used the grant")
+      console.log("  ok a message written after reading a web page fired a tainted run that still used the grant; a clean one fired a clean run")
       room.raw.close()
     }
 

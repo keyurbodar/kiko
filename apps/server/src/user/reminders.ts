@@ -418,17 +418,22 @@ export class Reminders {
     this.sql.exec("UPDATE routine_runs SET status = 'failed', ended_at = ? WHERE status = 'running' AND started_at < ?", now, now - LOST_RUN_MS)
   }
 
-  private recordRun(routineId: string, occurrence: string, delivery: RunDelivery): void {
-    const status: RoutineRunStatus = delivery === "delivered" || delivery === "duplicate" ? "running" : delivery === "held" ? "held" : delivery === "skipped" ? "quiet" : "failed"
-    const now = this.now()
-    this.sql.exec(
-      "INSERT INTO routine_runs (routine_id, occurrence, started_at, ended_at, status, seq) VALUES (?, ?, ?, ?, ?, NULL) ON CONFLICT DO NOTHING",
+  /** Recorded as running before the room is asked: its result can come back before `deliverRun` returns, and must find the row. */
+  private beginRun(routineId: string, occurrence: string): boolean {
+    const added = this.sql.exec(
+      "INSERT INTO routine_runs (routine_id, occurrence, started_at, ended_at, status, seq) VALUES (?, ?, ?, NULL, 'running', NULL) ON CONFLICT DO NOTHING",
       routineId,
       occurrence,
-      now,
-      status === "running" ? null : now,
-      status,
+      this.now(),
     )
+    return added.rowsWritten > 0
+  }
+
+  private settleRun(routineId: string, occurrence: string, delivery: RunDelivery, fresh: boolean): void {
+    if (fresh && delivery !== "delivered" && delivery !== "duplicate") {
+      const status: RoutineRunStatus = delivery === "held" ? "held" : delivery === "skipped" ? "quiet" : "failed"
+      this.sql.exec("UPDATE routine_runs SET status = ?, ended_at = ? WHERE routine_id = ? AND occurrence = ? AND status = 'running'", status, this.now(), routineId, occurrence)
+    }
     this.sql.exec(
       "DELETE FROM routine_runs WHERE routine_id = ? AND occurrence NOT IN (SELECT occurrence FROM routine_runs WHERE routine_id = ? ORDER BY started_at DESC LIMIT ?)",
       routineId,
@@ -476,12 +481,13 @@ export class Reminders {
     if (!this.ports) return "refused"
     const body = routineBody(routine, why, this.lastRun(routine.id), extra)
     const budget: Budget = paid ? "paid" : routine.createdBy === "human" ? "user" : "room"
+    const fresh = this.beginRun(routine.id, occurrence)
     const delivery = await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body, tainted: tainted || routine.tainted, budget })
     if (delivery === "gone") {
       this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
       await this.rearm()
     }
-    this.recordRun(routine.id, occurrence, delivery)
+    this.settleRun(routine.id, occurrence, delivery, fresh)
     return delivery
   }
 
@@ -695,7 +701,7 @@ export function routineBody(routine: Reminder, why: string, last: RoutineRun | n
     "instructions:",
     routine.text,
     "",
-    "if the instructions ask you to send or report something, send it now, even when it is the same as last time. answer [skip] only when they say to stay quiet when nothing is new, or ask for nothing.",
+    "if the instructions ask you to send or report something, send it now, even when it is the same as last time. answer [skip] only when they say to stay quiet when nothing is new, or ask for nothing. do not announce that you are about to look something up; use the tools first, then post only the result.",
   ]
   if (extra) lines.push("", extra)
   return lines.join("\n")
