@@ -97,7 +97,7 @@ const suite: Suite = {
     const mine = new RegExp(`${word}|${name}`, "i")
     const [usageA, usageB] = [await a.usage(), await b.usage()]
 
-    await say(a.home, `my locker code word is ${word}`)
+    await say(a.home, `my favourite bakery is called ${word}`)
     await say(a.home, `my partner is called ${name}`)
     await poll("A's life list to hold both words", 90_000, async () => {
       const text = (await a.lines()).map((l) => l.text).join("\n")
@@ -116,7 +116,7 @@ const suite: Suite = {
     const leak = (await b.lines()).filter((l) => mine.test(l.text))
     if (leak.length || mine.test(await b.view())) throw new VerifyError("A's words appear in B's memory list or view")
     const chat = await openChat(b.user, b.s, "memory isolation b ask")
-    const reply = await say(chat, "what is my partner called and what is my locker code word?")
+    const reply = await say(chat, "what is my partner called and what is my favourite bakery called?")
     if (mine.test(reply)) throw new VerifyError(`B's agent answered with A's words: ${JSON.stringify(reply)}`)
     console.log(`  [${stamp()}] B's list, view and answer hold neither word: ${JSON.stringify(reply.slice(0, 100))}`)
 
