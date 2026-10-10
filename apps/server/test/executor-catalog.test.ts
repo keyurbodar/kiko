@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { type CatalogRow, compactSignature, DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, findApps, parseCatalog, withHandles } from "../src/integrations/executor/catalog"
+import { type CatalogRow, compactSignature, DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, findApps, keepShapes, learnShapes, parseCatalog, shapeOf, unwrapResult, withHandles } from "../src/integrations/executor/catalog"
 
 const GITHUB = 'tools.github.profiles["ins_1"]'
 
@@ -80,9 +80,11 @@ test("a handle fills in the account, wraps the fields in input, and parses the r
     github: { profiles: { ins_1: { list_issues: async (args: unknown) => (seen.push(args), { content: [{ type: "text", text: '[{"number":7}]' }] }) } } },
   }
   const code = withHandles('const issues = await github.list_issues({ owner: "o", repo: "r" });\nreturn issues[0].number;', CATALOG)
-  expect(await run(code, tools)).toBe(7)
+  expect(await run(code, tools)).toEqual({ __yuki: 1, value: 7, shapes: { "github.list_issues": "[{ number: number }]" } })
   expect(seen).toEqual([{ accountId: "acc_1", input: { owner: "o", repo: "r" } }])
-  expect(code.split("\n")).toHaveLength(2)
+  // The program keeps its own lines, so Executor's error positions still point at the agent's code.
+  expect(code.split("\n")).toHaveLength(3)
+  expect(code.split("\n")[1]).toBe("return issues[0].number;")
 })
 
 test("a tool error from a handle throws with the tool's text", async () => {
@@ -102,7 +104,7 @@ test("the executor handle passes arguments as they are, under dotted tool names"
   const seen: unknown[] = []
   const tools = { executor: { profiles: { ins_0: { accounts: { connect: async (args: unknown) => (seen.push(args), { url: "https://x" }) } } } } }
   const code = withHandles('return (await executor.accounts.connect({ path: { app: "a" }, body: { profile: "p", requirement: "r" } })).url', CATALOG)
-  expect(await run(code, tools)).toBe("https://x")
+  expect(((await run(code, tools)) as { value: unknown }).value).toBe("https://x")
   expect(seen).toEqual([{ path: { app: "a" }, body: { profile: "p", requirement: "r" } }])
 })
 
@@ -117,4 +119,37 @@ test("finding an app matches whole words and prefers curated entries", () => {
   expect(findApps(rows, "web search", 3).map((r) => r.entry)).toEqual(["curated/firecrawl-dev-mcp", "mcp/websearch-lite", "curated/google-search-console"])
   expect(findApps(rows, "")).toEqual([])
   expect(findApps(rows, "firecrawl", 1)).toEqual([{ entry: "curated/firecrawl-dev-mcp", name: "Firecrawl", kind: "mcp", domain: "firecrawl.dev", about: "Firecrawl's hosted MCP server gives agents tools" }])
+})
+
+test("a result's shape names its keys and types, an array by its first item", () => {
+  expect(shapeOf({ total_count: 2, items: [{ name: "a", pushed_at: "t", owner: { login: "me", site: { id: 1 } } }] })).toBe(
+    "{ total_count: number, items: [{ name: string, pushed_at: string, owner: { login: string, site: {…} } }] }",
+  )
+  expect(shapeOf([])).toBe("[]")
+  expect(shapeOf(null)).toBe("null")
+  expect(shapeOf(Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`k${i}`, i])))).toEndWith("k24: number, … }")
+})
+
+test("a wrapped result gives the agent its value and yuki the shapes", () => {
+  const text = JSON.stringify({ status: "completed", execution: { ok: true, value: { __yuki: 1, value: { login: "me" }, shapes: { "github.get_me": "{ login: string }" } }, toolCalls: [] } })
+  const read = unwrapResult(text)
+  expect(JSON.parse(read.text)).toEqual({ status: "completed", execution: { ok: true, value: { login: "me" }, toolCalls: [] } })
+  expect(read.shapes).toEqual({ "github.get_me": "{ login: string }" })
+  const plain = JSON.stringify({ status: "approval-required", requestId: "apr_1" })
+  expect(unwrapResult(plain)).toEqual({ text: plain, shapes: {} })
+})
+
+test("learned shapes reach the description and survive a new discovery", () => {
+  const learned = learnShapes(CATALOG, { "github.get_me": "{ login: string }", "nobody.x": "{}" })!
+  expect(describeExecute(learned)).toContain("  get_me {} returns { login: string }")
+  expect(learnShapes(learned, { "github.get_me": "{ login: string }" })).toBeNull()
+  const again = keepShapes(CATALOG, learned)
+  expect(again.apps.find((a) => a.handle === "github")?.tools.find((t) => t.name === "get_me")?.output).toBe("{ login: string }")
+})
+
+test("the shape helper calls itself through a name the interpreter binds", () => {
+  const code = withHandles("return await github.get_me()", CATALOG)
+  expect(code).toContain("const __shapeOf = function __shapeOf(")
+  expect(code).not.toMatch(/[^_]shapeOf\(/)
+  expect(code.split("\n")[0]).toContain("const __main = async () => {")
 })

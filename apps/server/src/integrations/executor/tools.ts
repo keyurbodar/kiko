@@ -20,6 +20,16 @@ export type ExecutorCall = (name: string, args: Record<string, unknown>) => Prom
 export type ExecutorFind = (query: string, limit?: number) => Promise<unknown[]>
 export const FIND_TOOL = "executor_find_apps"
 
+/**
+ * Dev stats for one agent call: its time end to end, and how much of it Executor reports its apps'
+ * tools took inside. The rest is Executor's own work and the network.
+ */
+function countCall(name: string, ms: number, content: ExecutorResultBlock[]): void {
+  count(`executor.${name}.ms`, Math.round(ms))
+  const text = content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")
+  count(`executor.${name}.toolsMs`, [...text.matchAll(/"durationMs":(\d+)/g)].reduce((n, m) => n + Number(m[1]), 0))
+}
+
 export const toolName = (name: string) => `executor_${name.replace(/[^a-zA-Z0-9_-]/g, "_")}`.slice(0, 64)
 
 export function executorExtension(tools: readonly ExecutorTool[], call: ExecutorCall, gate?: ApprovalGate, fs?: RoomFs, find?: ExecutorFind): Extension {
@@ -70,7 +80,9 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
                 }
                 input.response = acceptResponse(requestId, (input.response as { content?: unknown } | undefined)?.content)
               }
+              const sent = performance.now()
               const out = await call(t.name, input)
+              countCall(t.name, performance.now() - sent, out.content)
               const text = out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n")
               const pending = gate ? pendingInteraction(text) : null
               if (pending && gate) {

@@ -148,6 +148,9 @@ async function executor(request: Request): Promise<Response> {
         return text({ status: "completed", execution: { ok: true, value: 1 } })
       }
       if (msg.params?.name === "execute" && !code.includes("tools.search") && !code.includes(".organization.catalog(")) fake.code = code
+      if (msg.params?.name === "execute" && code.includes("__main") && code.includes("github.get_me()")) {
+        return text({ status: "completed", execution: { ok: true, value: { __yuki: 1, value: { login: "me" }, shapes: { "github.get_me": "{ login: string }" } } } })
+      }
       if (msg.params?.name === "execute" && code.includes(".organization.catalog(")) {
         fake.indexReads++
         const rows = [
@@ -494,8 +497,8 @@ test("a program that names an app reaches executor with that app's handle define
   const ws = await connected(user)
   await rpc(user, "executorTools")
   await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })
-  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"]);')
-  expect(fake.code.endsWith("return await github.get_me()")).toBe(true)
+  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"], "github");')
+  expect(fake.code).toContain("return await github.get_me()")
   ws.close()
 })
 
@@ -530,7 +533,7 @@ test("a program still gets its handles after the object was evicted between list
   await rpc(user, "executorTools")
   await mf.dispatchFetch(`http://do/rpc/${user}`, { method: "POST", body: JSON.stringify({ method: "evict", args: [] }) }).catch(() => {})
   await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })
-  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"]);')
+  expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"], "github");')
   ws.close()
 })
 
@@ -576,5 +579,16 @@ test("a run warms the user's apps in executor, unless executor just saw a call",
   expect(fake.warms.length).toBe(before)
   await rpc(user, "executorWarm", Date.now() + 30_000)
   expect(fake.warms.slice(before)).toEqual(['return [typeof tools.github.profiles["ins_1"]].length'])
+  ws.close()
+})
+
+test("the agent reads its program's value, and the next agent knows what the tool returns", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  const out = (await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })) as { content: { text: string }[] }
+  expect(JSON.parse(out.content[0]!.text)).toEqual({ status: "completed", execution: { ok: true, value: { login: "me" } } })
+  const tools = (await rpc(user, "executorTools")) as { name: string; description?: string }[]
+  expect(tools.find((t) => t.name === "execute")?.description).toContain("  get_me {} returns { login: string }")
   ws.close()
 })

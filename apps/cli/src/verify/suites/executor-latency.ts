@@ -17,10 +17,12 @@ const USER = process.env.YUKI_EXECUTOR_USER ?? "dev"
 const MODEL = process.env.YUKI_EXECUTOR_MODEL
 /** Seconds to wait before each task, as a person pauses between messages. Executor cools down in the gap. */
 const GAP_S = Number(process.env.YUKI_EXECUTOR_GAP ?? 0)
-// Each asks for live data, so memory cannot answer it.
+// Each asks for live data, so memory cannot answer it. YUKI_EXECUTOR_SAME=1 asks the follow-up the
+// same question, so both make the same calls to the app.
+const FIRST = "check github now: what is the newest commit message on my most recently pushed repo? one line."
 const TASKS = [
-  { tag: "new chat", text: "check github now: what is the newest commit message on my most recently pushed repo? one line." },
-  { tag: "follow-up", text: "check again now: my 3 most recently updated github repos, names only." },
+  { tag: "new chat", text: FIRST },
+  { tag: "follow-up", text: process.env.YUKI_EXECUTOR_SAME ? `check again now, it may have changed: ${FIRST}` : "check again now: my 3 most recently updated github repos, names only." },
 ]
 /** A first-time task on Executor's own app, asked once, in the last chat: find an app without adding it. */
 const FIND = { tag: "find an app", text: "which app could i add through executor for web search? just the top 2 names. don't add anything." }
@@ -74,7 +76,9 @@ const suite: Suite = {
         samples.add(`${task.tag}: model (s)`, Math.round((c["model.ms"] ?? 0) / 100) / 10)
         samples.add(`${task.tag}: executor calls`, calls)
         samples.add(`${task.tag}: executor http requests`, c["executor.http"] ?? 0)
-        samples.add(`${task.tag}: executor http (s)`, Math.round((c["executor.httpMs"] ?? 0) / 100) / 10)
+        samples.add(`${task.tag}: agent's execute calls (s)`, Math.round((c["executor.execute.ms"] ?? 0) / 100) / 10)
+        samples.add(`${task.tag}: tools inside them (s)`, Math.round((c["executor.execute.toolsMs"] ?? 0) / 100) / 10)
+        samples.add(`${task.tag}: all executor http, background too (s)`, Math.round((c["executor.httpMs"] ?? 0) / 100) / 10)
         const models = Object.entries(c).filter(([k]) => k.startsWith("model.id.")).map(([k]) => k.slice(9)).join(" ")
         const tools = Object.entries(c).filter(([k]) => k.startsWith("executor.call.")).map(([k, n]) => `${k.slice(14)}×${n}`).join(" ")
         answers.push(`${task.tag}: <${models}> [${tools}] ${text.slice(0, 160)}`)

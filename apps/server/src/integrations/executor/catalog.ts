@@ -15,7 +15,8 @@
 // Executor's interpreter (10 s a search). Yuki keeps a compact index of them, read in pages by
 // `INDEX_PROGRAM`, and `findApps` ranks it in place.
 
-export type ExecutorAppTool = { name: string; input?: string }
+/** `output` is the shape of a result yuki saw the tool return. Executor publishes none. */
+export type ExecutorAppTool = { name: string; input?: string; output?: string }
 export type ExecutorApp = { path: string; handle: string; accounts: string[]; tools: ExecutorAppTool[] }
 export type ExecutorCatalog = { apps: ExecutorApp[]; unavailable: { name: string; reason: string }[] }
 
@@ -137,9 +138,31 @@ function handleName(path: string, taken: Set<string>): string {
   return name
 }
 
+/** A longer shape is cut. */
+const SHAPE_CHARS = 600
+
+/**
+ * The shape of a result: keys and value types, an array by its first item. An agent that knows
+ * what a tool returns chains the next call in the same program instead of returning raw data
+ * to look at it first, which cost a new chat one more call and one more turn.
+ */
+export function shapeOf(value: unknown, depth = 0): string {
+  if (value === null || value === undefined) return "null"
+  if (Array.isArray(value)) return value.length ? `[${shapeOf(value[0], depth)}]` : "[]"
+  if (typeof value !== "object") return typeof value
+  if (depth >= 3) return "{…}"
+  const keys = Object.keys(value)
+  const parts = keys.slice(0, 25).map((k) => `${k}: ${shapeOf((value as Record<string, unknown>)[k], depth + 1)}`)
+  return `{ ${parts.join(", ")}${keys.length > 25 ? ", …" : ""} }`
+}
+
 const HELPERS =
+  // On one line, so the agent's program keeps its line numbers; shapeOf has no line comments.
+  // Executor's interpreter does not bind a function expression's own name, so its calls to itself
+  // go through the outer constant.
+  `const __shapes = {}; const __shapeOf = ${shapeOf.toString().replace(/\n\s*/g, " ").replace(/\bshapeOf\b/g, "__shapeOf")}; ` +
   'const __read = (r) => { if (r && Array.isArray(r.content)) { const t = r.content.filter((c) => c.type === "text").map((c) => c.text).join("\\n"); if (r.isError) throw new Error(t); if (r.structuredContent !== undefined && r.structuredContent !== null) return r.structuredContent; try { return JSON.parse(t); } catch (e) { return t; } } return r; }; ' +
-  "const __app = (p, acc, names) => { const o = {}; for (const n of names) { const keys = n.split('.'); const last = keys.pop(); let at = o; for (const k of keys) at = at[k] || (at[k] = {}); at[last] = async (fields) => { let f = p; for (const k of keys) f = f[k]; return __read(await f[last](acc ? { accountId: acc, input: fields || {} } : fields || {})); }; } return o; }; "
+  "const __app = (p, acc, names, handle) => { const o = {}; for (const n of names) { const keys = n.split('.'); const last = keys.pop(); let at = o; for (const k of keys) at = at[k] || (at[k] = {}); at[last] = async (fields) => { let f = p; for (const k of keys) f = f[k]; const r = __read(await f[last](acc ? { accountId: acc, input: fields || {} } : fields || {})); if (!__shapes[handle + '.' + n]) __shapes[handle + '.' + n] = __shapeOf(r); return r; }; } return o; }; "
 
 /**
  * The program with the handles it uses defined first, on its own first line so error positions
@@ -149,8 +172,50 @@ const HELPERS =
 export function withHandles(code: string, catalog: ExecutorCatalog): string {
   const used = catalog.apps.filter((a) => new RegExp(`(^|[^.\\w$])${a.handle}\\.`).test(code) && !new RegExp(`\\b(const|let|var|function)\\s+${a.handle}\\b`).test(code))
   if (!used.length) return code
-  const defs = used.map((a) => `const ${a.handle} = __app(${a.path}, ${JSON.stringify(a.accounts[0] ?? "")}, ${JSON.stringify(a.tools.map((t) => t.name))}); `).join("")
-  return `${HELPERS}${defs}${code}`
+  const defs = used.map((a) => `const ${a.handle} = __app(${a.path}, ${JSON.stringify(a.accounts[0] ?? "")}, ${JSON.stringify(a.tools.map((t) => t.name))}, ${JSON.stringify(a.handle)}); `).join("")
+  return `${HELPERS}${defs}const __main = async () => {${code}\n}; return { ${WRAPPED}: 1, value: await __main(), shapes: __shapes };`
+}
+
+/** Marks a result `withHandles` wrapped, so yuki can take the shapes out before the model reads it. */
+const WRAPPED = "__yuki"
+
+/**
+ * A result as the agent's program returned it, and the shapes its handles saw. A result that was
+ * not wrapped, or did not complete, comes back as it is.
+ */
+export function unwrapResult(text: string): { text: string; shapes: Record<string, string> } {
+  try {
+    const body = JSON.parse(text) as { execution?: { value?: Record<string, unknown> } }
+    const value = body.execution?.value
+    if (!value || typeof value !== "object" || value[WRAPPED] !== 1) return { text, shapes: {} }
+    const shapes = (value.shapes && typeof value.shapes === "object" ? value.shapes : {}) as Record<string, string>
+    if (body.execution) body.execution.value = value.value as never
+    return { text: JSON.stringify(body), shapes }
+  } catch {
+    return { text, shapes: {} }
+  }
+}
+
+/** The catalog with the result shapes learned, or null when nothing new was learned. */
+export function learnShapes(catalog: ExecutorCatalog, shapes: Record<string, string>): ExecutorCatalog | null {
+  let changed = false
+  const apps = catalog.apps.map((app) => ({
+    ...app,
+    tools: app.tools.map((t) => {
+      const seen = shapes[`${app.handle}.${t.name}`]
+      if (typeof seen !== "string" || seen === t.output) return t
+      changed = true
+      return { ...t, output: seen.slice(0, SHAPE_CHARS) }
+    }),
+  }))
+  return changed ? { ...catalog, apps } : null
+}
+
+/** A new discovery, keeping the result shapes yuki learned from the old one. */
+export function keepShapes(fresh: ExecutorCatalog, old: ExecutorCatalog | undefined): ExecutorCatalog {
+  if (!old) return fresh
+  const known = new Map(old.apps.flatMap((a) => a.tools.filter((t) => t.output).map((t) => [`${a.path}.${t.name}`, t.output!] as const)))
+  return { ...fresh, apps: fresh.apps.map((a) => ({ ...a, tools: a.tools.map((t) => (known.has(`${a.path}.${t.name}`) ? { ...t, output: known.get(`${a.path}.${t.name}`) } : t)) })) }
 }
 
 /** Executor sends a reason as plain text or as JSON with a message. */
@@ -173,7 +238,7 @@ export function describeExecute(catalog: ExecutorCatalog): string {
     if (app.path.startsWith(MANAGEMENT)) continue
     const others = app.accounts.length > 1 ? ` It uses account "${app.accounts[0]}"; for another (${app.accounts.slice(1).join(", ")}), call ${app.path}.<tool>({ accountId, input: { ...fields } }) instead.` : ""
     lines.push(`${app.handle}: for example await ${app.handle}.${app.tools[0]?.name ?? "<tool>"}({ ... }).${others} Tools and their fields:`)
-    for (const t of app.tools) lines.push(`  ${t.name}${t.input ? ` ${t.input}` : ""}`)
+    for (const t of app.tools) lines.push(`  ${t.name}${t.input ? ` ${t.input}` : ""}${t.output ? ` returns ${t.output}` : ""}`)
   }
   for (const u of catalog.unavailable) lines.push(`${u.name}: not usable yet (${u.reason}). Connect its account and give the human the link.`)
   const manage = catalog.apps.find((a) => a.path.startsWith(MANAGEMENT))

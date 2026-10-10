@@ -1,7 +1,7 @@
 import type { ExecutorStatus } from "@yuki/protocol"
 import { McpClient, McpSessionExpiredError, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
-import { type CatalogRow, DISCOVER_PROGRAM, warmProgram, describeExecute, type ExecutorCatalog, findApps, hasTool, INDEX_PAGE, indexProgram, managementApp, parseCatalog, parseIndexPage, usesApp, withHandles } from "./catalog"
+import { type CatalogRow, DISCOVER_PROGRAM, keepShapes, learnShapes, unwrapResult, warmProgram, describeExecute, type ExecutorCatalog, findApps, hasTool, INDEX_PAGE, indexProgram, managementApp, parseCatalog, parseIndexPage, usesApp, withHandles } from "./catalog"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
@@ -238,15 +238,15 @@ export class ExecutorConnection {
         .then((out) => parseCatalog(textOf(out)))
         .catch(() => null),
     ])
-    if (catalog) this.catalog = catalog
+    if (catalog) this.catalog = keepShapes(catalog, this.catalog ?? (await this.store.get<SavedListing>("listing"))?.catalog)
     // With the apps described, skills only sent agents to read guides, so it is left out.
     const tools: ExecutorTool[] = listed.filter((t) => !(catalog && t.name === "skills")).map((t) => ({
       name: t.name,
-      ...(t.name === "execute" && catalog ? { description: describeExecute(catalog) } : t.description ? { description: t.description } : {}),
+      ...(t.name === "execute" && catalog ? { description: describeExecute(this.catalog!) } : t.description ? { description: t.description } : {}),
       inputSchema: t.inputSchema,
       ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
     }))
-    await this.store.put("listing", { at: Date.now(), tools, ...(catalog ? { catalog } : {}) } satisfies SavedListing, generation)
+    await this.store.put("listing", { at: Date.now(), tools, ...(catalog ? { catalog: this.catalog } : {}) } satisfies SavedListing, generation)
     if (hasTool(managementApp(catalog ?? undefined), "organization.catalog")) void this.indexRows().catch(() => {})
     return tools
   }
@@ -296,12 +296,39 @@ export class ExecutorConnection {
    * in the session that paused its program, and a call that pauses keeps its session open.
    */
   async call(name: string, args: Record<string, unknown>, now = Date.now()): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
-    if (name !== "execute" || typeof args.code !== "string") return this.send(name, args, now)
     // The agent was promised handles by a listing that may predate this instance.
     this.catalog ??= (await this.store.get<SavedListing>("listing"))?.catalog
-    const manage = managementApp(this.catalog)
-    if (manage && usesApp(args.code, manage) && this.listing) this.listing = { ...this.listing, at: 0 }
-    return this.send(name, this.catalog ? { ...args, code: withHandles(args.code, this.catalog) } : args, now)
+    let sent = args
+    if (name === "execute" && typeof args.code === "string") {
+      const manage = managementApp(this.catalog)
+      if (manage && usesApp(args.code, manage) && this.listing) this.listing = { ...this.listing, at: 0 }
+      if (this.catalog) sent = { ...args, code: withHandles(args.code, this.catalog) }
+    }
+    const out = await this.send(name, sent, now)
+    // A program that paused returns its wrapped result from resume, so both are unwrapped.
+    let shapes: Record<string, string> = {}
+    const content = out.content.map((b) => {
+      if (b.type !== "text") return b
+      const read = unwrapResult(b.text)
+      shapes = { ...shapes, ...read.shapes }
+      return { ...b, text: read.text }
+    })
+    await this.learn(shapes)
+    return { ...out, content }
+  }
+
+  /** Puts result shapes in the listing, so the next agent knows what each tool returns. */
+  private async learn(shapes: Record<string, string>): Promise<void> {
+    const learned = this.catalog && Object.keys(shapes).length ? learnShapes(this.catalog, shapes) : null
+    if (!learned) return
+    const generation = this.store.generation
+    this.catalog = learned
+    const saved = await this.store.get<SavedListing>("listing")
+    if (!saved) return
+    const tools = saved.tools.map((t) => (t.name === "execute" ? { ...t, description: describeExecute(learned) } : t))
+    const listing = { ...saved, tools, catalog: learned }
+    if (this.listing) this.listing = { at: this.listing.at, tools: Promise.resolve(tools) }
+    await this.store.put("listing", listing, generation)
   }
 
   /** Sends one call as it is. A resume runs in the session that paused its program, and a call that pauses keeps its session open. */
