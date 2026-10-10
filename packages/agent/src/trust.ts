@@ -41,8 +41,8 @@ export type Gate =
 export const ASK_FIRST = "This needs the human's ok. Ask them in chat in one short line, saying exactly what you'll do. Act only after they reply yes."
 
 export function mayActOutside(authority: Authority, tainted: boolean, tool: string): boolean {
-  if (tainted) return false
-  return authority.origin === "human" || (authority.origin === "routine" && authority.grant.includes(tool))
+  if (authority.origin === "routine" && authority.grant.includes(tool)) return true
+  return authority.origin === "human" && !tainted
 }
 
 export function gate(effect: Effect, tainted: boolean, authority: Authority = HUMAN, tool = ""): Gate {

@@ -43,7 +43,7 @@ const suite: Suite = {
 
     const saved = await call(alice.cookie, "PUT", `api/credentials/${PROVIDER}`, { apiKey: key })
     expectEqual(saved.status, 200, "status of the save")
-    const row = { provider: PROVIDER, kind: "api_key", last4: key.slice(-4) }
+    const row = { provider: PROVIDER, kind: "api_key", last4: key.slice(-4), chat: true, judge: false }
     expectEqual(saved.body, { provider: row }, "save answer")
 
     expectEqual((await call(alice.cookie, "GET", "api/credentials")).body, { providers: [row] }, "alice's providers")
