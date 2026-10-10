@@ -22,6 +22,8 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/seen    { ago }  -> the human was last seen `ago` ms back (section 25.5)
 //   POST /api/dev/agent/due     { id }   -> routine `id` is due now (section 25)
 //   POST /api/dev/agent/policy  { policy }  -> { ok: true }   sets the user's `memory_policy` setting (`verify memory-jev`)
+//   POST /api/dev/agent/loops   {}  -> { loops }   every open loop, done or not (section 26, `verify initiative-loops`)
+//   POST /api/dev/agent/initiative { roomId, slug? }  -> { text }   the initiative lines the agent's last run started with
 //   POST /api/dev/agent/pending { roomId, ms }  -> { pending }   ages the room's pending uploads and sweeps them (section 18.1)
 //
 // `seed` writes messages straight into the room's log, with no burst and no run, so a long chat costs
@@ -40,7 +42,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy"].includes(action ?? "")) return null
+  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "initiative"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -73,6 +75,11 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     await userStub(env.USER, user.id).devSeen(Number(body?.ago ?? 0))
     return Response.json({ ok: true })
   }
+  if (action === "loops") {
+    const user = await getSessionUser(request, env)
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+    return Response.json({ loops: await userStub(env.USER, user.id).loopList({ status: ["open", "done", "dropped", "snoozed"], limit: 200 }) })
+  }
   if (action === "children") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -104,6 +111,10 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "usage") {
     const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
     return Response.json({ agent: await agentStub(env.AGENT, user.id, roomId, slug).devUsage(), memory: await userStub(env.USER, user.id).memoryUsage() })
+  }
+  if (action === "initiative") {
+    const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
+    return Response.json({ text: await agentStub(env.AGENT, user.id, roomId, slug).devInitiative() })
   }
   if (action === "trace") return Response.json(await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devTrace())
   if (action === "classic") {

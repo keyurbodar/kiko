@@ -69,3 +69,13 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, reactions: string | null): BriefView {
 	return { goal, members, tasks: briefTasks(sql, member.slug), reactions }
 }
+
+/**
+ * Section 26. What the agent owes and what the human said before that bears on this burst, for the
+ * run that answers it. The lines arrive escaped. Empty when there is nothing, so the input stays the same.
+ */
+export function initiativeBrief(view: { owe: readonly string[]; related: readonly string[] }): string {
+	const lines = [...view.owe.map((l) => `you owe: ${l}`), ...view.related.map((l) => `related: ${l}`)]
+	if (!lines.length) return ""
+	return [...lines, "bring a related line up only when it truly helps the human now. keep what you owe, or say why you cannot."].join("\n")
+}

@@ -31,6 +31,9 @@ export const norm = (text: string) =>
     .filter((w) => !FILLER.has(w))
     .join(" ")
 
+/** The words of `text` worth searching for: normalized, three letters or more, no stop words, each once. */
+export const keywords = (text: string): string[] => [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
+
 const NORM_VERSION_KEY = "life_norm_v"
 const NORM_VERSION = "2"
 
@@ -153,7 +156,7 @@ export class Life {
 
   /** Keyword matches first, then the card and the newest lines, since a correction often shares no word with what it corrects. */
   nearest(text: string, limit: number): LifeLine[] {
-    const words = [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
+    const words = keywords(text)
     const hits = words.length ? this.recall(words.join(" "), limit) : []
     const card = this.card().map((c) => c.pos)
     const rows = this.sql
