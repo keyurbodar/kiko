@@ -1,6 +1,10 @@
 import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, Tree } from "./optmem"
 
 export const MAX_PINS = 10
+export const CARD_MAX = 12
+export const CARD_TAGS = ["IDENTITY", "ATTRIBUTE", "RELATIONSHIP", "INSTRUCTION"] as const
+export type CardTag = (typeof CARD_TAGS)[number]
+export const isCardTag = (value: unknown): value is CardTag => CARD_TAGS.includes(value as CardTag)
 
 const TILING_KEY = "life_tiling"
 
@@ -8,9 +12,15 @@ export type LifeLine = { pos: number; at: number; text: string; source: string; 
 
 export type NoteResult = { ok: true; pos: number; duplicate?: true } | { ok: false; error: string }
 
-type Row = { pos: number; at: number; text: string; source: string; tainted: number; pinned: number; redacted: number }
+export type AppendOptions = { ref?: string; card?: CardTag | null }
+
+type Row = { pos: number; at: number; text: string; source: string; tainted: number; pinned: number; redacted: number; ref: string; superseded_by: number | null; card: string | null }
+
+const LIVE = "redacted = 0 AND superseded_by IS NULL"
 
 const FILLER = new Set(["a", "an", "the", "is", "are", "was", "were", "s", "that", "now"])
+
+const STOP = new Set(["and", "but", "for", "with", "you", "your", "she", "her", "his", "him", "they", "them", "this", "what", "have", "has", "had", "not", "will", "just", "from", "into", "about", "like", "really", "very", "can", "could", "would", "should"])
 
 export const norm = (text: string) =>
   text
@@ -42,7 +52,12 @@ export class Life {
       pinned INTEGER NOT NULL DEFAULT 0,
       redacted INTEGER NOT NULL DEFAULT 0
     )`)
+    const columns = new Set(sql.exec<{ name: string }>("PRAGMA table_info(life)").toArray().map((c) => c.name))
+    if (!columns.has("ref")) sql.exec("ALTER TABLE life ADD COLUMN ref TEXT NOT NULL DEFAULT ''")
+    if (!columns.has("superseded_by")) sql.exec("ALTER TABLE life ADD COLUMN superseded_by INTEGER")
+    if (!columns.has("card")) sql.exec("ALTER TABLE life ADD COLUMN card TEXT")
     sql.exec("CREATE INDEX IF NOT EXISTS life_norm ON life (norm)")
+    sql.exec("CREATE INDEX IF NOT EXISTS life_ref ON life (ref)")
     sql.exec("CREATE VIRTUAL TABLE IF NOT EXISTS life_fts USING fts5(text)")
     this.tree = new Tree(sql, "life_tree", LIFE_SHAPE, (lo, hi) => this.items(lo, hi))
     if (settings.get(NORM_VERSION_KEY) !== NORM_VERSION) {
@@ -58,16 +73,29 @@ export class Life {
     return n === null ? 0 : n + 1
   }
 
-  append(text: string, source: string, tainted: boolean, at = Date.now()): NoteResult {
+  append(text: string, source: string, tainted: boolean, at = Date.now(), options: AppendOptions = {}): NoteResult {
     const line = text.replace(/\s+/g, " ").trim()
     if (!line) return { ok: false, error: "empty. a memory is one line of text." }
     if (new TextEncoder().encode(line).byteLength > LINE_BYTES) return { ok: false, error: `too long: a memory is at most ${LINE_BYTES} bytes. say it shorter.` }
     const key = norm(line)
     return this.transaction(() => {
-      const same = this.sql.exec<{ pos: number }>("SELECT pos FROM life WHERE norm = ? AND redacted = 0", key).toArray()[0]
-      if (same) return { ok: true, pos: same.pos, duplicate: true } as const
+      const same = this.sql.exec<{ pos: number; card: string | null }>(`SELECT pos, card FROM life WHERE norm = ? AND ${LIVE}`, key).toArray()[0]
+      if (same) {
+        if (options.card && !same.card) this.sql.exec("UPDATE life SET card = ? WHERE pos = ?", options.card, same.pos)
+        return { ok: true, pos: same.pos, duplicate: true } as const
+      }
       const pos = this.count()
-      this.sql.exec("INSERT INTO life (pos, at, text, source, norm, tainted) VALUES (?, ?, ?, ?, ?, ?)", pos, at, line, source, key, tainted ? 1 : 0)
+      this.sql.exec(
+        "INSERT INTO life (pos, at, text, source, norm, tainted, ref, card) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        pos,
+        at,
+        line,
+        source,
+        key,
+        tainted ? 1 : 0,
+        options.ref ?? "",
+        options.card ?? null,
+      )
       this.sql.exec("INSERT INTO life_fts (rowid, text) VALUES (?, ?)", pos, line)
       return { ok: true, pos } as const
     })
@@ -75,33 +103,98 @@ export class Life {
 
   items(lo: number, hi: number): Item[] {
     return this.sql
-      .exec<Row>("SELECT pos, at, text, source, tainted, redacted FROM life WHERE pos >= ? AND pos < ? ORDER BY pos", lo, hi)
+      .exec<Row>("SELECT pos, at, text, source, tainted, redacted, superseded_by FROM life WHERE pos >= ? AND pos < ? ORDER BY pos", lo, hi)
       .toArray()
-      .map((r) => ({ pos: r.pos, at: r.at, text: r.redacted ? "(removed by the human)" : `${r.source ? `${r.source}: ` : ""}${r.text}`, tainted: r.tainted === 1 }))
+      .map((r) => ({
+        pos: r.pos,
+        at: r.at,
+        text: r.redacted ? "(removed by the human)" : r.superseded_by !== null ? `(replaced, see #${r.superseded_by})` : `${r.source ? `${r.source}: ` : ""}${r.text}`,
+        tainted: r.tainted === 1,
+      }))
+  }
+
+  /** Pinned lines first, then live card-tagged lines newest first, at most CARD_MAX in all. */
+  card(): { pos: number; text: string; pinned: boolean }[] {
+    const pins = this.sql.exec<Row>(`SELECT pos, text FROM life WHERE pinned = 1 AND ${LIVE} ORDER BY pos`).toArray()
+    const tagged = this.sql
+      .exec<Row>(`SELECT pos, text FROM life WHERE card IS NOT NULL AND pinned = 0 AND ${LIVE} ORDER BY pos DESC LIMIT ?`, Math.max(0, CARD_MAX - pins.length))
+      .toArray()
+    return [...pins.map((r) => ({ pos: r.pos, text: r.text, pinned: true })), ...tagged.map((r) => ({ pos: r.pos, text: r.text, pinned: false }))].slice(0, CARD_MAX)
   }
 
   view(now: number): string {
-    const pins = this.sql.exec<Row>("SELECT pos, text FROM life WHERE pinned = 1 AND redacted = 0 ORDER BY pos").toArray()
     const prev = this.settings.get(TILING_KEY)
     const { lines, tiling } = this.tree.view(this.count(), prev ? (JSON.parse(prev) as Span[]) : null, now)
     if (JSON.stringify(tiling) !== prev) this.settings.set(TILING_KEY, JSON.stringify(tiling))
-    return [...pins.map((p) => `pinned: ${p.text}`), ...lines].join("\n")
+    return [...this.card().map((c) => `${c.pinned ? "pinned" : "card"}: ${c.text}`), ...lines].join("\n")
   }
 
-  recall(query: string, limit = 10): LifeLine[] {
+  /** Live lines only. `skipCard` leaves out what the card already shows at the top of the view. */
+  recall(query: string, limit = 10, options: { skipCard?: boolean } = {}): LifeLine[] {
     const words = query.split(/\s+/).map((w) => w.replaceAll('"', "")).filter(Boolean).slice(0, 12)
     if (!words.length) return []
+    const skip = JSON.stringify(options.skipCard ? this.card().map((c) => c.pos) : [])
     const match = words.map((w) => `"${w}"*`).join(" OR ")
     let rows = this.sql
       .exec<Row>(
-        "SELECT l.* FROM life_fts f JOIN life l ON l.pos = f.rowid WHERE life_fts MATCH ? AND l.redacted = 0 ORDER BY bm25(life_fts), l.pos DESC LIMIT ?",
+        "SELECT l.* FROM life_fts f JOIN life l ON l.pos = f.rowid WHERE life_fts MATCH ? AND l.redacted = 0 AND l.superseded_by IS NULL AND l.pos NOT IN (SELECT value FROM json_each(?)) ORDER BY bm25(life_fts), l.pos DESC LIMIT ?",
         match,
+        skip,
         limit,
       )
       .toArray()
     const longest = words.map((w) => w.replace(/[%_\\]/g, "")).sort((a, b) => b.length - a.length)[0]!.slice(0, 40)
-    if (!rows.length && longest.length > 2) rows = this.sql.exec<Row>("SELECT * FROM life WHERE redacted = 0 AND text LIKE ? ORDER BY pos DESC LIMIT ?", `%${longest}%`, limit).toArray()
+    if (!rows.length && longest.length > 2) {
+      rows = this.sql
+        .exec<Row>(`SELECT * FROM life WHERE ${LIVE} AND text LIKE ? AND pos NOT IN (SELECT value FROM json_each(?)) ORDER BY pos DESC LIMIT ?`, `%${longest}%`, skip, limit)
+        .toArray()
+    }
     return rows.map(toLine)
+  }
+
+  /** The live lines closest to `text`, matched on its content words. */
+  nearest(text: string, limit: number): LifeLine[] {
+    const words = [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
+    return words.length ? this.recall(words.join(" "), limit) : []
+  }
+
+  /** Marks `oldPos` replaced by `newPos`. A pin moves to the new line. Summaries over the old line rebuild. */
+  supersede(oldPos: number, newPos: number): boolean {
+    if (oldPos === newPos) return false
+    return this.transaction(() => {
+      const old = this.sql.exec<{ pinned: number }>(`SELECT pinned FROM life WHERE pos = ? AND ${LIVE}`, oldPos).toArray()[0]
+      if (!old || !this.sql.exec(`SELECT 1 FROM life WHERE pos = ? AND ${LIVE}`, newPos).toArray().length) return false
+      this.sql.exec("UPDATE life SET superseded_by = ?, pinned = 0 WHERE pos = ?", newPos, oldPos)
+      if (old.pinned) this.sql.exec("UPDATE life SET pinned = 1 WHERE pos = ?", newPos)
+      this.tree.forget(oldPos)
+      return true
+    })
+  }
+
+  /** Redacts every line learned from one of `refs`. A line one of them had replaced is live again. */
+  redactRefs(refs: readonly string[]): number[] {
+    if (!refs.length) return []
+    return this.transaction(() => {
+      const gone = this.sql
+        .exec<{ pos: number }>("SELECT pos FROM life WHERE redacted = 0 AND ref IN (SELECT value FROM json_each(?))", JSON.stringify(refs))
+        .toArray()
+        .map((r) => r.pos)
+      for (const pos of gone) this.wipe(pos)
+      const back = this.sql.exec<{ pos: number }>("SELECT pos FROM life WHERE redacted = 0 AND superseded_by IN (SELECT value FROM json_each(?))", JSON.stringify(gone)).toArray()
+      for (const r of back) {
+        this.sql.exec("UPDATE life SET superseded_by = NULL WHERE pos = ?", r.pos)
+        this.tree.forget(r.pos)
+      }
+      return gone
+    })
+  }
+
+  /** Distinct refs of unredacted lines that start with `prefix`. */
+  refsLike(prefix: string): string[] {
+    return this.sql
+      .exec<{ ref: string }>("SELECT DISTINCT ref FROM life WHERE redacted = 0 AND substr(ref, 1, ?) = ?", prefix.length, prefix)
+      .toArray()
+      .map((r) => r.ref)
   }
 
   zoom(span: Span, now: number): string[] {
@@ -126,13 +219,15 @@ export class Life {
   }
 
   redact(pos: number): boolean {
-    return this.transaction(() => {
-      const done = this.sql.exec("UPDATE life SET text = '', norm = '', redacted = 1, pinned = 0 WHERE pos = ? AND redacted = 0", pos).rowsWritten > 0
-      if (!done) return false
-      this.sql.exec("DELETE FROM life_fts WHERE rowid = ?", pos)
-      this.tree.forget(pos)
-      return true
-    })
+    return this.transaction(() => this.wipe(pos))
+  }
+
+  private wipe(pos: number): boolean {
+    const done = this.sql.exec("UPDATE life SET text = '', norm = '', redacted = 1, pinned = 0, card = NULL WHERE pos = ? AND redacted = 0", pos).rowsWritten > 0
+    if (!done) return false
+    this.sql.exec("DELETE FROM life_fts WHERE rowid = ?", pos)
+    this.tree.forget(pos)
+    return true
   }
 
   pending(limit: number): Span[] {
