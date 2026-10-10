@@ -4,7 +4,8 @@ import type { LearnedTool } from "./learn"
 
 /**
  * One user's Composio rows in `UserDO`. `key` is the sealed consumer key, with the same keyring as
- * provider credentials and AAD `composio/key`. `listing` is the last tool listing, plain JSON because it holds
+ * provider credentials and AAD `composio/key`. `developer` is the optional developer key (`ak_...`), sealed the
+ * same way with AAD `composio/developer`; it only reads Composio's tool catalog. `listing` is the last tool listing, plain JSON because it holds
  * no secret, kept so a cold object serves it at once. `learned` is the direct tools, plain JSON too.
  * Disconnect deletes every row.
  */
@@ -12,7 +13,8 @@ export type SavedListing = { at: number; tools: ComposioTool[] }
 
 type KeyRow = { kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer }
 
-const KEY_AAD = "composio/key"
+const SEALED = { key: "composio/key", developer: "composio/developer" } as const
+type Sealed = keyof typeof SEALED
 
 export class ComposioStore {
   #generation = 0
@@ -36,25 +38,48 @@ export class ComposioStore {
     )`)
   }
 
-  async key(): Promise<string | undefined> {
-    const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext FROM composio WHERE name = 'key'").toArray()[0]
+  key(): Promise<string | undefined> {
+    return this.opened("key")
+  }
+
+  putKey(key: string, generation = this.generation): Promise<void> {
+    return this.sealed("key", key, generation)
+  }
+
+  developerKey(): Promise<string | undefined> {
+    return this.opened("developer")
+  }
+
+  /** Null deletes it. */
+  async putDeveloperKey(key: string | null, generation = this.generation): Promise<void> {
+    if (key !== null) return this.sealed("developer", key, generation)
+    if (generation === this.generation) this.sql.exec("DELETE FROM composio WHERE name = 'developer'")
+  }
+
+  hasDeveloperKey(): boolean {
+    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM composio WHERE name = 'developer'").one().n > 0
+  }
+
+  private async opened(name: Sealed): Promise<string | undefined> {
+    const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext FROM composio WHERE name = ?", name).toArray()[0]
     if (!row) return undefined
-    const key = await open(this.keyring, this.userId, KEY_AAD, {
+    const key = await open(this.keyring, this.userId, SEALED[name], {
       kekVersion: row.kek_version,
       iv: new Uint8Array(row.iv),
       ciphertext: new Uint8Array(row.ciphertext),
     })
-    if (row.kek_version !== this.keyring.current.version) await this.putKey(key)
+    if (row.kek_version !== this.keyring.current.version) await this.sealed(name, key)
     return key
   }
 
-  async putKey(key: string, generation = this.generation): Promise<void> {
-    const sealed = await seal(this.keyring, this.userId, KEY_AAD, key)
+  private async sealed(name: Sealed, key: string, generation = this.generation): Promise<void> {
+    const sealed = await seal(this.keyring, this.userId, SEALED[name], key)
     if (generation !== this.generation) return
     this.sql.exec(
-      `INSERT INTO composio (name, kek_version, iv, ciphertext, updated_at) VALUES ('key', ?, ?, ?, ?)
+      `INSERT INTO composio (name, kek_version, iv, ciphertext, updated_at) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT (name) DO UPDATE SET kek_version = excluded.kek_version, iv = excluded.iv,
          ciphertext = excluded.ciphertext, updated_at = excluded.updated_at`,
+      name,
       sealed.kekVersion,
       sealed.iv,
       sealed.ciphertext,

@@ -1,7 +1,7 @@
 import type { ComposioStatus } from "@yuki/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-stats"
-import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, learnedSignature, listTools } from "./client"
+import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkDeveloperKey, learnedSignature, listTools } from "./client"
 import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
 import type { ComposioStore } from "./store"
 
@@ -23,11 +23,11 @@ export class ComposioConnection {
 
   private readonly fetcher: typeof fetch
 
-  /** `catalog` classifies newly learned tools behind the call. Without it they stay `external`. */
+  /** `waitUntil` keeps the object alive for catalog lookups that run behind a call. */
   constructor(
     private readonly store: ComposioStore,
     fetcher: typeof fetch = (input, init) => fetch(input, init),
-    private readonly catalog?: { key: string; waitUntil: (work: Promise<unknown>) => void },
+    private readonly waitUntil: (work: Promise<unknown>) => void = () => undefined,
   ) {
     this.fetcher = async (input, init) => {
       const t = performance.now()
@@ -41,19 +41,39 @@ export class ComposioConnection {
   }
 
   status(): ComposioStatus {
-    return { connected: this.store.connected(), rows: this.store.count() }
+    return { connected: this.store.connected(), rows: this.store.count(), developer: this.store.hasDeveloperKey() }
   }
 
   /** Validates the key with one `tools/list`, then replaces any stored key. A rejected key stores nothing. */
   async connect(apiKey: unknown): Promise<{ status: ComposioStatus; tools: string[] }> {
     const key = checkApiKey(apiKey)
     const tools = await listTools(key, this.fetcher)
+    const developer = await this.store.developerKey()
     this.store.clear()
     const generation = this.store.generation
     await this.store.putKey(key, generation)
+    if (developer) await this.store.putDeveloperKey(developer, generation)
     this.store.putListing({ at: Date.now(), tools }, generation)
     this.listing = { at: Date.now(), tools: Promise.resolve(tools) }
     return { status: this.status(), tools: tools.map((t) => t.name) }
+  }
+
+  /**
+   * Stores the developer key once Composio accepts it, or deletes it with null. A rejected key
+   * stores nothing. Learned tools with no class yet are classified behind the answer.
+   */
+  async setDeveloperKey(value: unknown): Promise<ComposioStatus> {
+    if (!this.store.connected()) throw new ComposioError("Composio is not connected")
+    const generation = this.store.generation
+    if (value === null) {
+      await this.store.putDeveloperKey(null, generation)
+      return this.status()
+    }
+    const key = checkApiKey(value)
+    await checkDeveloperKey(key, this.fetcher)
+    await this.store.putDeveloperKey(key, generation)
+    for (const t of this.store.learned()) if (t.readOnly === undefined) this.classify(t.slug, generation)
+    return this.status()
   }
 
   disconnect(): number {
@@ -128,13 +148,14 @@ export class ComposioConnection {
     return out
   }
 
+  /** Without a developer key the tool stays `external`. */
   private classify(slug: string, generation: number): void {
-    if (!this.catalog) return
-    const work = catalogReadOnly(this.catalog.key, slug, this.fetcher).then(
-      (readOnly) => this.store.putLearned(this.store.learned().map((t) => (t.slug === slug ? { ...t, readOnly } : t)), generation),
-      () => undefined,
-    )
-    this.catalog.waitUntil(work)
+    const work = this.store.developerKey().then(async (key) => {
+      if (!key) return
+      const readOnly = await catalogReadOnly(key, slug, this.fetcher)
+      this.store.putLearned(this.store.learned().map((t) => (t.slug === slug ? { ...t, readOnly } : t)), generation)
+    })
+    this.waitUntil(work.catch(() => undefined))
   }
 
   private forgetFailed(slugs: string[], generation: number): void {

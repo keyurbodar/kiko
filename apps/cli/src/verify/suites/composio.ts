@@ -6,16 +6,18 @@ import { readStats, resetStats } from "./latency"
 import { newRoom } from "./mid-run"
 
 // Composio, end to end with a real model. Needs OPENCODE_API_KEY (the model, opencode-go) and
-// COMPOSIO_API_KEY (a consumer key, ck_...) in the shell. Part one: a bad key is refused and
-// stores nothing. Part two: connect the real key, ask a fresh chat to search the web through
-// Composio, and prove from the server's dev counters (`composio.<tool>.ms`, bumped on every tool
-// call) that a composio_* tool ran and that a reply bubble arrived. Part three: a second fresh
-// chat asks another web question, and must use the tool the first chat learned directly, with no
-// search, and the status must report that tool as a read (Composio's catalog tags it read-only;
-// needs COMPOSIO_CATALOG_KEY in the server's .dev.vars). Part four: a routine runs in a room whose
-// agent opened before anything was learned and is still open. It must reload, call the learned
-// tool, and post no approval card, since a routine run's `external` calls need one. Hard limits:
-// 60 s per socket answer, 150 s per chat turn or routine run.
+// COMPOSIO_API_KEY (a consumer key, ck_...) in the shell; COMPOSIO_DEVELOPER_KEY (ak_...) is
+// optional. Part one: a bad key and a bad developer key are refused and store nothing. Part two:
+// connect the real key, ask a fresh chat to search the web through Composio, and prove from the
+// server's dev counters (`composio.<tool>.ms`, bumped on every tool call) that a composio_* tool
+// ran and that a reply bubble arrived. Part three: the developer key is added after the tool was
+// learned, so the server classifies it behind the answer. A second fresh chat asks another web
+// question, and must use the learned tool directly, with no search, and the status must report
+// that tool as a read (Composio's catalog tags it read-only). Without a developer key it must stay
+// external. Part four, only with a developer key: a routine runs in a room whose agent opened
+// before anything was learned and is still open. It must reload, call the learned tool, and post
+// no approval card, since a routine run's `external` calls need one. Hard limits: 60 s per socket
+// answer, 150 s per chat turn or routine run.
 
 const USER = "composio-alice"
 const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
@@ -24,7 +26,7 @@ const ASK_AGAIN = "Use Composio to search the web: who maintains the Bun runtime
 const ROUTINE = "Use Composio to search the web: what is the latest stable Deno version? Answer in one line."
 const TURN_MS = 150_000
 
-type Result = { ok: true; status: { connected: boolean; rows: number }; tools?: string[]; readOnly?: string[] } | { ok: false; error: string }
+type Result = { ok: true; status: { connected: boolean; rows: number; developer: boolean }; tools?: string[]; readOnly?: string[] } | { ok: false; error: string }
 type Events = Extract<RoomToClient, { t: "events" }>
 type Status = Extract<RoomToClient, { t: "status" }>
 
@@ -35,6 +37,7 @@ const suite: Suite = {
   async run(v) {
     const key = process.env.COMPOSIO_API_KEY
     if (!key) throw new VerifyError("COMPOSIO_API_KEY is not set in this shell")
+    const developerKey = process.env.COMPOSIO_DEVELOPER_KEY
     const s = await v.as(USER)
     await connectTestModel(s)
     const user = await s.user()
@@ -60,6 +63,13 @@ const suite: Suite = {
     const good = await ask({ t: "connectComposio", apiKey: key })
     if (!good.ok) throw new VerifyError(`connect failed: ${good.error}`)
     expectEqual(good.status.connected, true, "connected")
+    const badDeveloper = await ask({ t: "setComposioDeveloperKey", key: "ak_not_a_real_key_0000" })
+    if (badDeveloper.ok) throw new VerifyError("a bad developer key was accepted")
+    console.error(`bad developer key refused: ${badDeveloper.error}`)
+    const rows = good.status.rows
+    const afterBad = await ask({ t: "composioStatus" })
+    if (!afterBad.ok) throw new VerifyError(`status after a bad developer key failed: ${afterBad.error}`)
+    expectEqual([afterBad.status.developer, afterBad.status.rows], [false, rows], "developer key and rows after a bad developer key")
     const listed = await ask({ t: "composioStatus", tools: true })
     if (!listed.ok || !listed.tools?.length) throw new VerifyError("composio listed no tools")
     console.error(`tools: ${listed.tools.join(", ")}`)
@@ -122,15 +132,27 @@ const suite: Suite = {
     const direct = (learned.tools ?? []).filter((t) => !meta.includes(t))
     console.error(`learned: ${direct.join(", ") || "nothing"}`)
     if (!direct.length) throw new VerifyError("the first chat taught no direct tool")
+    if (developerKey) {
+      const added = await ask({ t: "setComposioDeveloperKey", key: developerKey })
+      if (!added.ok) throw new VerifyError(`adding the developer key failed: ${added.error}`)
+      expectEqual(added.status.developer, true, "developer key after adding it")
+    }
     const again = await chat("composio again", ASK_AGAIN)
     if (again.includes("composio_search_tools")) throw new VerifyError("the second chat searched again instead of using a learned tool")
     if (!again.some((t) => direct.some((slug) => t === toolName(slug)))) throw new VerifyError(`the second chat called no learned tool: ${again.join(" ")}`)
 
-    // The catalog lookup runs behind the first chat's call, so it has had a whole chat to land.
+    // The catalog lookup runs behind adding the developer key, so it has had a whole chat to land.
     const classes = await ask({ t: "composioStatus", tools: true })
     const reads = classes.ok ? direct.filter((slug) => classes.readOnly?.includes(slug)) : []
     console.error(`learned reads: ${reads.join(", ") || "none"}`)
-    if (!reads.length) throw new VerifyError("no learned tool is a read. is COMPOSIO_CATALOG_KEY set in the server's .dev.vars?")
+    if (!developerKey) {
+      if (reads.length) throw new VerifyError(`learned tools are reads with no developer key: ${reads.join(", ")}`)
+      console.log("  routine run: skipped, COMPOSIO_DEVELOPER_KEY is not set, so learned tools stay external")
+      clearInterval(keepOpen)
+      user.send({ t: "chat", op: { op: "delete", roomId: early.roomId as never } })
+      return await disconnect()
+    }
+    if (!reads.length) throw new VerifyError("no learned tool is a read after adding the developer key")
 
     // Part four: a routine run, not started by the human, by the agent still open from before the learning.
     clearInterval(keepOpen)
@@ -155,10 +177,13 @@ const suite: Suite = {
     if (!ran.some((t) => reads.some((slug) => t === toolName(slug)))) throw new VerifyError(`the routine run called no learned read tool: ${ran.join(" ") || "none"}`)
     if (cards().length) throw new VerifyError("the routine run posted an approval card")
     user.send({ t: "chat", op: { op: "delete", roomId: early.roomId as never } })
+    await disconnect()
 
-    const gone = await ask({ t: "disconnectComposio" })
-    if (!gone.ok) throw new VerifyError(`disconnect failed: ${gone.error}`)
-    expectEqual([gone.status.connected, gone.status.rows], [false, 0], "connected and rows after disconnect")
+    async function disconnect() {
+      const gone = await ask({ t: "disconnectComposio" })
+      if (!gone.ok) throw new VerifyError(`disconnect failed: ${gone.error}`)
+      expectEqual([gone.status.connected, gone.status.developer, gone.status.rows], [false, false, 0], "connected, developer key, and rows after disconnect")
+    }
   },
 }
 

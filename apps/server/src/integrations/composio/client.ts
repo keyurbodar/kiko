@@ -3,8 +3,9 @@
 // The user's consumer key (`ck_...`) goes in `x-consumer-api-key`, the header Composio documents for it. It is never put in an error or a log.
 
 export const COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp"
-const CATALOG_URL = "https://backend.composio.dev/api/v3.1/tools/"
+const DEVELOPER_API = "https://backend.composio.dev/api/v3.1/"
 export const REJECTED = "Composio rejected this key"
+export const DEVELOPER_REJECTED = "Composio rejected this developer key"
 
 export type ComposioTool = {
   name: string
@@ -108,14 +109,24 @@ export async function callTool(key: string, name: string, args: Record<string, u
   return { content, ...(result?.isError ? { isError: true } : {}) }
 }
 
-/** Whether Composio's tool catalog tags `slug` read-only. Needs a developer key: consumer keys are refused. */
-export async function catalogReadOnly(key: string, slug: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
-  const res = await fetchImpl(`${CATALOG_URL}${encodeURIComponent(slug)}`, { headers: { "x-api-key": key }, signal: AbortSignal.timeout(10_000) })
+/** One GET on Composio's developer API with a developer key (`ak_...`). Consumer keys are refused there. */
+async function developerGet(key: string, path: string, fetchImpl: typeof fetch): Promise<unknown> {
+  const res = await fetchImpl(`${DEVELOPER_API}${path}`, { headers: { "x-api-key": key }, signal: AbortSignal.timeout(10_000) })
   if (!res.ok) {
     await res.body?.cancel()
-    throw new ComposioError(`Composio's catalog answered ${res.status}`, res.status)
+    throw new ComposioError(res.status === 401 || res.status === 403 ? DEVELOPER_REJECTED : `Composio's developer API answered ${res.status}`, res.status)
   }
-  const { tags } = (await res.json()) as { tags?: unknown }
+  return res.json()
+}
+
+/** Throws unless Composio accepts `key` as a developer key, with the cheapest read it has. */
+export async function checkDeveloperKey(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  await developerGet(key, "toolkits?limit=1", fetchImpl)
+}
+
+/** Whether Composio's tool catalog tags `slug` read-only. */
+export async function catalogReadOnly(key: string, slug: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  const { tags } = (await developerGet(key, `tools/${encodeURIComponent(slug)}`, fetchImpl)) as { tags?: unknown }
   return Array.isArray(tags) && tags.includes("readOnlyHint")
 }
 

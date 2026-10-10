@@ -760,16 +760,17 @@ export class UserDO extends DurableObject<Env> {
     this.#composioConnection ??= new ComposioConnection(
       new ComposioStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name)),
       undefined,
-      this.env.COMPOSIO_CATALOG_KEY ? { key: this.env.COMPOSIO_CATALOG_KEY, waitUntil: (work) => this.ctx.waitUntil(work) } : undefined,
+      (work) => this.ctx.waitUntil(work),
     )
     return this.#composioConnection
   }
 
-  private async composioFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectComposio" | "disconnectComposio" | "composioStatus" }>) {
+  private async composioFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectComposio" | "setComposioDeveloperKey" | "disconnectComposio" | "composioStatus" }>) {
     const composio = this.#composio
     let result: ComposioResult
     try {
       if (frame.t === "connectComposio") result = { ok: true, ...(await composio.connect(frame.apiKey)) }
+      else if (frame.t === "setComposioDeveloperKey") result = { ok: true, status: await composio.setDeveloperKey(frame.key) }
       else if (frame.t === "disconnectComposio") {
         composio.disconnect()
         result = { ok: true, status: composio.status() }
@@ -832,7 +833,7 @@ export class UserDO extends DurableObject<Env> {
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
       return
     }
-    if (frame.t === "connectComposio" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
+    if (frame.t === "connectComposio" || frame.t === "setComposioDeveloperKey" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
       await this.composioFrame(ws, frame)
       return
     }

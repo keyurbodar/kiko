@@ -116,6 +116,8 @@ export type ComposioStatus = {
 	connected: boolean
 	/** How many Composio rows the user has. Zero after a disconnect. */
 	rows: number
+	/** Whether a developer key is stored, which classifies learned tools as reads. */
+	developer: boolean
 }
 
 export type ComposioResult =
@@ -142,6 +144,8 @@ export type ClientToUser =
 	| { t: "search"; query: string }
 	/** Stores a pasted Composio consumer key once `tools/list` accepts it. */
 	| { t: "connectComposio"; reqId: string; apiKey: string }
+	/** Stores a Composio developer key once Composio accepts it, or deletes it with null. */
+	| { t: "setComposioDeveloperKey"; reqId: string; key: string | null }
 	/** Deletes every Composio row for the user. */
 	| { t: "disconnectComposio"; reqId: string }
 	/** `tools` lists the tools with the stored key. */

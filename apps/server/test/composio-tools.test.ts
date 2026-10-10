@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { effectOf } from "@yuki/agent/effects"
-import { callTool, ComposioError, learnedSignature, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
+import { callTool, ComposioError, DEVELOPER_REJECTED, learnedSignature, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
 import { ComposioConnection } from "../src/integrations/composio/connect"
 import { LEARNED_MAX, type LearnedTool, remember } from "../src/integrations/composio/learn"
 import type { ComposioStore } from "../src/integrations/composio/store"
@@ -116,25 +116,33 @@ describe("composio learned tools", () => {
   const searchBody = { successful: true, data: { tool_schemas: { COMPOSIO_SEARCH_WEB: { toolkit: "composio_search", tool_slug: "COMPOSIO_SEARCH_WEB", description: "Search the web.", input_schema: webSchema }, GMAIL_GET_ATTACHMENT: { toolkit: "gmail", tool_slug: "GMAIL_GET_ATTACHMENT", schemaRef: {} } } } }
   const ran = (slug: string, ok: boolean) => ({ successful: true, data: { results: [{ response: { successful: ok, data: { answer: "1.4.2" }, error: ok ? null : "no connection" }, tool_slug: slug, index: 0 }] } })
 
-  /** A connection over an in-memory store, answering each call with the next queued body. */
+  /**
+   * A connection over an in-memory store, answering each call with the next queued body. The
+   * catalog tags every tool `catalog`, and a developer key is stored when `catalog` is given.
+   */
   function setup(catalog?: string[]) {
-    const state = { learned: [] as LearnedTool[], sent: [] as { name: string; arguments: unknown }[], replies: [] as unknown[] }
+    const state = { learned: [] as LearnedTool[], sent: [] as { name: string; arguments: unknown }[], replies: [] as unknown[], developer: catalog && "ak", developerStatus: 200, tags: catalog }
     const store = {
       generation: 0,
       connected: () => true,
       key: async () => "k",
+      developerKey: async () => state.developer,
+      hasDeveloperKey: () => state.developer !== undefined,
+      putDeveloperKey: async (key: string | null) => void (state.developer = key ?? undefined),
+      count: () => 1,
       listing: () => ({ at: Date.now(), tools: [{ name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} }, { name: "COMPOSIO_MULTI_EXECUTE_TOOL", inputSchema: {} }] }),
       learned: () => state.learned,
       putLearned: (l: LearnedTool[]) => void (state.learned = l),
     }
     const background: Promise<unknown>[] = []
     const fetcher = (async (url: unknown, init?: RequestInit) => {
-      if (String(url).startsWith("https://backend.composio.dev/")) return Response.json({ tags: catalog })
+      if (String(url).includes("/toolkits?")) return Response.json({ items: [] }, { status: state.developerStatus })
+      if (String(url).startsWith("https://backend.composio.dev/")) return Response.json({ tags: state.tags })
       const body = JSON.parse(String(init?.body)) as { id: number; params: { name: string; arguments: unknown } }
       state.sent.push(body.params)
       return new Response(text(state.replies.shift()).replace('"__ID__"', String(body.id)), { headers: { "content-type": SSE } })
     }) as unknown as typeof fetch
-    const connection = new ComposioConnection(store as unknown as ComposioStore, fetcher, catalog && { key: "ak", waitUntil: (work) => background.push(work) })
+    const connection = new ComposioConnection(store as unknown as ComposioStore, fetcher, (work) => background.push(work))
     return { state, connection, background }
   }
   type Tool = { name: string; description: string; execute: (a: unknown, api: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> }
@@ -171,6 +179,30 @@ describe("composio learned tools", () => {
       const web = (composioExtension((await connection.tools())!, async () => ({ content: [] })).tools as unknown as { replay: string }[])[2]!
       expect([effectOf(web as never)?.effect, web.replay]).toEqual([effect, replay])
     }
+  })
+
+  test("a developer key Composio rejects stores nothing and is never echoed", async () => {
+    const { state, connection } = setup()
+    state.developerStatus = 401
+    const err = await connection.setDeveloperKey("ak_secret").catch((e) => e)
+    expect([err.message, state.developer]).toEqual([DEVELOPER_REJECTED, undefined])
+    expect(connection.status().developer).toBe(false)
+  })
+
+  test("adding a developer key classifies tools learned without one, which changes the signature", async () => {
+    const { state, connection, background } = setup()
+    state.replies.push(searchBody, ran("COMPOSIO_SEARCH_WEB", true))
+    await connection.call("COMPOSIO_SEARCH_TOOLS", {})
+    await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: {} }] })
+    await Promise.all(background)
+    expect(state.learned[0]!.readOnly).toBeUndefined()
+    const before = connection.signature()
+
+    state.tags = ["readOnlyHint"]
+    expect((await connection.setDeveloperKey("ak_good")).developer).toBe(true)
+    await Promise.all(background)
+    expect(state.learned[0]!.readOnly).toBe(true)
+    expect(connection.signature()).not.toBe(before)
   })
 
   test("a failed run teaches nothing, and a failed direct call is a tool error with Composio's text", async () => {

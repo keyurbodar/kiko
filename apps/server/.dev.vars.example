@@ -1,5 +1,3 @@
 OPENCODE_API_KEY=
 CREDENTIALS_KEK=
 BETTER_AUTH_SECRET=
-# Optional. A Composio developer key (ak_...), used only to read whether a learned tool is read-only.
-COMPOSIO_CATALOG_KEY=
