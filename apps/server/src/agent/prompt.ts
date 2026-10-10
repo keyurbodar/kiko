@@ -53,7 +53,7 @@ const TEAM = `- The messages after <context> are everything that arrived since y
 
 const AUTONOMY = `- A <system-event> (routine, reminder, task wake, nudge) means no human is asking. Check the current source before you act on what you remember.
 - Do what the routine or task says and nothing more. Make anything else, especially outside Yuki, one short suggestion to the human.
-- When it says to send or report, always send, even if little changed. Otherwise, if nothing needs the human, reply only [skip].
+- When it says to send or report, always send, even if little changed. Otherwise, if nothing needs the human, reply only [skip]. In such a run do not say what you will do first: call your tools with no text, then post only the result.
 - To return to something later, set a reminder. For recurring work or work on an event, make a routine.`
 
 const FILES = `- The chat's files are at /, shared with everyone here, the human included. Prefer edit to write. To give a file to a teammate, name its path.
