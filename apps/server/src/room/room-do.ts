@@ -919,6 +919,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	private async flushSignals(): Promise<void> {
+		await this.sendResults()
 		const home = this.home()
 		const due = this.signals.due(Date.now())
 		if (home && due) {
@@ -938,11 +939,23 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const outcome = status === "ended" ? (posted !== null ? "ok" : "quiet") : status === "stopped" ? "quiet" : status
 			return { kind: "routine_result", roomId: home.roomId, at: now, tainted: false, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted }
 		})
+		// Kept until UserDO has them: a lost result would leave the run pending there for good.
+		this.signals.hold(signals)
 		this.ctx.waitUntil(
-			userStub(this.env.USER, home.userId)
-				.signals({ roomId: home.roomId, openedAt: now, signals, more: 0 })
-				.catch((e: unknown) => console.error(`routine report failed: ${e instanceof Error ? e.message : String(e)}`)),
+			this.sendResults().catch(async (e: unknown) => {
+				console.error(`routine report failed: ${e instanceof Error ? e.message : String(e)}`)
+				await this.alarms.setWakeup(SIGNALS_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
+			}),
 		)
+	}
+
+	private async sendResults(): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		for (let held = this.signals.held(); held; held = this.signals.held()) {
+			await userStub(this.env.USER, home.userId).signals({ roomId: home.roomId, openedAt: Date.now(), signals: held.signals, more: 0 })
+			this.signals.released(held.upto)
+		}
 	}
 
 	private async tasksChanged(): Promise<void> {
@@ -1016,14 +1029,31 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return "delivered"
 	}
 
-	/** Retries held wakes, oldest first, until one is held again. */
+	/** Retries held wakes, oldest first, until one is held again. A wake whose delivery throws stays held and the rest go on. */
 	private async retryHeld(): Promise<void> {
 		const home = this.home()
 		if (!home) return
 		const due = this.outbox.due(Date.now())
 		let stuck = false
+		let failed = false
 		for (const w of due) {
-			const out = this.deliveries.seen(w.id) ? "duplicate" : await this.deliverWake(home, w)
+			if (this.deliveries.seen(w.id)) {
+				this.outbox.drop(w.id)
+				continue
+			}
+			// A reminder is followed only while it is delivered, so its run, not one before it, says whether the promise was kept.
+			const run = w.id.startsWith("reminder:") ? { routineId: REMINDER_RUN, occurrence: w.id.slice("reminder:".length), slug: w.to, seq: this.log.lastSeq() } : null
+			if (run) this.routines.follow(run)
+			let out: WakeResult
+			try {
+				out = await this.deliverWake(home, w)
+			} catch (error) {
+				if (run) this.routines.unfollow(run)
+				console.error(`held wake not delivered, kept for a retry: ${w.id}: ${error instanceof Error ? error.message : String(error)}`)
+				failed = true
+				continue
+			}
+			if (run && out !== "delivered") this.routines.unfollow(run)
 			if (out === "held") {
 				stuck = true
 				break
@@ -1031,7 +1061,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.outbox.drop(w.id)
 		}
 		if (!this.outbox.any()) return await this.alarms.clearWakeup(HELD_WAKEUP)
-		await this.alarms.setWakeup(HELD_WAKEUP, stuck || due.length < HELD_PER_PASS ? nextReset(Date.now()) : Date.now() + 1_000)
+		const now = Date.now()
+		await this.alarms.setWakeup(HELD_WAKEUP, stuck ? nextReset(now) : failed ? now + DELIVERY_RETRY_MS : due.length < HELD_PER_PASS ? nextReset(now) : now + 1_000)
 	}
 
 	private budgetHeld(now: number, whose: string): "held" {
@@ -1397,7 +1428,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
 		if (state === "idle") this.team.clear(slug)
-		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug)
+		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
 		if (!this.members.setStatus(slug, state)) return
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now())
 		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })

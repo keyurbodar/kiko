@@ -113,6 +113,21 @@ export class SignalWindow {
 		sql.exec("CREATE TABLE IF NOT EXISTS signal_window (n INTEGER PRIMARY KEY, at INTEGER NOT NULL, signal TEXT NOT NULL)")
 		sql.exec("CREATE TABLE IF NOT EXISTS signal_more (id INTEGER PRIMARY KEY CHECK (id = 1), more INTEGER NOT NULL)")
 		sql.exec("DROP TABLE IF EXISTS routine_windows")
+		sql.exec("CREATE TABLE IF NOT EXISTS signal_results (n INTEGER PRIMARY KEY, signal TEXT NOT NULL)")
+	}
+
+	/** Routine results go out at once, outside the window, and stay here until `released`, so a lost send retries. */
+	hold(results: readonly Signal[]): void {
+		for (const s of results) this.sql.exec("INSERT INTO signal_results (signal) VALUES (?)", JSON.stringify(s))
+	}
+
+	held(): { signals: Signal[]; upto: number } | null {
+		const rows = this.sql.exec<{ n: number; signal: string }>("SELECT n, signal FROM signal_results ORDER BY n LIMIT ?", MAX_SIGNALS).toArray()
+		return rows.length ? { signals: rows.map((r) => JSON.parse(r.signal) as Signal), upto: rows.at(-1)!.n } : null
+	}
+
+	released(upto: number): void {
+		this.sql.exec("DELETE FROM signal_results WHERE n <= ?", upto)
 	}
 
 	/** Adds signals. Returns when the window closes if this opened it, else null. */
