@@ -260,6 +260,16 @@ const suite: Suite = {
         close(chat)
       }
     }
+    if (jevKey) {
+      await say(home, "mi hermana se llama Ximena y vive en Valencia")
+      await poll("a live line about ximena", 90_000, async () => (await live(/ximena/i)).length > 0)
+      await settle()
+      const fresh = await openChat(user, s, "memory edge spanish recall")
+      const reply = await say(fresh, "how is my sister called and where does she live?")
+      if (!/ximena/i.test(reply) || !/valencia/i.test(reply)) throw new VerifyError(`a new chat did not say ximena and valencia: ${JSON.stringify(reply)}`)
+      ok("non-English fact", `live line ${lineTexts(await live(/ximena/i))}; a new chat answered ${JSON.stringify(reply.slice(0, 80))}`)
+      close(fresh)
+    }
     {
       const bo = { id: `agent-bo-${stampId}`, name: "bo", slug: "bo", prompt: "helps with trips", model: "" }
       user.send({ t: "agent", op: { op: "create", agent: bo as never } })
