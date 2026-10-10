@@ -406,14 +406,19 @@ export function loopOps(check: BurstCheck, answers: Record<string, Answer>): Loo
   check.sentences.forEach((sentence, i) => {
     let same: number | undefined
     let closed = false
-    for (const { loop } of check.near.filter((n) => n.sentence === i)) {
-      const rel = decided(answers[`s${i}_l${loop.id}`])
+    const near = check.near.filter((n) => n.sentence === i)
+    const rels = near.map(({ loop }) => decided(answers[`s${i}_l${loop.id}`]))
+    near.forEach(({ loop }, k) => {
+      const rel = rels[k]
       if (rel === "done" || rel === "dropped") {
         ops.push({ op: "close", sentence: i, id: loop.id, status: rel })
         closed = true
       } else if (rel === "same" && same === undefined) same = loop.id
-    }
+    })
     if (closed) return
+    // An agent's promise repeats its newest open one here unless Jev is sure it is another: an answer
+    // that restates a promise it set a reminder for is the common case, and a duplicate is owed twice.
+    if (sentence.by && same === undefined && near.length && !rels.every((r) => r === "other")) same = near[0]!.loop.id
     const at = same === undefined ? {} : { same }
     if (sentence.by) {
       if (yes(answers[`s${i}_promise`])) ops.push({ op: "open", sentence: i, kind: "commitment", certainty: "explicit", owner: sentence.by, ...at })

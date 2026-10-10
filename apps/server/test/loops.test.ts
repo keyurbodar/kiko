@@ -71,6 +71,16 @@ test("a plan whose probability splits between kinds is still a loop, of the like
   expect(kind({ none: 0.6, goal: 0.3, intention: 0.1 })).toEqual([])
 })
 
+test("an agent's promise merges into its newest open one unless Jev is sure it is another", () => {
+  const owed = { id: 4, text: "send a passport checklist tomorrow", owner: "ada" } as Loop
+  const check = { sentences: [{ text: "Done. I will post it here tomorrow at 9am.", from: 0, by: "ada" }], near: [{ sentence: 0, loop: owed }] }
+  const choice = (choice: string, p: number) => ({ type: "choice" as const, choice, probabilities: { [choice]: p }, confidence: p })
+  const promise = { type: "bool" as const, probability: 0.9 }
+  const open = { op: "open", sentence: 0, kind: "commitment", certainty: "explicit", owner: "ada" }
+  expect(loopOps(check, { s0_promise: promise, s0_l4: choice("other", 0.4) })).toEqual([{ ...open, same: 4 }])
+  expect(loopOps(check, { s0_promise: promise, s0_l4: choice("other", 0.8) })).toEqual([open])
+})
+
 test("a long answer never crowds the human's sentences out, and only its last two are read", () => {
   const answer = "That is tight. I can help you get it done. What grant is it? Send me the rules. I will check back tomorrow."
   const got = sentencesOf([{ text: "I have to submit the grant report by Friday." }, { text: answer, by: "yuki" }, { text: "Maybe I'll start running again." }])
