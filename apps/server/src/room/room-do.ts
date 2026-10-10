@@ -400,7 +400,37 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (failed) throw failed.reason
 		if (results.some((r) => r.status === "fulfilled" && r.value === "full")) return "full"
 		this.burst.delivered(envelopes)
+		if (this.log.meta("private") !== "1") await this.captureHuman(home, envelopes)
 		return new Set(routes.keys())
+	}
+
+	private async captureHuman(home: { userId: string; roomId: RoomId }, envelopes: Envelope[]): Promise<void> {
+		const items = envelopes.flatMap((e) => {
+			const message = e.from.kind === "human" ? this.log.message(e.rootId) : null
+			return message ? [{ messageId: e.rootId, text: e.body, at: message.at }] : []
+		})
+		if (!items.length) return
+		try {
+			await userStub(this.env.USER, home.userId).captureHuman(home.roomId, items)
+		} catch (error) {
+			console.error(`capture failed: ${error instanceof Error ? error.message : String(error)}`)
+		}
+	}
+
+	private async forwardForgotten(): Promise<void> {
+		const home = this.home()
+		if (!home || this.#wiped) return
+		const changes = this.memory.changes()
+		if (!changes) return
+		const user = userStub(this.env.USER, home.userId)
+		try {
+			if (changes.deleted.length || changes.edited.length) await user.forgetMessages(home.roomId, changes.deleted, this.log.meta("private") === "1" ? [] : changes.edited)
+			for (const pos of changes.positions) await user.forgetRoomTurn(home.roomId, pos)
+			this.memory.forwarded(changes.upto)
+		} catch (error) {
+			console.error(`forget failed: ${error instanceof Error ? error.message : String(error)}`)
+			await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000)
+		}
 	}
 
 	#warned = new Set<AgentSlug>()
@@ -623,13 +653,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!home || this.#napping) return
 		this.#napping = true
 		await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 120_000)
+		await this.forwardForgotten()
 		const user = userStub(this.env.USER, home.userId)
-		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number) => user.lifeRollup(home.roomId, text, tainted, at)
+		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number, span: { lo: number; hi: number }) => user.lifeRollup(home.roomId, text, tainted, at, span)
 		const pass = async () => {
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
 				if (this.members.list().some((m) => m.status !== "idle")) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))
 				const spans = this.memory.pending(NAPS_AT_ONCE)
-				if (!spans.length) return void (await this.alarms.clearWakeup(MEMORY_WAKEUP))
+				if (!spans.length) return void (await (this.memory.changes() ? this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000) : this.alarms.clearWakeup(MEMORY_WAKEUP)))
 				const outs = await Promise.all(spans.map((span) => this.memory.nap(span, (prompt) => user.compress(prompt), rollup)))
 				const retryAt = outs.find((o) => o.retryAt)?.retryAt
 				if (retryAt) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, retryAt))
@@ -652,7 +683,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (!home || this.log.meta("private") === "1") return
 		const user = userStub(this.env.USER, home.userId)
-		const out = await this.memory.rollupQuiet((prompt) => user.compress(prompt), (text, tainted, at) => user.lifeRollup(home.roomId, text, tainted, at))
+		const out = await this.memory.rollupQuiet((prompt) => user.compress(prompt), (text, tainted, at, span) => user.lifeRollup(home.roomId, text, tainted, at, span))
 		if (out.retryAt) await this.alarms.setWakeup(QUIET_WAKEUP, out.retryAt)
 	}
 
@@ -702,6 +733,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.broadcast({ t: "events", events })
 		if (touch && events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
 		this.matchRoutines(events)
+		if (events.some((e) => e.t === "edit" || e.t === "delete")) this.ctx.waitUntil(this.forwardForgotten())
 		if (events.some((e) => e.t === "task" || e.t === "task_removed")) this.ctx.waitUntil(this.tasksChanged())
 		for (const e of events) if (e.t === "message" && e.from.kind === "human") this.ctx.waitUntil(this.burst.add(e))
 		const human = events.flatMap((e) => (e.t === "message" && e.from.kind === "human" ? [e] : []))

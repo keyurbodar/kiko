@@ -13,11 +13,14 @@ const TILING = "mem_tiling"
 const SYNCED = "mem_synced"
 const EVENTS = "mem_events"
 const ROLLED = "mem_rolled"
+const FORWARDED = "mem_forwarded"
 
 type TurnRow = { pos: number; key: string; first_seq: number | null; last_seq: number | null; at: number; at_last: number; trace: string | null }
 
 export type Compress = (prompt: string) => Promise<{ text: string } | { retryAt: number } | { error: string }>
-export type Rollup = (text: string, tainted: boolean, at: number) => Promise<void>
+export type Rollup = (text: string, tainted: boolean, at: number, span: Span) => Promise<void>
+
+export type Changes = { upto: number; deleted: string[]; edited: { messageId: string; text: string; at: number }[]; positions: number[] }
 
 export class RoomMemory {
   readonly tree: Tree
@@ -86,6 +89,42 @@ export class RoomMemory {
       }
     }
     if (newest > from) this.meta.set(EVENTS, String(newest))
+  }
+
+  /** Edits and deletes the user's memory has not heard about yet. Its own cursor, so a failed forward is retried. */
+  changes(): Changes | null {
+    const from = Number(this.meta.get(FORWARDED) ?? 0)
+    const events = this.sql
+      .exec<{ seq: number; kind: string; payload: string }>("SELECT seq, kind, payload FROM events WHERE seq > ? AND kind IN ('edit', 'delete') ORDER BY seq", from)
+      .toArray()
+    if (!events.length) return null
+    const deleted = new Set<string>()
+    const edited = new Map<string, string>()
+    for (const e of events) {
+      const body = JSON.parse(e.payload) as { messageId?: string; messageIds?: string[]; text?: string }
+      if (e.kind === "edit" && body.messageId && body.text !== undefined) edited.set(body.messageId, body.text)
+      else for (const id of body.messageIds ?? []) deleted.add(id)
+    }
+    const ids = [...new Set([...deleted, ...edited.keys()])]
+    const positions = new Set<number>()
+    for (const id of ids) {
+      const pos = this.posOfMessage(id)
+      if (pos !== null) positions.add(pos)
+    }
+    const humanAt = new Map<string, number>()
+    if (edited.size)
+      for (const r of this.sql.exec<{ id: string; at: number; sender: string }>("SELECT id, at, sender FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify([...edited.keys()])))
+        if ((JSON.parse(r.sender) as Sender).kind === "human") humanAt.set(r.id, r.at)
+    return {
+      upto: events[events.length - 1]!.seq,
+      deleted: [...deleted],
+      edited: [...edited].flatMap(([messageId, text]) => (deleted.has(messageId) || !humanAt.has(messageId) ? [] : [{ messageId, text, at: humanAt.get(messageId)! }])),
+      positions: [...positions].sort((a, b) => a - b),
+    }
+  }
+
+  forwarded(upto: number): void {
+    this.meta.set(FORWARDED, String(upto))
   }
 
   private posOfMessage(id: string): number | null {
@@ -225,7 +264,7 @@ export class RoomMemory {
     const node = this.tree.nodeFor(input, "text" in out ? out.text : this.tree.fallback(input))
     this.tree.put(span, node)
     if (rollup && span.hi - span.lo === ROLLUP_SIZE && span.lo >= Number(this.meta.get(ROLLED) ?? 0)) {
-      await rollup(node.text, node.tainted, node.to)
+      await rollup(node.text, node.tainted, node.to, span)
       this.meta.set(ROLLED, String(span.hi))
     }
     return {}
@@ -241,7 +280,7 @@ export class RoomMemory {
     if ("retryAt" in out) return { done: false, retryAt: out.retryAt }
     if ("error" in out) throw new Error(out.error)
     const items = input.items
-    await rollup(out.text, items.some((i) => i.tainted), items[items.length - 1]?.at ?? Date.now())
+    await rollup(out.text, items.some((i) => i.tainted), items[items.length - 1]?.at ?? Date.now(), input.span)
     this.meta.set(ROLLED, String(count))
     return { done: true }
   }

@@ -22,11 +22,11 @@ function room() {
     prompts.push(prompt)
     return { text: `summary ${prompts.length} ${"of what happened ".repeat(16)}`.trim() }
   }
-  const napAll = async (rollups: string[] = []) => {
+  const napAll = async (rollups: string[] = [], spans: { lo: number; hi: number }[] = []) => {
     for (;;) {
       const [span] = memory.pending(1)
       if (!span) return
-      await memory.nap(span, compress, async (text) => void rollups.push(text))
+      await memory.nap(span, compress, async (text, _tainted, _at, span) => void (rollups.push(text), spans.push(span)))
     }
   }
   return { log, memory, say, napAll, prompts, sql, now: () => clock }
@@ -132,8 +132,10 @@ test("a settled stretch of eight pages rolls up into the user's life once", asyn
   const size = ROOM_SHAPE.page * 8
   for (let i = 0; i < ROOM_SHAPE.floor + 2 * size + 8; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
   const rollups: string[] = []
-  await napAll(rollups)
+  const spans: { lo: number; hi: number }[] = []
+  await napAll(rollups, spans)
   expect(rollups).toEqual([memory.node({ lo: 0, hi: size })!.text, memory.node({ lo: size, hi: 2 * size })!.text])
+  expect(spans).toEqual([{ lo: 0, hi: size }, { lo: size, hi: 2 * size }])
   await napAll(rollups)
   expect(rollups.length).toBe(2)
 })
@@ -239,4 +241,38 @@ test("recall survives a long question and still finds a part of a word", () => {
   const question = "what's my gym locker code? ".repeat(20)
   expect(l.recall(question).map((x) => x.text)).toContain("gym locker code is 4417b")
   expect(l.recall("4417").map((x) => x.text)).toContain("gym locker code is 4417b")
+})
+
+test("changes reports deleted ids, a human's edited text, and the turns they sit in, until forwarded", () => {
+  const { log, memory, say } = room()
+  const a = say(human, "I live in Oslo")
+  const reply = say(agent("ada"), "noted", "r1")
+  const b = say(human, "my cat is Tom")
+  const c = say(human, "I work at Acme")
+  memory.sync()
+  expect(memory.changes()).toBeNull()
+  log.editMessage(b.id, "my cat is Rex")
+  log.editMessage(reply.id, "noted, Oslo")
+  log.deleteMessages([a.id], human)
+  const changes = memory.changes()!
+  expect(changes.deleted).toEqual([a.id])
+  expect(changes.edited.map(({ messageId, text }) => ({ messageId, text }))).toEqual([{ messageId: b.id, text: "my cat is Rex" }])
+  expect(changes.edited[0]!.at).toBe(log.message(b.id)!.at)
+  expect(changes.positions).toEqual([0, 1, 2])
+  expect(memory.changes()!.upto).toBe(changes.upto)
+  memory.forwarded(changes.upto)
+  expect(memory.changes()).toBeNull()
+  log.deleteMessages([c.id], human)
+  expect(memory.changes()!.deleted).toEqual([c.id])
+})
+
+test("a message edited and then deleted is only reported as deleted", () => {
+  const { log, memory, say } = room()
+  const a = say(human, "I live in Oslo")
+  memory.sync()
+  log.editMessage(a.id, "I live in Rome")
+  log.deleteMessages([a.id], human)
+  const changes = memory.changes()!
+  expect(changes.deleted).toEqual([a.id])
+  expect(changes.edited).toEqual([])
 })
