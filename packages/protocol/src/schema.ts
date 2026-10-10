@@ -113,6 +113,7 @@ export const Message = Schema.Struct({
 	goto: Schema.optionalKey(RoomId),
 	quote: Schema.optionalKey(Schema.String),
 	to: Schema.optionalKey(Schema.Union([AgentSlug, Schema.Literal("all")])),
+	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
 })
 
 export const Member = Schema.Struct({
@@ -603,3 +604,5 @@ export type InSync = Assert<
 	| Same<typeof ExtensionOp.Type, P.ExtensionOp>
 	| Same<typeof ExtensionResult.Type, P.ExtensionResult>
 >
+
+export * from "./loops"

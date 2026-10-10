@@ -6,6 +6,7 @@ export const SETTINGS_SECTIONS = [
   { id: "providers", group: "agents", label: "Providers", hint: undefined, keywords: "provider key api openai anthropic google opencode connect sign in disconnect" },
   { id: "models", group: "agents", label: "Models", hint: "The models the chat picker offers.", keywords: "model picker hide show default" },
   { id: "integrations", group: "agents", label: "Integrations", hint: "Apps your agents reach through Composio.", keywords: "composio mcp tools apps" },
+  { id: "initiative", group: "agents", label: "Initiative", hint: undefined, keywords: "initiative proactive nudge digest speak up memory capture auto always off loops" },
   { id: "extensions", group: "agents", label: "Extensions", hint: undefined, keywords: "extension plugin addon tool hook script catalog install instructions schedules" },
   { id: "skills", group: "agents", label: "Skills", hint: undefined, keywords: "skill" },
   { id: "appearance", group: "you", label: "Appearance", hint: undefined, keywords: "theme json dark light font radius spacing wallpaper background glass blur colors picture" },

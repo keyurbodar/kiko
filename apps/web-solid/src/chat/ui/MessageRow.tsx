@@ -134,6 +134,13 @@ export function MessageRow(props: {
               />
             )}
           </Show>
+          <Show when={props.message.initiative}>
+            {(reason) => (
+              <div class="px-(--bubble-pad-x) pt-1 text-sm leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]" data-component="noticed">
+                Noticed: {reason()}
+              </div>
+            )}
+          </Show>
           <Show when={hasFiles() ? props.message.files : undefined}>
             {(files) => (
               <div class={props.message.body.length > 0 ? "mb-2" : undefined}>

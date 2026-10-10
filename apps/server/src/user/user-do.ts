@@ -1,6 +1,6 @@
 import { duplicateDm, newRoomId } from "@yuki/protocol"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
-import { ClientToUser } from "@yuki/protocol/schema"
+import { ClientToUser, INITIATIVE_LEVELS, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
@@ -1370,6 +1370,40 @@ export class UserDO extends DurableObject<Env> {
       .map((r) => JSON.parse(r.body) as UserEvent)
     return { t: "events", events }
   }
+
+  // The human's own surfaces for initiative (architecture section 26): the loops list and two settings.
+
+  async loopsFor(roomId: string | null): Promise<LoopRow[]> {
+    return this.#loops.list({ owner: "human", status: ["open", "snoozed"], ...(roomId ? { room: roomId } : {}), limit: 200 }).map(loopRow)
+  }
+
+  async loopAct(id: number, action: LoopAction): Promise<boolean> {
+    if (this.#loops.get(id)?.owner !== "human") return false
+    if (action.action === "snooze") return this.#loops.snooze(id, action.until)
+    return this.loopClose(id, action.action === "done" ? "done" : "dropped")
+  }
+
+  async userSettings(): Promise<UserSettings> {
+    const level = this.setting("initiative")
+    return { initiative: (INITIATIVE_LEVELS as readonly string[]).includes(level ?? "") ? (level as UserSettings["initiative"]) : "digest", capture: this.policy().capture }
+  }
+
+  async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
+    if (patch.initiative) this.putSetting("initiative", patch.initiative)
+    if (patch.capture) {
+      let stored: Record<string, unknown> = {}
+      try {
+        const parsed: unknown = JSON.parse(this.setting(MEMORY_POLICY) ?? "{}")
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Record<string, unknown>
+      } catch {}
+      this.putSetting(MEMORY_POLICY, JSON.stringify({ ...stored, capture: patch.capture }))
+    }
+    return this.userSettings()
+  }
+}
+
+function loopRow(l: Loop): LoopRow {
+  return { id: l.id, kind: l.kind, certainty: l.certainty, owner: l.owner, room: l.room, due: l.due, status: l.status, text: l.text, snoozedUntil: l.snoozedUntil }
 }
 
 function send(ws: WebSocket, frame: UserToClient): void {

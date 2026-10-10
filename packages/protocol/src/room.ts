@@ -63,6 +63,8 @@ export type Message = {
 	quote?: string
 	/** The teammate an agent addressed with `send_message` or `ask`, or every other agent. Absent on a reply meant for the human. */
 	to?: AgentSlug | "all"
+	/** Present when the agent spoke up unasked (section 26). `reason` is the one line the bubble shows. */
+	initiative?: { reason: string }
 }
 
 export type Member = {

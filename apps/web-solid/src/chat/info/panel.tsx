@@ -11,6 +11,7 @@ import { HugeIcon } from "@yuki/ui/huge-icon"
 import { BackIcon } from "@yuki/ui/icons"
 import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers, tabKeys } from "./sections"
 import { shortDate, startedAt } from "./format"
+import { loadLoops, PlatePage, loopsOf } from "./loops"
 import { loadRoutines, RoutinesPage, routinesOf } from "./routines"
 import {
   closeFile,
@@ -67,6 +68,7 @@ const TITLES: Record<InfoView["kind"], string> = {
   agent: "Agent",
   soul: "Soul",
   routines: "Routines",
+  plate: "On your plate",
   tasks: "Tasks",
 }
 
@@ -136,6 +138,7 @@ function Home(props: { chatId: string }) {
   const started = () => startedAt(props.chatId)
   // Routines are fetched each time the front page shows, so a new one an agent made appears.
   void loadRoutines()
+  void loadLoops()
   return (
     <div class="flex min-h-full flex-col" data-component="info-home">
       <Header chatId={props.chatId} />
@@ -161,6 +164,13 @@ function Home(props: { chatId: string }) {
           )}
         </Show>
         <NavRow id="memory" label="Memory" description="Facts and preferences your agents remember." count={memoryCount()} onClick={() => pushInfo({ kind: "memory" })} />
+        <NavRow
+          id="plate"
+          label="On your plate"
+          description="Goals, plans and deadlines you mentioned here, and what your agents promised."
+          count={count(loopsOf(props.chatId)?.length ?? 0)}
+          onClick={() => pushInfo({ kind: "plate" })}
+        />
         <NavRow
           id="routines"
           label="Routines"
@@ -413,6 +423,9 @@ export default function InfoPanel(props: { chatId: string }) {
               </Match>
               <Match when={view().kind === "routines"}>
                 <RoutinesPage chatId={props.chatId} />
+              </Match>
+              <Match when={view().kind === "plate"}>
+                <PlatePage chatId={props.chatId} />
               </Match>
               <Match when={view().kind === "soul"}>
                 <SoulCard slug={(view() as { slug: string }).slug} />
