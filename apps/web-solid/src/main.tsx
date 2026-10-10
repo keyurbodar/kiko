@@ -30,6 +30,7 @@ function Root(props: ParentProps) {
       // The saved theme loads after the first paint. The shell script painted from the cache.
       const id = s.user.id;
       setTimeout(() => void import("./theme/live").then((m) => m.startTheme(id)), 0);
+      setTimeout(() => void import("./settings/timezone").then((m) => m.syncTimeZone()), 2000);
     } else if (s.status === "signed-out") {
       useApp.stop();
       void import("./theme/live").then((m) => m.forgetTheme());
