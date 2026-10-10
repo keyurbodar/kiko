@@ -111,38 +111,6 @@ export type UserSnapshot = {
 	proposals?: readonly ExtensionProposal[]
 }
 
-/**
- * A user's Executor Cloud connection as the client may see it. Architecture section 12.1.
- * It never holds a token or a key.
- */
-export type ExecutorStatus = {
-	connected: boolean
-	kind: "oauth" | "api_key" | null
-	/** A sign-in was started and its callback has not arrived yet. */
-	pending: boolean
-	/** Epoch milliseconds when the access token expires. Null when unknown. */
-	expiresAt: number | null
-	/** Epoch milliseconds when the access token was issued or last refreshed. Null when unknown. */
-	issuedAt: number | null
-	/** True when a refresh token is stored. */
-	refreshable: boolean
-	/** The Executor organization the connection belongs to. Absent until the server reports it. */
-	organization?: string
-	/** How many sealed Executor rows the user has. Zero after a disconnect. */
-	rows: number
-}
-
-export type ExecutorResult =
-	| {
-			ok: true
-			status: ExecutorStatus
-			/** After `connectExecutor` without a key: open this to sign in at Executor. */
-			authorizeUrl?: string
-			/** After `executorStatus` with `tools`: the names `tools/list` returned. */
-			tools?: readonly string[]
-	  }
-	| { ok: false; error: string }
-
 /** A user's Composio connection as the client may see it. It never holds the key. */
 export type ComposioStatus = {
 	connected: boolean
@@ -170,12 +138,6 @@ export type ClientToUser =
 	| { t: "theme"; theme: string | null }
 	/** Searches chat titles. Message text is searched per room. */
 	| { t: "search"; query: string }
-	/** Starts the Executor sign-in, or stores a pasted Executor API key. */
-	| { t: "connectExecutor"; reqId: string; apiKey?: string }
-	/** Deletes every Executor row for the user. */
-	| { t: "disconnectExecutor"; reqId: string }
-	/** `refresh` forces a token refresh. `tools` calls `tools/list` with the stored credential. */
-	| { t: "executorStatus"; reqId: string; refresh?: boolean; tools?: boolean }
 	/** Stores a pasted Composio consumer key once `tools/list` accepts it. */
 	| { t: "connectComposio"; reqId: string; apiKey: string }
 	/** Deletes every Composio row for the user. */
@@ -201,11 +163,6 @@ export type UserToClient =
 	| { t: "memory_result"; reqId: string; result: MemoryResult }
 	/** Not stored. The answer to `search` for one socket, best match first. */
 	| { t: "search"; query: string; chats: readonly Chat[] }
-	/**
-	 * The answer to one Executor request, sent only to the socket that asked. Without
-	 * `reqId` it goes to every socket, when a sign-in finishes in the browser.
-	 */
-	| { t: "executor"; reqId?: string; result: ExecutorResult }
 	/**
 	 * The answer to one Composio request. Without `reqId` it goes to the user's other sockets,
 	 * after a connect or a disconnect.

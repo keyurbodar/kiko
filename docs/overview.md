@@ -53,7 +53,7 @@ The plan has 104 tasks in 10 phases and 11 waves. One task is one agent session.
 | 4 | each user's own providers and models |
 | 5 | memory, reminders, and skills |
 | 6 | agent teams and the board |
-| 7 | prompt injection defense and Executor integrations |
+| 7 | prompt injection defense and integrations (Composio since phase 14) |
 | 8 | files (media and link previews removed on 2026-10-09) |
 | 9 | limits, CI gates, measured cost, and the deploy |
 

@@ -88,7 +88,7 @@ AgentDO  agent:<userId>:<roomId>:<slug>   pi-durable harness, inbox, private not
 
 | Class | One per | Owns | WebSockets |
 | --- | --- | --- | --- |
-| `UserDO` | user | encrypted credentials, provider settings, the life log, reminders, chat index, skills, limits, Executor tokens | yes, hibernatable |
+| `UserDO` | user | encrypted credentials, provider settings, the life log, reminders, chat index, skills, limits, the sealed Composio key | yes, hibernatable |
 | `RoomDO` | chat | message log, reactions, members, pending human burst, loop counters, task board, the memory tree, file index | yes, hibernatable |
 | `AgentDO` | agent in a chat | the `pi-durable` storage for that agent, inbox, private notes | no |
 
@@ -419,7 +419,7 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 
 **Decision.** Agents share one chat and one file space, so without a shared picture they race: two answer the same question, two rewrite the same file. The room is where every visible act passes, so it keeps the picture (`room/team.ts`).
 
-- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using gmail (connected apps)", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Executor and other integrations, web pages, subagents, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
+- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using gmail (connected apps)", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Composio, web pages, subagents, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
 - **Leases.** The paths an agent changes during a run are its own until the run ends. A teammate's write, move, or delete there is refused with who holds it, so it waits or messages them. Reads stay open, the human is never refused, `/chat.md` is shared, and a lease from a run that never ended expires after 10 minutes.
 - **The rule.** Every agent looks before it acts: if a teammate is on it or just did it, it adds only what is missing or leaves it.
 
@@ -454,7 +454,7 @@ The client holds one WebSocket to `UserDO` and one to the `RoomDO` of the visibl
 
 - The user socket carries the chat list, unread counts, reminders, provider sign-in prompts, and settings changes.
 - The room socket carries messages, reactions, typing, drafts, agent status, the task board, and the file index.
-- The user socket is one socket for the whole app. The user store owns it, and the saved look, memory, and Executor send and listen through `sync/user-channel.ts` (`send`, `on(t, fn)`, `onOpen`). The user store keeps the server's look and whether its first catch-up arrived, so the look, which loads after first paint, misses nothing.
+- The user socket is one socket for the whole app. The user store owns it, and the saved look, memory, and Composio send and listen through `sync/user-channel.ts` (`send`, `on(t, fn)`, `onOpen`). The user store keeps the server's look and whether its first catch-up arrived, so the look, which loads after first paint, misses nothing.
 
 **Reasoning.** A direct socket to the room avoids a relay hop on the hot path. A relay through `UserDO` would cost one billed request per forwarded event. A hibernated socket costs nothing, so an always-on user socket is free while idle. Intent-based preloading may open the socket of the chat under the pointer and close it if the user does not navigate.
 
@@ -618,99 +618,56 @@ Providers and models are one settings page, `/settings/models`. Connected provid
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers` (see [research/experiment-1-durable-in-do.md](research/experiment-1-durable-in-do.md)). Since P4-02 the Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
 
-## 12. Executor integration and code mode
+## 12. Composio integration
 
-Facts are in [research/executor-v2.md](research/executor-v2.md), and v1's in [research/executor.md](research/executor.md). Yuki uses Executor Cloud v2 at `v2.executor.sh`. Executor runs there, never inside yuki: v2's tool runner needs Worker Loader, which the Free plan lacks, its embeddable SDK is unpublished, and its storage is Postgres.
+**Decision.** Composio is yuki's one integration. Each user brings their own Composio consumer key (`ck_...`). Yuki sends it as a bearer token to Composio's hosted MCP server at `https://connect.composio.dev/mcp`, and every agent of that user gets the tools it lists. All Composio code sits in `apps/server/src/integrations/composio/`.
+
+Executor Cloud was the integration until phase 14 and was removed on 2026-10-10: Composio's workbench covers code over the user's apps, and one integration path is simpler than two. Its research stays in [research/executor-v2.md](research/executor-v2.md) as history.
+
+**Reasons.**
+
+- The server is stateless: no session id, and `tools/list` and `tools/call` work with a bare POST. There is nothing to warm and nothing to lose when `UserDO` is evicted.
+- Tools are typed, and `COMPOSIO_MULTI_EXECUTE_TOOL` runs several in parallel.
+- Connections live in the user's own Composio account. Yuki never holds an app token.
 
 ### 12.1 Connecting
 
-A user connects an Executor Cloud account in settings. `UserDO` stores the tokens with the same encryption as provider credentials.
-
-- The first choice is OAuth with PKCE against `https://v2.executor.sh/api/auth`, with dynamic client registration and the scopes `mcp offline_access`. `pi-mcp` implements this flow, and yuki supplies the `McpOAuthStateStore` over `UserDO`.
-- The fallback is a personal API key that the user pastes (`exp_...`).
-- v2's sign-in server accepts a dynamic registration with yuki's localhost redirect URI and sends the browser on to its sign-in page (`bun yuki verify executor-connect`, part one, 2026-10-06). UNVERIFIED: that consent returns a refresh token. Part two of the suite tests it with a signed-in human.
-- `UserDO` keeps the pi-mcp OAuth state and tokens in `executor_secrets`, one sealed row per name, and runs every exchange and refresh itself. Disconnect deletes every row in one transaction. A refresh still in flight at that moment stores nothing.
-- The callback is `/api/integrations/executor/callback`. The session names the user, and the stored `state` ties the code to the sign-in. The redirect URI is built from the origin the user socket came through.
+A user pastes the key in settings. `UserDO` checks it with `tools/list` and stores it only when Composio accepts it, sealed with the same keyring as provider credentials and AAD `composio/key`. The key never goes to the client or a log. Users never cross. Disconnect deletes every Composio row. Apps are connected in the user's Composio account, or through `COMPOSIO_MANAGE_CONNECTIONS`, which returns a link the agent passes on; the agent never asks for a secret.
 
 ### 12.2 Nothing hardcoded
 
-At the start of a run, `AgentDO` asks `UserDO` for the tools `https://v2.executor.sh/mcp` lists over streamable HTTP, and registers each one, prefixed `executor_`. Today v2 lists `execute`, `resume`, and `skills`. Yuki holds no schema for them, and a tool that Executor adds upstream appears in the next run.
+At the start of a run, `AgentDO` asks `UserDO` for the tools Composio lists and registers each one, prefixed `composio_`. Yuki holds no schema for them, and a tool Composio adds upstream appears in the next run. `UserDO` serves the saved listing at once from a cold object and refreshes it behind the run. When Composio is unreachable, the run goes on without its tools and the agent is told so in one line.
 
-The URL carries no query options. v2's default `elicitation_mode` is `model`, which is the one yuki needs: `pi-mcp` does not support MCP elicitation, and `browser` mode would send the human to Executor's own approval page.
+**Hidden tools.** Yuki does not register `COMPOSIO_REMOTE_BASH_TOOL` (the workbench covers it), `COMPOSIO_SUBMIT_FEEDBACK`, `COMPOSIO_MANAGE_SKILL`, `COMPOSIO_SEARCH_SKILLS`, and `COMPOSIO_USE_SKILL` (yuki has its own skills). The set is one small table with a reason per entry (`integrations/composio/tools.ts`).
 
-**What every agent knows before its first call.** An agent that learned a user's apps by reading Executor's guides and searching spent most of a task on it, and repeated it in every new chat. So `UserDO` learns them once and every agent starts with them (`integrations/executor/catalog.ts`).
-
-- One program run through `execute` lists every app's exact path, account ids, and input signatures. `execute`'s description carries them, and `skills` is left out once it does.
-- Each app is a handle in the agent's program, `github.list_commits({ owner, repo })`. Yuki defines the handles a program names in one line before it; a handle fills in the account, wraps the fields in `input`, and parses the result.
-- Executor publishes no output formats, so an agent new to a tool returned raw results only to see their shape, one more call and one more turn. The handles record the shape of each result they return; yuki takes the shapes out before the model reads the result and adds them to the listing, so every later agent knows what each tool returns.
-- `UserDO` keeps one MCP session for every call, and keeps the listing in the sealed Executor rows. It serves the saved listing at once and loads a new one behind the run after ten minutes, or right after a program used Executor's own app. Connecting loads both the listing and the app index.
-- Executor's catalog of apps it can add is 5,562 entries and 2 MB. `UserDO` reads it in pages into a compact index once a day, and the `executor_find_apps` tool ranks it in place, in milliseconds.
-
-DEVIATION from "nothing hardcoded": the index program and `execute`'s description name Executor's own tools (`organization.catalog`, `apps.install`, `apps.importCustom`, `profiles.create`, `accounts.connect`). Without them an agent probed input shapes until one passed, 14 programs for one request, and a search of the catalog inside Executor took 10 s. Every name is checked against the listing before it is used, so an upstream rename removes a hint and does not break a call.
+**Learned direct tools.** A Composio tool that ran successfully through `COMPOSIO_MULTI_EXECUTE_TOOL` is kept with its published input schema in `UserDO`, at most 24, most recent first. Disconnect clears them. Later runs offer each one as a typed tool, `composio_<slug>`, that runs as a one-item multi-execute, so a repeat request skips `COMPOSIO_SEARCH_TOOLS` and its extra model turn. Composio's search description says to always search first, so when learned tools exist, yuki prefixes it with a line naming them. Measured 2026-10-10 with Muse Spark 1.3: a repeat web search chat took 6.5 to 7.3 s, against 10.2 to 10.6 s with search.
 
 ### 12.3 Approvals
 
-v2 pauses a program for the human and returns JSON: `{status: "approval-required" | "input-required", requestId, elicitation, expiresAt}`. The model could answer with `resume` itself. Yuki stops that.
+A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. Learned tools and a `COMPOSIO_MULTI_EXECUTE_TOOL` call are `external` as a whole, even when they only read. Section 16.3 gates `external` tools.
 
-1. The Executor extension sees the pause in a tool result and asks `RoomDO` to post a pause card. The card shows the elicitation's message and lasts until `expiresAt`, 15 minutes in v2.
-2. A model call to `executor_resume` runs only against a card the human accepted.
-3. Yuki writes the `response` itself. Consent to a call (`apr_` ids) is sent with empty content, so a model cannot change approved arguments through it. A form question (`elc_` ids) passes the fields the human gave in the chat. ASSUMPTION: the agent relays those fields; the card has no form.
-4. A pause that comes back from `resume` posts a new card.
-
-v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only from that session (research section 4). `ExecutorConnection` keeps that session open, keyed by `requestId`, until the program is resumed or expires, at most 20 per user. Every other call opens and closes its own session. If `UserDO` is evicted or Executor restarts, the session is gone and `resume` returns `unavailable`; the agent tells the human, and never runs the program again.
-
-A human who declines does not call `resume`, so the program waits until Executor lets it go.
-
-**One ok per task, not per step.** In code mode a task is many `execute` calls, each with new code. yuki's own card (section 25.3) is a 30-minute grant for that agent over every `external` tool, so one ok covers the task. A run the human started needs no yuki card at all. Executor's own approvals still stop every action an app marks for a person, and `resume` answers only to its own pause card, bound to the `requestId`, never to a grant (`room/approvals.ts`).
+Yuki's card (section 25.3) is a 30-minute grant for that agent over every `external` tool, so one ok covers a task of many calls. A run the human started needs no card at all. A card is bound to the agent that asked; no method an agent can reach changes its state (`room/approvals.ts`).
 
 The card above the composer shows only while it waits, as one line: "yuki wants to act outside yuki for 30 minutes, starting with your connected apps", with the raw call behind "details". A yes covers every outside tool for that agent, so the line says so.
 
-This gate is the only Executor-specific code in yuki. It keys on the tool name `resume` and on the paused result shape (`integrations/executor/approval.ts`).
-
 ### 12.4 Code mode
 
-**Decision.** Yuki does not build or host a code-mode runtime. It uses Executor's `execute` tool, which runs model-written JavaScript over all of a user's apps in Executor's own interpreter.
+**Decision.** Yuki does not build or host a code-mode runtime. `COMPOSIO_REMOTE_WORKBENCH` is Composio's code mode: it runs model-written code over the user's apps on Composio's side.
 
 **Reasoning.**
 
 - `pi-codemode` runs QuickJS inside a Node `worker_threads` worker and reads the wasm file with `node:fs`. It does not run on Workers as shipped.
 - Cloudflare's Dynamic Workers would give a sandbox without containers, but the `worker_loaders` binding is on the Paid plan only. The spec targets the Free plan.
-- Executor's `execute` searches, describes, and calls tools inside Executor. Yuki gets code mode without running any model-written code.
 - Code mode pays off when a task chains many tool calls and the intermediate results are large. That is the integration case. Yuki's own tools (memory, reminders, tasks) take one call each and gain nothing from it.
-
-v2 dropped v1's `passthrough` mode, so code mode is the only mode.
 
 User extensions (section 24) do run QuickJS inside the agent's object, through `quickjs-wasi` imported as a compiled wasm module. That is a sandbox for small, declared extension functions, not a code-mode runtime for the model, so this decision stands.
 
-### 12.5 What v2 brings through `execute`
-
-Apps (imported MCP, OpenAPI, and GraphQL servers, and apps the user writes), accounts, profiles, skills, schedules, webhooks, and workflows all live in Executor. An agent reaches them through `execute` and reads app instructions through `skills`. Connecting an account to an app happens in the user's browser at a link Executor returns; the agent passes the link on and never asks for a secret.
-
-### 12.6 Risks
-
-v2 is a beta (`2.0.0-beta.8`), separate from v1: a v1 account and its integrations do not carry over. Its MCP contract is documented in `apps/docs/content/mcp.md` but may change between betas. All Executor code sits in one module, and `bun yuki verify executor-connect` checks the sign-in against the real server. The license is MIT.
-
-### 12.7 Composio is tier 1
-
-**Decision.** Each user brings their own Composio consumer key (`ck_...`). Yuki sends it as a bearer token to Composio's hosted MCP server at `https://connect.composio.dev/mcp`. When a user has a key, Composio's tools replace Executor's for that user's agents, and `AgentDO` passes no Executor tools and skips the Executor warm-up. Executor stays for users without a key, until a review decides to delete it.
-
-**Reasons.**
-
-- The server is stateless: no session id, and `tools/list` and `tools/call` work with a bare POST. There is nothing to warm and nothing to lose when `UserDO` is evicted. Executor's paused programs and session cache (section 12.3) have no counterpart.
-- Tools are typed, and `COMPOSIO_MULTI_EXECUTE_TOOL` runs several in parallel. `COMPOSIO_REMOTE_WORKBENCH` is Composio's code mode, so section 12.4 still holds: yuki runs no model-written code.
-- Connections live in the user's own Composio account. Yuki holds the key, sealed in `UserDO` with AAD `composio/key`, and never an app token. The key never goes to the client or a log. Users never cross.
-
-**Effects.** A tool is `read` when its `readOnlyHint` is true, and `external` otherwise. `read` tools replay safely. `external` tools do not. Section 16.3 gates them.
-
-**Hidden tools.** Yuki does not register `COMPOSIO_REMOTE_BASH_TOOL` (the workbench covers it), `COMPOSIO_SUBMIT_FEEDBACK`, `COMPOSIO_MANAGE_SKILL`, `COMPOSIO_SEARCH_SKILLS`, and `COMPOSIO_USE_SKILL` (yuki has its own skills). The set is one small table with a reason per entry.
-
-**Risks.**
+### 12.5 Risks
 
 - Composio keeps tool payloads for up to a year. The owner accepted this on 2026-10-10.
-- A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A tainted run needs a card for reads through it too. UNVERIFIED: that every app tool run through it honors read-only intent. It is classed `external` for that reason.
-- The MCP contract is Composio's and may change. All Composio code sits in `integrations/composio/`, and `bun yuki verify composio` checks it against the real server.
-
-**Learned direct tools.** A Composio tool that ran successfully through `COMPOSIO_MULTI_EXECUTE_TOOL` is kept with its published input schema in `UserDO`, at most 24, most recent first. Disconnect clears them. Later runs offer each one as a typed tool, `composio_<slug>`, that runs as a one-item multi-execute, so a repeat request skips `COMPOSIO_SEARCH_TOOLS` and its extra model turn. Composio's search description says to always search first, so when learned tools exist, yuki prefixes it with a line naming them. Learned tools are `external`. Measured 2026-10-10 with Muse Spark 1.3: a repeat web search chat took 6.5 to 7.3 s, against 10.2 to 10.6 s with search.
+- UNVERIFIED: that every app tool run through `COMPOSIO_MULTI_EXECUTE_TOOL` honors read-only intent. It is classed `external` for that reason, so a run nobody asked for needs a card for reads through it too.
+- Composio does not pause a call for a person. Yuki's card and the taint rules of section 16.3 are the only gate.
+- The MCP contract is Composio's and may change. `bun yuki verify composio` checks it against the real server.
 
 ## 13. Memory
 
@@ -762,7 +719,7 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 
 Yuki follows OptMem's own loop: wake from memory once, then work in an ordinary transcript.
 
-1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `packages/agent/src/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task with Executor started over at every step, because Executor's guides alone pass the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `packages/agent/src/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
+1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `packages/agent/src/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task started over at every step, because the integration's guides alone passed the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `packages/agent/src/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
 2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own. It also leaves out the messages that joined the last run while it was live, as a steer or a queued input: the host keeps their seqs (`memory:joined`) until the next run starts. Before this, they came back in the next delta, so the agent read them twice. A turn there is cut at 300 characters, as before, and now says so and how to zoom for the rest.
 
 **Before the first token.** A run makes one call to `UserDO`: `turnContext(provider, slug)` brings the auth, the agent's extension versions, and its soul. The extension sync does nothing when the versions match what the process synced last. The room computes the delta at the same time (`prefetchDelta` in `agent/agent-do.ts`); a run that turns out fresh drops it. The soul, `/chat.md`, and the skills list in the system prompt are read once per run (`perRun` in `agent/extensions/self.ts`), not before every model request, and `/chat.md` comes through the byte cache. A change to any of them reaches the next run. Built-in skills are parsed once per isolate.
@@ -843,7 +800,7 @@ The design assumes that a model can be fooled. Marking content lowers the odds. 
 | --- | --- | --- |
 | human | the room WebSocket, authenticated | may instruct |
 | agent | another member, through the room | may request. Cannot change instructions, role, or tools |
-| untrusted | web pages, files, tool results, Executor and MCP results | data only |
+| untrusted | web pages, files, tool results, Composio and MCP results | data only |
 
 ### 16.2 Marking
 
@@ -864,13 +821,12 @@ Every tool declares one effect.
 | `read` | `recall`, `zoom`, `read`, `ls`, `team` | allowed |
 | `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
-| `external` | Executor `execute` and `invoke`, Composio tools without `readOnlyHint` | decided by who started the run, not by taint (section 25.3) |
+| `external` | Composio tools without `readOnlyHint`, learned Composio tools, `COMPOSIO_MULTI_EXECUTE_TOOL` | decided by who started the run, not by taint (section 25.3) |
 
 The `beforeTool` hook enforces the table.
 
-DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Executor results are outside content, so the second step of any task asked the human, and reading the agent's own files did too. yuki now asks only when it matters: a run the human started acts outside yuki without a yuki card, tainted or not. The risk: an injected page could steer a send that Executor does not pause for. What still holds:
+DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Integration results are outside content, so the second step of any task asked the human, and reading the agent's own files did too. yuki now asks only when it matters: a run the human started acts outside yuki without a yuki card, tainted or not. The risk: an injected page could steer a send, and Composio does not pause for a person (section 12.5). What still holds:
 
-- Executor's own pause stops every action an app marks for a person (section 12.3).
 - Taint still flags what the run stores and sends, and a flagged line reaches later prompts only marked `[outside]`.
 - Section 16.4: yuki itself fetches no URL an agent wrote.
 - A tainted run cannot write `/me/soul.md`, `skills/`, or `extensions/`, which reach every later system prompt. `RoomFs` refuses it with one line that says the human can ask for the change.
@@ -1002,7 +958,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 ## 18. Files and attachments
 
 
-**Big tool output.** pi-durable keeps a tool result to 50 KB and cuts at the last line break that fits, so a large one-line JSON document came back as its first line and nothing else. A `web_fetch` or Executor result over 40 KB is saved whole at `/downloads/<name>-<hash>.<ext>`, with JSON pretty-printed and JSON inside its strings opened, and the agent gets its first 8 KB and the path to search with `bash` or `read` (`agent/extensions/spill.ts`). The same content lands at the same path once. `read` and `bash` results are outside content, so a later run that reads the file is tainted as before.
+**Big tool output.** pi-durable keeps a tool result to 50 KB and cuts at the last line break that fits, so a large one-line JSON document came back as its first line and nothing else. A `web_fetch` or Composio result over 40 KB is saved whole at `/downloads/<name>-<hash>.<ext>`, with JSON pretty-printed and JSON inside its strings opened, and the agent gets its first 8 KB and the path to search with `bash` or `read` (`agent/extensions/spill.ts`). The same content lands at the same path once. `read` and `bash` results are outside content, so a later run that reads the file is tainted as before.
 ### 18.1 Files
 
 - R2 holds bytes. The key is `u/<userId>/r/<roomId>/<fileId>`.
@@ -1094,7 +1050,7 @@ The safe fetcher the previews used stays for `web_fetch` and watch routines (`li
 
 UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The fetcher validates on its own and does not rely on the platform.
 
-The same fetcher backs a `web_fetch(url)` tool, which returns page text as untrusted content. Web search has no free provider, so it comes from the user's Executor integrations or from a model's own search feature.
+The same fetcher backs a `web_fetch(url)` tool, which returns page text as untrusted content. Web search has no free provider, so it comes from the user's Composio apps or from a model's own search feature.
 
 ## 19. Frontend
 
@@ -1504,7 +1460,7 @@ type Origin = "human" | "routine" | "auto"
 
 | Run | external tool |
 | --- | --- |
-| started by the human (`human`), tainted or not | runs. Executor's own pause still stops every action an app marks for a person |
+| started by the human (`human`), tainted or not | runs |
 | a routine (`routine`) | granted tools run, tainted or not, when the routine was made by a clean run. Others post a card |
 | nobody asked (`auto`) | a card, unless the human accepted one for this agent in the last 30 minutes |
 
@@ -1555,7 +1511,7 @@ Yuki is the chief (section 7.11), the role Grok gives its Main Bot.
 - `UserDO.ensureHome` gives every user one routine for yuki in the yuki chat, `check-in`, daily at 08:30 in the user's zone. The human can pause, move, or cancel it; a cancelled one is never made again.
 - Its instructions: call `overview`, decide whether anything needs the human today, and either send one short message with at most three things yuki could take off their plate, or answer `[skip]` when nothing is new or the same offer was ignored before.
 - `overview` (yuki only, read) asks `UserDO.overview`: the newest chats with unread counts and open tasks, stale tasks, routines and their last runs, and reminders due in a day, in a few hundred characters.
-- The run's origin is `routine` with no grant, so the check-in reads freely (read-only Executor tools included, section 12) and asks before anything outside yuki. `overview`'s result counts as outside content, since its previews quote other chats.
+- The run's origin is `routine` with no grant, so the check-in reads freely (read-only Composio tools included, section 12) and asks before anything outside yuki. `overview`'s result counts as outside content, since its previews quote other chats.
 - **No change, no model call.** Before a scheduled check-in, `UserDO` compares a fingerprint of what it reads (each chat's sequence and unread count, the open tasks, each routine's status and last run, the reminders, leaving out the yuki chat and the check-in itself) with the one from its last delivered run. Equal means the run is recorded `quiet` without a delivery. "Run now" always runs.
 
 DEVIATION from the first plan: no separate research subagent, no private notes table, and no suggestion cards. One run of yuki with the overview does what dots' background research does for yuki's own data, at half the model calls, and the human answers a suggestion by replying. Learning when to ping lives in yuki's soul (section 7.10) and in the "ignored before" rule.

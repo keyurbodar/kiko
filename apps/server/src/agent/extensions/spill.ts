@@ -1,7 +1,7 @@
 import type { RoomFs } from "../../files/room-fs"
 
 // Big tool output. pi-durable keeps a result to 50 KB and cuts at the last line break that fits, so
-// a large single-line JSON document (an OpenAPI spec, an Executor search) came back as its first
+// a large single-line JSON document (an OpenAPI spec, a connected app's listing) came back as its first
 // line and nothing else, and the agent fetched it again and again. A result over `SPILL_BYTES` is
 // saved whole in the chat's files, as lines a model can search, and the agent gets its start and
 // the path. `read` and `bash` results are outside content, so reading the file later still taints.
@@ -24,7 +24,7 @@ function parsed(value: string): unknown {
   }
 }
 
-/** Strings that hold JSON, opened in place: Executor returns a program's value as a JSON string. */
+/** Strings that hold JSON, opened in place: a tool may return a program's value as a JSON string. */
 const opened = (value: unknown): unknown =>
   typeof value === "string" ? (parsed(value) === value ? value : opened(parsed(value))) : Array.isArray(value) ? value.map(opened) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, opened(v)])) : value
 

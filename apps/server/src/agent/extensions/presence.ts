@@ -1,7 +1,7 @@
 import { defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
 
 // Architecture section 7.12. The room sees file changes and messages itself; everything else an
-// agent does happens inside it: integrations through Executor, web pages, subagents, reminders.
+// agent does happens inside it: connected apps through Composio, web pages, subagents, reminders.
 // This hook tells the room what each tool call is about, in a few plain words, so teammates and
 // the human see it on the team board. It never blocks or delays a call. Memory stays silent.
 
@@ -29,8 +29,6 @@ const COMPOSIO_CALLS: Record<string, string> = {
 /** What a call is about, or null when it says nothing a teammate needs. */
 export function describeCall(name: string, args: Record<string, unknown>): string | null {
   if (name.startsWith("memory_") || name === "read_skill") return null
-  if (name === "executor_execute") return "running code on the human's connected apps"
-  if (name.startsWith("executor_")) return `using ${name.slice("executor_".length).replace(/_/g, " ")} (connected apps)`
   if (name in COMPOSIO_CALLS) return COMPOSIO_CALLS[name]!
   if (name.startsWith("composio_")) return `using ${name.slice("composio_".length).replace(/_/g, " ")} (connected apps)`
   switch (name) {

@@ -18,7 +18,7 @@ describe("settings sections", () => {
 
   test("search ignores case, so a sentence-case label still matches", () => {
     expect(searchSections("models").map((s) => s.id)).toEqual(["models"])
-    expect(searchSections("Executor").map((s) => s.id)).toEqual(["integrations"])
+    expect(searchSections("Composio").map((s) => s.id)).toEqual(["integrations"])
     expect(searchSections("APPEARANCE").map((s) => s.id)).toEqual(["appearance"])
   })
 })

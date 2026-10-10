@@ -1,6 +1,8 @@
 # Phase 14. Composio as the tier 1 integration
 
-The owner asked for this on 2026-10-10. Each user brings a Composio consumer key, and Composio's hosted MCP server replaces Executor for that user's agents. Architecture section 12.7 has the decision and the reasons.
+The owner asked for this on 2026-10-10. Each user brings a Composio consumer key, and Composio's hosted MCP server replaces Executor for that user's agents. Architecture section 12 has the decision and the reasons.
+
+Executor was removed from yuki on 2026-10-10, after this task shipped. Composio's workbench runs code over the user's apps and its proxy execution reaches an app's API where no tool covers it, so Executor added nothing Composio lacks, and one integration path is simpler to keep correct than two. The removal deleted the Executor module, its routes, frames, settings block, CLI command, suites, and pause cards, and `UserDO` now drops the old `executor_secrets` table on start. UNVERIFIED: that proxy execution is offered in the tool listing yuki receives.
 
 ## Tasks
 
@@ -18,6 +20,6 @@ The owner asked for this on 2026-10-10. Each user brings a Composio consumer key
 
 - `client.ts` speaks JSON-RPC to `https://connect.composio.dev/mcp` with a bare POST. The server keeps no session.
 - `store.ts` seals the key in `UserDO` and caches the last tool listing.
-- `tools.ts` registers each listed tool as `composio_<name>`. Effect comes from `readOnlyHint`. Five tools stay hidden (architecture section 12.7).
+- `tools.ts` registers each listed tool as `composio_<name>`. Effect comes from `readOnlyHint`. Five tools stay hidden (architecture section 12.2).
 - `AgentDO` asks `UserDO` for Composio tools. When there are some, it passes no Executor tools and skips the Executor warm-up.
 - The settings page connects and disconnects. The key never goes back to the client.

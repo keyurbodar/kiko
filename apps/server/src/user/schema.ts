@@ -31,6 +31,8 @@ const TABLES = [
 
 export function migrate(sql: SqlStorage): void {
   for (const statement of TABLES) sql.exec(statement)
+  // Executor was removed. Its sealed tokens must not outlive it.
+  sql.exec("DROP TABLE IF EXISTS executor_secrets")
   const columns = sql.exec<{ name: string }>("PRAGMA table_info(chats)").toArray()
   if (!columns.some((c) => c.name === "agents")) sql.exec("ALTER TABLE chats ADD COLUMN agents TEXT NOT NULL DEFAULT '[]'")
   if (!columns.some((c) => c.name === "private")) sql.exec("ALTER TABLE chats ADD COLUMN private INTEGER NOT NULL DEFAULT 0")

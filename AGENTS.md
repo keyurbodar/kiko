@@ -47,7 +47,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not let anything but the human's socket install an extension.** Agents and the catalog only propose.
 - **Do not import `apps/` or `@yuki/protocol` from `packages/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
 - **Do not import Effect, CodeMirror, or a markdown parser into client tiers 1 to 3.** The budget script fails the build.
-- **Do not add a model list, a provider adapter, or an Executor tool name.** Those come from `pi-ai` and from Executor at run time.
+- **Do not add a model list, a provider adapter, or a Composio tool name.** Those come from `pi-ai` and from Composio at run time.
 - **Do not commit a secret.** Keys live in `.dev.vars` and in CI secrets. `OPENCODE_API_KEY` is read from the environment.
 - **Do not build** notifications, share links, a terminal, a browser panel, or anything on Convex.
 

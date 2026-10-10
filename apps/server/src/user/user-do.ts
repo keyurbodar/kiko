@@ -1,14 +1,11 @@
 import { duplicateDm, newRoomId } from "@yuki/protocol"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, ExecutorResult, ExecutorStatus, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
 import { ClientToUser } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
 import type { Env } from "../index"
-import { type CallbackParams, errorText, ExecutorConnection, ExecutorError } from "../integrations/executor/connect"
-import { ExecutorTokenStore } from "../integrations/executor/token-store"
 import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, takeTurn, type TurnAnswer, utcDay } from "./limits"
-import type { ExecutorTool } from "../integrations/executor/tools"
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
@@ -54,7 +51,7 @@ declare const process: { env: { NODE_ENV?: string } }
 
 const REPLAY_LIMIT = 500
 
-type Attachment = { ready: boolean; helloBy?: number; origin?: string }
+type Attachment = { ready: boolean; helloBy?: number }
 
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
@@ -744,83 +741,6 @@ export class UserDO extends DurableObject<Env> {
     return this.#vault
   }
 
-  async finishExecutor(params: CallbackParams): Promise<ExecutorResult> {
-    const result = await this.executorResult(async () => ({ status: await this.#executor.finish(params) }))
-    this.broadcast({ t: "executor", result })
-    // The listing and the app index load now, so the first chat that uses Executor waits for neither.
-    if (result.ok) this.ctx.waitUntil(this.#executor.tools().catch(() => undefined))
-    return result
-  }
-
-  async executorTools(): Promise<ExecutorTool[] | null> {
-    if (!(await this.#executor.status()).connected) return null
-    return this.#executor.tools()
-  }
-
-  async executorCall(name: string, args: Record<string, unknown>) {
-    return this.#executor.call(name, args)
-  }
-
-  async executorBench(): Promise<Record<string, unknown>> {
-    return this.#executor.bench()
-  }
-
-  async executorWarm(now = Date.now()): Promise<void> {
-    if ((await this.#executor.status()).connected) await this.#executor.warm(now).catch(() => undefined)
-  }
-
-  async executorFindApps(query: string, limit?: number) {
-    return this.#executor.findApps(query, limit)
-  }
-
-  async executorToken(): Promise<string | null> {
-    return this.#executor.bearer()
-  }
-
-  #executorConnection?: ExecutorConnection
-  get #executor(): ExecutorConnection {
-    this.#executorConnection ??= new ExecutorConnection(
-      new ExecutorTokenStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), (fn) =>
-        this.ctx.storage.transactionSync(fn),
-      ),
-    )
-    return this.#executorConnection
-  }
-
-  private async executorResult(
-    run: () => Promise<{ status?: ExecutorStatus; authorizeUrl?: string; tools?: string[] }>,
-  ): Promise<ExecutorResult> {
-    try {
-      const { status, ...rest } = await run()
-      return { ok: true, status: status ?? (await this.#executor.status()), ...rest }
-    } catch (e) {
-      return { ok: false, error: errorText(e) }
-    }
-  }
-
-  private async executorFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectExecutor" | "disconnectExecutor" | "executorStatus" }>) {
-    const executor = this.#executor
-    const result = await this.executorResult(async () => {
-      if (frame.t === "disconnectExecutor") {
-        executor.disconnect()
-        return {}
-      }
-      if (frame.t === "connectExecutor") {
-        if (frame.apiKey !== undefined) {
-          const status = await executor.connectApiKey(frame.apiKey)
-          this.ctx.waitUntil(executor.tools().catch(() => undefined))
-          return { status }
-        }
-        const origin = (ws.deserializeAttachment() as Attachment | null)?.origin
-        if (!origin) throw new ExecutorError("this socket has no origin")
-        return { authorizeUrl: await executor.start(origin) }
-      }
-      if (frame.refresh) await executor.refresh()
-      return frame.tools ? { tools: await executor.listTools() } : {}
-    })
-    send(ws, { t: "executor", reqId: frame.reqId, result })
-  }
-
   /** Null when no key is stored. A cold object serves the saved listing and refreshes it behind. */
   async composioTools(): Promise<ComposioTool[] | null> {
     return this.#composio.tools()
@@ -884,7 +804,7 @@ export class UserDO extends DurableObject<Env> {
     if (this.#wiped || (await this.ctx.storage.get(DELETING))) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
-    server.serializeAttachment({ ready: false, helloBy: helloBy(), origin: new URL(request.url).origin } satisfies Attachment)
+    server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
     const origin = request.headers.get("origin") ?? new URL(request.url).origin
     if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)
     await enforceHello(this.ctx, this.alarms)
@@ -903,10 +823,6 @@ export class UserDO extends DurableObject<Env> {
       send(ws, this.resume(frame.lastSeq))
       const before = ws.deserializeAttachment() as Attachment | null
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
-      return
-    }
-    if (frame.t === "connectExecutor" || frame.t === "disconnectExecutor" || frame.t === "executorStatus") {
-      await this.executorFrame(ws, frame)
       return
     }
     if (frame.t === "connectComposio" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {

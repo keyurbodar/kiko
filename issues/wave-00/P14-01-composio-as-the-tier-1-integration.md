@@ -26,7 +26,7 @@
 
 - `client.ts` speaks JSON-RPC to `https://connect.composio.dev/mcp` with a bare POST. The server keeps no session.
 - `store.ts` seals the key in `UserDO` and caches the last tool listing.
-- `tools.ts` registers each listed tool as `composio_<name>`. Effect comes from `readOnlyHint`. Five tools stay hidden (architecture section 12.7).
+- `tools.ts` registers each listed tool as `composio_<name>`. Effect comes from `readOnlyHint`. Five tools stay hidden (architecture section 12.2).
 - `AgentDO` asks `UserDO` for Composio tools. When there are some, it passes no Executor tools and skips the Executor warm-up.
 - The settings page connects and disconnects. The key never goes back to the client.
 

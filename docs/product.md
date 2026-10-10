@@ -16,7 +16,7 @@ Yuki is for people who want one assistant for daily life and work, not for progr
 
 - **The daily user.** Asks questions, plans a trip, drafts an email, sets a reminder, sends a photo and asks what it is. Types the way people text, in short bursts.
 - **The delegator.** Hands a goal to a team of agents ("plan the launch"), tags agents by name, checks the group's tasks, and interrupts when something goes the wrong way.
-- **The connector.** Links a personal Executor Cloud account so agents can act in calendars, mail, issue trackers, and other APIs under policies the user controls.
+- **The connector.** Links a personal Composio account so agents can act in calendars, mail, issue trackers, and other apps the user connects there.
 
 Every user brings their own model access. Yuki does not sell, pay for, or choose models.
 
@@ -73,9 +73,9 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 
 ### Integrations
 
-- Connect your Executor Cloud account in settings. Yuki offers every tool Executor exposes, with nothing hardcoded.
-- Executor policies decide whether a tool runs, needs approval, or is blocked. An approval request appears as a card in the chat. Only you can approve it.
-- Disconnect at any time. Yuki deletes the tokens at once.
+- Paste your Composio key in settings. Yuki offers every tool Composio lists, with nothing hardcoded. Apps are connected in your Composio account.
+- When a run that read outside content, or that nobody asked for, wants to act outside yuki, an approval request appears as a card in the chat. Only you can approve it.
+- Disconnect at any time. Yuki deletes the key at once.
 
 ### Models and providers
 
@@ -172,7 +172,7 @@ Option A was chosen at first. On 2026-10-02 the owner made group chats of agents
 
 - No coding or app-building agent. No containers, no shell, no terminal, no in-app browser.
 - No model hosting, no yuki-paid model access, no curated model list.
-- No self-hosted integration layer and no yuki-built MCP connectors. Executor Cloud only.
+- No self-hosted integration layer and no yuki-built MCP connectors. Composio only.
 - No notifications of any kind, including push.
 - No share URLs and no public links.
 - No chats between two human users. A chat has one human.

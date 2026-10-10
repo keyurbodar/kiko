@@ -18,8 +18,6 @@ import { selfExtension } from "./extensions/self"
 import { type ChiefPort, chiefExtension } from "./extensions/chief"
 import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
-import { type ExecutorCall, type ExecutorFind, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
-import type { ApprovalGate } from "../integrations/executor/approval"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
 import { composioExtension } from "../integrations/composio/tools"
 import { baseSections, type RoleInput } from "./prompt"
@@ -37,7 +35,6 @@ export type BuildAgentInput = RoleInput & {
   presence?: (doing: string) => Promise<unknown>
   memory?: MemoryPort
   workspace?: WorkspacePort
-  executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall; gate?: ApprovalGate; find?: ExecutorFind }
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
@@ -70,7 +67,6 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.chief ? [chiefExtension(input.chief)] : []),
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
-    ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate, input.files?.fs, input.executor.find)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
     subagentExtension(),
@@ -86,7 +82,7 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   for (const extension of [...builtins, trust]) registry.install(extension)
   const extensions = new UserExtensions(registry, builtins, trust, effects, input.scripts)
   // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
-  // supports. A chat reply waits on every turn, and on Executor tasks the default level made each
+  // supports. A chat reply waits on every turn, and on tool-heavy tasks the default level made each
   // turn take 2 to 5 s longer with the same answers.
   return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: [...builtins, trust] }, extensions }
 }
@@ -150,7 +146,7 @@ export class UserExtensions {
   }
 }
 
-/** Muse Spark at minimal reasoning answered an Executor task in 9.3 s where DeepSeek V4.1 Flash took 16.6 s (executor-latency, 2026-10-09). */
+/** Muse Spark at minimal reasoning answered a connected-app task in 9.3 s where DeepSeek V4.1 Flash took 16.6 s (2026-10-09). */
 export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }
 
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */

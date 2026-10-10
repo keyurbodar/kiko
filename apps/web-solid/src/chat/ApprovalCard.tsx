@@ -2,7 +2,7 @@ import { For, createSignal, onCleanup, type JSX } from "solid-js"
 import type { Approval } from "@yuki/protocol"
 
 /*
- * Approval cards (P7-02, architecture sections 12.3 and 16.3). An agent asked to act outside yuki
+ * Approval cards (P7-02, architecture sections 12 and 16.3). An agent asked to act outside yuki
  * and only the human can say yes. A card sits above the composer only while it waits: one line that
  * says what the agent wants, two buttons, and the raw call behind "details". Once the human answers
  * it leaves at once; the agent's reply is the confirmation. A card past its time leaves too.
@@ -13,12 +13,12 @@ import type { Approval } from "@yuki/protocol"
  */
 
 /**
- * What the agent wants, in one plain line. Executor tools read as the human's connected apps. A yes
+ * What the agent wants, in one plain line. Composio tools read as the human's connected apps. A yes
  * to a card with `grantMs` lets the agent use every tool outside yuki for that long (architecture
  * section 16.3), so the line says so and names the first one.
  */
 export function title(a: Approval): string {
-  const apps = a.tool.startsWith("executor_") || a.tool.startsWith("composio_")
+  const apps = a.tool.startsWith("composio_")
   if (a.grantMs) return `${a.slug} wants to act outside yuki for ${Math.round(a.grantMs / 60_000)} minutes, starting with ${apps ? "your connected apps" : a.tool.replace(/_/g, " ")}`
   if (apps) return `${a.slug} wants to go ahead with an action in your connected apps`
   return `${a.slug} wants to use ${a.tool.replace(/_/g, " ")}`

@@ -145,7 +145,7 @@ export type UserStoreOptions = {
 	now?: () => number
 	newId?: () => string
 	ttlMs?: number
-	/** Where the socket is shared with the look, memory, and Executor. The app's channel by default. */
+	/** Where the socket is shared with the look, memory, and Composio. The app's channel by default. */
 	channel?: UserChannelHost
 }
 

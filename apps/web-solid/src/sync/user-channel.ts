@@ -1,7 +1,7 @@
 // The one user socket, shared. Architecture section 9.1.
 //
 // The user store owns the socket. Everything else that talks to UserDO (the saved look, memory,
-// Executor) sends and listens through this channel instead of opening a socket of its own: four
+// Composio) sends and listens through this channel instead of opening a socket of its own: four
 // sockets to the same object cost four connections, four pings, and four catch-ups.
 
 import type { ClientToUser, UserToClient } from "@yuki/protocol"

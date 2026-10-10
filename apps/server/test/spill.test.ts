@@ -42,8 +42,8 @@ test("a big one-line JSON result is saved as lines, and the agent gets its start
 
 test("the same content lands at the same path once", async () => {
   const { fs, saved, writes } = files()
-  const a = await spill(fs, "executor-execute", spec)
-  const b = await spill(fs, "executor-execute", spec)
+  const a = await spill(fs, "composio-workbench", spec)
+  const b = await spill(fs, "composio-workbench", spec)
   expect(a).toBe(b)
   expect(saved.size).toBe(1)
   expect(writes()).toBe(1)
@@ -55,7 +55,7 @@ test("without files the agent still gets the start and how much was cut", async 
   expect(out.length).toBeLessThan(10 * 1024)
 })
 
-test("json inside a json string is opened, as executor returns a program's value", () => {
+test("json inside a json string is opened, as a tool may return a program's value", () => {
   const wrapped = JSON.stringify({ status: "completed", execution: { ok: true, value: JSON.stringify({ items: [{ path: "tools.a" }] }) } })
   expect(readable(wrapped)).toContain('"path": "tools.a"')
   expect(readable("plain text")).toBe("plain text")

@@ -1,14 +1,11 @@
 import type { AgentSlug, Approval, ApprovalState, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
-// Architecture sections 9.2, 12.3, 16.3 and 25.3. yuki asks the human only when a run nobody asked
+// Architecture sections 9.2, 12, 16.3 and 25.3. yuki asks the human only when a run nobody asked
 // for wants to act outside yuki, or wants to make or widen a routine. There is one kind of card. The
 // human's ok is a grant: for 30 minutes that agent may use every `external` tool without asking again.
 // A declined card goes back to the agent as an `approval_result` envelope. A card nobody answers
 // closes quietly after 30 minutes and wakes nobody.
-//
-// Executor's own pause (section 12.3) is a card too, bound to Executor's request id: the resume tool
-// runs only against the pause card the human accepted, never against a grant.
 //
 // No method an agent can reach changes a card's state. `request` only adds a pending card or finds an
 // accepted one. `decide` is called from the human's socket, and `expire` from the room's alarm.
@@ -21,16 +18,9 @@ export const APPROVALS_WAKEUP = "approvals"
 /** ASSUMPTION: the snapshot carries the newest cards only. */
 const SNAPSHOT_APPROVALS = 50
 const MAX_SUMMARY = 200
-/** Executor's pause cards. Their `call_key` is `pause:<requestId>`. */
-const PAUSE = "pause:"
 
-export type ApprovalRequest =
-	/** A run nobody asked for wants `tool`. An `external` card shows as a 30-minute grant. */
-	| { kind: "grant"; callKey: string; tool: string; args: Record<string, unknown>; summary?: string; external: boolean }
-	/** Executor paused a program for the human. Its card waits as long as Executor holds the program. */
-	| { kind: "pause"; requestId: string; tool: string; summary?: string; ttlMs: number }
-	/** The resume tool asks whether the human accepted the pause card for `requestId`. */
-	| { kind: "resume"; requestId: string }
+/** A run nobody asked for wants `tool`. An `external` card shows as a 30-minute grant. */
+export type ApprovalRequest = { callKey: string; tool: string; args: Record<string, unknown>; summary?: string; external: boolean }
 
 /** What the asking tool gets back: the accepted card's id, or the text that ends the call. */
 export type ApprovalAnswer = string | { refused: string }
@@ -116,29 +106,18 @@ export class RoomApprovals {
 	}
 
 	/**
-	 * Agent `slug` asks. Safe to repeat: the same call or pause gets the same answer. Returns the stored
+	 * Agent `slug` asks. Safe to repeat: the same call gets the same answer. Returns the stored
 	 * card event when this request posted one.
 	 */
 	request(slug: AgentSlug, req: ApprovalRequest): { answer: ApprovalAnswer; event: RoomEvent | null } {
 		return this.storage.transactionSync(() => {
 			const now = this.now()
-			if (req.kind === "resume") {
-				const card = this.row("slug = ? AND call_key = ?", slug, `${PAUSE}${req.requestId}`)
-				if (!card) return { answer: { refused: "no card was posted for this pause." }, event: null }
-				return { answer: card.state === "accepted" ? card.id : card.state === "pending" ? pending(card.id) : { refused: `card ${card.id} is ${card.state}.` }, event: null }
-			}
-			if (req.kind === "pause") {
-				const key = `${PAUSE}${req.requestId}`
-				const asked = this.row("call_key = ?", key)
-				if (asked) return { answer: pending(asked.id), event: null }
-				return this.post(slug, key, req.tool, req.summary ?? summarize({ requestId: req.requestId }), Math.min(Math.max(req.ttlMs, 0), 86_400_000), null)
-			}
 			const granted = this.row("slug = ? AND state = 'accepted' AND grant_until > ? ORDER BY grant_until DESC", slug, now)
 			if (granted) return { answer: granted.id, event: null }
 			const asked = this.row("call_key = ?", req.callKey)
 			if (asked) return { answer: asked.state === "pending" ? pending(asked.id) : { refused: `card ${asked.id} is ${asked.state}.` }, event: null }
 			// One card at a time per agent: its ok covers whatever else the agent wanted meanwhile.
-			const open = this.row("slug = ? AND state = 'pending' AND expires_at > ? AND call_key NOT LIKE 'pause:%'", slug, now)
+			const open = this.row("slug = ? AND state = 'pending' AND expires_at > ?", slug, now)
 			if (open) return { answer: pending(open.id), event: null }
 			const summary = req.summary ? req.summary.replace(/\s+/g, " ").slice(0, 400) : summarize(req.args)
 			return this.post(slug, req.callKey, req.tool, summary, APPROVAL_TTL_MS, req.external ? GRANT_MS : null)
@@ -214,15 +193,12 @@ export class RoomApprovals {
  * The human's answer as the agent reads it. The human gave it, so its origin is `human` (audit row 8).
  * It stays tainted: the summary is the agent's own words from a run that may have read outside content.
  */
-export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state" | "call_key">, seq: number): Envelope {
+export function resultEnvelope(roomId: RoomId, r: Pick<Row, "id" | "tool" | "summary" | "state">, seq: number): Envelope {
 	const minutes = GRANT_MS / 60_000
-	const requestId = r.call_key.startsWith(PAUSE) ? r.call_key.slice(PAUSE.length) : null
 	const body =
 		r.state !== "accepted"
 			? `error: the human declined ${r.tool} (card ${r.id}, ${r.summary}). do not do it. tell the human in one line that you did not.`
-			: requestId
-				? `the human accepted the paused action (card ${r.id}, ${r.summary}). call ${r.tool} with requestId ${requestId} now. for the next ${minutes} minutes you may also act outside yuki without asking.`
-				: `the human accepted ${r.tool} (card ${r.id}, ${r.summary}). for the next ${minutes} minutes you may act outside yuki without asking. go on with the task now and tell the human what you did.`
+			: `the human accepted ${r.tool} (card ${r.id}, ${r.summary}). for the next ${minutes} minutes you may act outside yuki without asking. go on with the task now and tell the human what you did.`
 	const id = `approval:${r.id}`
 	return { id, roomId, from: { kind: "system", reason: "approval_result" }, body, hop: 0, rootId: id, tainted: true, seq, origin: "human" }
 }

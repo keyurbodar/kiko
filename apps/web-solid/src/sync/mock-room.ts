@@ -417,7 +417,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 				return
 			}
 			if (frame.t === "extension") return peer.push({ t: "extension_result", reqId: frame.reqId, result: { ok: false, error: "the mock server runs no extensions" } })
-			if (frame.t !== "chat") return // the mock has no memory, search, executor, sign-in, or theme store
+			if (frame.t !== "chat") return // the mock has no memory, search, Composio, sign-in, or theme store
 			const op = frame.op
 			const chat = find(op.roomId)
 			if (op.op === "create") {

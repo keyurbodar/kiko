@@ -634,7 +634,7 @@ describe("composer typing and run end", () => {
 })
 
 describe("the user store", () => {
-	test("one socket carries the look, memory, and Executor frames through the channel", async () => {
+	test("one socket carries the look, memory, and Composio frames through the channel", async () => {
 		const mock = createMockUser()
 		const warm = await freshWarm()
 		const channel = createUserChannel()

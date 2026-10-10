@@ -480,27 +480,6 @@ export const MemoryResult = Schema.Union([
 	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 
-export const ExecutorStatus = Schema.Struct({
-	connected: Schema.Boolean,
-	kind: Schema.NullOr(Schema.Union([Schema.Literal("oauth"), Schema.Literal("api_key")])),
-	pending: Schema.Boolean,
-	expiresAt: Schema.NullOr(Schema.Number),
-	issuedAt: Schema.NullOr(Schema.Number),
-	refreshable: Schema.Boolean,
-	organization: Schema.optionalKey(Schema.String),
-	rows: Schema.Number,
-})
-
-export const ExecutorResult = Schema.Union([
-	Schema.Struct({
-		ok: Schema.Literal(true),
-		status: ExecutorStatus,
-		authorizeUrl: Schema.optionalKey(Schema.String),
-		tools: Schema.optionalKey(Schema.Array(Schema.String)),
-	}),
-	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
-])
-
 export const ComposioStatus = Schema.Struct({ connected: Schema.Boolean, rows: Schema.Number })
 
 export const ComposioResult = Schema.Union([
@@ -517,14 +496,6 @@ export const ClientToUser = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
 	Schema.Struct({ t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
-	Schema.Struct({ t: Schema.Literal("connectExecutor"), reqId: Id, apiKey: Schema.optionalKey(Schema.String) }),
-	Schema.Struct({ t: Schema.Literal("disconnectExecutor"), reqId: Id }),
-	Schema.Struct({
-		t: Schema.Literal("executorStatus"),
-		reqId: Id,
-		refresh: Schema.optionalKey(Schema.Boolean),
-		tools: Schema.optionalKey(Schema.Boolean),
-	}),
 	Schema.Struct({ t: Schema.Literal("connectComposio"), reqId: Id, apiKey: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("disconnectComposio"), reqId: Id }),
 	Schema.Struct({ t: Schema.Literal("composioStatus"), reqId: Id, tools: Schema.optionalKey(Schema.Boolean) }),
@@ -578,7 +549,6 @@ export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
-	Schema.Struct({ t: Schema.Literal("executor"), reqId: Schema.optionalKey(Id), result: ExecutorResult }),
 	Schema.Struct({ t: Schema.Literal("composio"), reqId: Schema.optionalKey(Id), result: ComposioResult }),
 	Schema.Struct({ t: Schema.Literal("login.notify"), loginId: Id, event: LoginEvent }),
 	Schema.Struct({ t: Schema.Literal("login.prompt"), loginId: Id, promptId: Id, prompt: LoginPrompt }),
@@ -622,8 +592,6 @@ export type InSync = Assert<
 	| Same<typeof UserSnapshot.Type, P.UserSnapshot>
 	| Same<typeof MemoryOp.Type, P.MemoryOp>
 	| Same<typeof MemoryResult.Type, P.MemoryResult>
-	| Same<typeof ExecutorStatus.Type, P.ExecutorStatus>
-	| Same<typeof ExecutorResult.Type, P.ExecutorResult>
 	| Same<typeof ComposioStatus.Type, P.ComposioStatus>
 	| Same<typeof ComposioResult.Type, P.ComposioResult>
 	| Same<typeof ClientToUser.Type, P.ClientToUser>

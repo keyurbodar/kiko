@@ -13,8 +13,8 @@ describe("how a working agent's dots move", () => {
       ["propose_agent", {}, "hop"],
       ["spawn_subagent", {}, "orbit"],
       ["create_reminder", {}, "orbit"],
-      ["executor_execute", {}, "orbit"],
-      ["executor_gmail_send", {}, "orbit"],
+      ["composio_remote_workbench", {}, "orbit"],
+      ["composio_multi_execute_tool", {}, "orbit"],
       ["some_new_tool", {}, "orbit"],
     ]
     for (const [name, args, motion] of cases) expect([name, motionOf(describeCall(name, args) ?? undefined)]).toEqual([name, motion])

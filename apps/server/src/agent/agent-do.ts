@@ -23,7 +23,6 @@ import { roomWorkspacePort } from "./extensions/workspace"
 import { type Approvals, isRunTainted } from "@yuki/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
-import type { ExecutorTool } from "../integrations/executor/tools"
 import type { ComposioTool } from "../integrations/composio/client"
 
 import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
@@ -183,18 +182,9 @@ export class AgentDO extends DurableObject<Env> {
       updateRoutine: async (id, patch) => ((await mine(id)) ? user().updateRoutine(id, patch) : notHere),
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
-      ask: (callKey, tool, args, summary) => this.ask({ kind: "grant", callKey, tool, args, summary, external: false }),
+      ask: (callKey, tool, args, summary) => this.ask({ callKey, tool, args, summary, external: false }),
       origin: () => user().publicOrigin(),
     }
-  }
-
-  /** `UserDO` serves a cached listing, so this waits on Executor only for a user's first run. */
-  private async executorTools(): Promise<ExecutorTool[] | null | "unreachable"> {
-    const home = this.home()
-    if (!home) return null
-    return userStub(this.env.USER, home.userId)
-      .executorTools()
-      .catch(() => "unreachable" as const)
   }
 
   private async composioTools(): Promise<ComposioTool[] | null | "unreachable"> {
@@ -320,19 +310,15 @@ export class AgentDO extends DurableObject<Env> {
     const views = roomViews(id, space, (conversationId) => isRunTainted({ registry: built.registry.snapshot(), conversationId }))
     const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
-    const [composio, listedExecutor] = await Promise.all([this.composioTools(), this.executorTools()])
-    // While Composio replaces Executor, a user with Composio tools gets only those.
-    const executor = Array.isArray(composio) && composio.length ? null : listedExecutor
+    const composio = await this.composioTools()
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(executor) && home ? { executor: { tools: executor, call: (name, args) => userStub(this.env.USER, home.userId).executorCall(name, args), gate: (req) => this.ask(req), find: (query, limit) => userStub(this.env.USER, home.userId).executorFindApps(query, limit) } } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
       env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
-        // Executor loads the user's apps while the model writes its first turn.
-        if (Array.isArray(executor) && home) this.ctx.waitUntil(userStub(this.env.USER, home.userId).executorWarm().catch(() => undefined))
         if (!(await this.beginRun(batch.requestId, root))) return false
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true
@@ -340,10 +326,7 @@ export class AgentDO extends DurableObject<Env> {
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
-        const down = [
-          executor === "unreachable" ? "executor (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined,
-          composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined,
-        ].filter(Boolean).join("\n") || undefined
+        const down = composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
         return [clock, down, quiet, extensions].filter(Boolean).join("\n\n")
@@ -540,7 +523,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   private approvalsPort(): Approvals {
-    return (call) => this.ask({ kind: "grant", callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments, external: true })
+    return (call) => this.ask({ callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments, external: true })
   }
 
   private memoryPort(): MemoryPort | undefined {
