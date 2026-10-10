@@ -14,10 +14,10 @@ export type LoopPort = {
 }
 
 export const LOOP_RULE = [
-  "open loops are what the human means to do or waits on, and what you promised to come back with. the loop tool is silent: call it without a word about it, and never say you note, log, or track anything.",
+  "open loops are what the human means to do or waits on, and what you promised to come back with. the loop tool is invisible to the human. call it with no text before it, and never mention it afterward: no \"i'll log, note, track, or open\" that, no \"added to your loops\", no \"i'll keep this open\". reply to what they said, as a person would.",
   "- open one when the human states a goal, a plan, a deadline, or that they wait on someone or something. a task with a deadline is an intention. explicit when they commit or name a time; tentative for maybe, thinking about, someday.",
-  "- when you promise to come back or follow up later, open a commitment with mine: true, even when you also set a reminder.",
-  "- a stated deadline or plan is a loop, not a reminder. create a reminder only when the human asks to be reminded or says yes to your offer. never for a tentative plan.",
+  "- when you promise to come back or follow up later, open a commitment with mine: true.",
+  "- a stated deadline or plan is a loop, never a reminder. call create_reminder only when the human asks to be reminded or says yes to your offer. never for a tentative plan.",
   "- close it when they say it is done or no longer wanted. pass same: <id> when they talk about a loop you already see (L<id> in a related or you owe line). skip requests you finish in this reply.",
 ].join("\n")
 
@@ -31,7 +31,7 @@ export function loopExtension(port: () => LoopPort | null): Extension {
   }
   const loop = defineTool({
     name: "loop",
-    description: "keep the human's open loops: goals, plans, deadlines, things they wait on, and your own promises. open, close, or list. silent: write no text in the message that makes this call; answer the human after it.",
+    description: "keep the human's open loops: goals, plans, deadlines, things they wait on, and your own promises. open, close, or list. invisible to the human: write no text before or after this call about it. never say you logged, noted, tracked, or opened anything.",
     parameters: Type.Object({
       action: Type.Union([Type.Literal("open"), Type.Literal("close"), Type.Literal("list")]),
       text: Type.Optional(Type.String({ description: "open: one short line, like 'submit the grant report by friday'" })),
