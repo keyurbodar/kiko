@@ -777,7 +777,7 @@ So the `capture` field of `memory_policy` has three values:
 - Under `always` without a judge, the memory model reads a batch (8 messages, or a minute of quiet) and answers in a four-line format: new, same, replaces, with an optional card tag. Each fact names the message it came from.
 - Nearby facts are keyword matches, then the card, then the newest facts. A correction often shares no word with what it corrects ("i moved to pune" against "lives in Bangalore").
 
-**The note rule.** `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. The rule is chosen per run. With capture active, it says the human's own words are saved without `note`. Otherwise the agent gets the original rule, which asks it to call `note` for lasting facts from the human too. ASSUMPTION: the no-capture wording is not yet in `packages/memory/src/tools.ts`, which still has one wording. A note carries the ref of the human message it answers.
+**The note rule.** `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. The rule is chosen per run. With capture active, it says the human's own words are saved without `note`. Otherwise the agent gets the original rule, which asks it to call `note` for lasting facts from the human too. A note carries the ref of the human message it answers.
 
 **Judge availability.** Settings decides "model provider" from the pi-ai catalog's chat models, and "judge" from its classifier models. Neither list has a hardcoded id. A provider is a judge when the catalog gives it classifier models and the user has a credential. Every judgment reads the credential when it runs, so adding or removing a key mid-session changes the next capture and nothing else. A key the API refuses is marked, and Settings says "Key refused". Under `auto`, capture then stops and `note` carries the facts. Under `always`, capture takes the base path. Any judge failure returns no answer, and the caller falls back the same way.
 
@@ -793,12 +793,16 @@ So the `capture` field of `memory_policy` has three values:
 
 DEVIATION: pi-ai 1.0.0 also lists classifier models for OpenCode, OpenRouter, Vercel AI Gateway, and Cloudflare Workers AI, which are chat providers most users already have. Counting them would turn on background judgments, billed to a chat key, for nearly everyone. So a provider with only classifier models (TypeSafe today) is a judge on its own, and one that also runs chat models is a judge only when `judge_model` names it as `provider/model`. Settings learns which providers run chat models and which judge from pi-ai's catalog (`classifiers` in the catalog asset, and `chat` and `judge` on each saved provider), never from a provider id.
 
-**Measured, 2026-10-10.**
+**Measured, 2026-10-10.** All with Muse Spark 1.3 through OpenCode Go and the real Jev API.
 
-- `bun yuki verify memory-jev` with Muse Spark 1.3 and the real Jev API passed all eight steps in 45 s: base capture, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister is a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key falling back and shown in Settings, and capture continuing after the key was removed.
-- `bun yuki verify memory-edge` covers private chats, capture off, edits, two chats at once, a repeated fact, a key added while capture is queued, and deleting a correction. Those seven passed in three rounds on 2026-10-10.
-- UNVERIFIED: the long-message, rerank, and group-chat cases of `memory-edge`. They are being rerun.
-- UNVERIFIED after the `state` change: a judge request of 20 questions took 290 to 400 ms before it.
+- `bun yuki verify memory-jev` passed in six runs with the final suite, the last two after the final capture change (about 50 s each): no capture and an agent note without a judge, the base path under `always`, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister works as a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key marked in Settings, and the key removed.
+- `bun yuki verify memory-edge` passed three runs in a row on the final code, 13 cases each: a private chat, capture off, an edit, a correction through `note replaces` without a judge, two chats at once, a repeated fact, a key added while capture is queued, deleting a correction, a long message, eight similar friends, a Spanish fact, and a group chat with two agents. Its rerank case only prints a note when rerank does not fire.
+- `bun yuki verify memory-isolation`: two users, and user B never saw user A's facts, in the list, the view, or an answer.
+- `bun yuki verify memory-eval` scored 10 of 10 in every run, and `memory-hard` 14 of 15 over 640 turns (its harness first ran on 2026-10-10, so there is no older score on this model).
+- `bun yuki verify token-cost`, two runs on the final code: agent 41,251 and 40,631 plus background 1,939 and 1,733, against 45,027 plus 1,179 before phase 15, so 6.5 and 8 percent less in all. Agents no longer spend a `note` call on what the human said when capture is on, and capture costs nothing without a judge.
+- A failure found this way: with known facts in the classifier `state`, Jev rated each new friend lower the more friends it already knew (worth 0.61, then 0.47, then 0.35). Known facts now appear only in their own same and replaces questions, which also cut Jev input by 10 percent.
+- UNVERIFIED: rerank has never fired in a live run. In every run the agent answered from its memory block without calling `recall`. The rerank code has unit tests only.
+- A Jev capture request takes 300 to 500 ms.
 
 **Not done.** Dreaming (a rare rewrite of the whole log) waits until evals show duplicates that capture misses. A judge check before each run and judge burst-end detection were left out, because both put a network call in front of the agent's first token.
 
