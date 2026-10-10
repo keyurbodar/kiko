@@ -26,7 +26,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Run.** The model turns from one input to its final answer.
 - **Envelope.** A message as delivered to an agent, with sender, hop count, and root id.
 - **Brief.** The workspace summary the room attaches to each delivery.
-- **Tainted run.** A run that has read outside content. It needs human approval to act outside yuki.
+- **Tainted run.** A run that has read outside content. It needs the human's yes in chat to act outside yuki.
 - **Tier.** A group of client code by load time. Tier 1 is the HTML shell.
 - **Wave.** A set of tasks that can run at the same time.
 - **Extension.** A user's manifest and script that adds tools, instructions, hooks, or schedules to agents at run time. It runs in QuickJS inside `AgentDO`. Only the human installs one. Architecture section 24.

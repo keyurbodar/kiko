@@ -67,14 +67,14 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - A due reminder arrives as a message in the chat it was created in.
 - Recurring reminders follow RRULE.
 - Agents schedule their own follow-up work and wake other agents the same way.
-- Ask an agent to do something on a schedule or when something happens ("every weekday at 8, tell me what needs me today"). It sets up a routine at once. When an agent wants a routine nobody asked for, you get a card to accept first. Each run answers in the chat, or stays quiet when nothing needs you.
+- Ask an agent to do something on a schedule or when something happens ("every weekday at 8, tell me what needs me today"). It sets up a routine at once. When an agent wants a routine nobody asked for, it asks you in chat first. Each run answers in the chat, or stays quiet when nothing needs you.
 - yuki checks in once a day. It reads what is open across your chats, then stays quiet or offers up to three things it could take off your plate.
 - Agents nudge work that has stalled for a day.
 
 ### Integrations
 
 - Paste your Composio key in settings. Yuki offers every tool Composio lists, with nothing hardcoded. Apps are connected in your Composio account.
-- When a run that read outside content, or that nobody asked for, wants to act outside yuki, an approval request appears as a card in the chat. Only you can approve it.
+- When a run that read outside content, or that nobody asked for, wants to act outside yuki, the agent asks you in chat in one short line, saying exactly what it will do. Your reply is the approval, and only your message can give it. There are no approval cards (DEVIATION, owner, 2026-10-10: chat-native).
 - Disconnect at any time. Yuki deletes the key at once.
 
 ### Models and providers
@@ -129,7 +129,6 @@ The spec asks for other interface features worth having. These are in the plan.
 
 - Stop button and "regenerate" on the last agent answer.
 - Edit your last message, which reruns the answer.
-- Approval cards for integration actions.
 - A disclosure on agent bubbles that shows the tools the agent used. Kat shows the same chevron.
 - Message search per chat and across chats.
 - Command palette with `noun: verb` entries, as in kat.
@@ -154,7 +153,7 @@ The layout follows the kat screenshots in `~/kat-images`. A 60 px icon rail, a 2
 | `/memory`, `/memory/:id` | none | none | redirects to the active chat with the info panel open on memory (P2-19) |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
-Overlays: command palette, calendar jump, context menus, approval card, onboarding, and the image dialog, which zooms and pans as t3code's does. The media viewer is gone (DEVIATION, 2026-10-09): the files tab draws a picture inline.
+Overlays: command palette, calendar jump, context menus, onboarding, and the image dialog, which zooms and pans as t3code's does. The media viewer is gone (DEVIATION, 2026-10-09): the files tab draws a picture inline.
 
 ### What replaces kat's terminal and browser panels
 

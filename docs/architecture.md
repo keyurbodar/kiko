@@ -264,7 +264,7 @@ type Envelope = {
 	origin?: Origin           // section 25.3. what the chain may do
 	grant?: readonly string[] // section 25.3. the tools a routine may use outside yuki
 }
-type SystemReason = "task_unblocked" | "reminder" | "approval_result" | "run_budget"
+type SystemReason = "task_unblocked" | "reminder" | "run_budget"
 	| "limit" | "files" | "created" | "routine" | "stalled"   // section 25
 ```
 
@@ -477,7 +477,6 @@ type ClientToRoom =
 	| { t: "read"; seq: number }
 	| { t: "typing" }
 	| { t: "stop" }
-	| { t: "approve"; approvalId: string; action: "accept" | "decline" }
 	| { t: "task"; op: TaskOp }
 	| { t: "search"; query: string; before?: number; limit?: number }    // section 9.2.2
 	| { t: "history"; seq: number; before: number; after: number }        // section 9.2.2
@@ -499,7 +498,7 @@ On connect the client sends `hello`. The room answers with the events after `las
 
 The room keeps the user's chat row current. After each change to its newest activity, its read position, or its members, it sends `UserDO.touchChat` one row summary: `last`, `unread`, `mentions`, and `group`. Changes made in one step share one touch. A touch with an older `lastSeq` is ignored.
 
-- `last` is the newest activity as data (`ChatLast` in `packages/protocol/src/activity.ts`): who, a kind (text, photo, video, album, file, voice, audio, link, react, joined, left, renamed, created, approval, notice), and a clipped text. It is the newest of: a live message, an agent's reaction to a human message that still stands, a pending approval, and a member joining or leaving. A deleted newest message falls back to the one before it. A rename of a group is stored by `UserDO` and stays the line until something newer happens.
+- `last` is the newest activity as data (`ChatLast` in `packages/protocol/src/activity.ts`): who, a kind (text, photo, video, album, file, voice, audio, link, react, joined, left, renamed, created, notice), and a clipped text. It is the newest of: a live message, an agent's reaction to a human message that still stands, and a member joining or leaving. A deleted newest message falls back to the one before it. A rename of a group is stored by `UserDO` and stays the line until something newer happens.
 - The media kinds (photo, video, album, voice, audio, file) come from the types of a human's attached files (`messageLast`). They are a line in the chat list, not a media system: since 2026-10-09 no thumbnail, album layout, or link card backs them. Agents send no files, so an agent's line is text or link.
 - The client words it in `sidebar/activity.ts`, as Telegram does: `you: text` for your own messages, `ada: text` in a group, `photo, caption`, `ada reacted ❤️ to "hello"`, `ada joined`. A row stored before `last` existed shows `lastPreview`.
 - The row sorts by its newest activity, so reading a chat never moves it.
@@ -639,13 +638,11 @@ When an agent sets up, `AgentDO` asks `UserDO` for the tools Composio lists and 
 
 **Learned direct tools.** A Composio tool that ran successfully through `COMPOSIO_MULTI_EXECUTE_TOOL` is kept with its published input schema in `UserDO`, at most 24, most recent first. Disconnect clears them. Later runs offer each one as a typed tool, `composio_<slug>`, that runs as a one-item multi-execute, so a repeat request skips `COMPOSIO_SEARCH_TOOLS` and its extra model turn. Composio's search description says to always search first, so when learned tools exist, the run's input names them in one line, next to the clock. An open agent asks `UserDO` for a signature of the learned tools and their classes before each run, one read of one row, and sets up again when it changed, so a tool any agent learned reaches every agent's next run. Measured 2026-10-10 with Muse Spark 1.3: a repeat web search chat took 6.5 to 7.3 s, against 10.2 to 10.6 s with search.
 
-### 12.3 Approvals
+### 12.3 Read or external
 
 A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A learned tool takes the class Composio's catalog gives it: when a tool is first learned, `UserDO` reads its tags once from `GET https://backend.composio.dev/api/v3.1/tools/<slug>` behind the call, and `readOnlyHint` makes it `read`. That API refuses consumer keys and needs a developer key (`ak_...`), which each user may add in settings under Composio (`setComposioDeveloperKey`). There is no server-side key. `UserDO` checks it with one `GET /api/v3.1/toolkits?limit=1` and stores it only when Composio accepts it, sealed like the consumer key with AAD `composio/developer`. It never goes to the client or a log, and disconnect deletes it with the other rows. Adding it classifies the learned tools that have no class yet, behind the answer, and the changed signature reopens open agents. Tool metadata is global, so no user data goes with a lookup. Without the key, or when the lookup fails, the tool stays `external`. Section 16.3 gates `external` tools.
 
-Yuki's card (section 25.3) is a 30-minute grant for that agent over every `external` tool, so one ok covers a task of many calls. A run the human started needs no card at all. A card is bound to the agent that asked; no method an agent can reach changes its state (`room/approvals.ts`).
-
-The card above the composer shows only while it waits, as one line: "yuki wants to act outside yuki for 30 minutes, starting with your connected apps", with the raw call behind "details". A yes covers every outside tool for that agent, so the line says so.
+There is no approval card. When a run may not make an `external` call (section 25.3), the tool answers the agent: ask the human in chat in one short line, saying exactly what it will do, and act only after they reply yes. The human's reply starts a fresh run the human started, which may act.
 
 ### 12.4 Code mode
 
@@ -662,8 +659,8 @@ User extensions (section 24) do run QuickJS inside the agent's object, through `
 ### 12.5 Risks
 
 - Composio keeps tool payloads for up to a year. The owner accepted this on 2026-10-10.
-- UNVERIFIED: that every app tool run through `COMPOSIO_MULTI_EXECUTE_TOOL` honors read-only intent. It is classed `external` for that reason, so a run nobody asked for needs a card for reads through it too.
-- Composio does not pause a call for a person. Yuki's card and the taint rules of section 16.3 are the only gate.
+- UNVERIFIED: that every app tool run through `COMPOSIO_MULTI_EXECUTE_TOOL` honors read-only intent. It is classed `external` for that reason, so a run nobody asked for, or a tainted one, must ask the human in chat for reads through it too.
+- Composio does not pause a call for a person. The gate of sections 16.3 and 25.3 is the only one.
 - The MCP contract is Composio's and may change. `bun yuki verify composio` checks it against the real server.
 
 ## 13. Memory
@@ -880,11 +877,11 @@ Every tool declares one effect.
 | `read` | `recall`, `zoom`, `read`, `ls`, `team`, Composio tools with `readOnlyHint`, learned ones the catalog tags read-only | allowed |
 | `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
-| `external` | Composio tools without `readOnlyHint`, learned Composio tools the catalog does not tag read-only, `COMPOSIO_MULTI_EXECUTE_TOOL` | decided by who started the run, not by taint (section 25.3) |
+| `external` | Composio tools without `readOnlyHint`, learned Composio tools the catalog does not tag read-only, `COMPOSIO_MULTI_EXECUTE_TOOL` | refused: the agent asks the human in chat, and their yes starts a fresh run that may act (section 25.3) |
 
 The `beforeTool` hook enforces the table.
 
-DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Integration results are outside content, so the second step of any task asked the human, and reading the agent's own files did too. yuki now asks only when it matters: a run the human started acts outside yuki without a yuki card, tainted or not. The risk: an injected page could steer a send, and Composio does not pause for a person (section 12.5). What still holds:
+DEVIATION from the spec and from the 30-minute card grant that followed it: there are no approval cards (owner, 2026-10-10: chat-native, no cards). A tainted run's `external` call is refused with one line that tells the agent to ask the human in chat, saying exactly what it will do. The human's reply is the approval: it starts a fresh run with the human's authority, untainted at its start, which may act. Taint ends with the run's final answer (section 16.2), so the asking run and the acting run are two runs. A page cannot forge the yes, since only a human message starts a human run. Also:
 
 - Taint still flags what the run stores and sends, and a flagged line reaches later prompts only marked `[outside]`.
 - Section 16.4: yuki itself fetches no URL an agent wrote.
@@ -904,7 +901,7 @@ Credentials and tokens. Tools use them on the server.
 
 ### 16.6 Verification
 
-The gating layer is code, so its tests are deterministic. The verification CLI runs a set of canned attacks through fake tools and asserts that no injected text clears a run's taint, and that no `external` tool ran in a run nobody asked for without a card. It does not assert what the model wrote.
+The gating layer is code, so its tests are deterministic. The verification CLI runs a set of canned attacks through fake tools and asserts that no injected text clears a run's taint, and that no `external` tool ran in a tainted run or a run nobody asked for. A case asserts that the human's yes starts a fresh run that acts. It does not assert what the model wrote.
 
 ## 17. Scale and cost
 
@@ -1226,7 +1223,7 @@ Icons, default avatars, emoji data, theme tokens, the model catalog, and built-i
 - "Match wallpaper" is a theme read from the chat background itself, not a preset: the surfaces take the hue that covers most of the picture (counted, not averaged, so a violet sky over a tan field stays violet), a saturation from how colorful it is, and a dark background from its brightness; the accent is the vivid color with the most presence. A new picture recolors it at once. The look carries the palette, so other devices match without the picture.
 - Every floating surface is frosted glass in dark, as in monocode: menus, hover cards, dialogs, the palette, search, tooltips, toasts and the narrow sidebar drawer are the surface at 78% over a 24px backdrop blur.
 - The font stack is the system stack from the spec. Inter is already gone.
-- New tokens are added for the tab strip, date pill, calendar, palette, editor gutter, clamp fade, reply bar, approval card, and board.
+- New tokens are added for the tab strip, date pill, calendar, palette, editor gutter, clamp fade, reply bar, and board.
 
 Kat's top bar shows "notifications off" and share icons. Yuki omits both, because the spec excludes notifications and share links. The bar holds the bird at the far left, the chat tabs, and the model chip. A tab is an icon and a title that fades at its max width; only the active tab has a fill, and its close button shows on hover or when active. The strip has no scrollbar, scrolls with the wheel, and fades only the edge with more tabs. The chat's name and member count are not repeated beside the tabs.
 
@@ -1403,7 +1400,7 @@ The effect of a manifest tool goes into `effectTable` like a built-in tool's, so
 
 DEVIATION from the earlier plan: effects are declared in the manifest and enforced at run time, not computed from the code. A script's calls are dynamic, so they cannot be read ahead of time.
 
-**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run raised an approval card. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so what the run stores is flagged, and in a run nobody asked for a later outside action still waits for the human.
+**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run was refused as an outside call. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so what the run stores is flagged, and a later outside action in that run waits for the human's yes in chat.
 
 ### 24.5 Selection and sync
 
@@ -1456,7 +1453,7 @@ Work that starts without a human message: routines on a schedule or an event, re
 - **No model runs on a timer.** Every autonomous run starts from a wake, and every wake is a system envelope on the agent's existing inbox (section 7.3).
 - **One scheduler.** A routine is a row of the `reminders` table (section 14) with instructions for an agent and a trigger. The same alarm fires it.
 - **A model call only when something changed.** Event filters, a watch's fingerprint, the event window, the away pause, and the day's budget all cost no model call. A run with nothing to report answers `[skip]` and posts nothing.
-- **Authority comes from the human, in code.** Every envelope carries an origin. A run that no human started may reach outside yuki only through the tools a routine was granted; everything else waits for the human's card.
+- **Authority comes from the human, in code.** Every envelope carries an origin. A run that no human started may reach outside yuki only through the tools a routine was granted, and a tainted run not at all; everything else waits for the human's yes in chat.
 
 **Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Dots keeps its background research read-only "in code"; yuki gets the same from the effect table of section 16.3 plus the run's origin, without a second research model.
 
@@ -1496,14 +1493,14 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 | Tool | Effect | Does |
 | --- | --- | --- |
 | `create_reminder` | write | stores the authority and taint of the run that made it; the wake carries them (25.3) |
-| `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok, even in a tainted run (the routine is then stored tainted); a routine nobody asked for, or one with a grant, posts an approval card that waits a day and makes the routine when the human accepts. A routine the human accepted is stored clean, so its grant works, unless its instructions were longer than the card shows |
+| `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok, even in a tainted run (the routine is then stored tainted). From a run nobody asked for, or a tainted run with a grant, it makes nothing and tells the agent to ask in chat; the human's yes starts a clean run that makes it, stored clean with its grant |
 | `update_routine(id, ..., status?, run_now?)` | write | pausing and running now need nobody; any other change follows the same rule as create |
 | `list_reminders` | read | reminders and routines, with each routine's last run |
 | `cancel_reminder(id)` | write | cancels either |
 
 An agent reaches only its own chat's reminders and routines, whatever id it passes. The human has the same through `GET` and `POST /api/routines`, `POST /api/routines/<id>`, and `POST /api/routines/<id>/run`; a routine the human makes there is active at once and may carry a grant.
 
-**Reasoning for the card.** Dots: "Pre-approved means you explicitly requested the action in your prompt." A human asking for a routine is that request, so it is made at once. A routine an agent proposes on its own, from a run that read outside content, or with a standing permission outside yuki, is the human's call. The card reuses the approval cards of section 12.3, with a readable summary and a day to answer.
+**Reasoning.** Dots: "Pre-approved means you explicitly requested the action in your prompt." A human asking for a routine is that request, so it is made at once. A routine an agent proposes on its own, from a run that read outside content, or with a standing permission outside yuki, is the human's call, asked in chat like any other (section 25.3).
 
 ### 25.3 Origin and grants
 
@@ -1516,22 +1513,20 @@ type Origin = "human" | "routine" | "auto"
 - The agent host keeps the authority of the run in flight in `run_authority`. A batch that starts a run sets it; a batch that joins combines with it (`combine` in `packages/agent/src/authority.ts`): a human anywhere gives the human's authority, otherwise the stricter wins and grants intersect. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
 - An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
 
-`needsApproval` and `gate` in `trust.ts`. Taint does not decide an `external` call; it flags writes and messages (section 16.3).
+`mayActOutside` and `gate` in `trust.ts`.
 
-| Run | external tool |
-| --- | --- |
-| started by the human (`human`), tainted or not | runs |
-| a routine (`routine`) | granted tools run, tainted or not, when the routine was made by a clean run. Others post a card |
-| nobody asked (`auto`) | a card, unless the human accepted one for this agent in the last 30 minutes |
+| Run | external tool, clean run | external tool, tainted run |
+| --- | --- | --- |
+| started by the human (`human`) | runs | refused |
+| a routine (`routine`) | granted tools run; others refused | refused |
+| nobody asked (`auto`) | refused | refused |
 
-- There is one kind of card. An accepted card is a 30-minute grant for that agent over every `external` tool. The one-shot card that matched exact arguments is gone.
-- A card waits 30 minutes. One that expires closes quietly and wakes nobody. An agent has one open card at a time.
-- The human's answer reaches the agent as an `approval_result` envelope with `origin: "human"`, and the room records it as the agent's chain like any delivery.
-- A routine a tainted run made is stored `tainted`, and its runs carry no grant (`runGrant` in `user/reminders.ts`). One the human made, or accepted on a card that showed all of it, keeps its grant.
-- A reminder stores the authority and taint of the run that made it. **Taint never carries the human's authority to a later run**: `wakeAuthority` in `room/wake.ts` runs a tainted wake on a human chain as `auto`, so a page that told a human's run to schedule a reminder cannot act outside yuki from it without a card. A routine's grant is not touched there; it was settled when the routine was made.
+- A refused call returns `ASK_FIRST`: "This needs the human's ok. Ask them in chat in one short line, saying exactly what you'll do. Act only after they reply yes." The human's reply is an ordinary human message. It starts a fresh run with the human's authority, untainted at its start, which may act. There is no grant table, no time window, no card, and no socket frame.
+- A routine a tainted run made is stored `tainted`, and its runs carry no grant (`runGrant` in `user/reminders.ts`). One the human made keeps its grant.
+- A reminder stores the authority and taint of the run that made it. **Taint never carries the human's authority to a later run**: `wakeAuthority` in `room/wake.ts` runs a tainted wake on a human chain as `auto`, so a page that told a human's run to schedule a reminder cannot act outside yuki from it. A routine's grant is not touched there; it was settled when the routine was made.
 - An extension's trigger runs as a routine granted that extension's own tools. The human reviewed and installed it.
-- `create_routine` and `update_routine` post a card only for a run the human did not start, or a tainted run that grants tools (for `update_routine`, a change to a routine that holds a grant).
-- DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Section 16.3 says why and what still holds.
+- `create_routine` and `update_routine` refuse with the same line from a run the human did not start, or from a tainted run that grants tools (for `update_routine`, a change to a routine that holds a grant). The human's yes starts a run that makes the change.
+- DEVIATION from the spec's approval cards and the 30-minute grant that replaced them: owner, 2026-10-10, chat-native, no cards. Section 16.3 says what still holds.
 
 ### 25.4 Triggers
 
@@ -1596,7 +1591,7 @@ The third line was measured: before it named reports, the real model skipped a d
 
 ### 25.9 What the human sees
 
-Yuki sends no notifications. A routine's run answers in its chat as bubbles; a card asks when an agent wants a routine on its own; the budget, the away pause, and a paused routine each post one line. The client's schedule section (P5-07, P12-11) is not built yet; until then the human manages routines by asking any agent and through `/api/routines`.
+Yuki sends no notifications. A routine's run answers in its chat as bubbles; an agent that wants a routine on its own asks in chat; the budget, the away pause, and a paused routine each post one line. The client's schedule section (P5-07, P12-11) is not built yet; until then the human manages routines by asking any agent and through `/api/routines`.
 
 ### 25.10 Effect v4 at the edges
 
@@ -1609,12 +1604,12 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; a c
 | `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and signal matching, one run per batch, the watch grid, the budget and away rules |
 | `test/wake.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; a tainted run's reminder wakes tainted and `auto` |
 | `test/reminder-rules.test.ts` | a held watch run keeps the old fingerprint; a reminder for the human repeats at most every 30 minutes, even one stored before the rule |
-| `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for gets a card and accept makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
+| `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for is told to ask in chat and the human's yes makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
 | `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its injected payload cannot use a granted tool; a watch wakes only on change |
 | `bun yuki verify proactive` | a task untouched for two days wakes its owner once through the initiative pass, and the answer carries its reason; away 8 days holds runs with one line and a hello resumes; no check-in routine is made; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |
 | `test/recurrence.test.ts` | `ruleProblem` passes the rule shapes people ask for and refuses, in microseconds, every shape `rrule` could loop on |
 | `bun yuki verify routines-scale` | 300 users with a routine due the same second: each runs exactly once, none lost (the last confirmed 26 s after the due time under `wrangler dev`) |
-| `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder with no card; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
+| `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
 
 ## 26. Initiative: open loops
 
