@@ -1,6 +1,6 @@
 import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import { createSignal, onMount } from "solid-js"
-import { Group, Page, Row, Segmented } from "./kit"
+import { Group, Row, Segmented } from "./kit"
 
 /*
  * Initiative (architecture section 26): how much Yuki may speak up unasked, and whether it writes down
@@ -46,8 +46,7 @@ export default function InitiativePage() {
       .catch(() => {})
   })
   return (
-    <Page title="Initiative" description="How much Yuki speaks up without being asked.">
-      <div class="flex flex-col gap-8" data-component="initiative-settings">
+    <div class="flex flex-col gap-8" data-component="initiative-settings">
         <Group title="Speaking up">
           <Row label="Initiative" id="initiative" description="Off stays quiet. In chat only reminds an agent while you talk. Daily digest adds at most one nudge a day. Active nudges when it matters.">
             <Segmented<Level>
@@ -77,7 +76,6 @@ export default function InitiativePage() {
             />
           </Row>
         </Group>
-      </div>
-    </Page>
+    </div>
   )
 }
