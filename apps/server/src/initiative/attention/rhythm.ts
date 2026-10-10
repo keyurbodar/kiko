@@ -141,7 +141,12 @@ const formatters = new Map<string, Intl.DateTimeFormat>()
 export function slotOf(at: number, tz: string): number {
   let f = formatters.get(tz)
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "numeric", hourCycle: "h23" })
+    try {
+      f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "numeric", hourCycle: "h23" })
+    } catch {
+      // A zone stored before it was checked, or one this runtime does not know: read it as UTC.
+      f = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short", hour: "numeric", hourCycle: "h23" })
+    }
     formatters.set(tz, f)
   }
   let day = 0
