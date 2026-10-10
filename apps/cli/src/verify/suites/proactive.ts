@@ -63,8 +63,7 @@ const suite: Suite = {
       const { roomId, room } = await newRoom(a, "proactive: ignored")
       await fake(v, a, roomId)
       const due = new Date(Date.now() + 86_400_000).toISOString()
-      await send(room, toolLine("loop", { action: "open", kind: "intention", certainty: "explicit", text: "file the tax return", due_iso: due }))
-      await eventually("the loop", () => agentTexts(room).length >= 1, 20_000)
+      await dev(url, a, "loops", { open: { roomId, text: "file the tax return", due } })
       await dev(url, a, "attention", { action: "rhythm", mode: "now" })
       type P = { woke: { result: string }[]; verdicts: { verdict: string; reason?: string; until?: number }[]; at: number }
       const step = async (days: number) => {

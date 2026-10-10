@@ -10,7 +10,7 @@ export const LOOP_KINDS = ["goal", "intention", "commitment", "waiting", "projec
 export type LoopKind = (typeof LOOP_KINDS)[number]
 export type Certainty = "explicit" | "tentative"
 export type LoopStatus = "open" | "done" | "dropped" | "snoozed"
-/** Who saw it: the agent's `loop` tool, Jev on the human's burst, or the memory model's summary pass. */
+/** Who saw it: a reminder an agent set for itself (`tool`), Jev after a burst, or the memory model's summary pass. */
 export type LoopSource = "tool" | "jev" | "nap"
 
 export const isLoopKind = (value: unknown): value is LoopKind => LOOP_KINDS.includes(value as LoopKind)
@@ -117,13 +117,11 @@ export class Loops {
 
   /**
    * Opens a loop, or adds a mention to the same one: `same` when the caller judged it, else a live loop
-   * with the same words, else one from the same message that shares words with it (the agent's run and
-   * Jev both read every message, in either order). `same: null` means the caller judged it different
-   * from every loop of that message. All must have the same owner: one's promise never merges into
-   * another's plan. A mention can firm a tentative loop up and give it a due time; it never makes an
-   * explicit loop tentative, and the loop keeps its first words.
+   * with the same words. Both must have the same owner: one's promise never merges into another's plan.
+   * A mention can firm a tentative loop up and give it a due time; it never makes an explicit loop
+   * tentative, and the loop keeps its first words.
    */
-  open(input: NewLoop, same?: number | null): OpenResult {
+  open(input: NewLoop, same?: number): OpenResult {
     const text = input.text.replace(/\s+/g, " ").trim()
     if (!text) return { ok: false, error: "empty. a loop is one line of text." }
     if (encoder.encode(text).byteLength > LINE_BYTES) return { ok: false, error: `too long: a loop is at most ${LINE_BYTES} bytes. say it shorter.` }
@@ -133,15 +131,9 @@ export class Loops {
     const due = cleanDue(input.due)
     const key = norm(text)
     return this.transaction(() => {
-      const words = match(text)
       const old =
-        (typeof same === "number" ? this.sql.exec<Row>(`SELECT * FROM loops WHERE id = ? AND owner = ? AND ${LIVE}`, same, owner).toArray()[0] : undefined) ??
-        this.sql.exec<Row>(`SELECT * FROM loops WHERE norm = ? AND owner = ? AND ${LIVE}`, key, owner).toArray()[0] ??
-        (same === null || !input.ref || !words
-          ? undefined
-          : this.sql
-              .exec<Row>(`SELECT l.* FROM loops_fts f JOIN loops l ON l.id = f.rowid WHERE loops_fts MATCH ? AND l.ref = ? AND l.owner = ? AND l.${LIVE} ORDER BY bm25(loops_fts) LIMIT 1`, words, input.ref, owner)
-              .toArray()[0])
+        (same !== undefined ? this.sql.exec<Row>(`SELECT * FROM loops WHERE id = ? AND owner = ? AND ${LIVE}`, same, owner).toArray()[0] : undefined) ??
+        this.sql.exec<Row>(`SELECT * FROM loops WHERE norm = ? AND owner = ? AND ${LIVE}`, key, owner).toArray()[0]
       if (old) {
         const firmer = input.certainty === "explicit" && old.certainty === "tentative"
         this.sql.exec(
@@ -227,11 +219,6 @@ export class Loops {
       .map(toLoop)
   }
 
-  /** Live loops learned from one message. */
-  fromRef(ref: string): Loop[] {
-    return ref ? this.sql.exec<Row>(`SELECT * FROM loops WHERE ref = ? AND ${LIVE}`, ref).toArray().map(toLoop) : []
-  }
-
   /** Every loop that could deserve attention at `now`: open ones, and snoozed ones whose time has come. */
   candidates(now = Date.now()): Loop[] {
     return this.sql
@@ -303,7 +290,7 @@ export function loopLine(l: Loop): string {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Jev: one batched classification of a human burst against the open loops it may touch.
+// Jev: one batched classification of a burst, and the agent's answers to it, against the open loops it may touch.
 
 const KIND: Record<LoopKind | "none", string> = {
   goal: "something the human wants to reach over weeks or months",
@@ -319,29 +306,51 @@ const CERTAIN = {
   false: "the human is only thinking about it: maybe, someday, would like to, an idea",
 }
 
+const PROMISE = {
+  true: "the agent promises to come back, follow up, or deliver something at a later time",
+  false: "the agent answers now, asks a question, or only offers without promising",
+}
+
 const RELATION = {
   done: "the sentence says this is finished or has happened",
   dropped: "the sentence says the human no longer wants or needs it",
-  same: "the sentence is about this same plan, and it is still open",
+  same: "the sentence is about this same plan or promise, and it is still open",
   other: "the sentence is about something else",
 }
 
-/** `from` is the index of the message a sentence came from, so its loop can name that message. */
-export type Sentence = { text: string; from: number }
+/** `from` is the index of the message a sentence came from, so its loop can name that message. `by` is the agent slug for an agent's answer. */
+export type Sentence = { text: string; from: number; by?: string }
 export type BurstCheck = { sentences: Sentence[]; near: { sentence: number; loop: Loop }[] }
 
 const MIN_CHARS = 8
 const MAX_SENTENCES = 6
+/** An answer's promise to come back closes it, so only its last sentences are read, and an answer never crowds out the human. */
+const ANSWER_TAIL = 2
 
-/** The sentences of a burst, each a possible loop. No cue words: the judge decides what each one is. */
-export function sentencesOf(texts: readonly string[]): Sentence[] {
+/**
+ * The sentences of a burst, each a possible loop: the human's first six, and the last two of each
+ * agent answer (`by`) as one. No cue words: the judge decides what each one is.
+ */
+export function sentencesOf(messages: readonly { text: string; by?: string }[]): Sentence[] {
   const out: Sentence[] = []
-  for (const [from, text] of texts.entries()) {
-    for (const part of text.split(/\n+|(?<=[.!?])\s+/)) {
-      const line = part.replace(/\s+/g, " ").trim()
-      if (line.length < MIN_CHARS || encoder.encode(line).byteLength > LINE_BYTES || out.some((s) => s.text === line)) continue
+  let human = 0
+  for (const [from, { text, by }] of messages.entries()) {
+    const lines = text
+      .split(/\n+|(?<=[.!?])\s+/)
+      .map((part) => part.replace(/\s+/g, " ").trim())
+      .filter((line) => line.length >= MIN_CHARS && encoder.encode(line).byteLength <= LINE_BYTES)
+    if (by) {
+      // One unit, so a closing "enjoy your day" is read beside the promise before it, not as one.
+      const tail = lines.slice(-ANSWER_TAIL).join(" ")
+      const line = encoder.encode(tail).byteLength <= LINE_BYTES ? tail : lines.at(-1)
+      if (line) out.push({ text: line, from, by })
+      continue
+    }
+    for (const line of lines) {
+      if (human === MAX_SENTENCES) break
+      if (out.some((s) => s.text === line)) continue
       out.push({ text: line, from })
-      if (out.length === MAX_SENTENCES) return out
+      human++
     }
   }
   return out
@@ -350,24 +359,28 @@ export function sentencesOf(texts: readonly string[]): Sentence[] {
 /** The questions for one burst. Open loops go into the questions, not `state`, as capture does. */
 export function loopQuestions(check: BurstCheck): { state: JsonObject; questions: Record<string, Question> } {
   const questions: Record<string, Question> = {}
-  check.sentences.forEach((_, i) => {
+  check.sentences.forEach((sentence, i) => {
     const s = `\`sentences[${i}].text\``
+    if (sentence.by) {
+      questions[`s${i}_promise`] = { type: "bool", instructions: `In ${s}, said by the agent, does the agent promise to come back or follow up later?`, criteria: PROMISE }
+      return
+    }
     questions[`s${i}_kind`] = { type: "choice", instructions: `Is ${s} the human's own plan, goal, promise, or something they wait on? Which kind?`, criteria: KIND }
     questions[`s${i}_certain`] = { type: "bool", instructions: `Does ${s} commit to it, rather than only think about it?`, criteria: CERTAIN }
   })
   for (const { sentence, loop } of check.near) {
     questions[`s${sentence}_l${loop.id}`] = {
       type: "choice",
-      instructions: `How does \`sentences[${sentence}].text\` relate to this open item the human had: ${JSON.stringify(loop.text)}?`,
+      instructions: `How does \`sentences[${sentence}].text\` relate to this open item: ${JSON.stringify(loop.text)}?`,
       criteria: RELATION,
     }
   }
-  return { state: { sentences: check.sentences.map((s) => ({ text: s.text })) }, questions }
+  return { state: { sentences: check.sentences.map((s) => ({ text: s.text, by: s.by ? "agent" : "human" })) }, questions }
 }
 
 export type LoopOp =
-  /** `same`: the loop it repeats, or null when the judge found it unlike every loop it was shown. */
-  | { op: "open"; sentence: number; kind: LoopKind; certainty: Certainty; same?: number | null }
+  /** `owner` is the agent for its own promise. `same`: the loop it repeats. */
+  | { op: "open"; sentence: number; kind: LoopKind; certainty: Certainty; owner: string; same?: number }
   | { op: "close"; sentence: number; id: number; status: "done" | "dropped" }
 
 /** The winning choice, when it holds most of the probability. Below that the judge was unsure. */
@@ -377,27 +390,38 @@ function decided(answer: Answer | undefined): string | null {
   return p > 0.5 ? answer.choice : null
 }
 
+/** A loop when most of the probability is on some kind, not `none`: "goal" and "intention" may split it. The likeliest kind wins. */
+function loopKind(answer: Answer | undefined): LoopKind | null {
+  if (answer?.type !== "choice") return null
+  const p = (k: string) => answer.probabilities[k] ?? (answer.choice === k ? answer.confidence : 0)
+  const best = [...LOOP_KINDS].sort((a, b) => p(b) - p(a))[0]!
+  return LOOP_KINDS.reduce((sum, k) => sum + p(k), 0) > 0.5 ? best : null
+}
+
+const yes = (answer: Answer | undefined) => answer?.type === "bool" && answer.probability > 0.5
+
 /** What the answers say to write. Pure, so a table of answers pins it. */
 export function loopOps(check: BurstCheck, answers: Record<string, Answer>): LoopOp[] {
   const ops: LoopOp[] = []
-  check.sentences.forEach((_, i) => {
-    let same: number | null | undefined
+  check.sentences.forEach((sentence, i) => {
+    let same: number | undefined
     let closed = false
-    const near = check.near.filter((n) => n.sentence === i)
-    const rels = near.map(({ loop }) => ({ id: loop.id, rel: decided(answers[`s${i}_l${loop.id}`]) }))
-    for (const { id, rel } of rels) {
+    for (const { loop } of check.near.filter((n) => n.sentence === i)) {
+      const rel = decided(answers[`s${i}_l${loop.id}`])
       if (rel === "done" || rel === "dropped") {
-        ops.push({ op: "close", sentence: i, id, status: rel })
+        ops.push({ op: "close", sentence: i, id: loop.id, status: rel })
         closed = true
-      } else if (rel === "same" && same === undefined) same = id
+      } else if (rel === "same" && same === undefined) same = loop.id
     }
     if (closed) return
-    const kind = decided(answers[`s${i}_kind`])
-    if (!isLoopKind(kind)) return
-    if (same === undefined && rels.length && rels.every((r) => r.rel === "other")) same = null
-    const certain = answers[`s${i}_certain`]
-    const certainty: Certainty = certain?.type === "bool" && certain.probability > 0.5 ? "explicit" : "tentative"
-    ops.push({ op: "open", sentence: i, kind, certainty, ...(same === undefined ? {} : { same }) })
+    const at = same === undefined ? {} : { same }
+    if (sentence.by) {
+      if (yes(answers[`s${i}_promise`])) ops.push({ op: "open", sentence: i, kind: "commitment", certainty: "explicit", owner: sentence.by, ...at })
+      return
+    }
+    const kind = loopKind(answers[`s${i}_kind`])
+    if (!kind) return
+    ops.push({ op: "open", sentence: i, kind, certainty: yes(answers[`s${i}_certain`]) ? "explicit" : "tentative", owner: "human", ...at })
   })
   return ops
 }
@@ -423,7 +447,7 @@ export function napLoopsPrompt(base: string, known: readonly Loop[], endsAt: num
     "owner is human, or @name for an agent that promised to come back or follow up later.",
     "explicit when they commit or name a time; tentative for maybe, thinking about, someday.",
     "due is a date like 2026-10-17 when one is named or clear, else -. text is one short line in the third person.",
-    "skip what the agent finished in these same turns, and anything already known below. a known loop the turns say is finished is loop done <id>; one no longer wanted is loop dropped <id>.",
+    "list every one, tentative ones too. skip only what the agent finished in these same turns, and an item already known below with the same owner and the same goal. a known loop the turns say is finished is loop done <id>; one no longer wanted is loop dropped <id>.",
     `the turns end on ${new Date(endsAt).toISOString().slice(0, 10)}.`,
     "known open loops:",
     ...(known.length ? known.map((l) => `${l.id}: ${l.text}`) : ["(none)"]),

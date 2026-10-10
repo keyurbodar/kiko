@@ -22,7 +22,8 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/seen    { ago }  -> the human was last seen `ago` ms back (section 25.5)
 //   POST /api/dev/agent/due     { id }   -> routine `id` is due now (section 25)
 //   POST /api/dev/agent/policy  { policy }  -> { ok: true }   sets the user's `memory_policy` setting (`verify memory-jev`)
-//   POST /api/dev/agent/loops   {}  -> { loops }   every open loop, done or not (section 26, `verify initiative-loops`)
+//   POST /api/dev/agent/loops   { open?: { roomId, text, due? } }  -> { loops }   every loop, done or not; `open` adds a human loop first (section 26)
+//   POST /api/dev/agent/quiet   { roomId }  -> { ok }   rolls the chat up now, as six quiet hours would (`verify initiative-loops`)
 //   POST /api/dev/agent/initiative { roomId, slug? }  -> { text }   the initiative lines the agent's last run started with
 //   POST /api/dev/agent/attention { action: "age", ms } | { action: "rhythm", mode: "now" | "clear" } | { action: "pass" } | { action: "state" }
 //        the initiative engine (section 26.8): age its clock state, set a known rhythm, run a pass now (returns its
@@ -45,7 +46,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "initiative", "attention"].includes(action ?? "")) return null
+  if (!["fake", "status", "children", "deliver", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -95,6 +96,12 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "loops") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+    // `open` puts a human loop in a chat, as the background pass would, for the fake-agent suites.
+    const body = (await request.json().catch(() => null)) as { open?: { roomId?: unknown; text?: unknown; due?: unknown } } | null
+    const open = body?.open
+    if (open && typeof open.roomId === "string" && isRoomId(open.roomId) && typeof open.text === "string") {
+      await userStub(env.USER, user.id).loopOpen("human", open.roomId, "", { kind: "intention", certainty: "explicit", text: open.text, due: typeof open.due === "string" ? open.due : null, tainted: false })
+    }
     return Response.json({ loops: await userStub(env.USER, user.id).loopList({ status: ["open", "done", "dropped", "snoozed"], limit: 200 }) })
   }
   if (action === "children") {
@@ -116,6 +123,10 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
       return Response.json({ error: "bad turns" }, { status: 400 })
     }
     return Response.json({ turns: await roomStub(env.ROOM, user.id, roomId).devSeed(turns as { from: string; text: string }[]) })
+  }
+  if (action === "quiet") {
+    await roomStub(env.ROOM, user.id, roomId).devQuiet()
+    return Response.json({ ok: true })
   }
   if (action === "memory") return Response.json(await roomStub(env.ROOM, user.id, roomId).devMemory())
   if (action === "pending") return Response.json({ pending: await roomStub(env.ROOM, user.id, roomId).devAgePending(Number((body as { ms?: unknown }).ms ?? 0)) })

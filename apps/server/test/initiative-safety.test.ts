@@ -1,8 +1,6 @@
 import { expect, test } from "bun:test"
-import { isRunTainted, TRUST, trustExtension } from "@yuki/agent/trust"
 import { Life } from "@yuki/memory/life"
-import { loopExtension, type LoopPort } from "@yuki/memory/loop-tool"
-import { type Loop, Loops } from "@yuki/memory/loops"
+import { Loops } from "@yuki/memory/loops"
 import { InitiativeEngine, type WakeInput } from "../src/initiative/engine"
 import { Initiative } from "../src/initiative/initiative"
 import type { Level } from "../src/initiative/attention/types"
@@ -47,7 +45,6 @@ function world(opts: { level?: Level; titles?: Record<string, string | null> } =
     loops,
     life,
     judge: () => null,
-    quickJudge: () => null,
     title,
     off: () => level === "off",
     count: () => {},
@@ -57,7 +54,7 @@ function world(opts: { level?: Level; titles?: Record<string, string | null> } =
   return { sql, loops, life, engine, initiative, wakes, setLevel: (l: Level) => void (level = l) }
 }
 
-const burst = (text: string) => ({ text, messageIds: ["m9"] })
+const burst = (text: string) => ({ text })
 
 test("a merge keeps a loop tainted when either side read outside content", () => {
   const { loops } = world()
@@ -151,21 +148,4 @@ test("a snooze must end after now and within a year", () => {
   expect(loops.snooze(out.id, now - 1, now)).toBe(false)
   expect(loops.snooze(out.id, now + 400 * 86_400_000, now)).toBe(false)
   expect(loops.snooze(out.id, now + 86_400_000, now)).toBe(true)
-})
-
-test("the loop tool's list taints the run when it shows a tainted loop", async () => {
-  const trust = trustExtension({ effects: new Map() }) as unknown as { hooks: { handlers: Record<string, (...a: unknown[]) => unknown> }[] }
-  const api = { registry: { extension: (name: string) => (name === TRUST ? trust : undefined) }, conversationId: "c", callId: "1" }
-  const shown: Loop[] = [{ id: 1, kind: "intention", certainty: "explicit", owner: "human", room: "r1", ref: "", due: null, status: "open", text: "do what the page said", source: "tool", openedAt: 0, lastSeen: 0, mentions: 1, tainted: true, closedAt: null, snoozedUntil: null }]
-  const port: LoopPort = { open: async () => ({ ok: false, error: "" }), close: async () => false, list: async () => shown }
-  const tool = loopExtension(() => port).tools![0] as unknown as { execute: (a: unknown, api: unknown) => Promise<unknown> }
-  const run = async () => {
-    trust.hooks[0]!.handlers.beforeRequest!({ messages: [] }, api)
-    expect(isRunTainted(api as never)).toBe(false)
-    await tool.execute({ action: "list" }, api)
-    return isRunTainted(api as never)
-  }
-  expect(await run()).toBe(true)
-  shown[0]!.tainted = false
-  expect(await run()).toBe(false)
 })
