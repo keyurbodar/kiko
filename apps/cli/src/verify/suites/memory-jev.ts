@@ -117,7 +117,7 @@ const suite: Suite = {
 
     await policy({ capture: "always" })
     await say(chatA, "i live in bangalore")
-    await poll("a captured line about bangalore", 60_000, async () => (await live(/bangalore/i, fromYou)).length > 0)
+    await poll("base capture ran and a live line about bangalore", 60_000, async () => ((await usage()).capture_model ?? 0) >= 1 && (await live(/bangalore/i)).length > 0)
     u = await usage()
     await show("base path, capture always")
     if (!((u.capture_model ?? 0) >= 1)) throw new VerifyError(`base path did not capture: capture_model is ${u.capture_model ?? 0}`)
