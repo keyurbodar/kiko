@@ -71,7 +71,7 @@ export type WatchFetch = (trigger: Extract<Trigger, { on: "watch" }>) => Promise
 export type Notice = (roomId: RoomId, id: string, text: string) => Promise<void>
 
 /** `away` only saves a watch its fetch while the human is away; whether a run may start is `RoomDO.wake`'s call. */
-export type RunGate = { away(): boolean; unchanged(routine: Reminder): Promise<boolean> }
+export type RunGate = { away(): boolean }
 
 export type NewReminder = {
   text: string
@@ -474,10 +474,6 @@ export class Reminders {
 
   private async run(routine: Reminder, occurrence: string, why: string, extra: string, tainted = false, paid = false): Promise<RunDelivery> {
     if (!this.ports) return "refused"
-    if (!occurrence.startsWith("test:") && (await this.ports.gate.unchanged(routine))) {
-      this.recordRun(routine.id, occurrence, "skipped")
-      return "skipped"
-    }
     const body = routineBody(routine, why, this.lastRun(routine.id), extra)
     const budget: Budget = paid ? "paid" : routine.createdBy === "human" ? "user" : "room"
     const delivery = await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body, tainted: tainted || routine.tainted, budget })

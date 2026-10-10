@@ -6,8 +6,7 @@ import { judged } from "./judge"
 
 // Architecture section 26. The part of initiative that lives in UserDO: what a human burst opens or
 // closes (Jev), what a summary pass saw (the memory model, in the call it already makes), and the
-// lines a run starts with. The attention pass that decides when to speak is the next wave; it reads
-// `Loops.candidates()`.
+// lines a run starts with. When to speak up unasked is engine.ts.
 
 export type Heard = { messageId: string; text: string; at: number }
 
@@ -21,6 +20,8 @@ export type InitiativeDeps = {
   /** The chat's title, or null for a private or missing chat. Nothing is learned from those. */
   title: (roomId: string) => string | null
   count: (delta: Record<string, number>) => void
+  /** The attention engine's brief channel: open loops of this chat worth keeping in view, best first. */
+  noticed: (roomId: string, skip: ReadonlySet<number>) => string[]
 }
 
 const NEAR_PER_SENTENCE = 3
@@ -97,15 +98,24 @@ export class Initiative {
    * loops or life lines related to the burst. Without a judge, relation is shared words; with one,
    * the judge reranks keyword matches and the newest open loops, so a related loop needs no shared word.
    */
-  async brief(roomId: string, slug: string, burst: { text: string; messageIds: readonly string[] }): Promise<{ owe: string[]; related: string[] }> {
+  async brief(roomId: string, slug: string, burst: { text: string; messageIds: readonly string[] }): Promise<{ owe: string[]; related: string[]; noticed: string[] }> {
+    const { owe, related, shown } = await this.ownAndRelated(roomId, slug, burst)
+    const fresh = new Set(burst.messageIds.map((id) => ref(roomId, id)))
+    const skip = new Set([...shown, ...this.deps.loops.list({ room: roomId, status: ["open"], limit: 200 }).filter((l) => fresh.has(l.ref)).map((l) => l.id)])
+    const noticed = this.deps.title(roomId) === null ? [] : this.deps.noticed(roomId, skip).map(escape)
+    return { owe, related, noticed }
+  }
+
+  private async ownAndRelated(roomId: string, slug: string, burst: { text: string; messageIds: readonly string[] }): Promise<{ owe: string[]; related: string[]; shown: number[] }> {
     const here = this.deps.title(roomId)
-    if (here === null) return { owe: [], related: [] }
+    if (here === null) return { owe: [], related: [], shown: [] }
     const where = (l: Loop) => (l.room && l.room !== roomId ? this.deps.title(l.room) : null)
     // Only this chat's: a promise is kept where it was made, and one from another chat invited a duplicate.
     const owed = this.deps.loops.list({ owner: slug, room: roomId, status: ["open"], limit: OWE_MAX })
     const owe = owed.map((l) => escape(`L${l.id} ${l.text}${l.due ? ` (due ${l.due})` : ""}`))
     const words = keywords(burst.text)
-    if (!words.length) return { owe, related: [] }
+    const ids = (picked: readonly string[]) => [...owed.map((l) => l.id), ...picked.filter((id) => id.startsWith("l")).map((id) => Number(id.slice(1)))]
+    if (!words.length) return { owe, related: [], shown: ids([]) }
     const fresh = new Set(burst.messageIds.map((id) => ref(roomId, id)))
     const skip = owed.map((l) => l.id)
     const judge = this.deps.judge() !== null
@@ -123,14 +133,15 @@ export class Initiative {
         .filter((l) => l.source !== `chat ${here}`)
         .map((l) => ({ id: `m${l.pos}`, text: `memory: ${l.source ? `${l.source}: ` : ""}${l.text}${l.tainted ? " [outside]" : ""}`, words: keywords(l.text) })),
     ]
-    if (!lines.length) return { owe, related: [] }
+    if (!lines.length) return { owe, related: [], shown: ids([]) }
     let picked = judge ? await this.related(burst.text, lines) : null
     if (picked === null) {
       const mine = new Set(words)
       picked = lines.filter((l) => l.words.filter((w) => mine.has(w)).length >= SHARED_WORDS).map((l) => l.id)
     }
     const byId = new Map(lines.map((l) => [l.id, l.text]))
-    return { owe, related: picked.slice(0, RELATED_MAX).map((id) => escape(byId.get(id)!)) }
+    const top = picked.slice(0, RELATED_MAX)
+    return { owe, related: top.map((id) => escape(byId.get(id)!)), shown: ids(top) }
   }
 
   /** Ids of the lines the judge finds related, most related first. Null when no judge answers. */

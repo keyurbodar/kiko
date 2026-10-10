@@ -181,7 +181,7 @@ export class AgentDO extends DurableObject<Env> {
         // A reminder an agent sets for itself is its promise to come back: it is owed until kept (section 26).
         if (out.ok && out.reminder.target === home.slug && !out.reminder.rrule) {
           await user()
-            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, tainted: false })
+            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, tainted: false, reminderId: out.reminder.id })
             .catch(() => {})
         }
         return out
@@ -298,6 +298,7 @@ export class AgentDO extends DurableObject<Env> {
         authority: () => this.host.authority(),
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
         chief: this.chiefPort(),
+        loops: () => this.loopPort(),
       })
       return {
         ...fake,

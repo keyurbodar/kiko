@@ -1,6 +1,6 @@
 import type { JsonObject } from "@earendil-works/pi-ai"
 import type { Judge, Question } from "@yuki/memory/judge"
-import { type BurstCheck, type Loop, type LoopOp, loopOps, loopQuestions } from "@yuki/memory/loops"
+import { type BurstCheck, type LoopOp, loopOps, loopQuestions } from "@yuki/memory/loops"
 import { Context, Data, Effect, Layer } from "effect"
 
 // The initiative judge (architecture section 26). One service, two layers: Jev, which wraps the
@@ -10,7 +10,9 @@ import { Context, Data, Effect, Layer } from "effect"
 export class JudgeUnavailable extends Data.TaggedError("JudgeUnavailable")<{ reason: string }> {}
 
 export type Unknown = "unknown"
-export type Worth = { id: number; p: number }
+export type Worth = { id: string; p: number }
+/** One candidate as Jev reads it: an open loop, a stalled task, or a routine in trouble. */
+export type WorthItem = { id: string; text: string; kind: string; certainty: string; owner: string; due: string | null; lastSeen: number; surfaced: number; ignored: number }
 
 export class LoopJudge extends Context.Service<
   LoopJudge,
@@ -18,7 +20,7 @@ export class LoopJudge extends Context.Service<
     /** What a human burst opens or closes. */
     classifyBurst(check: BurstCheck): Effect.Effect<LoopOp[] | Unknown, JudgeUnavailable>
     /** For the attention pass: how worth raising each candidate is now, given `state`. */
-    worthNow(candidates: readonly Loop[], state: JsonObject): Effect.Effect<Worth[] | Unknown, JudgeUnavailable>
+    worthNow(candidates: readonly WorthItem[], state: JsonObject): Effect.Effect<Worth[] | Unknown, JudgeUnavailable>
   }
 >()("yuki/initiative/LoopJudge") {}
 
@@ -46,7 +48,7 @@ export const JevJudge = (judge: Judge) =>
       candidates.forEach((_, i) => {
         questions[`c${i}`] = { type: "bool", instructions: `Given \`now\`, is it worth raising \`candidates[${i}]\` with the human right now?`, criteria: WORTH }
       })
-      const input = { ...state, candidates: candidates.map((c) => ({ text: c.text, kind: c.kind, certainty: c.certainty, due: c.due ?? "none", last_mentioned: new Date(c.lastSeen).toISOString(), ignored: c.ignored })) }
+      const input = { ...state, candidates: candidates.map((c) => ({ text: c.text, kind: c.kind, certainty: c.certainty, owner: c.owner, due: c.due ?? "none", last_mentioned: new Date(c.lastSeen).toISOString(), raised_before: c.surfaced, ignored_before: c.ignored })) }
       return Effect.map(ask(judge, input, questions), (answers) => candidates.map((c, i) => ({ id: c.id, p: answers[`c${i}`]?.type === "bool" ? (answers[`c${i}`] as { probability: number }).probability : 0 })))
     },
   })

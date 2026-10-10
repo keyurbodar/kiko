@@ -3,8 +3,8 @@
  * bus that other work owns (initiative plan, revision 1). Integration maps those types onto these.
  */
 
-/** A loop kind, or `task` for a workspace task read through the same shape. */
-export type Kind = "goal" | "intention" | "commitment" | "waiting" | "project" | "task"
+/** A loop kind, `task` for a stalled workspace task, or `routine` for a routine that failed or paused. */
+export type Kind = "goal" | "intention" | "commitment" | "waiting" | "project" | "task" | "routine"
 
 /** One thing that might deserve attention: an open loop or a workspace task. */
 export type Candidate = {
@@ -69,6 +69,7 @@ export type Reason =
   | "allowance"
   | "worth"
   | "no_lead"
+  | "fresh"
 
 export type Verdict =
   | { id: string; verdict: "drop"; reason: Reason }

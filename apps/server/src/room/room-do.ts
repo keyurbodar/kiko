@@ -9,7 +9,8 @@ import { BUDGET_LINE, nextReset, utcDay } from "./limits"
 import { type Inflight, RoomRoutines } from "./routines"
 import { matches, type Signal, SignalWindow, signalOf, SIGNALS_WAKEUP } from "./signals"
 import { HELD_PER_PASS, HELD_WAKEUP, HeldWakes, type Wake, type WakeResult, wakeStamp } from "./wake"
-import { chatTasks, LOOPS_WAKEUP, MAX_NUDGES, nextSweep, nudgeBody, openTasks, stalled } from "./stalls"
+import { chatTasks, openTasks } from "./open-tasks"
+import { INITIATIVE_RUN, REMINDER_RUN } from "../initiative/engine"
 import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
@@ -46,6 +47,8 @@ export const DEFAULT_AGENT = "yuki" as AgentSlug
 const CHIEF_NAME = "Yuki"
 const DELIVERY_RETRY_MS = 2_000
 const WAKES_WAKEUP = "ws_wakes"
+/** The human counts as here this long after they typed. */
+const HUMAN_HERE_MS = 120_000
 const MAIL_WAKEUP = "mail"
 const MEMORY_WAKEUP = "memory_naps"
 const QUIET_WAKEUP = "memory_quiet"
@@ -334,7 +337,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[QUIET_WAKEUP]: () => this.rollupQuiet(),
 			[SIGNALS_WAKEUP]: () => this.flushSignals(),
 			[HELD_WAKEUP]: () => this.retryHeld(),
-			[LOOPS_WAKEUP]: () => this.sweepStalls(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
 			[APPROVALS_WAKEUP]: async () => {
 				this.publish(this.approvals.expire())
@@ -797,7 +799,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (event) this.publish([event])
 		if (reminder.target === "human") return "posted"
 		const own = `reminder:${id}`
-		return this.wake({
+		// Followed like a routine run, so UserDO hears whether the agent kept the promise (section 26.6).
+		const run = { routineId: REMINDER_RUN, occurrence: id, slug: reminder.target as AgentSlug, seq: event?.seq ?? this.log.lastSeq() }
+		if (!this.deliveries.seen(own)) this.routines.follow(run)
+		const out = await this.wake({
 			id: own,
 			to: reminder.target as AgentSlug,
 			why: "reminder",
@@ -808,6 +813,48 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			retry: true,
 			...(event ? { seq: event.seq } : {}),
 		})
+		if (out !== "delivered" && out !== "duplicate") this.routines.unfollow(run)
+		return out
+	}
+
+	/**
+	 * Section 26.6. One wake from the initiative pass: `to` is the agent, or null for the room's lead.
+	 * The room steps back while the human is here (a burst gathering, or typing in the last two minutes)
+	 * and answers `busy`, so the item stays in the brief. The run is followed like a
+	 * routine run, so `UserDO` learns whether the agent spoke or answered [skip], and what it posts
+	 * carries `initiative: { reason }`.
+	 */
+	async initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string; tainted: boolean }): Promise<WakeResult | "busy"> {
+		const home = this.home()
+		if (!home) return "refused"
+		const id = `initiative:${input.id}`
+		if (this.deliveries.seen(id)) return "duplicate"
+		if (this.humanHere(Date.now())) return "busy"
+		const chat = await this.chat(home)
+		if (!chat) return "gone"
+		await this.seedMembers(home, chat)
+		const members = this.members.list()
+		const slug = input.to && members.some((m) => m.slug === input.to) ? input.to : (members.find((m) => m.lead) ?? members[0])?.slug
+		if (!slug) return "gone"
+		const run = { routineId: INITIATIVE_RUN, occurrence: input.id, slug, seq: this.log.lastSeq() }
+		this.routines.follow(run)
+		this.log.setMeta(`initiative:${id}`, input.reason)
+		let out: WakeResult
+		try {
+			out = await this.wake({ id, to: slug, why: "initiative", body: input.body, chain: null, tainted: input.tainted, budget: "room", retry: false })
+		} catch (error) {
+			this.routines.unfollow(run)
+			throw error
+		}
+		if (out !== "delivered") this.routines.unfollow(run)
+		return out
+	}
+
+	#humanTypingAt = 0
+
+	/** A burst gathering or the human typing. A message they sent minutes ago is `UserDO`'s to know (engine.ts). */
+	private humanHere(now: number): boolean {
+		return this.burst.pending() || now - this.#humanTypingAt < HUMAN_HERE_MS
 	}
 
 	async chainOf(slug: AgentSlug): Promise<Chain> {
@@ -838,11 +885,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
-	/** Gathers the signals some event routine of this room looks at. Whether one fires is decided by `UserDO` (signals.ts). */
+	/**
+	 * Gathers the signals some event routine of this room looks at, and the human's own acts, which the
+	 * initiative engine reads for the human's rhythm and how they answer a nudge (section 26.6).
+	 * Whether a routine fires is decided by `UserDO` (signals.ts).
+	 */
 	private gatherSignals(events: readonly RoomEvent[]): void {
 		const routines = this.routines.list()
 		const roomId = this.log.meta("room_id")
-		if (!routines.length || !roomId) return
+		if (!roomId || !events.some((e) => e.t === "message" || e.t === "task" || e.t === "file")) return
 		const seqs = events.map((e) => e.seq)
 		let actors: Map<number, string> | null = null
 		const actorOf = (seq: number) => {
@@ -860,7 +911,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			// What an agent did may carry outside content. Only its message, stored clean, does not.
 			const tainted = agent !== null && !(event.t === "message" && cleanMessage(event.id))
 			const signal = signalOf(event, { roomId, at: now, by, tainted })
-			if (signal && routines.some((r) => matches(r, signal))) signals.push(signal)
+			const human = signal !== null && (signal.kind === "burst" || (signal.kind === "task" && signal.by?.kind === "human"))
+			if (signal && (human || routines.some((r) => matches(r, signal)))) signals.push(signal)
 		}
 		const closes = this.signals.add(signals, now)
 		if (closes !== null) this.ctx.waitUntil(this.alarms.setWakeup(SIGNALS_WAKEUP, closes))
@@ -897,37 +949,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (!home) return
 		const rows = openTasks(this.ctx.storage.sql)
-		await this.armSweep(rows, Date.now())
 		const summary = JSON.stringify(chatTasks(rows))
 		if (this.log.meta("tasks_reported") === summary) return
 		this.log.setMeta("tasks_reported", summary)
 		await userStub(this.env.USER, home.userId).chatTasks(home.roomId, chatTasks(rows)).catch(() => {})
-	}
-
-	private async armSweep(rows: ReturnType<typeof openTasks>, now: number): Promise<void> {
-		const at = nextSweep(rows, now, (id) => this.deliveries.seen(id))
-		if (at === null) await this.alarms.clearWakeup(LOOPS_WAKEUP)
-		else await this.alarms.setWakeup(LOOPS_WAKEUP, at)
-	}
-
-	private async sweepStalls(): Promise<void> {
-		const home = this.home()
-		const rows = openTasks(this.ctx.storage.sql)
-		const now = Date.now()
-		if (home) {
-			const day = utcDay(now)
-			const [countedDay, counted] = (this.log.meta("nudges") ?? ":0").split(":")
-			let sent = countedDay === day ? Number(counted) : 0
-			const lead = this.members.list().find((m) => m.lead)?.slug ?? null
-			for (const n of stalled(rows, lead, now, (id) => this.deliveries.seen(id))) {
-				if (sent >= MAX_NUDGES) break
-				if (!this.members.get(n.to)) continue
-				const out = await this.wake({ id: n.id, to: n.to, why: "stalled", body: nudgeBody(n), chain: this.workspace.chainOf(n.taskId), tainted: false, budget: "room", retry: false })
-				if (out === "held") break
-				if (out === "delivered") this.log.setMeta("nudges", `${day}:${++sent}`)
-			}
-		}
-		await this.armSweep(openTasks(this.ctx.storage.sql), now)
 	}
 
 	async runTimedOut(slug: AgentSlug): Promise<void> {
@@ -1322,11 +1347,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	humanTyping(): void {
+		this.#humanTypingAt = Date.now()
 		this.ctx.waitUntil(this.burst.typing())
 	}
 
 	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string, tainted = false): Promise<boolean> {
-		const events = this.bubbles.post(slug, { runId, attempt, index }, block, tainted)
+		const root = this.mail.chainRoot(slug)
+		const reason = root?.startsWith("initiative:") ? this.log.meta(`initiative:${root}`) : null
+		const events = this.bubbles.post(slug, { runId, attempt, index }, block, tainted, reason ? { reason } : undefined)
 		this.publish(events, { touch: false })
 		return events.some((e) => e.t === "message")
 	}
@@ -1465,7 +1493,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async devAge(ms: number): Promise<number> {
 		if (process.env.NODE_ENV !== "development") throw new Error("not found")
 		this.ctx.storage.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)
-		await this.sweepStalls()
+		await this.tasksChanged()
 		return openTasks(this.ctx.storage.sql).length
 	}
 

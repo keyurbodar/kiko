@@ -145,6 +145,8 @@ describe("attend", () => {
     ["prep before the moment", { preparable: true }, { rhythm: { ...known, activeNow: false }, prepare: true, worthNow: { c: 0.9 } }, "prepare", "r1/yuki"],
     ["a tainted loop is never prepared", { preparable: true, tainted: true }, { rhythm: { ...known, activeNow: false }, prepare: true, worthNow: { c: 0.9 } }, "brief:moment"],
     ["no lead in the room", { room: "r9" }, {}, "brief:no_lead"],
+    ["said an hour ago, not due yet", { lastSeen: NOW - HOUR }, {}, "brief:fresh"],
+    ["promised an hour ago, due a week out", { kind: "commitment", owner: "scout", lastSeen: NOW - 2 * DAY, due: NOW + 7 * DAY }, {}, "brief:worth"],
     ["nudged an hour ago", { surfaced: 1, lastSurfaced: NOW - HOUR }, {}, "rest"],
     ["two ignores of the kind", {}, { appetite: ignoreN(emptyAppetite(), 2, "intention", NOW - 4 * DAY) }, "brief:appetite"],
     ["dismissed kind", { kind: "goal" }, { appetite: settle(nudged(emptyAppetite(), pending("x", NOW - DAY, "goal")), [{ kind: "dismiss", id: "d", room: "r1", at: NOW - HOUR, nudge: "x" }], NOW).appetite }, "brief:appetite"],
@@ -168,7 +170,7 @@ describe("attend", () => {
   })
 
   test("one interruption per room, the most worthwhile wins", () => {
-    const vs = attend([cand({ id: "weak", due: NOW + 2.5 * DAY, mentions: 3, lastSeen: NOW }), cand({ id: "strong", due: NOW - HOUR })], ctx({ appetite: keenAppetite() }))
+    const vs = attend([cand({ id: "weak", due: NOW + 2.5 * DAY, mentions: 3, lastSeen: NOW - DAY }), cand({ id: "strong", due: NOW - HOUR })], ctx({ appetite: keenAppetite() }))
     expect(vs.map((v) => (v.verdict === "brief" ? `brief:${v.reason}` : v.verdict))).toEqual(["brief:room_taken", "ask_lead"])
   })
 

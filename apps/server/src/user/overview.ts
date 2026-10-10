@@ -1,11 +1,11 @@
 import { listChats } from "./chats"
 import { localTime, type Reminder, type RoutineRun } from "./reminders"
 
-// Architecture section 25.7. What yuki reads at its check-in: the open work across every chat, in a
+// Architecture section 26.7. What yuki reads with its `overview` tool: the open work across every chat, in a
 // few short lines, so one tool call costs a few hundred tokens however many chats there are.
 
 /** A room's open tasks, as the room reports them on every task change. */
-export type ChatTasks = { open: number; oldest: { title: string; status: string; owner?: string; updatedAt: number }[] }
+export type ChatTasks = { open: number; oldest: { id?: string; title: string; status: string; owner?: string; updatedAt: number }[] }
 
 /** Every chat's task summary, as stored: room id and the JSON text the room reported. */
 function taskRows(sql: SqlStorage): { room_id: string; tasks: string }[] {
@@ -48,22 +48,4 @@ export function overview(sql: SqlStorage, input: { reminders: Reminder[]; runs: 
   const soon = input.reminders.filter((r) => !r.trigger && r.status === "active" && r.dueUtc - now < DAY)
   if (soon.length) out.push("reminders in the next day:", ...soon.slice(0, 10).map((r) => `- ${localTime(r.dueUtc, tz)}: ${r.text.slice(0, 80)}${r.target === "human" ? "" : ` (for @${r.target})`}`))
   return out.join("\n")
-}
-
-/**
- * What the overview depends on, without the clock: each chat's sequence and unread count, the open
- * tasks, each routine's status and last run, and the reminders due. Equal fingerprints mean a
- * check-in would read the same thing as last time.
- */
-export function overviewFingerprint(sql: SqlStorage, reminders: Reminder[], runs: RoutineRun[], self: { routineId: string | null; roomId: string | null }): string {
-  // The check-in's own chat and its own runs change by its running, so they are left out.
-  const chats = listChats(sql)
-    .filter((c) => !c.temp && c.roomId !== self.roomId)
-    .map((c) => `${c.roomId}:${c.lastSeq}:${c.unread}`)
-  const tasks = taskRows(sql)
-    .sort((a, b) => (a.room_id < b.room_id ? -1 : a.room_id > b.room_id ? 1 : 0))
-    .map((r) => `${r.room_id}:${r.tasks}`)
-  const routines = reminders.filter((r) => r.trigger && r.id !== self.routineId).map((r) => `${r.id}:${r.status}:${runs.find((x) => x.routineId === r.id)?.status ?? ""}`)
-  const due = reminders.filter((r) => !r.trigger && r.status === "active").map((r) => `${r.id}:${r.dueUtc}`)
-  return JSON.stringify([chats, tasks, routines, due])
 }

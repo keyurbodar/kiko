@@ -74,8 +74,8 @@ export function readBriefView(sql: SqlStorage, member: MemberRow, members: reado
  * Section 26. What the agent owes and what the human said before that bears on this burst, for the
  * run that answers it. The lines arrive escaped. Empty when there is nothing, so the input stays the same.
  */
-export function initiativeBrief(view: { owe: readonly string[]; related: readonly string[] }): string {
-	const lines = [...view.owe.map((l) => `you owe: ${l}`), ...view.related.map((l) => `related: ${l}`)]
+export function initiativeBrief(view: { owe: readonly string[]; related: readonly string[]; noticed?: readonly string[] }): string {
+	const lines = [...view.owe.map((l) => `you owe: ${l}`), ...view.related.map((l) => `related: ${l}`), ...(view.noticed ?? []).map((l) => `on their plate: ${l}`)]
 	if (!lines.length) return ""
-	return [...lines, "bring a related line up only when it truly helps the human now. keep what you owe, or say why you cannot."].join("\n")
+	return [...lines, "bring a related line or something on their plate up only when it truly helps the human now, at most one, in passing. keep what you owe, or say why you cannot."].join("\n")
 }

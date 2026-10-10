@@ -27,7 +27,7 @@ function setup(results: RunDelivery[] = [], pages: string[] = []) {
     deliverRun,
     watch: async () => ({ ok: true, text: pages.shift() ?? "same" }),
     notice: async () => {},
-    gate: { away: () => false, unchanged: async () => false },
+    gate: { away: () => false },
   })
   return { sql, clock, reminders, runs, posted }
 }

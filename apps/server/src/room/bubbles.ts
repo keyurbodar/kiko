@@ -35,7 +35,7 @@ export class Bubbles {
 	}
 
 	/** Stores one bubble. Returns the events to publish: none for a repeat or a late attempt. */
-	post(slug: AgentSlug, run: RunRef, block: string, tainted = false): RoomEvent[] {
+	post(slug: AgentSlug, run: RunRef, block: string, tainted = false, initiative?: { reason: string }): RoomEvent[] {
 		const latest = this.sql
 			.exec<{ attempt: number | null }>("SELECT max(run_attempt) AS attempt FROM messages WHERE run_id = ?", run.runId)
 			.one().attempt
@@ -51,7 +51,7 @@ export class Bubbles {
 		// A block with nothing to draw, such as a lone `---` the splitter cut out, is not a bubble.
 		const rich = parseRichText(text)
 		if (!text || !rich.length) return events
-		const { event } = this.log.addMessage({ from, text, rich, run, tainted, ...target })
+		const { event } = this.log.addMessage({ from, text, rich, run, tainted, ...target, ...(initiative ? { initiative } : {}) })
 		if (event) events.push(event)
 		return events
 	}
