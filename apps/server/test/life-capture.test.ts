@@ -96,21 +96,24 @@ test("the model's capture lines are read strictly, and a malformed line or an un
     "none",
   ].join("\n")
   expect(parseCapture(answer, new Set([4, 7]))).toEqual([
-    { kind: "new", text: "the human's sister sam is a nurse", card: "RELATIONSHIP" },
+    { kind: "new", text: "the human's sister sam is a nurse", card: "RELATIONSHIP", from: 0 },
     { kind: "same", pos: 4 },
-    { kind: "replace", pos: 7, text: "the human lives in porto", card: "IDENTITY" },
-    { kind: "new", text: "the human prefers short answers [WHATEVER]", card: null },
+    { kind: "replace", pos: 7, text: "the human lives in porto", card: "IDENTITY", from: 0 },
+    { kind: "new", text: "the human prefers short answers [WHATEVER]", card: null, from: 0 },
   ])
 })
 
-test("applied capture lines carry the message ref, and a replacement supersedes", () => {
+test("each applied fact carries the ref of the message it came from, and a replacement supersedes", () => {
   const l = life()
   l.append("the human lives in lisbon", "you", false, 1)
-  const count = applyOps(l, parseCapture("~ 0 the human lives in porto [IDENTITY]\n+ the human has a cat", new Set([0])), "room:r:msg:m1", 5)
-  expect(count).toEqual({ added: 1, replaced: 1, same: 0, private: 0 })
+  const heard = [{ ref: "room:r:msg:m1", at: 5 }, { ref: "room:r:msg:m2", at: 6 }]
+  const count = applyOps(l, parseCapture("~ 0 m2 the human lives in porto [IDENTITY]\n+ m1 the human has a cat\n+ m9 the human plays chess", new Set([0]), 2), heard)
+  expect(count).toEqual({ added: 2, replaced: 1, same: 0, private: 0 })
   expect(l.recall("lives").map((x) => x.text)).toEqual(["the human lives in porto"])
-  expect(l.redactRefs(["room:r:msg:m1"]).length).toBe(2)
+  expect(l.redactRefs(["room:r:msg:m2"]).length).toBe(1)
   expect(l.recall("lives").map((x) => x.text)).toEqual(["the human lives in lisbon"])
+  expect(l.recall("cat").map((x) => x.text)).toEqual(["the human has a cat"])
+  expect(l.list(null, 10).find((x) => x.text === "the human lives in lisbon")?.supersededBy).toBeNull()
 })
 
 test("candidates are the sentences between 12 characters and 280 bytes, at most six", () => {

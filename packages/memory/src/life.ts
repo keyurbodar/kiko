@@ -8,7 +8,7 @@ export const isCardTag = (value: unknown): value is CardTag => CARD_TAGS.include
 
 const TILING_KEY = "life_tiling"
 
-export type LifeLine = { pos: number; at: number; text: string; source: string; tainted: boolean; pinned: boolean; redacted: boolean }
+export type LifeLine = { pos: number; at: number; text: string; source: string; tainted: boolean; pinned: boolean; redacted: boolean; supersededBy: number | null }
 
 export type NoteResult = { ok: true; pos: number; duplicate?: true } | { ok: false; error: string }
 
@@ -246,5 +246,5 @@ export class Life {
 }
 
 function toLine(r: Row): LifeLine {
-  return { pos: r.pos, at: r.at, text: r.text, source: r.source, tainted: r.tainted === 1, pinned: r.pinned === 1, redacted: r.redacted === 1 }
+  return { pos: r.pos, at: r.at, text: r.text, source: r.source, tainted: r.tainted === 1, pinned: r.pinned === 1, redacted: r.redacted === 1, supersededBy: r.superseded_by }
 }

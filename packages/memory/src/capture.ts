@@ -64,7 +64,10 @@ const WORTH: Omit<Extract<Question, { type: "noul" }>, "instructions"> = {
 
 const PRIVATE: Omit<Extract<Question, { type: "noul" }>, "instructions"> = {
   type: "noul",
-  criteria: { true: "an address, phone number, government id, password or key, a health detail, or something they asked to keep secret", false: "none of these" },
+  criteria: {
+    true: "a street address, phone number, government id, account number, password, pin or key, a health detail, or something they asked to keep secret",
+    false: "none of these. A city, country, employer, job, or who someone is to them is not private",
+  },
 }
 
 const CARD: Record<CardTag | "not_card", string> = {
@@ -115,12 +118,17 @@ export async function captureWithJudge(life: Life, judge: Judge, heard: Heard, r
     const relation = choiceOf(answers[`c${i}_relation`])?.choice ?? "new"
     if (relation.startsWith("same_")) return void count.same++
     const replaces = /^replaces_(\d+)$/.exec(relation)
-    apply(life, { kind: replaces ? "replace" : "new", pos: replaces ? Number(replaces[1]) : 0, text: candidate, card }, ref, heard.at, count)
+    const op: CaptureOp = replaces ? { kind: "replace", pos: Number(replaces[1]), text: candidate, card, from: 0 } : { kind: "new", text: candidate, card, from: 0 }
+    apply(life, op, ref, heard.at, count)
   })
   return count
 }
 
-export type CaptureOp = { kind: "new"; text: string; card: CardTag | null } | { kind: "same"; pos: number } | { kind: "replace"; pos: number; text: string; card: CardTag | null }
+/** `from` is the index of the message the fact came from, so deleting that message forgets it. */
+export type CaptureOp =
+  | { kind: "new"; text: string; card: CardTag | null; from: number }
+  | { kind: "same"; pos: number }
+  | { kind: "replace"; pos: number; text: string; card: CardTag | null; from: number }
 
 export const CAPTURE_SYSTEM = "you keep a memory of lasting facts about one human. you answer only with lines in the format you are given."
 
@@ -130,12 +138,12 @@ const MESSAGE_CUT = 2_000
 export function capturePrompt(heard: readonly Heard[], known: readonly { pos: number; text: string }[]): string {
   return [
     "read the human's messages and the facts already known. write one line for each fact worth remembering for months: who they are, their people, places, work, plans, tastes, and how they want to be helped.",
-    "skip small talk, passing moods, questions, requests to the agent, and private details (an address, phone number, government id, password or key, health detail, or anything they asked to keep secret).",
+    "skip small talk, passing moods, questions, requests to the agent, and private details (a street address, phone number, government id, account number, password, pin or key, health detail, or anything they asked to keep secret). a city, employer, or job is not private.",
     `write each fact in the third person about the human, in one line of at most ${LINE_BYTES} bytes. copy names, numbers, and dates exactly. invent nothing.`,
     "use only these line formats:",
-    "+ <fact>        a new fact",
-    "= <n>           the same as known fact #n",
-    "~ <n> <fact>    replaces known fact #n, which is no longer true",
+    "+ m<i> <fact>        a new fact, from message m<i>",
+    "= <n>                the same as known fact #n",
+    "~ <n> m<i> <fact>    replaces known fact #n, which is no longer true",
     "end a fact with [IDENTITY], [ATTRIBUTE], [RELATIONSHIP], or [INSTRUCTION] only when it is unlikely to change within six months.",
     "if nothing is worth keeping, answer: none",
     "",
@@ -143,7 +151,7 @@ export function capturePrompt(heard: readonly Heard[], known: readonly { pos: nu
     ...(known.length ? known.slice(0, MAX_KNOWN).map((k) => `#${k.pos} ${k.text}`) : ["(none)"]),
     "",
     "human messages:",
-    ...heard.map((h) => (h.text.length > MESSAGE_CUT ? `${h.text.slice(0, MESSAGE_CUT)}…` : h.text).replace(/\s+/g, " ").trim()),
+    ...heard.map((h, i) => `m${i + 1}: ${(h.text.length > MESSAGE_CUT ? `${h.text.slice(0, MESSAGE_CUT)}…` : h.text).replace(/\s+/g, " ").trim()}`),
   ].join("\n")
 }
 
@@ -156,8 +164,12 @@ export function knownFor(life: Life, heard: readonly Heard[]): { pos: number; te
 const TAG = /\s*\[(IDENTITY|ATTRIBUTE|RELATIONSHIP|INSTRUCTION)\]\s*$/
 
 /** Reads the model's lines. A malformed line, or one naming a fact that was not shown, is dropped. */
-export function parseCapture(answer: string, known: ReadonlySet<number>): CaptureOp[] {
+export function parseCapture(answer: string, known: ReadonlySet<number>, messages = 1): CaptureOp[] {
   const ops: CaptureOp[] = []
+  const from = (raw: string | undefined) => {
+    const i = raw ? Number(raw) - 1 : 0
+    return i >= 0 && i < messages ? i : 0
+  }
   const fact = (raw: string) => {
     const tag = TAG.exec(raw)
     const text = raw.replace(TAG, "").replace(/\s+/g, " ").trim()
@@ -166,22 +178,25 @@ export function parseCapture(answer: string, known: ReadonlySet<number>): Captur
   }
   for (const line of answer.split("\n").map((l) => l.trim())) {
     let m: RegExpExecArray | null
-    if ((m = /^\+\s+(.+)$/.exec(line))) {
-      const f = fact(m[1]!)
-      if (f) ops.push({ kind: "new", ...f })
+    if ((m = /^\+\s+(?:m(\d+)\s+)?(.+)$/.exec(line))) {
+      const f = fact(m[2]!)
+      if (f) ops.push({ kind: "new", ...f, from: from(m[1]) })
     } else if ((m = /^=\s*#?(\d+)$/.exec(line))) {
       if (known.has(Number(m[1]))) ops.push({ kind: "same", pos: Number(m[1]) })
-    } else if ((m = /^~\s*#?(\d+)\s+(.+)$/.exec(line))) {
-      const f = fact(m[2]!)
-      if (f && known.has(Number(m[1]))) ops.push({ kind: "replace", pos: Number(m[1]), ...f })
+    } else if ((m = /^~\s*#?(\d+)\s+(?:m(\d+)\s+)?(.+)$/.exec(line))) {
+      const f = fact(m[3]!)
+      if (f && known.has(Number(m[1]))) ops.push({ kind: "replace", pos: Number(m[1]), ...f, from: from(m[2]) })
     }
   }
   return ops
 }
 
-export function applyOps(life: Life, ops: readonly CaptureOp[], ref: string, at: number): CaptureCount {
+export function applyOps(life: Life, ops: readonly CaptureOp[], heard: readonly { ref: string; at: number }[]): CaptureCount {
   const count: CaptureCount = { added: 0, replaced: 0, same: 0, private: 0 }
-  for (const op of ops) apply(life, op, ref, at, count)
+  for (const op of ops) {
+    const source = op.kind === "same" ? heard[0]! : (heard[op.from] ?? heard[0]!)
+    apply(life, op, source.ref, source.at, count)
+  }
   return count
 }
 

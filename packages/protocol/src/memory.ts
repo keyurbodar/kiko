@@ -13,6 +13,8 @@ export type LifeLine = {
 	tainted: boolean
 	pinned: boolean
 	redacted: boolean
+	/** The line that replaced this one, when a later fact corrected it. */
+	supersededBy?: number | null
 }
 
 /** The model that writes memory summaries. Null means the default. */

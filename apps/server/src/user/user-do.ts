@@ -760,7 +760,7 @@ export class UserDO extends DurableObject<Env> {
     if (answer === null) return "later"
     this.count({ capture_model: 1 })
     if (heard.some((h) => !this.queued(roomId, h.messageId, h.text))) return false
-    const out = applyOps(this.life, parseCapture(answer, new Set(known.map((k) => k.pos))), `room:${roomId}:msg:${heard[0]!.messageId}`, heard[heard.length - 1]!.at)
+    const out = applyOps(this.life, parseCapture(answer, new Set(known.map((k) => k.pos)), heard.length), heard.map((h) => ({ ref: `room:${roomId}:msg:${h.messageId}`, at: h.at })))
     this.tally(out)
     this.dequeue(roomId, heard.map((h) => h.messageId))
     return out.added + out.replaced > 0
