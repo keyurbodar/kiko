@@ -2,6 +2,7 @@ import { HugeIcon } from "@yuki/ui/huge-icon"
 import { CheckIcon, CloseIcon, MoonIcon } from "@yuki/ui/icons"
 import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import { createSignal, For, Show } from "solid-js"
+import type { LoopRow as WireLoop } from "@yuki/protocol"
 import { shortDate } from "./format"
 
 /*
@@ -12,7 +13,7 @@ import { shortDate } from "./format"
  * the fetch only corrects it.
  */
 
-export type PlateLoop = { id: number; room: string; text: string; due: string | null; snoozedUntil: number | null }
+export type PlateLoop = Pick<WireLoop, "id" | "room" | "text" | "due" | "snoozedUntil">
 
 const [all, setAll] = createSignal<readonly PlateLoop[] | undefined>(undefined)
 
@@ -31,6 +32,13 @@ export async function loadLoops(): Promise<void> {
   const res = await fetch("/api/loops").catch(() => null)
   if (res?.ok) setAll(readLoops(await res.json().catch(() => null)))
   else if (all() === undefined) setAll([])
+}
+
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+/** A cheap refetch after a burst of room events. The cached list stays painted meanwhile. */
+export function refreshLoops(delay = 1200): void {
+  clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(() => void loadLoops(), delay)
 }
 
 /** A chat's loops that are not snoozed past now. */

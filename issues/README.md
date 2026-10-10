@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-144 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+147 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -20,6 +20,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P14-01](wave-00/P14-01-composio-as-the-tier-1-integration.md) | Composio as the tier 1 integration | backend | 3 | none | no |
 | [P15-01](wave-00/P15-01-facts-with-sources-replacement-and-a-card.md) | Facts with sources, replacement, and a card | backend | 4 | none | no |
 | [P15-02](wave-00/P15-02-team-fixes-from-the-bops-comparison.md) | Team fixes from the bops comparison | backend | 2 | none | yes |
+| [P16-01](wave-00/P16-01-open-loops-store-and-detectors.md) | Open loops store and detectors | backend | 4 | none | no |
 
 ## Wave 1
 
@@ -42,6 +43,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P12-02](wave-01/P12-02-carry-a-run-s-authority.md) | Carry a run's authority | backend | 4 | P12-01 | no |
 | [P12-06](wave-01/P12-06-nudge-stalled-tasks.md) | Nudge stalled tasks | backend | 2 | P12-01 | yes |
 | [P13-02](wave-01/P13-02-never-show-cut-text-as-if-whole.md) | Never show cut text as if whole | backend | 2 | P13-01 | yes |
+| [P16-02](wave-01/P16-02-attention-engine-and-nudges.md) | Attention engine and nudges | backend | 5 | P16-01 | no |
+| [P16-03](wave-01/P16-03-client-surfaces-and-settings.md) | Client surfaces and settings | frontend | 2 | P16-01 | yes |
 | [P2-01](wave-01/P2-01-rewrite-the-theme-to-the-kat-values.md) | Rewrite the theme to the kat values | frontend | 3 | P0-02 | yes |
 | [P3-02](wave-01/P3-02-reverse-swipe-to-reply.md) | Reverse swipe to reply | frontend | 2 | P0-02 | yes |
 | [P8-01](wave-01/P8-01-build-the-safe-fetcher.md) | Build the safe fetcher | backend | 4 | P0-01 | yes |

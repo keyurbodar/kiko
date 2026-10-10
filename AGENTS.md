@@ -117,6 +117,9 @@ apps/
   server/               the Worker                             (planned, P0-01)
     src/user/           UserDO: credentials, memory, reminders
     src/room/           RoomDO: log, burst, delivery, workspace
+    src/room/wake.ts    the wake path a routine or a nudge uses to start one agent run
+    src/room/signals.ts the signal window: human messages and task changes for routines and the engine
+    src/initiative/     open loops wiring: attention (learned moment and appetite), engine, judge
     src/agent/          AgentDO: factory, outbox, yuki's extensions
     catalog/            extensions reviewed upstream, bundled by scripts/gen-catalog.ts
     src/lib/            names, dev stats
@@ -126,7 +129,7 @@ packages/
   protocol/             wire types shared by all three apps   (planned, P0-03)
   durable/              @yuki/durable: alarm, safe-fetch, crypto, wipe
   agent/                @yuki/agent: pi-durable host, inbox, trust, effects
-  memory/               @yuki/memory: OptMem tree, life log, memory tools
+  memory/               @yuki/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
   sandbox/              @yuki/sandbox: QuickJS VM, manifest, compiler, checker
 docs/
   overview.md  product.md  architecture.md

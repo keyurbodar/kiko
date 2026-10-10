@@ -28,7 +28,7 @@ export const LoopAction = Schema.Union([
 ])
 export type LoopAction = typeof LoopAction.Type
 
-/** Settings the human sets from the settings page (`GET` and `POST /api/settings/initiative`). */
+/** Settings the human sets from the settings page (`GET` and `POST /api/settings`). */
 export const INITIATIVE_LEVELS = ["off", "chat", "digest", "active"] as const
 export const CAPTURE_MODES = ["auto", "always", "off"] as const
 export const UserSettings = Schema.Struct({

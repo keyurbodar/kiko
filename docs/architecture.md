@@ -1715,3 +1715,11 @@ Measured 2026-10-10, `verify initiative`, all six scenarios per arm with Muse Sp
 
 Measured 2026-10-10: the summary call for a page with three loops took 506 input and 503 to 584 output tokens. UNVERIFIED: the same page without the loop part was not measured side by side. With Jev, a session of four bursts spent 6,050 Jev input tokens across capture, one loop classify, and four related checks, about $0.0003.
 
+### 26.8 Client surfaces and routes
+
+The details panel has an On your plate page (`apps/web-solid/src/chat/info/loops.tsx`). It lists the chat's open loops with done, tomorrow, and drop. Each action applies at once and is put back with a toast if the server refuses. The list stays in memory, so a reopened panel paints at once. It is fetched again when the panel opens, when the page shows, and, debounced, when the room gets a message or an agent's status changes. Settings has an Initiative page (`settings/initiative.tsx`) for the level and the memory capture mode. Saves apply at once, and a failed save puts back only a field that no newer save touched. The client takes its types from `@yuki/protocol` (`LoopRow`, `UserSettings`), types only.
+
+Routes, all from the session's user:
+
+- `GET /api/loops` lists open and snoozed loops. `POST /api/loops/<id>` takes `{action: "done" | "drop"}` or `{action: "snooze", until}` and goes through `UserDO.closeLoop` for a close.
+- `GET /api/settings` and `POST /api/settings` read and patch `initiative` (off, chat, digest, active) and `capture` (auto, always, off).

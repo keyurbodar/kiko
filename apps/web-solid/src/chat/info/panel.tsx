@@ -11,7 +11,7 @@ import { HugeIcon } from "@yuki/ui/huge-icon"
 import { BackIcon } from "@yuki/ui/icons"
 import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers, tabKeys } from "./sections"
 import { shortDate, startedAt } from "./format"
-import { loadLoops, PlatePage, loopsOf } from "./loops"
+import { loadLoops, PlatePage, loopsOf, refreshLoops } from "./loops"
 import { loadRoutines, RoutinesPage, routinesOf } from "./routines"
 import {
   closeFile,
@@ -138,7 +138,6 @@ function Home(props: { chatId: string }) {
   const started = () => startedAt(props.chatId)
   // Routines are fetched each time the front page shows, so a new one an agent made appears.
   void loadRoutines()
-  void loadLoops()
   return (
     <div class="flex min-h-full flex-col" data-component="info-home">
       <Header chatId={props.chatId} />
@@ -327,6 +326,16 @@ export default function InfoPanel(props: { chatId: string }) {
   )
 
   const view = infoView
+  // The plate is fetched when the panel opens and when its page shows, and again, debounced, when the
+  // room gets a message or a run ends. The cached list paints first.
+  createEffect(on(() => [props.chatId, view().kind === "plate"], () => void loadLoops()))
+  createEffect(
+    on(
+      () => [useApp.room()?.state.seq, useApp.room()?.state.status],
+      () => refreshLoops(),
+      { defer: true },
+    ),
+  )
   const ids = createUniqueId()
   // Beside the chat the panel leaves the chat at least 360 px, as t3code's preview does. Below 760 px it covers the chat instead.
   return (
