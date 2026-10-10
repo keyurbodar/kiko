@@ -10,7 +10,7 @@ import { browser, browserError, handBack, openLive, startBrowser } from "./brows
 const button = "h-7 shrink-0 rounded-md bg-[color-mix(in_oklab,var(--text)_8%,transparent)] px-3 text-[12px] font-medium text-text disabled:opacity-60"
 const primary = "h-7 shrink-0 rounded-md bg-[var(--accent-fill)] px-3 text-[12px] font-medium text-[var(--on-accent)] disabled:opacity-60"
 
-/** Watch and Take over, or Hand back. The share card draws the same buttons. */
+/** Watch and Take over, or Hand back. */
 export function BrowserButtons(): JSX.Element {
 	return (
 		<span class="flex shrink-0 gap-1.5" data-component="browser-buttons">

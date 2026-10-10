@@ -182,10 +182,6 @@ const MIGRATIONS: readonly string[] = [
 	-- The one line a bubble shows when the agent spoke up unasked (section 26). Null on every other message.
 	ALTER TABLE messages ADD COLUMN initiative TEXT;
 	`,
-	`
-	-- A browser share card (architecture 27.7): JSON with the agent's name and its reason. Null on every other message.
-	ALTER TABLE messages ADD COLUMN share TEXT;
-	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

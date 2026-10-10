@@ -114,7 +114,6 @@ export const Message = Schema.Struct({
 	quote: Schema.optionalKey(Schema.String),
 	to: Schema.optionalKey(Schema.Union([AgentSlug, Schema.Literal("all")])),
 	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
-	share: Schema.optionalKey(Schema.Struct({ name: Schema.String, reason: Schema.String })),
 })
 
 export const Member = Schema.Struct({

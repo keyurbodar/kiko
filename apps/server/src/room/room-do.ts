@@ -1506,13 +1506,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * An agent asks the human to look at the browser (architecture 27.7). The card holds the agent's
-	 * name and its reason, never a link: the human's Watch and Take over buttons ask `UserDO` for it.
+	 * An agent asks the human to look at the browser (architecture 27.7), as a plain message with its reason
+	 * and never a link. The browser bar above the composer has Watch and Take over, which ask `UserDO` for it.
 	 */
 	async browserShare(slug: AgentSlug, reason: string): Promise<boolean> {
 		const member = this.members.get(slug)
 		if (!member) return false
-		const { event } = this.log.addMessage({ from: { kind: "agent", slug }, text: reason, share: { name: member.name, reason } })
+		const { event } = this.log.addMessage({ from: { kind: "agent", slug }, text: reason })
 		if (event) this.publish([event])
 		return true
 	}

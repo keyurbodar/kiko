@@ -112,7 +112,6 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.quote) out.quote = m.quote
   if (m.to) out.to = m.to
   if (m.initiative) out.initiative = m.initiative.reason
-  if (m.share) out.share = true
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   // A stored file keeps only what today's bubble reads, so an old message's media fields fall away here.

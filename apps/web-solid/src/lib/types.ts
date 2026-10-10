@@ -105,8 +105,6 @@ export interface ChatMessage {
   quote?: string
   /** Why an agent spoke up unasked (section 26). Shown as a muted line on the bubble. */
   initiative?: string
-  /** A browser share card: the buttons show under the reason. */
-  share?: boolean
   /** The teammate, or "all", an agent's message was sent to. Absent on a reply meant for the human. */
   to?: string
   /** Marks the message as pinned in its thread. */

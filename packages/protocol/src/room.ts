@@ -65,8 +65,6 @@ export type Message = {
 	to?: AgentSlug | "all"
 	/** Present when the agent spoke up unasked (section 26). `reason` is the one line the bubble shows. */
 	initiative?: { reason: string }
-	/** Present on a browser share card (architecture 27.7). The card holds the reason and never a link. */
-	share?: { name: string; reason: string }
 }
 
 export type Member = {

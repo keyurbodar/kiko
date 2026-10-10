@@ -1092,9 +1092,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /**
-   * An agent asks the human to look at the browser, for a sign-in or a captcha. Posts a card with the
-   * reason into the room. The card holds no link: Watch and Take over ask for it. `agentId` ends in
-   * the agent's slug (after the last "/" or ":"). Returns false when the agent is not in that room.
+   * An agent asks the human to look at the browser, for a sign-in or a captcha. Posts the reason as a plain
+   * message, with no link: the browser bar's Watch and Take over ask for it. `agentId` ends in the agent's slug
+   * (after the last "/" or ":"). Returns false when the agent is not in that room.
    */
   async browserShare(agentId: string, roomId: string, reason: string): Promise<boolean> {
     checkAgentId(agentId)
