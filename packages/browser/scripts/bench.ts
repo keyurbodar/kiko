@@ -7,7 +7,7 @@ import { connect } from "../src/cdp/browser"
 import { jevDecider } from "../src/decide/jev"
 import { modelDecider } from "../src/decide/model"
 import type { JevPort, ModelPort } from "../src/decide/ports"
-import type { Decider } from "../src/decide/types"
+import type { Choice, Decider } from "../src/decide/types"
 import type { PageView, Tab } from "../src/page/types"
 import { runTasks } from "../src/worker/run"
 import type { Task, TaskResult } from "../src/worker/types"
@@ -71,6 +71,7 @@ globalThis.WebSocket = CountingSocket as typeof WebSocket
 // ---- Ports, matching the server's.
 let lastTokens = 0
 const tokens: number[] = []
+const outTokens: number[] = []
 
 const jevPort: JevPort = {
   async choose(req, signal) {
@@ -140,6 +141,7 @@ const modelPort = (session: string): ModelPort => ({
         if (ev.type === "response.completed" || ev.type === "response.incomplete") {
           lastTokens = ev.response?.usage?.input_tokens ?? 0
           tokens.push(lastTokens)
+          outTokens.push(ev.response?.usage?.output_tokens ?? 0)
         }
         if (ev.type === "error" || ev.type === "response.failed") throw new Error(`model stream: ${data.slice(0, 200)}`)
       }
@@ -172,6 +174,26 @@ const BENCH: Bench[] = [
 const decode = (s: string) => s.replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")
 const newest = await (await fetch("https://news.ycombinator.com/newest")).text()
 topTitles = [...newest.matchAll(/<span class="titleline"><a [^>]*>([^<]+)<\/a>/g)].slice(0, 10).map((m) => decode(m[1] ?? ""))
+
+// ---- A decider with no model, for the CDP cost alone: a fixed path per task, mixing navigations and in-page steps.
+function scriptDecider(): Decider {
+  const done = new Map<string, number>()
+  return {
+    name: "script",
+    async decide(input) {
+      const n = done.get(input.goal) ?? 0
+      done.set(input.goal, n + 1)
+      const by = (test: (text: string, key: string) => boolean) => input.options.find((o) => test(o.text, o.key))
+      const stop = by((_, k) => k === "done") as Choice
+      let pick: Choice | undefined
+      if (input.goal.startsWith("find the title")) pick = n === 0 ? by((t) => /click link "past"/.test(t)) : n === 1 ? by((t) => /click link "new"/.test(t)) : stop
+      else if (input.goal.startsWith("search")) pick = by((_, k) => /^t\d+v0$/.test(k)) ?? (n < 2 ? by((t) => /click (link|button) "Search"/.test(t)) : stop)
+      else pick = n < 2 ? by((_, k) => k === "sd") : stop
+      if (input.goal.startsWith("search") && input.page.url.includes("/wiki/Cloudflare")) pick = stop
+      return { choice: pick ?? stop, confidence: null, runnersUp: [] }
+    },
+  }
+}
 
 // ---- Per-step stamps, the same cut as the server's timedTab: read before a decision to read after its action.
 type Sample = { step: number; decide: number; act: number; read: number; rtt: number }
@@ -220,17 +242,20 @@ const pct = (xs: number[], p: number) => {
 async function pass(name: string, cdpUrl: string, make: (run: number) => Decider) {
   samples.length = 0
   tokens.length = 0
+  outTokens.length = 0
   empties.length = 0
   let okCount = 0
   const decisionsPerTask: number[] = []
   const failures: string[] = []
   for (let run = 0; run < RUNS; run++) {
+    let phase = "connect"
     const session = await connect(cdpUrl)
     try {
       const raw = await Promise.all(BENCH.map(() => session.openTab()))
       // Session ids are known only inside the page layer; map each tab to its session by the trips it adds.
       const sessionOf = new Map<string, string>()
       const tabs = raw.map((t) => timed(t, () => sessionOf.get(t.id) ?? ""))
+      phase = "bind"
       // A first cheap read binds each tab's session id for the round trip counter.
       for (const t of raw) {
         const before = new Map(trips)
@@ -246,11 +271,14 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
           return base.decide(input, signal)
         },
       }
+      phase = "run"
       const t0 = performance.now()
       const results = await runTasks(tabs, BENCH.map((b) => b.task), { decider, paused: () => false, signal: AbortSignal.timeout(120_000) })
       const wall = performance.now() - t0
       decisionsPerTask.push(decisions / BENCH.length)
+      phase = "final read"
       for (const [i, r] of results.entries()) {
+        phase = `final read ${i}`
         const page = await raw[i]!.read()
         const good = BENCH[i]!.ok(r, page)
         if (good) okCount++
@@ -258,6 +286,9 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
       }
       console.log(`  ${name} run ${run}: ${(wall / 1000).toFixed(1)} s, ${results.map((r) => `${r.stop}(${r.actions.length})`).join(" ")}`)
       await Promise.all(raw.map((t) => t.close()))
+    } catch (e) {
+      failures.push(`run ${run} threw in ${phase}: ${String(e).slice(0, 200)}`)
+      console.log(`  ${name} run ${run} threw in ${phase}: ${String(e).slice(0, 200)}`)
     } finally {
       await session.close()
     }
@@ -275,6 +306,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
     rtt_per_step: +(col("rtt").reduce((a, b) => a + b, 0) / (samples.length || 1)).toFixed(2),
     decisions_per_task: +(decisionsPerTask.reduce((a, b) => a + b, 0) / (decisionsPerTask.length || 1)).toFixed(2),
     tokens_per_decision: Math.round(tokens.reduce((a, b) => a + b, 0) / (tokens.length || 1)),
+    p50_out_tokens: pct(outTokens, 0.5),
   }
   for (const f of failures) console.log(`  FAIL ${f}`)
   if (empties.length) console.log(`  empty model answers: ${empties.length}: ${[...new Set(empties)].slice(0, 4).join("; ")}`)
@@ -289,6 +321,7 @@ try {
   if ((WHICH === "both" || WHICH === "model") && MODEL_KEY)
     rows.push(await pass("model", browser.cdp_ws_url, (run) => modelDecider(modelPort(`bench-${Date.now().toString(36)}-${run}`))))
   if ((WHICH === "both" || WHICH === "jev") && JEV_KEY) rows.push(await pass("jev", browser.cdp_ws_url, () => jevDecider(jevPort)))
+  if (WHICH === "script") rows.push(await pass("script", browser.cdp_ws_url, () => scriptDecider()))
 } finally {
   const gone = await fetch(`${API}/browsers/${browser.session_id}`, { method: "DELETE", headers })
   console.log(`kernel delete: ${gone.status}`)

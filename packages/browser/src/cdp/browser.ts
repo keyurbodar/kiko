@@ -1,3 +1,4 @@
+import { BROWSER } from "../config"
 import { act, goto, screenshot } from "../page/act"
 import { type PageState, read } from "../page/read"
 import type { BrowserSession, DialogPolicy, Tab } from "../page/types"
@@ -21,6 +22,17 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       const accept = policy({ type: dialog.type, message: dialog.message }) === "accept"
       if (!accept) page.dialog = `A ${dialog.type} dialog said: ${dialog.message}`
       page.channel.send("Page.handleJavaScriptDialog", { accept }).catch(() => {})
+    })
+    // The load waiter is registered from the start event, so it exists before the load can fire.
+    page.channel.on("Page.frameStartedLoading", (event) => {
+      if (event.frameId !== targetId) return
+      const loading: Promise<unknown> = page.channel
+        .waitFor("Page.loadEventFired", BROWSER.loadMs)
+        .catch(() => undefined)
+        .then(() => {
+          if (page.loading === loading) page.loading = undefined
+        })
+      page.loading = loading
     })
     page.channel.on("Inspector.targetCrashed", () => {
       page.crashed = true

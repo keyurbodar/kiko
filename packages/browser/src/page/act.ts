@@ -1,7 +1,7 @@
 import { BROWSER } from "../config"
 import { CdpError } from "../cdp/session"
-import { evaluate, type PageState } from "./read"
-import { guardScript, selectScript, settleScript } from "./script"
+import { evaluate, flush, navigates, type PageState } from "./read"
+import { guardScript, selectScript } from "./script"
 import type { Step, StepResult } from "./types"
 
 type Guard = { status: "ok"; x: number; y: number; menu: boolean } | { status: "gone" | "hidden" } | { status: "stale"; label: string }
@@ -122,26 +122,17 @@ function dialogResult(page: PageState): StepResult | undefined {
   return { ok: false, reason: "dialog", detail }
 }
 
-const navigates = (message: string) => /context was destroyed|navigated or closed|Cannot find context/i.test(message)
-
 export async function act(page: PageState, step: Step): Promise<StepResult> {
   if (page.crashed) return { ok: false, reason: "crashed" }
   const early = dialogResult(page)
   if (early) return early
-  // Set from the frameStartedLoading event, so the load waiter exists before the load can fire.
-  let loaded: Promise<unknown> | undefined
-  const offNav = page.channel.on("Page.frameStartedLoading", (event) => {
-    if (event.frameId === page.targetId && !loaded) loaded = page.channel.waitFor("Page.loadEventFired", BROWSER.loadMs)
-  })
   try {
+    if (step.op === "goto" || step.op === "back") page.settle = undefined
+    else if (step.op === "press") await flush(page)
     const done = await perform(page, step)
     if (!done.ok) return dialogResult(page) ?? done
-    if (step.op !== "goto" && step.op !== "back") {
-      await evaluate(page, settleScript("menu" in done && done.menu), true).catch((error: Error) => {
-        if (!navigates(error.message)) throw error
-      })
-      if (loaded) await loaded
-    }
+    // The settle, and the load of a navigation it starts, are paid by the next page script: usually the read.
+    if (step.op !== "goto" && step.op !== "back") page.settle = "menu" in done && done.menu
     return dialogResult(page) ?? { ok: true }
   } catch (error) {
     if (page.crashed) return { ok: false, reason: "crashed" }
@@ -149,16 +140,15 @@ export async function act(page: PageState, step: Step): Promise<StepResult> {
     if (error instanceof CdpError && error.kind === "timeout") return { ok: false, reason: "timeout", detail: message }
     if (error instanceof CdpError && error.kind === "closed") return { ok: false, reason: "crashed", detail: message }
     if (navigates(message)) {
-      if (loaded) await loaded
+      if (page.loading) await page.loading
       return dialogResult(page) ?? { ok: true }
     }
     throw error
-  } finally {
-    offNav()
   }
 }
 
 export async function screenshot(page: PageState): Promise<Uint8Array> {
+  await flush(page)
   const { data } = await page.channel.send("Page.captureScreenshot", { format: "jpeg", quality: 50, optimizeForSpeed: true })
   const binary = atob(data)
   const bytes = new Uint8Array(binary.length)
