@@ -23,6 +23,9 @@ import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Tou
 import { Life } from "@yuki/memory/life"
 import { importRecords } from "./import-records"
 import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@yuki/memory/optmem"
+import { applyOps, CAPTURE_SYSTEM, type CaptureCount, type CapturePolicy, capturePrompt, captureWithJudge, type Heard, knownFor, mergePolicy, parseCapture } from "@yuki/memory/capture"
+import { type Judge, noulOf, type Question } from "@yuki/memory/judge"
+import { TYPESAFE, TYPESAFE_REFUSED, typesafeJudge } from "./jev"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
@@ -61,6 +64,14 @@ const MAX_NAPS = 4
 const COMPRESS_TIMEOUT_MS = 120_000
 const MEMORY_USAGE = "memory_usage"
 const MEMORY_MODEL = "memory_model"
+const MEMORY_POLICY = "memory_policy"
+const CAPTURE_WAKEUP = "life_capture"
+const CAPTURE_QUEUE_MAX = 200
+const CAPTURE_PER_ALARM = 24
+const CAPTURE_TEXT_MAX = 8_000
+const CAPTURE_TIMEOUT_MS = 4_000
+const RERANK_TIMEOUT_MS = 1_500
+const RERANK_LINES_MAX = 30
 const LAST_SEEN = "last_seen"
 const HOOK_EXCERPT = 6_000
 const AWAY_NOTICE = "away_notice"
@@ -568,15 +579,186 @@ export class UserDO extends DurableObject<Env> {
     return out.duplicate ? { ok: true, duplicate: true } : { ok: true }
   }
 
-  async lifeRollup(roomId: RoomId, text: string, tainted: boolean, at: number): Promise<void> {
+  async lifeRollup(roomId: RoomId, text: string, tainted: boolean, at: number, span?: { lo: number; hi: number }): Promise<void> {
     const chat = getChat(this.sql, roomId)
     if (!chat || chat.private) return
-    const out = this.life.append(text, `chat ${chat.title}`, tainted, at)
+    const out = this.life.append(text, `chat ${chat.title}`, tainted, at, span ? { ref: `room:${roomId}:turns:${span.lo}-${span.hi}` } : {})
     if (out.ok && !out.duplicate) await this.armNaps()
   }
 
   async lifeRecall(query: string): Promise<string[]> {
-    return this.life.recall(query, 10).map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, 400, true, "life"))
+    return this.life
+      .recall(query, 10, { skipCard: true })
+      .map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}`, tainted: l.tainted }, 400, true, "life"))
+  }
+
+  async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
+    if (!this.policy().capture || !this.capturable(roomId)) return
+    const rows = items.flatMap((i) => (i.messageId && i.text.trim() ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
+    if (!rows.length) return
+    this.sql.exec(
+      "INSERT OR IGNORE INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at'), ? FROM json_each(?)",
+      roomId,
+      Date.now(),
+      JSON.stringify(rows),
+    )
+    this.sql.exec("DELETE FROM capture_queue WHERE rowid NOT IN (SELECT rowid FROM capture_queue ORDER BY queued_at DESC LIMIT ?)", CAPTURE_QUEUE_MAX)
+    await this.armCapture()
+  }
+
+  async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[]): Promise<void> {
+    const ids = [...new Set([...messageIds, ...requeue.map((r) => r.messageId)])]
+    const gone = this.life.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
+    this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(ids))
+    if (gone.length) await this.armNaps()
+    await this.captureHuman(roomId, requeue)
+  }
+
+  async forgetRoomTurn(roomId: RoomId, pos: number): Promise<void> {
+    const prefix = `room:${roomId}:turns:`
+    const refs = this.life.refsLike(prefix).filter((ref) => {
+      const m = /^(\d+)-(\d+)$/.exec(ref.slice(prefix.length))
+      return m !== null && Number(m[1]) <= pos && pos < Number(m[2])
+    })
+    if (this.life.redactRefs(refs).length) await this.armNaps()
+  }
+
+  async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
+    if (!this.jevReady()) return null
+    const shown = lines.slice(0, RERANK_LINES_MAX)
+    if (!shown.length) return []
+    const questions: Record<string, Question> = {}
+    shown.forEach((l, i) => {
+      questions[`l${i}`] = { type: "noul", instructions: { line: l.text, query, question: "Does `line` help answer `query`?" } }
+    })
+    const answers = await this.judge(RERANK_TIMEOUT_MS)({ query }, questions)
+    if (!answers) return null
+    this.count({ rerank_jev: 1 })
+    const policy = this.policy()
+    return shown
+      .map((l, i) => ({ id: l.id, p: noulOf(answers[`l${i}`]) }))
+      .filter((x) => x.p >= policy.rerankMin)
+      .sort((a, b) => b.p - a.p)
+      .slice(0, policy.recallMax)
+      .map((x) => x.id)
+  }
+
+  private policy(): CapturePolicy {
+    return mergePolicy(this.setting(MEMORY_POLICY))
+  }
+
+  private capturable(roomId: RoomId): boolean {
+    const chat = getChat(this.sql, roomId)
+    return chat !== null && !chat.private
+  }
+
+  /** A TypeSafe key is stored and was not refused. Reads one row; the judge itself reads the key. */
+  private jevReady(): boolean {
+    const info = this.#credentials.listProviders().find((p) => p.provider === TYPESAFE)
+    return info !== undefined && (info.last4 === "" || this.setting(TYPESAFE_REFUSED) !== info.last4)
+  }
+
+  private judge(timeoutMs: number): Judge {
+    return typesafeJudge(
+      {
+        key: async () => {
+          const credential = await this.#credentials.read(TYPESAFE)
+          return credential?.type === "api_key" && credential.key ? credential.key : null
+        },
+        setting: (key) => this.setting(key),
+        putSetting: (key, value) => (value === null ? void this.sql.exec("DELETE FROM settings WHERE key = ?", key) : this.putSetting(key, value)),
+        count: (key, n = 1) => this.count({ [key]: n }),
+      },
+      timeoutMs,
+    )
+  }
+
+  private count(delta: Record<string, number>): void {
+    const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
+    for (const [k, n] of Object.entries(delta)) if (n) spent[k] = (spent[k] ?? 0) + n
+    this.putSetting(MEMORY_USAGE, JSON.stringify(spent))
+  }
+
+  private tally(c: CaptureCount): void {
+    this.count({ facts_added: c.added, facts_replaced: c.replaced, facts_same: c.same, facts_private: c.private })
+  }
+
+  private async armCapture(): Promise<void> {
+    const q = this.sql.exec<{ n: number; oldest: number | null; newest: number | null }>("SELECT count(*) AS n, min(queued_at) AS oldest, max(queued_at) AS newest FROM capture_queue").one()
+    if (!q.n) return this.alarms.clearWakeup(CAPTURE_WAKEUP)
+    const p = this.policy()
+    await this.alarms.setWakeup(CAPTURE_WAKEUP, this.jevReady() ? q.newest! + p.jevDelayMs : q.n >= p.batch ? Date.now() : q.oldest! + p.idleMs)
+  }
+
+  private queued(roomId: string, messageId: string, text: string): boolean {
+    return this.sql.exec("SELECT 1 FROM capture_queue WHERE room_id = ? AND message_id = ? AND text = ?", roomId, messageId, text).toArray().length > 0
+  }
+
+  private dequeue(roomId: string, messageIds: readonly string[]): void {
+    this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(messageIds))
+  }
+
+  private async captureNow(): Promise<void> {
+    const policy = this.policy()
+    if (!policy.capture) return void this.sql.exec("DELETE FROM capture_queue")
+    type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number; queued_at: number }
+    let rows = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at, queued_at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
+    for (const r of rows.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
+    rows = rows.filter((r) => this.capturable(r.room_id))
+    let learned = false
+    if (this.jevReady()) {
+      const judge = this.judge(CAPTURE_TIMEOUT_MS)
+      const left: QueueRow[] = []
+      for (const r of rows) {
+        if (left.length) {
+          left.push(r)
+          continue
+        }
+        this.count({ capture_jev: 1 })
+        const out = await captureWithJudge(this.life, judge, { messageId: r.message_id, text: r.text, at: r.at }, `room:${r.room_id}:msg:${r.message_id}`, policy, () => this.queued(r.room_id, r.message_id, r.text))
+        if (!out) {
+          left.push(r)
+          continue
+        }
+        this.tally(out)
+        learned ||= out.added + out.replaced > 0
+        if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
+      }
+      rows = left
+    } else {
+      const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n
+      if (total < policy.batch && (rows[0]?.queued_at ?? Date.now()) + policy.idleMs > Date.now()) rows = []
+    }
+    // Without Jev, or when it failed mid-pass, the model reads the rest: one call per chat.
+    const rooms = new Map<RoomId, QueueRow[]>()
+    for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
+    for (const [roomId, batch] of rooms) {
+      const out = await this.captureByModel(roomId, batch.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at })))
+      if (out === "later") {
+        if (learned) await this.armNaps()
+        return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + policy.idleMs))
+      }
+      learned ||= out
+    }
+    if (learned) await this.armNaps()
+    await this.armCapture()
+  }
+
+  private async captureByModel(roomId: RoomId, heard: Heard[]): Promise<boolean | "later"> {
+    const known = knownFor(this.life, heard)
+    let answer: string | null
+    try {
+      answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, CAPTURE_SYSTEM, capturePrompt(heard, known))
+    } catch {
+      return "later"
+    }
+    if (answer === null) return "later"
+    this.count({ capture_model: 1 })
+    if (heard.some((h) => !this.queued(roomId, h.messageId, h.text))) return false
+    const out = applyOps(this.life, parseCapture(answer, new Set(known.map((k) => k.pos))), `room:${roomId}:msg:${heard[0]!.messageId}`, heard[heard.length - 1]!.at)
+    this.tally(out)
+    this.dequeue(roomId, heard.map((h) => h.messageId))
+    return out.added + out.replaced > 0
   }
 
   async lifeZoom(id: string): Promise<string | null> {
@@ -654,15 +836,26 @@ export class UserDO extends DurableObject<Env> {
   // `DurableObject` handler for incoming TCP sockets, so they carry a `Provider` suffix.
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
-    return this.#credentials.connect(provider, apiKey)
+    const info = await this.#credentials.connect(provider, apiKey)
+    if (provider === TYPESAFE) await this.judgeChanged()
+    return info
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
-    return this.#credentials.disconnect(provider)
+    const removed = await this.#credentials.disconnect(provider)
+    if (provider === TYPESAFE) await this.judgeChanged()
+    return removed
   }
 
   async listProviders(): Promise<ProviderInfo[]> {
-    return this.#credentials.listProviders()
+    const refused = this.setting(TYPESAFE_REFUSED)
+    return this.#credentials.listProviders().map((p) => (p.provider === TYPESAFE && refused !== null && p.last4 === refused ? { ...p, refused: true as const } : p))
+  }
+
+  /** A new or removed TypeSafe key: forget the old refusal and move the capture wakeup to the path now in use. */
+  private async judgeChanged(): Promise<void> {
+    this.sql.exec("DELETE FROM settings WHERE key = ?", TYPESAFE_REFUSED)
+    await this.armCapture()
   }
 
   limits(): Limits {
@@ -893,6 +1086,7 @@ export class UserDO extends DurableObject<Env> {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
       [LIFE_WAKEUP]: () => this.napLife(),
+      [CAPTURE_WAKEUP]: () => this.captureNow(),
     })
     this.#loginState?.expire(due)
   }

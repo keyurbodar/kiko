@@ -5,6 +5,8 @@ export interface ProviderInfo {
   provider: string
   kind: Credential["type"]
   last4: string
+  /** The provider answered 401 or 403 to this key. Only TypeSafe sets it. */
+  refused?: true
 }
 
 export class CredentialError extends Error {}
