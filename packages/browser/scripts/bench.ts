@@ -32,7 +32,7 @@ const arg = (name: string, fallback: string) => {
 const RUNS = Number(arg("runs", "3"))
 const WHICH = arg("decider", "both")
 /** Same as DECIDER_MAX_TOKENS and reasoning "minimal" in the server's modelPort. Overridable to try settings. */
-const MAX_TOKENS = Number(arg("max-tokens", "256"))
+const MAX_TOKENS = Number(arg("max-tokens", "1024"))
 const REASONING = arg("reasoning", "minimal")
 const AT_URL = !process.argv.includes("--blank")
 

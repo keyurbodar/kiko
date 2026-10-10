@@ -7,8 +7,11 @@ import type { Decider } from "@yuki/browser/decide/types"
 import { jevRanker, lexicalRanker, type Ranker } from "@yuki/browser/plan/rank"
 import { count } from "../../lib/dev-stats"
 
-/** A decision is one option key. Muse Spark thinks a little even at minimal, so 24 tokens left no answer. */
-const DECIDER_MAX_TOKENS = 256
+/**
+ * A decision is one option key, but Muse Spark thinks about 140 tokens even at minimal, and at 256 about 1 answer
+ * in 10 hit the cap with no text. At 1024 none did (0/43) and decide time did not move.
+ */
+const DECIDER_MAX_TOKENS = 1024
 
 /** The agent's own model, at its lowest reasoning, through the run's own `Models` (and so through egress). */
 export function modelPort(models: Models, ref: ModelRef, sessionId: string): ModelPort {
