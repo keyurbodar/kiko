@@ -3,6 +3,7 @@ import { dirname, join, relative, resolve } from "node:path"
 
 const ALLOWED: Record<string, readonly string[]> = {
   durable: [],
+  browser: [],
   agent: ["@yuki/durable"],
   memory: ["@yuki/agent"],
   sandbox: ["@yuki/agent"],

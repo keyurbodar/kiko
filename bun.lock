@@ -106,6 +106,18 @@
         "typescript": "^5.9.0",
       },
     },
+    "packages/browser": {
+      "name": "@yuki/browser",
+      "version": "0.0.1",
+      "dependencies": {
+        "effect": "4.0.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20260101.0",
+        "devtools-protocol": "0.0.1716261",
+        "typescript": "^5.9.0",
+      },
+    },
     "packages/durable": {
       "name": "@yuki/durable",
       "version": "0.0.1",
@@ -690,6 +702,8 @@
 
     "@yuki/agent": ["@yuki/agent@workspace:packages/agent"],
 
+    "@yuki/browser": ["@yuki/browser@workspace:packages/browser"],
+
     "@yuki/cli": ["@yuki/cli@workspace:apps/cli"],
 
     "@yuki/durable": ["@yuki/durable@workspace:packages/durable"],
@@ -773,6 +787,8 @@
     "defu": ["defu@6.1.7", "", {}, "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ=="],
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
+
+    "devtools-protocol": ["devtools-protocol@0.0.1716261", "", {}, "sha512-CM8wc1lu6EFmiVIDQVErh/JeW548q5YhFnjbcdYPAjXwf7E/+jFUK41l7k+zZIiz7nyGqcz0r+ggV3kl679ZGw=="],
 
     "diff": ["diff@8.0.4", "", {}, "sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw=="],
 
