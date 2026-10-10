@@ -172,7 +172,7 @@ const suite: Suite = {
     const beforeRefused = (await usage()).capture_model ?? 0
     await s.connectProvider(TYPESAFE, WRONG_KEY)
     await say(chatA, "my favourite tea is genmaicha")
-    await poll("a captured line about genmaicha", 60_000, async () => (await live(/genmaicha/i, fromYou)).length > 0)
+    await poll("base capture ran and a live line about genmaicha", 60_000, async () => ((await usage()).capture_model ?? 0) > beforeRefused && (await live(/genmaicha/i)).length > 0)
     u = await usage()
     await show("refused key, capture always falls back to the base path")
     if (!((u.capture_model ?? 0) > beforeRefused)) throw new VerifyError(`capture_model did not grow with a refused key: ${beforeRefused} -> ${u.capture_model ?? 0}`)
@@ -182,7 +182,7 @@ const suite: Suite = {
     await s.disconnectProvider(TYPESAFE)
     const beforeRemoved = (await usage()).capture_model ?? 0
     await say(chatA, "i keep my notes in a notebook called ember")
-    await poll("a captured line about ember", 60_000, async () => (await live(/ember/i, fromYou)).length > 0)
+    await poll("base capture ran and a live line about ember", 60_000, async () => ((await usage()).capture_model ?? 0) > beforeRemoved && (await live(/ember/i)).length > 0)
     u = await usage()
     await show("key removed, capture always")
     if (!((u.capture_model ?? 0) > beforeRemoved)) throw new VerifyError(`capture_model did not grow after the key was removed: ${beforeRemoved} -> ${u.capture_model ?? 0}`)
