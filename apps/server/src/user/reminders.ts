@@ -701,7 +701,7 @@ export function routineBody(routine: Reminder, why: string, last: RoutineRun | n
     "instructions:",
     routine.text,
     "",
-    "if the instructions ask you to send or report something, send it now, even when it is the same as last time. answer [skip] only when they say to stay quiet when nothing is new, or ask for nothing.",
+    "if the instructions ask you to send or report something, send it now, even when it is the same as last time. answer [skip] only when they say to stay quiet when nothing is new, or ask for nothing. do not announce that you are about to look something up; use the tools first, then post only the result.",
   ]
   if (extra) lines.push("", extra)
   return lines.join("\n")
