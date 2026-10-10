@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-144 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+149 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -20,6 +20,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P14-01](wave-00/P14-01-composio-as-the-tier-1-integration.md) | Composio as the tier 1 integration | backend | 3 | none | no |
 | [P15-01](wave-00/P15-01-facts-with-sources-replacement-and-a-card.md) | Facts with sources, replacement, and a card | backend | 4 | none | no |
 | [P15-02](wave-00/P15-02-team-fixes-from-the-bops-comparison.md) | Team fixes from the bops comparison | backend | 2 | none | yes |
+| [P17-01](wave-00/P17-01-kernel-key-in-settings.md) | Kernel key in Settings | backend | 2 | none | yes |
 
 ## Wave 1
 
@@ -42,6 +43,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P12-02](wave-01/P12-02-carry-a-run-s-authority.md) | Carry a run's authority | backend | 4 | P12-01 | no |
 | [P12-06](wave-01/P12-06-nudge-stalled-tasks.md) | Nudge stalled tasks | backend | 2 | P12-01 | yes |
 | [P13-02](wave-01/P13-02-never-show-cut-text-as-if-whole.md) | Never show cut text as if whole | backend | 2 | P13-01 | yes |
+| [P17-02](wave-01/P17-02-browser-broker-in-userdo.md) | Browser broker in UserDO | backend | 4 | P17-01 | no |
 | [P2-01](wave-01/P2-01-rewrite-the-theme-to-the-kat-values.md) | Rewrite the theme to the kat values | frontend | 3 | P0-02 | yes |
 | [P3-02](wave-01/P3-02-reverse-swipe-to-reply.md) | Reverse swipe to reply | frontend | 2 | P0-02 | yes |
 | [P8-01](wave-01/P8-01-build-the-safe-fetcher.md) | Build the safe fetcher | backend | 4 | P0-01 | yes |
@@ -61,6 +63,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P11-04](wave-02/P11-04-start-every-run-from-memory.md) | Start every run from memory | backend | 4 | P11-02, P11-03 | yes |
 | [P11-06](wave-02/P11-06-show-the-life-log.md) | Show the life log | frontend | 3 | P11-03 | yes |
 | [P12-03](wave-02/P12-03-store-and-run-routines.md) | Store and run routines | backend | 4 | P12-02 | yes |
+| [P17-03](wave-02/P17-03-browser-tools-for-agents.md) | Browser tools for agents | backend | 4 | P17-02 | no |
+| [P17-04](wave-02/P17-04-browser-sessions-in-settings.md) | Browser sessions in Settings | frontend | 2 | P17-02 | yes |
 | [P2-02](wave-02/P2-02-build-the-app-shell-and-the-routes.md) | Build the app shell and the routes | frontend | 3 | P0-02, P0-14 | yes |
 | [P2-05](wave-02/P2-05-build-the-indexeddb-warm-tier.md) | Build the IndexedDB warm tier | frontend | 4 | P0-02, P0-03 | yes |
 | [P3-01](wave-02/P3-01-port-the-typing-indicator.md) | Port the typing indicator | frontend | 3 | P2-01 | yes |
@@ -85,6 +89,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P11-07](wave-03/P11-07-let-an-agent-ask-a-teammate-and.md) | Let an agent ask a teammate and wait | backend | 3 | P11-04 | yes |
 | [P11-08](wave-03/P11-08-bound-storage-the-floor-and-outside-content.md) | Bound storage, the floor, and outside content | backend | 2 | P11-04 | yes |
 | [P12-04](wave-03/P12-04-let-agents-make-routines-with-the-human.md) | Let agents make routines, with the human's ok when nobody asked | backend | 3 | P12-03 | yes |
+| [P17-05](wave-03/P17-05-logins-by-human-handoff.md) | Logins by human handoff | backend | 4 | P17-03 | no |
 | [P2-03](wave-03/P2-03-build-the-html-shell-and-split-the.md) | Build the HTML shell and split the bundle by tier | frontend | 4 | P2-02 | yes |
 | [P2-04](wave-03/P2-04-build-the-horizontal-tab-strip.md) | Build the horizontal tab strip | frontend | 3 | P2-01, P2-02 | yes |
 | [P2-06](wave-03/P2-06-build-the-sync-client-with-optimistic-patches.md) | Build the sync client with optimistic patches | frontend | 5 | P2-05 | yes |
