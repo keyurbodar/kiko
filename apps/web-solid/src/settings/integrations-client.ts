@@ -9,34 +9,29 @@ import { type UserChannel, userChannel } from "../sync/user-channel"
 type AskOf<T extends string> = ClientToUser extends infer F ? (F extends { t: T } ? Omit<F, "reqId"> : never) : never
 type ComposioAsk = AskOf<"connectComposio" | "disconnectComposio" | "composioStatus">
 
-export type RequestClient<A, R> = {
-	request(frame: A): Promise<R>
+export type ComposioClient = {
+	request(frame: ComposioAsk): Promise<ComposioResult>
 	/** Frames the server sends to every socket. Returns the stop function. */
-	onPush(fn: (result: R) => void): () => void
+	onPush(fn: (result: ComposioResult) => void): () => void
 	close(): void
 }
-export type ComposioClient = RequestClient<ComposioAsk, ComposioResult>
 
 /** The user socket's channel: the app's one by default. */
 export type ComposioClientOptions = { channel?: UserChannel; timeoutMs?: number }
 
-type Pending<R> = { frame: ClientToUser; resolve: (r: R) => void; timer: ReturnType<typeof setTimeout> }
+type Pending = { frame: ClientToUser; resolve: (r: ComposioResult) => void; timer: ReturnType<typeof setTimeout> }
 
 export function createComposioClient(options: ComposioClientOptions = {}): ComposioClient {
-	return createClient(options, "composio", "c")
-}
-
-function createClient<A, R extends { ok: boolean }>(options: ComposioClientOptions, name: "composio", prefix: string): RequestClient<A, R> {
 	const timeoutMs = options.timeoutMs ?? 30_000
 	const socket = options.channel ?? userChannel
-	const pending = new Map<string, Pending<R>>()
-	const listeners = new Set<(r: R) => void>()
+	const pending = new Map<string, Pending>()
+	const listeners = new Set<(r: ComposioResult) => void>()
 	let n = 0
 
 	const stopOpen = socket.onOpen(() => {
 		for (const p of pending.values()) socket.send(p.frame)
 	})
-	const stopFrames = (socket.on as unknown as (t: string, fn: (f: { reqId?: string; result: R }) => void) => () => void)(name, (frame) => {
+	const stopFrames = socket.on("composio", (frame) => {
 		if (frame.reqId === undefined) return void listeners.forEach((fn) => fn(frame.result))
 		const p = pending.get(frame.reqId)
 		if (!p) return
@@ -46,13 +41,13 @@ function createClient<A, R extends { ok: boolean }>(options: ComposioClientOptio
 	})
 
 	return {
-		request(ask: A) {
-			return new Promise<R>((resolve) => {
-				const reqId = `${prefix}${++n}`
-				const frame = { ...ask, reqId } as unknown as ClientToUser
+		request(ask) {
+			return new Promise((resolve) => {
+				const reqId = `c${++n}`
+				const frame: ClientToUser = { ...ask, reqId }
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "Yuki did not answer." } as unknown as R)
+					resolve({ ok: false, error: "Yuki did not answer." })
 				}, timeoutMs)
 				pending.set(reqId, { frame, resolve, timer })
 				socket.send(frame)
@@ -67,7 +62,7 @@ function createClient<A, R extends { ok: boolean }>(options: ComposioClientOptio
 			stopFrames()
 			for (const p of pending.values()) {
 				clearTimeout(p.timer)
-				p.resolve({ ok: false, error: "The connection closed." } as unknown as R)
+				p.resolve({ ok: false, error: "The connection closed." })
 			}
 			pending.clear()
 			listeners.clear()

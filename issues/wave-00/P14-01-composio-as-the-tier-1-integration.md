@@ -18,7 +18,7 @@
 
 ## Task
 
-**Goal.** A user with a Composio key gets Composio tools in every agent. A user without one keeps Executor.
+**Goal.** A user with a Composio key gets Composio tools in every agent. A user without one has no integration tools. Composio is the only integration.
 
 **Files.** `apps/server/src/integrations/composio/`, `user/user-do.ts`, `agent/agent-do.ts`, `agent/factory.ts`, `packages/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/` (integrations), `apps/cli/src/commands/composio.ts`, `apps/cli/src/verify/suites/composio.ts`.
 
@@ -27,7 +27,7 @@
 - `client.ts` speaks JSON-RPC to `https://connect.composio.dev/mcp` with a bare POST. The server keeps no session.
 - `store.ts` seals the key in `UserDO` and caches the last tool listing.
 - `tools.ts` registers each listed tool as `composio_<name>`. Effect comes from `readOnlyHint`. Five tools stay hidden (architecture section 12.2).
-- `AgentDO` asks `UserDO` for Composio tools. When there are some, it passes no Executor tools and skips the Executor warm-up.
+- `AgentDO` asks `UserDO` for Composio tools. When there are some, it adds them to the agent. There is no other integration.
 - The settings page connects and disconnects. The key never goes back to the client.
 
 ## Rules for this task

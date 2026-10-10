@@ -36,11 +36,10 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Skills | in `pi-coding-agent` only, tied to a filesystem | a port backed by Durable Object storage |
 | Prompt injection defense | nothing. `SECURITY.md` lists it as out of scope | a trust extension (section 16) |
 | Subagent tool | the pattern, in `README.md` and two test examples | the tool, about 40 lines |
-| MCP client | `@earendil-works/pi-mcp`, streamable HTTP, OAuth with PKCE and dynamic registration | the token store |
 | Code mode | `@earendil-works/pi-codemode`, which needs Node `worker_threads` | nothing. See section 12 |
 | User extensions | the registry, `install` that replaces in place, and per-conversation selection | the manifest, the QuickJS sandbox, and the storage and review. See section 24 |
 
-**Decision.** Yuki depends on `pi-durable`, `pi-ai`, `pi-mcp`, and `chord` from npm at exact pinned versions. All four are published at 1.0.0 (checked against the npm registry on 2026-10-02). Yuki extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
+**Decision.** Yuki depends on `pi-durable`, `pi-ai`, and `chord` from npm at exact pinned versions. All three are published at 1.0.0 (checked against the npm registry on 2026-10-02). Yuki extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
 
 **Reasoning.** The `pi-durable` README opens with "Experimental. The API changes without notice between releases." An exact pin and a thin host layer keep an upgrade to one package's worth of work. Yuki code that touches pi types lives in `apps/server/src/agent/` and in three reusable packages: `@yuki/agent` (the host), `@yuki/memory`, and `@yuki/sandbox`. A breaking release lands there and nowhere else.
 
@@ -1220,7 +1219,7 @@ These experiments come before any feature work. Each one settles an UNVERIFIED i
 | 5 | How large is the Worker bundle with `pi-ai`, `pi-durable`, TypeBox, and the catalog? | build and read the size. The limit is 64 MiB and startup must stay under 1 second | load the catalog from an asset |
 | 6 | Which provider sign-in flows import on Workers? | import each module under `wrangler dev` with `nodejs_compat` | ship API keys only |
 | 7 | Does the published `pi-ai` contain the model catalog, and what is the test model's id? | inspect the npm package | generate the catalog at build time with pi's script |
-| 8 | Does Executor accept yuki as an OAuth client? | run dynamic registration and one authorization from a Worker | ship the API-key path only |
+| 8 | ~~Does Executor accept yuki as an OAuth client?~~ Moot: Executor was removed on 2026-10-10 | none | none |
 | 9 | Does `@headless-tree/core` work without React? | render a 1,000-node tree with a Solid binding | write a small tree on `virtua` |
 | 10 | Is `rrule` correct across a daylight-saving change in Workers? | unit cases for two zones | switch to `rrule-temporal` with a polyfill |
 
