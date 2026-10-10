@@ -2,6 +2,7 @@
 // deleted or unpinned. Its room id is minted once and kept in `settings`, so making sure it exists is
 // safe to run on every sign-in.
 
+import { getSetting, setSetting } from "../lib/settings"
 import { isRoomId, newRoomId, type Chat, type ChatOp, type RoomId } from "@yuki/protocol"
 
 // The stored key predates the rename, so existing accounts keep the chat they already have.
@@ -9,8 +10,8 @@ const KEY = "yuki_home"
 const TITLE = "Yuki"
 
 export function yukiChatRoom(sql: SqlStorage): RoomId | null {
-  const row = sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", KEY).toArray()[0]
-  return row && isRoomId(row.value) ? row.value : null
+  const value = getSetting(sql, KEY)
+  return value && isRoomId(value) ? value : null
 }
 
 /** The ops that bring the yuki chat into being. Empty once it exists. */
@@ -19,7 +20,7 @@ export function yukiChatOps(sql: SqlStorage, exists: (roomId: RoomId) => boolean
   if (roomId && exists(roomId)) return []
   if (!roomId) {
     roomId = newRoomId()
-    sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", KEY, roomId)
+    setSetting(sql, KEY, roomId)
   }
   return [
     { op: "create", roomId, title: TITLE, agents: ["yuki"] },

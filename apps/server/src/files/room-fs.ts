@@ -1,3 +1,4 @@
+import { sha256Hex } from "@yuki/durable/hash"
 import type { Context } from "@earendil-works/chord"
 import {
   err,
@@ -78,8 +79,6 @@ export type BatchResult = { ok: true } | { ok: false; path: string; message: str
 const batchPaths = (c: BatchChange) => (c.op === "move" ? [c.from, c.to] : [c.path])
 
 const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
-
-const hex = (buffer: ArrayBuffer) => Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, "0")).join("")
 
 /** Resolves `.` and `..` against `/`. Null when the path climbs above the root. */
 export function normalize(path: string, cwd = "/"): string | null {
@@ -514,7 +513,7 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
       const at = index()
       const id = crypto.randomUUID()
       const r2Key = fileKey(h.userId, at.space, id)
-      const sha256 = hex(await crypto.subtle.digest("SHA-256", bytes))
+      const sha256 = await sha256Hex(bytes)
       await env.FILES.put(r2Key, bytes, { httpMetadata: { contentType: type } })
       const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256 })
       if (out.drop) await deleteFiles(env.FILES, out.drop)
@@ -538,7 +537,7 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
           if (c.op !== "write") return c.op === "move" ? { op: "move", from: c.from, to: c.to, sha256: c.sha256 } : c
           const id = crypto.randomUUID()
           const r2Key = fileKey(h.userId, at.space, id)
-          const sha256 = hex(await crypto.subtle.digest("SHA-256", c.bytes))
+          const sha256 = await sha256Hex(c.bytes)
           await env.FILES.put(r2Key, c.bytes, { httpMetadata: { contentType: c.type } })
           stored.push({ key: r2Key, bytes: c.bytes })
           return { op: "put", file: { id, path: c.path, r2Key, size: c.bytes.length, type: c.type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256: c.expect } }

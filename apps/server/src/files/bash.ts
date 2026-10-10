@@ -1,3 +1,4 @@
+import { toHex } from "@yuki/durable/hash"
 import type { Context } from "@earendil-works/chord"
 import { err, ExecutionError, ok, type Result, type ShellExecOptions, type ShellExecResult } from "@earendil-works/pi-durable/env"
 import { Bash, type BufferEncoding, type CpOptions, type CreateExclusiveOptions, type FileContent, type FsStat, type IFileSystem, type MkdirOptions, type RmOptions } from "just-bash"
@@ -76,7 +77,7 @@ function decode(bytes: Uint8Array, encoding: BufferEncoding | null | undefined):
     case "base64":
       return btoa(decode(bytes, "latin1"))
     case "hex":
-      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+      return toHex(bytes)
     default:
       return new TextDecoder().decode(bytes)
   }

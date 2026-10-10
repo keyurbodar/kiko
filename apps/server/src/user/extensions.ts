@@ -1,3 +1,4 @@
+import { sha256Hex } from "@yuki/durable/hash"
 import {
   type AgentSlug,
   checkBundle,
@@ -64,9 +65,7 @@ type ProposalRow = { id: string; name: string; hash: string; bundle: string; sou
 export async function bundleHash(bundle: ExtensionBundle): Promise<string> {
   const canonical = (v: unknown): unknown =>
     Array.isArray(v) ? v.map(canonical) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, x]) => [k, canonical(x)])) : v
-  const bytes = new TextEncoder().encode(JSON.stringify(canonical(bundle)))
-  const digest = await crypto.subtle.digest("SHA-256", bytes)
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
+  return sha256Hex(JSON.stringify(canonical(bundle)))
 }
 
 export class ExtensionStore {

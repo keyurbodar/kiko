@@ -1,3 +1,4 @@
+import { sha256Stream, toHex } from "@yuki/durable/hash"
 import { attachmentError, attachmentType } from "@yuki/protocol"
 import type { Env } from "../index"
 import { addressRoom } from "../lib/names"
@@ -74,11 +75,7 @@ async function store(request: Request, env: Env, key: string, type: string, size
 		await env.FILES.delete(key)
 		return { error: `Body was ${seen} bytes, expected ${size}.` }
 	}
-	return { sha256: hex(await digest.digest) }
-}
-
-function hex(buffer: ArrayBuffer): string {
-	return Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, "0")).join("")
+	return { sha256: toHex(await digest.digest) }
 }
 
 /** Marks the upload ready, or deletes the object when the row went or the size is wrong. */
@@ -166,9 +163,7 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 	const object = await env.FILES.get(key)
 	if (!object) return error(404, "no such upload")
 	// R2 cannot hash across parts, so the Worker reads the object once. The digest is native code.
-	const digest = new crypto.DigestStream("SHA-256")
-	await object.body.pipeTo(digest)
-	return finish(env, stub, id, key, hex(await digest.digest), object.size)
+	return finish(env, stub, id, key, await sha256Stream(object.body), object.size)
 }
 
 async function remove(env: Env, userId: string, roomId: string, id: string): Promise<Response> {

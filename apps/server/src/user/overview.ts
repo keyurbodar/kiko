@@ -7,6 +7,11 @@ import { localTime, type Reminder, type RoutineRun } from "./reminders"
 /** A room's open tasks, as the room reports them on every task change. */
 export type ChatTasks = { open: number; oldest: { title: string; status: string; owner?: string; updatedAt: number }[] }
 
+/** Every chat's task summary, as stored: room id and the JSON text the room reported. */
+function taskRows(sql: SqlStorage): { room_id: string; tasks: string }[] {
+  return sql.exec<{ room_id: string; tasks: string }>("SELECT room_id, tasks FROM chat_tasks").toArray()
+}
+
 const MAX_CHATS = 12
 const DAY = 86_400_000
 
@@ -20,10 +25,7 @@ export function overview(sql: SqlStorage, input: { reminders: Reminder[]; runs: 
   const chats = listChats(sql).filter((c) => !c.temp)
   const titles = new Map(chats.map((c) => [c.roomId as string, c.title]))
   const tasks = new Map(
-    sql
-      .exec<{ room_id: string; tasks: string }>("SELECT room_id, tasks FROM chat_tasks")
-      .toArray()
-      .map((r) => [r.room_id, JSON.parse(r.tasks) as ChatTasks]),
+    taskRows(sql).map((r) => [r.room_id, JSON.parse(r.tasks) as ChatTasks]),
   )
   const out: string[] = []
   const recent = [...chats].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_CHATS)
@@ -58,7 +60,9 @@ export function overviewFingerprint(sql: SqlStorage, reminders: Reminder[], runs
   const chats = listChats(sql)
     .filter((c) => !c.temp && c.roomId !== self.roomId)
     .map((c) => `${c.roomId}:${c.lastSeq}:${c.unread}`)
-  const tasks = sql.exec<{ room_id: string; tasks: string }>("SELECT room_id, tasks FROM chat_tasks ORDER BY room_id").toArray().map((r) => `${r.room_id}:${r.tasks}`)
+  const tasks = taskRows(sql)
+    .sort((a, b) => (a.room_id < b.room_id ? -1 : a.room_id > b.room_id ? 1 : 0))
+    .map((r) => `${r.room_id}:${r.tasks}`)
   const routines = reminders.filter((r) => r.trigger && r.id !== self.routineId).map((r) => `${r.id}:${r.status}:${runs.find((x) => x.routineId === r.id)?.status ?? ""}`)
   const due = reminders.filter((r) => !r.trigger && r.status === "active").map((r) => `${r.id}:${r.dueUtc}`)
   return JSON.stringify([chats, tasks, routines, due])

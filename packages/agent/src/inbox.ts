@@ -1,3 +1,5 @@
+import { sha256Hex } from "@yuki/durable/hash"
+import { escapeXml } from "./text"
 import type { Envelope, Sender } from "./envelope"
 
 const PRIORITY: Record<Sender["kind"], number> = { human: 0, system: 1, agent: 2 }
@@ -192,22 +194,19 @@ const encoder = new TextEncoder()
 const utf8 = (text: string) => encoder.encode(text).byteLength
 
 export async function requestIdFor(ids: readonly string[]): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ids.join("\n")))
-  return `inbox:${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`
+  return `inbox:${await sha256Hex(ids.join("\n"))}`
 }
-
-const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
 
 export function renderInput(batch: Pick<Batch, "envelopes" | "briefs">, memory?: string): string {
   const parts = [...(memory ? [memory] : []), ...batch.briefs.map((brief) => `<context>\n${brief.replaceAll("</context>", "&lt;/context>")}\n</context>`)]
   for (const { from, body, hop, tainted } of batch.envelopes) {
     const taint = tainted ? ' tainted="true"' : ""
     if (from.kind === "human") parts.push(body)
-    else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}"${taint}>\n${escape(body)}\n</agent-message>`)
-    else parts.push(`<system-event reason="${from.reason}"${taint}>\n${escape(body)}\n</system-event>`)
+    else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}"${taint}>\n${escapeXml(body)}\n</agent-message>`)
+    else parts.push(`<system-event reason="${from.reason}"${taint}>\n${escapeXml(body)}\n</system-event>`)
   }
   const human = batch.envelopes.filter((e) => e.from.kind === "human" && e.id.startsWith("human:"))
   if (human.length === 1) parts.push(`<context>message id: ${human[0]!.id.slice(6)}</context>`)
-  if (human.length > 1) parts.push(`<context>\nmessage ids, oldest first:\n${human.map((e) => `${e.id.slice(6)}: ${escape(e.body.slice(0, 40))}`).join("\n")}\n</context>`)
+  if (human.length > 1) parts.push(`<context>\nmessage ids, oldest first:\n${human.map((e) => `${e.id.slice(6)}: ${escapeXml(e.body.slice(0, 40))}`).join("\n")}\n</context>`)
   return parts.join("\n\n")
 }

@@ -1,3 +1,4 @@
+import { sha256Hex } from "@yuki/durable/hash"
 import type { RoomFs } from "../../files/room-fs"
 
 // Big tool output. pi-durable keeps a result to 50 KB and cuts at the last line break that fits, so
@@ -45,8 +46,7 @@ function head(text: string, bytes: number): string {
 }
 
 async function sha8(text: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(text)))
-  return [...digest.slice(0, 4)].map((b) => b.toString(16).padStart(2, "0")).join("")
+  return (await sha256Hex(text)).slice(0, 8)
 }
 
 /** A file name from `label`: lowercase letters, digits, dots and dashes. */
