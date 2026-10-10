@@ -15,7 +15,6 @@ import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { sha256Hex } from "@yuki/durable/hash"
-import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
@@ -59,7 +58,7 @@ const NAPS_AT_ONCE = 4
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
 
 
-const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed", "approval"])
+const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed"])
 
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string; tainted: boolean }
 
@@ -86,7 +85,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	files!: FileIndex<RoomEvent>
 	team!: Team
 	workspace!: RoomWorkspace
-	approvals!: RoomApprovals
 	private routines!: RoomRoutines
 	private signals!: SignalWindow
 	private outbox!: HeldWakes
@@ -109,7 +107,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.mail = new Mail(ctx.storage, this.log, (slug) => (this.members.get(slug)?.status ?? "idle") !== "idle")
 			this.members = new Members(ctx.storage, this.log)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
-			this.approvals = new RoomApprovals(ctx.storage, this.log)
 			this.asks = new Asks(ctx.storage.sql)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
@@ -338,11 +335,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[SIGNALS_WAKEUP]: () => this.flushSignals(),
 			[HELD_WAKEUP]: () => this.retryHeld(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
-			[APPROVALS_WAKEUP]: async () => {
-				this.publish(this.approvals.expire())
-				await this.deliverApprovals()
-				await this.armApprovals()
-			},
 		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000, [HELD_WAKEUP]: 5_000 } })
 		if (!due.includes(MAIL_WAKEUP) && this.mail.queued()) await this.drainMail()
 	}
@@ -1292,57 +1284,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		} catch (error) {
 			console.error(`task_unblocked delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			await this.alarms.setWakeup(WAKES_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
-		}
-	}
-
-	async requestApproval(slug: AgentSlug, req: ApprovalRequest): Promise<ApprovalAnswer> {
-		if (!this.members.list().some((m) => m.slug === slug)) return { refused: "not run: you are not a member of this room." }
-		const { answer, event } = this.approvals.request(slug, req)
-		if (event) {
-			this.publish([event])
-			await this.armApprovals()
-		}
-		return answer
-	}
-
-	approve(id: string, action: "accept" | "decline"): void {
-		const event = this.approvals.decide(id, action)
-		if (!event) return
-		this.publish([event])
-		this.ctx.waitUntil(this.deliverApprovals())
-	}
-
-	private async armApprovals(): Promise<void> {
-		const at = this.approvals.nextExpiry()
-		if (at === null) await this.alarms.clearWakeup(APPROVALS_WAKEUP)
-		else await this.alarms.setWakeup(APPROVALS_WAKEUP, at)
-	}
-
-	private async deliverApprovals(): Promise<void> {
-		const home = this.home()
-		if (!home) return
-		const results = this.approvals.undelivered(home.roomId)
-		if (!results.length) return
-		try {
-			const chat = await this.chat(home)
-			for (const { slug, id, envelope } of results) {
-				const members = this.members.list()
-				const member = members.find((m) => m.slug === slug)
-				if (!member) {
-					this.approvals.markDelivered(id)
-					continue
-				}
-				const brief = buildBrief(member, readBriefView(this.ctx.storage.sql, member, members, chat?.title ?? "", null))
-				const agent = agentStub(this.env.AGENT, home.userId, home.roomId, slug)
-				const { refused } = await agent.receive([envelope], brief, this.agentHome(home, slug, member))
-				if (refused === "full") throw new Error("inbox full")
-				if (refused) console.error(`approval_result delivery to ${slug} refused: ${refused}`)
-				else this.mail.delivered(slug, [envelope])
-				this.approvals.markDelivered(id)
-			}
-		} catch (error) {
-			console.error(`approval_result delivery failed: ${error instanceof Error ? error.message : String(error)}`)
-			await this.alarms.setWakeup(APPROVALS_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
 		}
 	}
 

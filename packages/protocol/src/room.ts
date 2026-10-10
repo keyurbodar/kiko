@@ -119,24 +119,6 @@ export type TaskOp =
 	| { op: "update"; id: string; title?: string; status?: TaskStatus; owner?: AgentSlug | null; note?: string }
 	| { op: "delete"; id: string }
 
-// ASSUMPTION: the fields of an approval card. Architecture section 12.3 fixes
-// the flow and the 4 minute expiry, and not the card.
-export type ApprovalState = "pending" | "accepted" | "declined" | "expired"
-
-export type Approval = {
-	id: string
-	slug: AgentSlug
-	/** The tool the agent wants to call. */
-	tool: string
-	/** What the agent wants to do, in one line: a plain summary of the arguments. */
-	summary: string
-	state: ApprovalState
-	/** Epoch milliseconds. */
-	expiresAt: number
-	/** Set on a card whose ok lets the agent act outside yuki for this long (section 25.3). */
-	grantMs?: number
-}
-
 type Stored = {
 	/** Only increases within a room. */
 	seq: number
@@ -161,8 +143,6 @@ export type RoomEvent =
 	/** A task was added or changed. */
 	| (Stored & { t: "task"; task: Task })
 	| (Stored & { t: "task_removed"; id: string })
-	/** An approval card was posted or changed state. */
-	| (Stored & { t: "approval"; approval: Approval })
 	/** A file was added, replaced, or moved. A move keeps the id and changes `name`. */
 	| (Stored & { t: "file"; file: FileRef })
 	/** Files were deleted. */
@@ -181,7 +161,6 @@ export type RoomSnapshot = {
 	/** The newest messages, oldest first. */
 	messages: readonly Message[]
 	tasks: readonly Task[]
-	approvals: readonly Approval[]
 	files: readonly FileRef[]
 	/** Every folder, empty ones included. */
 	folders: readonly string[]
@@ -219,7 +198,6 @@ export type ClientToRoom =
 	| { t: "stop" }
 	/** The model the chat's agents use, as `provider/model`, for one agent or all of them. Applies from the next run. */
 	| { t: "model"; ref: string; slug?: AgentSlug }
-	| { t: "approve"; approvalId: string; action: "accept" | "decline" }
 	| { t: "task"; op: TaskOp }
 	| { t: "member"; op: MemberOp }
 	| { t: "files"; op: FileOp }

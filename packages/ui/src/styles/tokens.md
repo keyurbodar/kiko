@@ -49,7 +49,6 @@ The font stack is the system stack. The light tokens are `--light-*`. They are d
 | editor gutter | `--editor-bg`, `--editor-gutter-bg`, `--editor-gutter-text`, `--editor-line-active`, `--editor-selection`, `--tree-row-h`, `--tree-indent` |
 | clamp fade | `--clamp-fade-h`, `--clamp-fade-assistant`, `--clamp-fade-user`, `--clamp-fade-panel` |
 | reply bar | `--reply-bar-bg`, `--reply-bar-accent`, `--reply-bar-name`, `--reply-bar-text` |
-| approval card | `--approval-bg`, `--approval-edge`, `--approval-title`, `--approval-allow`, `--approval-deny` |
 | board | `--board-bg`, `--board-column-bg`, `--board-card-bg`, `--board-card-hover`, `--board-column-gap`, `--board-card-gap` |
 | shared mixes | `--accent-wash`, `--accent-wash-strong`, `--accent-wash-faint`, `--text-wash`, `--danger-wash`, `--scrim` |
 

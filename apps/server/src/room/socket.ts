@@ -19,7 +19,6 @@ export interface SocketRoom {
 	fileOp(op: FileOp): string | null
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }
 	taskOp(op: TaskOp): void
-	approve(id: string, action: "accept" | "decline"): void
 	setModel(ref: string, slug?: AgentSlug): void
 }
 
@@ -146,9 +145,6 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 		}
 		case "task":
 			room.taskOp(frame.op)
-			return null
-		case "approve":
-			room.approve(frame.approvalId, frame.action)
 			return null
 	}
 }

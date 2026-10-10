@@ -28,7 +28,6 @@ describe("describeLast", () => {
     ["a leave", { ...ada, kind: "left" }, { text: "Ada left" }, { text: "Ada left" }],
     ["a rename", { ...you, kind: "renamed", text: "launch" }, { text: "You renamed the group to launch" }, { text: "You renamed the group to launch" }],
     ["a new group", { ...you, kind: "created" }, { text: "You created the group" }, { text: "You created the group" }],
-    ["an approval", { ...ada, kind: "approval" }, { text: "Needs your approval" }, { text: "Ada needs your approval" }],
     ["a reminder", { from: "system", kind: "notice", text: "reminder: water", at }, { text: "reminder: water" }, { text: "reminder: water" }],
   ]
   for (const [name, last, dm, group] of cases) {

@@ -15,8 +15,8 @@ import { newRoom } from "./mid-run"
 // question, and must use the learned tool directly, with no search, and the status must report
 // that tool as a read (Composio's catalog tags it read-only). Without a developer key it must stay
 // external. Part four, only with a developer key: a routine runs in a room whose agent opened
-// before anything was learned and is still open. It must reload, call the learned tool, and post
-// no approval card, since a routine run's `external` calls need one. Hard limits: 60 s per socket
+// before anything was learned and is still open. It must reload and call the learned tool, which
+// must be a read, since a routine run's `external` calls are refused. Hard limits: 60 s per socket
 // answer, 150 s per chat turn or routine run.
 
 const USER = "composio-alice"
@@ -161,9 +161,7 @@ const suite: Suite = {
     await resetStats(v, s)
     const t0 = performance.now()
     await ok(v.url, s, `routines/${routine.id}/run`, {})
-    const cards = () => early.room.raw.log.flatMap((e) => (e.dir === "in" && (e.frame as RoomToClient).t === "events" ? (e.frame as Events).events.filter((ev) => ev.t === "approval") : []))
     for (;;) {
-      if (cards().length) throw new VerifyError("the routine run posted an approval card for a learned read tool")
       const runs = await runsOf(v.url, s, routine.id)
       if (runs.some((r) => r.status !== "running")) {
         console.log(`  routine run: ${runs[0]!.status} in ${((performance.now() - t0) / 1000).toFixed(1)} s`)
@@ -175,7 +173,6 @@ const suite: Suite = {
     const ran = called(await readStats(v, s))
     console.log(`    tools called: ${ran.join(" ")}`)
     if (!ran.some((t) => reads.some((slug) => t === toolName(slug)))) throw new VerifyError(`the routine run called no learned read tool: ${ran.join(" ") || "none"}`)
-    if (cards().length) throw new VerifyError("the routine run posted an approval card")
     user.send({ t: "chat", op: { op: "delete", roomId: early.roomId as never } })
     await disconnect()
 

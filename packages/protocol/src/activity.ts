@@ -25,8 +25,6 @@ export type LastKind =
 	| "renamed"
 	/** A group with nothing in it yet. */
 	| "created"
-	/** An agent waits for the human to approve an action. */
-	| "approval"
 	/** A message from the room itself: a reminder, a limit, a file notice. */
 	| "notice"
 

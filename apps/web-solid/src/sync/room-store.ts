@@ -23,7 +23,6 @@ import type {
 	FileOp,
 	AgentSlug,
 	AgentState,
-	Approval,
 	ClientToRoom,
 	FileRef,
 	PendingAttachment,
@@ -47,7 +46,6 @@ import { clearRoom, deleteMessages, getLastSeq, KEEP_ON_DISK, messagesBefore, ne
 import { addToOutbox, outbox, removeFromOutbox } from "../warm/outbox"
 import {
 	expire,
-	overlayApprovals,
 	overlayFiles,
 	overlayFolders,
 	overlayMembers,
@@ -74,7 +72,6 @@ export type RoomData = {
 	/** Oldest first. The window, not the whole history. */
 	messages: Message[]
 	tasks: Task[]
-	approvals: Approval[]
 	files: FileRef[]
 	/** Every folder, empty ones included. */
 	folders: string[]
@@ -103,7 +100,6 @@ export const emptyRoom = (): RoomData => ({
 	members: [],
 	messages: [],
 	tasks: [],
-	approvals: [],
 	files: [],
 	folders: [],
 	roster: [],
@@ -116,7 +112,6 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 		members: [...s.members],
 		messages: [...s.messages],
 		tasks: [...s.tasks],
-		approvals: [...s.approvals],
 		files: [...s.files],
 		folders: [...s.folders],
 		// A snapshot carries members, not their history. `reset` keeps the lines it already had.
@@ -229,9 +224,6 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			return { meta: true }
 		case "task_removed":
 			removeWhere(data.tasks, (x) => x.id === e.id)
-			return { meta: true }
-		case "approval":
-			upsert(data.approvals, e.approval, (x) => x.id === e.approval.id)
 			return { meta: true }
 		case "file":
 			// New bytes at a path replace the old row on the server, so the path is the identity too. A move keeps the id.
@@ -350,7 +342,6 @@ export type RoomStore = {
 	/** The window with every pending patch applied. */
 	messages(): ViewMessage[]
 	tasks(): Task[]
-	approvals(): Approval[]
 	/** The members with every pending add, rename, and remove applied. */
 	members(): Member[]
 	/** The room's files with pending `rm` and `mv` applied. */
@@ -372,7 +363,6 @@ export type RoomStore = {
 	suspend(): void
 	/** Reconnects with `hello {lastSeq}` and sends every pending frame again. */
 	resume(): void
-	approve(approvalId: string, action: "accept" | "decline"): void
 	/** The model this chat's agents use from their next run, as `provider/model`. Not stored here. */
 	model(ref: string): void
 	task(op: TaskOp): void
@@ -522,7 +512,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			readSeq: s.readSeq,
 			members: s.members,
 			tasks: s.tasks,
-			approvals: s.approvals,
 			files: s.files,
 			folders: s.folders,
 			roster: s.roster,
@@ -748,7 +737,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						s.readSeq = meta?.readSeq ?? 0
 						s.members = [...(meta?.members ?? [])]
 						s.tasks = [...(meta?.tasks ?? [])]
-						s.approvals = [...(meta?.approvals ?? [])]
 						s.files = [...(meta?.files ?? [])]
 						s.folders = [...(meta?.folders ?? [])]
 						s.roster = [...(meta?.roster ?? [])]
@@ -802,7 +790,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		state,
 		messages: () => overlayMessages(state.history ?? state.messages, state.history ? [] : state.patches),
 		tasks: () => overlayTasks(state.tasks, state.patches),
-		approvals: () => overlayApprovals(state.approvals, state.patches),
 		members: () => overlayMembers(state.members, state.patches),
 		files: () => overlayFiles(state.files, state.patches, state.folders),
 		folders: () => overlayFolders(state.folders, state.patches),
@@ -852,7 +839,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			suspended = false
 			if (!closed && state.loaded && !socket) openSocket()
 		},
-		approve: (approvalId, action) => void act({ t: "approve", approvalId, action }),
 		task: (op) => void act({ t: "task", op }),
 		member: (op) => void act({ t: "member", op }),
 		onMemberRefused(listener) {

@@ -9,7 +9,6 @@ import type { Env } from "../index"
 import { AnswerWaiters } from "@yuki/agent/answers"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
-import type { ApprovalAnswer, ApprovalRequest } from "../room/approvals"
 import { findProvider } from "../user/turn-context"
 import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
@@ -22,7 +21,7 @@ import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, ty
 import { mergeRecall, RECALL_MAX, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@yuki/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
-import { type Approvals, isRunTainted } from "@yuki/agent/trust"
+import { isRunTainted } from "@yuki/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
@@ -197,7 +196,6 @@ export class AgentDO extends DurableObject<Env> {
       updateRoutine: async (id, patch) => ((await mine(id)) ? user().updateRoutine(id, patch) : notHere),
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
-      ask: (callKey, tool, args, summary) => this.ask({ callKey, tool, args, summary, external: false }),
       origin: () => user().publicOrigin(),
     }
   }
@@ -294,7 +292,7 @@ export class AgentDO extends DurableObject<Env> {
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     const messaging = () => this.messagingPort()
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
-      const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.approvalsPort(), this.scriptPorts(), {
+      const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.scriptPorts(), {
         authority: () => this.host.authority(),
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
         chief: this.chiefPort(),
@@ -329,7 +327,7 @@ export class AgentDO extends DurableObject<Env> {
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), nudge: () => this.#nudge, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), nudge: () => this.#nudge, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -588,15 +586,6 @@ export class AgentDO extends DurableObject<Env> {
       list: async () => (await userStub(this.env.USER, where().userId).extensionList()) as unknown as ExtensionInfo[],
       source: async (name) => (await userStub(this.env.USER, where().userId).extensionSource(name)) as unknown as ExtensionBundle | null,
     }
-  }
-
-  private async ask(req: ApprovalRequest): Promise<ApprovalAnswer | null> {
-    const home = this.home()
-    return home ? roomStub(this.env.ROOM, home.userId, home.roomId).requestApproval(home.slug, req) : null
-  }
-
-  private approvalsPort(): Approvals {
-    return (call) => this.ask({ callKey: `${call.conversationId}:${call.callId}`, tool: call.tool, args: call.arguments, external: true })
   }
 
   private memoryPort(): MemoryPort | undefined {

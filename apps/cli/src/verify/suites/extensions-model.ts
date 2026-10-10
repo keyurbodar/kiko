@@ -29,7 +29,6 @@ const suite: Suite = {
     const { room } = await newRoom(s, "extensions with the real model")
     /** True when a room frame after log position `from` says the agent was using `what` (the presence line). */
     const used = (from: number, what: string) => room.raw.log.slice(from).some((e) => e.dir === "in" && JSON.stringify(e.frame).includes(`using ${what}`))
-    const approvals = (from: number) => room.raw.log.slice(from).filter((e) => e.dir === "in" && JSON.stringify(e.frame).includes('"t":"approval"')).length
     const replyAfter = async (text: string, ms: number) => {
       const before = seen(room).live.length
       await send(room, text)
@@ -41,13 +40,12 @@ const suite: Suite = {
     // 1. A catalog extension with a real fetch.
     const weather = must(await op({ op: "propose_catalog", name: "weather" }), "propose weather")
     must(await op({ op: "install", id: weather.proposal!.id }), "install weather")
-    // Two places in one message: the read tool runs twice in one run, and no approval card appears.
+    // Two places in one message: the read tool runs twice in one run.
     const wxFrom = room.raw.log.length
     const forecast = await replyAfter("what's the weather in lisbon and in porto right now? use your weather tool for each.", 120_000)
     console.log(`  weather reply: ${JSON.stringify(forecast)}`)
     if (!used(wxFrom, "weather")) throw new VerifyError("the room never saw the agent using weather")
     if (!/°|degrees|\d+\s?c\b/i.test(forecast)) throw new VerifyError(`the reply has no temperature, so the tool did not run: ${forecast}`)
-    if (approvals(wxFrom)) throw new VerifyError("a read tool's second call in one run asked for approval")
 
     // 2. The agent writes an extension.
     const proposed = user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension_proposal"), 300_000)

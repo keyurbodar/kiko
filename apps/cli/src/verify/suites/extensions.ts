@@ -134,7 +134,7 @@ const suite: Suite = {
     if (!fresh.includes("tool: tally 1")) throw new VerifyError(`uninstall kept the old state: ${fresh}`)
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
 
-    // A trigger runs as a routine granted the extension's own tools: its outside tool runs with no card.
+    // A trigger runs as a routine granted the extension's own tools: its outside tool runs without asking.
     const sender = { yuki: 1, name: "verify-sender", version: "1.0.0", description: "sends, for yuki verify", tools: { verify_send: { description: "sends a ping outside yuki", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
     // Triggers post in the yuki chat, which the first visit makes.
     await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
@@ -150,9 +150,7 @@ const suite: Suite = {
     await until("the trigger's run", () => seen(home).live.some((m) => m.text.includes("tool: ")), 30_000)
     const said = seen(home).live.find((m) => m.text.includes("tool: "))!.text
     if (!said.includes("tool: sent")) throw new VerifyError(`the trigger's run could not use its own extension's outside tool: ${said}`)
-    const asked = home.raw.log.some((e) => e.dir === "in" && (e.frame as { t: string; events?: { t: string }[] }).t === "events" && (e.frame as { events: { t: string }[] }).events.some((ev) => ev.t === "approval"))
-    if (asked) throw new VerifyError("the trigger's run posted a card for its own extension's tool")
-    console.log(`  ok an extension's trigger ran its own outside tool with no card: ${JSON.stringify(said.slice(0, 80))}`)
+    console.log(`  ok an extension's trigger ran its own outside tool without asking: ${JSON.stringify(said.slice(0, 80))}`)
     ok(await op({ op: "uninstall", name: "verify-sender" }), "clean up the sender")
     home.raw.close()
   },

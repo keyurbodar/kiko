@@ -17,15 +17,10 @@ import { type Authority, HUMAN } from "./authority"
 
 export const TRUST = "trust"
 
-export type ExternalCall = { conversationId: ConversationId; callId: string; tool: string; arguments: Record<string, unknown> }
-
-export type Approvals = (call: ExternalCall, context: Context) => Promise<string | { refused: string } | null>
-
-export type ExternalDecision = { tool: string; callId: string; tainted: boolean; approval: string | null; ran: boolean }
+export type ExternalDecision = { tool: string; callId: string; tainted: boolean; ran: boolean }
 
 export type TrustOptions = {
   effects: ReadonlyMap<string, EffectDeclaration>
-  approvals?: Approvals
   authority?: () => Authority
 }
 
@@ -43,14 +38,14 @@ export type Gate =
   | { allow: true;  flagTainted: boolean }
   | { allow: false; reason: string }
 
-export const NO_CARD = "not run: no human asked for this run, and yuki could not post a card for the human's ok. go on without it."
+export const ASK_FIRST = "This needs the human's ok. Ask them in chat in one short line, saying exactly what you'll do. Act only after they reply yes."
 
-export function needsApproval(authority: Authority, tool: string): boolean {
-  if (authority.origin === "human") return false
-  return !(authority.origin === "routine" && authority.grant.includes(tool))
+export function mayActOutside(authority: Authority, tainted: boolean, tool: string): boolean {
+  if (tainted) return false
+  return authority.origin === "human" || (authority.origin === "routine" && authority.grant.includes(tool))
 }
 
-export function gate(effect: Effect, tainted: boolean, approval: string | null, authority: Authority = HUMAN, tool = ""): Gate {
+export function gate(effect: Effect, tainted: boolean, authority: Authority = HUMAN, tool = ""): Gate {
   switch (effect) {
     case "read":
       return { allow: true, flagTainted: false }
@@ -58,7 +53,7 @@ export function gate(effect: Effect, tainted: boolean, approval: string | null, 
     case "message":
       return { allow: true, flagTainted: tainted }
     case "external":
-      return !needsApproval(authority, tool) || approval ? { allow: true, flagTainted: false } : { allow: false, reason: NO_CARD }
+      return mayActOutside(authority, tainted, tool) ? { allow: true, flagTainted: false } : { allow: false, reason: ASK_FIRST }
   }
 }
 
@@ -111,7 +106,6 @@ async function wrapResult(result: ToolExecutionResult, source: string, api: Hook
 export function trustExtension(options: TrustOptions): Extension {
   const authority = options.authority ?? (() => HUMAN)
   const state: TrustState = { taint: new Map(), marked: new Map(), externals: [], authority }
-  const approvals: Approvals = options.approvals ?? (async () => null)
   const declared = (name: string): EffectDeclaration => options.effects.get(name) ?? { effect: "external" }
 
   const extension = defineExtension({
@@ -124,19 +118,12 @@ export function trustExtension(options: TrustOptions): Extension {
         },
       }),
       hook(ToolTask, {
-        beforeTool: async (call, api, context) => {
+        beforeTool: (call, api) => {
           const { effect } = declared(call.name)
           const tainted = state.taint.get(api.conversationId) ?? true
-          const run = authority()
-          const answer =
-            effect === "external" && needsApproval(run, call.name)
-              ? await approvals({ conversationId: api.conversationId, callId: call.id, tool: call.name, arguments: call.arguments }, context)
-              : null
-          const approval = typeof answer === "string" ? answer : null
-          const gated = gate(effect, tainted, approval, run, call.name)
-          const decision = !gated.allow && answer && typeof answer === "object" ? { allow: false as const, reason: answer.refused } : gated
+          const decision = gate(effect, tainted, authority(), call.name)
           if (effect === "external") {
-            state.externals.push({ tool: call.name, callId: call.id, tainted, approval, ran: decision.allow })
+            state.externals.push({ tool: call.name, callId: call.id, tainted, ran: decision.allow })
             if (state.externals.length > MAX_DECISIONS) state.externals.shift()
           }
           return decision.allow ? undefined : { block: decision.reason }

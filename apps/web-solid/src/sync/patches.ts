@@ -15,7 +15,6 @@
 // Everything here is pure, so the tests and both stores share it.
 
 import type {
-	Approval,
 	Chat,
 	Member,
 	ChatOp,
@@ -81,7 +80,6 @@ const roomConfirms: Confirms = {
 	read: (f, e) => e.t === "read" && e.upTo >= f.seq,
 	task: (f, e) =>
 		f.op.op === "delete" ? e.t === "task_removed" && e.id === f.op.id : e.t === "task" && e.task.id === f.op.id,
-	approve: (f, e) => e.t === "approval" && e.approval.id === f.approvalId && e.approval.state !== "pending",
 	member: (f, e) =>
 		f.op.op === "remove" ? e.t === "member_removed" && e.slug === f.op.slug : e.t === "member" && e.member.slug === f.op.slug,
 	// ASSUMPTION: the events carry ids, not the paths the frame named, so any removal confirms an rm
@@ -95,8 +93,9 @@ const roomConfirms: Confirms = {
 }
 
 export function roomConfirmedBy(patch: RoomPatch, event: RoomEvent): boolean {
-	const check = roomConfirms[patch.frame.t] as (f: RoomPatchFrame, e: RoomEvent, c: string) => boolean
-	return check(patch.frame, event, patch.clientId)
+	const check = roomConfirms[patch.frame.t] as ((f: RoomPatchFrame, e: RoomEvent, c: string) => boolean) | undefined
+	// A frame kind the protocol no longer has (an old approve in the outbox) settles at once.
+	return check ? check(patch.frame, event, patch.clientId) : true
 }
 
 /** The patches still pending after `events` and with the store at `appliedSeq`. */
@@ -227,17 +226,6 @@ export function overlayTasks(tasks: readonly Task[], patches: readonly RoomPatch
 				return next
 			})
 		}
-	}
-	return out
-}
-
-export function overlayApprovals(approvals: readonly Approval[], patches: readonly RoomPatch[]): Approval[] {
-	let out = approvals as Approval[]
-	for (const p of patches) {
-		const f = p.frame
-		if (f.t !== "approve") continue
-		const state = f.action === "accept" ? "accepted" : "declined"
-		out = out.map((a) => (a.id === f.approvalId && a.state === "pending" ? { ...a, state } : a))
 	}
 	return out
 }

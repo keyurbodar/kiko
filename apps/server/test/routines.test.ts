@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Envelope, RoomEvent } from "@yuki/protocol"
 import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
-import { gate, NO_CARD, needsApproval } from "@yuki/agent/trust"
+import { ASK_FIRST, gate } from "@yuki/agent/trust"
 import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "@yuki/agent/authority"
 import { matches, routineRun, type Signal, signalOf } from "../src/room/signals"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
@@ -36,37 +36,33 @@ describe("authority (section 25.3)", () => {
 })
 
 describe("the gate (sections 16.3 and 25.3)", () => {
-  const table: [Parameters<typeof gate>[0], boolean, string | null, ReturnType<typeof combine>, string, boolean][] = [
-    ["external", false, null, HUMAN, "send", true],
-    ["external", true, null, HUMAN, "send", true],
-    ["external", false, null, routine(["send"]), "send", true],
-    ["external", true, null, routine(["send"]), "send", true],
-    ["external", false, null, routine(["send"]), "delete", false],
-    ["external", true, null, routine(["send"]), "delete", false],
-    ["external", false, null, AUTO, "send", false],
-    ["external", true, null, AUTO, "send", false],
-    ["external", true, "ap_1", AUTO, "send", true],
-    ["external", false, "ap_1", routine([]), "send", true],
-    ["read", true, null, AUTO, "x", true],
-    ["write", true, null, AUTO, "x", true],
-    ["message", true, null, AUTO, "x", true],
+  const table: [Parameters<typeof gate>[0], boolean, ReturnType<typeof combine>, string, boolean][] = [
+    ["external", false, HUMAN, "send", true],
+    ["external", true, HUMAN, "send", false],
+    ["external", false, routine(["send"]), "send", true],
+    ["external", true, routine(["send"]), "send", false],
+    ["external", false, routine(["send"]), "delete", false],
+    ["external", false, AUTO, "send", false],
+    ["external", true, AUTO, "send", false],
+    ["read", true, AUTO, "x", true],
+    ["write", true, AUTO, "x", true],
+    ["message", true, AUTO, "x", true],
   ]
-  for (const [effect, tainted, card, authority, tool, runs] of table) {
-    test(`${effect} ${tool} in a ${tainted ? "tainted" : "clean"} ${authority.origin} run${card ? " with a card" : ""} ${runs ? "runs" : "waits"}`, () => {
-      expect(gate(effect, tainted, card, authority, tool).allow).toBe(runs)
-      if (effect === "external" && !card) expect(needsApproval(authority, tool)).toBe(!runs)
+  for (const [effect, tainted, authority, tool, runs] of table) {
+    test(`${effect} ${tool} in a ${tainted ? "tainted" : "clean"} ${authority.origin} run ${runs ? "runs" : "asks"}`, () => {
+      expect(gate(effect, tainted, authority, tool).allow).toBe(runs)
     })
   }
 
-  test("a routine a tainted run made runs with no grant; one a clean run or the human's card made keeps it", () => {
+  test("a routine a tainted run made runs with no grant; one a clean run made keeps it", () => {
     expect(runGrant({ tainted: false, grant: ["send"] })).toEqual(["send"])
     expect(runGrant({ tainted: true, grant: ["send"] })).toEqual([])
   })
 
-  test("taint flags writes and messages; a call that waits says why", () => {
-    expect(gate("write", true, null, HUMAN, "x")).toEqual({ allow: true, flagTainted: true })
-    expect(gate("message", false, null, AUTO, "x")).toEqual({ allow: true, flagTainted: false })
-    expect(gate("external", false, null, AUTO, "send")).toEqual({ allow: false, reason: NO_CARD })
+  test("taint flags writes and messages; a refused call tells the agent to ask in chat", () => {
+    expect(gate("write", true, HUMAN, "x")).toEqual({ allow: true, flagTainted: true })
+    expect(gate("message", false, AUTO, "x")).toEqual({ allow: true, flagTainted: false })
+    expect(gate("external", false, AUTO, "send")).toEqual({ allow: false, reason: ASK_FIRST })
   })
 })
 

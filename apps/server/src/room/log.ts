@@ -16,7 +16,6 @@ import type {
 	RoomSnapshot,
 	RunRef,
 	Sender, RoomId } from "@yuki/protocol"
-import { listApprovals } from "./approvals"
 import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listTasks } from "./workspace"
@@ -148,7 +147,6 @@ export class RoomLog {
 			members: listMembers(this.storage),
 			messages: this.withReactions(rows),
 			tasks: listTasks(this.storage),
-			approvals: listApprovals(this.storage),
 			...listSpace(this.storage, ROOM_TABLES),
 		}
 	}

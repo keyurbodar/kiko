@@ -133,7 +133,7 @@ const MIGRATIONS: readonly string[] = [
 	ALTER TABLE messages ADD COLUMN preview TEXT;
 	`,
 	`
-	-- The newest event of one kind (the chat row's newest reaction or approval card, the reactions
+	-- The newest event of one kind (the chat row's newest reaction, the reactions
 	-- since an agent's last brief) without reading the whole log.
 	CREATE INDEX events_kind_seq ON events (kind, seq);
 	-- The chat row's unread count and mention scan read agent messages after the read mark. These
@@ -185,6 +185,11 @@ const MIGRATIONS: readonly string[] = [
 	`
 	-- 1 once a run that read outside content created or changed the task (section 26.6), so a nudge about it wakes tainted.
 	ALTER TABLE ws_tasks ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0;
+	`,
+	`
+	-- Approval cards were removed on 2026-10-10: an agent asks in chat and the human's reply is the ok.
+	DROP TABLE IF EXISTS ws_approvals;
+	DELETE FROM events WHERE kind = 'approval';
 	`,
 ]
 

@@ -35,8 +35,6 @@ export function describeLast(last: ChatLast, group: boolean): ActivityLine {
       return { text: `You renamed the group to ${last.text ?? ""}` }
     case "created":
       return { text: "You created the group" }
-    case "approval":
-      return { text: sentence(`${actor}needs your approval`) }
     case "notice":
       return { text: last.text ?? "" }
   }

@@ -606,13 +606,6 @@
   --reply-bar-name: var(--accent);
   --reply-bar-text: var(--text-muted);
 
-  /* approval card for a tainted run */
-  --approval-bg: oklch(from var(--gold) l c h / 10%);
-  --approval-edge: oklch(from var(--gold) l c h / 35%);
-  --approval-title: var(--gold);
-  --approval-allow: var(--accent-fill);
-  --approval-deny: var(--btn-bg);
-
   /* board */
   --board-bg: var(--bg);
   --board-column-bg: var(--bg-subtle);
@@ -996,8 +989,6 @@
   --color-editor-gutter: var(--editor-gutter-bg);
   --color-editor-line: var(--editor-line-active);
   --color-reply-bar: var(--reply-bar-bg);
-  --color-approval: var(--approval-bg);
-  --color-approval-edge: var(--approval-edge);
   --color-board: var(--board-bg);
   --color-board-column: var(--board-column-bg);
   --color-board-card: var(--board-card-bg);

@@ -1,4 +1,4 @@
-import type { Agent, AgentSlug, Approval, RoomId, RoomToClient, UserToClient } from "@yuki/protocol"
+import type { Agent, AgentSlug, RoomId, RoomToClient, UserToClient } from "@yuki/protocol"
 import { type RoomHandle, VerifyError } from "../client"
 import { agentTexts, dev, eventually, inSeconds, messages, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -9,14 +9,6 @@ import { fake, newRoom, send, ulid } from "./mid-run"
 // nobody asked for and hears why once; no check-in routine exists, and yuki's overview reads every chat; work a
 // routine hands to a teammate keeps the routine's authority, so the teammate cannot act outside yuki
 // without the human, while the same hand-off from a human can. Needs NODE_ENV=development.
-
-function cards(room: RoomHandle): Approval[] {
-  return room.raw.log.flatMap((e) => {
-    if (e.dir !== "in") return []
-    const f = e.frame as RoomToClient
-    return f.t === "events" ? f.events.flatMap((ev) => (ev.t === "approval" ? [ev.approval] : [])) : []
-  })
-}
 
 const agentOf = (name: string, run: string): Agent => ({ id: `proactive-${run}-${name}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
 
@@ -163,8 +155,7 @@ const suite: Suite = {
       await eventually("ada's answer to the routine's hand-off", () => messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ada" && m.text.startsWith("tools:")).length >= 2, 30_000)
       const fromRoutine = messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ada" && m.text.startsWith("tools:"))[1]!.text
       if (fromRoutine !== "tools: fake_send blocked") throw new VerifyError(`a routine's hand-off let ada act outside yuki: ${fromRoutine}`)
-      if (!cards(room).some((c) => c.tool === "fake_send" && c.slug === "ada")) throw new VerifyError("ada's blocked call posted no card")
-      console.log("  ok the human's hand-off let ada run fake_send; a routine's identical hand-off was blocked with a card")
+      console.log("  ok the human's hand-off let ada run fake_send; a routine's identical hand-off was blocked")
       room.raw.close()
     }
   },

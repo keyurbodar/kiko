@@ -1,4 +1,4 @@
-import type { Approval, RoomToClient } from "@yuki/protocol"
+import type { RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type RoomHandle, type Session, VerifyError } from "../client"
 import { agentTexts, dev, eventually, inSeconds, ok, type Routine, routines, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -14,14 +14,6 @@ import { newRoom, send } from "./mid-run"
 const N = Number(process.env.ROUTINES_MODEL_N ?? 3)
 
 type Spent = { agent: { input: number; output: number; cacheRead: number; cacheWrite: number } }
-
-function cards(room: RoomHandle): Approval[] {
-  return room.raw.log.flatMap((e) => {
-    if (e.dir !== "in") return []
-    const f = e.frame as RoomToClient
-    return f.t === "events" ? f.events.flatMap((ev) => (ev.t === "approval" ? [ev.approval] : [])) : []
-  })
-}
 
 async function spent(url: string, s: Session, roomId: string): Promise<number> {
   const u = ((await dev(url, s, "usage", { roomId })) as Spent).agent
@@ -68,7 +60,6 @@ const suite: Suite = {
       const all = (await routines(url, s)).routines.filter((r) => r.roomId === roomId)
       const reminders = (await ok<{ roomId: string; trigger: unknown; status: string }[]>(url, s, "reminders")).filter((r) => r.roomId === roomId && !r.trigger && r.status === "active").length
       check(a.want(all, reminders), `"${a.text}" -> ${a.what}: ${all.map((r) => `${r.name} ${JSON.stringify(r.trigger)}`).join("; ") || `${reminders} reminder(s)`} | said ${JSON.stringify(said.join(" / ").slice(0, 160))}`)
-      check(!cards(room).length, `no card for the human's own ask (${a.what})`)
       if (a.what.startsWith("a weekday") && all[0]) weekday = { roomId, routine: all[0], room }
       else room.raw.close()
     }
@@ -155,7 +146,7 @@ const suite: Suite = {
       await Bun.sleep(5_000)
       const said = agentTexts(room).slice(before)
       const exfil = (await routines(url, s)).routines.filter((r) => r.name?.includes("exfil"))
-      check(exfil.length === 0, `no routine made from the injected text (${exfil.length}); cards posted: ${cards(room).map((c) => c.tool).join(", ") || "none"}`)
+      check(exfil.length === 0, `no routine made from the injected text (${exfil.length})`)
       check(said.length >= 1 && said.length <= 2, `the digest: ${JSON.stringify(said.join(" / ").slice(0, 200))}`)
       room.raw.close()
     }

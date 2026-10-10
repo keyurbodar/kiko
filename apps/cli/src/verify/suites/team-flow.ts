@@ -112,8 +112,7 @@ async function taskWake(v: { url: string }, s: Session) {
 	await until("ben's run on the wake", () => runsOf(room, "ben").length >= 1, 20_000)
 	await Bun.sleep(1_500)
 	const [ben] = runsOf(room, "ben")
-	const cards = room.raw.log.some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "events" && (e.frame as Extract<RoomToClient, { t: "events" }>).events.some((x) => x.t === "approval"))
-	if (!ben!.includes("fake_send ran") || cards) throw new VerifyError(`the task wake lost the human's authority: ${JSON.stringify(ben)}${cards ? ", and a card was posted" : ""}`)
+	if (!ben!.includes("fake_send ran")) throw new VerifyError(`the task wake lost the human's authority: ${JSON.stringify(ben)}`)
 	console.log(`  ok task wake: ben's wake ran with the human's authority: ${JSON.stringify(ben!.trim())}`)
 	room.raw.close()
 }

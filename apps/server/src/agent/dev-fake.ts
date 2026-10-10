@@ -4,7 +4,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
-import { type Approvals, isRunTainted, markRunTainted } from "@yuki/agent/trust"
+import { ASK_FIRST, isRunTainted, markRunTainted } from "@yuki/agent/trust"
 import { type BuildAgentInput, buildAgent } from "./factory"
 import type { AgentSetup } from "@yuki/agent/host"
 import type { RoleInput } from "./prompt"
@@ -18,7 +18,7 @@ const TOKENS_PER_SECOND = 25
 const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
 
 type Part = { type: string; text?: string }
-type Message = { role?: string; content?: string | Part[]; stopReason?: string; toolName?: string }
+type Message = { role?: string; content?: string | Part[]; stopReason?: string; toolName?: string; toolCallId?: string }
 
 const rawOf = (m: Message) => (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join(""))
 
@@ -85,11 +85,11 @@ export function fakeReply(transcript: readonly Message[]) {
 
 function anyToolCall(raw: string, messages: readonly Message[]) {
   const text = raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
-  const accepted = /reason="approval_result"[^>]*>\s*the human accepted (\w+) \(card /.exec(text)
-  if (accepted && !isTrustTool(accepted[1]!)) {
-    const calls = messages.flatMap((m) => (m.role === "assistant" && typeof m.content !== "string" ? (m.content ?? []) : [])) as { type: string; name?: string; arguments?: Record<string, unknown> }[]
-    const before = calls.findLast((p) => p.type === "toolCall" && p.name === accepted[1])
-    if (before) return fauxToolCall(accepted[1]!, (before.arguments ?? {}) as Parameters<typeof fauxToolCall>[1])
+  if (text.includes("[yes]")) {
+    const asked = messages.findLast((m) => m.role === "toolResult" && rawOf(m).includes(ASK_FIRST))
+    const calls = messages.flatMap((m) => (m.role === "assistant" && typeof m.content !== "string" ? (m.content ?? []) : [])) as { type: string; id?: string; name?: string; arguments?: Record<string, unknown> }[]
+    const before = asked && calls.find((p) => p.type === "toolCall" && p.id === asked.toolCallId)
+    if (before) return fauxToolCall(before.name!, (before.arguments ?? {}) as Parameters<typeof fauxToolCall>[1])
   }
   const direct = /\[tool (\w+) (\{.*\})\]\s*$/m.exec(text)
   return direct ? fauxToolCall(direct[1]!, JSON.parse(direct[2]!)) : null
@@ -157,8 +157,6 @@ function trustCalls(messages: readonly Message[]) {
     const turn = textOf(last)
     const fetch = /^\[(fetch|mark)\]\s*([\s\S]*)$/.exec(turn)
     if (fetch) return [fauxToolCall(`fake_${fetch[1]}`, { page: fetch[2]! })]
-    const accepted = /<system-event reason="approval_result"[^>]*>\s*the human accepted (\w+)/.exec(turn)
-    if (accepted && isTrustTool(accepted[1]!)) return [fauxToolCall(accepted[1]!, {})]
     return directives(turn)
   }
   if (last?.role !== "toolResult") return []
@@ -188,11 +186,11 @@ function teamCall(turn: string) {
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], approvals?: Approvals, scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "authority" | "reminders" | "chief" | "loops"> = {}) {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "authority" | "reminders" | "chief" | "loops"> = {}) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(approvals ? { approvals } : {}), ...(scripts ? { scripts } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) } satisfies AgentSetup
+  return { models, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(scripts ? { scripts } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) } satisfies AgentSetup
 }

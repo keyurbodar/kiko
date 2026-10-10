@@ -31,7 +31,7 @@ export type WakeResult = "delivered" | "held" | "refused" | "gone" | "duplicate"
 /**
  * The authority a wake runs with. Taint never carries the human's authority to a later run: a
  * tainted wake on a human chain runs as `auto`, so an outside instruction that scheduled it cannot act
- * outside yuki without a card. A routine's grant was settled when the routine was made (25.3).
+ * outside yuki without the human's yes. A routine's grant was settled when the routine was made (25.3).
  */
 export function wakeAuthority(w: Pick<Wake, "chain" | "tainted">): Authority {
 	const authority = w.chain?.authority ?? AUTO

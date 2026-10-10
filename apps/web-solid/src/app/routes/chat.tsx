@@ -16,8 +16,6 @@ const Snowball = lazy(() => import("../../composer/snowball").then((m) => ({ def
 
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
-// Approval cards load the first time an open room has one (P7-02).
-const ApprovalCards = lazy(() => import("../../chat/ApprovalCard"));
 // A temporary chat's "to:" row loads the first time one is open, not with the transcript.
 const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
 
@@ -346,9 +344,6 @@ export default function ChatRoute() {
                 </button>
               </Show>
             </div>
-          </Show>
-          <Show when={useApp.room()?.approvals().length ? useApp.room() : undefined}>
-            {(r) => <ApprovalCards approvals={r().approvals()} onDecide={(id, action) => r().approve(id, action)} />}
           </Show>
           {/* The one place that says no model can run: the room's refusal, or no provider at all. */}
           <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders()))}>

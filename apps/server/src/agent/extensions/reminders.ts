@@ -6,7 +6,7 @@ import { Schema } from "effect"
 import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } from "../../user/reminders"
 import type { RoutineResult } from "../../user/routines"
 import { declareEffect } from "@yuki/agent/effects"
-import { isRunTainted, runAuthority } from "@yuki/agent/trust"
+import { ASK_FIRST, isRunTainted, runAuthority } from "@yuki/agent/trust"
 import type { Authority } from "@yuki/agent/authority"
 
 export const REMINDERS = "reminders"
@@ -20,15 +20,11 @@ export type RemindersPort = {
   updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; grant?: string[]; status?: "active" | "paused" }): Promise<RoutineResult>
   runRoutine(id: string): Promise<RunDelivery | null>
   runs(id: string): Promise<RoutineRun[]>
-  ask(callKey: string, tool: string, args: Record<string, unknown>, summary: string): Promise<string | { refused: string } | null>
   origin(): Promise<string | null>
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
-const NOT_YET = (card?: string) =>
-  `not done yet: this needs the human's ok first${card ? ` (${card})` : ", and no card could be posted"}. tell the human in one line that it waits for them to accept the card. do not say it is set.`
-
-const CARD_INSTRUCTIONS = 240
+const NOT_YET = `not set. ${ASK_FIRST}`
 
 function parseTrigger(value: unknown): Trigger | string {
   try {
@@ -103,14 +99,8 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             const trigger = parseTrigger(args.trigger)
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
             const grant = args.may ?? []
-            let tainted = isRunTainted(api)
-            if (runAuthority(api).origin !== "human" || (tainted && grant.length)) {
-              const shown = args.instructions.length <= CARD_INSTRUCTIONS
-              const summary = `routine "${args.name}": ${shown ? args.instructions : `${args.instructions.slice(0, CARD_INSTRUCTIONS)}…`} | ${JSON.stringify(trigger)}${grant.length ? ` | may use: ${grant.join(", ")}` : ""}`
-              const answer = await user().ask(`${api.conversationId}:${api.callId}`, "create_routine", args as Record<string, unknown>, summary)
-              if (answer === null || typeof answer === "object") return { content: text(NOT_YET(answer?.refused)) }
-              if (shown) tainted = false
-            }
+            const tainted = isRunTainted(api)
+            if (runAuthority(api).origin !== "human" || (tainted && grant.length)) return { content: text(NOT_YET), isError: true }
             const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, grant, ...(args.agent ? { target: args.agent.replace(/^@/, "") } : {}), tainted })
             if (!out.ok) return { content: text(`not set: ${out.error}`), isError: true }
             const hook = out.token ? `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.` : ""
@@ -122,7 +112,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
         "write",
         defineTool({
           name: "update_routine",
-          description: "change, pause, resume, or run now a routine by its id from list_reminders. pausing and running now never need the human; other changes need the human's card unless the human asked in this run.",
+          description: "change, pause, resume, or run now a routine by its id from list_reminders. pausing and running now never need the human; other changes need the human's yes in chat unless the human asked in this run.",
           parameters: Type.Object({
             id: Type.String(),
             name: Type.Optional(Type.String()),
@@ -140,11 +130,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             if (!current) return { content: text("no such routine in this chat"), isError: true }
             const grants = (args.may ?? current.grant).length > 0
             const changes = args.name !== undefined || args.instructions !== undefined || trigger !== undefined || args.may !== undefined || args.status === "active"
-            if (changes && (runAuthority(api).origin !== "human" || (isRunTainted(api) && grants))) {
-              const summary = `change routine "${current.name}": ${JSON.stringify({ ...args, id: undefined })}`
-              const answer = await user().ask(`${api.conversationId}:${api.callId}`, "update_routine", args as Record<string, unknown>, summary)
-              if (answer === null || typeof answer === "object") return { content: text(NOT_YET(answer?.refused)) }
-            }
+            if (changes && (runAuthority(api).origin !== "human" || (isRunTainted(api) && grants))) return { content: text(NOT_YET), isError: true }
             let routine = current
             if (changes || args.status) {
               const out = await user().updateRoutine(args.id, {

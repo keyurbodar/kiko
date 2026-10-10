@@ -247,7 +247,7 @@ describe("the room store", () => {
 		const snap = fixtures.roomSnapshot
 		putMessages(warm, roomId, snap.messages)
 		setLastSeq(warm, roomId, snap.seq)
-		warm.put("meta", `room:${roomId}`, { readSeq: snap.readSeq, members: snap.members, tasks: snap.tasks, approvals: snap.approvals, files: snap.files })
+		warm.put("meta", `room:${roomId}`, { readSeq: snap.readSeq, members: snap.members, tasks: snap.tasks, files: snap.files })
 		await warm.flush()
 		mock.store({ t: "message", id: "m-later" as MessageId, from: { kind: "agent", slug: fixtures.ada }, text: "later" })
 
@@ -275,7 +275,6 @@ describe("the room store", () => {
 			store.react(m1, "🎉"),
 			store.edit(m1, "edited"),
 			store.markRead(LAST),
-			store.approve("a1", "accept"),
 			store.task({ op: "create", id: "t9", title: "ship" }),
 		]
 		for (const r of results) expect((r as unknown) instanceof Promise).toBe(false)
@@ -286,14 +285,12 @@ describe("the room store", () => {
 		expect(view[0]).toMatchObject({ text: "edited" })
 		expect(view[0].reactions?.some((r) => r.by.kind === "human" && r.emoji === "🎉")).toBe(true)
 		expect(store.readSeq()).toBe(LAST)
-		expect(store.approvals()[0].state).toBe("accepted")
 		expect(store.tasks().map((t) => t.id)).toContain("t9")
 
 		// The room confirms each one, and every patch is dropped.
 		await until(() => store.state.patches.length === 0)
 		expect(store.state.messages.at(-1)).toMatchObject({ text: "hello there" })
 		expect(store.state.messages[0].text).toBe("edited")
-		expect(store.state.approvals[0].state).toBe("accepted")
 		expect(store.state.tasks.map((t) => t.id)).toContain("t9")
 		store.close()
 	})
@@ -363,7 +360,7 @@ describe("the room store", () => {
 		// A stale device: it knows an old message that the room no longer has.
 		putMessages(warm, roomId, [{ id: "gone" as MessageId, seq: 1, at: 0, from: { kind: "human" }, text: "stale" }])
 		setLastSeq(warm, roomId, 1)
-		warm.put("meta", `room:${roomId}`, { readSeq: 0, members: [], tasks: [], approvals: [], files: [] })
+		warm.put("meta", `room:${roomId}`, { readSeq: 0, members: [], tasks: [], files: [] })
 		await warm.flush()
 
 		const { store } = await make(warm)

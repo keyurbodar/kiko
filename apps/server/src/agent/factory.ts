@@ -4,7 +4,7 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, hook, type ModelRef, type Registry, ToolTask } from "@earendil-works/pi-durable"
 import { subagentExtension } from "./extensions/subagent"
 import { type EffectDeclaration, effectTable } from "@yuki/agent/effects"
-import { type Approvals, trustExtension } from "@yuki/agent/trust"
+import { trustExtension } from "@yuki/agent/trust"
 import type { Authority } from "@yuki/agent/authority"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
@@ -44,7 +44,6 @@ export type BuildAgentInput = RoleInput & {
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
-  approvals?: Approvals
   authority?: () => Authority
   scripts?: ScriptPorts
   builder?: BuilderPorts
@@ -83,7 +82,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const builtins = extensionsFor(input)
   const effects = new Map(effectTable(builtins))
-  const trust = trustExtension({ effects, approvals: input.approvals, ...(input.authority ? { authority: input.authority } : {}) })
+  const trust = trustExtension({ effects, ...(input.authority ? { authority: input.authority } : {}) })
   const gates = [...(input.nudge ? [nudgeGate(input.nudge, effects)] : []), trust]
   const registry = createRegistry()
   for (const extension of [...builtins, ...gates]) registry.install(extension)

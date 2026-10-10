@@ -9,7 +9,7 @@ import type { RoutineResult } from "./routines"
 
 // Architecture section 25. The human's routine routes. The Worker checks the session and reaches only
 // the session user's `UserDO`. A routine made here is the human's own request, so it is active at once
-// and may hold a grant: no card is needed for what the human asks themselves.
+// and may hold a grant: nobody needs to ask for what the human asks themselves.
 //
 //   GET  /api/routines                  routines and their recent runs
 //   POST /api/routines                  create { roomId, name, instructions, trigger, may?, agent? }

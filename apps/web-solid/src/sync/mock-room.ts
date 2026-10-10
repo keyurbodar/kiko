@@ -215,11 +215,6 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		},
 		typing() {},
 		stop() {},
-		approve(_, f) {
-			const a = data.approvals.find((x) => x.id === f.approvalId)
-			if (a?.state === "pending")
-				store({ t: "approval", approval: { ...a, state: f.action === "accept" ? "accepted" : "declined" } })
-		},
 		// A plain substring match stands in for the room's index. Every word must appear.
 		search(peer, f) {
 			const words = f.query.toLowerCase().split(/\s+/).filter(Boolean)

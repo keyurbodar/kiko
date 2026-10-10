@@ -21,7 +21,7 @@ type Candidate = { seq: number; last: ChatLast }
 /**
  * The chat list row of a room (section 9.2): its newest activity, its unread messages, and the
  * unread messages that mention the human. The newest activity is the newest of: a live message, an
- * agent's reaction to a human message that still stands, a pending approval, and a member joining
+ * agent's reaction to a human message that still stands, and a member joining
  * or leaving. A deleted newest message falls back to the one before it. Reads only; the room calls
  * it after each change and sends the result to `UserDO.touchChat`.
  */
@@ -63,17 +63,6 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 			const slug = react.actor.slice("agent:".length)
 			candidates.push({ seq: react.seq, last: { from: "agent", name: nameOf(slug), kind: "react", emoji, text: oneLine(target.text, QUOTE), at: react.at } })
 		}
-	}
-
-	const approval = sql
-		.exec<{ seq: number; at: number; payload: string }>(
-			"SELECT seq, at, payload FROM events WHERE kind = 'approval' AND json_extract(payload, '$.approval.state') = 'pending' ORDER BY seq DESC LIMIT 1",
-		)
-		.toArray()[0]
-	if (approval) {
-		const { id, slug } = (JSON.parse(approval.payload) as { approval: { id: string; slug: string } }).approval
-		const open = sql.exec("SELECT 1 FROM ws_approvals WHERE id = ? AND state = 'pending'", id).toArray().length > 0
-		if (open) candidates.push({ seq: approval.seq, last: { from: "agent", name: nameOf(slug), kind: "approval", at: approval.at } })
 	}
 
 	const member = log.meta(MEMBER_ACTIVITY)

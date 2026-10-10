@@ -6,7 +6,7 @@
 import type { Envelope } from "./envelope"
 import type { AgentSlug, MessageId, RoomId, UserId } from "./ids"
 import type { RichText } from "./rich-text"
-import type { Approval, ClientToRoom, FileRef, Member, Message, RoomEvent, RoomSnapshot, RoomToClient, Task } from "./room"
+import type { ClientToRoom, FileRef, Member, Message, RoomEvent, RoomSnapshot, RoomToClient, Task } from "./room"
 import type { Chat, ClientToUser, UserToClient } from "./user"
 
 export const userId = "user_fixture" as UserId
@@ -103,15 +103,6 @@ const systemMessage: Message = {
 export const task: Task = { id: "t1", title: "write the types", status: "doing", owner: ada, dependsOn: [] }
 const blockedTask: Task = { id: "t2", title: "test them", status: "blocked", dependsOn: ["t1"], note: "waits on the types" }
 
-export const approval: Approval = {
-	id: "a1",
-	slug: bob,
-	tool: "send_email",
-	summary: "send an email to the team",
-	state: "pending",
-	expiresAt: at(9) + 240_000,
-}
-
 /** One of every stored event, in `seq` order. */
 export const roomEvents: readonly RoomEvent[] = [
 	{ t: "message", clientId: "c1", ...humanMessage },
@@ -129,7 +120,6 @@ export const roomEvents: readonly RoomEvent[] = [
 	{ seq: 13, at: at(13), t: "task", task },
 	{ seq: 14, at: at(14), t: "task", task: blockedTask },
 	{ seq: 15, at: at(15), t: "task_removed", id: "t2" },
-	{ seq: 16, at: at(16), t: "approval", approval },
 	{ seq: 17, at: at(17), t: "file", file },
 ]
 
@@ -153,7 +143,6 @@ export const roomSnapshot: RoomSnapshot = {
 		},
 	],
 	tasks: [task],
-	approvals: [approval],
 	files: [file],
 	folders: [],
 }
@@ -170,8 +159,6 @@ export const clientToRoom: readonly ClientToRoom[] = [
 	{ t: "read", seq: 9 },
 	{ t: "typing" },
 	{ t: "stop" },
-	{ t: "approve", approvalId: "a1", action: "accept" },
-	{ t: "approve", approvalId: "a1", action: "decline" },
 	{ t: "task", op: { op: "create", id: "t3", title: "ship it", owner: bob, dependsOn: ["t1"] } },
 	{ t: "task", op: { op: "update", id: "t3", status: "review", owner: null, note: "ready" } },
 	{ t: "task", op: { op: "delete", id: "t3" } },
