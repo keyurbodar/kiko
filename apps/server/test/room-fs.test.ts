@@ -241,7 +241,7 @@ test("/me/soul.md is the agent's soul: read and edited with pi's tools, never mo
   const room = fresh()
   const ada = agent(room, "ada")
   const first = await ada.read("/me/soul.md")
-  expect(first).toBe("# ada\n\na sharp, helpful teammate.\n\n## what i've learned about working with them\n")
+  expect(first).toBe("# ada\n\na direct, helpful teammate.\n\n## what i've learned about working with them\n")
   const edited = await ada.run("edit", { path: "/me/soul.md", edits: [{ oldText: "working with them\n", newText: "working with them\n- no bullet points, they hate them\n" }] })
   expect(edited.ok).toBe(true)
   expect(await ada.read("me/soul.md")).toContain("- no bullet points, they hate them")

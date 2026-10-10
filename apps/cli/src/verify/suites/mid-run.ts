@@ -159,7 +159,7 @@ const cases: Case[] = [
       await send(room, "c")
       await until("an answer after stop", () => texts(room).length > 1, 15_000)
       await Bun.sleep(1_000)
-      expectEqual(texts(room), ["part one.", "heard: [two-part] a | c"], "the answer after stop: b was discarded")
+      expectEqual(texts(room), ["part one.", "heard: [two-part] a | c; tool: slept"], "the answer after stop: b was discarded")
     },
   },
 ]

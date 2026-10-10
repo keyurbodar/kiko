@@ -1,5 +1,5 @@
 import { createModels } from "@earendil-works/pi-ai/models"
-import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
+import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import type { AgentSlug, AgentState, Envelope, RoomId } from "@yuki/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
@@ -25,7 +25,8 @@ export class T extends AgentDO {
   protected override async setup(): Promise<AgentSetup> {
     const crashed = (await this.ctx.storage.get<boolean>("crashed")) ?? false
     const faux = fauxProvider({ tokensPerSecond: crashed ? 400 : 10 })
-    faux.setResponses(Array.from({ length: 5 }, () => fauxAssistantMessage(crashed ? AFTER : BEFORE)))
+    const before = [fauxAssistantMessage([fauxText(BEFORE[0]!), fauxToolCall("read_skill", { name: "haiku" })], { stopReason: "toolUse" }), fauxAssistantMessage(BEFORE[1]!)]
+    faux.setResponses(crashed ? Array.from({ length: 5 }, () => fauxAssistantMessage(AFTER)) : [...before, ...before, ...before])
     const models = createModels()
     models.setProvider(faux.provider)
     return { models, ...buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" } }) }

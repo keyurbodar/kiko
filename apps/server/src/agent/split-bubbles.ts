@@ -51,11 +51,8 @@ export function createSplitter(): Splitter {
 			if (FENCE.test(line)) fence = !fence;
 			const blank = line.trim() === "";
 			line = "";
-			if (blank && !fence) {
-				close();
-				return;
-			}
-			if (block === "" && blank) return;
+			// One model turn is one bubble. A blank line is a paragraph break inside it, never a split.
+			if (blank && !fence && (block === "" || block.endsWith("\n\n"))) return;
 			block += "\n";
 			return;
 		}

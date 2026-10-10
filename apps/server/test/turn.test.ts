@@ -91,7 +91,7 @@ test("a burst past the inbox caps goes out in deliveries the inbox admits, oldes
   expect(deliverable([human("y".repeat(200_000))])).toHaveLength(1)
 })
 
-test("a run posts each paragraph once, in order, then ends once", async () => {
+test("a run posts each model turn once, in order, then ends once", async () => {
   const a = await agent()
   await a.receive([human("hello")])
   const calls = await until(a.calls, ended)
@@ -99,7 +99,7 @@ test("a run posts each paragraph once, in order, then ends once", async () => {
   const after = await a.calls()
   expect(after).toEqual(calls)
   const runId = posts(calls)[0]!.runId
-  expect(posts(calls).map((p) => [p.runId, p.attempt, p.index, p.block])).toEqual(blocksOf(BEFORE).map((b, i) => [runId, 0, i, b]))
+  expect(posts(calls).map((p) => [p.runId, p.attempt, p.index, p.block])).toEqual(BEFORE.flatMap(blocksOf).map((b, i) => [runId, 0, i, b]))
   expect(calls.filter((c) => c.t === "end")).toEqual([{ t: "end", runId }])
   expect(calls.at(-1)).toEqual({ t: "end", runId })
   expect(calls[0]).toEqual({ t: "status", state: "typing" })
@@ -109,17 +109,17 @@ test("a run started by a tainted envelope posts every bubble as tainted, and a h
   const a = await agent()
   await a.receive([{ ...human("from a teammate"), id: `agent:t${n}`, from: { kind: "agent", slug: "scout" } as Envelope["from"], tainted: true }])
   const tainted = posts(await until(a.calls, ended))
-  expect(tainted.length).toBe(blocksOf(BEFORE).length)
+  expect(tainted.length).toBe(BEFORE.flatMap(blocksOf).length)
   expect(tainted.every((p) => p.tainted === true)).toBe(true)
 
   const b = await agent()
   await b.receive([human("hello")])
   const clean = posts(await until(b.calls, ended))
-  expect(clean.length).toBe(blocksOf(BEFORE).length)
+  expect(clean.length).toBe(BEFORE.flatMap(blocksOf).length)
   expect(clean.every((p) => p.tainted === false)).toBe(true)
 }, 30_000)
 
-test("a crash after a bubble reposts the run under the next attempt", async () => {
+test("a crash after a finished turn keeps its bubble and resumes with the next turn", async () => {
   const a = await agent()
   await a.receive([human("hello")])
   await until(a.calls, (calls) => posts(calls).length > 0)
@@ -130,11 +130,8 @@ test("a crash after a bubble reposts the run under the next attempt", async () =
   expect(crashed).toBe("crashed")
   const calls = await until(a.calls, ended)
   const all = posts(calls)
-  const first = all.filter((p) => p.attempt === 0)
-  expect(first.length).toBeGreaterThan(0)
-  expect(first.map((p) => p.block)).toEqual(blocksOf(BEFORE).slice(0, first.length))
-  expect(first.length).toBeLessThan(blocksOf(BEFORE).length)
-  expect(all.filter((p) => p.attempt === 1).map((p) => [p.index, p.block])).toEqual(blocksOf(AFTER).map((b, i) => [i, b]))
+  // Each model turn is one bubble, so a crash never lands between two bubbles of one turn.
+  expect(all.map((p) => [p.attempt, p.index, p.block])).toEqual([[0, 0, BEFORE[0]], ...blocksOf(AFTER).map((b, i) => [0, i + 1, b])])
   expect(all.every((p) => p.runId === all[0]!.runId)).toBe(true)
   expect(calls.filter((c) => c.t === "end")).toHaveLength(1)
 }, 40_000)
