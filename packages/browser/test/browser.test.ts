@@ -116,6 +116,34 @@ test("a navigation that starts while the read settles waits for load and reads t
   await browser.close()
 })
 
+test("type with submit sends the text and Enter in one round trip, text first", async () => {
+  let enterBeforeTextAnswered = false
+  fake = fakeCdp({
+    "Target.createTarget": () => ({ targetId: "T1" }),
+    "Target.attachToTarget": () => ({ sessionId: "S1" }),
+    "Runtime.evaluate": (m) => {
+      const expression = String(m.params.expression)
+      if (expression.includes("data-yuki-id")) return { result: { type: "string", value: view("https://a.test/") } }
+      return { result: { type: "object", value: { status: "ok", x: 5, y: 5, menu: false } } }
+    },
+    "Input.insertText": (m, ws, f) => {
+      setTimeout(() => {
+        enterBeforeTextAnswered = f.sent.some((s) => s.method === "Input.dispatchKeyEvent" && s.params.key === "Enter")
+        ws.send(JSON.stringify({ id: m.id, result: {}, sessionId: m.sessionId }))
+      }, 30)
+      return undefined
+    },
+  })
+  const browser = await connect(fake.url)
+  const tab = await browser.openTab()
+  await tab.read()
+  expect(await tab.act({ op: "type", id: 1, text: "Cloudflare", submit: true })).toEqual({ ok: true })
+  const order = fake.sent.filter((s) => s.method.startsWith("Input.")).map((s) => s.method)
+  expect(order[0]).toBe("Input.insertText")
+  expect(enterBeforeTextAnswered).toBe(true)
+  await browser.close()
+})
+
 test("nothing in src brings a tab to the front", () => {
   const root = join(import.meta.dir, "../src")
   const files = readdirSync(root, { recursive: true }).map(String).filter((f) => f.endsWith(".ts"))

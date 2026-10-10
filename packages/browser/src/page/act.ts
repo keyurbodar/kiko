@@ -89,9 +89,9 @@ async function perform(page: PageState, step: Step): Promise<StepResult | { ok: 
     case "type": {
       const g = await guard(page, step.id, true)
       if (g.status !== "ok") return refused(g)
-      if (step.text) await page.channel.send("Input.insertText", { text: step.text })
-      else await press(page, "Delete")
-      if (step.submit) await press(page, "Enter")
+      // Input events on one session reach the page in the order sent, so the text and Enter go out together.
+      const text = step.text ? page.channel.send("Input.insertText", { text: step.text }) : press(page, "Delete")
+      await Promise.all([text, step.submit ? press(page, "Enter") : undefined])
       return { ok: true, menu: g.menu }
     }
     case "select": {
