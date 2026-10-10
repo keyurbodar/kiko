@@ -17,6 +17,7 @@ const textOf = (message: Message | undefined) =>
 
 type Body =
   | { op: "receive"; envelopes: Envelope[]; brief?: string }
+  | { op: "receive-then-stop"; envelopes: Envelope[]; brief?: string }
   | { op: "status" }
   | { op: "transcript" }
   | { op: "fail-open" }
@@ -103,6 +104,10 @@ export class T extends AgentDO {
       await host.pulse(opened.harness)
       opened.harness.inspect = inspect
       return Response.json({ origin: host.authority().origin })
+    }
+    if (body.op === "receive-then-stop") {
+      await this.receive(body.envelopes, body.brief ?? "")
+      return Response.json(await this.host.stop())
     }
     if (body.op === "begins") return Response.json({ begins: (await this.ctx.storage.get<number>("begins")) ?? 0 })
     if (body.op === "joined") return Response.json({ joined: (await this.ctx.storage.get<number[]>("joined")) ?? null })

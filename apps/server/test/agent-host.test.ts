@@ -120,6 +120,17 @@ test("agent mail that arrives while a run works waits, then goes in as one input
   expect((await a.call<{ begins: number }>({ op: "begins" })).begins).toBe(2)
 }, 40_000)
 
+test("stop discards agent mail that is waiting but keeps the human's message, which is still answered", async () => {
+  const a = await agent()
+  const out = await a.call<{ discarded: number }>({ op: "receive-then-stop", envelopes: [envelope({ kind: "agent", slug: "ada" as never }, "a teammate's note"), human("still here")] })
+  expect(out.discarded).toBe(1)
+  await until(a.status, settled(2))
+  const { users } = await a.transcript()
+  expect(users).toHaveLength(1)
+  expect(users[0]).toBe("still here")
+  expect(users[0]).not.toContain("teammate")
+}, 30_000)
+
 test("mail held for a human message that is on its way loads no credentials until it goes", async () => {
   const a = await agent()
   await a.call({ op: "human-coming" })
