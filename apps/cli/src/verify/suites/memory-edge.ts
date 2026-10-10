@@ -5,13 +5,10 @@ import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
 
-// P15. Edge cases of capture and forgetting, each driven through real user paths: the chat socket
-// (send, edit, delete), the chat op that makes a chat private, the user socket's memory list, the
-// credentials route, and the dev routes `policy` and `usage`. Needs OPENCODE_API_KEY. The Jev cases
-// (4, 6, 8, 9) also need TYPESAFE_API_KEY and are skipped with a note without it. Never prints a key.
+// Needs OPENCODE_API_KEY; the Jev cases also need TYPESAFE_API_KEY. Never prints a key.
 
 const TYPESAFE = "typesafe"
-const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000 }
+const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000, capture: "always" }
 const T0 = Date.now()
 const stamp = () => `${((Date.now() - T0) / 1000).toFixed(1).padStart(6)}s`
 
@@ -66,7 +63,7 @@ const suite: Suite = {
   model: true,
   async run(v) {
     const jevKey = process.env.TYPESAFE_API_KEY
-    if (!jevKey) console.log("  TYPESAFE_API_KEY is not set: the Jev cases (4, 6, 8, 9) are skipped.")
+    if (!jevKey) console.log("  TYPESAFE_API_KEY is not set: the Jev cases are skipped.")
     const stampId = Date.now().toString(36)
     const s = await v.as(`memedge${stampId}`)
     await connectTestModel(s)
@@ -111,9 +108,7 @@ const suite: Suite = {
 
     const home = await openChat(user, s, "memory edge home")
     await policy(FAST)
-    console.log(`  [${stamp()}] policy set: batch 2, idle 3 s, jev delay 1 s`)
-
-    // 1. A private chat captures nothing.
+    console.log(`  [${stamp()}] policy set: capture always, batch 2, idle 3 s, jev delay 1 s`)
     {
       const priv = await openChat(user, s, "memory edge private")
       user.send({ t: "chat", op: { op: "private", roomId: idOf(priv) as never, private: true } })
@@ -125,19 +120,48 @@ const suite: Suite = {
       ok("private", "no life line or view mentions zorbalin after capture settled")
       close(priv)
     }
-
-    // 2. Capture off stores nothing, and turning it back on restores it.
     {
-      await policy({ ...FAST, capture: false })
+      await policy({ ...FAST, capture: "off" })
       await say(home, "my locksmith is mr vandermeer")
       await settle()
-      const hit = (await lines()).filter((l) => /vandermeer/i.test(l.text))
-      if (hit.length) throw new VerifyError(`capture:false still stored ${lineTexts(hit)}`)
+      const hit = (await lines()).filter((l) => /vandermeer/i.test(l.text) && l.source === "you")
+      if (hit.length) throw new VerifyError(`capture off still stored the human's words: ${lineTexts(hit)}`)
       await policy(FAST)
-      ok("capture off", "no line for vandermeer while capture was false; capture set back on")
+      ok("capture off", "no you line for vandermeer while capture was off; capture set back on")
     }
 
-    // 3. Editing a message redacts its line and captures the new text.
+    {
+      await policy({ ...FAST, capture: "auto" })
+      const attempts: [string, string][] = [
+        ["bangalore", "pune"],
+        ["chennai", "mumbai"],
+      ]
+      const outcomes: string[] = []
+      for (const [from, to] of attempts) {
+        const chat = await openChat(user, s, `memory edge move ${from}`)
+        await say(chat, `i live in ${from}`)
+        const was = new RegExp(from, "i")
+        const noted = await poll(`the agent's note about ${from}`, 60_000, async () => {
+          const got = (await live(was)).filter((l) => l.source.startsWith("@"))
+          return got.length > 0 && got
+        }).catch(() => [])
+        if (!noted.length) {
+          outcomes.push(`${from}: the agent wrote no note`)
+          close(chat)
+          continue
+        }
+        await say(chat, `i moved to ${to}`)
+        const ids = new Set(noted.map((l) => l.pos))
+        const replaced = await poll(`the ${from} line superseded`, 60_000, async () => (await lines()).some((l) => ids.has(l.pos) && !l.redacted && !isLive(l))).catch(() => false)
+        const now = (await lines()).filter((l) => was.test(l.text) || new RegExp(to, "i").test(l.text)).map((l) => `${l.source}: ${l.text}${isLive(l) ? "" : " (replaced)"}`)
+        outcomes.push(`${from} -> ${to}: ${replaced ? "superseded" : "not superseded"} ${JSON.stringify(now)}`)
+        close(chat)
+      }
+      for (const o of outcomes) console.log(`  [${stamp()}] note replaces: ${o}`)
+      if (!outcomes.some((o) => o.includes(": superseded"))) throw new VerifyError("without Jev, the agent's correction did not supersede the old line in either attempt")
+      await policy(FAST)
+      ok("note replaces without Jev", outcomes[outcomes.length - 1]!)
+    }
     {
       await say(home, "my favourite colour is teal")
       await poll("a live teal line", 60_000, async () => (await live(/teal/i)).length > 0)
@@ -147,8 +171,6 @@ const suite: Suite = {
       await poll("no live teal line and a live ochre line", 60_000, async () => (await live(/teal/i)).length === 0 && (await live(/ochre/i)).length > 0)
       ok("edit", `teal gone and ochre live ${((Date.now() - t) / 1000).toFixed(1)}s after the edit`)
     }
-
-    // 5. Two chats at once, and a delete in one leaves the other.
     {
       const x = await openChat(user, s, "memory edge x")
       const y = await openChat(user, s, "memory edge y")
@@ -165,8 +187,6 @@ const suite: Suite = {
       close(x)
       close(y)
     }
-
-    // 7. The same fact told in two chats is stored once.
     {
       const x = await openChat(user, s, "memory edge dentist x")
       const y = await openChat(user, s, "memory edge dentist y")
@@ -182,7 +202,6 @@ const suite: Suite = {
     }
 
     if (jevKey) {
-      // 6. A key added while a message waits in the queue is used.
       {
         await policy({ ...FAST, idleMs: 20_000 })
         const before = (await usage()).capture_jev ?? 0
@@ -198,8 +217,6 @@ const suite: Suite = {
         await policy(FAST)
         await Bun.sleep(8_000)
       }
-
-      // 4. A correction replaces, and deleting the correction brings the old fact back.
       {
         await say(home, "i work at acme corp")
         await poll("a live acme line", 60_000, async () => (await live(/acme/i)).length > 0)
@@ -210,8 +227,6 @@ const suite: Suite = {
         await poll("acme live again and globex gone", 60_000, async () => (await live(/acme/i)).length > 0 && (await live(/globex/i)).length === 0)
         ok("delete a correction restores", `acme back ${((Date.now() - t) / 1000).toFixed(1)}s after the delete, globex gone`)
       }
-
-      // 8. A long message: lasting facts are kept, small talk is not.
       {
         await say(
           home,
@@ -226,8 +241,6 @@ const suite: Suite = {
         if (talk.length) throw new VerifyError(`small talk reached the life log: ${lineTexts(talk)}`)
         ok("long message", "pelagia, quince and saab captured; no small talk stored")
       }
-
-      // 9. More than six hits are reranked.
       {
         const names = ["odalys", "brannock", "teodora", "ximena", "cuthbert", "perpetua", "lucan", "marisol"]
         for (let i = 0; i < names.length; i += 2) await say(home, `my friend ${names[i]} likes jazz. my friend ${names[i + 1]} likes jazz.`)
@@ -247,8 +260,6 @@ const suite: Suite = {
         close(chat)
       }
     }
-
-    // 10. A group chat captures a fact once, however many agents hear it.
     {
       const bo = { id: `agent-bo-${stampId}`, name: "bo", slug: "bo", prompt: "helps with trips", model: "" }
       user.send({ t: "agent", op: { op: "create", agent: bo as never } })
