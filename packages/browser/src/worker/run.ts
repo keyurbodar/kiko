@@ -11,18 +11,22 @@ export type WorkerDeps = {
   now?: () => number
 }
 
+const flags = (state?: string) => state?.split(" ") ?? []
+
 /**
- * The page script marks password, payment and one-time-code fields with `state: "secret"`
- * (a space-separated flag list, so "secret focused" counts). A page that has one stops the worker.
+ * The page script marks password, payment and one-time-code fields "secret". They are never choices.
+ * A worker that cannot go on while one is on screen hands the page to the human, so a login box in a
+ * header does not stop a search.
  */
-const isSecret = (page: PageView) => page.controls.some((c) => c.state?.split(" ").includes("secret"))
+const secretInView = (page: PageView) =>
+  page.controls.some((c) => flags(c.state).includes("secret") && !flags(c.state).includes("offscreen"))
 
 export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<TaskResult> {
   const values = task.values ?? {}
   const actions: string[] = []
   let last: PageView = { key: "", url: task.url ?? "", title: "", controls: [], text: "", omitted: 0 }
   const end = (stop: Stop, extra: Partial<TaskResult> = {}): TaskResult => ({
-    stop,
+    stop: (stop === "stuck" || stop === "unsure") && secretInView(last) ? "needs_human" : stop,
     url: last.url,
     title: last.title,
     actions,
@@ -45,7 +49,6 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
       if (steps >= BROWSER.stepsPerWorker) return end("budget")
       last = fresh ?? (await tab.read())
       fresh = null
-      if (isSecret(last)) return end("needs_human", { note: "a password, payment or code field is on the page" })
 
       let decision: Decision
       try {

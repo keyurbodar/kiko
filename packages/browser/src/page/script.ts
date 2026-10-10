@@ -21,7 +21,7 @@ const SELECTOR = [
 /** Installs window.__yuki once per document. Read and act both call into it. */
 const RUNTIME = `
 if (!window.__yuki) {
-  const SKIP = { password: 1, file: 1, hidden: 1 };
+  const SKIP = { file: 1, hidden: 1 };
   const INPUT_ROLE = { checkbox: "checkbox", radio: "radio", submit: "button", button: "button", reset: "button", image: "button", range: "slider", search: "searchbox", email: "textbox", tel: "textbox", url: "textbox", number: "spinbutton" };
   const clip = (s, n) => {
     s = (s || "").replace(/\\s+/g, " ").trim();
@@ -95,7 +95,7 @@ const vh = window.innerHeight;
 const candidates = [];
 for (let i = 0; i < found.length; i++) {
   const el = found[i];
-  if (el.tagName === "INPUT" && (el.type === "password" || el.type === "file" || el.type === "hidden")) continue;
+  if (el.tagName === "INPUT" && (el.type === "file" || el.type === "hidden")) continue;
   if (el.closest("[aria-hidden='true'],[inert]")) continue;
   const rect = el.getBoundingClientRect();
   if (!Y.visible(el, rect)) continue;
@@ -178,6 +178,7 @@ for (const c of kept) {
   if (el.getAttribute("aria-selected") === "true") state.push("selected");
   if (el.getAttribute("aria-pressed") === "true") state.push("pressed");
   if (el.getAttribute("aria-current") && el.getAttribute("aria-current") !== "false") state.push("current");
+  if (el.type === "password" || /one-time-code|cc-number|cc-csc|cc-exp|current-password|new-password/.test(el.getAttribute("autocomplete") || "")) state.push("secret");
   if (c.dist > 0) state.push("offscreen");
   if (state.length) out.state = state.join(" ");
   const b = block(el);

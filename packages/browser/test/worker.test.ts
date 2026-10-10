@@ -82,12 +82,25 @@ describe("runTask", () => {
     expect(acted[0]).toMatchObject({ op: "type", id: 1, text: "kernel" })
   })
 
-  test("needs_human when the page has a secret field", async () => {
-    const s: Site = { pages: { l: page("l", [{ role: "textbox", label: "Password", state: "secret focused" }]) }, go: {} }
-    const d = scripted(() => ({ key: "done" }))
-    const r = await runTask(fakeTab(s, "l").tab, { goal: "log in" }, deps(d))
+  test("a secret field is never a choice, and stuck on it becomes needs_human", async () => {
+    const s: Site = { pages: { l: page("l", [{ role: "textbox", label: "Password", state: "secret" }]) }, go: {} }
+    let typeable = true
+    const d = scripted((_, input) => {
+      typeable = input.options.some((o) => o.step.op === "type")
+      return { key: "stuck" }
+    })
+    const r = await runTask(fakeTab(s, "l").tab, { goal: "log in", values: { pw: "x" } }, deps(d))
     expect(r.stop).toBe("needs_human")
-    expect(d.calls).toBe(0)
+    expect(typeable).toBe(false)
+  })
+
+  test("an offscreen login box does not stop a worker that can go on", async () => {
+    const s: Site = {
+      pages: { a: page("a", [{ label: "results" }, { role: "textbox", label: "Password", state: "secret offscreen" }]), b: page("b", [{ label: "end" }]) },
+      go: { "a:click:1": "b" },
+    }
+    const r = await runTask(fakeTab(s, "a").tab, { goal: "results" }, deps(scripted((n) => ({ key: ["k1", "done"][n] }))))
+    expect(r.stop).toBe("done")
   })
 
   test("needs_human after navigating onto a login wall", async () => {
@@ -95,7 +108,7 @@ describe("runTask", () => {
       pages: { a: page("a", [{ label: "login" }]), l: page("l", [{ role: "textbox", label: "Code", state: "secret" }]) },
       go: { "a:click:1": "l" },
     }
-    const r = await runTask(fakeTab(s, "a").tab, { goal: "x" }, deps(scripted(() => ({ key: "k1" }))))
+    const r = await runTask(fakeTab(s, "a").tab, { goal: "x" }, deps(scripted((n) => ({ key: ["k1", "stuck"][n] }))))
     expect(r.stop).toBe("needs_human")
   })
 

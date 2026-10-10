@@ -47,6 +47,7 @@ export function choices(page: PageView, goal: string, values: Record<string, str
   const out: Choice[] = []
   let asked = 0
   for (const { control: c, nav } of keep(page, goal)) {
+    if (c.state?.split(" ").includes("secret")) continue
     const label = clip(c.label)
     const tail = hintOf(c, nav)
     if (TEXT_ROLES.has(c.role)) {
