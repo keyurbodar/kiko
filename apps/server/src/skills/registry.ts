@@ -1,4 +1,4 @@
-import { parseFrontmatter } from "./frontmatter"
+import { type Frontmatter, parseFrontmatter } from "./frontmatter"
 
 // Architecture section 15, P5-08. A skill is a SKILL.md: frontmatter with `name`, `description`, and
 // `disable-model-invocation`, then the instructions. The prompt lists name and description; the
@@ -15,8 +15,16 @@ const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** One SKILL.md, or the warning that skipped it. `fallbackName` is its directory's name. */
 export function parseSkill(content: string, fallbackName: string, source: SkillSource): Skill | { warning: string } {
-  const { frontmatter, body } = parseFrontmatter(content)
-  const name = typeof frontmatter.name === "string" && frontmatter.name.trim() ? frontmatter.name.trim() : fallbackName
+  let parsed: Frontmatter
+  try {
+    parsed = parseFrontmatter(content)
+  } catch {
+    return { warning: `skill ${fallbackName}: the frontmatter is not valid YAML, skipped` }
+  }
+  const { frontmatter, body } = parsed
+  const declared = typeof frontmatter.name === "string" ? frontmatter.name.trim() : ""
+  if (declared && declared !== fallbackName) return { warning: `skill ${declared}: the name must match its folder ${fallbackName}, skipped` }
+  const name = declared || fallbackName
   const description = typeof frontmatter.description === "string" ? frontmatter.description.trim() : ""
   if (!description) return { warning: `skill ${name}: description is required, skipped` }
   if (!NAME.test(name) || name.length > 64) return { warning: `skill ${name}: the name must be lowercase words joined by dashes, skipped` }
