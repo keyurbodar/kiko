@@ -2,7 +2,7 @@ import type { ComposioStatus } from "@yuki/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-stats"
 import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, listTools } from "./client"
-import { type Candidate, candidates, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded, trimSearch } from "./learn"
+import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded, trimSearch } from "./learn"
 import type { ComposioStore } from "./store"
 
 /** A listing older than this is still served, and a new one loads behind it. */
@@ -95,10 +95,12 @@ export class ComposioConnection {
   async call(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
     const generation = this.store.generation
     const out = await callTool(await this.key(), name, args, this.fetcher)
+    if (out.isError && name === MULTI_EXECUTE) this.forgetFailed(failed(args, undefined), generation)
     if (out.isError || (name !== SEARCH && name !== SCHEMAS && name !== MULTI_EXECUTE)) return out
     const body = resultJson(out)
     if (!body) return out
     if (name === MULTI_EXECUTE) {
+      this.forgetFailed(failed(args, body), generation)
       const learned = this.store.learned()
       const used = succeeded(args, body).flatMap((slug) => this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? [])
       if (used.length) this.store.putLearned(remember(learned, used, Date.now()), generation)
@@ -113,6 +115,12 @@ export class ComposioConnection {
       this.candidates.delete(slug)
     }
     return name === SEARCH ? { content: [{ type: "text", text: JSON.stringify(trimSearch(body)) }, ...out.content.slice(1)] } : out
+  }
+
+  private forgetFailed(slugs: string[], generation: number): void {
+    const learned = this.store.learned()
+    const kept = forget(learned, slugs)
+    if (kept.length !== learned.length) this.store.putLearned(kept, generation)
   }
 
   private async key(): Promise<string> {

@@ -98,6 +98,18 @@ describe("composio required booleans", () => {
     await (tool as unknown as { execute: (a: unknown, api: unknown) => Promise<unknown> }).execute({ thought: "x" }, { conversationId: "c", callId: "1" })
     expect(sent).toEqual([{ thought: "x", sync_response_to_workbench: false }])
   })
+
+  test("a learned tool keeps its required boolean and is not filled", async () => {
+    const inputSchema = { type: "object", properties: { to: { type: "string" }, send: { type: "boolean" } }, required: ["to", "send"] }
+    const sent: unknown[] = []
+    const [tool] = composioExtension([{ name: "GMAIL_X", inputSchema, direct: { slug: "GMAIL_X", toolkit: "gmail" } }], async (_n, args) => {
+      sent.push(args)
+      return { content: [] }
+    }).tools ?? []
+    expect((tool as unknown as { parameters: { required: string[] } }).parameters.required).toEqual(["to", "send"])
+    await (tool as unknown as { execute: (a: unknown, api: unknown) => Promise<unknown> }).execute({ to: "a" }, { conversationId: "c", callId: "1" })
+    expect((sent[0] as { tools: { arguments: unknown }[] }).tools[0]!.arguments).toEqual({ to: "a" })
+  })
 })
 
 describe("composio search trim", () => {
@@ -172,6 +184,17 @@ describe("composio learned tools", () => {
     const [web] = composioExtension([{ name: "COMPOSIO_SEARCH_WEB", inputSchema: webSchema, direct: { slug: "COMPOSIO_SEARCH_WEB", toolkit: "composio_search" } }], async () => ({ content: [{ type: "text", text: JSON.stringify(ran("COMPOSIO_SEARCH_WEB", false)) }] })).tools as unknown as Tool[]
     const out = await web!.execute({ query: "x" }, { conversationId: "c", callId: "1" })
     expect(out).toEqual({ content: [{ type: "text", text: "no connection" }], isError: true })
+  })
+
+  test("a learned tool whose run fails is forgotten, so the next run searches again", async () => {
+    const { state, connection } = setup()
+    const args = { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: { query: "bun" } }] }
+    state.replies.push(searchBody, ran("COMPOSIO_SEARCH_WEB", true), ran("COMPOSIO_SEARCH_WEB", false))
+    await connection.call("COMPOSIO_SEARCH_TOOLS", {})
+    await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", args)
+    expect((await connection.tools())!.map((t) => t.name)).toContain("COMPOSIO_SEARCH_WEB")
+    await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", args)
+    expect((await connection.tools())!.map((t) => t.name)).not.toContain("COMPOSIO_SEARCH_WEB")
   })
 
   test("a learned tool whose name is a meta tool's is left out", () => {

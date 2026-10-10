@@ -23,7 +23,10 @@ const requiredFlags = (schema: unknown): string[] => {
   return s.required.filter((k): k is string => typeof k === "string" && s.properties?.[k]?.type === "boolean")
 }
 
-/** Models often omit a required boolean that Composio accepts as false, so the schema stops requiring it. */
+/**
+ * Models often omit a required boolean that Composio's meta tools accept as false, so the schema
+ * stops requiring it. Not for learned app tools: their required booleans (send, dry_run) are the model's choice.
+ */
 export function relaxSchema<T>(schema: T): T {
   const flags = requiredFlags(schema)
   if (!flags.length) return schema
@@ -56,12 +59,13 @@ export function composioExtension(tools: readonly ComposioTool[], call: Composio
           defineTool({
             name,
             description: t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.name === SEARCH ? skip : ""}${t.description?.trim() || t.name} (through composio, the human's connected apps)`,
-            parameters: relaxSchema(t.inputSchema) as never,
+            parameters: (t.direct ? t.inputSchema : relaxSchema(t.inputSchema)) as never,
             replay: t.readOnly ? "safe" : "unsafe",
             execute: (args) =>
               timed(name, fs, async () => {
-                const sent = fillFlags(t.inputSchema, (args ?? {}) as Record<string, unknown>)
-                if (!t.direct) return call(t.name, sent)
+                const given = (args ?? {}) as Record<string, unknown>
+                if (!t.direct) return call(t.name, fillFlags(t.inputSchema, given))
+                const sent = given
                 const { text, isError } = directResult(await call(MULTI_EXECUTE, { tools: [{ tool_slug: t.direct.slug, arguments: sent }], sync_response_to_workbench: false, thought: "direct call" }))
                 return { content: [{ type: "text" as const, text }], isError }
               }),

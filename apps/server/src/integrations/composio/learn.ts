@@ -38,17 +38,29 @@ export function candidates(body: Obj): Candidate[] {
   )
 }
 
-/** Slugs that ran successfully in a multi-execute. A result names its slug, else its request entry does. */
-export function succeeded(args: Obj, body: Obj): string[] {
+function slugsOf(args: Obj, body: Obj | undefined, keep: (response: Obj) => boolean): string[] {
   const sent = Array.isArray(args.tools) ? args.tools : []
-  const results = isObj(body.data) && Array.isArray(body.data.results) ? body.data.results : []
+  const results = body && isObj(body.data) && Array.isArray(body.data.results) ? body.data.results : []
   return results.flatMap((r, i) => {
-    if (!isObj(r) || !isObj(r.response) || r.response.successful !== true) return []
+    if (!isObj(r) || !isObj(r.response) || !keep(r.response)) return []
     const asked = sent[typeof r.index === "number" ? r.index : i]
     const slug = typeof r.tool_slug === "string" ? r.tool_slug : isObj(asked) ? asked.tool_slug : undefined
     return typeof slug === "string" ? [slug] : []
   })
 }
+
+/** Slugs that ran successfully in a multi-execute. A result names its slug, else its request entry does. */
+export const succeeded = (args: Obj, body: Obj): string[] => slugsOf(args, body, (r) => r.successful === true)
+
+/** Slugs whose run failed in a multi-execute, or every requested slug when the whole call failed (no body). */
+export function failed(args: Obj, body: Obj | undefined): string[] {
+  if (body) return slugsOf(args, body, (r) => r.successful === false)
+  const sent = Array.isArray(args.tools) ? args.tools : []
+  return sent.flatMap((t) => (isObj(t) && typeof t.tool_slug === "string" ? [t.tool_slug] : []))
+}
+
+/** `learned` without `slugs`, so a tool whose schema went stale is searched and learned again. */
+export const forget = (learned: readonly LearnedTool[], slugs: readonly string[]): LearnedTool[] => learned.filter((t) => !slugs.includes(t.slug))
 
 /** `learned` with `used` upserted at `now`, most recent first, at most `LEARNED_MAX`. */
 export function remember(learned: readonly LearnedTool[], used: readonly Candidate[], now: number): LearnedTool[] {
