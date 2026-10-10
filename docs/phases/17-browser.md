@@ -277,6 +277,10 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 - `browser_run` with up to 4 workers, one tab each, sharing the agent's socket.
 - Jev ranks `browse` passages for `find`, with one Noul a passage, about 20 passages in one request.
 - Confirm that pi-ai `classify` returns per-option probabilities and confidence for a Choice. If it does not, call `POST https://api.typesafe.ai/v1/systemone` through egress, and record the DEVIATION.
+- Settled on 2026-10-10: pi-ai `classify` answers a `choice` question with `choice`, `probabilities`, and `confidence`, and takes a `fetch` option. Jev goes through `classify` with `AgentDO.egress` as that fetch. No direct System One call.
+- DEVIATION: the code lives in `apps/server/src/agent/browser/` (`connection.ts`, `lease.ts`, `deciders.ts`, `tools.ts`) instead of `extensions/browser.ts` and `browser-worker.ts`. The worker loop itself is `@yuki/browser`'s `runTasks`.
+- DEVIATION: Muse Spark 1.3 thinks about 100 to 170 tokens even at minimal reasoning, so the model decider allows 256 output tokens. With 24 it returned no answer.
+- Measured on 2026-10-10 from a laptop whose CDP round trip to Kernel was 350 to 400 ms, not the 200 ms above: a worker step took about 3.2 s with the model decider (decision 2.0 s) and 2.1 s with Jev (decision 0.2 s, about 1,260 input tokens). The step targets are UNVERIFIED until the suite runs nearer Kernel.
 - Each worker checks the takeover flag before each action.
 
 ### P17-05 Watch and take over

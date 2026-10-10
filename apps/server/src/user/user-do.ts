@@ -1161,6 +1161,11 @@ export class UserDO extends DurableObject<Env> {
     this.#pushBrowser()
   }
 
+  /** Read before each browser call. Holds no URL. */
+  async browserCheck(): Promise<{ connected: boolean; takeover: boolean; tabs: Record<string, number> }> {
+    return this.#kernel.check()
+  }
+
   // DEVELOPMENT ONLY: `verify kernel` drives the lease and the reaper without waiting minutes.
   async devBrowser(op: { action: "lease" | "touch" | "dead" | "age" | "reap" | "switch" | "state"; agentId?: string; mode?: Mode; ms?: number }): Promise<Record<string, unknown>> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")

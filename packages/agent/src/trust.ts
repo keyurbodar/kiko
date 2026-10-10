@@ -27,6 +27,8 @@ export type TrustOptions = {
   effects: ReadonlyMap<string, EffectDeclaration>
   approvals?: Approvals
   authority?: () => Authority
+  /** External tools that never wait for the human's card, in any run. The effect stays declared as external. */
+  ungated?: readonly string[]
 }
 
 type TrustState = {
@@ -113,6 +115,7 @@ export function trustExtension(options: TrustOptions): Extension {
   const state: TrustState = { taint: new Map(), marked: new Map(), externals: [], authority }
   const approvals: Approvals = options.approvals ?? (async () => null)
   const declared = (name: string): EffectDeclaration => options.effects.get(name) ?? { effect: "external" }
+  const ungated = new Set(options.ungated ?? [])
 
   const extension = defineExtension({
     name: TRUST,
@@ -127,7 +130,7 @@ export function trustExtension(options: TrustOptions): Extension {
         beforeTool: async (call, api, context) => {
           const { effect } = declared(call.name)
           const tainted = state.taint.get(api.conversationId) ?? true
-          const run = authority()
+          const run = ungated.has(call.name) ? HUMAN : authority()
           const answer =
             effect === "external" && needsApproval(run, call.name)
               ? await approvals({ conversationId: api.conversationId, callId: call.id, tool: call.name, arguments: call.arguments }, context)

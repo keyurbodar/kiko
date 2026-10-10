@@ -122,6 +122,12 @@ export class KernelConnection {
     this.lease.release(checkAgentId(agentId))
   }
 
+  /** What an agent checks before each browser call: a key, the human's takeover, and every agent's open tabs. */
+  check(): { connected: boolean; takeover: boolean; tabs: Record<string, number> } {
+    const row = this.deps.store.lease()
+    return { connected: this.deps.store.connected(), takeover: row?.takeover ?? false, tabs: this.lease.status()?.tabs ?? {} }
+  }
+
   /** The agent saw its socket die. */
   markDead(agentId: unknown, sessionId: unknown): Promise<boolean> {
     checkAgentId(agentId)

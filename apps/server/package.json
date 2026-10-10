@@ -23,6 +23,7 @@
     "@earendil-works/pi-durable": "^1.0.0",
     "@onkernel/sdk": "^0.123.0",
     "@yuki/agent": "workspace:*",
+    "@yuki/browser": "workspace:*",
     "@yuki/durable": "workspace:*",
     "@yuki/memory": "workspace:*",
     "@yuki/protocol": "workspace:*",

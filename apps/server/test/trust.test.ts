@@ -3,7 +3,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
-import { defineExtension, defineTool, Harness, MemoryStorage } from "@earendil-works/pi-durable"
+import { createRegistry, defineExtension, defineTool, Harness, MemoryStorage } from "@earendil-works/pi-durable"
 import type { Envelope } from "@yuki/protocol"
 import { fakeReply, TRUST_TOOLS_EXTENSION } from "../src/agent/dev-fake"
 import { declareEffect, effectTable } from "@yuki/agent/effects"
@@ -14,6 +14,7 @@ import {
   NO_CARD,
   runTainted,
   TRUST,
+  trustExtension,
   wrapUntrusted,
 } from "@yuki/agent/trust"
 import { buildAgent } from "../src/agent/factory"
@@ -26,8 +27,17 @@ const FAUX = { provider: "faux", modelId: "faux-1" }
 type Msg = { role: string; content?: string | { type: string; text?: string }[]; toolName?: string }
 const text = (m: Msg) => (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => p.text ?? "").join(""))
 
-async function converse(inputs: string[], approvals?: Approvals, authority: Authority = HUMAN) {
-  const built = buildAgent({ role: "", lead: true, model: FAUX, testExtensions: [TRUST_TOOLS_EXTENSION], approvals, authority: () => authority })
+function ungatedAgent(ungated: string[], approvals: Approvals | undefined, authority: Authority) {
+  const trust = trustExtension({ effects: effectTable([TRUST_TOOLS_EXTENSION]), approvals, authority: () => authority, ungated })
+  const registry = createRegistry()
+  for (const extension of [TRUST_TOOLS_EXTENSION, trust]) registry.install(extension)
+  return { registry, agent: { model: FAUX, extensions: [TRUST_TOOLS_EXTENSION, trust] } }
+}
+
+async function converse(inputs: string[], approvals?: Approvals, authority: Authority = HUMAN, ungated?: string[]) {
+  const built = ungated
+    ? ungatedAgent(ungated, approvals, authority)
+    : buildAgent({ role: "", lead: true, model: FAUX, testExtensions: [TRUST_TOOLS_EXTENSION], approvals, authority: () => authority })
   const faux = fauxProvider()
   const answers: string[] = []
   let transcript: Msg[] = []
@@ -126,6 +136,17 @@ describe("trust: who started the run decides an outside call (section 25.3)", ()
     expect(asked).toEqual([])
     const bare = { origin: "routine" as const, grant: ["web_fetch"] }
     expect((await converse(["[call fake_send]"], approvals, bare)).answers).toEqual(["tools: fake_send blocked"])
+    expect(asked).toEqual(["fake_send"])
+  })
+
+  test("a routine's ungated external tool runs with no card, and an external tool not on the list still asks", async () => {
+    const { asked, approvals } = room({ refused: "card" })
+    const routine = { origin: "routine" as const, grant: [] }
+    const free = await converse(["[call fake_send]"], approvals, routine, ["fake_send"])
+    expect(free.answers).toEqual(["tools: fake_send ran"])
+    expect(free.decisions).toEqual([expect.objectContaining({ tool: "fake_send", approval: null, ran: true })])
+    expect(asked).toEqual([])
+    expect((await converse(["[call fake_send]"], approvals, routine, ["browser_act"])).answers).toEqual(["tools: fake_send blocked"])
     expect(asked).toEqual(["fake_send"])
   })
 

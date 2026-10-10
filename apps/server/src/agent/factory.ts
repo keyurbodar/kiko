@@ -21,6 +21,7 @@ import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
 import { composioExtension } from "../integrations/composio/tools"
+import { BROWSER_UNGATED, type BrowserToolDeps, browserExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
@@ -41,6 +42,8 @@ export type BuildAgentInput = RoleInput & {
   nudge?: () => boolean
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
+  /** Only when the user has a Kernel key (phase 17). */
+  browser?: BrowserToolDeps
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
@@ -74,6 +77,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
+    ...(input.browser ? [browserExtension(input.browser)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
     subagentExtension(),
     ...(input.testExtensions ?? []),
@@ -83,7 +87,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const builtins = extensionsFor(input)
   const effects = new Map(effectTable(builtins))
-  const trust = trustExtension({ effects, approvals: input.approvals, ...(input.authority ? { authority: input.authority } : {}) })
+  const trust = trustExtension({ effects, approvals: input.approvals, ...(input.browser ? { ungated: BROWSER_UNGATED } : {}), ...(input.authority ? { authority: input.authority } : {}) })
   const gates = [...(input.nudge ? [nudgeGate(input.nudge, effects)] : []), trust]
   const registry = createRegistry()
   for (const extension of [...builtins, ...gates]) registry.install(extension)

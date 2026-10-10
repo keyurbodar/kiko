@@ -3,8 +3,9 @@ import type { Choice } from "../decide/types"
 import type { Control, PageView } from "../page/types"
 import { goalWords, rawWords } from "./words"
 
-const TEXT_ROLES = new Set(["textbox", "searchbox", "textarea", "input"])
-const SELECT_ROLES = new Set(["select", "listbox", "combobox"])
+// An ARIA combobox is an editable box with suggestions (Wikipedia's search). A native <select> reads as "select".
+const TEXT_ROLES = new Set(["textbox", "searchbox", "textarea", "input", "combobox"])
+const SELECT_ROLES = new Set(["select", "listbox"])
 const LABEL_MAX = 60
 // A needs-value option for at most this many fields, only when the task gave no values.
 const ASK_FIELDS = 2

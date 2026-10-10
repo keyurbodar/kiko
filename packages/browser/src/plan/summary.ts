@@ -3,8 +3,8 @@ import type { PageView } from "../page/types"
 import { passages } from "./rank"
 import { goalWords, rawWords } from "./words"
 
-/** What the main model reads: not the page, a summary of it. */
-export function summarize(page: PageView, find?: string): string {
+/** What the main model reads: not the page, a summary of it. `ranked` replaces the lexical passages for `find`. */
+export function summarize(page: PageView, find?: string, ranked?: string): string {
   const words = find ? goalWords(find) : []
   const score = (i: number) => {
     const c = page.controls[i]
@@ -19,6 +19,6 @@ export function summarize(page: PageView, find?: string): string {
     return `${c.id} ${c.role} "${c.label}"`
   })
   const hidden = page.controls.length - shown.length + page.omitted
-  const text = find ? passages(page.text, find, 5) : page.text.slice(0, BROWSER.summaryText)
+  const text = ranked ?? (find ? passages(page.text, find, 5) : page.text.slice(0, BROWSER.summaryText))
   return [page.title, page.url, ...lines, ...(hidden > 0 ? [`(${hidden} more controls)`] : []), text.slice(0, BROWSER.summaryText)].join("\n")
 }

@@ -7,10 +7,11 @@ import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
 import { isRunTainted, markRunTainted } from "@yuki/agent/trust"
 import { WORKSPACE } from "./workspace"
+import { BROWSER_EXT } from "../browser/tools"
 
 export const SUBAGENT = "subagent"
 
-export const NOT_FOR_HELPERS = [SUBAGENT, MESSAGING, MEMORY_NOTE, CHIEF_EXT, REMINDERS, WORKSPACE].map((name) => defineExtension({ name }))
+export const NOT_FOR_HELPERS = [SUBAGENT, MESSAGING, MEMORY_NOTE, CHIEF_EXT, REMINDERS, WORKSPACE, BROWSER_EXT].map((name) => defineExtension({ name }))
 
 /** Helpers one agent runs at once. They all use the human's one key, so the rest wait for a slot. */
 export const MAX_HELPERS = 3
