@@ -106,8 +106,8 @@ const suite: Suite = {
     }
 
     // 5. Taint crosses an event: a teammate's message written after reading a web page fires a routine
-    //    whose run starts tainted. A clean message does not. Either way the routine, made clean, keeps
-    //    its grant (section 25.3).
+    //    whose run starts tainted, so its granted outside call is refused. A clean message fires a clean
+    //    run, which uses the grant (section 25.3).
     {
       const user = await s.user()
       const agentOf = (name: string): Agent => ({ id: `triggers-${name}-${s.userId}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
@@ -124,7 +124,7 @@ const suite: Suite = {
       await waitRuns(url, s, routine.id, "the tainted event run", (rs) => rs.some((x) => x.status !== "running"), 100_000)
       await eventually("yuki's answer to the tainted event", () => yukiTools().some((t) => t.includes("fake_send")), 20_000)
       const tainted = yukiTools().find((t) => t.includes("fake_send"))
-      if (tainted !== "tools: fake_note ran tainted, fake_send ran") throw new VerifyError(`a tainted message should fire a tainted run that keeps its grant: ${JSON.stringify(tainted)}`)
+      if (tainted !== "tools: fake_note ran tainted, fake_send blocked") throw new VerifyError(`a tainted message should fire a tainted run whose outside call is refused: ${JSON.stringify(tainted)}`)
       // bob's clean reply names it too: the run starts clean.
       await Bun.sleep(61_000)
       await send(room, "@bob [reply] fake_fetch is fine")
@@ -132,7 +132,7 @@ const suite: Suite = {
       await eventually("yuki's answer to the clean event", () => yukiTools().filter((t) => t.includes("fake_send")).length >= 2, 20_000)
       const clean = yukiTools().filter((t) => t.includes("fake_send"))[1]
       if (clean !== "tools: fake_note ran, fake_send ran") throw new VerifyError(`a clean message should fire a clean run: ${JSON.stringify(clean)}`)
-      console.log("  ok a message written after reading a web page fired a tainted run, a clean one a clean run; both used the routine's grant")
+      console.log("  ok a message written after reading a web page fired a tainted run that could not act outside yuki; a clean one fired a clean run that used the grant")
       room.raw.close()
     }
 

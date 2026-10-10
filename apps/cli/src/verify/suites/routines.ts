@@ -78,7 +78,8 @@ const suite: Suite = {
       await fake(v, s, roomId)
       const granted = { name: "granted child", instructions: "[call fake_send]", may: ["fake_send"], trigger: { on: "time", at: inSeconds(3600) } }
       await send(room, `[fetch] ${toolLine("create_routine", granted)}`)
-      await eventually("the tainted run told to ask", () => agentTexts(room).some((t) => t.includes(ASKS)), 30_000)
+      // The fake answers with its trust tools only, so the refusal shows as the absent routine.
+      await eventually("the tainted run's answer", () => agentTexts(room).includes("tools: fake_fetch ran"), 30_000)
       if ((await routines(url, s)).routines.some((x) => x.name === "granted child")) throw new VerifyError("a tainted run made a routine with a grant")
       await send(room, "[yes]")
       const g = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "granted child"), "the granted routine", 30_000)
