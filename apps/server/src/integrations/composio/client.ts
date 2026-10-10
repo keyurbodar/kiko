@@ -119,5 +119,5 @@ export async function catalogReadOnly(key: string, slug: string, fetchImpl: type
   return Array.isArray(tags) && tags.includes("readOnlyHint")
 }
 
-/** The learned tools and their classes. An open agent whose set differs reloads before its next run. */
-export const learnedSignature = (tools: readonly ComposioTool[]): string => tools.flatMap((t) => (t.direct ? [`${t.name}${t.readOnly ? ":read" : ""}`] : [])).join(" ")
+/** The learned tools and their classes, sorted so using a tool (which reorders the list) does not reopen agents. */
+export const learnedSignature = (tools: readonly ComposioTool[]): string => tools.flatMap((t) => (t.direct ? [`${t.name}${t.readOnly ? ":read" : ""}`] : [])).sort().join(" ")

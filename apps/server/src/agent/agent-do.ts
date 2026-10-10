@@ -335,7 +335,7 @@ export class AgentDO extends DurableObject<Env> {
         return [clock, down, learned, quiet, extensions].filter(Boolean).join("\n\n")
       },
       // A tool another agent learned since this one opened shows up at its next run.
-      ...(home ? { stale: () => userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false) } : {}),
+      ...(home ? { stale: () => signature === "unreachable" ? Promise.resolve(false) : userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false) } : {}),
       ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
       beforeCompact: (harness) => this.carryUsage(harness),
     }

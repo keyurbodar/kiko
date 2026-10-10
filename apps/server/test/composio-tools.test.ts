@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { effectOf } from "@yuki/agent/effects"
-import { callTool, ComposioError, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
+import { callTool, ComposioError, learnedSignature, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
 import { ComposioConnection } from "../src/integrations/composio/connect"
 import { LEARNED_MAX, type LearnedTool, remember } from "../src/integrations/composio/learn"
 import type { ComposioStore } from "../src/integrations/composio/store"
@@ -213,5 +213,12 @@ describe("composio learned tools", () => {
     expect(next.some((t) => t.slug === "T0")).toBe(false)
     expect(remember(next, [tool("T3", 0)], 1000)).toEqual(next)
     expect(remember([{ ...tool("A", 0), readOnly: true }], [tool("A", 0)], 5)[0]!.readOnly).toBe(true)
+  })
+})
+
+describe("learned signature", () => {
+  test("the same tools in another order give the same signature", () => {
+    const tool = (name: string) => ({ name, description: "", inputSchema: {}, direct: { slug: name, toolkit: "x" } })
+    expect(learnedSignature([tool("B_TWO"), tool("A_ONE")])).toBe(learnedSignature([tool("A_ONE"), tool("B_TWO")]))
   })
 })

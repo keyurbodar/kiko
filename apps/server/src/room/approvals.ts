@@ -64,7 +64,8 @@ export function listApprovals(storage: DurableObjectStorage): Approval[] {
 }
 
 // ASSUMPTION: the table is created here, not in schema.ts, so this file does not reorder the
-// room's shared migration list. Every statement is safe on every start.
+// room's shared migration list. Every statement is safe on every start. The DELETE drops
+// Executor's old pause cards, which would otherwise block new grant cards.
 function ensureTable(sql: SqlStorage): void {
 	sql.exec(`
 		CREATE TABLE IF NOT EXISTS ws_approvals (
@@ -82,6 +83,7 @@ function ensureTable(sql: SqlStorage): void {
 			at INTEGER NOT NULL
 		);
 		DROP INDEX IF EXISTS ws_approvals_match;
+		DELETE FROM ws_approvals WHERE call_key LIKE 'pause:%';
 	`)
 	if (!sql.exec<{ name: string }>("PRAGMA table_info(ws_approvals)").toArray().some((c) => c.name === "grant_ms")) {
 		sql.exec("ALTER TABLE ws_approvals ADD COLUMN grant_ms INTEGER")
