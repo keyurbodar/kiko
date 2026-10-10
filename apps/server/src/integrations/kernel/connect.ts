@@ -55,7 +55,7 @@ export function browserState(row: LeaseRow | undefined, switching: boolean, reso
 
 export type KernelDeps = {
   store: KernelStore
-  userId: string
+  userId: () => string
   wake: { set(at: number): Promise<void>; clear(): Promise<void> }
   /** Replaces the Kernel client, for tests and for the development fixture. */
   clientFor?: (key: string) => KernelClient
@@ -71,7 +71,7 @@ export class KernelConnection {
     this.lease = new KernelLease({
       store: deps.store,
       client: () => this.client(),
-      profile: () => profileName(deps.userId),
+      profile: () => profileName(deps.userId()),
       wake: deps.wake,
     })
   }

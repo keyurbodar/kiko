@@ -51,8 +51,8 @@ export class KernelStore {
 
   constructor(
     private readonly sql: SqlStorage,
-    private readonly keyring: Keyring,
-    private readonly userId: string,
+    // Resolved only when sealing or opening, so reading browser state needs no key ring.
+    private readonly secrets: () => { keyring: Keyring; userId: string },
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS kernel (
       name TEXT PRIMARY KEY,
@@ -85,14 +85,14 @@ export class KernelStore {
   async key(): Promise<string | undefined> {
     const row = this.sql.exec<Sealed>("SELECT kek_version, iv, ciphertext FROM kernel WHERE name = 'key'").toArray()[0]
     if (!row) return undefined
-    const key = await open(this.keyring, this.userId, KEY_AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) })
-    if (row.kek_version !== this.keyring.current.version) await this.putKey(key)
+    const key = await open(this.secrets().keyring, this.secrets().userId, KEY_AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) })
+    if (row.kek_version !== this.secrets().keyring.current.version) await this.putKey(key)
     return key
   }
 
   /** A new key is a working key, so it also clears `broken`. */
   async putKey(key: string, generation = this.generation): Promise<void> {
-    const sealed = await seal(this.keyring, this.userId, KEY_AAD, key)
+    const sealed = await seal(this.secrets().keyring, this.secrets().userId, KEY_AAD, key)
     if (generation !== this.generation) return
     this.sql.exec(
       `INSERT INTO kernel (name, kek_version, iv, ciphertext, updated_at) VALUES ('key', ?, ?, ?, ?)
@@ -151,13 +151,13 @@ export class KernelStore {
   async urls(): Promise<LeaseUrls | undefined> {
     const r = this.sql.exec<Sealed>("SELECT kek_version, iv, ciphertext FROM kernel_lease WHERE id = 1").toArray()[0]
     if (!r) return undefined
-    const text = await open(this.keyring, this.userId, LEASE_AAD, { kekVersion: r.kek_version, iv: new Uint8Array(r.iv), ciphertext: new Uint8Array(r.ciphertext) })
+    const text = await open(this.secrets().keyring, this.secrets().userId, LEASE_AAD, { kekVersion: r.kek_version, iv: new Uint8Array(r.iv), ciphertext: new Uint8Array(r.ciphertext) })
     return JSON.parse(text) as LeaseUrls
   }
 
   /** Replaces the lease. Dropped when the store was cleared since `generation`. */
   async putLease(row: LeaseRow, urls: LeaseUrls, generation = this.generation): Promise<boolean> {
-    const sealed = await seal(this.keyring, this.userId, LEASE_AAD, JSON.stringify(urls))
+    const sealed = await seal(this.secrets().keyring, this.secrets().userId, LEASE_AAD, JSON.stringify(urls))
     if (generation !== this.generation) return false
     this.sql.exec(
       `INSERT OR REPLACE INTO kernel_lease (id, session_id, mode, kek_version, iv, ciphertext, created_at, last_use, tabs, takeover, watch_until, dead)

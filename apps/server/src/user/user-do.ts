@@ -1060,9 +1060,9 @@ export class UserDO extends DurableObject<Env> {
 
   #kernelConnection?: KernelConnection
   get #kernel(): KernelConnection {
-    const userId = userIdFromObjectName(this.ctx.id.name)
+    const userId = () => userIdFromObjectName(this.ctx.id.name)
     this.#kernelConnection ??= new KernelConnection({
-      store: new KernelStore(this.sql, keyringFromEnv(this.env), userId),
+      store: new KernelStore(this.sql, () => ({ keyring: keyringFromEnv(this.env), userId: userId() })),
       userId,
       wake: { set: (at) => this.alarms.setWakeup(REAP_WAKEUP, at), clear: () => this.alarms.clearWakeup(REAP_WAKEUP) },
     })
@@ -1250,7 +1250,9 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "hello") {
       this.seen()
       send(ws, this.resume(frame.lastSeq))
-      send(ws, { t: "browserState", state: this.#browserState() })
+      // The client starts with no browser, so a hello sends a browser only when there is one.
+      const browser = this.#browserState()
+      if (browser) send(ws, { t: "browserState", state: browser })
       const before = ws.deserializeAttachment() as Attachment | null
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
       return
