@@ -1,5 +1,6 @@
 import type { AuthResult, ClassifierQuestion, Models } from "@earendil-works/pi-ai"
 import type { ModelRef } from "@earendil-works/pi-durable"
+import { escalating } from "@yuki/browser/decide/escalate"
 import { jevDecider } from "@yuki/browser/decide/jev"
 import { modelDecider } from "@yuki/browser/decide/model"
 import type { JevPort, ModelPort } from "@yuki/browser/decide/ports"
@@ -72,8 +73,8 @@ export function jevPort(models: Models, key: JevKey, egress: typeof fetch | unde
 
 export type Picked = { decider: Decider; ranker: Ranker }
 
-/** Jev when the user has a TypeSafe key, otherwise the agent's own model. Both use the same loop. */
+/** Jev when the user has a TypeSafe key, with the agent's own model for any step Jev is unsure of. Both use the same loop. */
 export function pickDecider(model: ModelPort, jev: JevPort | null): Picked {
-  if (jev) return { decider: jevDecider(jev), ranker: jevRanker(jev) }
+  if (jev) return { decider: escalating(jevDecider(jev), modelDecider(model)), ranker: jevRanker(jev) }
   return { decider: modelDecider(model), ranker: lexicalRanker }
 }

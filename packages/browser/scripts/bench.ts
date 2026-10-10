@@ -4,6 +4,7 @@
 // The port adapters send the same requests as apps/server/src/agent/browser/deciders.ts.
 import { readFileSync } from "node:fs"
 import { connect } from "../src/cdp/browser"
+import { escalating } from "../src/decide/escalate"
 import { jevDecider } from "../src/decide/jev"
 import { modelDecider } from "../src/decide/model"
 import type { JevPort, ModelPort } from "../src/decide/ports"
@@ -390,7 +391,7 @@ const rows: Record<string, unknown>[] = []
 try {
   if ((WHICH === "both" || WHICH === "model") && MODEL_KEY)
     rows.push(await pass("model", browser.cdp_ws_url, (run) => modelDecider(modelPort(`bench-${Date.now().toString(36)}-${run}`))))
-  if ((WHICH === "both" || WHICH === "jev") && JEV_KEY) rows.push(await pass("jev", browser.cdp_ws_url, () => jevDecider(jevPort)))
+  if ((WHICH === "both" || WHICH === "jev") && JEV_KEY) rows.push(await pass("jev", browser.cdp_ws_url, (run) => (MODEL_KEY ? escalating(jevDecider(jevPort), modelDecider(modelPort(`bench-jev-${Date.now().toString(36)}-${run}`))) : jevDecider(jevPort))))
   if (WHICH === "script") rows.push(await pass("script", browser.cdp_ws_url, () => scriptDecider()))
 } finally {
   const gone = await fetch(`${API}/browsers/${browser.session_id}`, { method: "DELETE", headers })

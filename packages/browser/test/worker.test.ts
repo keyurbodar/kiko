@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import type { Decider } from "../src/decide/types"
 import { BROWSER } from "../src/config"
 import { jevDecider } from "../src/decide/jev"
 import { modelDecider, parseReply } from "../src/decide/model"
@@ -8,7 +9,7 @@ import { fastSteps } from "../src/plan/fast"
 import { chainOf, runTask, runTasks } from "../src/worker/run"
 import { fakeTab, live, page, scripted, type Site } from "./site"
 
-const deps = (decider: ReturnType<typeof scripted>, paused = () => false) => ({ decider, paused, signal: live() })
+const deps = (decider: Decider, paused = () => false) => ({ decider, paused, signal: live() })
 
 // home -> (click 1) list -> (click 2) item
 const site: Site = {
@@ -358,5 +359,25 @@ describe("fast path", () => {
     const search = page("s", [{ role: "searchbox", label: "Search" }])
     expect(picks(search, "look up kernel", { query: "kernel" })).toEqual([])
     expect(picks(search, "search for kernel", { query: "kernel" })).toEqual(["t1v0"])
+  })
+})
+
+describe("escalating", () => {
+  test("an unsure fast decider hands the step to the careful one, and a sure one does not", async () => {
+    const { escalating } = await import("../src/decide/escalate")
+    const unsure = scripted(() => ({ key: "k1", confidence: 0.3 }))
+    const sure = scripted(() => ({ key: "k1", confidence: 0.9 }))
+    const careful = scripted((n) => ({ key: ["k1", "done"][n] ?? "done" }))
+    const r = await runTask(fakeTab(site, "home").tab, { goal: "x" }, deps(escalating(unsure, careful)))
+    expect(r.stop).toBe("done")
+    expect(careful.calls).toBe(2)
+    const c2 = scripted(() => ({ key: "done" }))
+    await runTask(fakeTab(site, "home").tab, { goal: "x" }, deps(escalating(sure, c2)))
+    expect(c2.calls).toBe(0)
+    const unsureDone = scripted(() => ({ key: "done", confidence: 0.3 }))
+    const c3 = scripted(() => ({ key: "done" }))
+    const r3 = await runTask(fakeTab(site, "home").tab, { goal: "x" }, deps(escalating(unsureDone, c3)))
+    expect(r3.stop).toBe("unsure")
+    expect(c3.calls).toBe(0)
   })
 })
