@@ -88,6 +88,7 @@ Taint holes closed at the same time, because `auto` and `routine` runs still dep
 - Deleting an account while an agent's run was live stopped the local server. Deletion now aborts the run and closes the harness first.
 - Two agents that ask each other at once no longer hold each other for two minutes: asking back an agent that waits on you is refused.
 
-## Left open
+## Closed after the pass (2026-10-10)
 
-- The client's approval card says "wants to use <tool> for 30 minutes". The grant now covers every outside tool, so the line should say so.
+- The approval card said "wants to use <tool> for 30 minutes". It now says "wants to act outside yuki for 30 minutes, starting with <tool>", since the grant covers every outside tool.
+- `room-search` at its default 20,000 messages (search in 0.7 ms) and `routines-scale` at 300 users (each ran exactly once, the last confirmed 27 s after the due time) pass on one dev server.
