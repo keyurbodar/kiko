@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { type Loop, loopOps, Loops, parseNapLoops } from "@yuki/memory/loops"
+import { type Loop, loopOps, Loops, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
 import { sqlStorage } from "./sql-shim"
 
 const store = () => new Loops(sqlStorage(), (fn) => fn())
@@ -50,34 +50,71 @@ test("Jev's answers open, merge, and close by majority only", () => {
   })
   expect(ops).toEqual([
     { op: "close", sentence: 0, id: 7, status: "done" },
-    { op: "open", sentence: 1, kind: "goal", certainty: "tentative" },
+    { op: "open", sentence: 1, kind: "goal", certainty: "tentative", owner: "human" },
   ])
 })
 
-test("a loop from the same message merges by shared words in either order, unless the judge said it differs", () => {
-  const loops = store()
-  const ref = "room:r:msg:m1"
-  const tool = loops.open({ ...base, certainty: "explicit", text: "file tax return by Sunday 6pm", ref })
-  if (!tool.ok) throw new Error("open failed")
-  // Jev's words for the same sentence, read after the agent's run kept it.
-  expect(loops.open({ ...base, certainty: "explicit", text: "I have to file my tax return by Sunday at 6pm.", ref, source: "jev" })).toEqual({ ok: true, id: tool.id, merged: true })
-  // A second plan in the same message shares no words: its own loop. One Jev judged different stays apart too.
-  expect(loops.open({ ...base, certainty: "explicit", text: "call the dentist Monday", ref })).toMatchObject({ merged: false })
-  expect(loops.open({ ...base, certainty: "explicit", text: "tax return paperwork for Sunday", ref, source: "jev" }, null)).toMatchObject({ merged: false })
-  // Another message never merges by words alone.
-  expect(loops.open({ ...base, certainty: "explicit", text: "file the tax return", ref: "room:r:msg:m2" })).toMatchObject({ merged: false })
-  expect(loops.fromRef(ref).length).toBe(3)
-})
-
-test("a sentence Jev found unlike every loop it was shown is opened as different", () => {
+test("a sentence Jev found the same as a loop merges into it; any other answer leaves it to the store", () => {
   const near = { id: 7, text: "submit the grant report" } as Loop
   const check = { sentences: [{ text: "book the flights to Lisbon", from: 0 }], near: [{ sentence: 0, loop: near }] }
   const choice = (choice: string, p: number) => ({ type: "choice" as const, choice, probabilities: { [choice]: p }, confidence: p })
   const open = (rel: string, p: number) => loopOps(check, { s0_l7: choice(rel, p), s0_kind: choice("intention", 0.9), s0_certain: { type: "bool", probability: 0.9 } })
-  expect(open("other", 0.9)).toEqual([{ op: "open", sentence: 0, kind: "intention", certainty: "explicit", same: null }])
-  expect(open("same", 0.9)).toEqual([{ op: "open", sentence: 0, kind: "intention", certainty: "explicit", same: 7 }])
-  // Unsure: the store's own rule decides.
-  expect(open("other", 0.4)).toEqual([{ op: "open", sentence: 0, kind: "intention", certainty: "explicit" }])
+  expect(open("same", 0.9)).toEqual([{ op: "open", sentence: 0, kind: "intention", certainty: "explicit", owner: "human", same: 7 }])
+  expect(open("other", 0.9)).toEqual([{ op: "open", sentence: 0, kind: "intention", certainty: "explicit", owner: "human" }])
+  expect(open("same", 0.4)).toEqual([{ op: "open", sentence: 0, kind: "intention", certainty: "explicit", owner: "human" }])
+})
+
+test("a plan whose probability splits between kinds is still a loop, of the likeliest kind", () => {
+  const check = { sentences: [{ text: "maybe I'll start running again", from: 0 }], near: [] }
+  const kind = (probabilities: Record<string, number>) => loopOps(check, { s0_kind: { type: "choice", choice: "none", probabilities, confidence: 0.4 } })
+  expect(kind({ none: 0.4, goal: 0.35, intention: 0.25 })).toEqual([{ op: "open", sentence: 0, kind: "goal", certainty: "tentative", owner: "human" }])
+  expect(kind({ none: 0.6, goal: 0.3, intention: 0.1 })).toEqual([])
+})
+
+test("an agent's promise merges into its newest open one unless Jev is sure it is another", () => {
+  const owed = { id: 4, text: "send a passport checklist tomorrow", owner: "ada" } as Loop
+  const check = { sentences: [{ text: "Done. I will post it here tomorrow at 9am.", from: 0, by: "ada" }], near: [{ sentence: 0, loop: owed }] }
+  const choice = (choice: string, p: number) => ({ type: "choice" as const, choice, probabilities: { [choice]: p }, confidence: p })
+  const promise = { type: "bool" as const, probability: 0.9 }
+  const open = { op: "open", sentence: 0, kind: "commitment", certainty: "explicit", owner: "ada" }
+  expect(loopOps(check, { s0_promise: promise, s0_l4: choice("other", 0.4) })).toEqual([{ ...open, same: 4 }])
+  expect(loopOps(check, { s0_promise: promise, s0_l4: choice("other", 0.8) })).toEqual([open])
+})
+
+test("a long answer never crowds the human's sentences out, and only its last two are read", () => {
+  const answer = "That is tight. I can help you get it done. What grant is it? Send me the rules. I will check back tomorrow."
+  const got = sentencesOf([{ text: "I have to submit the grant report by Friday." }, { text: answer, by: "yuki" }, { text: "Maybe I'll start running again." }])
+  expect(got).toEqual([
+    { text: "I have to submit the grant report by Friday.", from: 0 },
+    { text: "Send me the rules. I will check back tomorrow.", from: 1, by: "yuki" },
+    { text: "Maybe I'll start running again.", from: 2 },
+  ])
+})
+
+test("an agent's promise in its answer is its commitment; an offer or a kept promise is not", () => {
+  const owed = { id: 4, text: "send a beginner running plan tomorrow", owner: "ada" } as Loop
+  const choice = (choice: string, p: number) => ({ type: "choice" as const, choice, probabilities: { [choice]: p }, confidence: p })
+  const check = {
+    sentences: [
+      { text: "I'll put together a running plan and send it tomorrow.", from: 0, by: "ada" },
+      { text: "Want me to check the flights too?", from: 0, by: "ada" },
+      { text: "Here is the running plan I promised.", from: 1, by: "ada" },
+    ],
+    near: [{ sentence: 0, loop: owed }, { sentence: 2, loop: owed }],
+  }
+  const ops = loopOps(check, {
+    s0_promise: { type: "bool", probability: 0.9 },
+    s0_l4: choice("same", 0.8),
+    s1_promise: { type: "bool", probability: 0.2 },
+    s2_promise: { type: "bool", probability: 0.1 },
+    s2_l4: choice("done", 0.9),
+    // A human-only question never decides an agent's sentence.
+    s1_kind: choice("intention", 0.9),
+  })
+  expect(ops).toEqual([
+    { op: "open", sentence: 0, kind: "commitment", certainty: "explicit", owner: "ada", same: 4 },
+    { op: "close", sentence: 2, id: 4, status: "done" },
+  ])
 })
 
 test("the summary pass keeps its line first and drops loop lines it cannot trust", () => {

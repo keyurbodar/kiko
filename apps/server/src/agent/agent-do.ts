@@ -411,7 +411,7 @@ export class AgentDO extends DurableObject<Env> {
     const human = batch.envelopes.filter((e) => e.from.kind === "human")
     if (!home || home.private || !human.length) return
     const ask = userStub(this.env.USER, home.userId)
-      .initiativeBrief(home.roomId, home.slug, { text: human.map((e) => e.body).join("\n").slice(0, 4_000), messageIds: human.map((e) => e.rootId) })
+      .initiativeBrief(home.roomId, home.slug, { text: human.map((e) => e.body).join("\n").slice(0, 4_000) })
       .then((view) => initiativeBrief(view))
       .catch(() => "")
     this.#initiative = Promise.race([ask, scheduler.wait(INITIATIVE_WAIT_MS).then(() => "")])
@@ -428,12 +428,7 @@ export class AgentDO extends DurableObject<Env> {
   private loopPort(): LoopPort | null {
     const home = this.home()
     if (!home) return null
-    const user = () => userStub(this.env.USER, home.userId)
-    return {
-      open: (input) => user().loopOpen(input.mine ? home.slug : "human", home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", input),
-      close: (id, status) => user().loopClose(id, status, home.roomId),
-      list: () => user().loopList({ room: home.roomId }),
-    }
+    return { close: (id, status) => userStub(this.env.USER, home.userId).loopClose(id, status, home.roomId) }
   }
 
   async devInitiative(): Promise<string | null> {

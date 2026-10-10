@@ -93,13 +93,12 @@ const OLD_CHECK_IN_SEEN = "check_in_seen"
 
 const LAST_CHAT = "last_chat"
 const LOOPS_WAKEUP = "loops_heard"
-// ASSUMPTION: Jev reads a burst this long after it arrives, so a loop the agent opened in its run is
-// already there to merge with.
+// ASSUMPTION: Jev reads a burst this long after it arrives, so the agent's answer to it is read in the
+// same call.
 const LOOPS_DELAY_MS = 15_000
 const LOOPS_ROOMS_PER_PASS = 8
 /** How long a summary page's id is kept to drop a retry. A page is retried within minutes. */
 const NAP_APPLIED_FOR = 7 * 86_400_000
-const BRIEF_JUDGE_MS = 1_000
 
 const DELETING = "deleting"
 
@@ -1228,7 +1227,6 @@ export class UserDO extends DurableObject<Env> {
       loops: this.#loops,
       life: this.life,
       judge: () => (this.judgeKey() ? this.judge(CAPTURE_TIMEOUT_MS) : null),
-      quickJudge: () => (this.judgeKey() ? this.judge(BRIEF_JUDGE_MS) : null),
       title: (roomId) => {
         const chat = getChat(this.sql, roomId)
         return chat && !chat.private ? chat.title : null
@@ -1293,12 +1291,11 @@ export class UserDO extends DurableObject<Env> {
     return { at: await this.#engine.arm() }
   }
 
-  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; same?: number; tainted: boolean; reminderId?: string }): Promise<OpenResult> {
+  /** A reminder an agent set for itself opens its commitment (section 26.2); a dev route opens a loop for the fake-agent suite. */
+  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; tainted: boolean; reminderId?: string }): Promise<OpenResult> {
     if (!this.capturable(roomId)) return { ok: false, error: "this chat is private: nothing here is kept." }
-    const { reminderId, same, ...loop } = input
-    // `same` names a loop of this chat only: an agent never reaches into another chat's loops.
-    const here = same !== undefined && this.#loops.get(same)?.room === roomId ? same : undefined
-    const out = this.#loops.open({ ...loop, owner, room: roomId, ref, source: "tool" }, here)
+    const { reminderId, ...loop } = input
+    const out = this.#loops.open({ ...loop, owner, room: roomId, ref, source: "tool" })
     if (out.ok) {
       this.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
       if (reminderId) this.#engine.link(reminderId, out.id)
@@ -1324,33 +1321,39 @@ export class UserDO extends DurableObject<Env> {
     return this.#loops.list(filter)
   }
 
-  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string; messageIds: string[] }): Promise<{ owe: string[]; related: string[] }> {
+  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string }): Promise<{ owe: string[]; related: string[]; noticed: string[] }> {
     return this.#initiative.brief(roomId, slug, burst)
   }
 
-  /** Queues a human burst for one Jev pass. Without a judge, with capture off, or with initiative off, nothing is queued. */
-  private async loopsHear(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
+  /** An agent's answer, for the Jev pass to catch a promise to come back (section 26.2). */
+  async loopsAnswer(roomId: RoomId, slug: string, items: { messageId: string; text: string; at: number }[]): Promise<void> {
+    await this.loopsHear(roomId, items, slug)
+  }
+
+  /** Queues a human burst, or an agent's answer, for one Jev pass. Without a judge, with capture off, or with initiative off, nothing is queued. */
+  private async loopsHear(roomId: RoomId, items: { messageId: string; text: string; at: number }[], agent = ""): Promise<void> {
     if (!this.judgeKey() || this.policy().capture === "off" || this.initiativeLevel() === "off" || !this.capturable(roomId)) return
     const rows = items.filter((i) => i.messageId && i.text.trim()).map((i) => ({ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }))
     if (!rows.length) return
     // A wakeup is already set while anything waits: pushing it on each burst would starve Jev in a steady chat.
     const waiting = this.sql.exec("SELECT 1 FROM loop_heard LIMIT 1").toArray().length > 0
     this.sql.exec(
-      "INSERT OR IGNORE INTO loop_heard (room_id, message_id, text, at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at') FROM json_each(?)",
+      "INSERT OR IGNORE INTO loop_heard (room_id, message_id, text, at, agent) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at'), ? FROM json_each(?)",
       roomId,
+      agent,
       JSON.stringify(rows),
     )
     if (!waiting) await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + LOOPS_DELAY_MS)
   }
 
   private async loopsNow(): Promise<void> {
-    const rows = this.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
+    const rows = this.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number; agent: string }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
     const rooms = new Map<RoomId, typeof rows>()
     for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
     // One Jev call per chat, and an invocation has 50 subrequests: the rest wait for the next alarm.
     for (const [roomId, burst] of [...rooms].slice(0, LOOPS_ROOMS_PER_PASS)) {
-      const out = await this.#initiative.heard(roomId, burst.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at })))
-      // Jev failed: the agent's own run and the summary pass still see these words, so nothing waits.
+      const out = await this.#initiative.heard(roomId, burst.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at, ...(r.agent ? { by: r.agent } : {}) })))
+      // Jev failed: the summary pass still sees these words, so nothing waits.
       if (out === "later") this.count({ loops_jev_failed: 1 })
       this.sql.exec("DELETE FROM loop_heard WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(burst.map((r) => r.message_id)))
     }

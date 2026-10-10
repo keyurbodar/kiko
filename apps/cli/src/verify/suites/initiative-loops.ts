@@ -69,29 +69,33 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   const usage = async (roomId: string) => (await dev(v.url, s.cookie, "usage", { roomId })) as { agent: Record<string, number>; memory: Record<string, number> }
   const show = (l: Loop) => `L${l.id} ${l.status} ${l.kind}/${l.certainty} owner=${l.owner} via ${l.source}${l.due ? ` due ${l.due}` : ""}: ${l.text}`
 
+  // Loops open in the background, never in the run (section 26.2): Jev about 15 s after the burst, or,
+  // with no judge, the summary pass. The dev route rolls the chat up now, as six quiet hours would.
   const work = await openChat(user, s, "work")
-  let reply = await say(work, "Ugh, I have to submit the grant report to the foundation by Friday 5pm.")
-  console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
-  const grant = await poll("an open explicit loop about the grant report", 60_000, async () => (await loops()).find((l) => l.status === "open" && l.certainty === "explicit" && /grant/i.test(l.text)))
+  for (const text of [
+    "Ugh, I have to submit the grant report to the foundation by Friday 5pm.",
+    "Maybe I'll start running again at some point.",
+    "No rush, but could you put together a beginner running plan for me and come back with it tomorrow? I am out the rest of today.",
+  ]) {
+    const reply = await say(work, text)
+    console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
+  }
+  if (!jev) await dev(v.url, s.cookie, "quiet", { roomId: work.id })
+  const grant = await poll("an open explicit loop about the grant report", 90_000, async () => (await loops()).find((l) => l.status === "open" && l.certainty === "explicit" && /grant/i.test(l.text)))
   console.log(`  [${stamp()}] deadline -> ${show(grant)}`)
-  if ((await humanReminders()).length) throw new VerifyError(`a stated deadline created a reminder nobody asked for: ${JSON.stringify(await reminders())}`)
-
-  reply = await say(work, "Maybe I'll start running again at some point.")
-  console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
-  const run = await poll("a tentative loop about running", 60_000, async () => (await loops()).find((l) => l.status === "open" && /run/i.test(l.text)))
+  await Bun.sleep(3_000)
+  console.log(`  [${stamp()}] loops so far:\n${(await loops()).map((l) => `      ${show(l)}`).join("\n")}`)
+  console.log(`  [${stamp()}] memory ${JSON.stringify((await usage(work.id)).memory)}`)
+  const run =await poll("a tentative loop about running", 30_000, async () => (await loops()).find((l) => l.status === "open" && l.owner === "human" && /run/i.test(l.text)))
   console.log(`  [${stamp()}] maybe -> ${show(run)}`)
   if (run.certainty !== "tentative") throw new VerifyError(`"maybe" became ${run.certainty}`)
-  await Bun.sleep(jev ? 18_000 : 3_000)
+  const owed = await poll("a commitment loop the agent owns", 30_000, async () => (await loops()).find((l) => l.status === "open" && l.owner !== "human"))
+  console.log(`  [${stamp()}] promise -> ${show(owed)}`)
+  console.log(`  [${stamp()}] reminders now: ${JSON.stringify((await reminders()).map((r) => `${r.target}: ${r.text}`))}`)
   const asked = await humanReminders()
   if (asked.length) throw new VerifyError(`a tentative plan or deadline made a reminder: ${JSON.stringify(asked)}`)
 
-  reply = await say(work, "No rush, but could you put together a beginner running plan for me and come back with it tomorrow? I am out the rest of today.")
-  console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
-  console.log(`  [${stamp()}] reminders now: ${JSON.stringify((await reminders()).map((r) => `${r.target}: ${r.text}`))}`)
-  const owed = await poll("a commitment loop the agent owns", 60_000, async () => (await loops()).find((l) => l.status === "open" && l.owner !== "human"))
-  console.log(`  [${stamp()}] promise -> ${show(owed)}`)
-
-  reply = await say(work, "Finally done with the grant report, sent it this morning!")
+  let reply = await say(work, "Finally done with the grant report, sent it this morning!")
   console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
   const brief = await initiative(work.id)
   console.log(`  [${stamp()}] that run started with:\n${brief.split("\n").map((l) => `      ${l}`).join("\n")}`)
@@ -122,7 +126,7 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   const callsBefore = (await usage(trip.id)).memory.calls ?? 0
   await dev(v.url, s.cookie, "seed", { roomId: trip.id, turns })
   const napped = await poll("loops from the summary pass", 120_000, async () => {
-    const got = (await loops()).filter((l) => l.source === "nap")
+    const got = (await loops()).filter((l) => l.source === "nap" && l.room === trip.id)
     return got.length >= 2 && got
   })
   console.log(`  [${stamp()}] summary pass -> ${napped.map(show).join("\n      ")}`)

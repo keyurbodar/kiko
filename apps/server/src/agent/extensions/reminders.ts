@@ -62,7 +62,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
         defineTool({
           name: "create_reminder",
           description:
-            "schedule a reminder. only when the human asks to be reminded or says yes to your offer, or for yourself to keep a promise. never because they mention a deadline, plan, or wait; the loop tool covers those. say nothing about it unless they asked. for the human by default (it shows in this chat), or for yourself or a teammate with target (it wakes them). give in_seconds for relative times like 'in 10 minutes', or time_iso with an offset for a clock time. rrule (RFC 5545, like FREQ=DAILY) repeats it.",
+            "schedule a reminder. only when the human asks to be reminded or says yes to your offer, or for yourself to keep a promise. never because they mention a deadline, plan, or wait; those are kept without you. say nothing about it unless they asked. for the human by default (it shows in this chat), or for yourself or a teammate with target (it wakes them). give in_seconds for relative times like 'in 10 minutes', or time_iso with an offset for a clock time. rrule (RFC 5545, like FREQ=DAILY) repeats it.",
           parameters: Type.Object({
             text: Type.String({ description: "what to remind about, short" }),
             in_seconds: Type.Optional(Type.Number({ description: "seconds from now" })),

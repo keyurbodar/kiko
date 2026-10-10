@@ -36,12 +36,14 @@ const TABLES = [
     queued_at INTEGER NOT NULL,
     PRIMARY KEY (room_id, message_id)
   )`,
-  // Human bursts waiting for one Jev pass over open loops (section 26).
+  // Human bursts and agents' answers waiting for one Jev pass over open loops (section 26). `agent` is
+  // the agent's slug for an answer. A row is deleted once read, so each message is classified once.
   `CREATE TABLE IF NOT EXISTS loop_heard (
     room_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
     text TEXT NOT NULL,
     at INTEGER NOT NULL,
+    agent TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (room_id, message_id)
   )`,
   // Summary pages whose loop lines were applied: a retried page applies them once (section 26).
@@ -59,4 +61,5 @@ export function migrate(sql: SqlStorage): void {
   if (!columns.some((c) => c.name === "last")) sql.exec("ALTER TABLE chats ADD COLUMN last TEXT")
   if (!columns.some((c) => c.name === "mentions")) sql.exec("ALTER TABLE chats ADD COLUMN mentions INTEGER NOT NULL DEFAULT 0")
   if (!columns.some((c) => c.name === "grp")) sql.exec("ALTER TABLE chats ADD COLUMN grp INTEGER NOT NULL DEFAULT 0")
+  if (!sql.exec<{ name: string }>("PRAGMA table_info(loop_heard)").toArray().some((c) => c.name === "agent")) sql.exec("ALTER TABLE loop_heard ADD COLUMN agent TEXT NOT NULL DEFAULT ''")
 }

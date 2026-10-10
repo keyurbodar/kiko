@@ -423,6 +423,22 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
+	/** The run's answer, for the Jev pass to catch a promise to come back (section 26.2). Outside content is never read for loops. */
+	private async captureAnswer(home: { userId: string; roomId: RoomId }, slug: AgentSlug, runId: string): Promise<void> {
+		if (this.log.meta("private") === "1") return
+		const items = this.ctx.storage.sql
+			.exec<{ id: string; text: string; at: number; tainted: number }>("SELECT id, text, at, tainted FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
+			.toArray()
+		if (!items.length || items.some((m) => m.tainted === 1)) return
+		try {
+			// One answer, however many bubbles: its last sentences are read together.
+			const last = items.at(-1)!
+			await userStub(this.env.USER, home.userId).loopsAnswer(home.roomId, slug, [{ messageId: last.id, text: items.map((m) => m.text).join("\n"), at: last.at }])
+		} catch (error) {
+			console.error(`answer capture failed: ${error instanceof Error ? error.message : String(error)}`)
+		}
+	}
+
 	private async forwardForgotten(): Promise<void> {
 		const home = this.home()
 		if (!home || this.#wiped) return
@@ -1391,6 +1407,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.setStatus(slug, "idle")
 		this.reportRuns(this.routines.ended(slug), "ended")
 		if (!home || !first) return
+		await this.captureAnswer(home, slug, runId)
 		await this.armMemory()
 		await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 		this.bubbles.markEnded(runId)
@@ -1460,6 +1477,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const pending = this.memory.pending(1_000).length
 		if (pending) await this.armMemory()
 		return { turns: this.memory.count(), pending, view }
+	}
+
+	/** Development only. Rolls the chat up now, as six quiet hours would (`verify initiative-loops`). */
+	async devQuiet(): Promise<void> {
+		if (process.env.NODE_ENV !== "development") throw new Error("not found")
+		await this.rollupQuiet()
 	}
 
 	async devAge(ms: number): Promise<number> {
