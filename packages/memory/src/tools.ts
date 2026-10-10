@@ -1,3 +1,4 @@
+import { escapeXml } from "@yuki/agent/text"
 import { Type } from "@earendil-works/pi-ai"
 import { type ConversationId, defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
@@ -83,11 +84,9 @@ export function parseZoomId(raw: string): { log: "life" | "chat"; id: string } |
 }
 
 export function memoryDelta(chat: string): string {
-  const escape = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-  return `<memory>\nchat since your last turn:\n${escape(chat.trim())}\n</memory>`
+  return `<memory>\nchat since your last turn:\n${escapeXml(chat.trim())}\n</memory>`
 }
 
 export function memoryBlock(life: string, chat: string): string {
-  const escape = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-  return `<memory>\nlife:\n${escape(life.trim()) || "(nothing yet)"}\n\nchat:\n${escape(chat.trim()) || "(nothing before this)"}\n</memory>`
+  return `<memory>\nlife:\n${escapeXml(life.trim()) || "(nothing yet)"}\n\nchat:\n${escapeXml(chat.trim()) || "(nothing before this)"}\n</memory>`
 }

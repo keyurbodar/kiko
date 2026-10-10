@@ -13,6 +13,7 @@ export type InfoView =
   | { kind: "agent"; slug: string }
   | { kind: "soul"; slug: string }
   | { kind: "routines" }
+  | { kind: "plate" }
   | { kind: "tasks" }
 
 const HOME: InfoView = { kind: "home" }

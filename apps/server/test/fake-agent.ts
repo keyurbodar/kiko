@@ -108,6 +108,7 @@ export class FakeUser extends DurableObject {
   async takeAutonomous() {
     return { ok: true as const }
   }
+  async refundAutonomous() {}
   async refuseTurns(refuse: boolean) {
     await this.ctx.storage.put("refuse", refuse)
   }

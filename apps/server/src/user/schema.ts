@@ -27,12 +27,21 @@ const TABLES = [
     window_start INTEGER NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS user_events (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS autonomous_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS capture_queue (
     room_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
     text TEXT NOT NULL,
     at INTEGER NOT NULL,
     queued_at INTEGER NOT NULL,
+    PRIMARY KEY (room_id, message_id)
+  )`,
+  // Human bursts waiting for one Jev pass over open loops (section 26).
+  `CREATE TABLE IF NOT EXISTS loop_heard (
+    room_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    at INTEGER NOT NULL,
     PRIMARY KEY (room_id, message_id)
   )`,
 ]

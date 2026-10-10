@@ -48,8 +48,8 @@ type Step = ReturnType<typeof fauxToolCall>[] | string
 type Msg = { role: string; toolName?: string; content?: { type: string; text?: string }[] }
 
 /** Runs one input per script; each script is the model's turns, tool calls then an answer. Returns every tool result's text. */
-async function run(backend: FilesBackend, scripts: Step[][]) {
-  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, files: { fs: new RoomFs("test", backend), acceptsImages: () => false }, testExtensions: [TRUST_TOOLS_EXTENSION] })
+async function run(backend: FilesBackend, scripts: Step[][], nudge?: () => boolean) {
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, files: { fs: new RoomFs("test", backend), acceptsImages: () => false }, testExtensions: [TRUST_TOOLS_EXTENSION], ...(nudge ? { nudge } : {}) })
   const views = roomViews("test", backend, (conversationId) => isRunTainted({ registry: built.registry.snapshot(), conversationId }))
   const faux = fauxProvider()
   let last: Msg[] = []
@@ -111,4 +111,17 @@ test("a shell command that writes a skill is refused in a tainted run", async ()
   const { backend } = memory()
   const results = await run(backend, [[[fetch], [fauxToolCall("bash", { command: "mkdir -p /skills/x && echo evil > /skills/x/SKILL.md" })], "done"]])
   expect(results.find((r) => r.startsWith("bash"))).toContain("was not changed")
+})
+
+test("a nudge run reads but changes no file until the human answers; the next run may", async () => {
+  const { files, backend } = memory()
+  files.set("notes.md", "old")
+  let nudge = true
+  const results = await run(backend, [[[fauxToolCall("read", { path: "/notes.md" })], [write("/draft.md", "a draft")], "done"]], () => nudge)
+  expect(results[0]).toContain("old")
+  expect(results[1]).toContain("a nudge only asks")
+  expect(files.has("draft.md")).toBe(false)
+  nudge = false
+  await run(backend, [[[write("/draft.md", "a draft")], "done"]], () => nudge)
+  expect(files.get("draft.md")).toBe("a draft")
 })

@@ -1,3 +1,4 @@
+import { escapeXml } from "@yuki/agent/text"
 import type { Task } from "@yuki/protocol"
 import type { MemberRow } from "./members"
 import { briefTasks } from "./workspace"
@@ -26,8 +27,7 @@ export type BriefView = {
 	proposal?: string
 }
 
-/** Message text is escaped, so it cannot close the `<context>` block or forge a tag (section 16.2). */
-const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+/** Message text is escaped with `escapeXml`, so it cannot close the `<context>` block or forge a tag (section 16.2). */
 const oneLine = (text: string) => {
 	const flat = text.replace(/\s+/g, " ").trim()
 	return flat.length > MAX_LINE ? `${flat.slice(0, MAX_LINE)}...` : flat
@@ -60,12 +60,22 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 	lines.push("your tasks:")
 	if (view.tasks.length) for (const t of view.tasks) lines.push(`- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`)
 	else lines.push("- none")
-	if (view.proposal) lines.push(escape(view.proposal))
-	if (view.reactions) lines.push(escape(view.reactions))
+	if (view.proposal) lines.push(escapeXml(view.proposal))
+	if (view.reactions) lines.push(escapeXml(view.reactions))
 	return lines.join("\n")
 }
 
 /** Reads the view for `member` from the room's tables. */
 export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, reactions: string | null): BriefView {
 	return { goal, members, tasks: briefTasks(sql, member.slug), reactions }
+}
+
+/**
+ * Section 26. What the agent owes and what the human said before that bears on this burst, for the
+ * run that answers it. The lines arrive escaped. Empty when there is nothing, so the input stays the same.
+ */
+export function initiativeBrief(view: { owe: readonly string[]; related: readonly string[]; noticed?: readonly string[] }): string {
+	const lines = [...view.owe.map((l) => `you owe: ${l}`), ...view.related.map((l) => `related: ${l}`), ...(view.noticed ?? []).map((l) => `on their plate: ${l}`)]
+	if (!lines.length) return ""
+	return [...lines, "bring a related line or something on their plate up only when it truly helps the human now, at most one, in passing. keep what you owe, or say why you cannot."].join("\n")
 }

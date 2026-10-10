@@ -1,4 +1,4 @@
-import type { Actor, AgentSlug, Envelope, RoomEvent, RoomId, Task, TaskOp, TaskStatus } from "@yuki/protocol"
+import type { Actor, AgentSlug, RoomEvent, Task, TaskOp, TaskStatus } from "@yuki/protocol"
 import { HUMAN } from "@yuki/agent/authority"
 import { actorKey, type RoomLog } from "./log"
 import type { Chain } from "./mail"
@@ -81,19 +81,7 @@ const toTask = (r: TaskRow, dependsOn: string[]): Task => ({
 	...(r.note ? { note: r.note } : {}),
 })
 
-export function wakeEnvelope(roomId: RoomId, wake: Wake): Envelope {
-	const id = `unblocked:${wake.taskId}`
-	return {
-		id,
-		roomId,
-		from: { kind: "system", reason: "task_unblocked" },
-		body: `task ${wake.taskId} "${wake.title}" is unblocked: everything it depends on is done. start it now.`,
-		hop: 0,
-		rootId: id,
-		tainted: false,
-		seq: wake.seq,
-	}
-}
+export const wakeBody = (wake: Pick<Wake, "taskId" | "title">) => `task ${wake.taskId} "${wake.title}" is unblocked: everything it depends on is done. start it now.`
 
 export class RoomWorkspace implements Workspace {
 	private readonly sql: SqlStorage

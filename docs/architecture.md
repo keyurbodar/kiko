@@ -1314,7 +1314,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | A7 | kat's hue with one chroma token is the "yuki orange", and dark ships first | 19.8 |
 | A8 | terminal and browser slots become board and memory | product.md |
 | A9 | a 24/7 user has 30 turns a day | 17.1 |
-| A10 | routines: a 30-minute minimum schedule (15 for a watch), a 10 minute run budget, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 100 runs a day per user without a human, 7 days away holds them, the check-in daily at 08:30, a task stale after 24 hours | 25 |
+| A10 | routines: a 30-minute minimum schedule (15 for a watch), a 10 minute run budget, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 100 runs a day per user without a human, 7 days away holds them | 25 |
 
 ### Spec claims corrected by the source
 
@@ -1449,7 +1449,7 @@ A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to t
 
 ## 25. Routines and proactivity
 
-Work that starts without a human message: routines on a schedule or an event, nudges on stalled tasks, and yuki's daily check-in. The behavior follows Grok Bot and OpenAI dots, read from their own pages in [research/routines-and-proactivity.md](research/routines-and-proactivity.md). The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model.
+Work that starts without a human message: routines on a schedule or an event, reminders, task wakes, and the initiative pass of section 26.6, which replaced the daily check-in and the stall sweep. The behavior follows Grok Bot and OpenAI dots, read from their own pages in [research/routines-and-proactivity.md](research/routines-and-proactivity.md). The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model.
 
 ### 25.1 Decision
 
@@ -1460,14 +1460,15 @@ Work that starts without a human message: routines on a schedule or an event, nu
 
 **Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Dots keeps its background research read-only "in code"; yuki gets the same from the effect table of section 16.3 plus the run's origin, without a second research model.
 
-| Wake | `SystemReason` | Starts in | `rootId` | `origin` |
-| --- | --- | --- | --- | --- |
-| a routine's time, its "run now", a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine`, with the grant |
-| a stalled task | `stalled` | `RoomDO` `loops` wakeup | `stalled:<taskId>:<utcDay>` | `auto` |
-| a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | unchanged | `auto` |
-| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | unchanged | `auto` |
+| Wake | `SystemReason` | Starts in | `rootId` | `origin` | Budget | Held |
+| --- | --- | --- | --- | --- | --- | --- |
+| a routine's time, a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine`, with the grant | `user` when the human made it, else `room` | recorded `held` |
+| a routine's "run now" | `routine` | the human's route or an agent's tool | `routine:<id>:test:<time>:<n>` | `routine`, with the grant | `paid` when the human pressed it, else as above | recorded `held` |
+| the initiative pass (section 26.6): an open loop, a stalled task, a routine in trouble | `initiative` | `UserDO` `initiative_pass` wakeup, through `RoomDO.initiativeWake` | `initiative:<candidate>#<surfaced>.<ignored>` | `auto`, no grant | `room` | not held: the next pass decides again |
+| a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | the task's chain, else `unblocked:<taskId>` | the task's chain | `room` | the room's outbox |
+| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | the chain that made it; a recurring one its own | the authority of the run that made it | `user` when the human set it, else `room` | the room's outbox |
 
-Every one of these goes through `RoomDO.deliverAuto`, which takes the budget (25.5), hands the agent its envelope, and records the chain.
+Every one of these is a `Wake` (`room/wake.ts`) and goes through `RoomDO.wake`, the only code that takes the budgets (25.5), holds, hands the agent its envelope, and records the chain.
 
 ### 25.2 Routines
 
@@ -1488,13 +1489,13 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 - **Time budget.** A run whose origin is not `human` gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice the budget the host aborts it and the run is `timeout`.
 - **Breaker.** Three `failed` or `timeout` runs in a row pause the routine, and its chat says so.
 - **Missed times.** A routine runs its newest missed occurrence once when it is less than an hour late, and skips older ones.
-- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (agent-target reminders too; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
+- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (every reminder too, the human's included, and a row stored before that rule never fires sooner; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
 
 **Tools** (`agent/extensions/reminders.ts`).
 
 | Tool | Effect | Does |
 | --- | --- | --- |
-| `create_reminder` | write | unchanged |
+| `create_reminder` | write | stores the authority and taint of the run that made it; the wake carries them (25.3) |
 | `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok, even in a tainted run (the routine is then stored tainted); a routine nobody asked for, or one with a grant, posts an approval card that waits a day and makes the routine when the human accepts. A routine the human accepted is stored clean, so its grant works, unless its instructions were longer than the card shows |
 | `update_routine(id, ..., status?, run_now?)` | write | pausing and running now need nobody; any other change follows the same rule as create |
 | `list_reminders` | read | reminders and routines, with each routine's last run |
@@ -1527,53 +1528,57 @@ type Origin = "human" | "routine" | "auto"
 - A card waits 30 minutes. One that expires closes quietly and wakes nobody. An agent has one open card at a time.
 - The human's answer reaches the agent as an `approval_result` envelope with `origin: "human"`, and the room records it as the agent's chain like any delivery.
 - A routine a tainted run made is stored `tainted`, and its runs carry no grant (`runGrant` in `user/reminders.ts`). One the human made, or accepted on a card that showed all of it, keeps its grant.
+- A reminder stores the authority and taint of the run that made it. **Taint never carries the human's authority to a later run**: `wakeAuthority` in `room/wake.ts` runs a tainted wake on a human chain as `auto`, so a page that told a human's run to schedule a reminder cannot act outside yuki from it without a card. A routine's grant is not touched there; it was settled when the routine was made.
 - An extension's trigger runs as a routine granted that extension's own tools. The human reviewed and installed it.
 - `create_routine` and `update_routine` post a card only for a run the human did not start, or a tainted run that grants tools (for `update_routine`, a change to a routine that holds a grant).
 - DEVIATION from the first version of this section, where a tainted run needed a card for every `external` call. Section 16.3 says why and what still holds.
 
 ### 25.4 Triggers
 
-**Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` matches each stored event with `eventLine` and `matches` (`room/routines.ts`, pure): a task changing to a status, a human or agent message with optional text, or a file under a path.
+**Signals.** One bus carries what happened: `Signal` in `room/signals.ts`, an Effect Schema union of `burst` (a human message), `agent_final` (a message an agent posted), `task`, `file`, `routine_result`, `reminder_fired`, and `watch_change`. Each says who did it and whether it is tainted. A room sends its signals to `UserDO.signals` in batches; `UserDO` sends its own (`reminder_fired`, `watch_change`) to the same entry. Event routines consume it; anything that later starts work on its own subscribes there.
 
-- Events for one routine within 60 seconds of the first become one run, like the human burst. The window lives in `routine_windows` and flushes on the `routine_events` wakeup, ten windows a pass. A run lists at most 20 events; a full window stops writing.
-- A window is tainted when an agent's act opened or joined it, unless that act is a message stored clean (section 16), so an injected instruction an agent relayed cannot reach a routine's grant.
+**Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` turns each stored event into a signal (`signalOf`) and keeps it when some routine's trigger `matches` it (a task changing to a status, a human or agent message with optional text, or a file under a path), or when the human did it: every human message and task change is kept for the initiative engine (26.6).
+
+- A room's signals within 60 seconds of the first become one batch, like the human burst. The window lives in `signal_window` and flushes on the `routine_events` wakeup. A batch keeps at most 20 signals and counts the rest. `UserDO.signals` gives each event routine one run per batch (`routineRun`), with occurrence `event:<openedAt>`, so a retried batch runs once.
+- A run is tainted when an agent's act it lists is, unless that act is a message stored clean (section 16), so an injected instruction an agent relayed cannot reach a routine's grant.
 - An agent's own acts never fire its own routines (the event's actor, from the `events` table). Acts of a run that an event, a webhook, or a watch started fire no event routine at all, so one event starts at most one level of work and two routines cannot feed each other.
+- A routine run's end reaches `UserDO` as a `routine_result` signal, which closes its record.
+- DEVIATION from the first version, where each routine kept its own window: one window per room, opened by the first signal any routine looks at.
 
 **Webhooks.** `POST /api/hooks/<token>`, at most 64 KB.
 
 - The Worker hashes the token and reads one D1 row, `hooks(token_hash -> user_id, routine_id)`, then calls `UserDO.routineHook`, which checks the token against the routine's own hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
 - **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker builds the object name from a user id in a D1 row that `UserDO` wrote when the human's routine was made. The request never supplies an id.
 - A sender's own delivery id (`x-github-delivery`, `idempotency-key`, `x-request-id`), or else the body's hash within the same minute, makes a retried post run once. The body is read with a 64 KB cap, so a chunked post cannot grow past it.
-- The run is tainted and its post is labeled outside content, so a granted tool still waits for the human.
+- The run is tainted and its post is labeled outside content. The routine's grant still holds when a clean run made it (25.3), as `verify routine-triggers` checks; every other outside tool waits for the human.
 - The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
 
-**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content, and the new fingerprint is saved only once the room has the run. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
+**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content. The new fingerprint is saved unless the run was held, so a change found while the budget is out is reported by the first check after it resets. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
 
 DEVIATION from the first plan: watches do not run extension code from an alarm. Fetching in `UserDO` reuses the extension's egress and secrets with no new `yuki.*` power and no VM outside a run.
 
 ### 25.5 The budget and the away pause
 
-`RoomDO.deliverAuto`, for every wake in the table of 25.1:
+`RoomDO.wake(w)`, for every wake in the table of 25.1, in this order:
 
-1. **The room's budget.** 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per envelope id (`auto_taken`).
-2. **The user's budget.** `UserDO.takeAutonomous`: `limits.autonomousRunsPerDay` (100) across every chat, and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When the user's budget refuses, the room's run is refunded. A routine's run is counted by `UserDO` before it calls the room, so a held run costs no call.
-3. A held wake is recorded as a `held` run. The chat says so once a day, and the yuki chat says once per absence: "i paused your routines and check-ins while you were away. they start again when you open yuki." While the human is away, scheduled routines and watches are skipped without a call.
+1. **Once.** A wake id the delivery ledger has, delivered or refused, is a duplicate. One already held is held.
+2. **The room's budget,** for a `room` wake. 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per wake id (`auto_taken`).
+3. **The user's budget,** for a `room` or `user` wake. `UserDO.takeAutonomous(id)`: `limits.autonomousRunsPerDay` (100) across every chat, paid once per wake id (`autonomous_taken`), and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When it refuses, the room's run is refunded.
+4. **Taint.** The envelope's authority comes from `wakeAuthority` (25.3).
+5. **The hand-over.** A refused delivery refunds both budgets and is recorded in the ledger. A full inbox throws with the budgets kept; the retry carries the same id and pays nothing more.
+6. **Held.** A wake that may retry (a reminder, a task wake) waits in `held_wakes`, the room's outbox. It is retried, oldest first and ten a pass, on the next UTC midnight (the `held_wakes` wakeup) and after every human burst the room delivers, after that burst. One held for a week is dropped (ASSUMPTION). A routine's held run is recorded `held` instead, and a watch keeps its old fingerprint (25.4).
 
-### 25.6 The stall sweep
+The chat says once a day that the budget is out, and the yuki chat says once per absence: "i paused your routines and follow-ups while you were away. they start again when you open yuki." While the human is away, watches fetch nothing; every other wake asks `RoomDO.wake`, which holds it.
 
-A task in `doing` or `blocked` untouched for 24 hours nudges its owner; one in `review` nudges the lead (`room/stalls.ts`). The `loops` wakeup is set to the moment the first such task goes stale, never sooner than an hour away, and is cleared when there is none, so a board of todo items or of work already nudged costs no wakeup. A nudge's id names the task's last change, so one stretch of staleness is nudged once: an answer that does not move the task is not asked again until someone touches it. At most five a day per room, through the budget. Each room reports its open tasks to `UserDO.chatTasks` when they change. Promises to come back are reminders an agent sets for itself, which the core prompt asks for.
+DEVIATION from the first version: `UserDO` took the user's budget before it called the room, so a run the room then held or the agent refused was never refunded, and a held reminder or task wake was marked done and lost. Every path now goes through `wake`.
 
-### 25.7 Yuki checks in
+### 25.6 Stalled tasks
 
-Yuki is the chief (section 7.11), the role Grok gives its Main Bot.
+DEVIATION from the first version, where an hourly sweep in each room woke the owner of a task untouched for 24 hours. The sweep (`room/stalls.ts`) is gone. Each room still reports its open tasks to `UserDO.chatTasks` when they change (`room/open-tasks.ts`, the count and the three oldest with their ids). A task in `doing`, `blocked`, or `review` that nobody touched for one of the human's rhythm cycles is a candidate of the initiative pass (26.6), which wakes its owner, or the lead for review work, at the human's next moment.
 
-- `UserDO.ensureHome` gives every user one routine for yuki in the yuki chat, `check-in`, daily at 08:30 in the user's zone. The human can pause, move, or cancel it; a cancelled one is never made again.
-- Its instructions: call `overview`, decide whether anything needs the human today, and either send one short message with at most three things yuki could take off their plate, or answer `[skip]` when nothing is new or the same offer was ignored before.
-- `overview` (yuki only, read) asks `UserDO.overview`: the newest chats with unread counts and open tasks, stale tasks, routines and their last runs, and reminders due in a day, in a few hundred characters.
-- The run's origin is `routine` with no grant, so the check-in reads freely (read-only Composio tools included, section 12) and asks before anything outside yuki. `overview`'s result counts as outside content, since its previews quote other chats.
-- **No change, no model call.** Before a scheduled check-in, `UserDO` compares a fingerprint of what it reads (each chat's sequence and unread count, the open tasks, each routine's status and last run, the reminders, leaving out the yuki chat and the check-in itself) with the one from its last delivered run. Equal means the run is recorded `quiet` without a delivery. "Run now" always runs.
+### 25.7 No daily check-in
 
-DEVIATION from the first plan: no separate research subagent, no private notes table, and no suggestion cards. One run of yuki with the overview does what dots' background research does for yuki's own data, at half the model calls, and the human answers a suggestion by replying. Learning when to ping lives in yuki's soul (section 7.10) and in the "ignored before" rule.
+DEVIATION from the first version, where `ensureHome` made every user a `check-in` routine for yuki at 08:30 with a fingerprint gate. The owner asked for nothing on a fixed clock. The routine, `check_in_seen`, and `overviewFingerprint` are gone; `ensureHome` cancels a check-in routine a user still has. What the check-in looked for (stale tasks, failed or paused routines, open loops) are candidates of the initiative pass (26.6). `overview` stays a yuki tool (read, outside content `chats`) for when the human asks what is open.
 
 ### 25.8 What the agent is told
 
@@ -1601,10 +1606,112 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; a c
 
 | Check | Proves |
 | --- | --- |
-| `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and event matching, the watch grid, the budget and away rules, stale-task nudges |
+| `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and signal matching, one run per batch, the watch grid, the budget and away rules |
+| `test/wake.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; a tainted run's reminder wakes tainted and `auto` |
+| `test/reminder-rules.test.ts` | a held watch run keeps the old fingerprint; a reminder for the human repeats at most every 30 minutes, even one stored before the rule |
 | `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for gets a card and accept makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
 | `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its injected payload cannot use a granted tool; a watch wakes only on change |
-| `bun yuki verify proactive` | a stale task nudges its owner once a day; away 8 days holds runs with one line and a hello resumes; every user has one check-in; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |
+| `bun yuki verify proactive` | a task untouched for two days wakes its owner once through the initiative pass, and the answer carries its reason; away 8 days holds runs with one line and a hello resumes; no check-in routine is made; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |
 | `test/recurrence.test.ts` | `ruleProblem` passes the rule shapes people ask for and refuses, in microseconds, every shape `rrule` could loop on |
 | `bun yuki verify routines-scale` | 300 users with a routine due the same second: each runs exactly once, none lost (the last confirmed 26 s after the due time under `wrangler dev`) |
-| `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder with no card; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine; the check-in offers help with stale work and is quiet the second time; a nudge gets one short answer. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
+| `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder with no card; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
+
+## 26. Initiative: open loops
+
+**Decision.** Yuki keeps the human's open loops: goals, plans, deadlines, things they wait on, and what an agent promised. Detection is judged by a model, never by cue words or a date parser. Saying nothing is the common case. The brief of the human's next run is the main channel. A nudge is the exception, decided by the attention pass of 26.6 from what the human did before, not from a fixed clock.
+
+**Reasoning.** The owner rejected regex cue lists and chrono-node (the first plan's D2 and D11). A model already reads every message, so the cheapest judge is the agent's own run, then Jev, then the summary call the memory already makes.
+
+### 26.1 The store
+
+`packages/memory/src/loops.ts`, table `loops` in `UserDO` beside the life log, with `loops_fts` (FTS5). A row has `kind` (goal, intention, commitment, waiting, project), `certainty` (explicit, tentative), `owner` (`human` or an agent slug), `room`, `ref` (the human message it came from, as life refs), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, `tainted`, and `source` (tool, jev, nap). What a nudge did to a loop is the engine's (`initiative_marks`, 26.6), not a column here.
+
+- `open` merges a repeat into the same loop: one the caller names (`same`), one with the same words, or one from the same message that shares a keyword with it (FTS). The last rule makes the agent's `loop` call, Jev, and a reminder the agent set for itself one loop whatever order they arrive in. `same: null` means Jev judged the sentence different from every loop of that message, so only the same-words rule applies. A merge never crosses owners, keeps the first words, can firm a tentative loop up and add a due time, and never softens an explicit one.
+- Deleting a message forgets the loops learned from it, as it forgets life lines.
+- A private chat keeps no loops.
+
+### 26.2 Three detectors, one write path
+
+1. **The agent's run.** The `loop` tool (open, close, list; effect `write`), selected in `factory.ts`, with a five-line rule (`LOOP_RULE` in `loop-tool.ts`): open on a stated goal, plan, deadline, or wait; open a commitment with `mine` for its own promise; close when done; never announce it. A reminder an agent sets for itself also opens its commitment. No extra model call.
+2. **Jev**, when the user saved a judge key. Each human burst is queued (`loop_heard`) and read 15 s later (ASSUMPTION: so a loop the run opened is there to merge with) in one batched classify: per sentence, a kind choice with `none`, an explicit or tentative bool, and a done, dropped, same, or other choice per open loop that shares its words or came from its own message. A choice counts only when it holds most of the probability. "same" merges into that loop; "other" for every loop shown opens a new one; an unsure answer leaves it to the store's rule (26.1). A close goes through `UserDO.closeLoop`, as every close does. Capture `off` turns it off.
+3. **The summary pass**, with no judge as well. When a room summarizes a page of raw turns, or rolls up a quiet chat, the same call also lists `loop + ...`, `loop done <id>`, and `loop dropped <id>` lines after its summary line (`napLoopsPrompt`). No extra call; a page is summarized once 48 turns follow it, so this net is slow on purpose.
+
+A tentative loop never becomes a reminder: no code path creates one from a loop, and the prompt and `create_reminder` say a reminder is only for an explicit ask or a yes to an offer.
+
+### 26.3 The judge service
+
+`apps/server/src/initiative/judge.ts`: two plain functions, `classifyBurst` and `worthNow`, over the judge from `UserDO.judge`, so the key is read where it always was. A failed call answers null and the caller does what it does without a judge. (The first version wrapped them in an Effect service with a model-free layer; two calls did not need it.)
+
+### 26.4 What a run starts with
+
+DEVIATION from the first plan: the lines are asked for by `AgentDO` when a run starts, not built by `RoomDO` at delivery. The room's delivery path stays untouched, so it never waits on `UserDO`, and the run start already asks `UserDO` for memory. `beginRun` starts `UserDO.initiativeBrief` while the run sets up; `inputContext` waits at most 1.5 s for it (ASSUMPTION) and adds a second `<context>` block (`initiativeBrief` in `room/brief.ts`):
+
+- `you owe:` the agent's own open commitments in this chat, at most three. Only this chat's: one from another chat made the real model set a duplicate reminder.
+- `related:` at most three open loops or life lines that bear on the burst. Without a judge, a line must share two keywords with it. With one, Jev asks "related?" over the keyword matches plus the newest open loops, so a related loop needs no shared word.
+
+### 26.5 The brief channel
+
+`InitiativeEngine.noticed` adds at most two `on their plate:` lines to the same block: the human's open loops in this chat, past their rest, most pressing first by `score` (26.6). Loops the burst itself opened, and loops already in a `you owe` or `related` line, are left out. Initiative `off` turns these lines off. This is the main channel: it costs no model call and never interrupts. The agent decides whether to mention one, at most one, in passing.
+
+### 26.6 The attention pass
+
+`apps/server/src/initiative/engine.ts`, in `UserDO`, over the attention module (`initiative/attention/`). Fixed code is kept only for safety: initiative off, the human away (the seven-day rule), the budget, taint, and the human busy in that room. Everything else is learned.
+
+**Signals.** `RoomDO` now keeps every human message and human task change in its signal window (25.4), besides what event routines match. `UserDO.signals` hands each batch to the engine first:
+
+- a human burst goes into the rhythm (`AttentionStore.observe`), marks the room busy for two minutes, and touches an open loop that shares two words with it;
+- pending nudges are settled over their window, from the nudge to its ignore deadline. A drop of the nudge's loop inside the window is dismissed, whatever order it and the human's reply arrived in: "stop reminding me" is itself a reply, and the agent or Jev closes the loop after reading it. So a human burst or task change in the nudge's room is only noted, and counts as engagement at the deadline. With neither, the nudge is ignored;
+- a followed run's end (`routine_result` with routine id `initiative` or `reminder`, below) records whether the agent spoke.
+
+**Moment.** The rhythm is a decayed histogram of the human's message times by local weekday and hour (`rhythm.ts`). The pass is an alarm (`initiative_pass` wakeup) set by `arm` to the start of the human's next usual active window, at least 20 hours after the last pass (ASSUMPTION). `arm` runs after each signal batch, loop open, task report, and settings change. It sets nothing while initiative is `off` or `chat`, while the rhythm has fewer than ten messages of evidence, or while there is no candidate. A fresh user is never interrupted; the brief carries their loops.
+
+**Candidates.** One `Candidate` shape for three sources:
+
+| Source | Id | Owner | Candidate when |
+| --- | --- | --- | --- |
+| an open loop (26.1) | `loop:<id>` | the loop's owner | open, or snoozed past its time; an agent's commitment is left out while the reminder it set for itself is active (`loop_reminders`) |
+| a workspace task from `chat_tasks` | `task:<room>:<id>:<updated_at>` | the task's owner; the lead for `review` or no owner | `doing`, `blocked`, or `review`, untouched for one rhythm cycle |
+| a routine | `routine:<id>:<occurrence>` | the lead | paused, or its last run failed or timed out |
+
+A private, temporary, or deleted chat has no candidates. A loop of no chat belongs to the yuki chat. The task id names its last change, so one stretch of staleness is raised once.
+
+**Verdict.** `attend` (`attend.ts`), a pure function, gives each candidate one verdict:
+
+- `rest` while an item rests after a nudge or a [skip] (one cycle, doubled for each ignore or [skip], longer as the kind's welcome falls);
+- `brief` when initiative is `off` or `chat`, the rhythm is unknown, the human is away or busy in that room, the item was said less than half a cycle ago and is not due, it is tentative and there is no judge, the kind's appetite is closed, its worth is under one half, or it is not the human's usual moment;
+- `nudge` for the most worthwhile items, at most one per room, no more than the appetite allows and the budget holds, and one per pass at `digest`.
+
+The score is a noisy-or of due urgency in the human's own cycles, an agent's own promise near its date, recent mentions, and staleness of an explicit goal or wait. The appetite is a Beta posterior per user and per kind over "a nudge of this kind is welcome" (`appetite.ts`): a new user gets one nudge a pass, two ignores in a row give none, a dismissal weighs five ignores for its kind, a [skip] counts one against its kind only (it never reached the human), and outcomes fade with a two-week half-life.
+
+**Jev.** With a judge key, and only when a nudge could go out at all, Jev's `worthNow` reads the ten highest-scoring candidates past their rest in one batched call. Its probability replaces the score in `worth`, and it gates: an item it did not read wakes nobody that pass. It reads what the woken agent will read, in plain words: whose item it is, the due time and last mention relative to now, how often it was raised, let pass, or declined by the agent, how many nudges the human answered or let pass lately, and the agent's own rule. Without Jev the score and the appetite decide alone. Either way the engine is the one decider, and the agent is told to raise the item, not asked whether to.
+
+**The wake.** `RoomDO.initiativeWake` is one wake (25.5) about one item: origin `auto`, an empty grant, the candidate's taint, the room's budget, never held. The room answers `busy` while a burst gathers or the human typed in the last two minutes. The target is the owner for an agent's own commitment or task, else the room's lead, which may hand it to a teammate with `send_message`. The body states the item, why now, and the rule: one short message in your own words, at most two sentences, that asks, with no text around tool calls; [skip] only when the chat shows it is already handled; close a loop as dropped when the human no longer wants it. An agent's own promise is kept in that one message.
+
+**One message.** A run whose every envelope is an initiative wake is a nudge run (`AgentDO`, `nudge` in `factory.ts`). A `beforeTool` gate lets it call tools whose effect is `read` or `message`, and the `loop` tool; a file, task, reminder, routine, or outside action is refused with one line ("a nudge only asks"). ASSUMPTION: work the human already asked for (an agent's own promise) is delivered as the message itself, so the gate holds for it too.
+
+**Outcomes.** The room follows the wake like a routine run (routine id `initiative`). When the agent's run ends, `ok` (it posted) records the nudge (`AttentionStore.sent`, a mark) and closes an agent's own commitment it was woken for. `quiet` ([skip]) is an outcome: the item rests as after an ignore, and the kind learns it (`AttentionStore.skipped`). A failed run only rests the item. The wake id is the item with the time it was last raised (`<candidate>#<last_at>`), so a retried pass wakes once and a later nudge is a new wake. Bubbles of the run carry `initiative: { reason }` ("You mentioned this Oct 3", "Untouched for 2 days"), which the client shows. A reminder an agent set for itself is followed the same way (routine id `reminder`); when its run posts, the commitment it kept is closed.
+
+**Dismissal.** The human says to stop in plain words; the agent's run closes the loop as `dropped` with the `loop` tool, or Jev reads the same words as a drop, or the human drops it on the On your plate panel. Every close goes through `UserDO.closeLoop`, so a nudge about it still in its window settles as dismissed. No pattern matching.
+
+**Cost.** Without Jev the engine calls no model; the only spend is the agent run of a nudge, at most one a pass at `digest`, and none while the appetite is closed. With Jev, one batched `worthNow` call per pass that could nudge. A [skip] costs a run, which is why it teaches the kind and why Jev reads past skips.
+
+### 26.7 What is gone
+
+The daily check-in routine and its fingerprint gate (25.7), the stall sweep (25.6), and `gate.unchanged` in `Reminders.run`. `overview` stays.
+
+### 26.8 Verification
+
+| Check | Proves |
+| --- | --- |
+| `test/loops.test.ts` | merge, firming, owners never merging, a loop from the same message merging in either order unless Jev judged it different, close, redaction; Jev answers to ops by majority; the summary pass's loop lines |
+| `test/attention.test.ts` | the rhythm, the appetite, rests, and the `attend` table, including the fresh and dated-promise cases; a drop winning over a reply in either order; a [skip] teaching only the kind; Jev gating what it did not read |
+| `bun yuki verify initiative-loops` | with Muse Spark 1.3, once with no judge and once with Jev: a stated deadline is an open explicit loop and makes no reminder; "maybe" is tentative and makes no reminder; the agent's promise is its commitment and its next run starts with `you owe:`; "finally done" closes the loop; a later chat starts with a `related:` line; the summary pass opens loops from seeded turns in its one call |
+| `bun yuki verify initiative` | with Muse Spark 1.3, both arms, a fresh user per scenario: (a) the agent's promise is followed up by exactly one run; (b) a loop ignored twice gets no third nudge; (c) "stop reminding me" drops the loop, a spoken nudge settles as dismissed, and nothing follows; (d) with no rhythm nothing interrupts and the next run's brief carries the loop; (e) a stalled task in a team room wakes its owner, who posts one message and writes no file; (f) away or initiative off wakes nobody |
+| `bun yuki verify proactive` | the fake agent: a stalled task wakes its owner once, with the reason on the answer; a loop is nudged, ignored, rests, nudged again, ignored, and then is not woken (1, 0, 1, 0, 0) |
+
+The dev route `POST /api/dev/agent/attention` (development only) sets a known rhythm (`rhythm`), moves the engine's clock state into the past (`age`: loops and their due times, marks, the last pass, pending nudges, and an agent's own reminders that would have come due), runs a pass now (`pass`, returning its verdicts and wakes), or reads the state.
+
+Measured 2026-10-10, `verify initiative`, all six scenarios per arm with Muse Spark 1.3, before and after the [skip]-as-outcome, Jev-gate, merge-by-message, one-message, and drop-wins changes. Before: no judge 7 wakes for 3 spoken nudges and 11,354 agent tokens; Jev 6 wakes for 1 spoken nudge, 11,673 agent tokens plus 6,304 Jev tokens, and Jev called the agent's own promise not worth it. The team owner posted 2 and 4 bubbles and wrote a draft file. After: no judge 5 wakes for 3 spoken nudges and 10,488 agent tokens; Jev 3 wakes for 2 spoken nudges, 9,037 agent tokens plus 8,754 Jev tokens. The owner posted one bubble and no file in both arms, and the dentist nudge settled as dismissed. The remaining skips are the tax deadline: the dev clock ages the engine but not the chat, so the lead sees its own unanswered question from seconds ago and skips. Without a judge two skips close the kind; with Jev one skip makes Jev say no after. UNVERIFIED: how often a lead skips across many users.
+
+Measured 2026-10-10: the summary call for a page with three loops took 506 input and 503 to 584 output tokens. UNVERIFIED: the same page without the loop part was not measured side by side. With Jev, a session of four bursts spent 6,050 Jev input tokens across capture, one loop classify, and four related checks, about $0.0003.
+

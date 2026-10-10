@@ -4,8 +4,7 @@ import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 import { gate, NO_CARD, needsApproval } from "@yuki/agent/trust"
 import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "@yuki/agent/authority"
-import { eventLine, matches } from "../src/room/routines"
-import { nextSweep, stalled, STALE_MS, SWEEP_MS } from "../src/room/stalls"
+import { matches, routineRun, type Signal, signalOf } from "../src/room/signals"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
 import { describeTrigger, nextEvery, runGrant } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
@@ -93,13 +92,14 @@ describe("triggers (section 25.4)", () => {
     expect(matchWebhook([{ path: "action" }], null)).toBe(false)
   })
 
+  const ctx = { roomId: "r1", at: 0, by: { kind: "human" } as const, tainted: false }
+  const at = { seq: 1, at: 0 }
+  const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "yuki", trigger })
+
   test("room events match by kind, status, sender, text, and path prefix", () => {
-    const name = (s: AgentSlug) => s as string
-    const at = { seq: 1, at: 0 }
-    const task = eventLine({ ...at, t: "task", task: { id: "t", title: "ship", status: "review", dependsOn: [] } } as RoomEvent, name)!
-    const human = eventLine({ ...at, t: "message", id: "m", from: { kind: "human" }, text: "Deploy it" } as RoomEvent, name)!
-    const file = eventLine({ ...at, t: "file", file: { id: "f", name: "reports/q3.md", size: 1, type: "text/markdown" } } as RoomEvent, name)!
-    const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "yuki", trigger })
+    const task = signalOf({ ...at, t: "task", task: { id: "t", title: "ship", status: "review", dependsOn: [] } } as RoomEvent, ctx)!
+    const human = signalOf({ ...at, t: "message", id: "m", from: { kind: "human" }, text: "Deploy it" } as RoomEvent, ctx)!
+    const file = signalOf({ ...at, t: "file", file: { id: "f", name: "reports/q3.md", size: 1, type: "text/markdown" } } as RoomEvent, ctx)!
     expect(matches(r({ on: "task", status: ["review"] }), task)).toBe(true)
     expect(matches(r({ on: "task", status: ["done"] }), task)).toBe(false)
     expect(matches(r({ on: "task" }), task)).toBe(true)
@@ -107,7 +107,18 @@ describe("triggers (section 25.4)", () => {
     expect(matches(r({ on: "message", from: "agent" }), human)).toBe(false)
     expect(matches(r({ on: "file", path: "/reports/" }), file)).toBe(true)
     expect(matches(r({ on: "file", path: "report" }), file)).toBe(false)
-    expect(eventLine({ ...at, t: "message", id: "m", from: { kind: "system", reason: "reminder" }, text: "x" } as RoomEvent, name)).toBeNull()
+    expect(signalOf({ ...at, t: "message", id: "m", from: { kind: "system", reason: "reminder" }, text: "x" } as RoomEvent, ctx)).toBeNull()
+  })
+
+  test("a batch fires a routine once, never for its own agent's acts or a run an event started, tainted when any act it lists is", () => {
+    const say = (text: string, by: Parameters<typeof signalOf>[1]["by"], tainted = false) => signalOf({ ...at, t: "message", id: "m", from: by?.kind === "agent" ? { kind: "agent", slug: by.slug } : { kind: "human" }, text } as RoomEvent, { ...ctx, by, tainted })!
+    const agent = (slug: string, eventRun = false) => ({ kind: "agent" as const, slug, name: slug, eventRun })
+    const batch = (...signals: Signal[]) => ({ roomId: "r1", openedAt: 0, signals, more: 0 })
+    const any = r({ on: "message", from: "any" })
+    expect(routineRun(any, batch(say("mine", agent("yuki")), say("loop", agent("ada", true))))).toBeNull()
+    expect(routineRun(any, batch(say("hi", { kind: "human" }), say("read a page", agent("ada"), true)))).toEqual({ body: 'what happened:\n- the human wrote: "hi"\n- @ada wrote: "read a page"', tainted: true })
+    expect(routineRun(any, batch(say("hi", { kind: "human" })))!.tainted).toBe(false)
+    expect(routineRun(any, { ...batch(say("hi", { kind: "human" })), more: 3 })!.body.endsWith("- and more")).toBe(true)
   })
 
   test("a watch steps on its own grid past now, and a trigger reads as words", () => {
@@ -129,32 +140,5 @@ describe("proactivity (sections 25.5 and 25.6)", () => {
     expect(takeAutonomous(0, now - 8 * 86_400_000, limits, now)).toEqual({ ok: false, reason: "away" })
     expect(takeAutonomous(0, null, limits, now)).toEqual({ ok: true, used: 1 })
   })
-
-  test("a stale task nudges its owner, review work nudges the lead, fresh or unowned work nobody", () => {
-    const now = 10 * STALE_MS
-    const old = now - STALE_MS - 1
-    const rows = [
-      { id: "a", title: "a", status: "doing", owner: "ada", updated_at: old },
-      { id: "b", title: "b", status: "review", owner: "ada", updated_at: old },
-      { id: "c", title: "c", status: "doing", owner: "ada", updated_at: now - 1000 },
-      { id: "d", title: "d", status: "todo", owner: "ada", updated_at: old },
-      { id: "e", title: "e", status: "blocked", owner: null, updated_at: old },
-    ]
-    expect(stalled(rows, "yuki" as AgentSlug, now, () => false).map((n) => [n.taskId, n.to])).toEqual([
-      ["a", "ada"],
-      ["b", "yuki"],
-    ])
-    expect(stalled(rows, "yuki" as AgentSlug, now, (id) => id === `stalled:a:${old}`).map((n) => n.taskId)).toEqual(["b"])
-  })
 })
 
-test("the stall sweep sleeps until the first unnudged task goes stale, and not at all for todo work or work already nudged", () => {
-  const now = Date.UTC(2026, 9, 5, 12)
-  const row = (updated_at: number, status = "doing") => ({ id: "a", title: "a", status, owner: "ada", updated_at })
-  const never = () => false
-  expect(nextSweep([], now, never)).toBeNull()
-  expect(nextSweep([row(now - 1000, "todo")], now, never)).toBeNull()
-  expect(nextSweep([row(now - 1000)], now, never)).toBe(now - 1000 + STALE_MS)
-  expect(nextSweep([row(now - STALE_MS + 60_000)], now, never)).toBe(now + SWEEP_MS)
-  expect(nextSweep([row(now - STALE_MS - 1)], now, () => true)).toBeNull()
-})

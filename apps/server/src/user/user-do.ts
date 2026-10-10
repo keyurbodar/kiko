@@ -1,6 +1,6 @@
 import { duplicateDm, newRoomId } from "@yuki/protocol"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
-import { ClientToUser } from "@yuki/protocol/schema"
+import { ClientToUser, INITIATIVE_LEVELS, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
@@ -28,9 +28,11 @@ import { type Answer, boolOf, type Judge, type Question } from "@yuki/memory/jud
 import type { NoteAnswer } from "@yuki/memory/tools"
 import type { JsonObject } from "@earendil-works/pi-ai"
 import { ProviderLogins } from "./provider-login"
-import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
-import { type ChatTasks, overview, overviewFingerprint } from "./overview"
-import { BUDGET_LINE } from "../room/limits"
+import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant } from "./reminders"
+import { sha256Hex } from "@yuki/durable/hash"
+import { deleteSetting, getSetting, setSetting } from "../lib/settings"
+import { type ChatTasks, overview } from "./overview"
+import { routineRun, type SignalBatch } from "../room/signals"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
 import type { Trigger } from "@yuki/protocol"
 import { safeFetch } from "@yuki/durable/safe-fetch"
@@ -49,6 +51,10 @@ import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
 import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import type { Authority } from "@yuki/agent/authority"
+import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult } from "@yuki/memory/loops"
+import { Initiative } from "../initiative/initiative"
+import { INITIATIVE_RUN, INITIATIVE_WAKEUP, InitiativeEngine, REMINDER_RUN } from "../initiative/engine"
+import type { Level } from "../initiative/attention/types"
 
 // Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }
@@ -81,12 +87,16 @@ const LAST_SEEN = "last_seen"
 const HOOK_EXCERPT = 6_000
 const AWAY_NOTICE = "away_notice"
 const PUBLIC_ORIGIN = "public_origin"
-const CHECK_IN = "check_in"
-const CHECK_IN_SEEN = "check_in_seen"
-const CHECK_IN_RULE = "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0"
-const CHECK_IN_INSTRUCTIONS = `call overview, then decide if anything needs the human today: a task stuck for days, a routine that failed or was paused, something due soon, a chat they left mid-thread. if something does, send one short message: at most three things you could take off their plate, one line each, and ask which to do. if nothing is new since your last check-in, or they ignored the same offer before, reply [skip].`
+// The daily check-in routine is gone (section 26.6). A user who had one has it cancelled on the next hello.
+const OLD_CHECK_IN = "check_in"
+const OLD_CHECK_IN_SEEN = "check_in_seen"
 
 const LAST_CHAT = "last_chat"
+const LOOPS_WAKEUP = "loops_heard"
+// ASSUMPTION: Jev reads a burst this long after it arrives, so a loop the agent opened in its run is
+// already there to merge with.
+const LOOPS_DELAY_MS = 15_000
+const BRIEF_JUDGE_MS = 1_000
 
 const DELETING = "deleting"
 
@@ -112,15 +122,8 @@ export class UserDO extends DurableObject<Env> {
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner(), (by) => this.triggerAuthority(by)), Date.now, {
-        deliverRun: async ({ deliveryId, routine, body, tainted }) => {
-          const paid = this.takeAutonomous()
-          if (!paid.ok) {
-            if (paid.reason === "limit") await this.budgetNotice(routine.roomId)
-            return "held"
-          }
-          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: runGrant(routine) })
-          if (out === "delivered" && routine.id === this.setting(CHECK_IN)) this.putSetting(CHECK_IN_SEEN, this.checkInFingerprint())
-          return out
+        deliverRun: async ({ deliveryId, routine, body, tainted, budget }) => {
+          return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: runGrant(routine), budget })
         },
         watch: (trigger) => this.watchPage(trigger),
         notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
@@ -131,8 +134,8 @@ export class UserDO extends DurableObject<Env> {
             if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
             return away
           },
-          unchanged: async (routine) => routine.id === this.setting(CHECK_IN) && this.setting(CHECK_IN_SEEN) === this.checkInFingerprint(),
         },
+        signal: (s) => this.ctx.waitUntil(this.signals({ roomId: s.roomId, openedAt: s.at, signals: [s], more: 0 })),
       })
       this.extensions = new ExtensionStore(
         this.sql,
@@ -141,7 +144,7 @@ export class UserDO extends DurableObject<Env> {
         (event) => this.commit(event),
         {
           create: async ({ text, rrule, roomId, target, createdBy }) => {
-            const tz = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'").toArray()[0]?.value ?? DEFAULT_TIMEZONE
+            const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
             const first = nextOccurrence(rrule, tz, Date.now())
             if (!first) throw new Error("the rule has no next time")
             await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
@@ -282,13 +285,10 @@ export class UserDO extends DurableObject<Env> {
     return overview(this.sql, { reminders: this.reminders.list(), runs: this.reminders.runs(), tz, now: Date.now() })
   }
 
-  private checkInFingerprint(): string {
-    return overviewFingerprint(this.sql, this.reminders.list(), this.reminders.runs(), { routineId: this.setting(CHECK_IN), roomId: yukiChatRoom(this.sql) })
-  }
-
   async chatTasks(roomId: string, tasks: ChatTasks): Promise<void> {
     if (!tasks.open) this.sql.exec("DELETE FROM chat_tasks WHERE room_id = ?", roomId)
     else this.sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET tasks = excluded.tasks", roomId, JSON.stringify(tasks))
+    await this.#engine.arm()
   }
 
   async devSeen(ago: number): Promise<void> {
@@ -319,20 +319,28 @@ export class UserDO extends DurableObject<Env> {
     return this.setting(PUBLIC_ORIGIN)
   }
 
-  async runRoutine(id: string): Promise<RunDelivery | null> {
-    return this.reminders.runNow(id)
+  /** `byHuman`: the human pressed run now, so the run spends no budget. */
+  async runRoutine(id: string, byHuman = false): Promise<RunDelivery | null> {
+    return this.reminders.runNow(id, byHuman)
   }
 
   async routineRuns(id?: string): Promise<RoutineRun[]> {
     return this.reminders.runs(id)
   }
 
-  async routineRunDone(routineId: string, occurrence: string, status: "ok" | "quiet" | "failed" | "timeout", seq: number | null): Promise<void> {
-    await this.reminders.finishRun(routineId, occurrence, status, seq)
-  }
-
-  async routineEvent(routineId: string, occurrence: string, what: string, events: string, tainted: boolean): Promise<RunDelivery | null> {
-    return this.reminders.fireEvent(routineId, occurrence, what, events, tainted)
+  /**
+   * The bus of what happened (room/signals.ts). Event routines start from a room's batch; a routine
+   * run's result closes its record. Reminders firing and watched pages changing come here too, for
+   * whatever starts work on its own next.
+   */
+  async signals(batch: SignalBatch): Promise<void> {
+    await this.#engine.signals(batch)
+    for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN && s.routineId !== REMINDER_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
+    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final" || s.kind === "task" || s.kind === "file")) return
+    for (const routine of this.reminders.roomRoutines(batch.roomId)) {
+      const run = routineRun(roomRoutine(routine), batch)
+      if (run) await this.reminders.fireEvent(routine.id, `event:${batch.openedAt}`, "events in this chat", run.body, run.tainted)
+    }
   }
 
   async eventRoutines(roomId: string): Promise<RoomRoutine[]> {
@@ -364,7 +372,7 @@ export class UserDO extends DurableObject<Env> {
     if (!token) return
     try {
       await this.env.AUTH_DB.prepare('insert into "hooks" ("token_hash", "user_id", "routine_id", "created_at") values (?, ?, ?, ?)')
-        .bind(await sha256(token), owner, routine.id, Date.now())
+        .bind(await sha256Hex(token), owner, routine.id, Date.now())
         .run()
     } catch (e) {
       console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
@@ -539,11 +547,11 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private setting(key: string): string | null {
-    return this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
+    return getSetting(this.sql, key)
   }
 
   private putSetting(key: string, value: string): void {
-    this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value)
+    setSetting(this.sql, key, value)
   }
 
   private async memoryCall(op: MemoryOp): Promise<MemoryResult> {
@@ -577,7 +585,7 @@ export class UserDO extends DurableObject<Env> {
       case "set_model":
         if (op.model && !findProvider(op.model.provider)?.getModels().some((m) => m.id === op.model!.modelId)) return { ok: false, error: "no such model" }
         if (op.model) this.putSetting(MEMORY_MODEL, JSON.stringify(op.model))
-        else this.sql.exec("DELETE FROM settings WHERE key = ?", MEMORY_MODEL)
+        else deleteSetting(this.sql, MEMORY_MODEL)
         return { ok: true }
     }
   }
@@ -611,6 +619,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
+    await this.loopsHear(roomId, items)
     if (!this.captures() || !this.capturable(roomId)) return
     const rows = items.flatMap((i) => (i.messageId && candidates(i.text).length ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
     if (!rows.length) return
@@ -627,6 +636,7 @@ export class UserDO extends DurableObject<Env> {
   async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[]): Promise<void> {
     const ids = [...new Set([...messageIds, ...requeue.map((r) => r.messageId)])]
     const gone = this.life.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
+    this.#loops.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
     this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(ids))
     if (gone.length) await this.armNaps()
     await this.captureHuman(roomId, requeue)
@@ -844,13 +854,15 @@ export class UserDO extends DurableObject<Env> {
 
   #compressing = 0
 
-  async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
+  /** `page` names a room's page of raw turns: the same call then also lists open loops (section 26). */
+  async compress(prompt: string, page?: { roomId: RoomId; at: number }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
     if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
     this.#compressing++
     try {
-      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, NAP_SYSTEM, prompt)
+      const loops = page ? this.#initiative.napPrompt(page.roomId, prompt, page.at) : null
+      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, loops?.system ?? NAP_SYSTEM, loops?.prompt ?? prompt)
       if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
-      const line = cleanLine(answer)
+      const line = cleanLine(loops && page ? (this.#initiative.napApply(page.roomId, answer, loops.known, page.at, prompt.includes("[outside] ")) ?? "") : answer)
       return line ? { text: line } : { error: "the model wrote no line" }
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) }
@@ -908,30 +920,44 @@ export class UserDO extends DurableObject<Env> {
 
   private async keyChanged(provider: string): Promise<void> {
     if (!providerUses(provider).judge) return
-    this.sql.exec("DELETE FROM settings WHERE key = ?", refusedKey(provider))
+    deleteSetting(this.sql, refusedKey(provider))
     await this.armCapture()
   }
 
   limits(): Limits {
-    const raw = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value
+    const raw = this.setting("limits")
     return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
   }
 
   setLimits(patch: Partial<Limits>): Limits {
-    const next = { ...JSON.parse(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value ?? "{}"), ...patch }
-    this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('limits', ?)", JSON.stringify(next))
+    const next = { ...JSON.parse(this.setting("limits") ?? "{}"), ...patch }
+    this.putSetting("limits", JSON.stringify(next))
     return this.limits()
   }
 
-  takeAutonomous(): AutonomousAnswer {
+  /** One run nobody's message started, paid once per wake id however often the room asks (section 25.5). */
+  takeAutonomous(id: string): AutonomousAnswer {
     const now = Date.now()
-    const key = `autonomous:${utcDay(now)}`
+    const day = utcDay(now)
+    const key = `autonomous:${day}`
     const used = Number(this.setting(key) ?? 0)
+    if (this.sql.exec("SELECT 1 FROM autonomous_taken WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
     const lastSeen = this.setting(LAST_SEEN)
     const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
-    if (answer.ok) this.putSetting(key, String(answer.used))
-    else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
+    if (answer.ok) {
+      this.putSetting(key, String(answer.used))
+      this.sql.exec("DELETE FROM autonomous_taken WHERE day != ?", day)
+      this.sql.exec("INSERT OR IGNORE INTO autonomous_taken (id, day) VALUES (?, ?)", id, day)
+    } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
     return answer
+  }
+
+  /** The agent refused the wake `id`: the run it paid for goes back to today's count. */
+  refundAutonomous(id: string): void {
+    const day = utcDay(Date.now())
+    if (!this.sql.exec("DELETE FROM autonomous_taken WHERE id = ? AND day = ?", id, day).rowsWritten) return
+    const key = `autonomous:${day}`
+    this.putSetting(key, String(Math.max(0, Number(this.setting(key) ?? 0) - 1)))
   }
 
   private seen(): void {
@@ -940,17 +966,7 @@ export class UserDO extends DurableObject<Env> {
     const wasAway = last > 0 && now - last > this.limits().awayDays * 86_400_000
     if (now - last < 3_600_000) return
     this.putSetting(LAST_SEEN, String(now))
-    if (wasAway) this.sql.exec("DELETE FROM settings WHERE key = ?", AWAY_NOTICE)
-  }
-
-  private async budgetNotice(roomId: RoomId): Promise<void> {
-    const day = utcDay(Date.now())
-    const key = `budget_notice:${roomId}`
-    if (this.setting(key) === day) return
-    this.putSetting(key, day)
-    await roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId)
-      .systemNotice(`budget:${day}`, BUDGET_LINE("your account"))
-      .catch(() => {})
+    if (wasAway) deleteSetting(this.sql, AWAY_NOTICE)
   }
 
   private async awayNotice(now: number): Promise<void> {
@@ -958,21 +974,21 @@ export class UserDO extends DurableObject<Env> {
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = yukiChatRoom(this.sql)
     const owner = userIdFromObjectName(this.ctx.id.name)
-    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and check-ins while you were away. they start again when you open yuki.", "limit")
+    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open yuki.", "limit")
   }
 
   takeTurn(): TurnAnswer {
     const now = Date.now()
     const key = `turns:${utcDay(now)}`
-    const used = Number(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? 0)
+    const used = Number(this.setting(key) ?? 0)
     const answer = takeTurn(used, this.limits(), now)
-    if (answer.ok) this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", key, String(answer.used))
+    if (answer.ok) this.putSetting(key, String(answer.used))
     return answer
   }
 
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
-      this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
+      getSetting(this.sql, key)
     const limits = setting("limits")
     const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
     return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.captures() }, agent)
@@ -1101,7 +1117,7 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "open") {
-      this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", LAST_CHAT, frame.roomId)
+      this.putSetting(LAST_CHAT, frame.roomId)
       return
     }
     if (frame.t === "extension") {
@@ -1141,6 +1157,8 @@ export class UserDO extends DurableObject<Env> {
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
       [LIFE_WAKEUP]: () => this.napLife(),
       [CAPTURE_WAKEUP]: () => this.captureNow(),
+      [LOOPS_WAKEUP]: () => this.loopsNow(),
+      [INITIATIVE_WAKEUP]: () => this.#engine.pass(),
     })
     this.#loginState?.expire(due)
   }
@@ -1181,6 +1199,143 @@ export class UserDO extends DurableObject<Env> {
     return this.#wiped ? 0 : storedRows(this.ctx.storage)
   }
 
+  // Initiative (architecture section 26): open loops and the lines a run starts with.
+
+  #loopsStore?: Loops
+  #initiativeInstance?: Initiative
+
+  get #loops(): Loops {
+    this.#loopsStore ??= new Loops(this.sql, (fn) => this.ctx.storage.transactionSync(fn))
+    return this.#loopsStore
+  }
+
+  get #initiative(): Initiative {
+    this.#initiativeInstance ??= new Initiative({
+      loops: this.#loops,
+      life: this.life,
+      judge: () => (this.judgeKey() ? this.judge(CAPTURE_TIMEOUT_MS) : null),
+      quickJudge: () => (this.judgeKey() ? this.judge(BRIEF_JUDGE_MS) : null),
+      title: (roomId) => {
+        const chat = getChat(this.sql, roomId)
+        return chat && !chat.private ? chat.title : null
+      },
+      count: (delta) => this.count(delta),
+      close: (id, status, at) => this.closeLoop(id, status, at),
+      noticed: (roomId, skip) => this.#engine.noticed(roomId, skip),
+    })
+    return this.#initiativeInstance
+  }
+
+  #engineInstance?: InitiativeEngine
+
+  get #engine(): InitiativeEngine {
+    this.#engineInstance ??= new InitiativeEngine({
+      sql: this.sql,
+      loops: this.#loops,
+      tz: () => this.setting("timezone") ?? DEFAULT_TIMEZONE,
+      level: () => this.initiativeLevel(),
+      away: () => {
+        const last = this.setting(LAST_SEEN)
+        return last !== null && Date.now() - Number(last) > this.limits().awayDays * 86_400_000
+      },
+      budget: () => Math.max(0, this.limits().autonomousRunsPerDay - Number(this.setting(`autonomous:${utcDay(Date.now())}`) ?? 0)),
+      title: (roomId) => {
+        const chat = getChat(this.sql, roomId)
+        return chat && !chat.private && !chat.temp ? chat.title : null
+      },
+      home: () => yukiChatRoom(this.sql),
+      routines: () => {
+        const runs = this.reminders.runs()
+        return this.reminders.list().filter((r) => r.trigger).map((routine) => ({ routine, last: runs.find((x) => x.routineId === routine.id && x.status !== "running") ?? null }))
+      },
+      judge: () => (this.judgeKey() ? this.judge(CAPTURE_TIMEOUT_MS) : null),
+      wake: (roomId, input) => roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).initiativeWake(input),
+      count: (delta) => this.count(delta),
+      setWakeup: (at) => this.alarms.setWakeup(INITIATIVE_WAKEUP, at),
+      clearWakeup: () => this.alarms.clearWakeup(INITIATIVE_WAKEUP),
+    })
+    return this.#engineInstance
+  }
+
+  private initiativeLevel(): Level {
+    const level = this.setting("initiative")
+    return (INITIATIVE_LEVELS as readonly string[]).includes(level ?? "") ? (level as Level) : "digest"
+  }
+
+  // Development only (section 26.8): a day of initiative in seconds.
+
+  async devInitiative(op: { action: "age"; ms: number } | { action: "rhythm"; mode: "now" | "clear" } | { action: "pass" } | { action: "state" }): Promise<unknown> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    if (op.action === "rhythm") {
+      this.#engine.devRhythm(op.mode)
+      return { at: await this.#engine.arm() }
+    }
+    if (op.action === "pass") return this.#engine.pass()
+    if (op.action === "state") return this.#engine.devState()
+    this.#engine.devAge(op.ms)
+    // A reminder an agent set for itself that would have come due in that time fires now.
+    for (const r of this.reminders.list()) if (r.status === "active" && !r.trigger && r.target !== "human" && r.dueUtc <= Date.now() + op.ms) await this.reminders.makeDue(r.id)
+    return { at: await this.#engine.arm() }
+  }
+
+  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; same?: number; tainted: boolean; reminderId?: string }): Promise<OpenResult> {
+    if (!this.capturable(roomId)) return { ok: false, error: "this chat is private: nothing here is kept." }
+    const { reminderId, ...loop } = input
+    const out = this.#loops.open({ ...loop, owner, room: roomId, ref, source: "tool" }, input.same)
+    if (out.ok) {
+      this.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
+      if (reminderId) this.#engine.link(reminderId, out.id)
+      await this.#engine.arm()
+    }
+    return out
+  }
+
+  async loopClose(id: number, status: "done" | "dropped"): Promise<boolean> {
+    return this.closeLoop(id, status, Date.now())
+  }
+
+  /** Every close goes through here: a drop settles a nudge about the loop as dismissed (section 26.6). */
+  private closeLoop(id: number, status: "done" | "dropped", at: number): boolean {
+    const closed = this.#loops.close(id, status, at)
+    if (closed) this.count({ loops_closed: 1 })
+    if (closed && status === "dropped") this.#engine.dropped(id, at)
+    return closed
+  }
+
+  async loopList(filter: { status?: Loop["status"][]; owner?: string; room?: string; limit?: number } = {}): Promise<Loop[]> {
+    return this.#loops.list(filter)
+  }
+
+  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string; messageIds: string[] }): Promise<{ owe: string[]; related: string[] }> {
+    return this.#initiative.brief(roomId, slug, burst)
+  }
+
+  /** Queues a human burst for one Jev pass. Without a judge, or with capture off, nothing is queued. */
+  private async loopsHear(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
+    if (!this.judgeKey() || this.policy().capture === "off" || !this.capturable(roomId)) return
+    const rows = items.filter((i) => i.messageId && i.text.trim()).map((i) => ({ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }))
+    if (!rows.length) return
+    this.sql.exec(
+      "INSERT OR IGNORE INTO loop_heard (room_id, message_id, text, at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at') FROM json_each(?)",
+      roomId,
+      JSON.stringify(rows),
+    )
+    await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + LOOPS_DELAY_MS)
+  }
+
+  private async loopsNow(): Promise<void> {
+    const rows = this.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
+    const rooms = new Map<RoomId, typeof rows>()
+    for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
+    for (const [roomId, burst] of rooms) {
+      const out = await this.#initiative.heard(roomId, burst.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at })))
+      // Jev failed: the agent's own run and the summary pass still see these words, so nothing waits.
+      if (out === "later") this.count({ loops_jev_failed: 1 })
+      this.sql.exec("DELETE FROM loop_heard WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(burst.map((r) => r.message_id)))
+    }
+    if (this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM loop_heard").one().n) await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now())
+  }
+
   private apply(op: ChatOp): UserEvent | null {
     if (movesYukiChat(this.sql, op) || this.duplicateOf(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
@@ -1197,35 +1352,19 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private lastChat(): RoomId | undefined {
-    const stored = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", LAST_CHAT).toArray()[0]?.value
+    const stored = this.setting(LAST_CHAT)
     const chat = stored ? getChat(this.sql, stored) : null
     return chat && !chat.temp ? chat.roomId : (yukiChatRoom(this.sql) ?? undefined)
   }
 
   async ensureHome(): Promise<void> {
     for (const op of yukiChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
-    await this.ensureCheckIn()
-  }
-
-  private async ensureCheckIn(): Promise<void> {
-    if (this.setting(CHECK_IN) !== null) return
-    const roomId = yukiChatRoom(this.sql)
-    if (!roomId || !getChat(this.sql, roomId)) return
-    const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
-    const first = nextOccurrence(CHECK_IN_RULE, tz, Date.now())
-    if (!first) return
-    const out = await this.createRoutine(userIdFromObjectName(this.ctx.id.name), {
-      name: "check-in",
-      instructions: CHECK_IN_INSTRUCTIONS,
-      trigger: { on: "time", at: first.toISOString(), rrule: CHECK_IN_RULE },
-      grant: [],
-      tz,
-      roomId,
-      target: CHIEF,
-      createdBy: CHIEF,
-      tainted: false,
-    })
-    if (out.ok) this.putSetting(CHECK_IN, out.routine.id)
+    const old = this.setting(OLD_CHECK_IN)
+    if (old !== null) {
+      await this.reminders.cancel(old)
+      deleteSetting(this.sql, OLD_CHECK_IN)
+      deleteSetting(this.sql, OLD_CHECK_IN_SEEN)
+    }
   }
 
   private saveAgent(agent: Agent): Agent | null {
@@ -1281,6 +1420,42 @@ export class UserDO extends DurableObject<Env> {
       .map((r) => JSON.parse(r.body) as UserEvent)
     return { t: "events", events }
   }
+
+  // The human's own surfaces for initiative (architecture section 26): the loops list and two settings.
+
+  async loopsFor(roomId: string | null): Promise<LoopRow[]> {
+    return this.#loops.list({ owner: "human", status: ["open", "snoozed"], ...(roomId ? { room: roomId } : {}), limit: 200 }).map(loopRow)
+  }
+
+  async loopAct(id: number, action: LoopAction): Promise<boolean> {
+    if (this.#loops.get(id)?.owner !== "human") return false
+    if (action.action === "snooze") return this.#loops.snooze(id, action.until)
+    return this.loopClose(id, action.action === "done" ? "done" : "dropped")
+  }
+
+  async userSettings(): Promise<UserSettings> {
+    return { initiative: this.initiativeLevel(), capture: this.policy().capture }
+  }
+
+  async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
+    if (patch.initiative) {
+      this.putSetting("initiative", patch.initiative)
+      await this.#engine.arm()
+    }
+    if (patch.capture) {
+      let stored: Record<string, unknown> = {}
+      try {
+        const parsed: unknown = JSON.parse(this.setting(MEMORY_POLICY) ?? "{}")
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Record<string, unknown>
+      } catch {}
+      this.putSetting(MEMORY_POLICY, JSON.stringify({ ...stored, capture: patch.capture }))
+    }
+    return this.userSettings()
+  }
+}
+
+function loopRow(l: Loop): LoopRow {
+  return { id: l.id, kind: l.kind, certainty: l.certainty, owner: l.owner, room: l.room, due: l.due, status: l.status, text: l.text, snoozedUntil: l.snoozedUntil }
 }
 
 function send(ws: WebSocket, frame: UserToClient): void {

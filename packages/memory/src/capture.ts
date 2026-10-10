@@ -144,12 +144,7 @@ export async function captureWithJudge(life: Life, judge: Judge, heard: Heard, r
     if (!standing && boolOf(answers[`c${i}_worth`]) < policy.worthMin) return
     const replaced = known.filter((k) => boolOf(answers[`c${i}_replaces_${k.pos}`]) >= policy.relationMin).map((k) => k.pos)
     if (!replaced.length && known.some((k) => boolOf(answers[`c${i}_same_${k.pos}`]) >= policy.relationMin)) return void count.same++
-    const out = life.append(candidate, SOURCE, false, heard.at, { ref, card })
-    if (!out.ok) return
-    if (out.duplicate) return void count.same++
-    const superseded = replaced.filter((pos) => life.supersede(pos, out.pos)).length
-    if (superseded) count.replaced += superseded
-    else count.added++
+    store(life, candidate, card, heard.at, ref, replaced, count)
   })
   return count
 }
@@ -233,9 +228,15 @@ export function applyOps(life: Life, ops: readonly CaptureOp[], heard: readonly 
 
 function apply(life: Life, op: CaptureOp, ref: string, at: number, count: CaptureCount): void {
   if (op.kind === "same") return void count.same++
-  const out = life.append(op.text, SOURCE, false, at, { ref, card: op.card })
+  store(life, op.text, op.card, at, ref, op.kind === "replace" ? [op.pos] : [], count)
+}
+
+/** Appends one fact, supersedes the facts it replaces, and counts what happened. */
+function store(life: Life, text: string, card: CardTag | null, at: number, ref: string, replaces: readonly number[], count: CaptureCount): void {
+  const out = life.append(text, SOURCE, false, at, { ref, card })
   if (!out.ok) return
   if (out.duplicate) return void count.same++
-  if (op.kind === "replace" && life.supersede(op.pos, out.pos)) count.replaced++
+  const superseded = replaces.filter((pos) => life.supersede(pos, out.pos)).length
+  if (superseded) count.replaced += superseded
   else count.added++
 }

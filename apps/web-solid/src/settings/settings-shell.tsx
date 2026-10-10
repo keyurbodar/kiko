@@ -18,6 +18,7 @@ import { Button, Group, Hint, Item, Page } from "./kit"
 // The appearance section and its validator load with the section, not with the route.
 const Appearance = lazy(() => import("../theme/appearance"))
 // The extensions section, with the manifest review and the code view, loads with the section too.
+const Initiative = lazy(() => import("./initiative"))
 const Extensions = lazy(() => import("./extensions"))
 
 function Account() {
@@ -55,6 +56,11 @@ const COMPONENTS: Record<string, (props: {}) => JSX.Element> = {
   appearance: () => (
     <Suspense>
       <Appearance />
+    </Suspense>
+  ),
+  initiative: () => (
+    <Suspense>
+      <Initiative />
     </Suspense>
   ),
   extensions: () => (

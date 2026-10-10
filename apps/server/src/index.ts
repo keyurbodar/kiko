@@ -15,6 +15,7 @@ import { experimentCoalescingRoute } from "./experiments/coalescing"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 import { hooksRoute } from "./user/hooks-route"
+import { loopsRoute } from "./user/loops-route"
 import { routinesRoute } from "./user/routines-route"
 import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
@@ -60,6 +61,8 @@ export default {
     if (hooked) return hooked
     const routines = await routinesRoute(request, env)
     if (routines) return routines
+    const loops = await loopsRoute(request, env)
+    if (loops) return loops
     const soul = await soulRoute(request, env)
     if (soul) return soul
     const searched = await searchRoute(request, env)

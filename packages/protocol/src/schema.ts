@@ -20,7 +20,7 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 // Envelope
 
-export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files", "created", "routine", "stalled"])
+export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "approval_result", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative"])
 export const Origin = Schema.Literals(["human", "routine", "auto"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
@@ -113,6 +113,7 @@ export const Message = Schema.Struct({
 	goto: Schema.optionalKey(RoomId),
 	quote: Schema.optionalKey(Schema.String),
 	to: Schema.optionalKey(Schema.Union([AgentSlug, Schema.Literal("all")])),
+	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
 })
 
 export const Member = Schema.Struct({
@@ -603,3 +604,5 @@ export type InSync = Assert<
 	| Same<typeof ExtensionOp.Type, P.ExtensionOp>
 	| Same<typeof ExtensionResult.Type, P.ExtensionResult>
 >
+
+export * from "./loops"

@@ -178,6 +178,10 @@ const MIGRATIONS: readonly string[] = [
 	-- fact and never by the text. Null on every other message, and on agent mail stored before.
 	ALTER TABLE messages ADD COLUMN addressed TEXT;
 	`,
+	`
+	-- The one line a bubble shows when the agent spoke up unasked (section 26). Null on every other message.
+	ALTER TABLE messages ADD COLUMN initiative TEXT;
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */

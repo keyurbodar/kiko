@@ -1,3 +1,5 @@
+import { deleteSetting, getSetting, setSetting } from "../lib/settings"
+
 // The user's one theme record. It is the JSON text the client validated, kept as a
 // string in the `settings` table. The server checks the size and that it is a version 1
 // object. The client does the full check, and never applies a theme that fails it.
@@ -6,8 +8,7 @@ export const THEME_KEY = "theme"
 export const THEME_MAX_CHARS = 32 * 1024
 
 export function getTheme(sql: SqlStorage): string | null {
-  const row = sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", THEME_KEY).toArray()[0]
-  return row ? row.value : null
+  return getSetting(sql, THEME_KEY)
 }
 
 /** True when `text` may be stored: small, valid JSON, an object with `version` 1. */
@@ -25,7 +26,7 @@ export function isStorableTheme(text: unknown): text is string {
 export function setTheme(sql: SqlStorage, theme: string | null): boolean {
   if (theme !== null && !isStorableTheme(theme)) return false
   if (getTheme(sql) === theme) return false
-  if (theme === null) sql.exec("DELETE FROM settings WHERE key = ?", THEME_KEY)
-  else sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", THEME_KEY, theme)
+  if (theme === null) deleteSetting(sql, THEME_KEY)
+  else setSetting(sql, THEME_KEY, theme)
   return true
 }
