@@ -58,4 +58,5 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | Suite or command | Feature file |
 | --- | --- |
 | `yuki health` | [health](./features/health.md) |
+| `composio` | [composio](./features/composio.md) |
 | `selftest` | runner self check, no feature file |
