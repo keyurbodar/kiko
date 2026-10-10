@@ -5,8 +5,11 @@ export interface ProviderInfo {
   provider: string
   kind: Credential["type"]
   last4: string
-  /** The provider answered 401 or 403 to this key. Only TypeSafe sets it. */
+  /** The provider answered 401 or 403 to this key. Only a judge sets it. */
   refused?: true
+  /** From pi-ai's catalog: the provider runs chat models, classifier models (a judge), or both. */
+  chat?: boolean
+  judge?: boolean
 }
 
 export class CredentialError extends Error {}

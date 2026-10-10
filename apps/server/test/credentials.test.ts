@@ -86,14 +86,14 @@ test("connect, list, and disconnect through the real UserDO return no key", asyn
   const user = fresh()
   const key = newKey()
   const info = await rpc(user, "connectProvider", "opencode-go", key)
-  expect(info.result).toEqual({ provider: "opencode-go", kind: "api_key", last4: key.slice(-4) })
+  expect(info.result).toEqual({ provider: "opencode-go", kind: "api_key", last4: key.slice(-4), chat: true, judge: false })
   expect((await rpc(user, "listProviders")).result).toEqual([info.result])
 
   expect((await rpc(fresh(), "listProviders")).result).toEqual([])
 
   const next = newKey()
   await rpc(user, "connectProvider", "opencode-go", next)
-  expect((await rpc(user, "listProviders")).result).toEqual([{ provider: "opencode-go", kind: "api_key", last4: next.slice(-4) }])
+  expect((await rpc(user, "listProviders")).result).toEqual([{ provider: "opencode-go", kind: "api_key", last4: next.slice(-4), chat: true, judge: false }])
 
   expect((await rpc(user, "disconnectProvider", "opencode-go")).result).toBe(true)
   expect((await rpc(user, "listProviders")).result).toEqual([])

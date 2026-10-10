@@ -113,7 +113,6 @@ export class Life {
       }))
   }
 
-  /** Pinned lines first, then live card-tagged lines newest first, at most CARD_MAX in all. */
   card(): { pos: number; text: string; pinned: boolean }[] {
     const pins = this.sql.exec<Row>(`SELECT pos, text FROM life WHERE pinned = 1 AND ${LIVE} ORDER BY pos`).toArray()
     const tagged = this.sql
@@ -152,11 +151,7 @@ export class Life {
     return rows.map(toLine)
   }
 
-  /** The live lines closest to `text`, matched on its content words. */
-  /**
-   * Facts a new line may repeat or correct: keyword matches first, then the card and the newest lines,
-   * because a correction often shares no word with what it corrects ("i moved to pune" against "lives in bangalore").
-   */
+  /** Keyword matches first, then the card and the newest lines, since a correction often shares no word with what it corrects. */
   nearest(text: string, limit: number): LifeLine[] {
     const words = [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
     const hits = words.length ? this.recall(words.join(" "), limit) : []
@@ -200,7 +195,6 @@ export class Life {
     })
   }
 
-  /** Distinct refs of unredacted lines that start with `prefix`. */
   refsLike(prefix: string): string[] {
     return this.sql
       .exec<{ ref: string }>("SELECT DISTINCT ref FROM life WHERE redacted = 0 AND substr(ref, 1, ?) = ?", prefix.length, prefix)
