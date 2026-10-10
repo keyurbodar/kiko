@@ -710,6 +710,8 @@ v2 is a beta (`2.0.0-beta.8`), separate from v1: a v1 account and its integratio
 - A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A tainted run needs a card for reads through it too. UNVERIFIED: that every app tool run through it honors read-only intent. It is classed `external` for that reason.
 - The MCP contract is Composio's and may change. All Composio code sits in `integrations/composio/`, and `bun yuki verify composio` checks it against the real server.
 
+**Learned direct tools.** A Composio tool that ran successfully through `COMPOSIO_MULTI_EXECUTE_TOOL` is kept with its published input schema in `UserDO`, at most 24, most recent first. Disconnect clears them. Later runs offer each one as a typed tool, `composio_<slug>`, that runs as a one-item multi-execute, so a repeat request skips `COMPOSIO_SEARCH_TOOLS` and its extra model turn. Composio's search description says to always search first, so when learned tools exist, yuki prefixes it with a line naming them. Learned tools are `external`. Measured 2026-10-10 with Muse Spark 1.3: a repeat web search chat took 6.5 to 7.3 s, against 10.2 to 10.6 s with search.
+
 ## 13. Memory
 
 **Decision.** Memory is a log, not a set of records and not a transcript. Two logs exist: a room's own messages, read as turns, and each user's life log. Over each sits a binary tree of one-line summaries. Every run starts from a bounded view of both, the `<memory>` block, and the model sees nothing older than that run. The design follows OptMem (github.com/VictorTaelin/OptMem, read at commit 1fb164c) and keeps its one rule: the history is the memory, and context is a view of it.
