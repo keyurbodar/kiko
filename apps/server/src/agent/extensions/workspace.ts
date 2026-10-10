@@ -5,6 +5,7 @@ import { roomStub } from "../../lib/names"
 import type { AgentHome } from "../../room/room-do"
 import { TASK_STATUSES, type WorkspaceAnswer, type WorkspaceCall } from "../../room/workspace"
 import { declareEffect } from "@yuki/agent/effects"
+import { isRunTainted } from "@yuki/agent/trust"
 
 export const WORKSPACE = "workspace"
 
@@ -27,7 +28,7 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
       note: Type.Optional(Type.String()),
     }),
     replay: "safe",
-    execute: async (args) => answer(await port.call({ op: "update_task", id: args.id, status: args.status, ...(args.note ? { note: args.note } : {}) })),
+    execute: async (args, api) => answer(await port.call({ op: "update_task", id: args.id, status: args.status, ...(args.note ? { note: args.note } : {}), tainted: isRunTainted(api) })),
   })
 
   const createTask = defineTool({
@@ -42,7 +43,7 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
     execute: async (args, api, context) => {
       const id = await api.memo("task-id", newTaskId(), context)
       const owner = args.owner?.replace(/^@/, "")
-      return answer(await port.call({ op: "create_task", id, title: args.title, ...(owner ? { owner } : {}), ...(args.depends_on ? { dependsOn: args.depends_on } : {}) }))
+      return answer(await port.call({ op: "create_task", id, title: args.title, ...(owner ? { owner } : {}), ...(args.depends_on ? { dependsOn: args.depends_on } : {}), tainted: isRunTainted(api) }))
     },
   })
 

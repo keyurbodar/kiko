@@ -84,6 +84,8 @@ export class InitiativeEngine {
     sql.exec("CREATE TABLE IF NOT EXISTS initiative_wakes (id TEXT PRIMARY KEY, room TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, ids TEXT NOT NULL, at INTEGER NOT NULL, status TEXT NOT NULL)")
     sql.exec("CREATE TABLE IF NOT EXISTS initiative_rooms (room_id TEXT PRIMARY KEY, human_at INTEGER NOT NULL)")
     sql.exec("CREATE TABLE IF NOT EXISTS loop_reminders (reminder_id TEXT PRIMARY KEY, loop_id INTEGER NOT NULL)")
+    // When a loop last went into a run's brief. Kept apart from marks: a brief line is not a nudge, so it is never an ignore.
+    sql.exec("CREATE TABLE IF NOT EXISTS initiative_briefed (loop_id INTEGER PRIMARY KEY, at INTEGER NOT NULL)")
   }
 
   /** A reminder an agent set for itself keeps loop `loopId`: while it is active the loop is not a candidate. */
@@ -208,7 +210,7 @@ export class InitiativeEngine {
         const owner = t.status === "review" || !t.owner ? "human" : t.owner
         add(
           `task:${r.room_id}:${t.id}:${t.updatedAt}`,
-          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, mentions: 1, lastSeen: t.updatedAt, tainted: false },
+          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, mentions: 1, lastSeen: t.updatedAt, tainted: t.tainted === true },
           { text: t.title, line: `task ${t.id} "${t.title}" is ${t.status}${t.owner ? `, owner @${t.owner}` : ""}, untouched ${ago(t.updatedAt, now)}`, reason: `Untouched for ${span(now - t.updatedAt)}` },
         )
       }
@@ -310,19 +312,32 @@ export class InitiativeEngine {
   }
 
   /**
-   * The brief channel: at most two of the human's open loops in this chat (or, in the yuki chat, loops
-   * of no chat), past their rest, most pressing first. The agent decides whether to bring one up.
+   * The brief channel: at most two of the human's explicit, untainted open loops in this chat (or, in
+   * the yuki chat, loops of no chat), past their rest, most pressing first. The agent decides whether to
+   * bring one up. A loop shown rests one rhythm cycle before it is shown again.
    */
   noticed(roomId: string, skip: ReadonlySet<number>, now = Date.now()): string[] {
     if (this.d.level() === "off") return []
     const rhythm = view(this.store.rhythm(), now, this.d.tz())
     const appetite = this.store.appetite()
-    return this.items(now, rhythm.cycle)
-      .filter((i) => i.loopId !== undefined && i.c.owner === "human" && i.c.room === roomId && !skip.has(i.loopId) && now >= restUntil(appetite, i.c, rhythm.cycle, now))
+    const briefed = new Map(this.d.sql.exec<{ loop_id: number; at: number }>("SELECT loop_id, at FROM initiative_briefed").toArray().map((r) => [r.loop_id, r.at]))
+    const picked = this.items(now, rhythm.cycle)
+      .filter(
+        (i) =>
+          i.loopId !== undefined &&
+          i.c.owner === "human" &&
+          i.c.room === roomId &&
+          i.c.certainty === "explicit" &&
+          !i.c.tainted &&
+          !skip.has(i.loopId) &&
+          now >= restUntil(appetite, i.c, rhythm.cycle, now) &&
+          now >= (briefed.get(i.loopId) ?? -Infinity) + rhythm.cycle,
+      )
       .map((i) => ({ i, s: score(i.c, { now, rhythm }) }))
       .sort((a, b) => b.s - a.s)
       .slice(0, NOTICED_MAX)
-      .map(({ i }) => i.line)
+    for (const { i } of picked) this.d.sql.exec("INSERT INTO initiative_briefed (loop_id, at) VALUES (?, ?) ON CONFLICT(loop_id) DO UPDATE SET at = excluded.at", i.loopId!, now)
+    return picked.map(({ i }) => i.line)
   }
 
   // Development only (section 26.8): time travel and a known rhythm, so a suite can prove a day in seconds.
@@ -336,6 +351,7 @@ export class InitiativeEngine {
       if (!Number.isNaN(at)) sql.exec("UPDATE loops SET due = ? WHERE id = ?", new Date(at - ms).toISOString(), r.id)
     }
     sql.exec("UPDATE initiative_marks SET last_at = last_at - ?", ms)
+    sql.exec("UPDATE initiative_briefed SET at = at - ?", ms)
     sql.exec("UPDATE initiative_wakes SET at = at - ?", ms)
     sql.exec("UPDATE initiative_rooms SET human_at = human_at - ?", ms)
     setSetting(this.d.sql, LAST_PASS, String(this.lastPass() - ms))

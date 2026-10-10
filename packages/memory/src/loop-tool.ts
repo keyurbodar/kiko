@@ -1,13 +1,13 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
-import { isRunTainted } from "@yuki/agent/trust"
+import { isRunTainted, markRunTainted } from "@yuki/agent/trust"
 import { type Certainty, type Loop, LOOP_KINDS, type LoopKind, loopLine, type OpenResult } from "./loops"
 
 export const LOOPS = "loops"
 
 export type LoopPort = {
-  /** `mine` makes the calling agent the owner: its own promise. */
+  /** Every call is scoped to the agent's own chat. `mine` makes the calling agent the owner: its own promise. */
   open(input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; mine: boolean; same?: number; tainted: boolean }): Promise<OpenResult>
   close(id: number, status: "done" | "dropped"): Promise<boolean>
   list(): Promise<Loop[]>
@@ -48,6 +48,8 @@ export function loopExtension(port: () => LoopPort | null): Extension {
       const p = use()
       if (args.action === "list") {
         const all = await p.list()
+        // A loop a tainted run opened is outside content: the trust extension wraps this result and taints the run.
+        if (all.some((l) => l.tainted)) markRunTainted(api, "loop")
         return { content: text(all.length ? all.map(loopLine).join("\n") : "no open loops") }
       }
       if (args.action === "close") {

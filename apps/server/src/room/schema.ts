@@ -182,6 +182,10 @@ const MIGRATIONS: readonly string[] = [
 	-- The one line a bubble shows when the agent spoke up unasked (section 26). Null on every other message.
 	ALTER TABLE messages ADD COLUMN initiative TEXT;
 	`,
+	`
+	-- 1 once a run that read outside content created or changed the task (section 26.6), so a nudge about it wakes tainted.
+	ALTER TABLE ws_tasks ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0;
+	`,
 ]
 
 /** Brings the tables up to date in one transaction. Safe to call on every start. */
