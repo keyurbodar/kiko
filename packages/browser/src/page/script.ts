@@ -191,7 +191,12 @@ for (const c of kept) {
 }
 const text = (document.body ? document.body.innerText : "").slice(0, ${BROWSER.textMax});
 let h = 2166136261;
-const head = text.slice(0, 2000);
+// Field values and checked state are part of the key, so filling a form reads as progress. Scrolling is not.
+let head = text.slice(0, 2000);
+for (const c of controls) {
+  const s = (c.state || "").replace("offscreen", "");
+  if (c.value || s.trim()) head += "|" + (c.value || "") + s;
+}
 for (let i = 0; i < head.length; i++) { h ^= head.charCodeAt(i); h = Math.imul(h, 16777619); }
 const url = location.href;
 const json = JSON.stringify({

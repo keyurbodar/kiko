@@ -1,4 +1,4 @@
-// The step-time lever: three fixed tasks through connect() + runTasks on one Kernel browser, no server.
+// The step-time lever: four fixed tasks through connect() + runTasks on one Kernel browser, no server.
 // Usage: bun packages/browser/scripts/bench.ts [--runs 3] [--decider model|jev|both]
 // Keys come from the environment or apps/server/.dev.vars. They are never printed.
 // The port adapters send the same requests as apps/server/src/agent/browser/deciders.ts.
@@ -9,7 +9,7 @@ import { modelDecider } from "../src/decide/model"
 import type { JevPort, ModelPort } from "../src/decide/ports"
 import type { Choice, Decider } from "../src/decide/types"
 import type { PageView, Tab } from "../src/page/types"
-import { runTasks } from "../src/worker/run"
+import { runTask } from "../src/worker/run"
 import type { Task, TaskResult } from "../src/worker/types"
 
 const dev = (() => {
@@ -109,8 +109,10 @@ const jevPort: JevPort = {
 }
 
 const empties: string[] = []
+let modelCalls = 0
 const modelPort = (session: string): ModelPort => ({
   async complete(system, user, signal) {
+    modelCalls++
     const res = await fetch("https://opencode.ai/zen/go/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${MODEL_KEY}`, "Content-Type": "application/json", "x-opencode-session": session },
@@ -181,7 +183,19 @@ const BENCH: Bench[] = [
     task: { url: "https://example.com", goal: "find the main heading" },
     ok: (r, p) => r.stop !== "crashed" && /Example Domain/.test(`${p.title} ${p.text}`),
   },
+  {
+    task: {
+      url: "https://httpbin.org/forms/post",
+      goal: "fill the pizza order form with the customer name, telephone and email, pick a medium size and the bacon topping, and submit the order",
+      values: { name: "Ada Lovelace", telephone: "555-0100", email: "ada@example.com" },
+    },
+    // httpbin echoes the posted form as JSON.
+    ok: (r, p) =>
+      r.stop !== "crashed" &&
+      [/"custname": "Ada Lovelace"/, /"custtel": "555-0100"/, /"custemail": "ada@example.com"/, /"size": "medium"/, /"topping": "bacon"/].every((re) => re.test(p.text)),
+  },
 ]
+const NAMES = ["hn", "wiki", "example", "form"]
 const decode = (s: string) => s.replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")
 const newest = await (await fetch("https://news.ycombinator.com/newest")).text()
 topTitles = [...newest.matchAll(/<span class="titleline"><a [^>]*>([^<]+)<\/a>/g)].slice(0, 10).map((m) => decode(m[1] ?? ""))
@@ -261,7 +275,9 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
   tokens.length = 0
   outTokens.length = 0
   empties.length = 0
+  modelCalls = 0
   let okCount = 0
+  const perTask = BENCH.map(() => ({ ok: 0, walls: [] as number[], decisions: 0 }))
   const decisionsPerTask: number[] = []
   const walls: number[] = []
   const failures: string[] = []
@@ -275,16 +291,26 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
       const tabs = raw.map((t) => timed(t, () => sessionOfTarget.get(t.id) ?? "", opening))
       let decisions = 0
       const base = make(run)
-      const decider: Decider = {
+      const deciderFor = (i: number): Decider => ({
         name: base.name,
         decide: async (input, signal) => {
           decisions++
+          perTask[i]!.decisions++
           return base.decide(input, signal)
         },
-      }
+      })
       phase = "run"
       const t0 = performance.now()
-      const results = await runTasks(tabs, BENCH.map((b) => b.task), { decider, paused: () => false, signal: AbortSignal.timeout(120_000), opened: AT_URL })
+      // runTasks, one task per worker, with a stopwatch per task.
+      const signal = AbortSignal.timeout(120_000)
+      const results = await Promise.all(
+        BENCH.map(async (b, i) => {
+          const at = performance.now()
+          const r = await runTask(tabs[i]!, b.task, { decider: deciderFor(i), paused: () => false, signal, opened: AT_URL })
+          perTask[i]!.walls.push(performance.now() - at)
+          return r
+        }),
+      )
       const wall = performance.now() - t0
       decisionsPerTask.push(decisions / BENCH.length)
       walls.push(performance.now() - opening)
@@ -293,8 +319,11 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
         phase = `final read ${i}`
         const page = await raw[i]!.read()
         const good = BENCH[i]!.ok(r, page)
-        if (good) okCount++
-        else failures.push(`run ${run} task ${i}: ${r.stop} ${r.note ?? ""} ${r.actions.join(" | ")} @ ${page.url}`.slice(0, 300))
+        if (good) {
+          okCount++
+          perTask[i]!.ok++
+        }
+        else failures.push(`run ${run} task ${i}: ${r.stop} ${r.note ?? ""} ${r.actions.join(" | ")} @ ${page.url} options: ${(r.options ?? []).join(" ; ")}`.slice(-400))
       }
       console.log(`  ${name} run ${run}: ${(wall / 1000).toFixed(1)} s, ${results.map((r) => `${r.stop}(${r.actions.length})`).join(" ")}`)
       if (process.argv.includes("--verbose")) for (const r of results) console.log(`    ${r.actions.join(" | ")} @ ${r.url}`)
@@ -322,6 +351,14 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
     p50_out_tokens: pct(outTokens, 0.5),
     p50_start: Math.round(pct(starts, 0.5)),
     p50_run_wall: Math.round(pct(walls, 0.5)),
+    empty_rate: modelCalls ? `${empties.length}/${modelCalls}` : "-",
+    ...Object.fromEntries(
+      perTask.flatMap((t, i) => [
+        [`${NAMES[i]}_ok`, `${t.ok}/${RUNS}`],
+        [`${NAMES[i]}_wall`, Math.round(pct(t.walls, 0.5))],
+        [`${NAMES[i]}_dec`, +(t.decisions / RUNS).toFixed(1)],
+      ]),
+    ),
   }
   for (const f of failures) console.log(`  FAIL ${f}`)
   if (empties.length) console.log(`  empty model answers: ${empties.length}: ${[...new Set(empties)].slice(0, 4).join("; ")}`)

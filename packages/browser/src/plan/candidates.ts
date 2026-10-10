@@ -11,7 +11,16 @@ const LABEL_MAX = 60
 const ASK_FIELDS = 2
 
 const clip = (s: string) => (s.length > LABEL_MAX ? `${s.slice(0, LABEL_MAX - 1)}…` : s)
-const hintOf = (c: Control, nav: boolean) => (c.hint ? ` (${c.hint})` : nav ? " (top nav)" : "")
+const hintOf = (c: Control, nav: boolean) => {
+  const marks = [c.hint ?? (nav ? "top nav" : ""), filled(c)].filter(Boolean)
+  return marks.length ? ` (${marks.join(", ")})` : ""
+}
+/** Whether a field already holds something, never what: values do not go to a decider. */
+const filled = (c: Control) => {
+  const f = c.state?.split(" ") ?? []
+  if (f.includes("checked")) return "checked"
+  return c.value && (TEXT_ROLES.has(c.role) || SELECT_ROLES.has(c.role)) ? "filled" : ""
+}
 
 /** Weighted word overlap. A word that few controls carry counts more than one every control carries. */
 function scoreControls(page: PageView, goal: string): number[] {
@@ -27,6 +36,11 @@ function scoreControls(page: PageView, goal: string): number[] {
 
 export function keep(page: PageView, goal: string, max: number = BROWSER.candidates): { control: Control; nav: boolean }[] {
   const cs = page.controls
+  // Ranking only matters over budget. Under it, a field whose label shares no goal word ("E-mail") stays.
+  if (cs.length <= max) {
+    let links = 0
+    return cs.map((control) => ({ control, nav: control.role === "link" && links++ < BROWSER.navKept }))
+  }
   const nav = new Set<number>()
   for (let i = 0; i < cs.length && nav.size < BROWSER.navKept; i++) if (cs[i].role === "link") nav.add(i)
   const scores = scoreControls(page, goal)

@@ -55,6 +55,20 @@ describe("candidates", () => {
     expect(t[0].step).toMatchObject({ op: "type", text: "" })
   })
 
+  test("a small form keeps a field that shares no goal word, and says which fields are already set, never their values", () => {
+    const p = page("form", [
+      { role: "textbox", label: "Customer name:", value: "Ada" },
+      { role: "textbox", label: "E-mail address:" },
+      { role: "radio", label: "Medium", state: "checked" },
+      { role: "button", label: "Submit order" },
+    ])
+    const cs = choices(p, "fill in the customer name and email and submit", { name: "Ada", email: "a@b.c" })
+    expect(cs.map((c) => c.key)).toContain("t2v1")
+    expect(cs.find((c) => c.key === "t1v0")?.text).toBe('1 type name into textbox "Customer name:" (filled)')
+    expect(cs.find((c) => c.key === "k3")?.text).toBe('3 click radio "Medium" (checked)')
+    expect(cs.some((c) => c.text.includes("Ada"))).toBe(false)
+  })
+
   test("select options come from provided values", () => {
     const p = page("s", [{ role: "select", label: "Color" }])
     const s = choices(p, "pick a color", { color: "Red" }).find((c) => c.step.op === "select")
