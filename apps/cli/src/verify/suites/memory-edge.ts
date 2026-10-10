@@ -262,12 +262,14 @@ const suite: Suite = {
     }
     if (jevKey) {
       await say(home, "mi hermana se llama Ximena y vive en Valencia")
-      await poll("a live line about ximena", 90_000, async () => (await live(/ximena/i)).length > 0)
+      // Ximena is also a friend in the rerank case, so match the sister.
+      const sister = /ximena.*(sister|hermana)|(sister|hermana).*ximena/i
+      await poll("a live line about the sister ximena", 90_000, async () => (await live(sister)).length > 0)
       await settle()
       const fresh = await openChat(user, s, "memory edge spanish recall")
       const reply = await say(fresh, "how is my sister called and where does she live?")
       if (!/ximena/i.test(reply) || !/valencia/i.test(reply)) throw new VerifyError(`a new chat did not say ximena and valencia: ${JSON.stringify(reply)}`)
-      ok("non-English fact", `live line ${lineTexts(await live(/ximena/i))}; a new chat answered ${JSON.stringify(reply.slice(0, 80))}`)
+      ok("non-English fact", `live line ${lineTexts(await live(sister))}; a new chat answered ${JSON.stringify(reply.slice(0, 80))}`)
       close(fresh)
     }
     {
@@ -277,7 +279,8 @@ const suite: Suite = {
       await say(group, "my brother teo lives in oslo, tell @bo too", 120_000)
       await poll("a line about teo", 60_000, async () => (await live(/\bteo\b|oslo/i)).length > 0)
       await settle()
-      const hit = await live(/\bteo\b|oslo/i)
+      // The human's own words are stored too; two agents noting the same fact is what must not happen.
+      const hit = (await live(/\bteo\b|oslo/i)).filter((l) => l.source !== "you")
       if (hit.length !== 1) throw new VerifyError(`expected exactly one live line about teo, found ${hit.length}: ${lineTexts(hit)}`)
       const fresh = await openChat(user, s, "memory edge group recall")
       const reply = await say(fresh, "where does my brother live?")
