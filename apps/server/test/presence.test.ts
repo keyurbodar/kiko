@@ -3,8 +3,6 @@ import { describeCall, failed } from "../src/agent/extensions/presence"
 
 // Architecture section 7.12: what the team board says about a tool call, and what it keeps quiet.
 test("every kind of call reads as a few plain words; memory and team talk stay off the board", () => {
-  expect(describeCall("composio_gmail_send", {})).toBe("using gmail send (connected apps)")
-  expect(describeCall("composio_remote_workbench", { code: "..." })).toBe("running code on the human's connected apps")
   expect(describeCall("edit", { path: "/hello.html" })).toBe("editing /hello.html")
   expect(describeCall("read", { path: "notes/plan.md" })).toBe("reading /notes/plan.md")
   expect(describeCall("web_fetch", { url: "https://x.test" })).toBe("reading a web page")

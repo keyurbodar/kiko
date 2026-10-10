@@ -23,7 +23,8 @@ import { roomWorkspacePort } from "./extensions/workspace"
 import { type Approvals, isRunTainted } from "@yuki/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
-import type { ComposioTool } from "../integrations/composio/client"
+import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
+import { learnedNote } from "../integrations/composio/tools"
 
 import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
 import type { GuestResponse, Installed, ScriptPorts } from "@yuki/sandbox/compile"
@@ -311,6 +312,7 @@ export class AgentDO extends DurableObject<Env> {
     const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const composio = await this.composioTools()
+    const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const scripts = this.scriptPorts()
     const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), approvals: this.approvalsPort(), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
@@ -327,10 +329,13 @@ export class AgentDO extends DurableObject<Env> {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
         const down = composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
+        const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
-        return [clock, down, quiet, extensions].filter(Boolean).join("\n\n")
+        return [clock, down, learned, quiet, extensions].filter(Boolean).join("\n\n")
       },
+      // A tool another agent learned since this one opened shows up at its next run.
+      ...(home ? { stale: () => userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false) } : {}),
       ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
       beforeCompact: (harness) => this.carryUsage(harness),
     }

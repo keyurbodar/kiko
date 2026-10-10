@@ -3,6 +3,7 @@
 // The user's consumer key (`ck_...`) goes in `x-consumer-api-key`, the header Composio documents for it. It is never put in an error or a log.
 
 export const COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp"
+const CATALOG_URL = "https://backend.composio.dev/api/v3.1/tools/"
 export const REJECTED = "Composio rejected this key"
 
 export type ComposioTool = {
@@ -106,3 +107,17 @@ export async function callTool(key: string, name: string, args: Record<string, u
   })
   return { content, ...(result?.isError ? { isError: true } : {}) }
 }
+
+/** Whether Composio's tool catalog tags `slug` read-only. Needs a developer key: consumer keys are refused. */
+export async function catalogReadOnly(key: string, slug: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  const res = await fetchImpl(`${CATALOG_URL}${encodeURIComponent(slug)}`, { headers: { "x-api-key": key }, signal: AbortSignal.timeout(10_000) })
+  if (!res.ok) {
+    await res.body?.cancel()
+    throw new ComposioError(`Composio's catalog answered ${res.status}`, res.status)
+  }
+  const { tags } = (await res.json()) as { tags?: unknown }
+  return Array.isArray(tags) && tags.includes("readOnlyHint")
+}
+
+/** The learned tools and their classes. An open agent whose set differs reloads before its next run. */
+export const learnedSignature = (tools: readonly ComposioTool[]): string => tools.flatMap((t) => (t.direct ? [`${t.name}${t.readOnly ? ":read" : ""}`] : [])).join(" ")

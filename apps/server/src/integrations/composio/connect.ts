@@ -1,8 +1,8 @@
 import type { ComposioStatus } from "@yuki/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-stats"
-import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, listTools } from "./client"
-import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded, trimSearch } from "./learn"
+import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, learnedSignature, listTools } from "./client"
+import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
 import type { ComposioStore } from "./store"
 
 /** A listing older than this is still served, and a new one loads behind it. */
@@ -23,9 +23,11 @@ export class ComposioConnection {
 
   private readonly fetcher: typeof fetch
 
+  /** `catalog` classifies newly learned tools behind the call. Without it they stay `external`. */
   constructor(
     private readonly store: ComposioStore,
     fetcher: typeof fetch = (input, init) => fetch(input, init),
+    private readonly catalog?: { key: string; waitUntil: (work: Promise<unknown>) => void },
   ) {
     this.fetcher = async (input, init) => {
       const t = performance.now()
@@ -64,8 +66,16 @@ export class ComposioConnection {
   async tools(now = Date.now()): Promise<ComposioTool[] | null> {
     const listed = await this.listed(now)
     if (!listed) return null
-    const direct = this.store.learned().map((t): ComposioTool => ({ name: t.slug, description: t.description, inputSchema: t.inputSchema, direct: { slug: t.slug, toolkit: t.toolkit } }))
-    return [...listed, ...direct]
+    return [...listed, ...this.learnedTools()]
+  }
+
+  /** Cheap: no call to Composio. Null when no key is stored. */
+  signature(): string | null {
+    return this.store.connected() ? learnedSignature(this.learnedTools()) : null
+  }
+
+  private learnedTools(): ComposioTool[] {
+    return this.store.learned().map((t) => ({ name: t.slug, description: t.description, inputSchema: t.inputSchema, ...(t.readOnly ? { readOnly: true } : {}), direct: { slug: t.slug, toolkit: t.toolkit } }))
   }
 
   /** A run waits on Composio only when no listing exists yet: an old one is served while a new one loads. */
@@ -91,7 +101,7 @@ export class ComposioConnection {
     return tools
   }
 
-  /** Every agent call passes here, so this is where searches are trimmed and direct tools learned. */
+  /** Every agent call passes here, so this is where direct tools are learned. */
   async call(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
     const generation = this.store.generation
     const out = await callTool(await this.key(), name, args, this.fetcher)
@@ -104,6 +114,7 @@ export class ComposioConnection {
       const learned = this.store.learned()
       const used = succeeded(args, body).flatMap((slug) => this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? [])
       if (used.length) this.store.putLearned(remember(learned, used, Date.now()), generation)
+      for (const c of used) if (!learned.some((t) => t.slug === c.slug)) this.classify(c.slug, generation)
       return out
     }
     for (const c of candidates(body)) {
@@ -114,7 +125,16 @@ export class ComposioConnection {
       if (this.candidates.size <= CANDIDATES_MAX) break
       this.candidates.delete(slug)
     }
-    return name === SEARCH ? { content: [{ type: "text", text: JSON.stringify(trimSearch(body)) }, ...out.content.slice(1)] } : out
+    return out
+  }
+
+  private classify(slug: string, generation: number): void {
+    if (!this.catalog) return
+    const work = catalogReadOnly(this.catalog.key, slug, this.fetcher).then(
+      (readOnly) => this.store.putLearned(this.store.learned().map((t) => (t.slug === slug ? { ...t, readOnly } : t)), generation),
+      () => undefined,
+    )
+    this.catalog.waitUntil(work)
   }
 
   private forgetFailed(slugs: string[], generation: number): void {

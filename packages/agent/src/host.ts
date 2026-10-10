@@ -93,6 +93,8 @@ export type AgentSetup = {
   inputContext?: () => Promise<string | undefined>
   inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
   beforeCompact?: (harness: Harness) => Promise<void>
+  /** True when what setup built is out of date. Asked once before a run starts; the host then sets up again. */
+  stale?: () => Promise<boolean>
 }
 
 export type HostOptions = {
@@ -116,6 +118,7 @@ export type Opened = {
   inputContext?: AgentSetup["inputContext"]
   inputMemory?: AgentSetup["inputMemory"]
   beforeCompact?: AgentSetup["beforeCompact"]
+  stale?: AgentSetup["stale"]
 }
 
 export type HostStatus = {
@@ -176,7 +179,7 @@ export class AgentHost {
     try {
       await this.alarms.dueWakeups(Date.now())
       await this.compactIfDue()
-      const opened = await this.open()
+      const opened = await this.current()
       await this.drain(opened)
       await this.enforceBudget(opened)
       await this.pulse(opened.harness)
@@ -218,11 +221,21 @@ export class AgentHost {
     return opening
   }
 
+  /** The open harness, set up again first when input waits, no run is live, and setup went stale. */
+  private async current(): Promise<Opened> {
+    const opened = await this.open()
+    if (!opened.stale || !this.inbox.hasOpen()) return opened
+    const live = await opened.harness.inspect(context)
+    if (live.tasks.length || live.submissions.length || !(await opened.stale())) return opened
+    await this.drop()
+    return this.open()
+  }
+
   private async openHarness(setup: AgentSetup): Promise<Opened> {
     const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(setup.env ? { env: (target) => setup.env!(target.conversationId) } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
-    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact }
+    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact, stale: setup.stale }
   }
 
   private async crashLooping(harness: Harness): Promise<boolean> {

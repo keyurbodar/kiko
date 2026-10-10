@@ -122,8 +122,10 @@ export type ComposioResult =
 	| {
 			ok: true
 			status: ComposioStatus
-			/** After `connectComposio`, or `composioStatus` with `tools`: the names `tools/list` returned. */
+			/** After `connectComposio`, or `composioStatus` with `tools`: the tools agents get, listed then learned. */
 			tools?: readonly string[]
+			/** With `composioStatus`'s `tools`: those agents get as `read`. */
+			readOnly?: readonly string[]
 	  }
 	| { ok: false; error: string }
 

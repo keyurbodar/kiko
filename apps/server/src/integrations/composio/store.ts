@@ -3,8 +3,8 @@ import type { ComposioTool } from "./client"
 import type { LearnedTool } from "./learn"
 
 /**
- * One user's Composio rows in `UserDO`. `key` is the sealed consumer key, with the same keyring and
- * AAD scheme as Executor's secrets. `listing` is the last tool listing, plain JSON because it holds
+ * One user's Composio rows in `UserDO`. `key` is the sealed consumer key, with the same keyring as
+ * provider credentials and AAD `composio/key`. `listing` is the last tool listing, plain JSON because it holds
  * no secret, kept so a cold object serves it at once. `learned` is the direct tools, plain JSON too.
  * Disconnect deletes every row.
  */

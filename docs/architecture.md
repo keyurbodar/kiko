@@ -418,7 +418,7 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 
 **Decision.** Agents share one chat and one file space, so without a shared picture they race: two answer the same question, two rewrite the same file. The room is where every visible act passes, so it keeps the picture (`room/team.ts`).
 
-- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using gmail (connected apps)", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Composio, web pages, subagents, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
+- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using composio gmail send email", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Composio, web pages, subagents, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
 - **Leases.** The paths an agent changes during a run are its own until the run ends. A teammate's write, move, or delete there is refused with who holds it, so it waits or messages them. Reads stay open, the human is never refused, `/chat.md` is shared, and a lease from a run that never ended expires after 10 minutes.
 - **The rule.** Every agent looks before it acts: if a teammate is on it or just did it, it adds only what is missing or leaves it.
 
@@ -635,15 +635,13 @@ A user pastes the key in settings. `UserDO` checks it with `tools/list` and stor
 
 ### 12.2 Nothing hardcoded
 
-At the start of a run, `AgentDO` asks `UserDO` for the tools Composio lists and registers each one, prefixed `composio_`. Yuki holds no schema for them, and a tool Composio adds upstream appears in the next run. `UserDO` serves the saved listing at once from a cold object and refreshes it behind the run. When Composio is unreachable, the run goes on without its tools and the agent is told so in one line.
+When an agent sets up, `AgentDO` asks `UserDO` for the tools Composio lists and registers every one, prefixed `composio_`, with Composio's own description and output. Yuki holds no schema for them and hides none. `UserDO` serves the saved listing at once from a cold object and refreshes it behind the run. When Composio is unreachable, the run goes on without its tools and the agent is told so in one line.
 
-**Hidden tools.** Yuki does not register `COMPOSIO_REMOTE_BASH_TOOL` (the workbench covers it), `COMPOSIO_SUBMIT_FEEDBACK`, `COMPOSIO_MANAGE_SKILL`, `COMPOSIO_SEARCH_SKILLS`, and `COMPOSIO_USE_SKILL` (yuki has its own skills). The set is one small table with a reason per entry (`integrations/composio/tools.ts`).
-
-**Learned direct tools.** A Composio tool that ran successfully through `COMPOSIO_MULTI_EXECUTE_TOOL` is kept with its published input schema in `UserDO`, at most 24, most recent first. Disconnect clears them. Later runs offer each one as a typed tool, `composio_<slug>`, that runs as a one-item multi-execute, so a repeat request skips `COMPOSIO_SEARCH_TOOLS` and its extra model turn. Composio's search description says to always search first, so when learned tools exist, yuki prefixes it with a line naming them. Measured 2026-10-10 with Muse Spark 1.3: a repeat web search chat took 6.5 to 7.3 s, against 10.2 to 10.6 s with search.
+**Learned direct tools.** A Composio tool that ran successfully through `COMPOSIO_MULTI_EXECUTE_TOOL` is kept with its published input schema in `UserDO`, at most 24, most recent first. Disconnect clears them. Later runs offer each one as a typed tool, `composio_<slug>`, that runs as a one-item multi-execute, so a repeat request skips `COMPOSIO_SEARCH_TOOLS` and its extra model turn. Composio's search description says to always search first, so when learned tools exist, the run's input names them in one line, next to the clock. An open agent asks `UserDO` for a signature of the learned tools and their classes before each run, one read of one row, and sets up again when it changed, so a tool any agent learned reaches every agent's next run. Measured 2026-10-10 with Muse Spark 1.3: a repeat web search chat took 6.5 to 7.3 s, against 10.2 to 10.6 s with search.
 
 ### 12.3 Approvals
 
-A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. Learned tools and a `COMPOSIO_MULTI_EXECUTE_TOOL` call are `external` as a whole, even when they only read. Section 16.3 gates `external` tools.
+A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A learned tool takes the class Composio's catalog gives it: when a tool is first learned, `UserDO` reads its tags once from `GET https://backend.composio.dev/api/v3.1/tools/<slug>` behind the call, and `readOnlyHint` makes it `read`. That API needs a developer key, the optional Worker secret `COMPOSIO_CATALOG_KEY`, because consumer keys are refused. Tool metadata is global, so no user data goes with it. Without the key, or when the lookup fails, the tool stays `external`. Section 16.3 gates `external` tools.
 
 Yuki's card (section 25.3) is a 30-minute grant for that agent over every `external` tool, so one ok covers a task of many calls. A run the human started needs no card at all. A card is bound to the agent that asked; no method an agent can reach changes its state (`room/approvals.ts`).
 
@@ -817,10 +815,10 @@ Every tool declares one effect.
 
 | Effect | Examples | In a tainted run |
 | --- | --- | --- |
-| `read` | `recall`, `zoom`, `read`, `ls`, `team` | allowed |
+| `read` | `recall`, `zoom`, `read`, `ls`, `team`, Composio tools with `readOnlyHint`, learned ones the catalog tags read-only | allowed |
 | `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
 | `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
-| `external` | Composio tools without `readOnlyHint`, learned Composio tools, `COMPOSIO_MULTI_EXECUTE_TOOL` | decided by who started the run, not by taint (section 25.3) |
+| `external` | Composio tools without `readOnlyHint`, learned Composio tools the catalog does not tag read-only, `COMPOSIO_MULTI_EXECUTE_TOOL` | decided by who started the run, not by taint (section 25.3) |
 
 The `beforeTool` hook enforces the table.
 

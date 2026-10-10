@@ -4,8 +4,9 @@ import type { ComposioCallResult } from "./client"
 // search and its extra model turns. Candidates come from the schemas a search or schema lookup
 // returned; a candidate is learned when a multi-execute of it succeeds.
 
-export type LearnedTool = { slug: string; toolkit: string; description: string; inputSchema: Record<string, unknown>; usedAt: number }
-export type Candidate = Omit<LearnedTool, "usedAt">
+/** `readOnly` is what Composio's catalog said when the tool was learned. Absent means `external`. */
+export type LearnedTool = { slug: string; toolkit: string; description: string; inputSchema: Record<string, unknown>; usedAt: number; readOnly?: boolean }
+export type Candidate = Omit<LearnedTool, "usedAt" | "readOnly">
 
 export const SEARCH = "COMPOSIO_SEARCH_TOOLS"
 export const SCHEMAS = "COMPOSIO_GET_TOOL_SCHEMAS"
@@ -62,34 +63,11 @@ export function failed(args: Obj, body: Obj | undefined): string[] {
 /** `learned` without `slugs`, so a tool whose schema went stale is searched and learned again. */
 export const forget = (learned: readonly LearnedTool[], slugs: readonly string[]): LearnedTool[] => learned.filter((t) => !slugs.includes(t.slug))
 
-/** `learned` with `used` upserted at `now`, most recent first, at most `LEARNED_MAX`. */
+/** `learned` with `used` upserted at `now`, most recent first, at most `LEARNED_MAX`. A tool keeps its class. */
 export function remember(learned: readonly LearnedTool[], used: readonly Candidate[], now: number): LearnedTool[] {
-  const fresh = used.map((c) => ({ ...c, usedAt: now }))
+  const fresh = used.map((c) => ({ ...learned.find((t) => t.slug === c.slug), ...c, usedAt: now }))
   const slugs = new Set(fresh.map((t) => t.slug))
   return [...fresh, ...learned.filter((t) => !slugs.has(t.slug))].sort((a, b) => b.usedAt - a.usedAt).slice(0, LEARNED_MAX)
-}
-
-/**
- * A search result without what the model does not need: workbench snippets, toolkit blurbs, and
- * the time notice. Plans, pitfalls, schemas, connection statuses, and the session stay.
- */
-export function trimSearch(body: Obj): Obj {
-  if (!isObj(body.data)) return body
-  const d = body.data
-  return {
-    ...body,
-    data: {
-      ...d,
-      ...(Array.isArray(d.results) ? { results: d.results.map((r) => (isObj(r) ? omit(r, "reference_workbench_snippets") : r)) } : {}),
-      ...(Array.isArray(d.toolkit_connection_statuses) ? { toolkit_connection_statuses: d.toolkit_connection_statuses.map((s) => (isObj(s) ? omit(s, "description") : s)) } : {}),
-      ...(isObj(d.time_info) ? { time_info: omit(d.time_info, "message") } : {}),
-    },
-  }
-}
-
-function omit(o: Obj, key: string): Obj {
-  const { [key]: _, ...rest } = o
-  return rest
 }
 
 /**

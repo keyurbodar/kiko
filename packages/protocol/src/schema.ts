@@ -483,7 +483,7 @@ export const MemoryResult = Schema.Union([
 export const ComposioStatus = Schema.Struct({ connected: Schema.Boolean, rows: Schema.Number })
 
 export const ComposioResult = Schema.Union([
-	Schema.Struct({ ok: Schema.Literal(true), status: ComposioStatus, tools: Schema.optionalKey(Schema.Array(Schema.String)) }),
+	Schema.Struct({ ok: Schema.Literal(true), status: ComposioStatus, tools: Schema.optionalKey(Schema.Array(Schema.String)), readOnly: Schema.optionalKey(Schema.Array(Schema.String)) }),
 	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 

@@ -19,18 +19,9 @@ function command(args: Record<string, unknown>): string {
   return `running ${line.length > COMMAND_CHARS ? `${line.slice(0, COMMAND_CHARS - 1)}…` : line}`
 }
 
-const COMPOSIO_CALLS: Record<string, string> = {
-  composio_search_tools: "looking for the right connected app",
-  composio_multi_execute_tool: "using the human's connected apps",
-  composio_remote_workbench: "running code on the human's connected apps",
-  composio_manage_connections: "connecting one of the human's apps",
-}
-
 /** What a call is about, or null when it says nothing a teammate needs. */
 export function describeCall(name: string, args: Record<string, unknown>): string | null {
   if (name.startsWith("memory_") || name === "read_skill") return null
-  if (name in COMPOSIO_CALLS) return COMPOSIO_CALLS[name]!
-  if (name.startsWith("composio_")) return `using ${name.slice("composio_".length).replace(/_/g, " ")} (connected apps)`
   switch (name) {
     case "read":
       return `reading${path(args)}`

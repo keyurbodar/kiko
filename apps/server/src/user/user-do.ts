@@ -746,6 +746,11 @@ export class UserDO extends DurableObject<Env> {
     return this.#composio.tools()
   }
 
+  /** What an open agent compares with the tools it opened with. Reads one row, never calls Composio. */
+  composioSignature(): string | null {
+    return this.#composio.signature()
+  }
+
   async composioCall(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
     return this.#composio.call(name, args)
   }
@@ -754,6 +759,8 @@ export class UserDO extends DurableObject<Env> {
   get #composio(): ComposioConnection {
     this.#composioConnection ??= new ComposioConnection(
       new ComposioStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name)),
+      undefined,
+      this.env.COMPOSIO_CATALOG_KEY ? { key: this.env.COMPOSIO_CATALOG_KEY, waitUntil: (work) => this.ctx.waitUntil(work) } : undefined,
     )
     return this.#composioConnection
   }
@@ -768,7 +775,7 @@ export class UserDO extends DurableObject<Env> {
         result = { ok: true, status: composio.status() }
       } else {
         const tools = frame.tools ? await composio.tools() : null
-        result = { ok: true, status: composio.status(), ...(tools ? { tools: tools.map((t) => t.name) } : {}) }
+        result = { ok: true, status: composio.status(), ...(tools ? { tools: tools.map((t) => t.name), readOnly: tools.flatMap((t) => (t.readOnly ? [t.name] : [])) } : {}) }
       }
     } catch (e) {
       result = { ok: false, error: composioErrorText(e) }

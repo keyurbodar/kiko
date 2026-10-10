@@ -4,18 +4,9 @@ import { spill } from "../../agent/extensions/spill"
 import type { RoomFs } from "../../files/room-fs"
 import { count } from "../../lib/dev-stats"
 import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
-import { directResult, MULTI_EXECUTE, SEARCH } from "./learn"
+import { directResult, MULTI_EXECUTE } from "./learn"
 
 export const COMPOSIO = "composio"
-
-/** Composio tools agents never get, and why. */
-export const HIDDEN: Readonly<Record<string, string>> = {
-  COMPOSIO_REMOTE_BASH_TOOL: "the workbench covers it",
-  COMPOSIO_SUBMIT_FEEDBACK: "feedback to Composio is not the agent's to send",
-  COMPOSIO_MANAGE_SKILL: "yuki has its own skills",
-  COMPOSIO_SEARCH_SKILLS: "yuki has its own skills",
-  COMPOSIO_USE_SKILL: "yuki has its own skills",
-}
 
 const requiredFlags = (schema: unknown): string[] => {
   const s = schema as { properties?: Record<string, { type?: unknown }>; required?: unknown } | null
@@ -43,22 +34,28 @@ export const fillFlags = (schema: unknown, args: Record<string, unknown>): Recor
 /** `COMPOSIO_SEARCH_TOOLS` becomes `composio_search_tools`. */
 export const toolName = (name: string) => `composio_${name.replace(/^COMPOSIO_/, "").toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
 
+/** Every tool Composio lists, then each learned one whose name no listed tool already has. */
+function shown(tools: readonly ComposioTool[]): ComposioTool[] {
+  const meta = new Set(tools.filter((t) => !t.direct).map((t) => toolName(t.name)))
+  return tools.filter((t) => !t.direct || !meta.has(toolName(t.name)))
+}
+
+/** A line for the run's input: Composio's search description says to always search first, which would skip learned tools. */
+export function learnedNote(tools: readonly ComposioTool[]): string | undefined {
+  const names = shown(tools).flatMap((t) => (t.direct ? [toolName(t.name)] : []))
+  return names.length ? `connected-app tools you can call directly, no search needed: ${names.join(", ")}.` : undefined
+}
+
 export function composioExtension(tools: readonly ComposioTool[], call: ComposioCall, fs?: RoomFs): Extension {
-  const visible = tools.filter((t) => !(t.name in HIDDEN))
-  const meta = new Set(visible.filter((t) => !t.direct).map((t) => toolName(t.name)))
-  const shown = visible.filter((t) => !t.direct || !meta.has(toolName(t.name)))
-  const direct = shown.filter((t) => t.direct).map((t) => toolName(t.name))
-  // Composio's search description says to always search first, which would skip the learned tools.
-  const skip = direct.length ? `When ${direct.join(", ")} already does the job, call it directly and do not search. ` : ""
   return defineExtension({
     name: COMPOSIO,
-    tools: shown.map((t) => {
+    tools: shown(tools).map((t) => {
         const name = toolName(t.name)
         return declareEffect(
           t.readOnly ? "read" : "external",
           defineTool({
             name,
-            description: t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.name === SEARCH ? skip : ""}${t.description?.trim() || t.name} (through composio, the human's connected apps)`,
+            description: t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.description?.trim() || t.name} (through composio, the human's connected apps)`,
             parameters: (t.direct ? t.inputSchema : relaxSchema(t.inputSchema)) as never,
             replay: t.readOnly ? "safe" : "unsafe",
             execute: (args) =>

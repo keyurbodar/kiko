@@ -1,8 +1,9 @@
 import type { ClientToUser, RoomToClient } from "@yuki/protocol"
-import { connectTestModel, expectEqual, VerifyError } from "../client"
+import { connectTestModel, expectEqual, type RoomHandle, VerifyError } from "../client"
+import { dev, inSeconds, ok, runsOf } from "../routine-kit"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
-import { ulid } from "./mid-run"
+import { newRoom } from "./mid-run"
 
 // Composio, end to end with a real model. Needs OPENCODE_API_KEY (the model, opencode-go) and
 // COMPOSIO_API_KEY (a consumer key, ck_...) in the shell. Part one: a bad key is refused and
@@ -10,15 +11,20 @@ import { ulid } from "./mid-run"
 // Composio, and prove from the server's dev counters (`composio.<tool>.ms`, bumped on every tool
 // call) that a composio_* tool ran and that a reply bubble arrived. Part three: a second fresh
 // chat asks another web question, and must use the tool the first chat learned directly, with no
-// search. Hard limits: 60 s per socket answer, 150 s per chat turn.
+// search, and the status must report that tool as a read (Composio's catalog tags it read-only;
+// needs COMPOSIO_CATALOG_KEY in the server's .dev.vars). Part four: a routine runs in a room whose
+// agent opened before anything was learned and is still open. It must reload, call the learned
+// tool, and post no approval card, since a routine run's `external` calls need one. Hard limits:
+// 60 s per socket answer, 150 s per chat turn or routine run.
 
 const USER = "composio-alice"
 const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
 const ASK = "Use Composio to search the web: what is the latest stable Bun version? Answer in one line."
 const ASK_AGAIN = "Use Composio to search the web: who maintains the Bun runtime? One line."
+const ROUTINE = "Use Composio to search the web: what is the latest stable Deno version? Answer in one line."
 const TURN_MS = 150_000
 
-type Result = { ok: true; status: { connected: boolean; rows: number }; tools?: string[] } | { ok: false; error: string }
+type Result = { ok: true; status: { connected: boolean; rows: number }; tools?: string[]; readOnly?: string[] } | { ok: false; error: string }
 type Events = Extract<RoomToClient, { t: "events" }>
 type Status = Extract<RoomToClient, { t: "status" }>
 
@@ -58,16 +64,14 @@ const suite: Suite = {
     if (!listed.ok || !listed.tools?.length) throw new VerifyError("composio listed no tools")
     console.error(`tools: ${listed.tools.join(", ")}`)
 
-    const chat = async (title: string, question: string) => {
-      const roomId = ulid()
-      user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title } })
-      await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
-      const room = await s.room(roomId)
-      await room.expect((f) => f.t === "events" || f.t === "reset")
-      room.raw.send({ t: "model", ref: MODEL })
+    const open = async (title: string) => {
+      const opened = await newRoom(s, title)
+      opened.room.raw.send({ t: "model", ref: MODEL })
       await Bun.sleep(500)
-      await resetStats(v, s)
-
+      return opened
+    }
+    /** Sends `question` and waits for the agent's bubbles and then idle. */
+    const turn = async (room: RoomHandle, question: string) => {
       const t0 = performance.now()
       const clientId = room.send(question)
       await room.expect({ t: "ack", clientId })
@@ -79,11 +83,26 @@ const suite: Suite = {
         first ||= performance.now() - t0
         for (const e of (f as Events).events) if (e.t === "message" && e.from.kind === "agent") text += `${e.text} / `
       }
-      const total = performance.now() - t0
+      return { first, text, total: performance.now() - t0 }
+    }
+    const called = (counters: Record<string, number>) => Object.keys(counters).filter((k) => /^composio\.[^.]+\.ms$/.test(k)).map((k) => k.split(".")[1]!)
+    const toolName = (slug: string) => `composio_${slug.replace(/^COMPOSIO_/, "").toLowerCase()}`
+
+    // An agent that opens now, before anything is learned. Part four runs a routine in its room.
+    const early = await open("composio routine")
+    await turn(early.room, "hi")
+    const status = () => dev(v.url, s, "status", { roomId: early.roomId, slug: "yuki" }) as Promise<{ open: boolean }>
+    // workerd evicts an object idle for about 10 s, and a cold agent sets up afresh, which would hide a stale open one.
+    const keepOpen = setInterval(() => void status().catch(() => undefined), 3_000).unref()
+
+    const chat = async (title: string, question: string) => {
+      const { roomId, room } = await open(title)
+      await resetStats(v, s)
+      const { first, text, total } = await turn(room, question)
       await Bun.sleep(300)
 
       const counters = await readStats(v, s)
-      const tools = Object.keys(counters).filter((k) => /^composio\.[^.]+\.ms$/.test(k)).map((k) => k.split(".")[1]!)
+      const tools = called(counters)
       if (!tools.length) throw new VerifyError(`${title}: no composio_* tool was called. the agent said: ${text}`)
       if (!first) throw new VerifyError(`${title}: no reply bubble arrived`)
 
@@ -105,7 +124,37 @@ const suite: Suite = {
     if (!direct.length) throw new VerifyError("the first chat taught no direct tool")
     const again = await chat("composio again", ASK_AGAIN)
     if (again.includes("composio_search_tools")) throw new VerifyError("the second chat searched again instead of using a learned tool")
-    if (!again.some((t) => direct.some((slug) => t === `composio_${slug.replace(/^COMPOSIO_/, "").toLowerCase()}`))) throw new VerifyError(`the second chat called no learned tool: ${again.join(" ")}`)
+    if (!again.some((t) => direct.some((slug) => t === toolName(slug)))) throw new VerifyError(`the second chat called no learned tool: ${again.join(" ")}`)
+
+    // The catalog lookup runs behind the first chat's call, so it has had a whole chat to land.
+    const classes = await ask({ t: "composioStatus", tools: true })
+    const reads = classes.ok ? direct.filter((slug) => classes.readOnly?.includes(slug)) : []
+    console.error(`learned reads: ${reads.join(", ") || "none"}`)
+    if (!reads.length) throw new VerifyError("no learned tool is a read. is COMPOSIO_CATALOG_KEY set in the server's .dev.vars?")
+
+    // Part four: a routine run, not started by the human, by the agent still open from before the learning.
+    clearInterval(keepOpen)
+    if (!(await status()).open) throw new VerifyError("the early agent is no longer open, so this run would not test its reload")
+    const { routine } = await ok<{ routine: { id: string } }>(v.url, s, "routines", { roomId: early.roomId, name: "deno check", instructions: ROUTINE, trigger: { on: "time", at: inSeconds(3600), rrule: "FREQ=DAILY" } })
+    await resetStats(v, s)
+    const t0 = performance.now()
+    await ok(v.url, s, `routines/${routine.id}/run`, {})
+    const cards = () => early.room.raw.log.flatMap((e) => (e.dir === "in" && (e.frame as RoomToClient).t === "events" ? (e.frame as Events).events.filter((ev) => ev.t === "approval") : []))
+    for (;;) {
+      if (cards().length) throw new VerifyError("the routine run posted an approval card for a learned read tool")
+      const runs = await runsOf(v.url, s, routine.id)
+      if (runs.some((r) => r.status !== "running")) {
+        console.log(`  routine run: ${runs[0]!.status} in ${((performance.now() - t0) / 1000).toFixed(1)} s`)
+        break
+      }
+      if (performance.now() - t0 > TURN_MS) throw new VerifyError("the routine run did not finish")
+      await Bun.sleep(500)
+    }
+    const ran = called(await readStats(v, s))
+    console.log(`    tools called: ${ran.join(" ")}`)
+    if (!ran.some((t) => reads.some((slug) => t === toolName(slug)))) throw new VerifyError(`the routine run called no learned read tool: ${ran.join(" ") || "none"}`)
+    if (cards().length) throw new VerifyError("the routine run posted an approval card")
+    user.send({ t: "chat", op: { op: "delete", roomId: early.roomId as never } })
 
     const gone = await ask({ t: "disconnectComposio" })
     if (!gone.ok) throw new VerifyError(`disconnect failed: ${gone.error}`)

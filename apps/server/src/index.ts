@@ -43,6 +43,7 @@ export interface Env {
   CREDENTIALS_KEK_PREVIOUS?: string
   BETTER_AUTH_SECRET: string
   PROVIDER_OAUTH?: string
+  COMPOSIO_CATALOG_KEY?: string
 }
 
 export default {
