@@ -114,6 +114,7 @@ export const Message = Schema.Struct({
 	quote: Schema.optionalKey(Schema.String),
 	to: Schema.optionalKey(Schema.Union([AgentSlug, Schema.Literal("all")])),
 	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
+	share: Schema.optionalKey(Schema.Struct({ name: Schema.String, reason: Schema.String })),
 })
 
 export const Member = Schema.Struct({
@@ -500,6 +501,21 @@ export const KernelResult = Schema.Union([
 	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 
+export const BrowserState = Schema.NullOr(
+	Schema.Struct({
+		mode: Schema.Literals(["headless", "headful"]),
+		tabs: Schema.Array(Schema.Struct({ agent: Schema.String, slug: Schema.String, host: Schema.String })),
+		takeover: Schema.Boolean,
+		switching: Schema.Boolean,
+		since: Count,
+	}),
+)
+
+export const BrowserLinkResult = Schema.Union([
+	Schema.Struct({ ok: Schema.Literal(true), url: Schema.String }),
+	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
+])
+
 export const ClientToUser = Schema.Union([
 	Hello,
 	Schema.Struct({ t: Schema.Literal("home"), op: FileOp }),
@@ -516,6 +532,9 @@ export const ClientToUser = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("connectKernel"), reqId: Id, apiKey: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("disconnectKernel"), reqId: Id }),
 	Schema.Struct({ t: Schema.Literal("kernelStatus"), reqId: Id }),
+	Schema.Struct({ t: Schema.Literal("browserLink"), reqId: Id, mode: Schema.Literals(["watch", "control"]) }),
+	Schema.Struct({ t: Schema.Literal("handBack") }),
+	Schema.Struct({ t: Schema.Literal("closeBrowser") }),
 	Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
 	Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
@@ -568,6 +587,8 @@ export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
 	Schema.Struct({ t: Schema.Literal("composio"), reqId: Schema.optionalKey(Id), result: ComposioResult }),
 	Schema.Struct({ t: Schema.Literal("kernel"), reqId: Schema.optionalKey(Id), result: KernelResult }),
+	Schema.Struct({ t: Schema.Literal("browserState"), state: BrowserState }),
+	Schema.Struct({ t: Schema.Literal("browserLink"), reqId: Id, result: BrowserLinkResult }),
 	Schema.Struct({ t: Schema.Literal("login.notify"), loginId: Id, event: LoginEvent }),
 	Schema.Struct({ t: Schema.Literal("login.prompt"), loginId: Id, promptId: Id, prompt: LoginPrompt }),
 	Schema.Struct({
@@ -614,6 +635,8 @@ export type InSync = Assert<
 	| Same<typeof ComposioResult.Type, P.ComposioResult>
 	| Same<typeof KernelStatus.Type, P.KernelStatus>
 	| Same<typeof KernelResult.Type, P.KernelResult>
+	| Same<typeof BrowserState.Type, P.BrowserState>
+	| Same<typeof BrowserLinkResult.Type, P.BrowserLinkResult>
 	| Same<typeof ClientToUser.Type, P.ClientToUser>
 	| Same<typeof UserToClient.Type, P.UserToClient>
 	| Same<typeof ExtensionInfo.Type, P.ExtensionInfo>

@@ -1,6 +1,7 @@
 import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { devAgentRoute } from "./agent/dev-route"
+import { devBrowserRoute } from "./user/dev-browser-route"
 import { devStatsRoute } from "./lib/dev-stats"
 import { authRoute, getSessionUser } from "./auth/auth"
 import { userStub } from "./lib/names"
@@ -71,6 +72,8 @@ export default {
     if (filed) return filed
     const devAgent = await devAgentRoute(request, env)
     if (devAgent) return devAgent
+    const devBrowser = await devBrowserRoute(request, env)
+    if (devBrowser) return devBrowser
     const devStats = devStatsRoute(request)
     if (devStats) return devStats
     const account = await accountRoute(request, env)

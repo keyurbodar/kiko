@@ -1777,3 +1777,15 @@ Measured 2026-10-10 with `wrangler deploy --dry-run` on the server bundle, with 
 The dev route `POST /api/dev/agent/browser` (development only) leases, touches, kills, ages (moves last use back), reaps, and switches the user's browser, and never returns a CDP URL. The suite waits for browsers that other runs on the same key still have, since it asserts the list ends empty.
 
 Measured 2026-10-10 against Kernel from `wrangler dev`: a first lease with the profile already made 1.2 to 1.6 s, a reap 2.6 s, a switch 4.2 to 4.7 s, a replacement 4.0 s. The delete takes about 2.6 s because it waits for the profile save. UNVERIFIED: the same numbers from a deployed Worker.
+
+### 27.7 Watch and take over
+
+The human sees and drives the browser from a button, and the link never leaves the socket that pressed it.
+
+- `browserState` is pushed on hello, on `kernelStatus`, and on every change: `{ mode, tabs: [{ agent, slug, host }], takeover, switching, since }` or null. It holds a hostname per tab and never a page URL. A touch that changes nothing the client shows sends nothing.
+- `browserLink { mode: "watch" | "control" }` answers once, to that socket, with the live view URL (`readOnly=true` for watch). The URL is in no room log and no stored row. A headless browser has no live view, so the frame first sets takeover (control) or watch-until of 10 minutes (watch), pushes `switching: true`, switches to headful (about 5 s), and pushes the new state before the answer. The takeover flag is set before the switch so agents stop at once. `handBack` clears the flag. `closeBrowser` deletes the browser, which saves the profile.
+- `UserDO.browserShare(agentId, roomId, reason)` posts a card through `RoomDO.browserShare`: an agent message whose `share` holds the agent's name and the reason, stored in the `messages.share` column. The card holds no link. The client draws the reason as the bubble's text and the same Watch and Take over buttons under it. `agentId` ends in the agent's slug after the last `/` or `:`.
+- `UserDO.browserTakeover()` tells a tool whether the human is driving.
+- The client opens `about:blank` in a new tab on the click, because a tab opened later from a socket frame is blocked, and sets its location when the answer arrives. Take over shows at once as taken over. Close in Settings empties the state at once.
+- Check: `bun yuki verify browser-takeover` (needs `KERNEL_API_KEY`) and `test/kernel-browser-state.test.ts`. The dev routes `POST /api/dev/user/browser-tabs` and `browser-share` call the same RPCs a tool uses.
+- DEVIATION: the chip sits above the composer with the other room banners, not in the header.

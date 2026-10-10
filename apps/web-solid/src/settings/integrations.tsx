@@ -1,5 +1,5 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@yuki/protocol"
-import { Show, createSignal, onCleanup, onMount } from "solid-js"
+import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
 import { cn } from "../lib/cn"
 import { Button, Empty, Group, Item, Notice, fieldClass } from "./kit"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
@@ -12,6 +12,9 @@ import { createComposioClient, createKernelClient, type ComposioClient, type Ker
 
 export const COMPOSIO_HOME = "https://connect.composio.dev"
 export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
+// The live browser loads with the connected Kernel row, so the settings route does not carry it.
+const LiveBrowser = lazy(() => import("./live-browser"))
+
 export const KERNEL_HOME = "https://dashboard.onkernel.com"
 
 function GridIcon() {
@@ -41,11 +44,6 @@ function KeyIcon() {
 }
 
 type Where = "app" | "developer" | "kernel"
-
-function tabCount(tabs: Readonly<Record<string, number>>): string {
-	const n = Object.values(tabs).reduce((a, b) => a + b, 0)
-	return `${n} ${n === 1 ? "tab" : "tabs"} open`
-}
 
 function KeyField(props: { id: string; label: string; placeholder: string; submit: string; busy: boolean; onKey: (key: string) => void; [data: `data-${string}`]: string | undefined }) {
 	let input: HTMLInputElement | undefined
@@ -221,13 +219,6 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 						}
 					>
 						<p class="mb-2 text-[13px] text-muted">Lets your agents use a real browser, in your own Kernel account.</p>
-						<Show when={kernel()?.browser}>
-							{(browser) => (
-								<p class="mb-2 text-[13px] text-muted" data-field="kernel-browser">
-									{browser().mode === "headful" ? "Visible" : "Headless"}, {tabCount(browser().tabs)}
-								</p>
-							)}
-						</Show>
 						<Show when={!kernel()?.connected || kernel()?.broken}>
 							<KeyField id="kernel-key" label="Kernel browser" placeholder="sk_..." submit="Connect" busy={busy()} data-action="kernel-connect" onKey={(apiKey) => void runKernel(async () => kernelClient?.request({ t: "connectKernel", apiKey }))} />
 							<p class="mt-2 text-[13px] text-muted">
@@ -242,6 +233,9 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 							<Notice data-component="kernel-error">{errorAt("kernel")}</Notice>
 						</Show>
 					</Item>
+					<Show when={kernel()?.connected}>
+						<LiveBrowser icon={<GlobeIcon />} />
+					</Show>
 				</Show>
 			</Group>
 		</div>

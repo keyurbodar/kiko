@@ -1,9 +1,9 @@
-import type { KernelStatus } from "@yuki/protocol"
+import type { BrowserState, KernelStatus } from "@yuki/protocol"
 import { sha256Hex } from "@yuki/durable/hash"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { type KernelClient, KernelError, REJECTED, sdkClient } from "./client"
 import { KernelLease, type LeaseInfo, MAX_TABS } from "./lease"
-import type { KernelStore } from "./store"
+import type { KernelStore, LeaseRow } from "./store"
 
 /** A message that is safe to show. Kernel's errors never carry the key. */
 export function kernelErrorText(e: unknown): string {
@@ -29,6 +29,28 @@ export function checkTabs(value: unknown): Record<string, string> | undefined {
     if (id.length === 0 || id.length > 64 || typeof url !== "string" || url.length > 2048) throw new KernelError("failed", "bad tabs")
   }
   return Object.fromEntries(entries) as Record<string, string>
+}
+
+/** How long Watch keeps the browser open, so the reaper does not delete it under the human's eyes. */
+export const WATCH_MS = 10 * 60_000
+
+/** The site a tab shows, as a hostname only: the client never sees a page URL. */
+export function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname || "blank"
+  } catch {
+    return "blank"
+  }
+}
+
+/** What the client may know of the browser. `resolve` turns an agent id into a slug and a display name. */
+export function browserState(row: LeaseRow | undefined, switching: boolean, resolve: (agentId: string) => { slug: string; name: string }): BrowserState {
+  if (!row || row.dead) return null
+  const tabs = Object.entries(row.tabs).flatMap(([agentId, t]) => {
+    const who = resolve(agentId)
+    return Object.values(t).map((url) => ({ agent: who.name, slug: who.slug, host: hostOf(url) }))
+  })
+  return { mode: row.mode, tabs, takeover: row.takeover, switching, since: row.createdAt }
 }
 
 export type KernelDeps = {
@@ -104,6 +126,52 @@ export class KernelConnection {
   markDead(agentId: unknown): void {
     checkAgentId(agentId)
     this.lease.dead()
+  }
+
+  browserState(switching: boolean, resolve: (agentId: string) => { slug: string; name: string }): BrowserState {
+    return browserState(this.deps.store.connected() ? this.deps.store.lease() : undefined, switching, resolve)
+  }
+
+  /** Whether the human is driving. Agents read it before each action. */
+  takeover(): boolean {
+    return this.deps.store.lease()?.takeover === true
+  }
+
+  /**
+   * The live view URL for the human. A headless browser has none, so it is switched to headful first
+   * (about 5 s, `onSwitching` tells the caller). `control` sets the takeover flag before the switch,
+   * so agents stop at once, and the switch carries it over. Watch keeps the browser for `WATCH_MS`.
+   */
+  async openLink(mode: "watch" | "control", onSwitching: (on: boolean) => void): Promise<string> {
+    const { store } = this.deps
+    const { lease } = this
+    const row = store.connected() ? store.lease() : undefined
+    if (!row || row.dead) throw new KernelError("failed", "No browser is open")
+    if (mode === "control") lease.setTakeover(true)
+    else lease.watchUntil(Date.now() + WATCH_MS)
+    if (row.mode === "headless") {
+      onSwitching(true)
+      try {
+        await lease.switchMode("headful")
+      } finally {
+        onSwitching(false)
+      }
+    }
+    const live = (await store.urls())?.liveUrl
+    if (!live) throw new KernelError("failed", "Kernel gave no live view for this browser")
+    if (mode === "control") return live
+    const url = new URL(live)
+    url.searchParams.set("readOnly", "true")
+    return url.toString()
+  }
+
+  handBack(): void {
+    if (this.deps.store.lease()) this.lease.setTakeover(false)
+  }
+
+  /** The human ended the browser. The profile is saved when it is deleted. */
+  closeNow(): Promise<void> {
+    return this.lease.close()
   }
 
   /** The current browser's Kernel session id. It is no secret: it names the browser, it does not reach it. */

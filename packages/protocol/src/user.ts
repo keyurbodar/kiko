@@ -142,6 +142,24 @@ export type KernelStatus = {
 
 export type KernelResult = { ok: true; status: KernelStatus } | { ok: false; error: string }
 
+/**
+ * The user's browser as the client may see it: who holds a tab and on which site. `host` is a
+ * hostname and never a URL. Pushed whenever it changes, and null when no browser is open.
+ */
+export type BrowserState = {
+	mode: "headless" | "headful"
+	tabs: readonly { agent: string; slug: string; host: string }[]
+	/** The human is driving, so agents wait. */
+	takeover: boolean
+	/** A switch to the other mode is in progress (about 5 s). */
+	switching: boolean
+	/** Epoch milliseconds the browser was made. */
+	since: number
+} | null
+
+/** The one place a live view URL appears: the answer to one `browserLink`, sent to the socket that asked. */
+export type BrowserLinkResult = { ok: true; url: string } | { ok: false; error: string }
+
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
@@ -166,6 +184,12 @@ export type ClientToUser =
 	/** Closes the browser and deletes the Kernel key. */
 	| { t: "disconnectKernel"; reqId: string }
 	| { t: "kernelStatus"; reqId: string }
+	/** Opens the live view. `control` also sets the takeover flag. A headless browser is switched to headful first. */
+	| { t: "browserLink"; reqId: string; mode: "watch" | "control" }
+	/** Clears the takeover flag. */
+	| { t: "handBack" }
+	/** Ends the browser. The profile is saved. */
+	| { t: "closeBrowser" }
 	/** Starts a provider sign-in (architecture 11.4). `loginId` is the client's own id for it. */
 	| { t: "login.start"; loginId: string; provider: string }
 	/** The answer to one `login.prompt`. */
@@ -192,6 +216,10 @@ export type UserToClient =
 	| { t: "composio"; reqId?: string; result: ComposioResult }
 	/** The answer to one Kernel request. Without `reqId` it goes to the user's other sockets. */
 	| { t: "kernel"; reqId?: string; result: KernelResult }
+	/** The browser's state, on hello and on every change. Never holds a URL. */
+	| { t: "browserState"; state: BrowserState }
+	/** The answer to one `browserLink`. Sent only to the socket that asked, never stored. */
+	| { t: "browserLink"; reqId: string; result: BrowserLinkResult }
 	// Provider sign-in. Not stored. Sent only to the socket that started the login.
 	| { t: "login.notify"; loginId: string; event: LoginEvent }
 	| { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }

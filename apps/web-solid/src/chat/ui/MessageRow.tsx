@@ -10,6 +10,7 @@ import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
 import { RichText } from "./RichText"
 /* The parsed tree's renderer loads after first paint; until it lands a bubble shows its plain text. */
+const ShareCard = lazy(() => import("../ShareCard"));
 const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
 import { identityLook } from "../../lib/identity"
@@ -160,6 +161,9 @@ export function MessageRow(props: {
                 )}
               </Show>
             </Collapsible>
+          </Show>
+          <Show when={props.message.share}>
+            <ShareCard />
           </Show>
           <Show when={props.message.goto}>
             {(to) => (

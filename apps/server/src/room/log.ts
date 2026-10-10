@@ -53,6 +53,7 @@ type MessageRow = {
 	quote: string | null
 	addressed: string | null
 	initiative: string | null
+	share: string | null
 }
 
 export type NewMessage = {
@@ -74,6 +75,8 @@ export type NewMessage = {
 	to?: AgentSlug | "all"
 	/** The agent spoke up unasked (section 26). */
 	initiative?: { reason: string }
+	/** A browser share card: the agent's name and why it asks the human to look (architecture 27.7). */
+	share?: { name: string; reason: string }
 }
 
 /** The stored form of an actor or sender: "human", "agent:<slug>", or "system:<reason>". */
@@ -270,6 +273,7 @@ export class RoomLog {
 				...(input.quote ? { quote: input.quote } : {}),
 				...(input.to ? { to: input.to } : {}),
 				...(input.initiative ? { initiative: input.initiative } : {}),
+				...(input.share ? { share: input.share } : {}),
 			}
 			const event = this.append(actorKey(input.from), {
 				t: "message",
@@ -277,8 +281,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, tainted, addressed, initiative)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, tainted, addressed, initiative, share)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -295,6 +299,7 @@ export class RoomLog {
 				input.tainted ? 1 : 0,
 				input.to ?? null,
 				input.initiative?.reason ?? null,
+				input.share ? JSON.stringify(input.share) : null,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
@@ -427,6 +432,7 @@ export class RoomLog {
 			...(r.quote ? { quote: r.quote } : {}),
 			...(r.addressed ? { to: r.addressed as AgentSlug | "all" } : {}),
 			...(r.initiative ? { initiative: { reason: r.initiative } } : {}),
+			...(r.share ? { share: JSON.parse(r.share) as { name: string; reason: string } } : {}),
 			...(reactions.length ? { reactions } : {}),
 		}
 	}

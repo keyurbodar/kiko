@@ -1,5 +1,5 @@
-import { duplicateDm, newRoomId } from "@yuki/protocol"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, KernelResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
+import { duplicateDm, isAgentSlug, isRoomId, newRoomId } from "@yuki/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, BrowserLinkResult, BrowserState, KernelResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
 import { ClientToUser, INITIATIVE_LEVELS, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -9,7 +9,7 @@ import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, take
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
-import { KernelConnection, kernelErrorText, profileName } from "../integrations/kernel/connect"
+import { checkAgentId, KernelConnection, kernelErrorText, profileName } from "../integrations/kernel/connect"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
 import type { Mode } from "../integrations/kernel/client"
@@ -1074,22 +1074,90 @@ export class UserDO extends DurableObject<Env> {
 
   /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
   async browserLease(agentId: string): Promise<{ cdpUrl: string; mode: Mode; restarted: boolean; reopen: string[] }> {
-    return this.#kernel.leaseFor(agentId)
+    const info = await this.#kernel.leaseFor(agentId)
+    this.#pushBrowser()
+    return info
   }
 
   /** Stamps last use. `tabs` (tab id to last URL) replaces the agent's tabs. False when the browser it knew is gone. */
   async browserTouch(agentId: string, tabs?: Record<string, string>): Promise<boolean> {
-    return this.#kernel.touch(agentId, tabs)
+    const known = this.#kernel.touch(agentId, tabs)
+    this.#pushBrowser()
+    return known
+  }
+
+  /** Whether the human is driving the browser. A tool returns "The human is using the browser" and waits while it is true. */
+  async browserTakeover(): Promise<boolean> {
+    return this.#kernel.takeover()
+  }
+
+  /**
+   * An agent asks the human to look at the browser, for a sign-in or a captcha. Posts a card with the
+   * reason into the room. The card holds no link: Watch and Take over ask for it. `agentId` ends in
+   * the agent's slug (after the last "/" or ":"). Returns false when the agent is not in that room.
+   */
+  async browserShare(agentId: string, roomId: string, reason: string): Promise<boolean> {
+    checkAgentId(agentId)
+    const slug = slugOf(agentId)
+    if (!isRoomId(roomId) || !isAgentSlug(slug) || typeof reason !== "string") return false
+    const text = reason.trim().slice(0, 300)
+    if (!text) return false
+    return roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).browserShare(slug, text)
   }
 
   /** The agent's socket died: the next lease makes a new browser. */
   async browserDead(agentId: string): Promise<void> {
     this.#kernel.markDead(agentId)
+    this.#pushBrowser()
   }
 
   /** The agent closed its tabs. */
   async browserRelease(agentId: string): Promise<void> {
     this.#kernel.release(agentId)
+    this.#pushBrowser()
+  }
+
+  #browserSwitching = false
+  #browserSent = ""
+
+  #browserState(): BrowserState {
+    return this.#kernel.browserState(this.#browserSwitching, (agentId) => {
+      const slug = slugOf(agentId)
+      const row = this.sql.exec<{ name: string }>("SELECT name FROM agents WHERE slug = ?", slug).toArray()[0]
+      return { slug, name: row?.name ?? slug }
+    })
+  }
+
+  /** Tells every ready socket the browser changed. A touch that changes nothing the client shows sends nothing. */
+  #pushBrowser(): void {
+    const text = JSON.stringify({ t: "browserState", state: this.#browserState() } satisfies UserToClient)
+    if (text === this.#browserSent) return
+    this.#browserSent = text
+    for (const ws of this.ctx.getWebSockets()) {
+      if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, text)
+    }
+  }
+
+  private async browserFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "browserLink" | "handBack" | "closeBrowser" }>) {
+    const kernel = this.#kernel
+    if (frame.t === "handBack") kernel.handBack()
+    else if (frame.t === "closeBrowser") {
+      await kernel.closeNow().catch((e) => console.error(`close browser failed: ${kernelErrorText(e)}`))
+    } else {
+      let result: BrowserLinkResult
+      try {
+        const url = await kernel.openLink(frame.mode, (on) => {
+          this.#browserSwitching = on
+          this.#pushBrowser()
+        })
+        result = { ok: true, url }
+      } catch (e) {
+        result = { ok: false, error: kernelErrorText(e) }
+      }
+      // The URL goes to this socket alone and is never stored.
+      send(ws, { t: "browserLink", reqId: frame.reqId, result })
+    }
+    this.#pushBrowser()
   }
 
   // DEVELOPMENT ONLY: `verify kernel` drives the lease and the reaper without waiting minutes.
@@ -1125,6 +1193,8 @@ export class UserDO extends DurableObject<Env> {
       result = { ok: false, error: kernelErrorText(e) }
     }
     send(ws, { t: "kernel", reqId: frame.reqId, result })
+    if (frame.t === "kernelStatus") send(ws, { t: "browserState", state: this.#browserState() })
+    this.#pushBrowser()
     if (result.ok && frame.t !== "kernelStatus") {
       const text = JSON.stringify({ t: "kernel", result } satisfies UserToClient)
       for (const other of this.ctx.getWebSockets()) {
@@ -1171,12 +1241,17 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "hello") {
       this.seen()
       send(ws, this.resume(frame.lastSeq))
+      send(ws, { t: "browserState", state: this.#browserState() })
       const before = ws.deserializeAttachment() as Attachment | null
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
       return
     }
     if (frame.t === "connectComposio" || frame.t === "setComposioDeveloperKey" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
       await this.composioFrame(ws, frame)
+      return
+    }
+    if (frame.t === "browserLink" || frame.t === "handBack" || frame.t === "closeBrowser") {
+      await this.browserFrame(ws, frame)
       return
     }
     if (frame.t === "connectKernel" || frame.t === "disconnectKernel" || frame.t === "kernelStatus") {
@@ -1242,7 +1317,10 @@ export class UserDO extends DurableObject<Env> {
       [CAPTURE_WAKEUP]: () => this.captureNow(),
       [LOOPS_WAKEUP]: () => this.loopsNow(),
       [INITIATIVE_WAKEUP]: () => this.#engine.pass(),
-      [REAP_WAKEUP]: () => this.#kernel.reap(),
+      [REAP_WAKEUP]: async () => {
+        await this.#kernel.reap()
+        this.#pushBrowser()
+      },
     })
     this.#loginState?.expire(due)
   }
@@ -1542,6 +1620,11 @@ export class UserDO extends DurableObject<Env> {
 
 function loopRow(l: Loop): LoopRow {
   return { id: l.id, kind: l.kind, certainty: l.certainty, owner: l.owner, room: l.room, due: l.due, status: l.status, text: l.text, snoozedUntil: l.snoozedUntil }
+}
+
+/** The agent slug at the end of a lease id such as `room/slug`. */
+function slugOf(agentId: string): string {
+  return agentId.split(/[/:]/).pop() ?? agentId
 }
 
 function send(ws: WebSocket, frame: UserToClient): void {
