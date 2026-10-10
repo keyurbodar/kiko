@@ -3,8 +3,8 @@ import type { RoomHandle, UserChannel } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// Architecture section 13. Tell the agent a fact in one chat. It must note it, so the user's
-// life log holds it as a line from that agent. Then ask in a second
+// Architecture sections 13 and 13.6. Tell the agent a fact in one chat. Capture or the agent's note
+// puts it in the user's life log, as a `you:` or `@agent:` line. Then ask in a second
 // chat, which shares no transcript with the first, and the answer must carry the fact back.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -69,7 +69,7 @@ const suite: Suite = {
 
     // The agent saves the fact during its run.
     let saved = ""
-    const end = Date.now() + 60_000
+    const end = Date.now() + 90_000
     while (!saved) {
       if (Date.now() > end) throw new VerifyError(`no life line holds ${name}. the agent said: ${JSON.stringify(agentText(first))}`)
       await Bun.sleep(1_000)
@@ -77,7 +77,7 @@ const suite: Suite = {
       const hit = "lines" in all ? all.lines.find((l) => l.text.toLowerCase().includes(name)) : undefined
       if (hit) saved = `${hit.source}: ${hit.text}`
     }
-    if (!saved.startsWith("@")) throw new VerifyError(`the line does not say which agent noted it: ${saved}`)
+    if (!saved.startsWith("@") && !saved.startsWith("you: ")) throw new VerifyError(`the line names no writer, neither an agent's note nor the human's captured words: ${saved}`)
     console.log(`  saved ${saved}`)
     // Let the first run finish before the second chat starts.
     for (let i = 0; i < 60 && !agentText(first); i++) await Bun.sleep(500)

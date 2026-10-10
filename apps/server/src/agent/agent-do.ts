@@ -545,10 +545,12 @@ export class AgentDO extends DurableObject<Env> {
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
       note: async (text, tainted) => (this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "")),
-      recall: async (query) => {
-        const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
-        const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, this.#seqs)])
-        return mergeRecall(tagHits("life", life), tagHits("chat", chat), this.#shown, (lines) => user().rerank(query, lines), RECALL_MAX)
+      recall: async (query, conversationId) => {
+        // A helper's context holds none of the root's <memory> block, so only the root skips what it already has.
+        const root = conversationId === (await this.host.rootId())
+        const seen = root ? await this.ctx.storage.get<number>(MEMORY_POS_KEY) : undefined
+        const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, root ? this.#seqs : [])])
+        return mergeRecall(tagHits("life", life), tagHits("chat", chat), root ? this.#shown : new Set(), (lines) => user().rerank(query, lines), RECALL_MAX)
       },
       zoom: async (raw) => {
         const id = parseZoomId(raw)

@@ -15,7 +15,7 @@ export type CapturePolicy = {
   capture: boolean
 }
 
-export const DEFAULT_POLICY: CapturePolicy = { batch: 12, idleMs: 600_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: true }
+export const DEFAULT_POLICY: CapturePolicy = { batch: 6, idleMs: 30_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: true }
 
 /** The stored setting over the defaults. A field of the wrong type keeps its default. */
 export function mergePolicy(raw: string | null): CapturePolicy {

@@ -422,6 +422,11 @@ export class AgentHost {
     if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
   }
 
+  /** The root conversation, the one that reads `<memory>`. Helpers are other conversations. */
+  async rootId(): Promise<ConversationId | null> {
+    return this.opened ? (await this.opened).root.id : null
+  }
+
   epoch(): number {
     return this.ctx.storage.sql.exec<{ n: number }>("SELECT n FROM harness_epoch WHERE id = 1").toArray()[0]?.n ?? 0
   }

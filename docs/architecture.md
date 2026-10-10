@@ -707,7 +707,7 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 
 ### 13.3 The user's life log
 
-- **Lines.** An agent's `note` (`@ada: ...`), a room's rollup (`chat trip: ...`), or a line the human adds (`you: ...`). One line, at most 280 bytes. Summaries of the life log follow the room's rules above. The same words twice are stored once.
+- **Lines.** An agent's `note` (`@ada: ...`), a room's rollup (`chat trip: ...`), a fact captured from the human's own messages, or a line the human adds (both `you: ...`). One line, at most 280 bytes. Summaries of the life log follow the room's rules above. The same words twice are stored once, and a correction replaces what it corrects (13.6).
 - **The human.** The memory screen lists every line, newest first. The human pins up to 10 lines, which head every view, and redacts any line: its text is gone for good and the summaries above it are rebuilt. Agents can do neither.
 - **The model.** Summaries use the model the human picks on the memory screen, else the default model, with the human's own credential. Yuki picks no cheaper model on its own. At most four summaries run at once per user, across every room, so a dozen busy chats cannot spend the human's rate limit; the rest are told when to try again.
 - **Migration.** The records store of phase 5 is read once into the log, oldest first, then dropped.
@@ -744,6 +744,35 @@ Each fact has one home, so one fact costs one write. A note is a fact about the 
 ### 13.5 Later
 
 Vector search is added only if `recall`'s keyword search proves too weak. Nothing in the tables blocks it.
+
+### 13.6 Capture, replacement, and Jev
+
+Phase 15, after comparing yuki with bops, memoryrepo, and Honcho on 2026-10-10.
+
+**Decision.** Yuki keeps its own memory in `UserDO` SQLite. It takes four ideas from those systems: facts come from what the human says, a correction replaces the old fact, every fact knows the message it came from, and a short card of stable facts leads the life view. Jev (TypeSafe) is an optional judge.
+
+**Why not Honcho.** Honcho is AGPL-3.0, needs Postgres with pgvector and Redis, and reads one model key from its server config (`src/llm/credentials.py`). It cannot run on Workers, and it cannot use each user's own key. Hosted Honcho would send every chat to another company. Its good ideas fit in a few hundred lines here.
+
+**Capture.** `RoomDO` hands each delivered burst's human messages to `UserDO.captureHuman`. Private chats hand nothing. `UserDO` queues them (`capture_queue`) and works in its own wakeup, never on the path of a reply.
+
+- With a TypeSafe key, code splits each message into sentences and one Jev request judges all of them. Per sentence it asks: worth keeping for months, private, a standing rule for how to help, a card tag, and, for each known fact nearby, "says the same" and "makes it no longer true". The kept sentence is stored word for word, so Jev picks text and never writes it. A first version asked one choice over every known fact. Two copies of "lives in Bangalore" split the replace vote 0.41 and 0.10, and "new" won at 0.49. One yes or no per fact fixed it, and a correction now replaces every copy.
+- Without one, the memory model reads a batch (12 messages, or the oldest 10 minutes old) and answers in a four-line format: new, same, replaces, with an optional card tag. Each fact names the message it came from.
+- Nearby facts are keyword matches, then the card, then the newest facts. A correction often shares no word with what it corrects ("i moved to pune" against "lives in Bangalore").
+- `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. Its rule says the human's own words are saved without it. A note carries the ref of the human message it answers.
+
+**Replacement and forgetting.** `life` gains `ref`, `superseded_by`, and `card`. A replaced line leaves recall and the card, and the summaries above it rebuild. Deleting or editing a message redacts every line with its ref, and an edit is queued again. A redacted correction brings back what it replaced. A rollup's ref is its turn span, so a deleted turn takes its rollup too.
+
+**The card.** Pinned lines, then card-tagged lines, newest first, at most 12, at the top of the life view. A card line is one unlikely to change within six months (Honcho's rule). `recall` leaves card lines out, since every fresh block shows them.
+
+**Recall reads nothing twice.** `recall` leaves out chat lines that are verbatim in the agent's context and lines it already returned since the context last started fresh, and says so in one line. With Jev, more than six hits are reranked and weak ones dropped.
+
+**Jev is dynamic.** The key is a provider credential (`typesafe`), sealed like any other and listed in Settings. It is not a model provider and never counts as one. Every judgment reads the key when it runs, so adding or removing it mid-session, with agents running, changes the next capture and nothing else. A key the API refuses is marked, Settings says "Key refused", and capture takes the base path. Any Jev failure returns no answer and the caller takes the base path. DEVIATION: this is the one credential kind not taken from pi-ai. It adds no model list and no chat adapter.
+
+**Policy.** Thresholds and timings are one user setting, `memory_policy`, merged over defaults in `packages/memory/src/capture.ts`, so they change without a deploy.
+
+**Measured, 2026-10-10.** `bun yuki verify memory-jev` with Muse Spark 1.3 and the real Jev API passed all eight steps in 45 s: base capture, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister is a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key falling back and shown in Settings, and capture continuing after the key was removed. A Jev capture request of 20 questions took 290 to 400 ms.
+
+**Not done.** Dreaming (a rare rewrite of the whole log) waits until evals show duplicates that capture misses. A Jev check before each run and Jev burst-end detection were left out, because both put a network call in front of the agent's first token.
 
 ## 14. Reminders and scheduling
 

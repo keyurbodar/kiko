@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai"
-import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
+import { type ConversationId, defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { isRunTainted } from "@yuki/agent/trust"
 
@@ -8,7 +8,7 @@ export const MEMORY_NOTE = "memory-note"
 
 export type MemoryPort = {
   note(text: string, tainted: boolean): Promise<{ ok: true; duplicate?: true } | { ok: false; error: string }>
-  recall(query: string): Promise<string>
+  recall(query: string, conversationId: ConversationId): Promise<string>
   zoom(id: string): Promise<string | null>
 }
 
@@ -28,8 +28,8 @@ export function memoryExtensions(port: MemoryPort): Extension[] {
     description: "keyword search over this chat's messages (newest first) and your life lines: notes and other chats' summaries. hits are cut at 300 chars; zoom an id for more.",
     parameters: Type.Object({ query: Type.String({ description: "a few keywords, like a name or a topic" }) }),
     replay: "safe",
-    execute: async (args) => {
-      const found = await port.recall(args.query)
+    execute: async (args, api) => {
+      const found = await port.recall(args.query, api.conversationId)
       return { content: text(found || `nothing matches "${args.query}"`) }
     },
   })
