@@ -30,7 +30,7 @@ import type { JsonObject } from "@earendil-works/pi-ai"
 import { ProviderLogins } from "./provider-login"
 import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
-import { BUDGET_LINE } from "../room/limits"
+import { routineRun, type SignalBatch } from "../room/signals"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
 import type { Trigger } from "@yuki/protocol"
 import { safeFetch } from "@yuki/durable/safe-fetch"
@@ -112,13 +112,8 @@ export class UserDO extends DurableObject<Env> {
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner(), (by) => this.triggerAuthority(by)), Date.now, {
-        deliverRun: async ({ deliveryId, routine, body, tainted }) => {
-          const paid = this.takeAutonomous()
-          if (!paid.ok) {
-            if (paid.reason === "limit") await this.budgetNotice(routine.roomId)
-            return "held"
-          }
-          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: runGrant(routine) })
+        deliverRun: async ({ deliveryId, routine, body, tainted, budget }) => {
+          const out = await roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, tainted, grant: runGrant(routine), budget })
           if (out === "delivered" && routine.id === this.setting(CHECK_IN)) this.putSetting(CHECK_IN_SEEN, this.checkInFingerprint())
           return out
         },
@@ -133,6 +128,7 @@ export class UserDO extends DurableObject<Env> {
           },
           unchanged: async (routine) => routine.id === this.setting(CHECK_IN) && this.setting(CHECK_IN_SEEN) === this.checkInFingerprint(),
         },
+        signal: (s) => this.ctx.waitUntil(this.signals({ roomId: s.roomId, openedAt: s.at, signals: [s], more: 0 })),
       })
       this.extensions = new ExtensionStore(
         this.sql,
@@ -319,20 +315,27 @@ export class UserDO extends DurableObject<Env> {
     return this.setting(PUBLIC_ORIGIN)
   }
 
-  async runRoutine(id: string): Promise<RunDelivery | null> {
-    return this.reminders.runNow(id)
+  /** `byHuman`: the human pressed run now, so the run spends no budget. */
+  async runRoutine(id: string, byHuman = false): Promise<RunDelivery | null> {
+    return this.reminders.runNow(id, byHuman)
   }
 
   async routineRuns(id?: string): Promise<RoutineRun[]> {
     return this.reminders.runs(id)
   }
 
-  async routineRunDone(routineId: string, occurrence: string, status: "ok" | "quiet" | "failed" | "timeout", seq: number | null): Promise<void> {
-    await this.reminders.finishRun(routineId, occurrence, status, seq)
-  }
-
-  async routineEvent(routineId: string, occurrence: string, what: string, events: string, tainted: boolean): Promise<RunDelivery | null> {
-    return this.reminders.fireEvent(routineId, occurrence, what, events, tainted)
+  /**
+   * The bus of what happened (room/signals.ts). Event routines start from a room's batch; a routine
+   * run's result closes its record. Reminders firing and watched pages changing come here too, for
+   * whatever starts work on its own next.
+   */
+  async signals(batch: SignalBatch): Promise<void> {
+    for (const s of batch.signals) if (s.kind === "routine_result") await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
+    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final" || s.kind === "task" || s.kind === "file")) return
+    for (const routine of this.reminders.roomRoutines(batch.roomId)) {
+      const run = routineRun(roomRoutine(routine), batch)
+      if (run) await this.reminders.fireEvent(routine.id, `event:${batch.openedAt}`, "events in this chat", run.body, run.tainted)
+    }
   }
 
   async eventRoutines(roomId: string): Promise<RoomRoutine[]> {
@@ -923,15 +926,29 @@ export class UserDO extends DurableObject<Env> {
     return this.limits()
   }
 
-  takeAutonomous(): AutonomousAnswer {
+  /** One run nobody's message started, paid once per wake id however often the room asks (section 25.5). */
+  takeAutonomous(id: string): AutonomousAnswer {
     const now = Date.now()
-    const key = `autonomous:${utcDay(now)}`
+    const day = utcDay(now)
+    const key = `autonomous:${day}`
     const used = Number(this.setting(key) ?? 0)
+    if (this.sql.exec("SELECT 1 FROM autonomous_taken WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
     const lastSeen = this.setting(LAST_SEEN)
     const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
-    if (answer.ok) this.putSetting(key, String(answer.used))
-    else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
+    if (answer.ok) {
+      this.putSetting(key, String(answer.used))
+      this.sql.exec("DELETE FROM autonomous_taken WHERE day != ?", day)
+      this.sql.exec("INSERT OR IGNORE INTO autonomous_taken (id, day) VALUES (?, ?)", id, day)
+    } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
     return answer
+  }
+
+  /** The agent refused the wake `id`: the run it paid for goes back to today's count. */
+  refundAutonomous(id: string): void {
+    const day = utcDay(Date.now())
+    if (!this.sql.exec("DELETE FROM autonomous_taken WHERE id = ? AND day = ?", id, day).rowsWritten) return
+    const key = `autonomous:${day}`
+    this.putSetting(key, String(Math.max(0, Number(this.setting(key) ?? 0) - 1)))
   }
 
   private seen(): void {
@@ -941,16 +958,6 @@ export class UserDO extends DurableObject<Env> {
     if (now - last < 3_600_000) return
     this.putSetting(LAST_SEEN, String(now))
     if (wasAway) this.sql.exec("DELETE FROM settings WHERE key = ?", AWAY_NOTICE)
-  }
-
-  private async budgetNotice(roomId: RoomId): Promise<void> {
-    const day = utcDay(Date.now())
-    const key = `budget_notice:${roomId}`
-    if (this.setting(key) === day) return
-    this.putSetting(key, day)
-    await roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId)
-      .systemNotice(`budget:${day}`, BUDGET_LINE("your account"))
-      .catch(() => {})
   }
 
   private async awayNotice(now: number): Promise<void> {
