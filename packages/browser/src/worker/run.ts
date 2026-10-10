@@ -1,0 +1,112 @@
+import { BROWSER } from "../config"
+import { choices } from "../plan/candidates"
+import type { Decider, Decision } from "../decide/types"
+import type { PageView, Step, Tab } from "../page/types"
+import type { Stop, Task, TaskResult } from "./types"
+
+export type WorkerDeps = {
+  decider: Decider
+  paused(): boolean
+  signal: AbortSignal
+  now?: () => number
+}
+
+/**
+ * The page script marks password, payment and one-time-code fields with `state: "secret"`
+ * (a space-separated flag list, so "secret focused" counts). A page that has one stops the worker.
+ */
+const isSecret = (page: PageView) => page.controls.some((c) => c.state?.split(" ").includes("secret"))
+
+export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<TaskResult> {
+  const values = task.values ?? {}
+  const actions: string[] = []
+  let last: PageView = { key: "", url: task.url ?? "", title: "", controls: [], text: "", omitted: 0 }
+  const end = (stop: Stop, extra: Partial<TaskResult> = {}): TaskResult => ({
+    stop,
+    url: last.url,
+    title: last.title,
+    actions,
+    ...extra,
+  })
+
+  let unchanged = 0
+  let steps = 0
+  let staleRetry = false
+  // The read taken after an action doubles as the read before the next decision.
+  let fresh: PageView | null = null
+
+  try {
+    if (task.url) {
+      const r = await tab.act({ op: "goto", url: task.url })
+      if (!r.ok) return end(r.reason === "dialog" ? "dialog" : r.reason === "crashed" ? "crashed" : "stuck", { note: `goto ${r.reason}` })
+    }
+    while (true) {
+      if (deps.signal.aborted) return end("paused")
+      if (steps >= BROWSER.stepsPerWorker) return end("budget")
+      last = fresh ?? (await tab.read())
+      fresh = null
+      if (isSecret(last)) return end("needs_human", { note: "a password, payment or code field is on the page" })
+
+      let decision: Decision
+      try {
+        decision = await deps.decider.decide(
+          { goal: task.goal, values, page: last, options: choices(last, task.goal, values), history: actions },
+          deps.signal,
+        )
+      } catch (e) {
+        if (deps.signal.aborted) return end("paused")
+        throw e
+      }
+      steps++
+      const { choice } = decision
+      const step = choice.step
+
+      if (decision.confidence !== null && decision.confidence < BROWSER.confidenceFloor) {
+        const top = [choice, ...decision.runnersUp].slice(0, 3).map((c) => c.text)
+        return end("unsure", { options: top })
+      }
+      if (step.op === "done") return end("done")
+      if (step.op === "stuck") return end("stuck")
+      if (step.op === "type" && step.text === "") return end("needs_value", { note: choice.text })
+      if (deps.paused()) return end("paused")
+
+      const before = last.key
+      const result = await tab.act(step as Step)
+      if (!result.ok) {
+        if (result.reason === "dialog") return end("dialog", { note: result.detail })
+        if (result.reason === "crashed") return end("crashed", { note: result.detail })
+        if (result.reason === "stale" && !staleRetry) {
+          // The page moved under us. Read again and decide again, once.
+          staleRetry = true
+          steps--
+          continue
+        }
+        actions.push(`${choice.text} failed: ${result.reason}`)
+      } else {
+        actions.push(choice.text)
+      }
+      staleRetry = false
+
+      fresh = await tab.read()
+      last = fresh
+      unchanged = fresh.key === before ? unchanged + 1 : 0
+      if (unchanged >= BROWSER.unchangedLimit) return end("stuck", { note: "the page did not change" })
+    }
+  } catch (e) {
+    return end("crashed", { note: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+/** Up to workersPerRun tasks at the same time. Results keep the order of the tasks. */
+export async function runTasks(tabs: Tab[], tasks: Task[], deps: WorkerDeps): Promise<TaskResult[]> {
+  const n = Math.min(tasks.length, tabs.length, BROWSER.workersPerRun)
+  const ran = await Promise.all(tasks.slice(0, n).map((t, i) => runTask(tabs[i], t, deps)))
+  const skipped: TaskResult[] = tasks.slice(n).map((t) => ({
+    stop: "budget",
+    url: t.url ?? "",
+    title: "",
+    actions: [],
+    note: `not started: at most ${n} tasks run at once`,
+  }))
+  return [...ran, ...skipped]
+}
