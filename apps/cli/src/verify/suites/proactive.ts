@@ -1,12 +1,12 @@
 import type { Agent, AgentSlug, Approval, RoomId, RoomToClient, UserToClient } from "@yuki/protocol"
 import { type RoomHandle, VerifyError } from "../client"
-import { agentTexts, dev, eventually, inSeconds, messages, ok, type Routine, routines, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
+import { agentTexts, dev, eventually, inSeconds, messages, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
 import { fake, newRoom, send, ulid } from "./mid-run"
 
-// Architecture sections 25.3, 25.5, 25.6, and 25.7, with the scripted fake agent: no tokens. A task
-// left a day is nudged once to its owner; a human away for a week holds every run nobody asked for
-// and hears why once; every user has yuki's check-in, and yuki's overview reads every chat; work a
+// Architecture sections 25.3, 25.5, and 26.6, with the scripted fake agent: no tokens. A task left
+// two days wakes its owner once through the initiative pass; a human away for a week holds every run
+// nobody asked for and hears why once; no check-in routine exists, and yuki's overview reads every chat; work a
 // routine hands to a teammate keeps the routine's authority, so the teammate cannot act outside yuki
 // without the human, while the same hand-off from a human can. Needs NODE_ENV=development.
 
@@ -27,7 +27,7 @@ const suite: Suite = {
     const s = await v.as(`proactive-${run}`)
     const url = v.url
 
-    // 1. A stalled task: one nudge to its owner, once a day.
+    // 1. A stalled task: the initiative pass wakes its owner once, and the answer carries the reason.
     {
       const { roomId, room } = await newRoom(s, "proactive: stalls")
       await fake(v, s, roomId)
@@ -37,15 +37,49 @@ const suite: Suite = {
       room.raw.send({ t: "task", op: { op: "update", id: "stuck", status: "doing" } })
       await Bun.sleep(1_000)
       const before = agentTexts(room).length
-      await dev(url, s, "age", { roomId, ms: 25 * 3_600_000 })
-      await eventually("the nudged agent's answer", () => agentTexts(room).length > before, 30_000)
-      const answer = agentTexts(room).at(-1)!
-      if (!answer.includes("write the launch post")) throw new VerifyError(`the nudge did not reach the owner: ${JSON.stringify(answer)}`)
-      // The sweep again, with the task untouched: the same stretch of staleness is not nudged twice.
-      await dev(url, s, "age", { roomId, ms: 0 })
+      await dev(url, s, "attention", { action: "rhythm", mode: "now" })
+      await dev(url, s, "age", { roomId, ms: 2 * 86_400_000 })
+      // The human wrote a moment ago: the pass waits for them to leave the room.
+      await dev(url, s, "attention", { action: "age", ms: 10 * 60_000 })
+      const pass = await dev(url, s, "attention", { action: "pass" })
+      await eventually("the woken owner's answer", () => agentTexts(room).length > before, 30_000).catch((e: Error) => {
+        throw new VerifyError(`${e.message}: ${JSON.stringify(pass)}`)
+      })
+      const answer = messages(room).filter((m) => m.from.kind === "agent").at(-1)!
+      if (!answer.text.includes("write the launch post")) throw new VerifyError(`the wake did not reach the owner: ${JSON.stringify(answer.text)}`)
+      if (!answer.initiative?.reason) throw new VerifyError(`the answer to a wake has no initiative reason: ${JSON.stringify(answer)}`)
+      // A second pass with the task untouched: the same stretch of staleness rests.
+      await Bun.sleep(2_000)
+      await dev(url, s, "attention", { action: "pass" })
       await Bun.sleep(4_000)
-      if (agentTexts(room).length !== before + 1) throw new VerifyError(`a task was nudged twice for one stretch of staleness: ${JSON.stringify(agentTexts(room).slice(before))}`)
-      console.log(`  ok a task untouched for 25h nudged its owner once: ${JSON.stringify(answer.slice(0, 80))}`)
+      if (agentTexts(room).length !== before + 1) throw new VerifyError(`a task was woken twice for one stretch of staleness: ${JSON.stringify(agentTexts(room).slice(before))}`)
+      console.log(`  ok a task untouched for 2 days woke its owner once (${JSON.stringify(answer.initiative.reason)}): ${JSON.stringify(answer.text.slice(0, 80))}`)
+      room.raw.close()
+    }
+
+    // 1b. Two ignored nudges close the appetite: no third, and the loop rests longer each time.
+    {
+      const a = await v.as(`proactive-ignore-${run}`)
+      const { roomId, room } = await newRoom(a, "proactive: ignored")
+      await fake(v, a, roomId)
+      const due = new Date(Date.now() + 86_400_000).toISOString()
+      await send(room, toolLine("loop", { action: "open", kind: "intention", certainty: "explicit", text: "file the tax return", due_iso: due }))
+      await eventually("the loop", () => agentTexts(room).length >= 1, 20_000)
+      await dev(url, a, "attention", { action: "rhythm", mode: "now" })
+      type P = { woke: { result: string }[]; verdicts: { verdict: string; reason?: string; until?: number }[]; at: number }
+      const step = async (days: number) => {
+        await dev(url, a, "attention", { action: "age", ms: days * 86_400_000 })
+        const before = agentTexts(room).length
+        const p = (await dev(url, a, "attention", { action: "pass" })) as P
+        if (p.woke.some((w) => w.result === "delivered")) await eventually("the nudge", () => agentTexts(room).length > before, 20_000)
+        await Bun.sleep(2_000)
+        const v0 = p.verdicts[0]!
+        return { woke: p.woke.filter((w) => w.result === "delivered").length, verdict: `${v0.verdict}${v0.reason ? `:${v0.reason}` : ""}${v0.until ? ` ${((v0.until - p.at) / 86_400_000).toFixed(1)}d` : ""}` }
+      }
+      const got = [await step(1), await step(2), await step(2), await step(2), await step(4)]
+      const want = [1, 0, 1, 0, 0]
+      if (got.map((g) => g.woke).join() !== want.join()) throw new VerifyError(`nudges per pass ${JSON.stringify(got)}, want ${JSON.stringify(want)}`)
+      console.log(`  ok nudge, ignored, rest, nudge, ignored, then none: ${got.map((g) => g.verdict).join(" | ")}`)
       room.raw.close()
     }
 
@@ -89,14 +123,12 @@ const suite: Suite = {
       kroom.raw.close()
     }
 
-    // 3. yuki's check-in exists for every user, and overview reads across chats.
+    // 3. No daily check-in routine is made any more, and yuki's overview still reads across chats.
     {
       await ok(url, s, "me")
-      const checkIn = await waitRoutine(url, s, (all) => all.find((r) => r.name === "check-in" && r.target === "yuki"), "the check-in routine", 10_000)
-      if (checkIn.status !== "active" || checkIn.trigger?.on !== "time") throw new VerifyError(`unexpected check-in ${JSON.stringify(checkIn)}`)
       await ok(url, s, "me")
       const count = (await routines(url, s)).routines.filter((r) => r.name === "check-in").length
-      if (count !== 1) throw new VerifyError(`ensureHome made ${count} check-ins`)
+      if (count !== 0) throw new VerifyError(`ensureHome made ${count} check-in routines`)
       const { roomId, room } = await newRoom(s, "proactive: overview")
       await fake(v, s, roomId)
       room.raw.send({ t: "task", op: { op: "create", id: "open-1", title: "book the venue" } })
@@ -104,22 +136,9 @@ const suite: Suite = {
       await send(room, toolLine("overview", {}))
       await eventually("the overview result", () => agentTexts(room).some((t) => t.includes("chats, newest first")), 20_000)
       const text = agentTexts(room).find((t) => t.includes("chats, newest first"))!
-      if (!text.includes("proactive: overview") || !text.includes("open task") || !text.includes("check-in")) throw new VerifyError(`the overview missed something: ${text.slice(0, 600)}`)
-      console.log(`  ok every user has yuki's check-in (${checkIn.id}, once), and overview lists chats, open tasks, and routines (${text.length} chars)`)
+      if (!text.includes("proactive: overview") || !text.includes("open task")) throw new VerifyError(`the overview missed something: ${text.slice(0, 600)}`)
+      console.log(`  ok no check-in routine; overview lists chats and open tasks (${text.length} chars)`)
       room.raw.close()
-
-      // A scheduled check-in with nothing changed since its last run calls no model. The client opens
-      // the yuki chat, which gives its room a home.
-      const kroom = await s.room(checkIn.roomId)
-      await ok(url, s, "dev/agent/fake", { roomId: checkIn.roomId })
-      await dev(url, s, "due", { id: checkIn.id })
-      await waitRuns(url, s, checkIn.id, "the first scheduled check-in", (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      await dev(url, s, "due", { id: checkIn.id })
-      const runs = await waitRuns(url, s, checkIn.id, "the second scheduled check-in", (rs) => rs.filter((x) => x.status !== "running").length >= 2, 40_000)
-      if (runs[0]!.status !== "quiet" || runs[0]!.seq !== null) throw new VerifyError(`an unchanged check-in still ran: ${JSON.stringify(runs.slice(0, 2))}`)
-      if (runs[1]!.status !== "ok") throw new VerifyError(`the first check-in did not run: ${JSON.stringify(runs[1])}`)
-      console.log(`  ok a check-in with nothing new was recorded quiet with no delivery (first ${runs[1]!.status}, then ${runs[0]!.status})`)
-      kroom.raw.close()
     }
 
     // 4. Authority survives a hand-off. A routine's run hands work to @ada: ada cannot act outside yuki

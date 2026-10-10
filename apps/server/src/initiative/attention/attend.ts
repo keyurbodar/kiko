@@ -40,7 +40,8 @@ export function score(c: Candidate, ctx: AttendContext): number {
     const ahead = rhythm.moments.length ? rhythm.moments.filter((m) => m < c.due!).length : Math.floor(Math.max(0, c.due - now) / cycle)
     due = c.due <= now ? 1 : 1 / (1 + ahead)
   }
-  const promise = c.owner !== "human" && (c.kind === "commitment" || c.kind === "task") ? 1 : 0
+  // A promise with a date is kept near its date, not at the first moment after it was made.
+  const promise = c.owner !== "human" && (c.kind === "commitment" || c.kind === "task") && (c.due === undefined || c.due <= now + cycle) ? 1 : 0
   const talked = (1 - 1 / (1 + c.mentions)) * 0.5 ** (age / 7)
   const stale = c.certainty === "explicit" && (c.kind === "goal" || c.kind === "project" || c.kind === "waiting") ? 1 - 0.5 ** (age / 7) : 0
   const relevant = ctx.relevance?.[c.id] ?? 0
@@ -85,6 +86,7 @@ export function attend(candidates: readonly Candidate[], ctx: AttendContext): Ve
     else if (!rhythm.known) brief(c, s, "cold")
     else if (ctx.away) brief(c, s, "away")
     else if (ctx.busyRooms.includes(c.room)) brief(c, s, "typing")
+    else if (now - c.lastSeen < rhythm.cycle / 2 && (c.due === undefined || c.due > now)) brief(c, s, "fresh")
     else if (c.certainty === "tentative" && jev === undefined) brief(c, s, "tentative")
     else if (!kindOpen(appetite, c.kind, now)) brief(c, s, "appetite")
     else {

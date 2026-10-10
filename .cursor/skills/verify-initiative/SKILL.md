@@ -1,6 +1,6 @@
 ---
 name: verify-initiative
-description: "Prove Yuki's proactive behavior (reminders, nudges, check-ins, Jev memory capture, background cost) end to end with REAL models, no fakes: boots wrangler dev, signs in a dev user, stores OpenCode Go and TypeSafe keys through the credentials route, drives the human through the CLI client, and captures evidence. Use for 'verify initiative', 'A/B Jev', 'does the agent follow up', or before claiming proactive work behaves."
+description: "Prove Yuki's proactive behavior (reminders, initiative nudges, Jev memory capture, background cost) end to end with REAL models, no fakes: boots wrangler dev, signs in a dev user, stores OpenCode Go and TypeSafe keys through the credentials route, drives the human through the CLI client, and captures evidence. Use for 'verify initiative', 'A/B Jev', 'does the agent follow up', or before claiming proactive work behaves."
 ---
 
 # Verify initiative
@@ -40,17 +40,16 @@ Write a scenario in `scripts/` that imports `./kit` (run with `bun`, from the re
 | `age(ctx, room, ms)` / `seen(ctx, ago)` / `due(ctx, id)` | dev routes below |
 | `save(ctx, name, data)` | writes JSON evidence |
 
-Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. For an A/B, run the same scenario with and without `--jev` and compare `background tokens` and `agent usage`.
+Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. The attention engine has its own suite: `bun yuki verify initiative` (model, both arms; `INITIATIVE_MODE=nojev|jev`, `INITIATIVE_ONLY=a,b,...` picks scenarios), which prints background tokens per arm. For an A/B, run the same scenario with and without `--jev` and compare `background tokens` and `agent usage`.
 
 ### Dev routes that exist (NODE_ENV=development, localhost only), all `POST /api/dev/agent/<name>`
 
-`fake`, `status`, `deliver`, `seed` (log turns with no run), `memory`, `classic`, `trace`, `children` are fake-agent or inspection routes. Useful here: `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages open tasks, runs the stall sweep, 24 h nudge), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
+`fake`, `status`, `deliver`, `seed` (log turns with no run), `memory`, `classic`, `trace`, `children` are fake-agent or inspection routes. Useful here: `attention {action}` (the initiative engine: `rhythm` with `mode: now` makes the human usually write at this hour, `age` with `ms` moves loops, due times, rests, pending nudges, and an agent's own reminders into the past, `pass` runs the attention pass now and returns its verdicts and wakes, `state` reads rhythm, appetite, marks, wakes), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages open tasks and reports them to UserDO, for stalled-task candidates), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
 
 ### Gaps an initiative suite will hit
 
-- No route ages a reminder or loop: a reminder's `dueUtc` cannot be moved earlier, so its delivery (and the agent's follow-up) cannot be proven without waiting. Use `due {id}` for routines only, or create the reminder a few seconds out (`time` in 10 s) through the agent or `POST /api/reminders`.
+- `attention {action: "age"}` fires an agent's own reminders that would have come due; a reminder for the human still cannot be moved earlier.
 - No route ages memory lines or the life log (for staleness or "follow up on a stated deadline" behavior).
-- `age` only touches room tasks; there is no per-agent or per-loop age.
 - `usage` memory counters are cumulative per user; take a before and after, or use a fresh user per arm.
 
 ## Evidence

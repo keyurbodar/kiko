@@ -53,6 +53,17 @@ export class AttentionStore {
     this.#put("appetite", nudged(this.appetite(), { ...n, deadline }))
   }
 
+  /** Development only: move every pending nudge `ms` into the past, as if that much time went by. */
+  devShift(ms: number): void {
+    const app = this.appetite()
+    this.#put("appetite", { ...app, pending: app.pending.map((p) => ({ ...p, at: p.at - ms, deadline: p.deadline - ms })) })
+  }
+
+  /** Development only: replace the rhythm. */
+  devRhythm(r: Rhythm): void {
+    this.#put("rhythm", r)
+  }
+
   /** Forget everything (account wipe or the user resetting initiative). */
   clear(): void {
     this.sql.exec("DELETE FROM attention")

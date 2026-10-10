@@ -52,6 +52,7 @@ type MessageRow = {
 	goto: string | null
 	quote: string | null
 	addressed: string | null
+	initiative: string | null
 }
 
 export type NewMessage = {
@@ -71,6 +72,8 @@ export type NewMessage = {
 	tainted?: boolean
 	/** The teammate, or all, an agent's send_message or ask was for. */
 	to?: AgentSlug | "all"
+	/** The agent spoke up unasked (section 26). */
+	initiative?: { reason: string }
 }
 
 /** The stored form of an actor or sender: "human", "agent:<slug>", or "system:<reason>". */
@@ -266,6 +269,7 @@ export class RoomLog {
 				...(input.goto ? { goto: input.goto } : {}),
 				...(input.quote ? { quote: input.quote } : {}),
 				...(input.to ? { to: input.to } : {}),
+				...(input.initiative ? { initiative: input.initiative } : {}),
 			}
 			const event = this.append(actorKey(input.from), {
 				t: "message",
@@ -273,8 +277,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, tainted, addressed)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, tainted, addressed, initiative)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -290,6 +294,7 @@ export class RoomLog {
 				input.quote ?? null,
 				input.tainted ? 1 : 0,
 				input.to ?? null,
+				input.initiative?.reason ?? null,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
@@ -421,6 +426,7 @@ export class RoomLog {
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(r.quote ? { quote: r.quote } : {}),
 			...(r.addressed ? { to: r.addressed as AgentSlug | "all" } : {}),
+			...(r.initiative ? { initiative: { reason: r.initiative } } : {}),
 			...(reactions.length ? { reactions } : {}),
 		}
 	}

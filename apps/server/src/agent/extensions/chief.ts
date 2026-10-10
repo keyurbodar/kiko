@@ -81,7 +81,7 @@ export function chiefExtension(port: ChiefPort): Extension {
 
   const overview = defineTool({
     name: "overview",
-    description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines and their last runs, reminders due soon. for check-ins.",
+    description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines and their last runs, reminders due soon.",
     parameters: Type.Object({}),
     replay: "safe",
     execute: async () => ({ content: text(await port.overview()) }),
