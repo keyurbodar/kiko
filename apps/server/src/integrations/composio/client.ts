@@ -10,6 +10,8 @@ export type ComposioTool = {
   description?: string
   inputSchema: Record<string, unknown>
   readOnly?: boolean
+  /** A learned app tool, run through a one-item multi-execute instead of by its own name. */
+  direct?: { slug: string; toolkit: string }
 }
 
 export type ComposioResultBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string }

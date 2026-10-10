@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { effectOf } from "@yuki/agent/effects"
 import { callTool, ComposioError, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
+import { ComposioConnection } from "../src/integrations/composio/connect"
+import { LEARNED_MAX, type LearnedTool, remember, trimSearch } from "../src/integrations/composio/learn"
+import type { ComposioStore } from "../src/integrations/composio/store"
 import { composioExtension, HIDDEN } from "../src/integrations/composio/tools"
+import search from "./fixtures/composio-search.json"
 
 const SSE = "text/event-stream"
 const reply = (id: number, result: unknown) => `event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id, result })}\n\n`
@@ -78,5 +82,98 @@ describe("composio tools", () => {
     expect(calls).toEqual(["COMPOSIO_SEARCH_TOOLS"])
     expect(out.isError).toBe(true)
     expect(out.content[0]!.text).toContain("offline")
+  })
+})
+
+describe("composio search trim", () => {
+  test("the real search result drops snippets, toolkit blurbs, and the time notice, and keeps the rest", () => {
+    const before = JSON.stringify(search)
+    const trimmed = trimSearch(search) as typeof search
+    const after = JSON.stringify(trimmed)
+    expect(before.length - after.length).toBeGreaterThan(1500)
+    expect(after).not.toContain("reference_workbench_snippets")
+    expect(trimmed.data.time_info).toEqual({ current_time_utc: search.data.time_info.current_time_utc, current_time_utc_epoch_seconds: search.data.time_info.current_time_utc_epoch_seconds })
+    expect(trimmed.data.toolkit_connection_statuses.map((s) => Object.keys(s))).toEqual(search.data.toolkit_connection_statuses.map(() => ["toolkit", "has_active_connection", "status_message"]))
+    for (const k of ["tool_schemas", "session", "next_steps_guidance"] as const) expect(trimmed.data[k]).toEqual(search.data[k] as never)
+    expect(trimmed.data.results.map((r) => [r.recommended_plan_steps, r.known_pitfalls, r.primary_tool_slugs])).toEqual(search.data.results.map((r) => [r.recommended_plan_steps, r.known_pitfalls, r.primary_tool_slugs]))
+  })
+})
+
+describe("composio learned tools", () => {
+  const text = (v: unknown) => `data: ${JSON.stringify({ jsonrpc: "2.0", id: "__ID__", result: { content: [{ type: "text", text: JSON.stringify(v) }] } })}\n\n`
+  const webSchema = { type: "object", properties: { query: { type: "string" } }, required: ["query"] }
+  const searchBody = { successful: true, data: { tool_schemas: { COMPOSIO_SEARCH_WEB: { toolkit: "composio_search", tool_slug: "COMPOSIO_SEARCH_WEB", description: "Search the web.", input_schema: webSchema }, GMAIL_GET_ATTACHMENT: { toolkit: "gmail", tool_slug: "GMAIL_GET_ATTACHMENT", schemaRef: {} } } } }
+  const ran = (slug: string, ok: boolean) => ({ successful: true, data: { results: [{ response: { successful: ok, data: { answer: "1.4.2" }, error: ok ? null : "no connection" }, tool_slug: slug, index: 0 }] } })
+
+  /** A connection over an in-memory store, answering each call with the next queued body. */
+  function setup() {
+    const state = { learned: [] as LearnedTool[], sent: [] as { name: string; arguments: unknown }[], replies: [] as unknown[] }
+    const store = {
+      generation: 0,
+      connected: () => true,
+      key: async () => "k",
+      listing: () => ({ at: Date.now(), tools: [{ name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} }, { name: "COMPOSIO_MULTI_EXECUTE_TOOL", inputSchema: {} }] }),
+      learned: () => state.learned,
+      putLearned: (l: LearnedTool[]) => void (state.learned = l),
+    }
+    const fetcher = (async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { id: number; params: { name: string; arguments: unknown } }
+      state.sent.push(body.params)
+      return new Response(text(state.replies.shift()).replace('"__ID__"', String(body.id)), { headers: { "content-type": SSE } })
+    }) as unknown as typeof fetch
+    return { state, connection: new ComposioConnection(store as unknown as ComposioStore, fetcher) }
+  }
+  type Tool = { name: string; description: string; execute: (a: unknown, api: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> }
+
+  test("a searched tool that runs successfully becomes a direct tool that skips the search", async () => {
+    const { state, connection } = setup()
+    state.replies.push(searchBody, ran("COMPOSIO_SEARCH_WEB", true))
+    await connection.call("COMPOSIO_SEARCH_TOOLS", { queries: [{ use_case: "search the web" }] })
+    await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: { query: "bun" } }] })
+    expect(state.learned.map((t) => [t.slug, t.toolkit, t.inputSchema])).toEqual([["COMPOSIO_SEARCH_WEB", "composio_search", webSchema]])
+
+    const tools = (await connection.tools())!
+    const ext = composioExtension(tools, (name, args) => connection.call(name, args)).tools as unknown as Tool[]
+    expect(ext.map((t) => t.name)).toEqual(["composio_search_tools", "composio_multi_execute_tool", "composio_search_web"])
+    expect(ext[0]?.description).toStartWith("When composio_search_web already does the job, call it directly and do not search.")
+    const web = ext[2]!
+    expect(effectOf(web as never)).toEqual({ effect: "external", outside: "composio" })
+    expect(web.description).toBe("Search the web. (composio_search through composio, call it directly)")
+
+    state.replies.push(ran("COMPOSIO_SEARCH_WEB", true))
+    const out = await web.execute({ query: "who maintains bun" }, { conversationId: "c", callId: "1" })
+    expect(state.sent.at(-1)).toEqual({ name: "COMPOSIO_MULTI_EXECUTE_TOOL", arguments: { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: { query: "who maintains bun" } }], sync_response_to_workbench: false, thought: "direct call" } })
+    expect(out.isError).toBeFalsy()
+    expect(JSON.parse(out.content[0]!.text)).toEqual(ran("", true).data.results[0]!.response)
+  })
+
+  test("a failed run teaches nothing, and a failed direct call is a tool error with Composio's text", async () => {
+    const { state, connection } = setup()
+    state.replies.push(searchBody, ran("COMPOSIO_SEARCH_WEB", false))
+    await connection.call("COMPOSIO_SEARCH_TOOLS", {})
+    await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: {} }] })
+    expect(state.learned).toEqual([])
+
+    const [web] = composioExtension([{ name: "COMPOSIO_SEARCH_WEB", inputSchema: webSchema, direct: { slug: "COMPOSIO_SEARCH_WEB", toolkit: "composio_search" } }], async () => ({ content: [{ type: "text", text: JSON.stringify(ran("COMPOSIO_SEARCH_WEB", false)) }] })).tools as unknown as Tool[]
+    const out = await web!.execute({ query: "x" }, { conversationId: "c", callId: "1" })
+    expect(out).toEqual({ content: [{ type: "text", text: "no connection" }], isError: true })
+  })
+
+  test("a learned tool whose name is a meta tool's is left out", () => {
+    const tools = composioExtension(
+      [{ name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} }, { name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {}, direct: { slug: "COMPOSIO_SEARCH_TOOLS", toolkit: "composio" } }],
+      async () => ({ content: [] }),
+    ).tools
+    expect(tools?.length).toBe(1)
+  })
+
+  test("learned tools keep the most recently used, upsert by slug, and cap", () => {
+    const tool = (slug: string, usedAt: number): LearnedTool => ({ slug, toolkit: "t", description: "", inputSchema: {}, usedAt })
+    const full = Array.from({ length: LEARNED_MAX }, (_, i) => tool(`T${i}`, i))
+    const next = remember(full, [tool("T3", 0), tool("NEW", 0)], 1000)
+    expect(next.length).toBe(LEARNED_MAX)
+    expect(next.slice(0, 2).map((t) => [t.slug, t.usedAt])).toEqual([["T3", 1000], ["NEW", 1000]])
+    expect(next.some((t) => t.slug === "T0")).toBe(false)
+    expect(remember(next, [tool("T3", 0)], 1000)).toEqual(next)
   })
 })

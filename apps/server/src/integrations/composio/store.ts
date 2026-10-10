@@ -1,10 +1,12 @@
 import { type Keyring, open, seal } from "@yuki/durable/crypto"
 import type { ComposioTool } from "./client"
+import type { LearnedTool } from "./learn"
 
 /**
  * One user's Composio rows in `UserDO`. `key` is the sealed consumer key, with the same keyring and
  * AAD scheme as Executor's secrets. `listing` is the last tool listing, plain JSON because it holds
- * no secret, kept so a cold object serves it at once. Disconnect deletes every row.
+ * no secret, kept so a cold object serves it at once. `learned` is the direct tools, plain JSON too.
+ * Disconnect deletes every row.
  */
 export type SavedListing = { at: number; tools: ComposioTool[] }
 
@@ -61,16 +63,33 @@ export class ComposioStore {
   }
 
   listing(): SavedListing | undefined {
-    const row = this.sql.exec<{ value: string }>("SELECT value FROM composio WHERE name = 'listing'").toArray()[0]
-    return row ? (JSON.parse(row.value) as SavedListing) : undefined
+    return this.value<SavedListing>("listing")
   }
 
   putListing(listing: SavedListing, generation = this.generation): void {
+    this.putValue("listing", listing, generation)
+  }
+
+  learned(): LearnedTool[] {
+    return this.value<LearnedTool[]>("learned") ?? []
+  }
+
+  putLearned(learned: LearnedTool[], generation = this.generation): void {
+    this.putValue("learned", learned, generation)
+  }
+
+  private value<T>(name: string): T | undefined {
+    const row = this.sql.exec<{ value: string }>("SELECT value FROM composio WHERE name = ?", name).toArray()[0]
+    return row ? (JSON.parse(row.value) as T) : undefined
+  }
+
+  private putValue(name: string, value: unknown, generation: number): void {
     if (generation !== this.generation || !this.connected()) return
     this.sql.exec(
-      `INSERT INTO composio (name, value, updated_at) VALUES ('listing', ?, ?)
+      `INSERT INTO composio (name, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT (name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      JSON.stringify(listing),
+      name,
+      JSON.stringify(value),
       Date.now(),
     )
   }
