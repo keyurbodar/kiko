@@ -15,7 +15,13 @@ const suite: Suite = {
     await connectTestModel(s)
     const { room } = await newRoom(s, "mid-run model check")
     await send(room, "count from 1 to 300, one number per paragraph, separated by blank lines. nothing else.")
-    await until("the first bubble", () => seen(room).live.length > 0, 60_000)
+    // One turn is one bubble, so stop a few seconds into the stream, before the answer closes.
+    await until(
+      "the agent to start typing",
+      () => room.raw.log.some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as { state: string }).state === "typing"),
+      60_000,
+    )
+    await Bun.sleep(3_000)
     const stoppedAt = room.raw.log.length
     room.raw.send({ t: "stop" })
     await until(
@@ -26,7 +32,7 @@ const suite: Suite = {
     const atIdle = seen(room).live.length
     await Bun.sleep(5_000)
     expectEqual(seen(room).live.length, atIdle, "bubbles after the agent went idle")
-    if (atIdle >= 300) throw new VerifyError("the run finished before stop reached it; nothing was stopped")
+    if (seen(room).live.some((m) => /\b300\b/.test(m.text))) throw new VerifyError("the run finished before stop reached it; nothing was stopped")
     await send(room, "reply with the single word ok.")
     await until("an answer after stop", () => seen(room).live.length > atIdle, 60_000)
     await Bun.sleep(3_000)

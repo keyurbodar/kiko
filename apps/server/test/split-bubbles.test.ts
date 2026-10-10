@@ -17,14 +17,14 @@ function run(text: string, size: number) {
 }
 
 describe("splitBubbles", () => {
-	test("closes a block at a blank line", () => {
-		expect(run("one\ntwo\n\nthree\n\n\n\nfour", 4096).blocks).toEqual(["one\ntwo", "three", "four"]);
+	test("one turn is one bubble: blank lines are paragraph breaks, and runs of them collapse", () => {
+		expect(run("\n\none\ntwo\n\nthree\n\n\n\nfour", 4096).blocks).toEqual(["one\ntwo\n\nthree\n\nfour"]);
 	});
 
 	test("keeps a blank line inside a code fence", () => {
 		const text = "before\n\n```ts\nconst a = 1;\n\nconst b = 2;\n```\n\nafter";
 		for (const size of [1, 7, 4096]) {
-			expect(run(text, size).blocks).toEqual(["before", "```ts\nconst a = 1;\n\nconst b = 2;\n```", "after"]);
+			expect(run(text, size).blocks).toEqual(["before\n\n```ts\nconst a = 1;\n\nconst b = 2;\n```\n\nafter"]);
 		}
 	});
 
@@ -34,7 +34,7 @@ describe("splitBubbles", () => {
 
 	test("strips tags and emits reactions", () => {
 		const r = run("nice [react:👍] work\n\n[react:🔥:m42] ok", 4096);
-		expect(r.blocks).toEqual(["nice  work", "ok"]);
+		expect(r.blocks).toEqual(["nice  work\n\n ok"]);
 		expect(r.reactions).toEqual([{ emoji: "👍" }, { emoji: "🔥", messageId: "m42" }]);
 	});
 
@@ -45,8 +45,8 @@ describe("splitBubbles", () => {
 		s.push("ct:👍");
 		const c = s.push("]\n\nbye");
 		expect(c.reactions).toEqual([{ emoji: "👍" }]);
-		expect(c.blocks).toEqual(["hi"]);
-		expect(s.end().blocks).toEqual(["bye"]);
+		expect(c.blocks).toEqual([]);
+		expect(s.end().blocks).toEqual(["hi \n\nbye"]);
 	});
 
 	test("held back text that is not a tag comes back", () => {
@@ -75,10 +75,10 @@ describe("splitBubbles", () => {
 		const s = createSplitter();
 		expect(s.push("x".repeat(400)).draft).toBeNull();
 		expect(s.push("x").draft).toBe(long);
-		const done = s.push("\n\nnext");
-		expect(done.blocks).toEqual([long]);
+		expect(s.push("\n\nnext").draft).toBe(`${long}\n\nnext`);
+		const done = s.end();
+		expect(done.blocks).toEqual([`${long}\n\nnext`]);
 		expect(done.draft).toBeNull();
-		expect(s.end().blocks).toEqual(["next"]);
 	});
 
 	test("chunk size does not change the result", () => {
@@ -87,7 +87,7 @@ describe("splitBubbles", () => {
 			"long ".repeat(120) +
 			"\n\nlast [react:👀]";
 		const base = run(text, 4096);
-		expect(base.blocks.length).toBe(4);
+		expect(base.blocks.length).toBe(1);
 		for (const size of [1, 7]) {
 			const r = run(text, size);
 			expect(r.blocks).toEqual(base.blocks);

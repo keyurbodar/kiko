@@ -217,7 +217,7 @@ Human messages always outrank agent messages. The inbox sorts by priority first,
 
 ### 6.3 Outgoing bubbles
 
-`AgentDO` watches its conversation and runs the assistant text through a pure function, `splitBubbles`. The function closes a block at each blank line outside a code fence and extracts reaction tags. Each closed block is posted to the room with `post(runId, attempt, index, block)`.
+`AgentDO` watches its conversation and runs the assistant text through a pure function, `splitBubbles`. The function extracts reaction tags and closes one block per model turn. A blank line is a paragraph break, not a split, so a reply with lists stays one bubble. DEVIATION: blocks used to close at each blank line, which spammed the chat with bubbles. Each closed block is posted to the room with `post(runId, attempt, index, block)`.
 
 - The tuple `(runId, attempt, index)` is unique in the room. A retried call stores nothing twice.
 - If a run restarts after a crash, `pi-durable` sends the request again and the model may write different text. The attempt number goes up and the blocks are posted again. A block written again unchanged, at the same index, keeps its bubble where it was. The first block that differs deletes the earlier attempt's bubbles from its index on, and the run's end deletes any the restart never wrote again. Deleting and reposting every bubble put the agent's earlier messages under the human's newer ones, which read as a replay.

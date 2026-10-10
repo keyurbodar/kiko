@@ -1,7 +1,7 @@
 import { awaitWithContext } from "@earendil-works/chord/context"
 import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
+import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { type Approvals, isRunTainted, markRunTainted } from "@yuki/agent/trust"
@@ -51,6 +51,10 @@ export function fakeReply(transcript: readonly Message[]) {
   const page = last?.role === "toolResult" && (last.toolName === "fake_fetch" || last.toolName === "fake_mark")
   const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!), messages) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
+  // One model turn is one bubble, so a two-part answer is two turns: a short note with a tool call, then the rest.
+  const twoPart = users.at(-1)?.includes("[two-part]")
+  if (twoPart && last?.role === "user") return fauxAssistantMessage([fauxText("part one."), fauxToolCall(SLOW_TOOL, { ms: 1 })], { stopReason: "toolUse" })
+  if (twoPart && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(`${LONG} heard: ${users.join(" | ")}`)
   const later = users.map((u) => /\[later ([a-z0-9-]+)\]\s*([^<]*)/.exec(u)).find(Boolean)
   if (later && last?.role === "user") return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: LATER_MS }), { stopReason: "toolUse" })
   if (later && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(fauxToolCall("send_message", { to: later[1]!, text: later[2]!.trim() }), { stopReason: "toolUse" })
@@ -76,7 +80,6 @@ export function fakeReply(transcript: readonly Message[]) {
   }
   if (newest.includes("[quiet]") && !results.length) return fauxAssistantMessage("[skip]")
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
-  if (newest.includes("[two-part]")) return fauxAssistantMessage(`part one.\n\n${LONG} ${heard}`)
   return fauxAssistantMessage(heard)
 }
 
