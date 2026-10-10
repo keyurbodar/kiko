@@ -7,6 +7,8 @@ import type { Authority } from "@yuki/agent/authority"
 import type { Signal } from "../room/signals"
 import type { Budget } from "../room/wake"
 import { RRule } from "rrule"
+import { sha256Hex, toHex } from "@yuki/durable/hash"
+import { getSetting, setSetting } from "../lib/settings"
 import { nextOccurrence, ruleProblem } from "./recurrence"
 
 export const REMINDERS_WAKEUP = "reminders"
@@ -240,8 +242,8 @@ export class Reminders {
   }
 
   owner(): string | null {
-    const row = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'owner'").toArray()[0]
-    return row ? (JSON.parse(row.value) as string) : null
+    const value = getSetting(this.sql, "owner")
+    return value ? (JSON.parse(value) as string) : null
   }
 
   async create(owner: string, input: NewReminder): Promise<Reminder> {
@@ -288,7 +290,7 @@ export class Reminders {
 
   private claim(owner: string, roomId: string): void {
     if (this.owner() === null) {
-      this.sql.exec("INSERT INTO settings (key, value) VALUES ('owner', ?)", JSON.stringify(owner))
+      setSetting(this.sql, "owner", JSON.stringify(owner))
     } else if (this.owner() !== owner) {
       throw new ReminderError("wrong owner")
     }
@@ -308,7 +310,7 @@ export class Reminders {
       throw new ReminderError(`there are already ${MAX_WATCHES} watches. cancel one first.`)
     }
     const id = crypto.randomUUID()
-    const token = input.trigger.on === "webhook" ? hexOf(crypto.getRandomValues(new Uint8Array(24))) : undefined
+    const token = input.trigger.on === "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
     this.sql.exec(
       `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, name, trigger, "grant", fails, hook_hash, tainted)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?, ?, 0, ?, ?)`,
@@ -324,7 +326,7 @@ export class Reminders {
       fields.name,
       JSON.stringify(input.trigger),
       JSON.stringify(fields.grant),
-      token ? await sha256(token) : null,
+      token ? await sha256Hex(token) : null,
       input.tainted ? 1 : 0,
     )
     await this.rearm()
@@ -377,7 +379,7 @@ export class Reminders {
     const fields = this.routineFields({ name: patch.name ?? current.name ?? "", instructions: patch.instructions ?? current.text, trigger, grant: patch.grant ?? current.grant, tz: current.tz, target: current.target })
     const retimed = patch.trigger !== undefined || (patch.status === "active" && current.status === "paused")
     const due = retimed ? fields.due : current.dueUtc
-    const token = patch.trigger?.on === "webhook" && current.trigger.on !== "webhook" ? hexOf(crypto.getRandomValues(new Uint8Array(24))) : undefined
+    const token = patch.trigger?.on === "webhook" && current.trigger.on !== "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
     this.sql.exec(
       `UPDATE reminders SET name = ?, text = ?, trigger = ?, "grant" = ?, rrule = ?, due_utc = ?, status = ?, fails = CASE WHEN ? = 'active' THEN 0 ELSE fails END,
        watch_state = CASE WHEN ? THEN NULL ELSE watch_state END, hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
@@ -390,7 +392,7 @@ export class Reminders {
       patch.status ?? current.status,
       patch.status ?? "",
       patch.trigger !== undefined ? 1 : 0,
-      token ? await sha256(token) : null,
+      token ? await sha256Hex(token) : null,
       id,
     )
     await this.rearm()
@@ -399,7 +401,7 @@ export class Reminders {
 
   async byHook(id: string, token: string): Promise<Reminder | null> {
     const row = this.sql.exec<Row & { hook_hash: string | null }>("SELECT * FROM reminders WHERE id = ? AND status = 'active'", id).toArray()[0]
-    if (!row?.hook_hash || row.hook_hash !== (await sha256(token))) return null
+    if (!row?.hook_hash || row.hook_hash !== (await sha256Hex(token))) return null
     return toReminder(row)
   }
 
@@ -602,7 +604,7 @@ export class Reminders {
       await this.ports.notice(routine.roomId, `watch-paused:${routine.id}:${routine.dueUtc}`, `routine "${routine.name}" paused itself: ${trigger.url} failed ${errors} checks in a row (${page.error}).`)
       return
     }
-    const fp = await sha256(page.text)
+    const fp = await sha256Hex(page.text)
     if (state.fp === fp && !state.errors) return
     if (state.fp !== undefined && state.fp !== fp) {
       const excerpt = page.text.length > WATCH_EXCERPT ? `${page.text.slice(0, WATCH_EXCERPT)}\n[cut at ${WATCH_EXCERPT} characters]` : page.text
@@ -630,11 +632,6 @@ const fail = (message: string): never => {
   throw new ReminderError(message)
 }
 
-const hexOf = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")
-
-export async function sha256(text: string): Promise<string> {
-  return hexOf(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))))
-}
 
 function checkRepeat(rrule: string, tz: string, from: number): void {
   const problem = ruleProblem(rrule)

@@ -13,6 +13,7 @@ import { chatTasks, LOOPS_WAKEUP, MAX_NUDGES, nextSweep, nudgeBody, openTasks, s
 import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub, roomStub } from "../lib/names"
 import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
+import { sha256Hex } from "@yuki/durable/hash"
 import { type ApprovalAnswer, APPROVALS_WAKEUP, type ApprovalRequest, RoomApprovals } from "./approvals"
 import { BURST_WAKEUP, Burst, deliverable, MAX_DELIVERY_ENVELOPES } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
@@ -169,8 +170,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const body = new TextEncoder().encode(text)
 		const id = crypto.randomUUID()
 		const r2Key = fileKey(home.userId, home.roomId, id)
-		const digest = await crypto.subtle.digest("SHA-256", body)
-		const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("")
+		const sha256 = await sha256Hex(body)
 		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
 		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, expectSha256: "none" })
 		if (events.length) this.publish(events)

@@ -28,7 +28,9 @@ import { type Answer, boolOf, type Judge, type Question } from "@yuki/memory/jud
 import type { NoteAnswer } from "@yuki/memory/tools"
 import type { JsonObject } from "@earendil-works/pi-ai"
 import { ProviderLogins } from "./provider-login"
-import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant, sha256 } from "./reminders"
+import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery, runGrant } from "./reminders"
+import { sha256Hex } from "@yuki/durable/hash"
+import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview, overviewFingerprint } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
 import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
@@ -137,7 +139,7 @@ export class UserDO extends DurableObject<Env> {
         (event) => this.commit(event),
         {
           create: async ({ text, rrule, roomId, target, createdBy }) => {
-            const tz = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'timezone'").toArray()[0]?.value ?? DEFAULT_TIMEZONE
+            const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
             const first = nextOccurrence(rrule, tz, Date.now())
             if (!first) throw new Error("the rule has no next time")
             await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
@@ -367,7 +369,7 @@ export class UserDO extends DurableObject<Env> {
     if (!token) return
     try {
       await this.env.AUTH_DB.prepare('insert into "hooks" ("token_hash", "user_id", "routine_id", "created_at") values (?, ?, ?, ?)')
-        .bind(await sha256(token), owner, routine.id, Date.now())
+        .bind(await sha256Hex(token), owner, routine.id, Date.now())
         .run()
     } catch (e) {
       console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
@@ -542,11 +544,11 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private setting(key: string): string | null {
-    return this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
+    return getSetting(this.sql, key)
   }
 
   private putSetting(key: string, value: string): void {
-    this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value)
+    setSetting(this.sql, key, value)
   }
 
   private async memoryCall(op: MemoryOp): Promise<MemoryResult> {
@@ -580,7 +582,7 @@ export class UserDO extends DurableObject<Env> {
       case "set_model":
         if (op.model && !findProvider(op.model.provider)?.getModels().some((m) => m.id === op.model!.modelId)) return { ok: false, error: "no such model" }
         if (op.model) this.putSetting(MEMORY_MODEL, JSON.stringify(op.model))
-        else this.sql.exec("DELETE FROM settings WHERE key = ?", MEMORY_MODEL)
+        else deleteSetting(this.sql, MEMORY_MODEL)
         return { ok: true }
     }
   }
@@ -911,18 +913,18 @@ export class UserDO extends DurableObject<Env> {
 
   private async keyChanged(provider: string): Promise<void> {
     if (!providerUses(provider).judge) return
-    this.sql.exec("DELETE FROM settings WHERE key = ?", refusedKey(provider))
+    deleteSetting(this.sql, refusedKey(provider))
     await this.armCapture()
   }
 
   limits(): Limits {
-    const raw = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value
+    const raw = this.setting("limits")
     return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
   }
 
   setLimits(patch: Partial<Limits>): Limits {
-    const next = { ...JSON.parse(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'limits'").toArray()[0]?.value ?? "{}"), ...patch }
-    this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('limits', ?)", JSON.stringify(next))
+    const next = { ...JSON.parse(this.setting("limits") ?? "{}"), ...patch }
+    this.putSetting("limits", JSON.stringify(next))
     return this.limits()
   }
 
@@ -957,7 +959,7 @@ export class UserDO extends DurableObject<Env> {
     const wasAway = last > 0 && now - last > this.limits().awayDays * 86_400_000
     if (now - last < 3_600_000) return
     this.putSetting(LAST_SEEN, String(now))
-    if (wasAway) this.sql.exec("DELETE FROM settings WHERE key = ?", AWAY_NOTICE)
+    if (wasAway) deleteSetting(this.sql, AWAY_NOTICE)
   }
 
   private async awayNotice(now: number): Promise<void> {
@@ -971,15 +973,15 @@ export class UserDO extends DurableObject<Env> {
   takeTurn(): TurnAnswer {
     const now = Date.now()
     const key = `turns:${utcDay(now)}`
-    const used = Number(this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? 0)
+    const used = Number(this.setting(key) ?? 0)
     const answer = takeTurn(used, this.limits(), now)
-    if (answer.ok) this.sql.exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", key, String(answer.used))
+    if (answer.ok) this.putSetting(key, String(answer.used))
     return answer
   }
 
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
-      this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null
+      getSetting(this.sql, key)
     const limits = setting("limits")
     const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
     return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.captures() }, agent)
@@ -1108,7 +1110,7 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "open") {
-      this.sql.exec("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", LAST_CHAT, frame.roomId)
+      this.putSetting(LAST_CHAT, frame.roomId)
       return
     }
     if (frame.t === "extension") {
@@ -1204,7 +1206,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private lastChat(): RoomId | undefined {
-    const stored = this.sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", LAST_CHAT).toArray()[0]?.value
+    const stored = this.setting(LAST_CHAT)
     const chat = stored ? getChat(this.sql, stored) : null
     return chat && !chat.temp ? chat.roomId : (yukiChatRoom(this.sql) ?? undefined)
   }
