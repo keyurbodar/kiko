@@ -106,10 +106,10 @@ describe("trust: an outside call needs a clean run the human started (section 25
     }
   })
 
-  test("a routine uses a granted tool in a clean run only, and is told to ask for any other", async () => {
+  test("a routine uses a granted tool even in a tainted run, and is told to ask for any other", async () => {
     const granted = { origin: "routine" as const, grant: ["fake_send"] }
     expect((await converse(["[call fake_send]"], granted)).answers).toEqual(["tools: fake_send ran"])
-    expect((await converse(["[fetch] [call fake_send]"], granted)).answers).toEqual(["tools: fake_fetch ran, fake_send blocked"])
+    expect((await converse(["[fetch] [call fake_send]"], granted)).answers).toEqual(["tools: fake_fetch ran, fake_send ran"])
     const bare = { origin: "routine" as const, grant: ["web_fetch"] }
     const { answers, transcript } = await converse(["[call fake_send]"], bare)
     expect(answers).toEqual(["tools: fake_send blocked"])
