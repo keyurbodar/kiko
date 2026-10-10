@@ -2,7 +2,7 @@ import type { McpOAuthState, McpOAuthStateStore } from "@earendil-works/pi-mcp/o
 import { type Keyring, open, seal } from "@yuki/durable/crypto"
 
 /** `listing` is the last tool listing, kept so a cold object serves it at once. Disconnect deletes it with the rest. */
-export type ExecutorSecret = "oauth" | "redirect" | "api_key" | "listing"
+export type ExecutorSecret = "oauth" | "redirect" | "api_key" | "listing" | "index"
 
 type Row = { kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer }
 

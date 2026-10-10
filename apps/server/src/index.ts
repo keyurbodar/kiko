@@ -92,6 +92,13 @@ export default {
       if (!user) return new Response("sign in first", { status: 401 })
       return Response.json(await userStub(env.USER, user.id).executorBench())
     }
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/executor-find") {
+      const user = await getSessionUser(request, env)
+      if (!user) return new Response("sign in first", { status: 401 })
+      const t = performance.now()
+      const found = await userStub(env.USER, user.id).executorFindApps(url.searchParams.get("q") ?? "", Number(url.searchParams.get("limit") ?? 8))
+      return Response.json({ ms: Math.round(performance.now() - t), found })
+    }
     if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/executor-exec" && request.method === "POST") {
       const user = await getSessionUser(request, env)
       if (!user) return new Response("sign in first", { status: 401 })

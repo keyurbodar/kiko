@@ -1,7 +1,7 @@
 import type { ExecutorStatus } from "@yuki/protocol"
 import { McpClient, McpSessionExpiredError, StreamableHttpTransport, toLlmContent } from "@earendil-works/pi-mcp"
 import { pendingInteraction } from "./approval"
-import { DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, parseCatalog, withHandles } from "./catalog"
+import { type CatalogRow, DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, findApps, hasTool, INDEX_PAGE, indexProgram, managementApp, parseCatalog, parseIndexPage, usesApp, withHandles } from "./catalog"
 import type { ExecutorResultBlock, ExecutorTool } from "./tools"
 import { authorizeMcp, type McpOAuthState, type McpOAuthStateStore, McpOAuthProvider } from "@earendil-works/pi-mcp/oauth"
 import type { Env } from "../../index"
@@ -36,10 +36,17 @@ const REFRESH_EARLY_MS = 60_000
  * program that used Executor's own app, which is how apps and accounts change from a chat.
  */
 const LISTING_FRESH_MS = 10 * 60_000
+/** The catalog of apps Executor can add changes slowly, so its index is read again once a day. */
+const INDEX_FRESH_MS = 24 * 3_600_000
+/** Index pages read at once. */
+const INDEX_PARALLEL = 6
 
 export class ExecutorError extends Error {}
 
 type SavedListing = { at: number; tools: ExecutorTool[]; catalog?: ExecutorCatalog }
+type SavedIndex = { at: number; rows: CatalogRow[] }
+
+const textOf = (out: { content: ExecutorResultBlock[] }) => out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")
 
 /** What the authorization server sent back to the callback. */
 export interface CallbackParams {
@@ -70,6 +77,9 @@ export class ExecutorConnection {
   private listing: { at: number; tools: Promise<ExecutorTool[]> } | undefined
   /** The apps the newest listing described. A program the agent writes gets their handles. */
   private catalog: ExecutorCatalog | undefined
+  /** Executor's catalog of apps it can add, compact, for `findApps`. */
+  private index: SavedIndex | undefined
+  private indexing: Promise<CatalogRow[]> | undefined
   /**
    * Executor v2 keeps a paused program in memory, in the MCP session that ran it, and resumes it only
    * from that session. A held session is never closed until its program is resumed or expires, even
@@ -157,6 +167,7 @@ export class ExecutorConnection {
     this.refreshing = undefined
     this.listing = undefined
     this.catalog = undefined
+    this.index = undefined
     const shared = this.shared
     this.shared = undefined
     void shared?.then((c) => c.close()).catch(() => {})
@@ -219,19 +230,61 @@ export class ExecutorConnection {
     const generation = this.store.generation
     const [listed, catalog] = await Promise.all([
       this.inSession((client) => client.listTools()),
-      this.call("execute", { code: DISCOVER_PROGRAM })
-        .then((out) => parseCatalog(out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("")))
+      this.send("execute", { code: DISCOVER_PROGRAM })
+        .then((out) => parseCatalog(textOf(out)))
         .catch(() => null),
     ])
     if (catalog) this.catalog = catalog
-    const tools: ExecutorTool[] = listed.map((t) => ({
+    // With the apps described, skills only sent agents to read guides, so it is left out.
+    const tools: ExecutorTool[] = listed.filter((t) => !(catalog && t.name === "skills")).map((t) => ({
       name: t.name,
       ...(t.name === "execute" && catalog ? { description: describeExecute(catalog) } : t.description ? { description: t.description } : {}),
       inputSchema: t.inputSchema,
       ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
     }))
     await this.store.put("listing", { at: Date.now(), tools, ...(catalog ? { catalog } : {}) } satisfies SavedListing, generation)
+    if (hasTool(managementApp(catalog ?? undefined), "organization.catalog")) void this.indexRows().catch(() => {})
     return tools
+  }
+
+  /** The apps Executor can add that best match `query`, from Yuki's index of its catalog. */
+  async findApps(query: string, limit?: number): Promise<ReturnType<typeof findApps>> {
+    return findApps(await this.indexRows(), query, limit)
+  }
+
+  /** The index, read again behind a caller once a day. Only the first read for a user waits. */
+  private async indexRows(now = Date.now()): Promise<CatalogRow[]> {
+    const kept = this.index ?? (this.index = await this.store.get<SavedIndex>("index"))
+    // An index saved before rows carried keywords is read again.
+    if (!kept || kept.rows[0]?.length !== 8) return this.buildIndex()
+    if (now - kept.at >= INDEX_FRESH_MS) void this.buildIndex().catch(() => {})
+    return kept.rows
+  }
+
+  private buildIndex(): Promise<CatalogRow[]> {
+    this.indexing ??= (async () => {
+      const generation = this.store.generation
+      this.catalog ??= (await this.store.get<SavedListing>("listing"))?.catalog
+      const manage = managementApp(this.catalog)
+      if (!manage || !hasTool(manage, "organization.catalog")) throw new ExecutorError("executor's own app offers no catalog to search")
+      const page = async (offset: number) => {
+        const read = parseIndexPage(textOf(await this.send("execute", { code: indexProgram(manage.path, offset) })))
+        if (!read) throw new ExecutorError("executor's catalog did not load")
+        return read
+      }
+      const first = await page(0)
+      const pages = [first]
+      const offsets: number[] = []
+      for (let at = INDEX_PAGE; at < first.total; at += INDEX_PAGE) offsets.push(at)
+      for (let i = 0; i < offsets.length; i += INDEX_PARALLEL) pages.push(...(await Promise.all(offsets.slice(i, i + INDEX_PARALLEL).map(page))))
+      const index = { at: Date.now(), rows: pages.flatMap((p) => p.rows) }
+      if (generation === this.store.generation) this.index = index
+      await this.store.put("index", index, generation)
+      return index.rows
+    })().finally(() => {
+      this.indexing = undefined
+    })
+    return this.indexing
   }
 
   /**
@@ -239,16 +292,22 @@ export class ExecutorConnection {
    * in the session that paused its program, and a call that pauses keeps its session open.
    */
   async call(name: string, args: Record<string, unknown>, now = Date.now()): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
+    if (name !== "execute" || typeof args.code !== "string") return this.send(name, args, now)
+    // The agent was promised handles by a listing that may predate this instance.
+    this.catalog ??= (await this.store.get<SavedListing>("listing"))?.catalog
+    const manage = managementApp(this.catalog)
+    if (manage && usesApp(args.code, manage) && this.listing) this.listing = { ...this.listing, at: 0 }
+    return this.send(name, this.catalog ? { ...args, code: withHandles(args.code, this.catalog) } : args, now)
+  }
+
+  /** Sends one call as it is. A resume runs in the session that paused its program, and a call that pauses keeps its session open. */
+  private async send(name: string, args: Record<string, unknown>, now = Date.now()): Promise<{ content: ExecutorResultBlock[]; isError?: boolean }> {
     await this.dropExpired(now)
     const requestId = typeof args.requestId === "string" ? args.requestId : ""
     const resumed = this.held.get(requestId)
     this.held.delete(requestId)
-    // The agent was promised handles by a listing that may predate this instance.
-    if (name === "execute" && !this.catalog) this.catalog = (await this.store.get<SavedListing>("listing"))?.catalog
-    const sent = name === "execute" && typeof args.code === "string" && this.catalog ? { ...args, code: withHandles(args.code, this.catalog) } : args
-    if (name === "execute" && typeof args.code === "string" && args.code !== DISCOVER_PROGRAM && args.code.includes("tools.executor.") && this.listing) this.listing = { ...this.listing, at: 0 }
     const run = async (client: McpClient) => {
-      const result = await client.callTool(name, sent)
+      const result = await client.callTool(name, args)
       const content = toLlmContent(result) as ExecutorResultBlock[]
       const pending = pendingInteraction(content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n"))
       if (pending) {

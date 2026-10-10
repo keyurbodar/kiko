@@ -20,6 +20,8 @@ const TASKS = [
   { tag: "new chat", text: "check github now: what is the newest commit message on my most recently pushed repo? one line." },
   { tag: "follow-up", text: "check again now: my 3 most recently updated github repos, names only." },
 ]
+/** A first-time task on Executor's own app, asked once, in the last chat: find an app without adding it. */
+const FIND = { tag: "find an app", text: "which app could i add through executor for web search? just the top 2 names. don't add anything." }
 const TIMEOUT_MS = 240_000
 
 type Status = Extract<RoomToClient, { t: "status" }>
@@ -44,7 +46,7 @@ const suite: Suite = {
         room.raw.send({ t: "model", ref: MODEL })
         await Bun.sleep(500)
       }
-      for (const task of TASKS) {
+      for (const task of i === RUNS - 1 ? [...TASKS, FIND] : TASKS) {
         await resetStats(v, s)
         const t0 = performance.now()
         const clientId = room.send(task.text)

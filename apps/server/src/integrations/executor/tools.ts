@@ -16,13 +16,40 @@ export type ExecutorTool = {
 
 export type ExecutorResultBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string }
 export type ExecutorCall = (name: string, args: Record<string, unknown>) => Promise<{ content: ExecutorResultBlock[]; isError?: boolean }>
+/** Searches the apps Executor can add. */
+export type ExecutorFind = (query: string, limit?: number) => Promise<unknown[]>
+export const FIND_TOOL = "executor_find_apps"
 
 export const toolName = (name: string) => `executor_${name.replace(/[^a-zA-Z0-9_-]/g, "_")}`.slice(0, 64)
 
-export function executorExtension(tools: readonly ExecutorTool[], call: ExecutorCall, gate?: ApprovalGate, fs?: RoomFs): Extension {
+export function executorExtension(tools: readonly ExecutorTool[], call: ExecutorCall, gate?: ApprovalGate, fs?: RoomFs, find?: ExecutorFind): Extension {
+  const finder = find
+    ? [
+        declareEffect(
+          "read",
+          defineTool({
+            name: FIND_TOOL,
+            description: "Search every app the human can add through Executor (thousands of MCP, OpenAPI, and GraphQL services). Returns the best few as { entry, name, kind, domain, about }; pass entry to the executor app's apps.install. Answers at once.",
+            parameters: { type: "object", properties: { query: { type: "string", description: "what the app should do or be, such as \"web search\" or \"linear\"" }, limit: { type: "number" } }, required: ["query"] } as never,
+            replay: "safe",
+            execute: async (args) => {
+              const input = (args ?? {}) as { query?: unknown; limit?: unknown }
+              count("executor.call.find_apps")
+              try {
+                const found = await find(String(input.query ?? ""), typeof input.limit === "number" ? input.limit : undefined)
+                return { content: [{ type: "text" as const, text: found.length ? JSON.stringify(found) : "no app matches. try other words, or import any MCP server by its URL." }] }
+              } catch (e) {
+                return { content: [{ type: "text" as const, text: `executor did not answer: ${e instanceof Error ? e.message : String(e)}` }], isError: true }
+              }
+            },
+          }),
+          { outside: "executor" },
+        ),
+      ]
+    : []
   return defineExtension({
     name: EXECUTOR,
-    tools: tools.map((t) =>
+    tools: [...finder, ...tools.map((t) =>
       declareEffect(
         t.readOnly ? "read" : t.name === RESUME_TOOL ? "write" : "external",
         defineTool({
@@ -64,6 +91,6 @@ export function executorExtension(tools: readonly ExecutorTool[], call: Executor
         }),
         { outside: "executor" },
       ),
-    ),
+    )],
   })
 }

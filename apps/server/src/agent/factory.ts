@@ -18,7 +18,7 @@ import { selfExtension } from "./extensions/self"
 import { type ChiefPort, chiefExtension } from "./extensions/chief"
 import { presenceExtension } from "./extensions/presence"
 import type { SoulPort } from "../files/room-fs"
-import { type ExecutorCall, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
+import { type ExecutorCall, type ExecutorFind, type ExecutorTool, executorExtension } from "../integrations/executor/tools"
 import type { ApprovalGate } from "../integrations/executor/approval"
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
@@ -34,7 +34,7 @@ export type BuildAgentInput = RoleInput & {
   presence?: (doing: string) => Promise<unknown>
   memory?: MemoryPort
   workspace?: WorkspacePort
-  executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall; gate?: ApprovalGate }
+  executor?: { tools: readonly ExecutorTool[]; call: ExecutorCall; gate?: ApprovalGate; find?: ExecutorFind }
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
@@ -66,7 +66,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.chief ? [chiefExtension(input.chief)] : []),
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
-    ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate, input.files?.fs)] : []),
+    ...(input.executor?.tools.length ? [executorExtension(input.executor.tools, input.executor.call, input.executor.gate, input.files?.fs, input.executor.find)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
     Subagent,
     ...(input.testExtensions ?? []),

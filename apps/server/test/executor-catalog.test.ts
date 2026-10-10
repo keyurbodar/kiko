@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { compactSignature, DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, parseCatalog, withHandles } from "../src/integrations/executor/catalog"
+import { type CatalogRow, compactSignature, DISCOVER_PROGRAM, describeExecute, type ExecutorCatalog, findApps, parseCatalog, withHandles } from "../src/integrations/executor/catalog"
 
 const GITHUB = 'tools.github.profiles["ins_1"]'
 
@@ -10,7 +10,10 @@ test("an account tool's signature keeps only its input object", () => {
 })
 
 test("a tool without an account keeps its whole argument", () => {
-  expect(compactSignature("({ path: { app: string }, body: unknown })")).toBe("({ path: { app: string }, body: unknown })")
+  expect(compactSignature("{ path: { organization?: string | string, app: string } }")).toBe("{ path: { app: string } }")
+  expect(
+    compactSignature('{ contentType?: "application/json", body?: { entry: string, name: string } } & ({ path?: { organization?: string | string }, body: unknown, contentType?: "application/json" })'),
+  ).toBe("{ body?: { entry: string, name: string } }")
 })
 
 test("the discovery program carries the compactor it uses", () => {
@@ -40,7 +43,7 @@ const CATALOG: ExecutorCatalog = {
   apps: [
     { path: GITHUB, handle: "github", accounts: ["acc_1"], tools: [{ name: "list_issues", input: "{ owner: string, repo: string }" }, { name: "get_me", input: "{}" }] },
     { path: "tools.weather", handle: "weather", accounts: [], tools: [{ name: "today" }] },
-    { path: 'tools.executor.profiles["ins_0"]', handle: "executor", accounts: [], tools: [{ name: "accounts.connect" }] },
+    { path: 'tools.executor.profiles["ins_0"]', handle: "executor", accounts: [], tools: [{ name: "accounts.connect" }, { name: "organization.catalog" }, { name: "apps.install" }] },
   ],
   unavailable: [{ name: "Gmail", reason: "needs an account" }],
 }
@@ -56,8 +59,15 @@ test("the description names each app's handle and steers away from discovery", (
   expect(text).toContain("github: for example await github.list_issues({ ... }).")
   expect(text).toContain("  list_issues { owner: string, repo: string }")
   expect(text).toContain("Gmail: not usable yet (needs an account)")
-  expect(text).toContain('tools.executor.profiles["ins_0"].<tool>({ path, query, body }). Tools: accounts.connect.')
-  expect(text).toContain("Do not search or read skills for an app listed above")
+  expect(text).toContain("executor: Executor itself, for adding apps and connecting accounts.")
+  expect(text).toContain("  accounts.connect\n")
+  expect(text).toContain("call the executor_find_apps tool")
+  expect(text).toContain("apps.install({ body: { entry, name } })")
+  expect(text).not.toContain("apps.importCustom")
+  expect(text).not.toContain("skills")
+  const bare = describeExecute({ ...CATALOG, apps: CATALOG.apps.map((a) => (a.handle === "executor" ? { ...a, tools: [{ name: "accounts.connect" }] } : a)) })
+  expect(bare).not.toContain("executor_find_apps")
+  expect(bare).not.toContain("apps.install")
 })
 
 async function run(code: string, tools: unknown): Promise<unknown> {
@@ -86,4 +96,25 @@ test("only the handles a program names are defined, and never one it declares it
   expect(withHandles("return await tools.github.profiles['ins_1'].get_me({})", CATALOG)).toBe("return await tools.github.profiles['ins_1'].get_me({})")
   const own = 'const github = tools.github.profiles["ins_1"];\nreturn await github.get_me({ accountId: "acc_1", input: {} });'
   expect(withHandles(own, CATALOG)).toBe(own)
+})
+
+test("the executor handle passes arguments as they are, under dotted tool names", async () => {
+  const seen: unknown[] = []
+  const tools = { executor: { profiles: { ins_0: { accounts: { connect: async (args: unknown) => (seen.push(args), { url: "https://x" }) } } } } }
+  const code = withHandles('return (await executor.accounts.connect({ path: { app: "a" }, body: { profile: "p", requirement: "r" } })).url', CATALOG)
+  expect(await run(code, tools)).toBe("https://x")
+  expect(seen).toEqual([{ path: { app: "a" }, body: { profile: "p", requirement: "r" } }])
+})
+
+test("finding an app matches whole words and prefers curated entries", () => {
+  const rows: CatalogRow[] = [
+    ["mcp/similarweb", "Similarweb", "mcp", "similarweb.com", "Research any website or app", 0, 90000, "research website traffic"],
+    ["mcp/webflow", "Webflow", "mcp", "webflow.com", "Design pages and manage CMS content", 0, 5000, "design pages cms"],
+    ["mcp/websearch-lite", "Search lite", "mcp", "example.com", "A small web search", 0, 0, "small web search"],
+    ["curated/google-search-console", "Google Search Console", "openapi", "search.google.com", "Search Console REST API: sites, sitemaps", 1, 0, "console sites sitemaps"],
+    ["curated/firecrawl-dev-mcp", "Firecrawl", "mcp", "firecrawl.dev", "Firecrawl's hosted MCP server gives agents tools", 1, 0, "firecrawl search web scrape pages"],
+  ]
+  expect(findApps(rows, "web search", 3).map((r) => r.entry)).toEqual(["curated/firecrawl-dev-mcp", "mcp/websearch-lite", "curated/google-search-console"])
+  expect(findApps(rows, "")).toEqual([])
+  expect(findApps(rows, "firecrawl", 1)).toEqual([{ entry: "curated/firecrawl-dev-mcp", name: "Firecrawl", kind: "mcp", domain: "firecrawl.dev", about: "Firecrawl's hosted MCP server gives agents tools" }])
 })

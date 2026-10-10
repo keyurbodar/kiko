@@ -36,6 +36,8 @@ const fake = {
   discoveryFails: false,
   /** The last program `execute` received. */
   code: "",
+  /** Pages of the app catalog read for the index. */
+  indexReads: 0,
 }
 let n = 0
 
@@ -134,15 +136,33 @@ async function executor(request: Request): Promise<Response> {
     }
     if (msg.method === "tools/list") {
       fake.listed++
-      return json({ jsonrpc: "2.0", id: msg.id, result: { tools: [{ name: "execute", inputSchema: { type: "object" } }] } })
+      return json({ jsonrpc: "2.0", id: msg.id, result: { tools: [{ name: "execute", inputSchema: { type: "object" } }, { name: "skills", inputSchema: { type: "object" } }] } })
     }
     if (msg.method === "tools/call") {
       const text = (value: unknown) => json({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } })
       const code = String(msg.params?.arguments?.code ?? "")
-      if (msg.params?.name === "execute") fake.code = code
+      if (msg.params?.name === "execute" && !code.includes("tools.search") && !code.includes(".organization.catalog(")) fake.code = code
+      if (msg.params?.name === "execute" && code.includes(".organization.catalog(")) {
+        fake.indexReads++
+        const rows = [
+          ["mcp/similarweb", "Similarweb", "mcp", "similarweb.com", "Research any website", 0, 9000, "research website"],
+          ["curated/firecrawl-dev-mcp", "Firecrawl", "mcp", "firecrawl.dev", "Firecrawl's hosted MCP server", 1, 0, "firecrawl search web scrape pages"],
+        ]
+        return text({ status: "completed", execution: { ok: true, value: { total: rows.length, rows } } })
+      }
       if (msg.params?.name === "execute" && code.includes("tools.search")) {
         if (fake.discoveryFails) return text({ status: "completed", execution: { ok: false, error: { message: "boom" } } })
-        return text({ status: "completed", execution: { ok: true, value: [{ path: 'tools.github.profiles["ins_1"]', accounts: ["acc_1"], tools: [{ name: "get_me", input: "{}" }] }] }, unavailableApps: [] })
+        return text({
+          status: "completed",
+          execution: {
+            ok: true,
+            value: [
+              { path: 'tools.github.profiles["ins_1"]', accounts: ["acc_1"], tools: [{ name: "get_me", input: "{}" }] },
+              { path: 'tools.executor.profiles["ins_0"]', accounts: [], tools: [{ name: "apps.install", input: "{ body?: { entry: string, name: string } }" }, { name: "organization.catalog", input: "{}" }] },
+            ],
+          },
+          unavailableApps: [],
+        })
       }
       if (msg.params?.name === "execute" && msg.params.arguments?.code === "return 1") return text({ status: "completed", execution: { ok: true, value: 1 } })
       if (msg.params?.name === "execute") {
@@ -244,6 +264,9 @@ async function connected(user: string) {
   expect(started.ok).toBe(true)
   const page = await approve(user, started.authorizeUrl)
   expect(page.status).toBe(200)
+  // Connecting loads the listing and the app index behind the callback. Let them settle.
+  await rpc(user, "executorTools")
+  await Bun.sleep(100)
   return ws
 }
 
@@ -278,7 +301,7 @@ test("the callback stores sealed tokens, tells every socket, and lists tools", a
   expect(told.result.status).toMatchObject({ connected: true, kind: "oauth", pending: false, refreshable: true })
 
   const raw = (await rpc(user, "rawExecutorRows")) as { name: string; ciphertext: string }[]
-  expect(raw.map((r) => r.name)).toEqual(["oauth", "redirect"])
+  expect(raw.map((r) => r.name)).toEqual(["index", "listing", "oauth", "redirect"])
   for (const secret of fake.issued) for (const r of raw) expect(r.ciphertext).not.toContain(secret)
 
   const listed = await ws.ask({ t: "executorStatus", tools: true })
@@ -315,6 +338,7 @@ test("a forced refresh rotates the tokens and the new token works", async () => 
   expect(refreshed.ok).toBe(true)
   expect(refreshed.status.issuedAt).toBeGreaterThan(first.issuedAt)
   expect(refreshed.tools).toEqual(["execute"])
+  await rpc(user, "executorCall", "execute", { code: "return 1" })
   expect(fake.bearers.at(-1)).toBe(fake.issued.at(-2)!)
   ws.close()
 })
@@ -487,7 +511,7 @@ test("a program that uses executor's own app makes the next listing load again",
   await rpc(user, "executorTools")
   await rpc(user, "executorTools")
   const listed = fake.listed
-  await rpc(user, "executorCall", "execute", { code: 'return await tools.executor.profiles["ins_0"].apps.install({})' })
+  await rpc(user, "executorCall", "execute", { code: "return await executor.apps.install({ body: { entry: 'x', name: 'x' } })" })
   await rpc(user, "executorTools")
   await Bun.sleep(100)
   expect(fake.listed).toBe(listed + 1)
@@ -501,5 +525,39 @@ test("a program still gets its handles after the object was evicted between list
   await mf.dispatchFetch(`http://do/rpc/${user}`, { method: "POST", body: JSON.stringify({ method: "evict", args: [] }) }).catch(() => {})
   await rpc(user, "executorCall", "execute", { code: "return await github.get_me()" })
   expect(fake.code).toContain('const github = __app(tools.github.profiles["ins_1"], "acc_1", ["get_me"]);')
+  ws.close()
+})
+
+test("with the apps known, agents get no skills tool to read guides with", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  const tools = (await rpc(user, "executorTools")) as { name: string }[]
+  expect(tools.map((t) => t.name)).toEqual(["execute"])
+  ws.close()
+})
+
+test("finding an app reads executor's catalog once, and later searches ask executor nothing", async () => {
+  const user = fresh()
+  const ws = await connected(user)
+  await rpc(user, "executorTools")
+  await Bun.sleep(200)
+  const reads = fake.indexReads
+  const first = (await rpc(user, "executorFindApps", "web search")) as { entry: string }[]
+  const again = (await rpc(user, "executorFindApps", "scrape pages", 1)) as { entry: string }[]
+  expect(first.map((r) => r.entry)).toEqual(["curated/firecrawl-dev-mcp"])
+  expect(again.map((r) => r.entry)).toEqual(["curated/firecrawl-dev-mcp"])
+  expect(fake.indexReads).toBe(reads)
+  ws.close()
+})
+
+test("connecting loads the listing and the app index before any chat asks", async () => {
+  const before = { listed: fake.listed, reads: fake.indexReads }
+  const user = fresh()
+  const ws = await socket(user)
+  const started = await ws.ask({ t: "connectExecutor" })
+  await approve(user, started.authorizeUrl)
+  await Bun.sleep(300)
+  expect(fake.listed).toBe(before.listed + 1)
+  expect(fake.indexReads).toBe(before.reads + 1)
   ws.close()
 })
