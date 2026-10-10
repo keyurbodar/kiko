@@ -282,7 +282,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
   empties.length = 0
   modelCalls = 0
   let okCount = 0
-  const perTask = BENCH.map(() => ({ ok: 0, walls: [] as number[], decisions: 0 }))
+  const perTask = BENCH.map(() => ({ ok: 0, walls: [] as number[], decisions: 0, decideMs: [] as number[] }))
   const decisionsPerTask: number[] = []
   const walls: number[] = []
   const failures: string[] = []
@@ -301,7 +301,10 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
         decide: async (input, signal) => {
           decisions++
           perTask[i]!.decisions++
-          return base.decide(input, signal)
+          const at = performance.now()
+          const out = await base.decide(input, signal)
+          perTask[i]!.decideMs.push(Math.round(performance.now() - at))
+          return out
         },
       })
       phase = "run"
@@ -374,6 +377,7 @@ async function pass(name: string, cdpUrl: string, make: (run: number) => Decider
   }
   for (const f of failures) console.log(`  FAIL ${f}`)
   for (const f of fastSeen) console.log(`  FAST ${f}`)
+  for (const [i, t] of perTask.entries()) console.log(`  decide ms ${NAMES[i]}: ${t.decideMs.join(" ")}`)
   fastSeen.clear()
   if (empties.length) console.log(`  empty model answers: ${empties.length}: ${[...new Set(empties)].slice(0, 4).join("; ")}`)
   return row
