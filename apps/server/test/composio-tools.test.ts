@@ -65,9 +65,25 @@ describe("composio tools", () => {
   test("tools are composio_<slug>, read-only ones read and safe to replay, the rest external", () => {
     const tools = composioExtension(listed, async () => ({ content: [] })).tools ?? []
     expect(tools.map((t) => t.name)).toEqual(["composio_search_tools", "composio_multi_execute_tool"])
-    expect(effectOf(tools[0]!)).toEqual({ effect: "read", outside: "composio" })
+    expect(effectOf(tools[0]!)).toEqual({ effect: "read" })
     expect(effectOf(tools[1]!)).toEqual({ effect: "external", outside: "composio" })
     expect((tools as unknown as { replay: string }[]).map((t) => t.replay)).toEqual(["safe", "unsafe"])
+  })
+
+  test("only the catalog meta tools leave a run untainted; app and web data taints", () => {
+    const meta = ["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_REMOTE_WORKBENCH", "COMPOSIO_REMOTE_BASH_TOOL", "COMPOSIO_MANAGE_CONNECTIONS"]
+    const all = [...meta.map((name) => ({ name, inputSchema: schema, readOnly: name.endsWith("TOOLS") || name.endsWith("SCHEMAS") })), { name: "GMAIL_FETCH_EMAILS", inputSchema: schema, readOnly: true, direct: { slug: "GMAIL_FETCH_EMAILS", toolkit: "gmail" } }]
+    const tools = composioExtension(all as never, async () => ({ content: [] })).tools ?? []
+    const outside = Object.fromEntries(tools.map((t) => [t.name, effectOf(t)?.outside]))
+    expect(outside).toEqual({
+      composio_search_tools: undefined,
+      composio_get_tool_schemas: undefined,
+      composio_multi_execute_tool: "composio",
+      composio_remote_workbench: "composio",
+      composio_remote_bash_tool: "composio",
+      composio_manage_connections: "composio",
+      composio_gmail_fetch_emails: "composio",
+    })
   })
 
   test("a call goes to composio by its own slug, and a failure comes back as a tool error", async () => {

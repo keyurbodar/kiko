@@ -8,6 +8,9 @@ import { directResult, MULTI_EXECUTE } from "./learn"
 
 export const COMPOSIO = "composio"
 
+/** Composio's own tool catalog. Its results describe tools, not the human's apps or the web, so they do not taint a run. */
+const CATALOG = new Set(["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS"])
+
 const requiredFlags = (schema: unknown): string[] => {
   const s = schema as { properties?: Record<string, { type?: unknown }>; required?: unknown } | null
   if (!s || !Array.isArray(s.required)) return []
@@ -68,7 +71,7 @@ export function composioExtension(tools: readonly ComposioTool[], call: Composio
                 return { content: [{ type: "text" as const, text }], isError }
               }),
           }),
-          { outside: "composio" },
+          t.direct || !CATALOG.has(t.name) ? { outside: COMPOSIO } : {},
         )
       }),
   })
