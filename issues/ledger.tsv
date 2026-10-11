@@ -10,7 +10,7 @@ U12	Nap promises stay separate	1	haiku	landed	s/u12-nap-dedupe	e77c6131	self-ver
 U20	Extension review tells the truth	1	sonnet	landed	s/u20-extensions	1dda5e9d	self-verified	main 4d9aa337	2026-10-11T16:48:23Z
 U21	Browser tab cap under parallel calls	1	haiku	landed	s/u21-browser	daca2cb8	self-verified needs-live-browser-in-U40	main 13bc2755	2026-10-11T16:45:41Z
 U22	Bash honest across spaces	1	haiku	landed	s/u22-bash	5bae8f00	self-verified	main f19632de	2026-10-11T16:47:06Z
-U25	Memory correctness and fewer judge calls	1	sonnet	verifying	s/u25-memory	5e9042d9	needs-real-model-check	-	2026-10-11T16:43:52Z
+U25	Memory correctness and fewer judge calls	1	sonnet	landed	s/u25-memory	39a0c5fc	full-gate-green memory-jev+eval10/10+edge-live	main 71de49d7	2026-10-11T17:33:28Z
 U30	Platform edges	1	deepseek	landed	s/u30-platform	ff01cc7a	self-verified	main 21aff63a	2026-10-11T16:57:08Z
 U07	One schema per object	2	haiku	running	s/u07-squash	-	-	-	2026-10-11T16:49:30Z
 U29	One dev guard	2	haiku	landed	s/u29-dev-guard	968c7199	full-gate-green 5-suites	main 01744e63	2026-10-11T17:15:20Z
