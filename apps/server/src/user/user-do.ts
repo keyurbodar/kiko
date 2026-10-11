@@ -861,6 +861,14 @@ export class UserDO extends DurableObject<Env> {
     return this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
   }
 
+  // The queue refused the jobs, so the account lives on. deletion_rooms stays: a job that did get through must not see an empty ledger and wipe the user.
+  async cancelDeletion(): Promise<void> {
+    if (this.#wiped) return
+    await this.ctx.storage.delete(DELETING)
+    // beginDeletion dropped the storage alarm; setting the hello wakeup points it at the earliest row again.
+    await enforceHello(this.ctx, this.alarms)
+  }
+
   async roomDeleted(roomId: RoomId): Promise<number> {
     if (this.#wiped) return 0
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")

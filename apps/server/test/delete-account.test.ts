@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { RoomId } from "@yuki/protocol"
 import { FRESH_SESSION_MS, isFresh } from "../src/auth/account-route"
-import { type DeletionTargets, isDeleteAccountJob, roomPrefix, runDeleteJob, userPrefix } from "../src/jobs/delete-account"
+import { type DeletionTargets, isDeleteAccountJob, roomPrefix, runDeleteJob, startDeletion, userPrefix } from "../src/jobs/delete-account"
 
 const USER = "u1"
 const ROOM_A = "01JAAAAAAAAAAAAAAAAAAAAAAA" as RoomId
@@ -132,4 +132,58 @@ test("a recent sign-in is one younger than the fresh window", () => {
 	expect(isFresh(now - FRESH_SESSION_MS, now)).toBe(false)
 	expect(isFresh(new Date(now - FRESH_SESSION_MS + 1).toISOString(), now)).toBe(true)
 	expect(isFresh("not a date", now)).toBe(false)
+})
+
+describe("startDeletion", () => {
+	function signup(rooms: RoomId[]) {
+		const state = { tombstoned: false, deleting: false, queued: [] as RoomId[], failSends: 0 }
+		return {
+			state,
+			start: () =>
+				startDeletion({
+					revoke: async () => void (state.tombstoned = true),
+					begin: async () => {
+						state.deleting = true
+						return rooms
+					},
+					enqueue: async (ids) => {
+						if (state.failSends-- > 0) {
+							state.queued.push(...ids.slice(0, 1))
+							throw new Error("queue unavailable")
+						}
+						state.queued.push(...ids)
+					},
+					abort: async () => {
+						state.deleting = false
+						state.tombstoned = false
+					},
+				}),
+		}
+	}
+
+	test("a failed queue send leaves no tombstone, and the retry queues every room", async () => {
+		const a = signup([ROOM_A, ROOM_B])
+		a.state.failSends = 1
+		await expect(a.start()).rejects.toThrow("queue unavailable")
+		expect(a.state.tombstoned).toBe(false)
+		expect(a.state.deleting).toBe(false)
+		expect(await a.start()).toBe(2)
+		expect(a.state.tombstoned).toBe(true)
+		expect(new Set(a.state.queued)).toEqual(new Set([ROOM_A, ROOM_B]))
+	})
+
+	test("a failed rollback still reports the original error", async () => {
+		await expect(
+			startDeletion({
+				revoke: async () => {},
+				begin: async () => [],
+				enqueue: async () => {
+					throw new Error("queue unavailable")
+				},
+				abort: async () => {
+					throw new Error("d1 down")
+				},
+			}),
+		).rejects.toThrow("queue unavailable")
+	})
 })

@@ -81,6 +81,10 @@ export async function revokeUser(db: D1Database, userId: string): Promise<void> 
   liveUsers.delete(userId)
 }
 
+export async function restoreUser(db: D1Database, userId: string): Promise<void> {
+  await db.prepare(`DELETE FROM "deleted_user" WHERE "id" = ?`).bind(userId).run()
+}
+
 // The cookie cache can vouch for a deleted user's session without D1, so the tombstone check here is authoritative.
 export async function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
   const session = await createAuth(env, request).api.getSession({ headers: request.headers })

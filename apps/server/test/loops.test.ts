@@ -126,6 +126,19 @@ test("the summary pass keeps its line first and drops loop lines it cannot trust
   })
 })
 
+test("two agent promises from one nap page are two loops, and the same promise again opens nothing new", () => {
+  const loops = store()
+  const nap = { ...base, owner: "ada", kind: "commitment" as const, certainty: "explicit" as const, source: "nap" as const, room: "r", ref: "room:r:turns:0-16" }
+  const passport = loops.open({ ...nap, text: "send the passport checklist tomorrow" })
+  const flights = loops.open({ ...nap, text: "book the Lisbon flights friday" })
+  if (!passport.ok || !flights.ok) throw new Error("open failed")
+  expect(flights.id).not.toBe(passport.id)
+  expect(flights.merged).toBe(false)
+  expect(loops.list().map((l) => l.text).sort()).toEqual(["book the Lisbon flights friday", "send the passport checklist tomorrow"])
+  expect(loops.open({ ...nap, text: "send the passport checklist tomorrow" })).toEqual({ ok: true, id: passport.id, merged: true })
+  expect(loops.list().length).toBe(2)
+})
+
 test("a pass over an agent's message cannot open its promise again after the promise closed", () => {
   const loops = store()
   const ref = "room:r:msg:m9"
