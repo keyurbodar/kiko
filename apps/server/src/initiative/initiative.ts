@@ -53,8 +53,7 @@ export class Initiative {
       const nudge = nudges[i]
       if (nudge && last) this.deps.answered(roomId, nudge.loop, last.messageId, last.at)
     }
-    const { ops } = out
-    for (const op of ops) {
+    for (const op of out.ops) {
       const sentence = sentences[op.sentence]
       const from = sentence && burst[sentence.from]
       if (!sentence || !from) throw new Error(`initiative burst has no message for sentence ${op.sentence}`)
