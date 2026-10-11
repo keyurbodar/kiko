@@ -65,3 +65,31 @@ Make `core/durable/src/wipe.ts` own it: wiping writes a stored tombstone after `
 ## Discoveries
 - The U26 note "rotating its token" describes the conversion path above. No code path rotates an existing token.
 - `updateRoutine` converts a routine to a webhook with a DO write before the D1 insert, so the DO and D1 can disagree after an error. The restore closes that gap for conversions only. A webhook converted to another trigger still drops its D1 row after the DO write. If that drop fails, the DO row stays converted and the lookup row remains. That is harmless today, because the trigger check refuses the stale token.
+
+## Round 2
+
+**STATUS** done
+
+**BRANCH** s/u33-wipe-hooks
+
+**HEAD** 6522c92e (merge of main; the round 2 code is 650c6513)
+
+**CHANGED**
+- `core/durable/src/wipe.ts`: `wipeStorage` writes a `deleting` mark first, then runs `shutdown`, then wipes storage, then writes the finished `wiped` tombstone. A finished wipe is a no-op. `storedRows` counts rows during a wipe in progress and returns 0 only for a finished wipe.
+- `apps/server/src/agent/agent-do.ts`: `deleteAll` passes its shutdown to `wipeStorage`. `wake`, `humanComing`, `humanGone`, `askAnswered`, `egress`, `devInitiative`, `devUsage`, `devTrace`, `devWorkers` refuse a wiped agent.
+- `apps/server/src/room/room-do.ts`, `apps/server/src/user/user-do.ts`: `deleteAll` drops its own pre-check; the wipe owns it. UserDO passes its Composio disconnect as the shutdown.
+- `apps/server/test/wipe-order.test.ts` (new): four tests on the wipe order, using a key-value stub of storage.
+
+**VERIFIED**
+- `bun test test/wipe-order.test.ts` (apps/server): `4 pass, 0 fail`.
+- Failing first, round 1 ordering (shutdown moved before the mark, temporarily in `wipe.ts`, restored after): `(fail) an object reads as wiped while its shutdown runs, so an alarm or receive does no work then`, `Expected: true / Received: false`. Also `(fail) a deletion whose shutdown fails stays refused, and a retry finishes the wipe`.
+- Failing first, `storedRows` with `isWiped` in place of `finished` (temporarily, restored after): `(fail) a probe during deletion counts the rows still there...`, `Expected: > 0 / Received: 0`.
+- `bun run check`: all 10 steps passed (1 flaky). check-imports, check-rules, check-exports, typecheck, test apps/server, test apps/cli, test core/protocol, test core/browser pass. `test apps/web-solid` failed once and passed on rerun (flaky). Lint (frontend, not gating) reports 17 errors, the known state.
+- `bun yuki verify account-delete --url http://localhost:8833`: `pass account-delete (3781ms)`. Run on my own wrangler dev server (PID 192304), stopped afterwards.
+
+**DEVIATIONS**
+- The alarm, receive, and wake guards are not exercised by a workerd test. Reaching the in-flight window needs a shutdown that can be held open, and the object has no such hook. The unit test covers the mark that those guards read. The guards themselves are the list above.
+
+**FOLLOW-UPS**
+- `AgentDO.setModel` and the dev writers (`devClassic`, `devBudget`, `devFake`, `devSeed`) write rows into a wiped agent. They start no work, so they were not guarded. A row written after the wipe is invisible to `storedRows`. Guard them too if this matters.
+- `deleteAll` runs `deleteAll()` then `put(wiped, true)`. The two awaits are not one transaction. No event can run between them, since they are back to back in one task, but a crash between them would leave an unmarked empty object.
