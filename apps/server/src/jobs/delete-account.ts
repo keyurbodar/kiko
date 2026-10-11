@@ -102,7 +102,7 @@ export async function enqueueDeletion(queue: Queue, userId: string, rooms: RoomI
 	}
 }
 
-export interface DeletionStart {
+interface DeletionStart {
 	revoke(): Promise<void>
 	begin(): Promise<RoomId[]>
 	enqueue(rooms: RoomId[]): Promise<void>
