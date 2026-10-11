@@ -19,7 +19,6 @@ const WORTH = 0.5
 export function score(c: Candidate, ctx: Pick<AttendContext, "now" | "rhythm">): number {
   const { now, rhythm } = ctx
   const cycle = rhythm.cycle
-  const age = Math.max(0, now - c.lastSeen) / cycle
   let due = 0
   if (c.due !== undefined) {
     const deadline = c.due
@@ -27,15 +26,16 @@ export function score(c: Candidate, ctx: Pick<AttendContext, "now" | "rhythm">):
     due = c.due <= now ? 1 : 1 / (1 + ahead)
   }
   const promise = c.owner !== "human" && (c.kind === "commitment" || c.kind === "task") && (c.due === undefined || c.due <= now + cycle) ? 1 : 0
-  const talked = (1 - 1 / (1 + c.mentions)) * 0.5 ** (age / 7)
-  const stale = c.certainty === "explicit" && (c.kind === "goal" || c.kind === "project" || c.kind === "waiting") ? 1 - 0.5 ** (age / 7) : 0
   const parts: [number, number][] = [
     [1, due],
     [0.5, promise],
-    [0.4, talked],
-    [0.4, stale],
   ]
   return 1 - parts.reduce((p, [w, f]) => p * (1 - w * f), 1)
+}
+
+// Higher score first; among equal scores, the sighting that waited longest.
+export function rankOrder(ctx: Pick<AttendContext, "now" | "rhythm">): (a: Candidate, b: Candidate) => number {
+  return (a, b) => score(b, ctx) - score(a, ctx) || a.lastSeen - b.lastSeen
 }
 
 export function attend(candidates: readonly Candidate[], ctx: AttendContext): Verdict[] {
