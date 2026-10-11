@@ -17,6 +17,6 @@ You can ask the coordinator. If you reach a real design fork that you cannot set
 11. Comments only for a non-obvious why. Interface strings are sentence case. No long dashes in docs or comments.
 12. Never print, log, or commit a key. Dev keys live in `apps/server/.dev.vars` (a symlink); load them with `set -a; . apps/server/.dev.vars; set +a` when a model suite needs them.
 13. No new dependency unless the brief allows it.
-14. Commit message: plain sentences that say what changed and why. End with the line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. One unit may be several commits; leave the branch clean (`git status --short` empty).
+14. Commit message: plain sentences that say what changed and why. End with the line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. One unit may be several commits; leave the branch clean (`git status --short` empty). Commit working steps early as `wip:` commits; a host restart kills agents mid-run and uncommitted work may be lost.
 15. Timebox. When your brief's timebox expires, commit what works, mark what does not in your report, and stop.
 16. Final message is your report, in this shape: `STATUS` (done, partial, blocked), `QUESTION` (only when blocked), `BRANCH`, `HEAD` (full SHA), `CHANGED` (files, one line each), `VERIFIED` (each command you ran and its result line), `FAILED-BEFORE` (the test that failed on old code), `DEVIATIONS`, `FOLLOW-UPS`.
