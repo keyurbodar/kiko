@@ -6,7 +6,7 @@ You can ask the coordinator. If you reach a real design fork that you cannot set
 
 1. Read `AGENTS.md` first. Its non-negotiables and "ways to hurt yourself" are hard rules.
 2. Work only inside the worktree path named in your brief. Run every command there (`cd <worktree> && ...`) and use absolute paths. Never edit files under `/home/keyur/kiko` itself, which is the coordinator's checkout of `main`.
-3. Never run `pkill` or `killall`. If you start `wrangler dev`, pick a free port (`--port <n>` from your brief), record its PID, and stop only that PID before you finish.
+3. Never run `pkill` or `killall`. Always pass `--url http://localhost:<your port>` (or set `YUKI_URL`) to every `bun yuki` command; the default port 8787 belongs to another session. If you start `wrangler dev`, pick a free port (`--port <n>` from your brief), record its PID, and stop only that PID before you finish.
 4. Never rebase, reset another branch, push, or force anything. You may run `git merge main` into your own branch to pick up new checks from `main`; resolve only conflicts inside your scope, otherwise stop and ask. Commit on your own branch only. The coordinator lands branches on `main`.
 5. Write only the paths in your brief's SCOPE, plus your own issue file `issues/<ID>.md`, where you append a `## Report` section and, if you found anything the plan should know, a `## Discoveries` section. Never edit `issues/PLAN.md`, `issues/ledger.tsv`, `issues/decisions.tsv`, `issues/STANDING.md`, or another unit's issue file.
 6. Reproduce before you fix. Every behavior change ships with a test that fails on the old code and passes on the new code. Say in your report that you saw it fail, with the output line.
