@@ -27,4 +27,4 @@ U33	Stored wipe tombstone, safe webhook rotation	3	haiku	landed	s/u33-wipe-hooks
 U40a	All verify suites against real models on main	4	haiku	zombie-finishing	s/u40a-suites	-	r1-alive running-suites	-	2026-10-11T19:02:15Z
 U40b	Attention model: simulate, then keep or simplify	4	opus	done	-	-	report	issues/evidence/u40b	2026-10-11T18:41:46Z
 U34	Attention: no pooling or smoothing, two-part score	4	haiku	landed	s/u34-attention-simplify	8e965fdf	full-gate-green sim-within-1h-9.7to69.6	main f2fd5092	2026-10-11T18:58:37Z
-U35	Engagement signal, then decide per-kind appetite	4	opus	zombie-finishing	s/u35-engagement	-	r1-alive-after-cancel watch-branch	-	2026-10-11T19:02:15Z
+U35	Engagement signal, then decide per-kind appetite	4	opus	landed	s/u35-engagement	ceceea1f	full-gate-green proactive+initiative-loops+initiative-live	main bcfeda23	2026-10-11T19:34:37Z

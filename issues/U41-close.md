@@ -20,3 +20,6 @@ Each is a bounded wait inside one request or a dev-only path, not scheduled work
 - AGENTS.md "Verifying": name `bun run check` as the one gate, `YUKI_URL` for verify runs, and `scripts/check-rules.ts` as where rules are enforced.
 - Remove UNVERIFIED labels only where a landed unit settled the claim; leave the subrequest items labeled until G01.
 - `issues/PLAN.md` is the coordinator's; do not edit it.
+- U35: `.cursor/skills/verify-initiative/scripts/server.sh start` runs `bun dev:server`, which hardcodes port 8787; make it start on the port from `YUKI_URL` (or a `--port`) so it never collides with another session.
+- U35: `initiative-loops` Jev arm polls `/run/` and can match the explicit "beginner running plan" loop instead of the tentative "start running" one; tighten the match so the suite is not flaky.
+- U35: delete the stale baseline line `apps/server/src/user/reminders.ts:MAX_FAILS` from `scripts/exports-baseline.txt`.
