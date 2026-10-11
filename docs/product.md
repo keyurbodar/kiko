@@ -73,7 +73,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 
 ### Integrations
 
-- Paste your Composio key in settings. Yuki offers every tool Composio lists, with nothing hardcoded. Apps are connected in your Composio account.
+- Paste your Composio project API key (`ak_...`) in settings. It is the one key yuki needs. Yuki offers every tool Composio lists, with nothing hardcoded. Apps are connected in your Composio account.
 - Agents use these tools without asking first. The owner removed approvals on 2026-10-11.
 - Disconnect at any time. Yuki deletes the key at once.
 

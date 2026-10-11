@@ -615,19 +615,26 @@ Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The k
 
 ## 12. Composio integration
 
-**Decision.** Composio is yuki's one integration. Each user brings their own Composio consumer key (`ck_...`). Yuki sends it as a bearer token to Composio's hosted MCP server at `https://connect.composio.dev/mcp`, and every agent of that user gets the tools it lists. All Composio code sits in `apps/server/src/integrations/composio/`.
+**Decision.** Composio is yuki's one integration. Each user brings one key: their Composio project API key (`ak_...`). `UserDO` uses it to create a Composio session for the user with `POST https://backend.composio.dev/api/v3.1/tool_router/session`, and every agent of that user talks MCP to the session's url, `https://backend.composio.dev/tool_router/<session>/mcp`, with the key in `x-api-key`. Every agent gets the tools the session lists. All Composio code sits in `apps/server/src/integrations/composio/`.
+
+DEVIATION from the first version, which took a consumer key (`ck_...`) for Composio's hosted MCP server at `https://connect.composio.dev/mcp`, plus an optional developer key (`ak_...`) for catalog lookups. On 2026-10-11 the owner said there is only one key: the project key from the Composio dashboard. The hosted server refuses that key, and a session made with it serves the same meta tools. So the consumer key, the developer key, the `setComposioDeveloperKey` frame, and the second settings field are gone. A store from before holds a key with no session, so `ComposioStore` drops it on start and the user pastes the one key again.
 
 Executor Cloud was the integration until phase 14 and was removed on 2026-10-10: Composio's workbench covers code over the user's apps, and one integration path is simpler than two. Its research stays in [research/executor-v2.md](research/executor-v2.md) as history.
 
 **Reasons.**
 
-- The server is stateless: no session id, and `tools/list` and `tools/call` work with a bare POST. There is nothing to warm and nothing to lose when `UserDO` is evicted.
+- The session's MCP server needs no `initialize` and no `Mcp-Session-Id`: `tools/list` and `tools/call` work with a bare POST (checked 2026-10-11). The session id is stored with the key, so nothing is lost when `UserDO` is evicted.
+- One key does everything: the session, its tools, and the catalog lookups in section 12.3.
 - Tools are typed, and `COMPOSIO_MULTI_EXECUTE_TOOL` runs several in parallel.
 - Connections live in the user's own Composio account. Yuki never holds an app token.
 
 ### 12.1 Connecting
 
-A user pastes the key in settings. `UserDO` checks it with `tools/list` and stores it only when Composio accepts it, sealed with the same keyring as provider credentials and AAD `composio/key`. The key never goes to the client or a log. Users never cross. Disconnect deletes every Composio row. Apps are connected in the user's Composio account, or through `COMPOSIO_MANAGE_CONNECTIONS`, which returns a link the agent passes on; the agent never asks for a secret.
+A user pastes the key in settings. `UserDO` checks it with `GET /api/v3.1/toolkits?limit=1`, creates a session with `user_id` set to `composioUserId` from `src/lib/names.ts` (a hash of the yuki user id, stable and not the id itself), and lists the session's tools. Only then does it store the key, sealed with the same keyring as provider credentials and AAD `composio/key`, with the session id and url beside it. A key Composio refuses stores nothing. A session url off `https://backend.composio.dev` is refused, so the key never goes elsewhere. The key never goes to the client or a log. Users never cross. Apps are connected in the user's Composio project, or through `COMPOSIO_MANAGE_CONNECTIONS`, which returns a link the agent passes on; the agent never asks for a secret.
+
+When Composio answers a session request with 404 or 410, the session is gone. `UserDO` creates a new one once, stores it, and runs the request again; calls that find the same session gone share that one renewal. A deleted session answers 404 (checked 2026-10-11). UNVERIFIED: how long Composio keeps an idle session. The renewal covers expiry either way.
+
+Disconnect deletes every Composio row at once, then deletes the session at Composio with `DELETE /api/v3.1/tool_router/session/<id>` behind the answer, best effort. Reconnecting deletes the old session the same way. Account deletion does the same before it wipes `UserDO`.
 
 ### 12.2 Nothing hardcoded
 
@@ -637,7 +644,7 @@ When an agent sets up, `AgentDO` asks `UserDO` for the tools Composio lists and 
 
 ### 12.3 Read or external
 
-A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A learned tool takes the class Composio's catalog gives it: when a tool is first learned, `UserDO` reads its tags once from `GET https://backend.composio.dev/api/v3.1/tools/<slug>` behind the call, and `readOnlyHint` makes it `read`. That API refuses consumer keys and needs a developer key (`ak_...`), which each user may add in settings under Composio (`setComposioDeveloperKey`). There is no server-side key. `UserDO` checks it with one `GET /api/v3.1/toolkits?limit=1` and stores it only when Composio accepts it, sealed like the consumer key with AAD `composio/developer`. It never goes to the client or a log, and disconnect deletes it with the other rows. Adding it classifies the learned tools that have no class yet, behind the answer, and the changed signature reopens open agents. Tool metadata is global, so no user data goes with a lookup. Without the key, or when the lookup fails, the tool stays `external`. The class sets the tool's `replay`: a `read` tool is safe to run again after a crash, an `external` one is not. No class gates a call (section 16).
+A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A learned tool takes the class Composio's catalog gives it: when a tool is first learned, `UserDO` reads its tags once from `GET https://backend.composio.dev/api/v3.1/tools/<slug>` with the user's one key, behind the call, and `readOnlyHint` makes it `read`. There is no server-side key. Tool metadata is global, so no user data goes with a lookup. When the lookup fails, the tool stays `external`. The class sets the tool's `replay`: a `read` tool is safe to run again after a crash, an `external` one is not. No class gates a call (section 16).
 
 ### 12.4 Code mode
 

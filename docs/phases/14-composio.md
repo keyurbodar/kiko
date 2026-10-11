@@ -2,6 +2,8 @@
 
 The owner asked for this on 2026-10-10. Each user brings a Composio consumer key, and Composio's hosted MCP server replaces Executor for that user's agents. Architecture section 12 has the decision and the reasons.
 
+On 2026-10-11 the key changed. The owner has one Composio key, the project key (`ak_...`), and the hosted server refuses it. Yuki now creates a Composio session with that key and speaks MCP to the session's url, and the same key reads the catalog. The consumer key and the separate developer key are gone. The task below is kept as it shipped.
+
 Executor was removed from yuki on 2026-10-10, after this task shipped. Composio's workbench runs code over the user's apps and its proxy execution reaches an app's API where no tool covers it, so Executor added nothing Composio lacks, and one integration path is simpler to keep correct than two. The removal deleted the Executor module, its routes, frames, settings block, CLI command, suites, and pause cards, and `UserDO` now drops the old `executor_secrets` table on start. UNVERIFIED: that proxy execution is offered in the tool listing yuki receives.
 
 ## Tasks
