@@ -22,4 +22,4 @@ U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:2
 U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
 U31	Verification never touches another server	2	deepseek	landed	s/u31-verify-safety	d877e482	full-gate-green	main 50becab5	2026-10-11T17:10:10Z
-U32	Fold core/agent migrations	2	haiku	running	s/u32-agent-migrations	-	-	-	2026-10-11T17:44:49Z
+U32	Fold core/agent migrations	2	haiku	landed	s/u32-agent-migrations	2ce9aef7	full-gate-green column-proof-identical	main 828f1afc	2026-10-11T17:54:20Z

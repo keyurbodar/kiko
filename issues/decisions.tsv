@@ -41,3 +41,4 @@ ts	phase	decision	why	evidence	result
 2026-10-11T17:38:12Z	review	DeepSeek review of U28: no defect in the four risk areas; two small gaps (abort promise not held, abort scope after submit) sent as round 2	cross-family check on the highest blast-radius change	U28 review task report	round2
 2026-10-11T17:44:22Z	land	landed U28 round 2: aborts held with waitUntil, scoped to tools running before the steer	review findings F1 F2; no deterministic test possible, live suites pass	main e8a5f440	landed
 2026-10-11T17:48:20Z	land	landed U07: one schema per object; column proof identical except the dropped limits table	free before launch, permanent after	main f44594d4, schema-columns.test	landed
+2026-10-11T17:54:21Z	land	landed U32: core/agent ALTERs folded, boot-time DROP removed	before and after column dumps byte-identical; mutation check fails as expected	main 828f1afc	landed
