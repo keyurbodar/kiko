@@ -12,6 +12,7 @@ import type { RoomPort } from "../src/agent/outbox"
 
 const context = BACKGROUND_CONTEXT
 
+type Column = { cid: number; name: string; type: string; notnull: number; dflt_value: string | null; pk: number }
 type Part = { type: string; text?: string; name?: string }
 type Msg = { role: string; toolName?: string; content?: string | Part[] }
 const textOf = (m: Msg | undefined) => (typeof m?.content === "string" ? m.content : (m?.content ?? []).map((p) => p.text ?? "").join(""))
@@ -26,6 +27,7 @@ type Body =
   | { op: "release" }
   | { op: "requests" }
   | { op: "transcript" }
+  | { op: "columns" }
   | { op: "workers" }
   | { op: "status" }
   | { op: "crash" }
@@ -148,6 +150,11 @@ export class T extends AgentDO {
       return Response.json({ ok: true })
     }
     if (body.op === "workers") return Response.json(this.host.workers.list())
+    if (body.op === "columns") {
+      const sql = this.ctx.storage.sql
+      const tables = ["inbox", "inbox_state", "workers", "harness_epoch", "run_origin"]
+      return Response.json(Object.fromEntries(tables.map((t) => [t, sql.exec<Column>(`PRAGMA table_info(${t})`).toArray()])))
+    }
     if (body.op === "status") return Response.json({ ...(await this.status()), opens: (await this.ctx.storage.get<number>("opens")) ?? 0 })
     if (body.op === "repeat") {
       this.ctx.storage.sql.exec("UPDATE workers SET delivered = 0")
