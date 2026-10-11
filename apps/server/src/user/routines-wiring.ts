@@ -6,7 +6,7 @@ import { htmlToText } from "@yuki/durable/html-text"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import type { ExtensionStore } from "./extensions"
-import { asResult, type NewRoutine, type Reminder, type Reminders } from "./reminders"
+import { asResult, type NewRoutine, type Reminder, ReminderError, type Reminders } from "./reminders"
 import { matchWebhook, roomRoutine, type RoutineResult, routineResult } from "./routines"
 
 const HOOK_EXCERPT = 6_000
@@ -32,9 +32,20 @@ export class RoutineWiring {
   async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> {
     return routineResult(async () => {
       const out = await this.d.reminders.createRoutine(owner, input)
-      await this.routineChanged(out.routine, out.token)
+      // The token is returned only when its lookup row exists, so a failed wiring takes the routine back out.
+      try {
+        await this.routineChanged(out.routine, out.token)
+      } catch (e) {
+        this.d.reminders.remove(out.routine.id)
+        throw e
+      }
       return out
     })
+  }
+
+  /** A deleted chat's routines stop now; their webhook lookup rows follow. */
+  async cancelRoom(roomId: string): Promise<void> {
+    for (const id of await this.d.reminders.cancelRoom(roomId)) await this.dropHook(id)
   }
 
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> {
@@ -77,6 +88,7 @@ export class RoutineWiring {
         .run()
     } catch (e) {
       console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
+      throw new ReminderError("the webhook could not be saved. try again.")
     }
   }
 

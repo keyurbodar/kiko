@@ -69,6 +69,8 @@ const OLD_CHECK_IN_SEEN = "check_in_seen"
 const LAST_CHAT = "last_chat"
 
 const DELETING = "deleting"
+// Written after the wipe, so an evicted object still refuses new work (the in-memory flag did not survive eviction).
+const WIPED = "wiped"
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
@@ -107,7 +109,6 @@ export class UserDO extends DurableObject<Env> {
             return away
           },
         },
-        signal: (s) => this.ctx.waitUntil(this.signals({ roomId: s.roomId, openedAt: s.at, signals: [s], more: 0 })),
       })
       this.extensions = new ExtensionStore(
         this.sql,
@@ -724,7 +725,7 @@ export class UserDO extends DurableObject<Env> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
     }
-    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return new Response("account deleted", { status: 410 })
+    if ((await this.#isWiped()) || (await this.ctx.storage.get(DELETING))) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
@@ -827,7 +828,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return
+    if ((await this.#isWiped()) || (await this.ctx.storage.get(DELETING))) return
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
@@ -842,15 +843,17 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async recordRoom(roomId: RoomId): Promise<boolean> {
-    if (this.#wiped || (await this.ctx.storage.get(DELETING))) return false
+    if ((await this.#isWiped()) || (await this.ctx.storage.get(DELETING))) return false
     this.sql.exec("INSERT OR IGNORE INTO rooms (room_id) VALUES (?)", roomId)
     return true
   }
 
-  #wiped = false
+  async #isWiped(): Promise<boolean> {
+    return (await this.ctx.storage.get(WIPED)) === true
+  }
 
   async beginDeletion(): Promise<RoomId[]> {
-    if (this.#wiped) return []
+    if (await this.#isWiped()) return []
     await this.ctx.storage.put(DELETING, Date.now())
     // The user's Kernel account is theirs, so a failure here must not stop the deletion.
     await this.#kr.kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
@@ -863,30 +866,30 @@ export class UserDO extends DurableObject<Env> {
 
   // The queue refused the jobs, so the account lives on. deletion_rooms stays: a job that did get through must not see an empty ledger and wipe the user.
   async cancelDeletion(): Promise<void> {
-    if (this.#wiped) return
+    if (await this.#isWiped()) return
     await this.ctx.storage.delete(DELETING)
     // beginDeletion dropped the storage alarm; setting the hello wakeup points it at the earliest row again.
     await enforceHello(this.ctx, this.alarms)
   }
 
   async roomDeleted(roomId: RoomId): Promise<number> {
-    if (this.#wiped) return 0
+    if (await this.#isWiped()) return 0
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
     this.sql.exec("DELETE FROM deletion_rooms WHERE room_id = ?", roomId)
     return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM deletion_rooms").one().n
   }
 
   async deleteAll(): Promise<number> {
-    if (this.#wiped) return 0
+    if (await this.#isWiped()) return 0
     // The Composio session goes too, behind the wipe: it reads the key before the rows are gone.
     this.#composio.disconnect()
     const rows = await wipeStorage(this.ctx)
-    this.#wiped = true
+    await this.ctx.storage.put(WIPED, true)
     return rows
   }
 
   async storedRows(): Promise<number> {
-    return this.#wiped ? 0 : storedRows(this.ctx.storage)
+    return (await this.#isWiped()) ? 0 : storedRows(this.ctx.storage)
   }
 
   async devInitiative(op: DevInitiativeOp): Promise<unknown> {
@@ -921,6 +924,8 @@ export class UserDO extends DurableObject<Env> {
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     // A private or deleted chat keeps no loops (section 26.1).
     if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#il.loops.forgetRoom(op.roomId)
+    // A deleted chat keeps no reminders or routines. The rows cancel in this step; the webhook lookup rows follow.
+    if (event && op.op === "delete") this.ctx.waitUntil(this.#routines.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))

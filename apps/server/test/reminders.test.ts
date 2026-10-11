@@ -131,3 +131,12 @@ test("create refuses bad input at the edge", async () => {
   ])
   expect((await rpc(user, "createReminder", "someone-else", base)).error).toBe("wrong owner")
 }, 20_000)
+
+test("deleting a chat cancels its reminders and routines", async () => {
+  const user = await userWithChat()
+  await rpc(user, "createReminder", user, { text: "later", time: soon(3_600_000), tz: "UTC", roomId: ROOM })
+  const routine = await rpc(user, "createRoutine", user, { name: "daily", instructions: "check in", trigger: { on: "time", at: soon(3_600_000) }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  expect(routine.ok).toBe(true)
+  expect(await rpc(user, "deleteChat", ROOM)).toBe(true)
+  expect((await rpc(user, "listReminders")).map((r: { status: string }) => r.status)).toEqual(["cancelled", "cancelled"])
+}, 20_000)

@@ -3,7 +3,7 @@ import type { AgentSlug, Envelope, RoomEvent } from "@yuki/protocol"
 import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 import { joinOrigin, type Origin, originOf, originOfAll } from "@yuki/agent/envelope"
-import { matches, routineRun, type Signal, signalOf, SignalWindow } from "../src/room/signals"
+import { matches, routineRun, Signal, signalOf, SignalWindow } from "../src/room/signals"
 import { sqlStorage } from "./sql-shim"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
 import { describeTrigger, nextEvery } from "../src/user/reminders"
@@ -31,6 +31,12 @@ describe("origin (section 25.3)", () => {
     expect(originOfAll([])).toBeNull()
     expect(originOfAll([env({ origin: "routine" }), env({ from: { kind: "human" } })])).toBe("human")
   })
+})
+
+test("the signal schema has no kind that nothing reads", () => {
+  const decode = Schema.decodeUnknownSync(Signal)
+  expect(() => decode({ kind: "reminder_fired", roomId: "r1", at: 0, reminderId: "x", target: "yuki" })).toThrow()
+  expect(() => decode({ kind: "watch_change", roomId: "r1", at: 0, routineId: "x", url: "https://example.com" })).toThrow()
 })
 
 describe("triggers (section 25.4)", () => {
