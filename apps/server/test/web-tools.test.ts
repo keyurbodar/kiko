@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable"
-import { htmlToText, WEB_TOOL_EFFECTS, webExtension } from "../src/agent/extensions/web"
+import { htmlToText, USER_AGENT, WEB_TOOL_EFFECTS, webExtension } from "../src/agent/extensions/web"
 import type { Fetcher } from "@yuki/durable/safe-fetch"
 
 const context = BACKGROUND_CONTEXT
@@ -23,8 +23,10 @@ test("web_fetch declares a read effect", () => {
 
 describe("web_fetch", () => {
   const page = `<html><head><title>fixture page</title><style>p{}</style></head><body><script>steal()</script><h1>hello</h1><p>the word is <b>tangerine</b> &amp; more</p></body></html>`
-  const fetcher: Fetcher = async (url) => {
+  const agents: (string | undefined)[] = []
+  const fetcher: Fetcher = async (url, init) => {
     const u = new URL(url)
+    if (u.hostname !== "cloudflare-dns.com") agents.push((init?.headers as Record<string, string> | undefined)?.["user-agent"])
     if (u.hostname === "cloudflare-dns.com") {
       const a = u.searchParams.get("type") === "A"
       return Response.json({ Status: 0, Answer: a ? [{ type: 1, data: "93.184.216.34" }] : [] })
@@ -33,6 +35,11 @@ describe("web_fetch", () => {
     return new Response(page, { headers: { "content-type": "text/html; charset=utf-8" } })
   }
   const call = tools(webExtension(fetcher))
+
+  test("sends a user agent, since sites like Wikipedia refuse a request without one", async () => {
+    await call("web_fetch", { url: "https://example.test/ua" })
+    expect(agents.at(-1)).toBe(USER_AGENT)
+  })
 
   test("returns the page as text, with its source", async () => {
     const result = await call("web_fetch", { url: "https://example.test/page" })

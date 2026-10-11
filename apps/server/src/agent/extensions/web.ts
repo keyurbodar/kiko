@@ -18,6 +18,9 @@ const TEXT_TYPES = /^(text\/|application\/(json|xml|xhtml\+xml|javascript|ld\+js
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
 
+// Wikipedia and other sites answer 403 to a request with no user agent.
+export const USER_AGENT = "Yuki/1.0 (web_fetch)"
+
 export function webExtension(fetcher?: Fetcher, fs?: RoomFs): Extension {
   const fetch = fetcher ?? defaultFetcher()
   const webFetch = defineTool({
@@ -26,7 +29,7 @@ export function webExtension(fetcher?: Fetcher, fs?: RoomFs): Extension {
     parameters: Type.Object({ url: Type.String({ description: "an http or https url" }) }),
     replay: "safe",
     execute: async (args) => {
-      const page = await safeFetch(args.url, fetch)
+      const page = await safeFetch(args.url, fetch, { userAgent: USER_AGENT })
       if (!page.ok) return { content: text(`could not fetch ${page.url}: ${page.reason}`), isError: true }
       const details = { source: page.url }
       const type = (page.headers.get("content-type") ?? "").split(";", 1)[0]!.trim().toLowerCase()
