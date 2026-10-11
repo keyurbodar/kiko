@@ -86,11 +86,9 @@ export class Workers {
       delivered INTEGER NOT NULL DEFAULT 0,
       origin TEXT NOT NULL,
       started_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      resumes INTEGER NOT NULL DEFAULT 0
     ) STRICT`)
-    if (!this.sql.exec<{ name: string }>("PRAGMA table_info(workers)").toArray().some((c) => c.name === "resumes")) {
-      this.sql.exec("ALTER TABLE workers ADD COLUMN resumes INTEGER NOT NULL DEFAULT 0")
-    }
   }
 
   list(): Work[] {
