@@ -856,6 +856,7 @@ The code is `apps/server/src/user/reminders.ts` and `apps/server/src/room/delive
 - `UserDO` RPC: `createReminder(owner, input)`, `listReminders()`, `cancelReminder(id)`, `snoozeReminder(id, time)`, and `rewindReminder(id)` for development. The writes return `{ ok, reminder }` or `{ ok: false, error }`. `owner` is the session's user id from the Worker. The object stores it and uses it to reach the room.
 - `RoomDO` RPC: `deliverReminder(id, { text, target })`. It returns false for an id it has seen.
 - HTTP: `GET` and `POST /api/reminders`, `POST /api/reminders/<id>/cancel`, `/snooze`, and `/rewind` (development only). It replays the last occurrence, as after a crash between the post and the row update.
+- A one-off reminder that fails to post three times in a row is `failed`, and the human hears about it once. Snooze puts it back. Snooze moves only time reminders; a paused time routine stays paused.
 - A time must carry an offset or `Z`. It is rounded up to a whole second because `rrule` works in seconds. ASSUMPTION: a recurring row that missed occurrences while the object was down skips them. ASSUMPTION: an agent-target reminder is a room message addressed to the agent, not an envelope.
 
 Agents schedule their own work with the same tool by naming themselves as the target. There is one scheduling mechanism in the product. Routines (section 25) grow this table and keep its alarm.
@@ -1499,7 +1500,7 @@ type Origin = "human" | "routine" | "auto"
 
 ### 25.4 Triggers
 
-**Signals.** One bus carries what happened: `Signal` in `room/signals.ts`, an Effect Schema union of `burst` (a human message), `agent_final` (a message an agent posted), `task`, `file`, `routine_result`, `reminder_fired`, and `watch_change`. Each says who did it. A room sends its signals to `UserDO.signals` in batches; `UserDO` sends its own (`reminder_fired`, `watch_change`) to the same entry. Event routines consume it; anything that later starts work on its own subscribes there.
+**Signals.** One bus carries what happened: `Signal` in `room/signals.ts`, an Effect Schema union of `burst` (a human message), `agent_final` (a message an agent posted), `task`, `file`, and `routine_result`. Each says who did it. A room sends its signals to `UserDO.signals` in batches. Event routines consume it; anything that later starts work on its own subscribes there.
 
 **Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` turns each stored event into a signal (`signalOf`) and keeps it when some routine's trigger `matches` it (a task changing to a status, a human or agent message with optional text, or a file under a path), or when the human did it: every human message and task change is kept for the initiative engine (26.6).
 

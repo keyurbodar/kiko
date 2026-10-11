@@ -13,8 +13,6 @@ export const Signal = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("task"), ...base, seq: Schema.Number, title: Schema.String, status: Schema.String, owner: Schema.NullOr(Schema.String), by: Schema.NullOr(By) }),
 	Schema.Struct({ kind: Schema.Literal("file"), ...base, seq: Schema.Number, path: Schema.String, by: Schema.NullOr(By) }),
 	Schema.Struct({ kind: Schema.Literal("routine_result"), ...base, routineId: Schema.String, occurrence: Schema.String, outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]), seq: Schema.NullOr(Schema.Number) }),
-	Schema.Struct({ kind: Schema.Literal("reminder_fired"), ...base, reminderId: Schema.String, target: Schema.String }),
-	Schema.Struct({ kind: Schema.Literal("watch_change"), ...base, routineId: Schema.String, url: Schema.String }),
 ])
 export type Signal = typeof Signal.Type
 

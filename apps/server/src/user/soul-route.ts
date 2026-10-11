@@ -2,12 +2,14 @@ import { isAgentSlug } from "@yuki/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
+import { originAllowed } from "../router"
 
 const PREFIX = "/api/souls/"
 
 export async function soulRoute(request: Request, env: Env): Promise<Response | null> {
   const path = new URL(request.url).pathname
   if (!path.startsWith(PREFIX)) return null
+  if (!originAllowed(request, new URL(request.url), env)) return Response.json({ error: "forbidden origin" }, { status: 403 })
   const slug = path.slice(PREFIX.length)
   if (!isAgentSlug(slug)) return Response.json({ error: "no such agent" }, { status: 404 })
   const user = await getSessionUser(request, env)

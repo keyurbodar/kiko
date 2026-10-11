@@ -3,6 +3,7 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { DEV } from "../lib/dev-guard"
 import { userStub } from "../lib/names"
+import { originAllowed } from "../router"
 import type { ReminderResult } from "./reminders"
 
 const ACTION = /^\/api\/reminders\/([0-9a-f-]{36})\/(cancel|snooze|rewind)$/
@@ -28,6 +29,7 @@ export async function remindersRoute(request: Request, env: Env): Promise<Respon
   const { pathname } = new URL(request.url)
   const action = ACTION.exec(pathname)
   if (pathname !== "/api/reminders" && !action) return null
+  if (!originAllowed(request, new URL(request.url), env)) return error(403, "forbidden origin")
   const user = await getSessionUser(request, env)
   if (!user) return error(401, "unauthorized")
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) {

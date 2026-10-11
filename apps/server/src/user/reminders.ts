@@ -3,7 +3,6 @@ import type { Env } from "../index"
 import type { Alarms } from "@yuki/durable/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
-import type { Signal } from "../room/signals"
 import type { Budget } from "../room/wake"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@yuki/durable/hash"
@@ -25,7 +24,8 @@ const RETRY_MS = 30_000
 const MAX_SKIPS = 10_000
 const MAX_TEXT = 2000
 
-export type ReminderStatus = "active" | "paused" | "done" | "cancelled"
+// failed: a one-off reminder that could not post after MAX_FAILS tries. snooze it to try again.
+export type ReminderStatus = "active" | "paused" | "done" | "cancelled" | "failed"
 
 export type Reminder = {
   id: string
@@ -155,7 +155,7 @@ export function roomDelivery(env: Env, owner: () => string | null): Deliver {
   }
 }
 
-export type RoutinePorts = { deliverRun: DeliverRun; watch: WatchFetch; notice: Notice; gate: RunGate; signal?: (s: Signal) => void }
+export type RoutinePorts = { deliverRun: DeliverRun; watch: WatchFetch; notice: Notice; gate: RunGate }
 
 export class Reminders {
   constructor(
@@ -457,6 +457,8 @@ export class Reminders {
       this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
       await this.rearm()
     }
+    // The room never reports a refusal, so the run counts as failed here, where finishRun would have counted it.
+    if (fresh && delivery === "refused") await this.finishRun(routine.id, occurrence, "failed", null)
     this.settleRun(routine.id, occurrence, delivery, fresh)
     return delivery
   }
@@ -490,6 +492,22 @@ export class Reminders {
     return this.get(id)
   }
 
+  /** A deleted chat takes its reminders and routines with it. Returns the webhook routines, whose lookup rows the caller drops. */
+  async cancelRoom(roomId: string): Promise<string[]> {
+    const hooks = this.sql
+      .exec<{ id: string }>("SELECT id FROM reminders WHERE room_id = ? AND status IN ('active', 'paused', 'failed') AND json_extract(trigger, '$.on') = 'webhook'", roomId)
+      .toArray()
+      .map((r) => r.id)
+    const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE room_id = ? AND status IN ('active', 'paused', 'failed')", roomId)
+    if (changed.rowsWritten) await this.rearm()
+    return hooks
+  }
+
+  /** Drops a routine that was just created, when the wiring around it failed. */
+  remove(id: string): void {
+    this.sql.exec("DELETE FROM reminders WHERE id = ?", id)
+  }
+
   async cancelCreatedBy(createdBy: string): Promise<number> {
     const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE created_by = ? AND status = 'active'", createdBy)
     if (changed.rowsWritten) await this.rearm()
@@ -498,14 +516,28 @@ export class Reminders {
 
   async snooze(id: string, time: string): Promise<Reminder | null> {
     const due = parseTime(time)
-    const changed = this.sql.exec(
-      "UPDATE reminders SET due_utc = ?, status = 'active' WHERE id = ? AND status != 'cancelled'",
+    const current = this.get(id)
+    if (!current || current.status === "cancelled") return null
+    if (current.trigger && current.trigger.on !== "time") throw new ReminderError("snooze works on time reminders")
+    // A paused routine stays paused: the human paused it, and its failures still count.
+    this.sql.exec(
+      "UPDATE reminders SET due_utc = ?, status = CASE WHEN status = 'paused' THEN 'paused' ELSE 'active' END, fails = CASE WHEN status = 'paused' THEN fails ELSE 0 END WHERE id = ?",
       due,
       id,
     )
-    if (!changed.rowsWritten) return null
     await this.rearm()
     return this.get(id)
+  }
+
+  // A reminder that keeps failing to post is not retried forever. The human hears about it once.
+  private async undelivered(reminder: Reminder): Promise<void> {
+    const fails = reminder.fails + 1
+    if (fails < MAX_FAILS) {
+      this.sql.exec("UPDATE reminders SET fails = ? WHERE id = ?", fails, reminder.id)
+      return
+    }
+    this.sql.exec("UPDATE reminders SET fails = ?, status = 'failed' WHERE id = ? AND status = 'active'", fails, reminder.id)
+    await this.ports?.notice(reminder.roomId, `failed:${reminder.id}:${reminder.dueUtc}`, `reminder "${reminder.text}" did not post after ${MAX_FAILS} tries. snooze it to try again.`).catch((e: unknown) => console.error(`failed reminder not announced: ${e instanceof Error ? e.message : String(e)}`))
   }
 
   async rewind(id: string): Promise<Reminder | null> {
@@ -535,7 +567,6 @@ export class Reminders {
       try {
         if (!reminder.trigger) {
           await this.deliver(deliveryId(reminder), reminder)
-          this.ports?.signal?.({ kind: "reminder_fired", roomId: reminder.roomId, at: this.now(), reminderId: reminder.id, target: reminder.target })
           next = nextTime(reminder, this.now())
         } else if (reminder.trigger.on === "watch") {
           if (!away && ++watched > WATCHES_PER_PASS) {
@@ -554,6 +585,7 @@ export class Reminders {
         }
       } catch {
         failed = true
+        if (!reminder.trigger) await this.undelivered(reminder)
         continue
       }
       this.sql.exec(
@@ -585,7 +617,6 @@ export class Reminders {
     if (state.fp === fp && !state.errors) return
     if (state.fp !== undefined && state.fp !== fp) {
       const excerpt = page.text.length > WATCH_EXCERPT ? `${page.text.slice(0, WATCH_EXCERPT)}\n[cut at ${WATCH_EXCERPT} characters]` : page.text
-      this.ports.signal?.({ kind: "watch_change", roomId: routine.roomId, at: this.now(), routineId: routine.id, url: trigger.url })
       if ((await this.run(routine, `watch:${routine.dueUtc}`, `${trigger.url} changed`, `the page now:\n${excerpt}`)) === "held") return
     }
     save({ fp })

@@ -1,13 +1,14 @@
 import { expect, test } from "bun:test"
 import type { RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
-import { type DeliverRun, type Reminder, Reminders, type RunDelivery } from "../src/user/reminders"
+import { MAX_FAILS, type DeliverRun, type Reminder, Reminders, type RunDelivery } from "../src/user/reminders"
 import { sqlStorage } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000R" as RoomId
 const MIN = 60_000
+const DAY = 86_400_000
 
-function setup(results: RunDelivery[] = [], pages: string[] = []) {
+function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails = false) {
   const sql = sqlStorage()
   sql.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   sql.exec("CREATE TABLE chats (room_id TEXT PRIMARY KEY)")
@@ -16,17 +17,21 @@ function setup(results: RunDelivery[] = [], pages: string[] = []) {
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
   const runs: { deliveryId: string; body: string }[] = []
   const posted: string[] = []
+  const notices: string[] = []
   const deliverRun: DeliverRun = async ({ deliveryId, body }) => {
     runs.push({ deliveryId, body })
     return results.shift() ?? "delivered"
   }
-  const reminders = new Reminders(sql, alarms, async (id: string, _r: Reminder) => void posted.push(id), () => clock.now, {
+  const reminders = new Reminders(sql, alarms, async (id: string, _r: Reminder) => {
+    if (deliverFails) throw new Error("room unreachable")
+    posted.push(id)
+  }, () => clock.now, {
     deliverRun,
     watch: async () => ({ ok: true, text: pages.shift() ?? "same" }),
-    notice: async () => {},
+    notice: async (_roomId, _id, text) => void notices.push(text),
     gate: { away: () => false },
   })
-  return { sql, clock, reminders, runs, posted }
+  return { sql, clock, reminders, runs, posted, notices }
 }
 
 test("a held watch run keeps the old fingerprint, so the next check reports the change", async () => {
@@ -73,4 +78,30 @@ test("aging the initiative clock moves an agent's own reminder with it, a day at
   await reminders.devAge(24 * HOUR)
   expect(reminders.get(own.id)!.dueUtc).toBe(clock.now)
   expect(reminders.get(human.id)!.dueUtc).toBe(clock.now + 28 * HOUR)
+})
+
+test("snooze moves only time reminders, and a paused time routine stays paused", async () => {
+  const { clock, reminders } = setup()
+  const message = await reminders.createRoutine("u", { name: "talk", instructions: "say hi", trigger: { on: "message", from: "human" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  await expect(reminders.snooze(message.routine.id, new Date(clock.now + MIN).toISOString())).rejects.toThrow("snooze works on time reminders")
+  const timed = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  await reminders.updateRoutine(timed.routine.id, { status: "paused" })
+  const snoozed = await reminders.snooze(timed.routine.id, new Date(clock.now + 2 * DAY).toISOString())
+  expect(snoozed?.status).toBe("paused")
+})
+
+test("a refused routine run counts toward auto-pause", async () => {
+  const { clock, reminders } = setup(["refused", "refused", "refused"])
+  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id, true)
+  expect(reminders.get(routine.id)?.status).toBe("paused")
+})
+
+test("a one-off reminder that keeps failing is marked failed after three tries, and the human is told once", async () => {
+  const { clock, reminders, notices } = setup([], [], true)
+  const reminder = await reminders.create("u", { text: "water", time: new Date(clock.now + MIN).toISOString(), tz: "UTC", roomId: ROOM })
+  clock.now += MIN
+  for (let i = 0; i < 5; i++) await reminders.fire()
+  expect(reminders.get(reminder.id)?.status).toBe("failed")
+  expect(notices.length).toBe(1)
 })
