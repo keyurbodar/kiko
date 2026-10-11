@@ -296,6 +296,11 @@ export class UserDO extends DurableObject<Env> {
     this.putSetting(key, value)
   }
 
+  async devComposioSession(): Promise<string | null> {
+    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    return this.#composio.sessionId()
+  }
+
   async devCaptureQueue(): Promise<number> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
     return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n

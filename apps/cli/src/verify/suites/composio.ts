@@ -14,13 +14,17 @@ import { newRoom } from "./mid-run"
 // learned tool directly, with no search, and the status must report that tool as a read (the same
 // key reads Composio's catalog, which tags it read-only). Part four: a routine runs in a room whose
 // agent opened before anything was learned and is still open. It must reload and call the learned
-// tool. Hard limits: 60 s per socket answer, 150 s per chat turn or routine run.
+// tool. Part five: the user's live session is deleted at Composio (the id comes from a dev route,
+// never the key), and a fresh chat asks a new question. A composio_* tool must run, a reply must
+// arrive, and the stored session id must change: Composio answers the deleted session with 404 and
+// the server makes a new one. Hard limits: 60 s per socket answer, 150 s per chat turn or routine run.
 
 const USER = "composio-alice"
 const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
 const ASK = "Use Composio to search the web: what is the latest stable Bun version? Answer in one line."
 const ASK_AGAIN = "Use Composio to search the web: who maintains the Bun runtime? One line."
 const ROUTINE = "Use Composio to search the web: what is the latest stable Deno version? Answer in one line."
+const ASK_RENEW = "Use Composio to search the web: what is the latest stable Node.js LTS version? Answer in one line."
 const TURN_MS = 150_000
 
 type Result = { ok: true; status: { connected: boolean; rows: number }; tools?: string[]; readOnly?: string[] } | { ok: false; error: string }
@@ -151,6 +155,18 @@ const suite: Suite = {
     console.log(`    tools called: ${ran.join(" ")}`)
     if (!ran.some((t) => direct.some((slug) => t === toolName(slug)))) throw new VerifyError(`the routine run called no learned tool: ${ran.join(" ") || "none"}`)
     user.send({ t: "chat", op: { op: "delete", roomId: early.roomId as never } })
+
+    // Part five: the session is deleted at Composio, and the next chat must renew it.
+    const storedSession = async () => ((await dev(v.url, s, "composio", {})) as { session: string | null }).session
+    const oldSession = await storedSession()
+    if (!oldSession) throw new VerifyError("no stored composio session to delete")
+    const del = await fetch(`https://backend.composio.dev/api/v3.1/tool_router/session/${encodeURIComponent(oldSession)}`, { method: "DELETE", headers: { "x-api-key": key } })
+    console.error(`deleted session ${oldSession} at composio: ${del.status}`)
+    if (!del.ok) throw new VerifyError(`composio refused to delete the session: ${del.status}`)
+    await chat("composio renewed", ASK_RENEW)
+    const newSession = await storedSession()
+    if (!newSession || newSession === oldSession) throw new VerifyError(`the stored session did not change: ${oldSession} -> ${newSession}`)
+    console.log(`  session renewed: ${oldSession} -> ${newSession}`)
     const gone = await ask({ t: "disconnectComposio" })
     if (!gone.ok) throw new VerifyError(`disconnect failed: ${gone.error}`)
     expectEqual([gone.status.connected, gone.status.rows], [false, 0], "connected and rows after disconnect")

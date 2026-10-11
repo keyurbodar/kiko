@@ -43,6 +43,11 @@ export class ComposioConnection {
     }
   }
 
+  /** The stored session's id (never the key or the url), for the dev route. */
+  async sessionId(): Promise<string | null> {
+    return (await this.store.target())?.session ?? null
+  }
+
   status(): ComposioStatus {
     return { connected: this.store.connected(), rows: this.store.count() }
   }
