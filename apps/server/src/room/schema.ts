@@ -1,4 +1,3 @@
-
 const MIGRATIONS: readonly string[] = [
 	`
 	-- Every stored change a human can see. seq only increases and is never reused.
@@ -11,9 +10,16 @@ const MIGRATIONS: readonly string[] = [
 		actor TEXT NOT NULL,
 		payload TEXT NOT NULL
 	);
+	CREATE INDEX events_kind_seq ON events (kind, seq);
 
 	-- The current state of each message, with edits applied. sender, rich, and
 	-- files are JSON. A deleted message keeps its row so ids are never reused.
+	-- goto: another chat the message points at (architecture section 7.11).
+	-- quote: the words of the replied-to message the human picked to answer.
+	-- preview: the link card, removed on 2026-10-09; unread, kept so the table keeps its shape.
+	-- tainted: 1 when a run that read outside content wrote it (section 16).
+	-- addressed: who an agent's send_message or ask was for, so the client folds agent mail by fact.
+	-- initiative: the one line a bubble shows when the agent spoke up unasked (section 26).
 	CREATE TABLE messages (
 		id TEXT PRIMARY KEY,
 		seq INTEGER NOT NULL UNIQUE,
@@ -28,8 +34,24 @@ const MIGRATIONS: readonly string[] = [
 		run_index INTEGER,
 		edited_at INTEGER,
 		deleted_at INTEGER,
+		goto TEXT,
+		quote TEXT,
+		preview TEXT,
+		tainted INTEGER NOT NULL DEFAULT 0,
+		addressed TEXT,
+		initiative TEXT,
 		UNIQUE (run_id, run_attempt, run_index)
 	);
+	CREATE INDEX messages_not_human ON messages (seq) WHERE json_extract(sender, '$.kind') != 'human';
+	CREATE INDEX messages_agent ON messages (seq) WHERE json_extract(sender, '$.kind') = 'agent';
+	CREATE VIRTUAL TABLE messages_fts USING fts5(text, content='messages', content_rowid='rowid');
+	CREATE TRIGGER messages_fts_insert AFTER INSERT ON messages WHEN new.deleted_at IS NULL BEGIN
+		INSERT INTO messages_fts (rowid, text) VALUES (new.rowid, new.text);
+	END;
+	CREATE TRIGGER messages_fts_update AFTER UPDATE OF text, deleted_at ON messages BEGIN
+		INSERT INTO messages_fts (messages_fts, rowid, text) SELECT 'delete', old.rowid, old.text WHERE old.deleted_at IS NULL;
+		INSERT INTO messages_fts (rowid, text) SELECT new.rowid, new.text WHERE new.deleted_at IS NULL;
+	END;
 
 	-- One reaction per actor per message.
 	CREATE TABLE reactions (
@@ -46,22 +68,10 @@ const MIGRATIONS: readonly string[] = [
 		message_id TEXT NOT NULL,
 		seq INTEGER NOT NULL
 	);
-	`,
-	`
-	CREATE VIRTUAL TABLE messages_fts USING fts5(text, content='messages', content_rowid='rowid');
-	CREATE TRIGGER messages_fts_insert AFTER INSERT ON messages WHEN new.deleted_at IS NULL BEGIN
-		INSERT INTO messages_fts (rowid, text) VALUES (new.rowid, new.text);
-	END;
-	CREATE TRIGGER messages_fts_update AFTER UPDATE OF text, deleted_at ON messages BEGIN
-		INSERT INTO messages_fts (messages_fts, rowid, text) SELECT 'delete', old.rowid, old.text WHERE old.deleted_at IS NULL;
-		INSERT INTO messages_fts (rowid, text) SELECT new.rowid, new.text WHERE new.deleted_at IS NULL;
-	END;
-	INSERT INTO messages_fts (messages_fts) VALUES ('rebuild');
-	`,
-	`
+
 	-- The room's file index (files.ts). Bytes are in R2 under r2_key. A path holds
 	-- one file. author is an actor key, as in events. width, height, and thumbhash are no longer
-	-- written or read (2026-10-09); they stay so no migration rewrites a live table.
+	-- written or read (2026-10-09); they stay so the table keeps its shape.
 	CREATE TABLE ws_files (
 		id TEXT PRIMARY KEY,
 		path TEXT NOT NULL UNIQUE,
@@ -75,11 +85,13 @@ const MIGRATIONS: readonly string[] = [
 		author TEXT NOT NULL,
 		at INTEGER NOT NULL
 	);
-	`,
-	`
+
 	-- The workspace (workspace.ts, architecture sections 4.3 and 7.6). Actors are actor keys, as in
 	-- events. unblocked_seq is the event that finished a task's last open dependency; woken_at is set
 	-- once its owner admitted the task_unblocked envelope, so the wake happens once.
+	-- chain: the chain the task was made on (root, hop, authority), so its wakes keep the authority of
+	-- the work the human asked for (section 25.3). Null on a task made before.
+	-- tainted: 1 once a run that read outside content created or changed the task (section 26.6).
 	CREATE TABLE ws_tasks (
 		id TEXT PRIMARY KEY,
 		title TEXT NOT NULL,
@@ -90,7 +102,9 @@ const MIGRATIONS: readonly string[] = [
 		created_seq INTEGER NOT NULL,
 		updated_at INTEGER NOT NULL,
 		unblocked_seq INTEGER,
-		woken_at INTEGER
+		woken_at INTEGER,
+		chain TEXT,
+		tainted INTEGER NOT NULL DEFAULT 0
 	);
 	CREATE TABLE ws_task_deps (
 		task_id TEXT NOT NULL,
@@ -98,60 +112,7 @@ const MIGRATIONS: readonly string[] = [
 		PRIMARY KEY (task_id, depends_on)
 	);
 	CREATE INDEX ws_task_deps_on ON ws_task_deps (depends_on);
-	CREATE TABLE ws_activity (
-		id TEXT PRIMARY KEY,
-		at INTEGER NOT NULL,
-		actor TEXT NOT NULL,
-		task_id TEXT,
-		text TEXT NOT NULL
-	);
-	CREATE INDEX ws_activity_at ON ws_activity (at);
-	CREATE TABLE ws_notes (
-		title TEXT PRIMARY KEY,
-		body TEXT NOT NULL,
-		author TEXT NOT NULL,
-		at INTEGER NOT NULL
-	);
-	`,
-	`
-	-- A message can point at another chat, such as the one yuki just made (architecture section 7.11).
-	ALTER TABLE messages ADD COLUMN goto TEXT;
-	`,
-	`
-	-- The words of the replied-to message the human picked to answer (a quote).
-	ALTER TABLE messages ADD COLUMN quote TEXT;
-	`,
-	`
-	-- The card for the message's first link, as JSON. Link previews were removed on 2026-10-09; the
-	-- column stays, unread, so no migration rewrites a live table.
-	ALTER TABLE messages ADD COLUMN preview TEXT;
-	`,
-	`
-	-- The newest event of one kind (the chat row's newest reaction, the reactions
-	-- since an agent's last brief) without reading the whole log.
-	CREATE INDEX events_kind_seq ON events (kind, seq);
-	-- The chat row's unread count and mention scan read agent messages after the read mark. These
-	-- partial indexes hold only those rows, so a long chat of human messages costs them nothing.
-	-- Each WHERE matches its query's term exactly (deliver.ts chatTouch), or SQLite skips the index.
-	CREATE INDEX messages_not_human ON messages (seq) WHERE json_extract(sender, '$.kind') != 'human';
-	CREATE INDEX messages_agent ON messages (seq) WHERE json_extract(sender, '$.kind') = 'agent';
-	`,
-	`
-	-- A message written by a run that read outside content (section 16). Log memory marks what is built from it.
-	ALTER TABLE messages ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0;
-	`,
-	`
-	-- The activity log and shared notes were written by agents and read by nobody. A run's trace line in
-	-- memory (section 13) says what an agent did, and /chat.md holds decisions.
-	DROP TABLE IF EXISTS ws_activity;
-	DROP TABLE IF EXISTS ws_notes;
-	`,
-	`
-	-- The chain a task was made on (root, hop, authority), so its wakes keep the authority of the work
-	-- the human asked for (section 25.3). Null on a task made before.
-	ALTER TABLE ws_tasks ADD COLUMN chain TEXT;
-	`,
-	`
+
 	-- Attachments the human uploaded when they picked them and has not sent yet (pending.ts,
 	-- architecture section 18.1). sha256 is null while the bytes are on their way. upload_id is the
 	-- R2 multipart upload of a big file. A send claims a row into ws_files; a sweep drops a stale one.
@@ -166,24 +127,6 @@ const MIGRATIONS: readonly string[] = [
 		created_at INTEGER NOT NULL
 	);
 	CREATE INDEX pending_uploads_created ON pending_uploads (created_at);
-	`,
-	`
-	-- Who an agent's send_message or ask was for (an agent slug, or all), so the client folds agent mail by
-	-- fact and never by the text. Null on every other message, and on agent mail stored before.
-	ALTER TABLE messages ADD COLUMN addressed TEXT;
-	`,
-	`
-	-- The one line a bubble shows when the agent spoke up unasked (section 26). Null on every other message.
-	ALTER TABLE messages ADD COLUMN initiative TEXT;
-	`,
-	`
-	-- 1 once a run that read outside content created or changed the task (section 26.6), so a nudge about it wakes tainted.
-	ALTER TABLE ws_tasks ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0;
-	`,
-	`
-	-- Approval cards were removed on 2026-10-10: an agent asks in chat and the human's reply is the ok.
-	DROP TABLE IF EXISTS ws_approvals;
-	DELETE FROM events WHERE kind = 'approval';
 	`,
 ]
 

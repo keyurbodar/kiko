@@ -176,13 +176,15 @@ export class Reminders {
       created_by TEXT NOT NULL,
       status TEXT NOT NULL,
       last_fired INTEGER,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      name TEXT,
+      "trigger" TEXT,
+      fails INTEGER NOT NULL DEFAULT 0,
+      watch_state TEXT,
+      hook_hash TEXT,
+      chain TEXT
     )`)
     this.sql.exec("CREATE INDEX IF NOT EXISTS reminders_due ON reminders (status, due_utc)")
-    const columns = new Set(this.sql.exec<{ name: string }>("PRAGMA table_info(reminders)").toArray().map((c) => c.name))
-    for (const [name, type] of [["name", "TEXT"], ["trigger", "TEXT"], ["fails", "INTEGER NOT NULL DEFAULT 0"], ["watch_state", "TEXT"], ["hook_hash", "TEXT"], ["chain", "TEXT"]] as const) {
-      if (!columns.has(name)) this.sql.exec(`ALTER TABLE reminders ADD COLUMN "${name}" ${type}`)
-    }
     this.sql.exec(`CREATE TABLE IF NOT EXISTS routine_runs (
       routine_id TEXT NOT NULL,
       occurrence TEXT NOT NULL,

@@ -29,9 +29,6 @@ export class ComposioStore {
       value TEXT,
       updated_at INTEGER NOT NULL
     )`)
-    // Until 2026-10-11 the key was a consumer key with no session. A store without a session is
-    // unusable, so it is dropped and the user pastes the key again.
-    sql.exec("DELETE FROM composio WHERE NOT EXISTS (SELECT 1 FROM composio WHERE name = 'key' AND value IS NOT NULL)")
   }
 
   /** Read before the first await, so a caller that clears the store right after still gets what was stored. */

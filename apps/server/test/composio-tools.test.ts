@@ -298,15 +298,4 @@ describe("composio store", () => {
     await new ComposioStore(sql, keyring, "u1").putKey("ak_secret", session)
     expect(await new ComposioStore(sql, keyring, "u1").target()).toEqual({ key: "ak_secret", url: session.url, session: "trs_1" })
   })
-
-  test("an old consumer key with no session, its developer key, and its rows are dropped, so the user pastes the one key again", async () => {
-    const sql = sqlStorage()
-    const old = new ComposioStore(sql, keyring, "u1")
-    await old.putKey("ck_old", session)
-    old.putListing({ at: 1, tools: [] })
-    sql.exec("UPDATE composio SET value = NULL WHERE name = 'key'")
-    sql.exec("INSERT INTO composio (name, value, updated_at) VALUES ('developer', NULL, 1)")
-    const store = new ComposioStore(sql, keyring, "u1")
-    expect([store.connected(), store.count(), await store.target()]).toEqual([false, 0, undefined])
-  })
 })

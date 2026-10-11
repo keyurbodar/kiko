@@ -33,9 +33,6 @@ export const norm = (text: string) =>
 
 export const keywords = (text: string): string[] => [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
 
-const NORM_VERSION_KEY = "life_norm_v"
-const NORM_VERSION = "2"
-
 export class Life {
   readonly tree: Tree
 
@@ -51,22 +48,15 @@ export class Life {
       source TEXT NOT NULL DEFAULT '',
       norm TEXT NOT NULL,
       pinned INTEGER NOT NULL DEFAULT 0,
-      redacted INTEGER NOT NULL DEFAULT 0
+      redacted INTEGER NOT NULL DEFAULT 0,
+      ref TEXT NOT NULL DEFAULT '',
+      superseded_by INTEGER,
+      card TEXT
     )`)
-    const columns = new Set(sql.exec<{ name: string }>("PRAGMA table_info(life)").toArray().map((c) => c.name))
-    if (!columns.has("ref")) sql.exec("ALTER TABLE life ADD COLUMN ref TEXT NOT NULL DEFAULT ''")
-    if (!columns.has("superseded_by")) sql.exec("ALTER TABLE life ADD COLUMN superseded_by INTEGER")
-    if (!columns.has("card")) sql.exec("ALTER TABLE life ADD COLUMN card TEXT")
     sql.exec("CREATE INDEX IF NOT EXISTS life_norm ON life (norm)")
     sql.exec("CREATE INDEX IF NOT EXISTS life_ref ON life (ref)")
     sql.exec("CREATE VIRTUAL TABLE IF NOT EXISTS life_fts USING fts5(text)")
     this.tree = new Tree(sql, "life_tree", LIFE_SHAPE, (lo, hi) => this.items(lo, hi))
-    if (settings.get(NORM_VERSION_KEY) !== NORM_VERSION) {
-      transaction(() => {
-        for (const r of sql.exec<{ pos: number; text: string }>("SELECT pos, text FROM life WHERE redacted = 0").toArray()) sql.exec("UPDATE life SET norm = ? WHERE pos = ?", norm(r.text), r.pos)
-      })
-      settings.set(NORM_VERSION_KEY, NORM_VERSION)
-    }
   }
 
   count(): number {

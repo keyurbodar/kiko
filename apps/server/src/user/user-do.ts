@@ -27,7 +27,6 @@ import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsC
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { Life } from "@yuki/memory/life"
-import { importRecords } from "./import-records"
 import { itemLine, spanOf } from "@yuki/memory/optmem"
 import type { NoteAnswer } from "@yuki/memory/tools"
 import { ProviderLogins } from "./provider-login"
@@ -89,7 +88,6 @@ export class UserDO extends DurableObject<Env> {
       migrate(this.sql)
       this.alarms = createAlarms(ctx)
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
-      if (importRecords(this.sql, this.life) > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
         const event = this.commit(body)

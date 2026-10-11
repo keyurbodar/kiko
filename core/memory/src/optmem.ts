@@ -128,8 +128,6 @@ export class Tree {
     private readonly items: (lo: number, hi: number) => Item[],
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS ${name} (size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
-    // Trees written before 2026-10-11 hold a tainted column with no default. Drop it so an insert works.
-    if (sql.exec<{ name: string }>(`PRAGMA table_info(${name})`).toArray().some((c) => c.name === "tainted")) sql.exec(`ALTER TABLE ${name} DROP COLUMN tainted`)
   }
 
   node(span: Span): Node | null {
