@@ -86,3 +86,25 @@ AGENTS.md rule 4: a human message can interrupt work. Today a human arriving dur
 - The dev fake setup path in `AgentDO.setup()` returns before the real build. Per-setup state has to be set in both branches.
 - `scripts/test-each.ts` caches by a hash of the whole tree and prints `cached` without running. Use `--no-cache` for fresh evidence.
 - `wrangler dev` needs `apps/web-solid/dist` to exist. A fresh worktree has none, and `bun run --cwd apps/web-solid build` creates it.
+
+## Round 2
+
+Cross-family review of round 1 found two gaps in `core/agent/src/host.ts`.
+
+- **F1.** The abort in `interruptTools` was fire-and-forget. Nothing kept the handler's runtime alive, so the abort mark could be lost when the handler returned first. The host now takes a required `waitUntil` option, and `AgentDO` wires it to `this.ctx.waitUntil`. The abort stays un-awaited, so the drain still does not wait on the tool.
+- **F2.** The host read the running tools after `root.submit`, so a tool that the steer itself started could be aborted. The host now reads the stoppable running tool ids before the submit and aborts only those ids after it.
+
+Tests: none added. Both changes are ordering and lifetime fixes with no behavior the test harness can observe deterministically.
+
+- F2 is a race. The steer's tool can start only after the first tool returns and the model is called again. Whether the old code's post-submit read sees it depends on timing. A test that passes on the old code some of the time is not a regression test.
+- The test worker (`workers-worker.ts`) never sets `this.effects`, so `interruptible` is always false there. Neither harness can reach the interrupt path without a seam.
+- F1 needs the Workers runtime to lose the handler after it returns. Miniflare does not model that.
+
+`mid-run` and `team-ask` cover the interrupt path end to end and both pass on this change.
+
+HEAD of the merged tree before this round: e218d996 (main). Changed: `core/agent/src/host.ts`, `apps/server/src/agent/agent-do.ts`.
+
+Verified:
+- `bun run check` → all 10 steps passed. Typecheck, lint, check-imports, check-rules, check-exports, and the core, cli, server, and web-solid tests pass. The frontend lint step is advisory and reports 17 errors.
+- `bun yuki verify mid-run --url http://localhost:8828` → `pass mid-run (35295ms)`. All four cases ok.
+- `bun yuki verify team-ask --url http://localhost:8828` → `pass team-ask (6605ms)`.
