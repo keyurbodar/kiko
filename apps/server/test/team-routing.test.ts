@@ -149,7 +149,7 @@ test("a chat created without agents gets yuki as its lead", async () => {
   await call("/user", { chats: [chatFor(room, "solo")], agents: [] })
   const ws = await Socket.open(room)
   await ws.until(() => ws.members().length === 1)
-  expect(ws.members()).toEqual([{ slug: slug("yuki"), name: "Yuki", lead: true }])
+  expect(ws.members()).toEqual([{ slug: slug("yuki"), name: "Yuki", lead: true, model: "opencode-go/muse-spark-1.3-contributor" }])
   ws.ws.close()
 })
 

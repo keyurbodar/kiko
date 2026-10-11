@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL } from "../agent/factory"
 import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
@@ -49,9 +50,12 @@ const toRow = (r: Row): MemberRow => ({
 	status: r.status as AgentState,
 })
 
-/** The wire form. `role` and `model` are left out when empty. */
+/**
+ * The wire form. `role` is left out when empty. An agent with no model of its own runs on the
+ * default, so the wire carries that effective model and the client never shows "None".
+ */
 export function toMember(m: MemberRow): Member {
-	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), ...(m.model ? { model: m.model } : {}) }
+	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), model: m.model || `${DEFAULT_MODEL.provider}/${DEFAULT_MODEL.modelId}` }
 }
 
 const clip = (text: string | undefined, max: number) => (text ?? "").trim().slice(0, max)

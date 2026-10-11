@@ -103,7 +103,7 @@ function AgentPage(props: { slug: string; chatId: string }) {
       </Profile>
       <Properties>
         <Property label="Role" field="role">{member()?.lead ? "Lead" : "Agent"}</Property>
-        <Property label="Model" field="model">{chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "None"}</Property>
+        <Property label="Model" field="model">{(chatModel(props.chatId) ?? member()?.model)?.split("/").slice(1).join("/") ?? "None"}</Property>
         <Property label="Status" field="status">{sentence(status())}</Property>
       </Properties>
       <NavRows>
@@ -142,7 +142,7 @@ function Home(props: { chatId: string }) {
     <div class="flex min-h-full flex-col" data-component="info-home">
       <Header chatId={props.chatId} />
       <Properties>
-        <Property label="Model" field="model">{chatModel(props.chatId)?.split("/").slice(1).join("/") ?? "None"}</Property>
+        <Property label="Model" field="model">{(chatModel(props.chatId) ?? lead()?.model)?.split("/").slice(1).join("/") ?? "None"}</Property>
         <Show when={lead()}>
           {(m) => <Property label="Status" field="status">{sentence(useApp.room()?.state.status[m().slug as never] ?? "idle")}</Property>}
         </Show>
