@@ -96,8 +96,10 @@ const suite: Suite = {
       const { text, total } = await turn(room, prompt(TOPICS.slice(0, count)))
       await Bun.sleep(300)
       const counters = await readStats(v, s)
-      const calls = counters[`composio.call.${TOOL}`] ?? 0
-      const sumMs = counters[`composio.${TOOL}.ms`] ?? 0
+      // The talker hands the job to a worker in its own words, so the worker may pick another Composio web search tool.
+      const search = (k: string, re: RegExp) => Object.entries(counters).filter(([key]) => re.test(key) && !key.includes("search_tools")).reduce((n, [, v]) => n + v, 0)
+      const calls = search("calls", /^composio\.call\.composio_search_/)
+      const sumMs = search("ms", /^composio\.composio_search_\w+\.ms$/)
       const ratio = sumMs > 0 ? total / sumMs : Number.POSITIVE_INFINITY
       const composioCounters = Object.entries(counters).filter(([k]) => k.startsWith("composio.")).map(([k, c]) => `${k}=${c}`).join(" ")
       console.log(`    counters: ${composioCounters}`)
@@ -106,7 +108,7 @@ const suite: Suite = {
       const bad = errors(counters)
       if (bad.length) throw new VerifyError(`${name}: error counters: ${bad.map(([k, n]) => `${k}=${n}`).join(", ")}`)
       const numbers = `calls ${calls}, wall ${total.toFixed(0)} ms, sum ${sumMs} ms, ratio ${ratio.toFixed(3)}`
-      if (calls < MIN_CALLS) throw new VerifyError(`${name}: only ${calls} of ${count} ${TOOL} calls (need ${MIN_CALLS}). ${numbers}. reply: ${text.slice(0, 200)}`)
+      if (calls < MIN_CALLS) throw new VerifyError(`${name}: only ${calls} of ${count} web search calls (need ${MIN_CALLS}). ${numbers}. reply: ${text.slice(0, 200)}`)
       if (total >= WALL_LIMIT_MS) throw new VerifyError(`${name}: wall time over ${WALL_LIMIT_MS} ms. ${numbers}`)
       if (!(ratio < MAX_OVERLAP)) throw new VerifyError(`${name}: calls did not overlap (wall/sum ${ratio.toFixed(3)} >= ${MAX_OVERLAP}). ${numbers}`)
       rows.push({ turn: name, calls, wallMs: Math.round(total), sumMs, ratio })

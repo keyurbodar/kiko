@@ -83,6 +83,7 @@ bun scripts/check-imports.ts      # packages import only the packages below them
 - Backend work is verified through the yuki CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
 - Frontend work is verified with the `verify-yuki` skill, which drives a real browser. Use it for checks that matter, not for every change.
 - Team and loop behavior is tested with fake agents first, so tests are deterministic and cost no tokens.
+- Keep a check under 5 minutes: run only the suites the change touches. Suites that reset and read the server's dev counters clobber each other, so run those one at a time or on separate servers.
 - Do not write a test that only proves the code runs. A test must fail when the behavior breaks.
 
 ## Tasks and pull requests

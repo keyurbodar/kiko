@@ -73,11 +73,11 @@ function roleText({ role, lead }: RoleInput): string {
 const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
 
 /** How the talker uses its workers (section 8). The work extension fills the `work` slot, so a worker never reads it. */
-export const WORK_LINES = `- Web pages, the browser, the human's connected apps, and extension tools run only in a worker. For those, and for anything slow (research, several steps, long drafting), call start_work with one clear task that has everything the worker needs.
+export const WORK_LINES = `- Web pages, the browser, the human's connected apps, and extension tools run only in a worker. For those, and for anything slow (research, several steps, long drafting), call start_work with one clear task that has everything the worker needs. Give a job with many parts to one worker whole; it runs them at once. Do not split it into batches.
 - First write one short line that you are on it, then call start_work in the same message. After its result, reply only [skip], never a second line. Do not narrate steps.
 - Answer small questions yourself, at once, even while workers run.
 - Your workers are listed in <context>. When the human changes the request, steer_work the right worker, or stop_work it if they no longer want it.
-- A <work> input is a worker's report. Tell the human the outcome in your own words.`
+- A <work> input is a worker's report. Tell the human the outcome in your own words, once the work is done. No progress lines.`
 
 /**
  * The base sections in `SECTION_ORDER`. `work` (section 8), `soul` and `chat` (section 7.10), and `skills` (section 15)

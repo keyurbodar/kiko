@@ -92,7 +92,7 @@ export class AgentDO extends DurableObject<Env> {
       shortBrief,
       onReset: () => this.outbox.clear(),
       onIdle: () => this.#userExtensions?.release(),
-      onWorkers: (running) => void this.outbox.background(running > 0).catch(() => undefined),
+      onWorkers: (running, pending) => void this.outbox.background(running > 0, pending).catch(() => undefined),
       ...this.hostOptions,
       setup: () => this.setup(),
       onOpen: async (opened) => {

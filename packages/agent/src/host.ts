@@ -111,7 +111,8 @@ export type HostOptions = {
   onReset?: () => void
   autoBudgetMs?: () => Promise<number>
   /** The number of running workers changed (architecture section 8). */
-  onWorkers?: (running: number) => void
+  /** `pending`: input waits in the inbox, such as a worker's report. */
+  onWorkers?: (running: number, pending: boolean) => void
 }
 
 export type Opened = {
@@ -164,7 +165,7 @@ export class AgentHost {
     ctx.storage.sql.exec("DROP TABLE IF EXISTS run_authority")
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
     this.inbox = new Inbox(ctx.storage)
-    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running) })
+    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
     this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
   }

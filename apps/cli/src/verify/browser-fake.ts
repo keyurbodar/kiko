@@ -82,7 +82,10 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     const talker = (await ask(a.room, "[tools]")).replace(/^tools: /, "").split(",")
     const leaked = TOOLS.filter((t) => talker.includes(t))
     if (leaked.length) throw new VerifyError(`the talker has browser tools: ${leaked.join(", ")}`)
-    const viaWorker = await ask(a.room, toolLine("start_work", { task: "[tools]" }))
+    const mark = texts(a.room).length
+    await send(a.room, toolLine("start_work", { task: "[tools]" }))
+    await until("the worker's tool list", () => texts(a.room).slice(mark).some((t) => /report w\d+ done: tools: /.test(t)), 40_000)
+    const viaWorker = texts(a.room).slice(mark).find((t) => /report w\d+ done: tools: /.test(t)) ?? ""
     const listed = /tools: ([\w,]+)/.exec(viaWorker)?.[1]?.split(",")
     if (!listed?.length) throw new VerifyError(`the worker did not list its tools: ${JSON.stringify(viaWorker.slice(0, 300))}`)
     const missing = TOOLS.filter((t) => !listed.includes(t))

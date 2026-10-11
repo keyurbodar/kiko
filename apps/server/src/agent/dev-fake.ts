@@ -46,8 +46,9 @@ const WORK_STEP_MS = 3_000
 
 const directCall = (text: string) => /\[(?:ws|tool) (\w+) (\{.*?\})\]/.exec(text.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
 
-function workerReply(messages: readonly Message[]) {
+function workerReply(messages: readonly Message[], toolNames: () => string) {
   const users = messages.filter((m) => m.role === "user").map(textOf)
+  if (users[0] === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
   const results = messages.filter((m) => m.role === "toolResult")
   const browse = browseScript(messages, users)
   if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
@@ -67,7 +68,7 @@ export function fakeReply(transcript: readonly Message[]) {
   const toolNames = () => getCurrentTools(transcript as never).map((t) => t.name).sort().join(",")
   const messages = transcript.filter((m) => m.role !== "system")
   const offered = toolsOf(transcript)
-  if (!offered.has("start_work")) return workerReply(messages)
+  if (!offered.has("start_work")) return workerReply(messages, toolNames)
   const report = messages.at(-1)?.role === "user" ? /<work id="(\w+)" status="(\w+)">([\s\S]*?)<\/work>/.exec(textOf(messages.at(-1)!)) : null
   if (report) return fauxAssistantMessage(`report ${report[1]} ${report[2]}: ${report[3]!.trim()}`)
   const last = messages.at(-1)

@@ -108,9 +108,10 @@ export class Outbox {
   }
 
   /** Section 8: while a worker runs, the agent shows as working between its own runs. */
-  async background(running: boolean): Promise<void> {
+  async background(running: boolean, pending = false): Promise<void> {
     this.workers = running
-    if (!this.run) await this.setStatus(running ? "working" : "idle")
+    // A worker's report waits in the inbox: the run that tells the human comes next, so do not flash idle first.
+    if (!this.run && !(pending && !running)) await this.setStatus(running ? "working" : "idle")
   }
 
   clear(): void {

@@ -270,9 +270,10 @@ export class Workers {
     const now = this.get(id)
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return
     this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ?", status, this.now(), id)
-    if (now.status === "running") this.changed()
     await this.options.deliver(workEnvelope(now, submissionId, status, report))
     this.sql.exec("UPDATE workers SET delivered = 1, resumes = 0 WHERE id = ? AND submission_id = ?", id, submissionId)
+    // After the report is in the inbox, so the agent does not show idle before the run that tells the human.
+    if (now.status === "running") this.changed()
   }
 
   private async report(harness: Harness, conversationId: ConversationId, status: WorkStatus, settled: SettledSubmissionRecord | undefined): Promise<string> {
