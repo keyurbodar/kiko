@@ -34,7 +34,6 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Cloudflare hosting | nothing. No Durable Object class, no alarm code, no transport | the Durable Object classes, a `SqliteDatabase` facade over `ctx.storage.sql`, alarm-driven `resume()`, WebSockets |
 | Client transport | nothing usable in a browser. `pi-protocol` ships a Unix-socket transport only | a WebSocket protocol with resume by sequence number |
 | Skills | in `pi-coding-agent` only, tied to a filesystem | a port backed by Durable Object storage |
-| Prompt injection defense | nothing. `SECURITY.md` lists it as out of scope | a trust extension (section 16) |
 | Subagent tool | the pattern, in `README.md` and two test examples | the tool, about 40 lines |
 | Code mode | `@earendil-works/pi-codemode`, which needs Node `worker_threads` | nothing. See section 12 |
 | User extensions | the registry, `install` that replaces in place, and per-conversation selection | the manifest, the QuickJS sandbox, and the storage and review. See section 24 |
@@ -48,7 +47,7 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Package | What it holds | May import |
 | --- | --- | --- |
 | `@yuki/durable` | the multiplexed alarm, the hello deadline, storage wipe, `safeFetch`, sealed secrets, HTML to text | nothing from yuki |
-| `@yuki/agent` | the `pi-durable` host, inbox, mid-run rules, effects, trust gate, authority, ask waiters, the SQLite facade, coalesced storage, and a structural `Envelope` | `@yuki/durable` |
+| `@yuki/agent` | the `pi-durable` host, inbox, mid-run rules, effects, the run's origin, ask waiters, the SQLite facade, coalesced storage, and a structural `Envelope` | `@yuki/durable` |
 | `@yuki/memory` | the OptMem tree, the life log, and the `recall`, `zoom`, and `note` tools | `@yuki/agent` |
 | `@yuki/sandbox` | the QuickJS VM, the manifest format and its checks, the bridge compiler, and the bundle checker | `@yuki/agent` |
 
@@ -259,10 +258,8 @@ type Envelope = {
 	replyTo?: string
 	hop: number               // 0 for human and scheduled messages
 	rootId: string            // the human message or schedule that started this chain
-	tainted: boolean          // section 16
 	seq: number               // room sequence of the stored message
-	origin?: Origin           // section 25.3. what the chain may do
-	grant?: readonly string[] // section 25.3. the tools a routine may use outside yuki
+	origin?: Origin           // section 25.3. who started the chain
 }
 type SystemReason = "task_unblocked" | "reminder" | "run_budget"
 	| "limit" | "files" | "created" | "routine" | "stalled"   // section 25
@@ -341,7 +338,7 @@ Task status is one of `todo`, `doing`, `blocked`, `review`, `done`, `cancelled`.
 
 When a task becomes `done`, `RoomDO` finds each task whose dependencies are now all `done` and delivers a `task_unblocked` system envelope to its owner. The delivery id is `unblocked:<taskId>`, so the wake happens once.
 
-A task keeps the chain it was made on: the root, the hop, and the authority of the work its maker was doing (section 25.3). A task the human makes carries the human's authority. Its wake and its stall nudges carry that chain, so a project the human asked for keeps the human's authority and its loop limits, instead of starting a new `auto` chain. A reminder an agent sets keeps its chain the same way. A one-off reminder keeps the root and hop; a recurring one starts its own root at each occurrence, so occurrences never add up against one root's limit. A root the human stopped starts over.
+A task keeps the chain it was made on: the root, the hop, and the origin of the work its maker was doing (section 25.3). A task the human makes carries the human's origin. Its wake and its stall nudges carry that chain, so a project the human asked for keeps the human's origin and its loop limits, instead of starting a new `auto` chain. A reminder an agent sets keeps its chain the same way. A one-off reminder keeps the root and hop; a recurring one starts its own root at each occurrence, so occurrences never add up against one root's limit. A root the human stopped starts over.
 
 The lead reviews work by moving a task from `review` to `done` or back to `doing` with a note.
 
@@ -356,7 +353,7 @@ Four limits apply, all enforced in `RoomDO`. ASSUMPTION: the default numbers.
 | Members per room | 8 | `spawn_agent` fails |
 | Autonomous runs per room per UTC day | 50 | scheduled and task-triggered wakes are held until the next day or the next human message |
 
-An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. The room records each member's chain from what it delivers. Agent or system mail delivered to a busy member waits in its inbox for the next run, so its chain waits too and takes over when the run ends: held mail never rewrites the root, hop, or authority of the run in flight. A human message sets the chain at once, since it joins the run or starts the next one.
+An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. The room records each member's chain from what it delivers. Agent or system mail delivered to a busy member waits in its inbox for the next run, so its chain waits too and takes over when the run ends: held mail never rewrites the root, hop, or origin of the run in flight. A human message sets the chain at once, since it joins the run or starts the next one.
 
 `agent_sends`, `root_counts`, and `stopped_roots` are pruned once a row is a week old. A replayed send comes within minutes. Reactions never start a run. The lifetime count per root and the daily budget are borrowed from the Lightspeed project (`smartcomputer-ai/lightspeed`, `docs/documentation/using-lightspeed/subagents-and-federation.md`), which bounds its delegation tree the same way. The rest of Lightspeed (Rust, Temporal, Postgres, attached VMs) does not transfer to Workers.
 
@@ -404,7 +401,7 @@ The human's own profile stays in memory (section 13), so nothing is stored twice
 
 The human never fills in a form. The new chat button (and `Mod+N`) opens a temporary chat with yuki (`temp` on the chat). It lives in the tab strip, never in the chat list, and is deleted when its tab closes. Nothing about it is fixed: the human can just talk, or ask for an agent or a group. Its header is kat's "to:" bar: a chip per agent and a (+) that searches the user's agents. Adding a second agent keeps the chat as a group (the `keep` op), and it joins the list. In an empty chat the human can take yuki off; picking one agent then opens that agent's direct chat instead.
 
-yuki proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` runs only after a human message follows the proposal, so yuki asks and the human answers before anything exists. A new agent gets its own chat, a line in the temporary chat takes the human there, and the agent says hi first. A group made in a temporary chat is that chat, kept with its members and yuki's `/chat.md`.
+yuki proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` makes the newest proposal at once; yuki does not wait for a yes (section 16). A new agent gets its own chat, a line in the temporary chat takes the human there, and the agent says hi first. A group made in a temporary chat is that chat, kept with its members and yuki's `/chat.md`.
 
 One chat per agent. A direct chat is a chat that is not temporary and has exactly one agent. `dmFor` in `@yuki/protocol` picks an agent's one direct chat (the yuki chat for yuki, else the most recently active), and both sides use it. Every way of picking an agent calls `useApp.openDm`, which opens that chat and makes one only when there is none. UserDO refuses a create that would be a second direct chat and answers the socket with `chat_refused { roomId, existing }`; the client drops its optimistic row and moves a reader in it to `existing`. Old data with duplicates is not merged: the list shows only the chat `dmFor` picks, and the others stay reachable by link.
 
@@ -640,9 +637,7 @@ When an agent sets up, `AgentDO` asks `UserDO` for the tools Composio lists and 
 
 ### 12.3 Read or external
 
-A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A learned tool takes the class Composio's catalog gives it: when a tool is first learned, `UserDO` reads its tags once from `GET https://backend.composio.dev/api/v3.1/tools/<slug>` behind the call, and `readOnlyHint` makes it `read`. That API refuses consumer keys and needs a developer key (`ak_...`), which each user may add in settings under Composio (`setComposioDeveloperKey`). There is no server-side key. `UserDO` checks it with one `GET /api/v3.1/toolkits?limit=1` and stores it only when Composio accepts it, sealed like the consumer key with AAD `composio/developer`. It never goes to the client or a log, and disconnect deletes it with the other rows. Adding it classifies the learned tools that have no class yet, behind the answer, and the changed signature reopens open agents. Tool metadata is global, so no user data goes with a lookup. Without the key, or when the lookup fails, the tool stays `external`. Section 16.3 gates `external` tools.
-
-There is no approval card. When a run may not make an `external` call (section 25.3), the tool answers the agent: ask the human in chat in one short line, saying exactly what it will do, and act only after they reply yes. The human's reply starts a fresh run the human started, which may act.
+A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherwise. A `COMPOSIO_MULTI_EXECUTE_TOOL` call is `external` as a whole, even when it only reads. A learned tool takes the class Composio's catalog gives it: when a tool is first learned, `UserDO` reads its tags once from `GET https://backend.composio.dev/api/v3.1/tools/<slug>` behind the call, and `readOnlyHint` makes it `read`. That API refuses consumer keys and needs a developer key (`ak_...`), which each user may add in settings under Composio (`setComposioDeveloperKey`). There is no server-side key. `UserDO` checks it with one `GET /api/v3.1/toolkits?limit=1` and stores it only when Composio accepts it, sealed like the consumer key with AAD `composio/developer`. It never goes to the client or a log, and disconnect deletes it with the other rows. Adding it classifies the learned tools that have no class yet, behind the answer, and the changed signature reopens open agents. Tool metadata is global, so no user data goes with a lookup. Without the key, or when the lookup fails, the tool stays `external`. The class sets the tool's `replay`: a `read` tool is safe to run again after a crash, an `external` one is not. No class gates a call (section 16).
 
 ### 12.4 Code mode
 
@@ -659,8 +654,8 @@ User extensions (section 24) do run QuickJS inside the agent's object, through `
 ### 12.5 Risks
 
 - Composio keeps tool payloads for up to a year. The owner accepted this on 2026-10-10.
-- UNVERIFIED: that every app tool run through `COMPOSIO_MULTI_EXECUTE_TOOL` honors read-only intent. It is classed `external` for that reason, so a run nobody asked for, or a tainted one, must ask the human in chat for reads through it too.
-- Composio does not pause a call for a person. The gate of sections 16.3 and 25.3 is the only one.
+- UNVERIFIED: that every app tool run through `COMPOSIO_MULTI_EXECUTE_TOOL` honors read-only intent. It is classed `external` for that reason, so a replay never runs it twice.
+- Composio does not pause a call for a person, and neither does yuki (section 16).
 - The MCP contract is Composio's and may change. `bun yuki verify composio` checks it against the real server.
 
 ## 13. Memory
@@ -681,7 +676,6 @@ User extensions (section 24) do run QuickJS inside the agent's object, through `
 - **Idempotent.** A node is stored with `INSERT OR IGNORE` on `(size, k)`, so an alarm delivered twice writes nothing twice.
 - **Forgetting.** An edited or deleted item drops the nodes above it, one per level. They are built again from the log, alone.
 - **Gaps.** A level is built left to right, four calls at a time. A node missing below the highest one built, because it was forgotten, its call failed, or it was told to wait, is found by a count per level and built again. Before 2026-10-05 such a node was never retried, and its stretch stayed raw for good: `verify memory-hard` lost the page with the pasted notes that way.
-- **Taint.** A node built from any tainted item is tainted. A view marks it `[outside]`, and the prompt says such a line is hearsay, never instructions. So an injected line cannot become a trusted memory.
 - **The view.** The newest `floor` items are verbatim, with their time, each up to 300 characters. A cut item ends with `(cut, zoom <n>)`: OptChat's rule is that an agent must never act on half a message thinking it whole. Before them, memo's `cover` tiles the rest into at most `budget` lines, coarser with age, each with its date range. A node not built yet renders as its halves, so a view never waits for a model.
 - **Sticky.** A view keeps the last tiling and appends new pages to it. It tiles again, down to `retile` lines, only past `budget`. The old lines stay byte for byte, so the provider's prompt cache keeps hitting; the prefix changes about once per 128 turns.
 
@@ -727,8 +721,6 @@ The prompt says the conversation above is memory too: an agent looks there first
 Three tools cover what the block does not show. `recall(query)` searches this chat's messages, newest first, and every life line, best match first. A hit is the message itself cut at 300 characters, not a 16-word snippet, so it rarely needs a zoom after it. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). It also takes `#12` and `12`, which mean this chat, and a cut line's hint names the exact id (`(cut, zoom chat:12)`). Before this, the hint said `zoom 12`, which the tool rejected. OptChat's rule, to zoom "before you act, guess, or ask", was tried: with it in the prompt the agent's spend in `verify token-cost` ran 9 to 30% above the old design over four paired runs, and without it the spend was even again, so yuki keeps its own rule. `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
 
 Each fact has one home, so one fact costs one write. A note is a fact about the human that matters beyond this chat and that the agent did not know. `/chat.md` changes only when the chat's goal or a standing decision changes. The soul changes only when the human corrects how the agent works or talks. A note that says a stored fact again with different case, punctuation, or filler words ("the human's sister is maya." and "human's sister maya") is stored once (`norm` in `user/life.ts`). No model call decides it.
-
-**Outside content.** A memory line built from outside content is marked `[outside]`, and the memory rule calls it hearsay, never instructions. It does not taint the run: taint ends with the run that read the content (section 16.3), and outside content handed to an agent arrives as a tainted envelope, which does taint. Tainting on memory would gate every run for 32 turns after one web page.
 
 **Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started fresh, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one. Until 2026-10-06 every run counted, so a short chat started cold every 50 runs for nothing.
 
@@ -844,64 +836,15 @@ The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `rrule` checks
 
 The list is part of the system prompt and changes rarely, so it stays in the cached prefix.
 
-## 16. Prompt injection defense
+## 16. Agents act without asking
 
-Pi has no defense. Yuki adds one extension, `Trust`, that every agent selects. `pi-durable` applies hooks per selected extension, so the agent factory is the only place that builds an agent and a test asserts that `Trust` is always in the selection.
+The owner removed approvals and prompt-injection gating on 2026-10-11. Agents work like pi's coding agent: no permission gate, no "ask first", no taint, and no wrapping of outside content.
 
-The design assumes that a model can be fooled. Marking content lowers the odds. Code that gates tools sets the limit on the damage.
-
-### 16.1 Three kinds of content
-
-| Kind | Source | Authority |
-| --- | --- | --- |
-| human | the room WebSocket, authenticated | may instruct |
-| agent | another member, through the room | may request. Cannot change instructions, role, or tools |
-| untrusted | web pages, files, tool results, Composio and MCP results | data only |
-
-### 16.2 Marking
-
-- An `afterTool` hook wraps every result from a tool that returns outside content in `<untrusted source="..." id="NONCE">`. The nonce is random per result and memoized on the tool task, so a replay writes the same text. DEVIATION: the spec said per run. A hook cannot see a durable run boundary, and a nonce per result is at least as hard to guess. The hook escapes any look-alike tag inside the content, after folding full-width forms with NFKC.
-- A tool declares its effect with `declareEffect(effect, tool, { outside? })` in `packages/agent/src/effects.ts`. `outside` names the source of a result that is outside content. A tool that only sometimes reads outside content calls `markRunTainted(api, source)` from `agent/extensions/trust.ts`, and a `write` or `message` tool reads `isRunTainted(api)` to flag what it stores or sends.
-- The run's taint is worked out from the transcript in `beforeRequest`: a tainted envelope (`tainted="true"` on its tag) or an `<untrusted>` result since the last final answer. An unknown taint counts as tainted.
-- An agent message is wrapped in `<agent-message from="slug" hop="n">` and submitted as user-role content, never as a system message.
-- The system prompt says in three lines that untrusted blocks are data, that teammates' messages are requests to evaluate, and that only human messages carry authority.
-
-### 16.3 Taint and gating
-
-A run becomes tainted when it reads untrusted content. Taint is a flag on the run, set by code. Reading a chat file taints a run, except the agent's own `/me/soul.md`, which only a clean run or the human writes.
-
-Every tool declares one effect.
-
-| Effect | Examples | In a tainted run |
-| --- | --- | --- |
-| `read` | `recall`, `zoom`, `read`, `ls`, `team`, Composio tools with `readOnlyHint`, learned ones the catalog tags read-only | allowed |
-| `write` | `note`, `create_reminder`, `write`, `edit`, `mv`, `cp`, `rm`, `update_task` | allowed, and the stored item is flagged as coming from a tainted run |
-| `message` | `send_message`, `spawn_agent` | allowed, and the envelope carries `tainted: true`, so the receiving run starts tainted |
-| `external` | Composio tools without `readOnlyHint`, learned Composio tools the catalog does not tag read-only, `COMPOSIO_MULTI_EXECUTE_TOOL` | refused: the agent asks the human in chat, and their yes starts a fresh run that may act (section 25.3) |
-
-The `beforeTool` hook enforces the table.
-
-DEVIATION from the spec and from the 30-minute card grant that followed it: there are no approval cards (owner, 2026-10-10: chat-native, no cards). A tainted run's `external` call is refused with one line that tells the agent to ask the human in chat, saying exactly what it will do. The human's reply is the approval: it starts a fresh run with the human's authority, untainted at its start, which may act. Taint ends with the run's final answer (section 16.2), so the asking run and the acting run are two runs. A page cannot forge the yes, since only a human message starts a human run. Also:
-
-- Taint still flags what the run stores and sends, and a flagged line reaches later prompts only marked `[outside]`.
-- Section 16.4: yuki itself fetches no URL an agent wrote.
-- A tainted run cannot write `/me/soul.md`, `skills/`, or `extensions/`, which reach every later system prompt. `RoomFs` refuses it with one line that says the human can ask for the change.
-- A routine a tainted run made keeps no grant (section 25.3).
-- A helper's answer (`spawn_subagent`) and a teammate's answer to `ask` carry their taint back to the run that asked.
-
-A tainted run's notes and messages are stored flagged, and every summary built from them is flagged too (section 13.1).
-
-### 16.4 Exfiltration through URLs
-
-An injected instruction can ask the model to put private data in a URL and let a fetch carry it out. yuki fetches nothing on its own for a URL in a message: there are no link previews (removed on 2026-10-09, section 18.2), so a link renders as a link and nothing more. A URL the agent fetches itself goes through `web_fetch`, which taints the run (section 16.3).
-
-### 16.5 What never enters a prompt
-
-Credentials and tokens. Tools use them on the server.
-
-### 16.6 Verification
-
-The gating layer is code, so its tests are deterministic. The verification CLI runs a set of canned attacks through fake tools and asserts that no injected text clears a run's taint, and that no `external` tool ran in a tainted run or a run nobody asked for. A case asserts that the human's yes starts a fresh run that acts. It does not assert what the model wrote.
+- Every tool runs when the model calls it, in any run: the human's, a routine's, a reminder's, a task wake, or a nudge.
+- A tool result reaches the model as it is. Nothing marks or escapes it.
+- An agent message is wrapped in `<agent-message from="slug" hop="n">` and a wake in `<system-event reason="...">`, both as user-role content, so the agent knows who wrote it.
+- Every tool still declares one effect, `read`, `write`, `message`, or `external`, with `declareEffect` in `packages/agent/src/effects.ts`, and `buildAgent` throws on a tool with none. The effect sets a script tool's powers (section 24.4) and a Composio tool's `replay` (section 12.3). It gates no call.
+- What still holds: users never cross (section 4.2), a credential stays on the server and never enters a prompt (section 11), and yuki fetches nothing on its own for a URL in a message (section 18.2).
 
 ## 17. Scale and cost
 
@@ -1014,7 +957,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 ## 18. Files and attachments
 
 
-**Big tool output.** pi-durable keeps a tool result to 50 KB and cuts at the last line break that fits, so a large one-line JSON document came back as its first line and nothing else. A `web_fetch` or Composio result over 40 KB is saved whole at `/downloads/<name>-<hash>.<ext>`, with JSON pretty-printed and JSON inside its strings opened, and the agent gets its first 8 KB and the path to search with `bash` or `read` (`agent/extensions/spill.ts`). The same content lands at the same path once. `read` and `bash` results are outside content, so a later run that reads the file is tainted as before.
+**Big tool output.** pi-durable keeps a tool result to 50 KB and cuts at the last line break that fits, so a large one-line JSON document came back as its first line and nothing else. A `web_fetch` or Composio result over 40 KB is saved whole at `/downloads/<name>-<hash>.<ext>`, with JSON pretty-printed and JSON inside its strings opened, and the agent gets its first 8 KB and the path to search with `bash` or `read` (`agent/extensions/spill.ts`). The same content lands at the same path once.
 ### 18.1 Files
 
 - R2 holds bytes. The key is `u/<userId>/r/<roomId>/<fileId>`.
@@ -1037,7 +980,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
   - The files tab draws a picture inline, and video and sound in the browser's own players, as t3code's file preview does. The old picture viewer and players are deleted (section 19.3).
 - The protocol dropped `LinkPreview`, `Message.preview`, the `preview` event, `CatalogItem`, the `catalog` frames, and `FileRef`'s `width`, `height`, `thumbhash`, and `thumb`. A schema ignores keys it does not know, so a stored message that still has them decodes. The room socket ignores a retired `catalog` frame from an older client rather than close (`room/socket.ts`), and the client store ignores an event tag it does not know, such as an old `preview`.
 - The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
-- `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file. The result is untrusted content.
+- `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file.
 - R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again.
 - **No writer replaces bytes it did not see.** Every write to `/`, `/home`, and `/me/soul.md` names what the writer saw at the path: the SHA-256 of the bytes it read, or `none`. The index refuses anything else (`NewFile.expectSha256`, required). The writers:
 
@@ -1049,7 +992,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
   | the human's soul editor | `expectSha`, required on `PUT /api/souls/<slug>` |
   | an attachment claim and the room's own `/chat.md` | `none`. The team's `/chat.md`, once it exists, is never replaced |
 
-  So two helpers of one agent that create the same file, or that read one file and both rewrite it, cannot both win: the second is refused and reads again. `edit` reads the file itself, so it lands on top. The taint of a run (section 16.3) reaches the file code the same way, from the conversation's own view. The `AsyncLocalStorage` that carried it is removed.
+  So two helpers of one agent that create the same file, or that read one file and both rewrite it, cannot both win: the second is refused and reads again. `edit` reads the file itself, so it lands on top.
 - `rm` and `mv` act on the path they name. Between agents, leases (section 7.12) hold them off a teammate's work. ASSUMPTION: a delete or a move by name is what the writer means, so neither checks a hash.
 
 `pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Yuki's `exec` is just-bash (section 18.4), so pi's `bash` tool runs on the same files as the rest.
@@ -1106,7 +1049,7 @@ The safe fetcher the previews used stays for `web_fetch` and watch routines (`li
 
 UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The fetcher validates on its own and does not rely on the platform.
 
-The same fetcher backs a `web_fetch(url)` tool, which returns page text as untrusted content. Web search has no free provider, so it comes from the user's Composio apps or from a model's own search feature.
+The same fetcher backs a `web_fetch(url)` tool, which returns page text. Web search has no free provider, so it comes from the user's Composio apps or from a model's own search feature.
 
 ## 19. Frontend
 
@@ -1389,22 +1332,22 @@ The client gets extensions and proposals in the user snapshot and as user events
 
 | `yuki.` | Rule |
 | --- | --- |
-| `call(tool)` | Only tools in `calls`, only tools the agent has, never the caller itself, and only with an effect the caller's effect covers. A `read` tool calls only reads; `write` adds writes; `message` adds messages; `external` calls anything. A callee whose result is outside content taints the run |
-| `fetch(url)` | From a tool or tool wrap. Any tool may GET without a body; another method or a body needs an `external` tool. `UserDO` checks the host against `egress` and fetches (24.7). The result taints the run, so trust wraps the tool's result as untrusted and holds the run's next `external` call for the human |
+| `call(tool)` | Only tools in `calls`, only tools the agent has, never the caller itself, and only with an effect the caller's effect covers. A `read` tool calls only reads; `write` adds writes; `message` adds messages; `external` calls anything. |
+| `fetch(url)` | From a tool or tool wrap. Any tool may GET without a body; another method or a body needs an `external` tool. `UserDO` checks the host against `egress` and fetches (24.7) |
 | `state` | Needs `state` in the manifest. Sections only read. In a private chat (section 7.10) user-wide state only reads |
 | `next(args)` | Only in a tool wrap. Runs the wrapped tool |
 
 Hooks and sections can use only `state` and `log`. A failing hook changes nothing. `onYield` may continue a run at most three times in a row.
 
-The effect of a manifest tool goes into `effectTable` like a built-in tool's, so trust gates it by the table of section 16.3. A tool wrap keeps the wrapped tool's effect.
+A manifest tool declares its effect like a built-in tool. A tool wrap keeps the wrapped tool's effect.
 
 DEVIATION from the earlier plan: effects are declared in the manifest and enforced at run time, not computed from the code. A script's calls are dynamic, so they cannot be read ahead of time.
 
-**Why a read tool may GET.** The first real-model run used a weather tool marked `external`. Its own fetch tainted the run, so asking again in the same run was refused as an outside call. A GET to a host the human approved at install is a read: it changes nothing. The residual risk is a URL that carries data out, and it reaches only the hosts in `egress`, which the review names as a warning. So any tool may GET, and sending anything (another method, or a body) stays `external`. The fetched content still taints the run, so what the run stores is flagged, and a later outside action in that run waits for the human's yes in chat.
+**Why a read tool may GET.** A GET to a host the human approved at install is a read: it changes nothing. So any tool may GET, and sending anything (another method, or a body) stays `external`.
 
 ### 24.5 Selection and sync
 
-`factory.ts` stays the one place that selects extensions. `UserExtensions.sync` installs the given versions in the agent's registry, removes the rest, and returns the selection: every built-in extension, the user's in name order, then `trust`. Hooks run in selection order (pi-durable `agentHooks`), so `trust` sees the final arguments and results. A user hook can block more but never less, because the first block wins and trust runs last.
+`factory.ts` stays the one place that selects extensions. `UserExtensions.sync` installs the given versions in the agent's registry, removes the rest, and returns the selection: every built-in extension, then the user's in name order. Hooks run in selection order (pi-durable `agentHooks`).
 
 A user extension never shares a tool name with a built-in tool or with another user extension. Such an extension is left out of the agent and the reason is shown on its row in settings.
 
@@ -1415,7 +1358,7 @@ Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for 
 - An extension in the chat's files lives at `/extensions/<name>/extension.json` plus its script, the same way skills live at `/skills/<name>/SKILL.md`.
 - The built-in skill `build-an-extension` is the SDK reference for agents.
 - `extension_check` (read) validates the manifest, loads the script, checks its exports against the manifest, and runs the manifest's `tests` with every call, fetch, and state op answered by mocks.
-- `extension_propose` (message) runs the same check, then stores a proposal and posts one line in the chat. A proposal from a tainted run is marked, and the review warns the human.
+- `extension_propose` (message) runs the same check, then stores a proposal and posts one line in the chat.
 - `extension_list` and `extension_open` let an agent see what is installed and copy one into the chat's files to change it.
 - The human can install from the file header of an `extension.json` too. The client reads the folder and proposes it.
 - Settings, extensions: waiting installs with their powers in plain lines (riskiest first), the code, and a line diff for an update; installed extensions with a switch, the agents that use them, their secrets, and remove; the catalog.
@@ -1440,7 +1383,7 @@ A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to t
 ### 24.10 Verification
 
 - `apps/server/test/script-vm.test.ts`: the sandbox. The bridge, the CPU stop, the memory cap, no I/O globals, imports only from the bundle.
-- `apps/server/test/user-extensions.test.ts`: a real harness on the faux model. Tools with state and calls, trust last, sections in the prompt, a fetch that taints the run so trust blocks the next external call, the effect rules, hooks, wraps, name clashes, `onYield`'s limit, and every catalog entry.
+- `apps/server/test/user-extensions.test.ts`: a real harness on the faux model. Tools with state and calls, user extensions last, sections in the prompt, a fetched result passed through as it is, the effect rules, hooks, wraps, name clashes, `onYield`'s limit, and every catalog entry.
 - `apps/server/test/extension-store.test.ts`: the store in workerd with an echo server. Install gating, triggers, secrets per host, redaction, egress, switches, scopes, and users kept apart.
 - `bun yuki verify extensions`: end to end on the dev server with the fake agent.
 
@@ -1453,17 +1396,17 @@ Work that starts without a human message: routines on a schedule or an event, re
 - **No model runs on a timer.** Every autonomous run starts from a wake, and every wake is a system envelope on the agent's existing inbox (section 7.3).
 - **One scheduler.** A routine is a row of the `reminders` table (section 14) with instructions for an agent and a trigger. The same alarm fires it.
 - **A model call only when something changed.** Event filters, a watch's fingerprint, the event window, the away pause, and the day's budget all cost no model call. A run with nothing to report answers `[skip]` and posts nothing.
-- **Authority comes from the human, in code.** Every envelope carries an origin. A run that no human started may reach outside yuki only through the tools a routine was granted, and a tainted run not at all; everything else waits for the human's yes in chat.
+- **Every run may act.** A run nobody asked for uses any tool, like the human's own run. Every envelope carries an origin, which only sets the run's time budget (25.2).
 
-**Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Dots keeps its background research read-only "in code"; yuki gets the same from the effect table of section 16.3 plus the run's origin, without a second research model.
+**Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Dots keeps its background research read-only; yuki does not, since the owner removed approvals on 2026-10-11 (section 16).
 
 | Wake | `SystemReason` | Starts in | `rootId` | `origin` | Budget | Held |
 | --- | --- | --- | --- | --- | --- | --- |
-| a routine's time, a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine`, with the grant | `user` when the human made it, else `room` | recorded `held` |
-| a routine's "run now" | `routine` | the human's route or an agent's tool | `routine:<id>:test:<time>:<n>` | `routine`, with the grant | `paid` when the human pressed it, else as above | recorded `held` |
-| the initiative pass (section 26.6): an open loop, a stalled task, a routine in trouble | `initiative` | `UserDO` `initiative_pass` wakeup, through `RoomDO.initiativeWake` | `initiative:<candidate>#<surfaced>.<ignored>` | `auto`, no grant | `room` | not held: the next pass decides again |
+| a routine's time, a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine` | `user` when the human made it, else `room` | recorded `held` |
+| a routine's "run now" | `routine` | the human's route or an agent's tool | `routine:<id>:test:<time>:<n>` | `routine` | `paid` when the human pressed it, else as above | recorded `held` |
+| the initiative pass (section 26.6): an open loop, a stalled task, a routine in trouble | `initiative` | `UserDO` `initiative_pass` wakeup, through `RoomDO.initiativeWake` | `initiative:<candidate>#<surfaced>.<ignored>` | `auto` | `room` | not held: the next pass decides again |
 | a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | the task's chain, else `unblocked:<taskId>` | the task's chain | `room` | the room's outbox |
-| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | the chain that made it; a recurring one its own | the authority of the run that made it | `user` when the human set it, else `room` | the room's outbox |
+| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | the chain that made it; a recurring one its own | the origin of the chain that made it | `user` when the human set it, else `room` | the room's outbox |
 
 Every one of these is a `Wake` (`room/wake.ts`) and goes through `RoomDO.wake`, the only code that takes the budgets (25.5), holds, hands the agent its envelope, and records the chain.
 
@@ -1472,14 +1415,14 @@ Every one of these is a `Wake` (`room/wake.ts`) and goes through `RoomDO.wake`, 
 **Data.** `reminders` gained columns in place; a row with no `trigger` is a plain reminder, unchanged.
 
 ```sql
-reminders(..., name, trigger, "grant", fails, watch_state, hook_hash, tainted)
+reminders(..., name, trigger, fails, watch_state, hook_hash, chain)
 routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- newest 20 per routine
 -- status: running | ok | quiet | failed | held | timeout
 ```
 
 `trigger` is the protocol's `Trigger` (`packages/protocol/src/routines.ts`): `time` (`at` plus an RRULE), `task`, `message`, `file`, `webhook`, or `watch`. A `time` or `watch` routine has a due time; an event or webhook routine has `due_utc` 0 and is fired by the room or the hook route.
 
-**A run.** `Reminders.run` renders the body, `RoomDO.deliverRoutine` delivers it once per `<id>:<occurrence>`, and the room follows it in `routine_inflight` until the agent's run ends. The body is plain text, since the room escapes system envelopes: the routine's name and id, why it ran, when it runs in words, its grant, its last run, its instructions, and what happened (the events, the webhook's post, or the changed page).
+**A run.** `Reminders.run` renders the body, `RoomDO.deliverRoutine` delivers it once per `<id>:<occurrence>`, and the room follows it in `routine_inflight` until the agent's run ends. The body is plain text, since the room escapes system envelopes: the routine's name and id, why it ran, when it runs in words, its last run, its instructions, and what happened (the events, the webhook's post, or the changed page).
 
 - The run starts from memory like any run (section 13.4). The answer posts as ordinary bubbles.
 - The room follows a run before handing it over, and marks it started when the agent next goes from idle to busy. When that run ends (`RoomDO.endRun`), it reports `ok` when the agent posted after the delivery, else `quiet`. A run that never started because the agent has no credential, or was dropped by the crash breaker, is `failed`. One the human stopped is `quiet`. A run whose report never arrives counts as `failed` after two hours.
@@ -1492,50 +1435,35 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 
 | Tool | Effect | Does |
 | --- | --- | --- |
-| `create_reminder` | write | stores the authority and taint of the run that made it; the wake carries them (25.3) |
-| `create_routine(name, instructions, trigger, may?, agent?)` | write | makes the routine. A human asking in this run is the ok, even in a tainted run (the routine is then stored tainted). From a run nobody asked for, or a tainted run with a grant, it makes nothing and tells the agent to ask in chat; the human's yes starts a clean run that makes it, stored clean with its grant |
-| `update_routine(id, ..., status?, run_now?)` | write | pausing and running now need nobody; any other change follows the same rule as create |
+| `create_reminder` | write | stores the chain of the run that made it; the wake carries it (25.3) |
+| `create_routine(name, instructions, trigger, agent?)` | write | makes the routine, from any run |
+| `update_routine(id, ..., status?, run_now?)` | write | changes, pauses, resumes, or runs a routine now |
 | `list_reminders` | read | reminders and routines, with each routine's last run |
 | `cancel_reminder(id)` | write | cancels either |
 
-An agent reaches only its own chat's reminders and routines, whatever id it passes. The human has the same through `GET` and `POST /api/routines`, `POST /api/routines/<id>`, and `POST /api/routines/<id>/run`; a routine the human makes there is active at once and may carry a grant.
+An agent reaches only its own chat's reminders and routines, whatever id it passes. The human has the same through `GET` and `POST /api/routines`, `POST /api/routines/<id>`, and `POST /api/routines/<id>/run`; a routine the human makes there is active at once.
 
-**Reasoning.** Dots: "Pre-approved means you explicitly requested the action in your prompt." A human asking for a routine is that request, so it is made at once. A routine an agent proposes on its own, from a run that read outside content, or with a standing permission outside yuki, is the human's call, asked in chat like any other (section 25.3).
-
-### 25.3 Origin and grants
+### 25.3 Origin
 
 ```ts
 type Origin = "human" | "routine" | "auto"
-// Envelope gains: origin?: Origin; grant?: readonly string[]
+// Envelope gains: origin?: Origin
 ```
 
-- The room stamps every envelope: `human` on a burst, `routine` with its grant on a routine run, `auto` on everything else. `agent_chains` keeps the authority of each member's chain, so a message an agent sends inherits it. Delegation never widens it: dots says authorization "stays tied to your instructions for the task; continuing later or delegating work does not expand it."
-- The agent host keeps the authority of the run in flight in `run_authority`. A batch that starts a run sets it; a batch that joins combines with it (`combine` in `packages/agent/src/authority.ts`): a human anywhere gives the human's authority, otherwise the stricter wins and grants intersect. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
+- The room stamps every envelope: `human` on a burst, `routine` on a routine run, `auto` on everything else. `agent_chains` keeps the origin of each member's chain, so a message an agent sends inherits it.
+- The agent host keeps the origin of the run in flight in `run_origin`. A batch that starts a run sets it; a batch that joins combines with it (`joinOrigin` in `packages/agent/src/envelope.ts`): a human anywhere makes it the human's, otherwise `auto` wins over `routine`. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
 - An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
-
-`mayActOutside` and `gate` in `trust.ts`.
-
-| Run | external tool, clean run | external tool, tainted run |
-| --- | --- | --- |
-| started by the human (`human`) | runs | refused |
-| a routine (`routine`) | granted tools run; others refused | refused |
-| nobody asked (`auto`) | refused | refused |
-
-- A refused call returns `ASK_FIRST`: "This needs the human's ok. Ask them in chat in one short line, saying exactly what you'll do. Act only after they reply yes." The human's reply is an ordinary human message. It starts a fresh run with the human's authority, untainted at its start, which may act. There is no grant table, no time window, no card, and no socket frame.
-- A routine a tainted run made is stored `tainted`, and its runs carry no grant (`runGrant` in `user/reminders.ts`). One the human made keeps its grant.
-- A reminder stores the authority and taint of the run that made it. **Taint never carries the human's authority to a later run**: `wakeAuthority` in `room/wake.ts` runs a tainted wake on a human chain as `auto`, so a page that told a human's run to schedule a reminder cannot act outside yuki from it. A routine's grant is not touched there; it was settled when the routine was made.
-- An extension's trigger runs as a routine granted that extension's own tools. The human reviewed and installed it.
-- `create_routine` and `update_routine` refuse with the same line from a run the human did not start, or from a tainted run that grants tools (for `update_routine`, a change to a routine that holds a grant). The human's yes starts a run that makes the change.
-- DEVIATION from the spec's approval cards and the 30-minute grant that replaced them: owner, 2026-10-10, chat-native, no cards. Section 16.3 says what still holds.
+- The origin only sets the time budget of 25.2. No origin gates a tool (section 16).
+- A reminder keeps the chain of the run that made it, origin included. A task keeps the chain it was made on (section 7.6).
+- Changed on 2026-10-11: routine grants, taint, and the "ask the human first" refusal are gone. The owner removed approvals (section 16).
 
 ### 25.4 Triggers
 
-**Signals.** One bus carries what happened: `Signal` in `room/signals.ts`, an Effect Schema union of `burst` (a human message), `agent_final` (a message an agent posted), `task`, `file`, `routine_result`, `reminder_fired`, and `watch_change`. Each says who did it and whether it is tainted. A room sends its signals to `UserDO.signals` in batches; `UserDO` sends its own (`reminder_fired`, `watch_change`) to the same entry. Event routines consume it; anything that later starts work on its own subscribes there.
+**Signals.** One bus carries what happened: `Signal` in `room/signals.ts`, an Effect Schema union of `burst` (a human message), `agent_final` (a message an agent posted), `task`, `file`, `routine_result`, `reminder_fired`, and `watch_change`. Each says who did it. A room sends its signals to `UserDO.signals` in batches; `UserDO` sends its own (`reminder_fired`, `watch_change`) to the same entry. Event routines consume it; anything that later starts work on its own subscribes there.
 
 **Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` turns each stored event into a signal (`signalOf`) and keeps it when some routine's trigger `matches` it (a task changing to a status, a human or agent message with optional text, or a file under a path), or when the human did it: every human message and task change is kept for the initiative engine (26.6).
 
 - A room's signals within 60 seconds of the first become one batch, like the human burst. The window lives in `signal_window` and flushes on the `routine_events` wakeup. A batch keeps at most 20 signals and counts the rest. `UserDO.signals` gives each event routine one run per batch (`routineRun`), with occurrence `event:<openedAt>`, so a retried batch runs once.
-- A run is tainted when an agent's act it lists is, unless that act is a message stored clean (section 16), so an injected instruction an agent relayed cannot reach a routine's grant.
 - An agent's own acts never fire its own routines (the event's actor, from the `events` table). Acts of a run that an event, a webhook, or a watch started fire no event routine at all, so one event starts at most one level of work and two routines cannot feed each other.
 - A routine run's end reaches `UserDO` as a `routine_result` signal, which closes its record.
 - DEVIATION from the first version, where each routine kept its own window: one window per room, opened by the first signal any routine looks at.
@@ -1545,10 +1473,10 @@ type Origin = "human" | "routine" | "auto"
 - The Worker hashes the token and reads one D1 row, `hooks(token_hash -> user_id, routine_id)`, then calls `UserDO.routineHook`, which checks the token against the routine's own hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
 - **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker builds the object name from a user id in a D1 row that `UserDO` wrote when the human's routine was made. The request never supplies an id.
 - A sender's own delivery id (`x-github-delivery`, `idempotency-key`, `x-request-id`), or else the body's hash within the same minute, makes a retried post run once. The body is read with a 64 KB cap, so a chunked post cannot grow past it.
-- The run is tainted and its post is labeled outside content. The routine's grant still holds when a clean run made it (25.3), as `verify routine-triggers` checks; every other outside tool waits for the human.
+- The run gets the post's text after its instructions.
 - The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
 
-**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page as outside content. The new fingerprint is saved unless the run was held, so a change found while the budget is out is reported by the first check after it resets. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
+**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page. The new fingerprint is saved unless the run was held, so a change found while the budget is out is reported by the first check after it resets. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
 
 DEVIATION from the first plan: watches do not run extension code from an alarm. Fetching in `UserDO` reuses the extension's egress and secrets with no new `yuki.*` power and no VM outside a run.
 
@@ -1559,9 +1487,8 @@ DEVIATION from the first plan: watches do not run extension code from an alarm. 
 1. **Once.** A wake id the delivery ledger has, delivered or refused, is a duplicate. One already held is held.
 2. **The room's budget,** for a `room` wake. 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per wake id (`auto_taken`).
 3. **The user's budget,** for a `room` or `user` wake. `UserDO.takeAutonomous(id)`: `limits.autonomousRunsPerDay` (100) across every chat, paid once per wake id (`autonomous_taken`), and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When it refuses, the room's run is refunded.
-4. **Taint.** The envelope's authority comes from `wakeAuthority` (25.3).
-5. **The hand-over.** A refused delivery refunds both budgets and is recorded in the ledger. A full inbox throws with the budgets kept; the retry carries the same id and pays nothing more.
-6. **Held.** A wake that may retry (a reminder, a task wake) waits in `held_wakes`, the room's outbox. It is retried, oldest first and ten a pass, on the next UTC midnight (the `held_wakes` wakeup) and after every human burst the room delivers, after that burst. One held for a week is dropped (ASSUMPTION). A routine's held run is recorded `held` instead, and a watch keeps its old fingerprint (25.4).
+4. **The hand-over.** A refused delivery refunds both budgets and is recorded in the ledger. A full inbox throws with the budgets kept; the retry carries the same id and pays nothing more.
+5. **Held.** A wake that may retry (a reminder, a task wake) waits in `held_wakes`, the room's outbox. It is retried, oldest first and ten a pass, on the next UTC midnight (the `held_wakes` wakeup) and after every human burst the room delivers, after that burst. One held for a week is dropped (ASSUMPTION). A routine's held run is recorded `held` instead, and a watch keeps its old fingerprint (25.4).
 
 The chat says once a day that the budget is out, and the yuki chat says once per absence: "i paused your routines and follow-ups while you were away. they start again when you open yuki." While the human is away, watches fetch nothing; every other wake asks `RoomDO.wake`, which holds it.
 
@@ -1601,15 +1528,15 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; an 
 
 | Check | Proves |
 | --- | --- |
-| `test/routines.test.ts` | authority combining, the gate table, the trigger schema, webhook and signal matching, one run per batch, the watch grid, the budget and away rules |
-| `test/wake.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; a tainted run's reminder wakes tainted and `auto` |
+| `test/routines.test.ts` | origin combining, the trigger schema, webhook and signal matching, one run per batch, the watch grid, the budget and away rules |
+| `test/wake.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; an agent's reminder on the human's chain wakes as the human's |
 | `test/reminder-rules.test.ts` | a held watch run keeps the old fingerprint; a reminder for the human repeats at most every 30 minutes, even one stored before the rule |
-| `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for is told to ask in chat and the human's yes makes the routine; a grant lets exactly one tool through; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
-| `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its injected payload cannot use a granted tool; a watch wakes only on change |
-| `bun yuki verify proactive` | a task untouched for two days wakes its owner once through the initiative pass, and the answer carries its reason; away 8 days holds runs with one line and a hello resumes; no check-in routine is made; overview reads across chats; a routine's hand-off to a teammate keeps the routine's authority while a human's hand-off does not |
+| `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for makes a routine; a routine run uses an outside tool; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
+| `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its run uses an outside tool; a watch wakes only on change |
+| `bun yuki verify proactive` | a task untouched for two days wakes its owner once through the initiative pass, and the answer carries its reason; away 8 days holds runs with one line and a hello resumes; no check-in routine is made; overview reads across chats |
 | `test/recurrence.test.ts` | `ruleProblem` passes the rule shapes people ask for and refuses, in microseconds, every shape `rrule` could loop on |
 | `bun yuki verify routines-scale` | 300 users with a routine due the same second: each runs exactly once, none lost (the last confirmed 26 s after the due time under `wrangler dev`) |
-| `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once; a webhook's injected instructions make no routine. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
+| `bun yuki verify routines-model` | with deepseek-v4.1-flash: plain requests become the right routine or reminder; a summary the human asked for arrives every run even when little changed (6 of 6); a sweep with nothing to report stays quiet (6 of 6); an event run answers once. Twelve more plain requests ("every 5 minutes check a page", "when a task gets blocked", "whenever i say deploy") each got the right trigger |
 
 ## 26. Initiative: open loops
 
@@ -1619,9 +1546,9 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; an 
 
 ### 26.1 The store
 
-`packages/memory/src/loops.ts`, table `loops` in `UserDO` beside the life log, with `loops_fts` (FTS5). A row has `kind` (goal, intention, commitment, waiting, project), `certainty` (explicit, tentative), `owner` (`human` or an agent slug), `room`, `ref` (the human message it came from, as life refs), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, `tainted`, and `source` (tool for an agent's own reminder, jev, nap). What a nudge did to a loop is the engine's (`initiative_marks`, 26.6), not a column here.
+`packages/memory/src/loops.ts`, table `loops` in `UserDO` beside the life log, with `loops_fts` (FTS5). A row has `kind` (goal, intention, commitment, waiting, project), `certainty` (explicit, tentative), `owner` (`human` or an agent slug), `room`, `ref` (the human message it came from, as life refs), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, and `source` (tool for an agent's own reminder, jev, nap). What a nudge did to a loop is the engine's (`initiative_marks`, 26.6), not a column here.
 
-- `open` merges a repeat into the same loop: one the caller names (`same`, from Jev) or one with the same words. A merge never crosses owners, keeps the first words, can firm a tentative loop up and add a due time, and never softens an explicit one. A merge keeps the loop tainted when either side is tainted, so a clean mention never launders outside content.
+- `open` merges a repeat into the same loop: one the caller names (`same`, from Jev) or one with the same words. A merge never crosses owners, keeps the first words, can firm a tentative loop up and add a due time, and never softens an explicit one.
 - Deleting a message forgets the loops learned from it, as it forgets life lines.
 - A private chat keeps no loops. Making a chat private, or deleting it, forgets the loops it had. A loop from the summary pass carries its page as ref (`room:<id>:turns:<lo>-<hi>`), so forgetting a turn forgets it too.
 - A snooze ends after now and at most a year away; the route and the store both refuse anything else.
@@ -1630,11 +1557,11 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; an 
 
 A run never opens a loop. Its `loop` tool (effect `write`, selected in `factory.ts`) only closes one: `{ id, status }`, done or dropped, scoped to the agent's own chat (checked in `UserDO`), for "finished X" or "stop reminding me" about an `L<id>` the run can see. Its rule is one line (`LOOP_RULE` in `loop-tool.ts`). Loops open in three places, none of them in the run:
 
-1. **A reminder an agent sets for itself** opens its commitment, with the run's taint. No model call.
-2. **Jev**, when the user saved a judge key. Each human burst, and the agent's answer when its run ends (`RoomDO.captureAnswer`, untainted answers only), is queued in `loop_heard` and read 15 s after the first row (ASSUMPTION: so the answer to a burst is read in the same call). A row is deleted once read, so each message is classified once; a pass reads at most 48 rows over at most 8 chats. One batched classify per chat: per human sentence, a kind choice with `none`, an explicit or tentative bool, and a done, dropped, same, or other choice per open loop that shares its words; per agent sentence, a bool "promises to come back later" and the same relation choice against that agent's open promises in the chat. A choice counts only when it holds most of the probability. "same" merges into that loop. An agent's promise merges into its newest open promise in the chat unless Jev is sure it is another, so a promise it already keeps with a reminder is not owed twice (a human sentence's unsure answer leaves it to the store's rule instead); a plan whose probability splits between kinds still counts, as the likeliest kind; a promise opens a commitment the agent owns; "done" on an agent's sentence closes the promise it kept. A close goes through `UserDO.closeLoop`, as every close does. Capture `off` or initiative `off` turns it off.
+1. **A reminder an agent sets for itself** opens its commitment. No model call.
+2. **Jev**, when the user saved a judge key. Each human burst, and the agent's answer when its run ends (`RoomDO.captureAnswer`), is queued in `loop_heard` and read 15 s after the first row (ASSUMPTION: so the answer to a burst is read in the same call). A row is deleted once read, so each message is classified once; a pass reads at most 48 rows over at most 8 chats. One batched classify per chat: per human sentence, a kind choice with `none`, an explicit or tentative bool, and a done, dropped, same, or other choice per open loop that shares its words; per agent sentence, a bool "promises to come back later" and the same relation choice against that agent's open promises in the chat. A choice counts only when it holds most of the probability. "same" merges into that loop. An agent's promise merges into its newest open promise in the chat unless Jev is sure it is another, so a promise it already keeps with a reminder is not owed twice (a human sentence's unsure answer leaves it to the store's rule instead); a plan whose probability splits between kinds still counts, as the likeliest kind; a promise opens a commitment the agent owns; "done" on an agent's sentence closes the promise it kept. A close goes through `UserDO.closeLoop`, as every close does. Capture `off` or initiative `off` turns it off.
 3. **The summary pass**, with no judge as well. It reads the agent's turns too, so a promise is caught without Jev. When a room summarizes a page of raw turns, or rolls up a quiet chat, the same call also lists `loop + ...`, `loop done <id>`, and `loop dropped <id>` lines after its summary line (`napLoopsPrompt`). No extra call; a page is summarized once 48 turns follow it, or the chat rolls up after six quiet hours, so without Jev a loop appears hours later. That is the trade for a run with no loop work in it. Initiative `off` leaves the loop part out of the prompt.
 
-A tentative loop never becomes a reminder: no code path creates one from a loop, and the prompt and `create_reminder` say a reminder is only for an explicit ask or a yes to an offer.
+A tentative loop never becomes a reminder: no code path creates one from a loop, and `create_reminder` says a reminder is for when the human wants one, or for the agent's own promise.
 
 ### 26.3 The judge service
 
@@ -1647,15 +1574,15 @@ DEVIATION from the first plan: the lines are asked for by `AgentDO` when a run s
 - `you owe:` the agent's own open commitments in this chat, at most three. Only this chat's: one from another chat made the real model set a duplicate reminder.
 - `related:` at most three open loops or life lines found by FTS (bm25) that share two keywords with the burst. A loop of a private or deleted chat is never a related line. (A Jev "related?" call was removed: it held the run up to 1 s.)
 
-The block sits in the human's input, which the trust extension never taints. So no tainted loop or life line goes into it. A tainted item stays reachable through memory recall. Initiative `off` gives a run no lines.
+Initiative `off` gives a run no lines.
 
 ### 26.5 The brief channel
 
-`InitiativeEngine.noticed` adds at most two `on their plate:` lines to the same block: the human's explicit, untainted open loops in this chat, past their rest, most pressing first by `score` (26.6). A tentative loop is never on their plate; it shows only as a `related` line when the burst bears on it. Loops already in a `you owe` or `related` line are left out. A loop shown rests one rhythm cycle before it is shown again (`initiative_briefed`). That showing is not a nudge mark, so it never counts as an ignore. Initiative `off` turns these lines off; `chat` keeps them and never nudges. This is the main channel: it costs no model call and never interrupts. The agent decides whether to mention one, at most one, in passing.
+`InitiativeEngine.noticed` adds at most two `on their plate:` lines to the same block: the human's explicit open loops in this chat, past their rest, most pressing first by `score` (26.6). A tentative loop is never on their plate; it shows only as a `related` line when the burst bears on it. Loops already in a `you owe` or `related` line are left out. A loop shown rests one rhythm cycle before it is shown again (`initiative_briefed`). That showing is not a nudge mark, so it never counts as an ignore. Initiative `off` turns these lines off; `chat` keeps them and never nudges. This is the main channel: it costs no model call and never interrupts. The agent decides whether to mention one, at most one, in passing.
 
 ### 26.6 The attention pass
 
-`apps/server/src/initiative/engine.ts`, in `UserDO`, over the attention module (`initiative/attention/`). Fixed code is kept only for safety: initiative off, the human away (the seven-day rule), the budget, taint, and the human busy in that room. Everything else is learned.
+`apps/server/src/initiative/engine.ts`, in `UserDO`, over the attention module (`initiative/attention/`). Fixed code is kept only for safety: initiative off, the human away (the seven-day rule), the budget, and the human busy in that room. Everything else is learned.
 
 **Signals.** `RoomDO` now keeps every human message and human task change in its signal window (25.4), besides what event routines match. `UserDO.signals` hands each batch to the engine first:
 
@@ -1670,7 +1597,7 @@ The block sits in the human's input, which the trust extension never taints. So 
 | Source | Id | Owner | Candidate when |
 | --- | --- | --- | --- |
 | an open loop (26.1) | `loop:<id>` | the loop's owner | open, or snoozed past its time; an agent's commitment is left out while the reminder it set for itself is active (`loop_reminders`) |
-| a workspace task from `chat_tasks` | `task:<room>:<id>:<updated_at>` | the task's owner; the lead for `review` or no owner | `doing`, `blocked`, or `review`, untouched for one rhythm cycle; tainted once a tainted run created or changed it (`ws_tasks.tainted`) |
+| a workspace task from `chat_tasks` | `task:<room>:<id>:<updated_at>` | the task's owner; the lead for `review` or no owner | `doing`, `blocked`, or `review`, untouched for one rhythm cycle |
 | a routine | `routine:<id>:<occurrence>` | the lead | paused, or its last run failed or timed out |
 
 A private, temporary, or deleted chat has no candidates. A loop of no chat belongs to the yuki chat. The task id names its last change, so one stretch of staleness is raised once.
@@ -1685,9 +1612,9 @@ The score is a noisy-or of due urgency in the human's own cycles, an agent's own
 
 **Jev.** With a judge key, and only when a nudge could go out at all, Jev's `worthNow` reads the ten highest-scoring candidates past their rest in one batched call. Its probability replaces the score in `worth`, and it gates: an item it did not read wakes nobody that pass. It reads what the woken agent will read, in plain words: whose item it is, the due time and last mention relative to now, how often it was raised, let pass, or declined by the agent, how many nudges the human answered or let pass lately, and the agent's own rule. Without Jev the score and the appetite decide alone. Either way the engine is the one decider, and the agent is told to raise the item, not asked whether to.
 
-**The wake.** `RoomDO.initiativeWake` is one wake (25.5) about one item: origin `auto`, an empty grant, the candidate's taint, the room's budget, never held. The room answers `busy` while a burst gathers or the human typed in the last two minutes. The target is the owner for an agent's own commitment or task, else the room's lead, which may hand it to a teammate with `send_message`. The body states the item, why now, and the rule: one short message in your own words, at most two sentences, that asks, with no text around tool calls; [skip] only when the chat shows it is already handled; close a loop as dropped when the human no longer wants it. An agent's own promise is kept in that one message.
+**The wake.** `RoomDO.initiativeWake` is one wake (25.5) about one item: origin `auto`, the room's budget, never held. The room answers `busy` while a burst gathers or the human typed in the last two minutes. The target is the owner for an agent's own commitment or task, else the room's lead, which may hand it to a teammate with `send_message`. The body states the item, why now, and the rule: one short message in your own words, at most two sentences, with no text around tool calls, after moving its own work on if it can; [skip] only when the chat shows it is already handled; close a loop as dropped when the human no longer wants it. An agent's own promise is kept in that one message.
 
-**One message.** A run whose every envelope is an initiative wake is a nudge run (`AgentDO`, `nudge` in `factory.ts`). A `beforeTool` gate lets it call tools whose effect is `read` or `message`, and the `loop` tool; a file, task, reminder, routine, or outside action is refused with one line ("a nudge only asks"). ASSUMPTION: work the human already asked for (an agent's own promise) is delivered as the message itself, so the gate holds for it too.
+**One message.** A nudge run may use any tool, like every run (section 16). Changed on 2026-10-11: the nudge gate that allowed only `read` and `message` tools is gone.
 
 **Outcomes.** The room follows the wake like a routine run (routine id `initiative`). When the agent's run ends, `ok` (it posted) records the nudge (`AttentionStore.sent`, a mark) and closes an agent's own commitment it was woken for. `quiet` ([skip]) is an outcome: the item rests as after an ignore, and the kind learns it (`AttentionStore.skipped`). A failed run only rests the item. The wake id is the item with the time it was last raised (`<candidate>#<last_at>`), so a retried pass wakes once and a later nudge is a new wake. Bubbles of the run carry `initiative: { reason }` ("You mentioned this Oct 3", "Untouched for 2 days"), which the client shows. A reminder an agent set for itself is followed the same way (routine id `reminder`); when its run posts, the commitment it kept is closed.
 
@@ -1704,10 +1631,10 @@ The daily check-in routine and its fingerprint gate (25.7), the stall sweep (25.
 | Check | Proves |
 | --- | --- |
 | `test/loops.test.ts` | merge, firming, owners never merging, close, redaction; Jev answers to ops by majority; "same" merges and anything else leaves it to the store; an agent's promise opens its commitment and a kept one closes it; the summary pass's loop lines |
-| `test/initiative-safety.test.ts` | a merge keeps taint; no tainted loop or life line reaches a brief; related lines skip private chats; `off` gives no lines; on their plate skips tentative and tainted loops and rests once shown; a tainted task wakes tainted; closes scoped to a chat; a private chat and a forgotten turn forget their loops; the snooze bound |
+| `test/initiative-safety.test.ts` | related lines skip private chats; `off` gives no lines; on their plate skips tentative loops and rests once shown; closes scoped to a chat; a private chat and a forgotten turn forget their loops; the snooze bound |
 | `test/attention.test.ts` | the rhythm, the appetite, rests, and the `attend` table, including the fresh and dated-promise cases; a drop winning over a reply in either order; a [skip] teaching only the kind; Jev gating what it did not read |
 | `bun yuki verify initiative-loops` | with Muse Spark 1.3, once with no judge (the chat rolled up through the `quiet` dev route) and once with Jev (the pass after the burst): a stated deadline is an open explicit loop and makes no reminder; "maybe" is tentative and makes no reminder; the agent's promise is its commitment and its next run starts with `you owe:`; "finally done" closes the loop; a later chat starts with a `related:` line; the summary pass opens loops from seeded turns in its one call |
-| `bun yuki verify initiative` | with Muse Spark 1.3, both arms, a fresh user per scenario: (a) the agent's promise is followed up by exactly one run; (b) a loop ignored twice gets no third nudge; (c) "stop reminding me" drops the loop, a spoken nudge settles as dismissed, and nothing follows; (d) with no rhythm nothing interrupts and the next run's brief carries the loop; (e) a stalled task in a team room wakes its owner, who posts one message and writes no file; (f) away or initiative off wakes nobody |
+| `bun yuki verify initiative` | with Muse Spark 1.3, both arms, a fresh user per scenario: (a) the agent's promise is followed up by exactly one run; (b) a loop ignored twice gets no third nudge; (c) "stop reminding me" drops the loop, a spoken nudge settles as dismissed, and nothing follows; (d) with no rhythm nothing interrupts and the next run's brief carries the loop; (e) a stalled task in a team room wakes its owner, who posts one message; (f) away or initiative off wakes nobody |
 | `bun yuki verify proactive` | the fake agent (its loop opened through the `loops` dev route): a stalled task wakes its owner once, with the reason on the answer; a loop is nudged, ignored, rests, nudged again, ignored, and then is not woken (1, 0, 1, 0, 0) |
 
 The dev route `POST /api/dev/agent/attention` (development only) sets a known rhythm (`rhythm`), moves the engine's clock state into the past (`age`: loops and their due times, marks, the last pass, pending nudges, and an agent's own reminders that would have come due), runs a pass now (`pass`, returning its verdicts and wakes), or reads the state.

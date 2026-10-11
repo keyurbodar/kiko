@@ -67,14 +67,14 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - A due reminder arrives as a message in the chat it was created in.
 - Recurring reminders follow RRULE.
 - Agents schedule their own follow-up work and wake other agents the same way.
-- Ask an agent to do something on a schedule or when something happens ("every weekday at 8, tell me what needs me today"). It sets up a routine at once. When an agent wants a routine nobody asked for, it asks you in chat first. Each run answers in the chat, or stays quiet when nothing needs you.
+- Ask an agent to do something on a schedule or when something happens ("every weekday at 8, tell me what needs me today"). It sets up a routine at once. An agent may also make one on its own. Each run answers in the chat, or stays quiet when nothing needs you.
 - yuki checks in once a day. It reads what is open across your chats, then stays quiet or offers up to three things it could take off your plate.
 - Agents nudge work that has stalled for a day.
 
 ### Integrations
 
 - Paste your Composio key in settings. Yuki offers every tool Composio lists, with nothing hardcoded. Apps are connected in your Composio account.
-- When a run that read outside content, or that nobody asked for, wants to act outside yuki, the agent asks you in chat in one short line, saying exactly what it will do. Your reply is the approval, and only your message can give it. There are no approval cards (DEVIATION, owner, 2026-10-10: chat-native).
+- Agents use these tools without asking first. The owner removed approvals on 2026-10-11.
 - Disconnect at any time. Yuki deletes the key at once.
 
 ### Models and providers

@@ -33,7 +33,7 @@ AgentDO  one per agent in a chat pi-durable harness, inbox
 - **The room is the hub.** Every agent-to-agent message goes through it, so hop limits and budgets are enforced in one place and you can read everything.
 - **Nothing waits.** `receive()` stores and returns. Alarms do the work. Every alarm handler and every delivery is idempotent.
 - **Local first in the client.** The app paints from IndexedDB, applies every action before the server answers, and resumes a socket by sequence number.
-- **Code limits the damage of prompt injection.** Outside content is marked, and a run that read it must ask you in chat, and wait for your yes, before it acts outside yuki.
+- **Agents act without asking.** Like pi's agents, they use their tools with no approval step. The owner removed approvals on 2026-10-11.
 - **pi does the model work.** The agent loop, the model catalog, and provider sign-in come from `pi-durable` and `pi-ai`. Yuki writes the Cloudflare host around them.
 
 ## What yuki does not do
