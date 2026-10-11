@@ -1,7 +1,7 @@
 import type { ExtensionOp, ExtensionProposal, ExtensionResult, UserEvent } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { newRoom, seen, send, until } from "./mid-run"
+import { newRoom, seen, send, statuses, until } from "./mid-run"
 
 // Architecture section 24 with the real test model. Two things the fake agent cannot show:
 // 1. A real agent uses an installed catalog extension that fetches the real network (weather).
@@ -32,8 +32,11 @@ const suite: Suite = {
     const replyAfter = async (text: string, ms: number) => {
       const before = seen(room).live.length
       await send(room, text)
+      const from = statuses(room).length
       await until("the agent's reply", () => seen(room).live.length > before, ms)
-      await Bun.sleep(4_000)
+      // The agent may say a line before its tools run, so wait for the run to end, not the first bubble.
+      await until("the run to end", () => statuses(room).slice(from).at(-1) === "idle", ms)
+      await Bun.sleep(1_500)
       return seen(room).live.slice(before).map((m) => m.text).join("\n")
     }
 
