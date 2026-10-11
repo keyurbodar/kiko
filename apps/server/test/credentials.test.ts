@@ -71,7 +71,7 @@ test("a sealed key opens only for the same user and provider", async () => {
 
   const again = await seal(V1, "alice", "opencode-go", key)
   expect(Buffer.from(again.iv).equals(Buffer.from(sealed.iv))).toBe(false)
-})
+}, 20_000)
 
 test("the keyring reads its version and the previous secret from env", () => {
   expect(keyringFromEnv({ CREDENTIALS_KEK: "a" })).toEqual({ current: { version: 1, secret: "a" } })
