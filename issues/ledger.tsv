@@ -30,4 +30,4 @@ U34	Attention: no pooling or smoothing, two-part score	4	haiku	landed	s/u34-atte
 U35	Engagement signal, then decide per-kind appetite	4	opus	landed	s/u35-engagement	ceceea1f	full-gate-green proactive+initiative-loops+initiative-live	main bcfeda23	2026-10-11T19:34:37Z
 U36	Engagement test red on main: clock or code	5	haiku	landed	s/u36-engagement-test	005c8335	gate-green root-cause-product-ignoreDeadline	main d4aed249	2026-10-11T20:18:49Z
 U40c	Final proof: every suite on finished main	5	haiku	landed	s/u40c-final	ffdc89cf	gate-green	main e3d929c4	2026-10-11T21:13:00Z
-U37	initiative-loops asserts structure not wording	5	deepseek	running	s/u37-loops-assert	-	-	-	2026-10-11T21:13:00Z
+U37	initiative-loops asserts structure not wording	5	deepseek	landed	s/u37-loops-assert	9264a585	gate-green	main bd404fd6	2026-10-11T21:20:24Z
