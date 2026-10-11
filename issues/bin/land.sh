@@ -21,7 +21,7 @@ bun install --frozen-lockfile >/dev/null 2>&1
 if [ -f scripts/check.ts ]; then
   bun scripts/check.ts >"$logs/$unit-check.log" 2>&1
 else
-  { bun run typecheck && bun run lint && bun scripts/check-imports.ts && { [ ! -f scripts/check-rules.ts ] || bun scripts/check-rules.ts; } && { [ ! -f scripts/check-exports.ts ] || bun scripts/check-exports.ts; }; } >"$logs/$unit-check.log" 2>&1
+  { bun run typecheck && bunx biome check apps/server core apps/cli scripts && bun scripts/check-imports.ts && { [ ! -f scripts/check-rules.ts ] || bun scripts/check-rules.ts; } && { [ ! -f scripts/check-exports.ts ] || bun scripts/check-exports.ts; }; } >"$logs/$unit-check.log" 2>&1
 fi
 if [ $? -ne 0 ]; then
   echo "land: $unit is red when merged; main untouched"; tail -40 "$logs/$unit-check.log"; exit 4
