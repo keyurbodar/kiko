@@ -16,11 +16,12 @@ const system: Arrival = { kind: "system" }
 
 const rows: [string, RunState | null, Arrival, MidRunAction][] = [
   ["no bubble and no tool: restart", run(), human, "restart"],
-  ["a tool is running: steer", run({ toolStarted: true, toolRunning: true }), human, "steer"],
+  ["a tool is running: interrupt it, then steer", run({ toolStarted: true, toolRunning: true }), human, "interrupt"],
   ["a tool round finished: steer", run({ toolStarted: true }), human, "steer"],
   ["a bubble was posted, no tool running: steer, a human never waits for the run to end", run({ bubblePosted: true }), human, "steer"],
   ["a bubble was posted after a finished tool: steer", run({ bubblePosted: true, toolStarted: true }), human, "steer"],
-  ["a bubble was posted and a tool is running: steer", run({ bubblePosted: true, toolStarted: true, toolRunning: true }), human, "steer"],
+  ["a bubble was posted and a tool is running: interrupt", run({ bubblePosted: true, toolStarted: true, toolRunning: true }), human, "interrupt"],
+  ["inputs queued and a tool is running: interrupt",run({ toolStarted: true, toolRunning: true, queued: true }), human, "interrupt"],
   ["idle: queue starts a run", null, human, "queue"],
   ["an agent message while busy: hold in the inbox", run(), agent, "hold"],
   ["a system message while busy: hold in the inbox", run({ toolRunning: true, toolStarted: true }), system, "hold"],

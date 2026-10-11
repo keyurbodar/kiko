@@ -32,9 +32,12 @@ export function readable(text: string): string {
 
 function head(text: string, bytes: number): string {
   let out = ""
+  let used = 0
   for (const line of text.split("\n")) {
-    if (encoder.encode(out + line).length + 1 > bytes) break
+    const size = encoder.encode(line).length + 1
+    if (used + size > bytes) break
     out += `${line}\n`
+    used += size
   }
   return out || text.slice(0, Math.floor(bytes / 4))
 }

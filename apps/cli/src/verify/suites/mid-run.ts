@@ -95,13 +95,13 @@ const cases: Case[] = [
       await send(room, "[tool] check")
       await until("the tool to start", () => statuses(room).includes("working"), 10_000)
       await send(room, "also this")
-      await until("an answer", () => texts(room).length > 0, 20_000)
+      await until("an answer that says the tool was aborted", () => texts(room).some((t) => t.includes("aborted")), 3_000)
       await Bun.sleep(3_000)
       const { all, deleted } = seen(room)
       expectEqual(
         all.map((m) => m.text),
-        ["heard: [tool] check | also this; tool: slept"],
-        "the agent's bubbles: the tool finished and one answer covers both turns",
+        ["heard: [tool] check | also this; tool: <harness>\n[error] Tool slow_tool was aborted\n</harness>"],
+        "the agent's bubbles: the tool was stopped and one answer covers both turns",
       )
       expectEqual(deleted, 0, "deleted bubbles")
     },

@@ -5,6 +5,7 @@ import { type Conversation, type ConversationId, configure, type Harness, type M
 import type { Envelope, RoomId } from "@yuki/protocol"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@yuki/agent/answers"
+import type { Effect } from "@yuki/agent/effects"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
@@ -23,7 +24,7 @@ import type { RemindersPort } from "./extensions/reminders"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
 import { learnedNote } from "../integrations/composio/tools"
 
-import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
+import { buildAgent, DEFAULT_MODEL, stoppable, type UserExtensions, userModels } from "./factory"
 import { forWorker } from "./extensions/work"
 import type { GuestResponse, Installed, ScriptPorts } from "@yuki/sandbox/compile"
 import { hasScriptWasm, scriptWasm } from "@yuki/sandbox/wasm"
@@ -67,6 +68,8 @@ export class AgentDO extends DurableObject<Env> {
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
   private readonly answers = new AnswerWaiters()
+  // Set by setup(); no tool is stoppable before the agent is built, which is before any run.
+  private effects: ReadonlyMap<string, Effect> = new Map()
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -85,6 +88,7 @@ export class AgentDO extends DurableObject<Env> {
       onReset: () => this.outbox.clear(),
       onIdle: () => this.#userExtensions?.release(),
       onWorkers: (running, pending) => void this.outbox.background(running > 0, pending).catch(() => undefined),
+      interruptible: (tool) => stoppable(this.effects, tool),
       ...this.hostOptions,
       setup: () => this.setup(),
       onOpen: async (opened) => {
@@ -237,7 +241,7 @@ export class AgentDO extends DurableObject<Env> {
       send: (input) => room().agentMessage(home.slug, input),
       ask: (input) => room().ask(home.slug, input),
       askState: (id) => room().askState(id),
-      waitAnswer: (id, ms) => this.answers.wait(id, ms),
+      waitAnswer: (id, ms, signal) => this.answers.wait(id, ms, signal),
       closeAsk: (id) => room().closeAsk(id),
       humanWaiting: () => this.host.humanWaiting(),
       spawn: (input) => room().spawnAgent(home.slug, input),
@@ -298,6 +302,7 @@ export class AgentDO extends DurableObject<Env> {
         loops: () => this.loopPort(),
         work: this.host.workers,
       })
+      this.effects = fake.effects
       return {
         ...fake,
         beginRun: async (_batch, root) => {
@@ -333,6 +338,7 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
     const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    this.effects = built.effects
     return {
       ...built,
       ...user,
