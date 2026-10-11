@@ -1281,8 +1281,8 @@ export class UserDO extends DurableObject<Env> {
     if (op.action === "pass") return this.#engine.pass()
     if (op.action === "state") return this.#engine.devState()
     this.#engine.devAge(op.ms)
-    // A reminder an agent set for itself that would have come due in that time fires now.
-    for (const r of this.reminders.list()) if (r.status === "active" && !r.trigger && r.target !== "human" && r.dueUtc <= Date.now() + op.ms) await this.reminders.makeDue(r.id)
+    // A reminder an agent set for itself ages with the clock, and fires once the aging reaches it.
+    await this.reminders.devAge(op.ms)
     return { at: await this.#engine.arm() }
   }
 
