@@ -11,7 +11,7 @@ import { MAX_MEMBERS } from "../room/members"
 //   POST /api/dev/agent/fake    { roomId, slugs? }  -> { ok: true }   slugs default to [DEFAULT_AGENT]
 //   POST /api/dev/agent/status  { roomId, slug }    -> the agent's `status()`: inbox counts and submissions
 //   POST /api/dev/agent/limits  { limits }  -> { limits }   the session user's plan record (P9-01)
-//   GET  /api/dev/agent/children?roomId=        -> { children: [{ id, taskId }] }   (P6-05, `verify subagent`)
+//   GET  /api/dev/agent/workers?roomId=         -> { workers: [Work] }   the agent's background workers (section 8, `verify workers`)
 //   POST /api/dev/agent/seed    { roomId, turns: [{ from, text }] }  -> { turns }   (section 13, `verify memory-eval`)
 //   POST /api/dev/agent/memory  { roomId }  -> { turns, pending, view }
 //   POST /api/dev/agent/classic { roomId }  -> { ok: true }   the room's agent keeps the old transcript (`verify token-cost`)
@@ -42,7 +42,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "children", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention"].includes(action ?? "")) return null
+  if (!["fake", "status", "workers", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
   // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
@@ -100,12 +100,12 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     }
     return Response.json({ loops: await userStub(env.USER, user.id).loopList({ status: ["open", "done", "dropped", "snoozed"], limit: 200 }) })
   }
-  if (action === "children") {
+  if (action === "workers") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const roomId = url.searchParams.get("roomId") ?? ""
     if (!isRoomId(roomId)) return Response.json({ error: "bad room id" }, { status: 400 })
-    return Response.json({ children: await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devChildren() })
+    return Response.json({ workers: await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devWorkers() })
   }
   if (request.method !== "POST") return Response.json({ error: "method not allowed" }, { status: 405 })
   const user = await getSessionUser(request, env)
