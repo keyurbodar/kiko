@@ -5,13 +5,14 @@ import { evaluate, type PageState, read } from "../page/read"
 import type { BrowserSession, Dialog, DialogPolicy, Tab } from "../page/types"
 import { openSession, type SessionOptions } from "./session"
 
-export type ConnectOptions = SessionOptions & { dialogs?: DialogPolicy }
+export type ConnectOptions = SessionOptions & { dialogs?: DialogPolicy; now?: () => number }
 
 const defaultPolicy: DialogPolicy = (dialog) => (dialog.type === "alert" || dialog.type === "beforeunload" ? "accept" : "stop")
 
 export async function connect(cdpUrl: string, options: ConnectOptions = {}): Promise<BrowserSession> {
   const cdp = await openSession(cdpUrl, options)
   const policy = options.dialogs ?? defaultPolicy
+  const now = options.now ?? Date.now
   const tabs = new Map<string, Tab>()
   const opening = new Set<string>()
   const popupListeners = new Set<(opener: string, tab: Tab) => void>()
@@ -21,6 +22,14 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
   const adopt = async (targetId: string, url?: string): Promise<Tab> => {
     const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true })
     const page: PageState = { channel: cdp.channel(sessionId), targetId, labels: new Map() }
+    let heldAt = 0
+    // Nobody answered in time: the next call dismisses it, so a stray confirm or prompt cannot wedge the agent.
+    // A timer would run inside a Durable Object between calls, which AGENTS.md forbids.
+    const settle = () => {
+      if (!page.dialog || now() - heldAt < BROWSER.dialogHoldMs) return
+      page.dialog = undefined
+      page.channel.send("Page.handleJavaScriptDialog", { accept: false }).catch(() => {})
+    }
     const subscriptions = [
       page.channel.on("Page.javascriptDialogOpening", (dialog) => {
         const shown: Dialog = { type: dialog.type, message: dialog.message }
@@ -29,12 +38,7 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
           return
         }
         page.dialog = shown
-        // Nobody answered in time: dismiss it so a stray confirm or prompt cannot wedge the agent.
-        setTimeout(() => {
-          if (page.dialog !== shown) return
-          page.dialog = undefined
-          page.channel.send("Page.handleJavaScriptDialog", { accept: false }).catch(() => {})
-        }, BROWSER.dialogHoldMs)
+        heldAt = now()
       }),
       page.channel.on("Page.javascriptDialogClosed", () => {
         page.dialog = undefined
@@ -73,13 +77,32 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     const info = async () => (await cdp.send("Target.getTargetInfo", { targetId })).targetInfo
     const tab: Tab = {
       id: targetId,
-      read: () => read(page),
-      act: (step) => act(page, step),
-      eval: (expression) => evaluateExpression(page, expression),
-      extract: (kind) => extract(page, kind),
-      screenshot: (opts) => screenshot(page, opts),
-      dialog: () => page.dialog ?? null,
+      read: () => {
+        settle()
+        return read(page)
+      },
+      act: (step) => {
+        settle()
+        return act(page, step)
+      },
+      eval: (expression) => {
+        settle()
+        return evaluateExpression(page, expression)
+      },
+      extract: (kind) => {
+        settle()
+        return extract(page, kind)
+      },
+      screenshot: (opts) => {
+        settle()
+        return screenshot(page, opts)
+      },
+      dialog: () => {
+        settle()
+        return page.dialog ?? null
+      },
       answerDialog: async (accept, text) => {
+        settle()
         if (!page.dialog) return false
         page.dialog = undefined
         return page.channel

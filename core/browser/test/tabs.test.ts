@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test"
 import { connect } from "../src/cdp/browser"
+import { BROWSER } from "../src/config"
 import { formatAllText } from "../src/page/extract"
 import { READ_SCRIPT } from "../src/page/script"
 import { type FakeCdp, fakeCdp } from "./fake-cdp"
@@ -187,6 +188,22 @@ test("a confirm is held until answered and an alert is accepted", async () => {
   expect(tab.dialog()).toBeNull()
   expect(sentTo("Page.handleJavaScriptDialog").at(-1)?.params).toEqual({ accept: true })
   expect(await tab.answerDialog(true)).toBe(false)
+  await browser.close()
+})
+
+test("an unanswered confirm is dismissed by the next call once the hold has passed", async () => {
+  fake = page(() => ok(null))
+  let clock = 0
+  const browser = await connect(fake.url, { now: () => clock })
+  const tab = await browser.openTab()
+  fake.emit("Page.javascriptDialogOpening", { type: "confirm", message: "sure?", url: "" }, "S-T1")
+  await tab.read()
+  clock = BROWSER.dialogHoldMs - 1
+  expect(tab.dialog()).toEqual({ type: "confirm", message: "sure?" })
+  clock = BROWSER.dialogHoldMs
+  expect(tab.dialog()).toBeNull()
+  await Bun.sleep(20)
+  expect(sentTo("Page.handleJavaScriptDialog").at(-1)?.params).toEqual({ accept: false })
   await browser.close()
 })
 
