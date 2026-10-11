@@ -16,3 +16,13 @@ Find the simplest order that converges. Candidates: enqueue before tombstoning (
 
 ## Acceptance
 A test where the queue send throws: the route answers an error, the user can sign in and retry, and the retry completes deletion. It fails on today's code.
+
+## Report
+
+Chose rollback over enqueue-first. Enqueue-first lets jobs wipe data and delete the auth rows while the user is still live and can write, and `beginDeletion` also closes sockets and wipes the Kernel account, which must happen under the tombstone. So the route tombstones, queues, and on any failure calls `abort` (UserDO `cancelDeletion` clears DELETING and re-arms the alarm, then the D1 tombstone row is deleted; D1 last so the user stays blocked until the object is ready) and answers 503. Sessions were revoked, so the user signs in again and retries.
+
+`deletion_rooms` is deliberately kept on rollback. `runDeleteJob` wipes the user when `roomDeleted` reports an empty ledger, so clearing it would let an already queued job from a partial send delete the whole account. Kept, those jobs only remove rooms the user asked to delete, and the retry's `INSERT OR IGNORE` re-adds the rest.
+
+`userStub` (which runs `checkUser`) is now built before `revokeUser`, so a bad id answers 400 before any state changes. No change to `names.ts`.
+
+Test: `startDeletion` in `delete-account.test.ts`. With the abort call removed, "a failed queue send leaves no tombstone..." fails (`expect(received).toBe(expected)`).
