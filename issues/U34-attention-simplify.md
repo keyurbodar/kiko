@@ -46,7 +46,7 @@ No-Jev welcome rate, `bun analyze.ts score`, "score, no Jev" base column. Main's
 
 The no-Jev score-only top-2 and top-10 sets changed 0.0% of passes in the open loop for every persona. The no-Jev welcome shift is not "within noise" for kind-split and weekday-weekend (about +4.5 points). I could not isolate score from rhythm in this run, because the baseline combines both changes. See FOLLOW-UPS.
 
-Brief top-2 changes after the score change: 0 of 1,122 comparisons changed in the "score, no Jev" section, so the ranking change left the brief's top two unchanged in every simulated pass.
+Brief top-2 changes after the score change: 0 of 2,294 brief comparisons changed across the seven personas in the score simulation, so the ranking change left the brief's top two unchanged in every simulated pass.
 
 FAILED-BEFORE (new tests, run against main's files swapped into the worktree, then restored):
 - `rhythm > a moment is the session's own hour, not the hour before it` fails on main's `rhythm.ts`: `38 pass, 1 fail`.
