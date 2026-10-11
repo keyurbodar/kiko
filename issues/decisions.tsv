@@ -13,3 +13,8 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:35:27Z	infra	gate lint on backend paths only	frontend has 17 pre-existing lint errors outside this program; backend paths lint clean	biome exit codes backend=0 frontend=1	fixed
 2026-10-11T16:35:27Z	routing	default workers to Haiku and DeepSeek; Sonnet only for U27, Opus only for judgment	operator asked; most units are well-scoped	issues/ledger.tsv model column	open
 2026-10-11T16:35:27Z	infra	workers may stop with a QUESTION; coordinator answers in a new round	operator pointed out forcing guesses is worse than asking	issues/STANDING.md	fixed
+2026-10-11T16:38:31Z	decide	reversed: ask keeps its wait, only fix its ignored abort signal	U05 showed option B costs a second run and routes answers through droppable mail	issues/U05-spike-agent.md Q2	accepted
+2026-10-11T16:38:31Z	decide	reversed: endRun order stays	U05 showed every side effect is idempotent; moving it loses work	issues/U05-spike-agent.md Q3	accepted
+2026-10-11T16:38:31Z	decide	build human interrupt via pi-durable abortTask, gated to read tools, bash, ask	public API, measured 543 ms abort with faux model	issues/U05-spike-agent.md Q1	planned
+2026-10-11T16:38:32Z	land	landed U12 nap dedupe	test failed before, 11 pass after	main a318a95c	landed
+2026-10-11T16:38:32Z	infra	held spawns: load average 25 on 4 CPUs made tests time out	U12 saw workerd broken pipes under load	uptime 14.5 at 16:36	open
