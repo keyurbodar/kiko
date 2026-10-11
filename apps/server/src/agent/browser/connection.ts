@@ -37,6 +37,8 @@ export class BrowserConnection {
   /** Tabs the agent opened or switched away from: still open, still counted as its own, not current. */
   private readonly parked = new Map<string, string>()
   private busy = 0
+  /** Slots reserved by opens still in flight. They are not in any tab map yet. */
+  private opening = 0
   private lostSocket = false
   private sessionId: string | null = null
   private note: string | undefined
@@ -102,11 +104,18 @@ export class BrowserConnection {
     return session
   }
 
-  private async room(extra: number): Promise<void> {
+  /** The check and the hold run in one step after the await, so a parallel call counts the slots this one holds. */
+  private async slots<T>(extra: number, open: () => Promise<T>): Promise<T> {
     const { tabs } = await this.deps.lease.state()
     const mine = Object.keys(this.tabs()).length
     const others = Object.entries(tabs).reduce((n, [agent, c]) => (agent === this.deps.agentId ? n : n + c), 0)
-    if (others + mine + extra > BROWSER.tabsPerBrowser) throw new Busy(tabs)
+    if (others + mine + this.opening + extra > BROWSER.tabsPerBrowser) throw new Busy(tabs)
+    this.opening += extra
+    try {
+      return await open()
+    } finally {
+      this.opening -= extra
+    }
   }
 
   private track(held: Held, tab: Tab): Tab {
@@ -144,13 +153,14 @@ export class BrowserConnection {
     return held.opening
   }
 
-  private async openHeld(held: Held): Promise<Tab> {
-    await this.room(1)
-    const session = await this.socket()
-    const t = performance.now()
-    held.tab = this.track(held, await session.openTab(held.url))
-    count("browser.open.ms", Math.round(performance.now() - t))
-    return held.tab
+  private openHeld(held: Held): Promise<Tab> {
+    return this.slots(1, async () => {
+      const session = await this.socket()
+      const t = performance.now()
+      held.tab = this.track(held, await session.openTab(held.url))
+      count("browser.open.ms", Math.round(performance.now() - t))
+      return held.tab
+    })
   }
 
   async currentTab(): Promise<Tab | null> {
@@ -183,12 +193,13 @@ export class BrowserConnection {
     return all.map((t) => ({ ...t, current: t.id === currentId }))
   }
 
-  async openTab(url: string): Promise<Tab> {
-    await this.room(1)
-    const session = await this.socket()
-    const tab = await session.openTab(url)
-    this.parked.set(tab.id, url)
-    return tab
+  openTab(url: string): Promise<Tab> {
+    return this.slots(1, async () => {
+      const session = await this.socket()
+      const tab = await session.openTab(url)
+      this.parked.set(tab.id, url)
+      return tab
+    })
   }
 
   async switchTo(id: string): Promise<Tab> {
@@ -217,20 +228,21 @@ export class BrowserConnection {
   }
 
   async borrow(urls: (string | undefined)[]): Promise<{ tabs: Tab[]; done: () => Promise<void> }> {
-    await this.room(urls.length)
-    const session = await this.socket()
-    const opened = await Promise.allSettled(urls.map((url) => session.openTab(url)))
-    const tabs: Tab[] = []
-    opened.forEach((o, i) => {
-      if (o.status !== "fulfilled") return
-      tabs.push(o.value)
-      this.borrowed.set(o.value.id, urls[i] ?? "about:blank")
+    const { tabs, failed } = await this.slots(urls.length, async () => {
+      const session = await this.socket()
+      const opened = await Promise.allSettled(urls.map((url) => session.openTab(url)))
+      const made: Tab[] = []
+      opened.forEach((o, i) => {
+        if (o.status !== "fulfilled") return
+        made.push(o.value)
+        this.borrowed.set(o.value.id, urls[i] ?? "about:blank")
+      })
+      return { tabs: made, failed: opened.find((o): o is PromiseRejectedResult => o.status === "rejected") }
     })
     const done = async () => {
       for (const t of tabs) this.borrowed.delete(t.id)
       await Promise.all(tabs.map((t) => t.close().catch(() => {})))
     }
-    const failed = opened.find((o): o is PromiseRejectedResult => o.status === "rejected")
     if (failed) {
       await done()
       throw failed.reason
