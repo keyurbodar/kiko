@@ -35,6 +35,9 @@ const NOTICED_MAX = 2
 /** A burst or a line must share this many words with a loop to count as about it. */
 export const SHARED_WORDS = 2
 const LAST_PASS = "initiative_last_pass"
+/** How long a fired reminder's run may take to report before its loop is a candidate again. ASSUMPTION: an hour, past any run's budget. */
+const REMINDER_RUN_WINDOW = 3_600_000
+
 /** The room resolves this to its lead. */
 const LEAD = "@lead"
 
@@ -88,7 +91,11 @@ export class InitiativeEngine {
     sql.exec("CREATE TABLE IF NOT EXISTS initiative_briefed (loop_id INTEGER PRIMARY KEY, at INTEGER NOT NULL)")
   }
 
-  /** A reminder an agent set for itself keeps loop `loopId`: while it is active the loop is not a candidate. */
+  /**
+   * A reminder an agent set for itself keeps loop `loopId`. While it is active, and from when it fires
+   * until its run reports, the loop is not a candidate: a pass then would wake the agent a second time
+   * for the promise its reminder run is keeping.
+   */
   link(reminderId: string, loopId: number): void {
     this.d.sql.exec("INSERT OR REPLACE INTO loop_reminders (reminder_id, loop_id) VALUES (?, ?)", reminderId, loopId)
   }
@@ -99,7 +106,7 @@ export class InitiativeEngine {
     const fresh = this.store.unseen(batch.signals.flatMap((s) => (s.kind === "burst" ? [`burst:${s.roomId}:${s.seq}`] : [])))
     for (const s of batch.signals) {
       if (s.kind === "routine_result" && s.routineId === INITIATIVE_RUN) this.ran(s.occurrence, s.outcome, now)
-      else if (s.kind === "routine_result" && s.routineId === REMINDER_RUN && s.outcome === "ok") this.kept(s.occurrence, now)
+      else if (s.kind === "routine_result" && s.routineId === REMINDER_RUN) this.kept(s.occurrence, s.outcome === "ok", now)
       else if (s.kind === "burst" && s.by.kind === "human") {
         heard.push({ kind: "burst", id: `burst:${s.roomId}:${s.seq}`, room: s.roomId, at: s.at })
         this.d.sql.exec("INSERT INTO initiative_rooms (room_id, human_at) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET human_at = max(human_at, excluded.human_at)", s.roomId, s.at)
@@ -143,10 +150,12 @@ export class InitiativeEngine {
     this.d.count({ [`initiative_${status}`]: 1 })
   }
 
-  /** A reminder an agent set for itself fired and the agent posted: its promise is kept. */
-  private kept(reminderId: string, now: number): void {
-    for (const r of this.d.sql.exec<{ loop_id: number }>("SELECT loop_id FROM loop_reminders WHERE reminder_id = ?", reminderId).toArray()) {
-      if (this.d.loops.close(r.loop_id, "done", now)) this.d.count({ loops_closed: 1 })
+  /** A reminder an agent set for itself fired and its run ended. A run that posted kept the promise; one that did not leaves it owed. */
+  private kept(reminderId: string, posted: boolean, now: number): void {
+    if (posted) {
+      for (const r of this.d.sql.exec<{ loop_id: number }>("SELECT loop_id FROM loop_reminders WHERE reminder_id = ?", reminderId).toArray()) {
+        if (this.d.loops.close(r.loop_id, "done", now)) this.d.count({ loops_closed: 1 })
+      }
     }
     this.d.sql.exec("DELETE FROM loop_reminders WHERE reminder_id = ?", reminderId)
   }
@@ -188,7 +197,10 @@ export class InitiativeEngine {
     }
     const kept = new Set(
       this.d.sql
-        .exec<{ loop_id: number }>("SELECT loop_id FROM loop_reminders WHERE reminder_id IN (SELECT id FROM reminders WHERE status = 'active')")
+        .exec<{ loop_id: number }>(
+          "SELECT loop_id FROM loop_reminders WHERE reminder_id IN (SELECT id FROM reminders WHERE status = 'active' OR (status = 'done' AND last_fired > ?))",
+          now - REMINDER_RUN_WINDOW,
+        )
         .toArray()
         .map((r) => r.loop_id),
     )

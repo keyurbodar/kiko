@@ -481,6 +481,16 @@ export class Reminders {
       .map(toReminder)
   }
 
+  /**
+   * Development only (section 26.8): `ms` pass for the reminders agents set for themselves, as the
+   * initiative clock ages. Each moves `ms` earlier, so two days of aging reach one 28 hours out, and
+   * one that reaches now is due now.
+   */
+  async devAge(ms: number): Promise<void> {
+    this.sql.exec("UPDATE reminders SET due_utc = max(due_utc - ?, ?) WHERE status = 'active' AND trigger IS NULL AND target != 'human' AND due_utc > 0", ms, this.now())
+    await this.rearm()
+  }
+
   async makeDue(id: string): Promise<void> {
     this.sql.exec("UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0", this.now(), id)
     await this.rearm()

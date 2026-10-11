@@ -809,7 +809,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			id: own,
 			to: reminder.target as AgentSlug,
 			why: "reminder",
-			body: `reminder: ${reminder.text}`,
+			// An agent's own reminder is the moment it promised: say so, or it may prepare and set another.
+			body: reminder.createdBy === reminder.target ? `reminder: ${reminder.text}\nyou set this to come back now. the time has come: do it and post the result here.` : `reminder: ${reminder.text}`,
 			chain: reminderChain(own, reminder),
 			budget: reminder.createdBy === "human" ? "user" : "room",
 			retry: true,

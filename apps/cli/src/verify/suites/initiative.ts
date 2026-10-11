@@ -183,7 +183,8 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const total = agentMessages(room).slice(before.length)
     const loop = (await u.loops()).find((l) => l.id === owed.id)!
     console.log(`       pass 2: ${show(second)}; loop L${loop.id} is ${loop.status}`)
-    check(runsOf(after) === 1 && runsOf(total) === 1, `(a) the promise was followed up by exactly one run (${runsOf(after)} then ${runsOf(total)} in all)`)
+    // "Tomorrow morning" said before dawn UTC is more than a day out, so the follow-up may land on either day.
+    check(runsOf(total) === 1, `(a) the promise was followed up by exactly one run (${runsOf(after)} then ${runsOf(total)} in all)`)
     done(room)
   } catch (e) {
     check(false, `(a) stopped: ${e instanceof Error ? e.message : String(e)}`)
@@ -303,7 +304,8 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const said = agentMessages(room).slice(before)
     console.log(`       pass: ${show(p!)}; said: ${JSON.stringify(said.map((m) => `@${(m.from as { slug: string }).slug}: ${m.text.slice(0, 80)}`))}`)
     check(woke?.to === "ada" && woke.result === "delivered", `(e) the stalled task woke @${woke?.to ?? "nobody"} (${woke?.result ?? "-"})`)
-    check(said.length <= 1 && files(room) === filesBefore, `(e) the nudge is one message and no file (${said.length} bubbles, ${files(room) - filesBefore} file changes)`)
+    // Acting on a nudge needs no yes since the owner removed ask-first (2026-10-11), so a file is allowed.
+    check(said.length <= 1, `(e) the nudge is one message (${said.length} bubbles, ${files(room) - filesBefore} file changes)`)
     done(room)
   } catch (e) {
     check(false, `(e) stopped: ${e instanceof Error ? e.message : String(e)}`)

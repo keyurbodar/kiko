@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { Loops } from "@yuki/memory/loops"
-import { InitiativeEngine, type WakeInput } from "../src/initiative/engine"
+import { InitiativeEngine, REMINDER_RUN, type WakeInput } from "../src/initiative/engine"
 import { slotOf } from "../src/initiative/attention/rhythm"
 import type { WakeResult } from "../src/room/wake"
 import { sqlStorage } from "./sql-shim"
@@ -12,7 +12,7 @@ function world(answer: WakeResult = "delivered") {
   const sql = sqlStorage()
   sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   sql.exec("CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)")
-  sql.exec("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, status TEXT NOT NULL)")
+  sql.exec("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, status TEXT NOT NULL, last_fired INTEGER)")
   const loops = new Loops(sql, (fn) => fn())
   const wakes: WakeInput[] = []
   const engine = new InitiativeEngine({
@@ -65,4 +65,28 @@ test("a burst the bus delivers twice touches a loop once", async () => {
 test("a time zone the runtime does not know reads as UTC instead of throwing", () => {
   const at = Date.UTC(2026, 9, 10, 13)
   expect(slotOf(at, "Not/AZone")).toBe(slotOf(at, "UTC"))
+})
+
+test("a promise whose reminder just fired is not nudged until that run reports, and a run that posted keeps it", async () => {
+  const { sql, loops, engine, wakes } = world()
+  const opened = loops.open({ kind: "commitment", owner: "ada", source: "tool", certainty: "explicit", text: "bring the passport checklist", room: "r1", due: new Date(Date.now() - 3_600_000).toISOString() })
+  if (!opened.ok) throw new Error("open failed")
+  engine.link("rem1", opened.id)
+  sql.exec("INSERT INTO reminders (id, status, last_fired) VALUES ('rem1', 'done', ?)", Date.now())
+  engine.devAge(86_400_000)
+  engine.devRhythm("now")
+  await engine.pass()
+  expect(wakes.length).toBe(0)
+  const result = (outcome: "ok" | "quiet") => ({ roomId: "r1", openedAt: 1, more: 0, signals: [{ kind: "routine_result" as const, roomId: "r1", at: Date.now(), routineId: REMINDER_RUN, occurrence: "rem1", outcome, seq: null }] })
+  await engine.signals(result("quiet"))
+  expect(loops.get(opened.id)!.status).toBe("open")
+  await engine.pass()
+  expect(wakes.length).toBe(1)
+
+  const kept = loops.open({ kind: "commitment", owner: "ada", source: "tool", certainty: "explicit", text: "send the dentist list", room: "r1" })
+  if (!kept.ok) throw new Error("open failed")
+  engine.link("rem2", kept.id)
+  sql.exec("INSERT INTO reminders (id, status, last_fired) VALUES ('rem2', 'done', ?)", Date.now())
+  await engine.signals({ ...result("ok"), signals: [{ ...result("ok").signals[0]!, occurrence: "rem2" }] })
+  expect(loops.get(kept.id)!.status).toBe("done")
 })

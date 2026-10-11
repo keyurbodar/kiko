@@ -65,3 +65,16 @@ test("a stored minutely reminder for the human posts at most once in 30 minutes"
   }
   expect(posted.length).toBe(2)
 })
+
+test("aging the initiative clock moves an agent's own reminder with it, a day at a time", async () => {
+  const { clock, reminders } = setup()
+  const HOUR = 60 * MIN
+  // "Tomorrow morning" set before dawn is more than one day out.
+  const own = await reminders.create("u", { text: "bring the checklist", time: new Date(clock.now + 28 * HOUR).toISOString(), tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "yuki" })
+  const human = await reminders.create("u", { text: "call mom", time: new Date(clock.now + 28 * HOUR).toISOString(), tz: "UTC", roomId: ROOM })
+  await reminders.devAge(24 * HOUR)
+  expect(reminders.get(own.id)!.dueUtc).toBe(clock.now + 4 * HOUR)
+  await reminders.devAge(24 * HOUR)
+  expect(reminders.get(own.id)!.dueUtc).toBe(clock.now)
+  expect(reminders.get(human.id)!.dueUtc).toBe(clock.now + 28 * HOUR)
+})
