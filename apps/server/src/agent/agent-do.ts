@@ -163,7 +163,7 @@ export class AgentDO extends DurableObject<Env> {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
       status: (state) => room().setStatus(home.slug, state),
-      endRun: async (runId, inputs = []) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => [])),
+      endRun: async (runId, inputs = [], working = false) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => []), working),
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
     }
   }

@@ -11,7 +11,8 @@ export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
-  endRun(runId: string, inputs?: readonly SubmissionId[]): Promise<void>
+  /** `working`: a worker still runs, so the agent shows as working and a routine run it serves stays open (section 8). */
+  endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
 }
 
@@ -312,7 +313,7 @@ export class Outbox {
       this.save(run)
       await this.flush()
     }
-    await this.room()?.endRun(id, inputs)
+    await this.room()?.endRun(id, inputs, this.workers)
     this.sql.exec("UPDATE outbox SET ended = 1 WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
     this.state = "idle"
