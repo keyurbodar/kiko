@@ -513,12 +513,19 @@ export class UserDO extends DurableObject<Env> {
     if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open yuki.", "limit")
   }
 
-  takeTurn(): TurnAnswer {
+  /** One human burst, charged once per burst id however often the room retries it. Shares the day's id table with `takeAutonomous`; burst ids never look like wake ids. */
+  takeTurn(id: string): TurnAnswer {
     const now = Date.now()
-    const key = `turns:${utcDay(now)}`
+    const day = utcDay(now)
+    const key = `turns:${day}`
     const used = Number(this.setting(key) ?? 0)
+    if (this.sql.exec("SELECT 1 FROM autonomous_taken WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
     const answer = takeTurn(used, this.limits(), now)
-    if (answer.ok) this.putSetting(key, String(answer.used))
+    if (answer.ok) {
+      this.putSetting(key, String(answer.used))
+      this.sql.exec("DELETE FROM autonomous_taken WHERE day != ?", day)
+      this.sql.exec("INSERT OR IGNORE INTO autonomous_taken (id, day) VALUES (?, ?)", id, day)
+    }
     return answer
   }
 

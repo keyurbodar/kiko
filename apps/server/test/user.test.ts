@@ -328,3 +328,13 @@ test("the last chat opened comes back in the snapshot, and the yuki chat stands 
   expect(await snap()).toBe(yuki)
   ws.close()
 })
+
+test("a burst is charged one turn however often the room asks for it", async () => {
+  const user = fresh()
+  await rpc(user, "setLimits", { turnsPerDay: 2 })
+  expect(await rpc(user, "takeTurn", "human:a")).toMatchObject({ ok: true, used: 1 })
+  expect(await rpc(user, "takeTurn", "human:a")).toMatchObject({ ok: true, used: 1 })
+  expect(await rpc(user, "takeTurn", "human:b")).toMatchObject({ ok: true, used: 2 })
+  expect(await rpc(user, "takeTurn", "human:c")).toMatchObject({ ok: false, limit: 2 })
+  expect(await rpc(user, "takeTurn", "human:b")).toMatchObject({ ok: true, used: 2 })
+})

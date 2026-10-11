@@ -44,7 +44,8 @@ export class HeldWakes {
 		return this.sql.exec("SELECT 1 FROM held_wakes LIMIT 1").toArray().length > 0
 	}
 
-	due(now: number, limit = HELD_PER_PASS): Wake[] {
+	/** The oldest held wakes, after dropping those held longer than a week. */
+	next(now: number, limit = HELD_PER_PASS): Wake[] {
 		this.sql.exec("DELETE FROM held_wakes WHERE at < ?", now - KEEP_HELD_MS)
 		return this.sql
 			.exec<{ wake: string }>("SELECT wake FROM held_wakes ORDER BY at, id LIMIT ?", limit)
