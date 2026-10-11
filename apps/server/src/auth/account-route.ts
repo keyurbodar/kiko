@@ -3,10 +3,8 @@ import type { Env } from "../index"
 import { agentStub, NameError, roomStub, userStub } from "../lib/names"
 import { originAllowed } from "../router"
 import { deletionTargets, enqueueDeletion, runDeleteJob, startDeletion, userPrefix } from "../jobs/delete-account"
+import { devRequest } from "../lib/dev-guard"
 import { createAuth, isDeletedUser, restoreUser, revokeUser } from "./auth"
-
-// Development builds answer the verify-suite routes below. They are dead code in a production bundle.
-declare const process: { env: { NODE_ENV?: string } }
 
 export const CONFIRM_PHRASE = "delete my account"
 // Better Auth's own freshAge default is a day; this shorter window is deliberate.
@@ -15,7 +13,6 @@ export const FRESH_SESSION_MS = 10 * 60 * 1000
 const DELETE_PATH = "/api/account/delete"
 const DEV_PREFIX = "/api/dev/account/"
 const DEV_USER_PATH = /^\/api\/dev\/account\/([A-Za-z0-9_-]{1,64})\/(residue|rerun)$/
-const LOCAL_HOSTS: Record<string, true> = { localhost: true, "127.0.0.1": true, "[::1]": true }
 const MAX_BODY = 4096
 
 function error(status: number, message: string): Response {
@@ -42,11 +39,15 @@ export function isFresh(createdAt: Date | string | number, now = Date.now()): bo
 export async function accountRoute(request: Request, env: Env): Promise<Response | null> {
 	const url = new URL(request.url)
 	if (url.pathname === DELETE_PATH) return deleteAccount(request, env, url)
-	if (process.env.NODE_ENV === "development" && url.pathname.startsWith(DEV_PREFIX)) {
-		if (LOCAL_HOSTS[url.hostname] !== true) return error(404, "not found")
-		return devRoute(request, env, url)
-	}
 	return null
+}
+
+// Called only from the dev guard, so a production bundle does not reach it.
+export async function devAccountRoute(request: Request, env: Env): Promise<Response | null> {
+	const url = new URL(request.url)
+	if (!url.pathname.startsWith(DEV_PREFIX)) return null
+	if (!devRequest(url)) return error(404, "not found")
+	return devRoute(request, env, url)
 }
 
 async function deleteAccount(request: Request, env: Env, url: URL): Promise<Response> {

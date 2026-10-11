@@ -1,8 +1,5 @@
 import { betterAuth } from "better-auth"
-import { devSession } from "./dev-session"
-
-// Each NODE_ENV comparison is a constant after bundling, so a production build drops the dev plugin.
-declare const process: { env: { NODE_ENV?: string } }
+import { DEV, devAuthPlugins, devTrustedOrigins } from "../lib/dev-guard"
 
 export interface AuthEnv {
   AUTH_DB: D1Database
@@ -44,7 +41,7 @@ export function createAuth(env: AuthEnv, request: Request) {
     basePath: AUTH_PATH,
     trustedOrigins: [
       ...(env.TRUSTED_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? []),
-      ...(process.env.NODE_ENV === "development" ? ["http://localhost:*"] : []),
+      ...devTrustedOrigins(),
     ],
     socialProviders: socialProviders(env),
     session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
@@ -53,7 +50,7 @@ export function createAuth(env: AuthEnv, request: Request) {
       // Schema is owned by D1 migrations; validating per instance reads it on every request.
       database: { validateSchema: false },
     },
-    plugins: process.env.NODE_ENV === "development" ? [devSession()] : [],
+    plugins: devAuthPlugins(),
   })
 }
 
@@ -98,7 +95,7 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
   if (pathname.startsWith(`${AUTH_PATH}/`)) return createAuth(env, request).handler(request)
   if (pathname === "/api/providers") {
     const on = socialProviders(env)
-    return Response.json({ google: "google" in on, github: "github" in on, dev: process.env.NODE_ENV === "development" })
+    return Response.json({ google: "google" in on, github: "github" in on, dev: DEV })
   }
   return null
 }

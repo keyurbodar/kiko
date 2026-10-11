@@ -8,7 +8,6 @@ import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadlin
 import { RoomRoutines } from "./routines"
 import { SignalWindow, SIGNALS_WAKEUP } from "./signals"
 import { HELD_WAKEUP, HeldWakes, type Wake, type WakeResult } from "./wake"
-declare const process: { env: { NODE_ENV?: string } }
 
 import { chatTasks, openTasks } from "./open-tasks"
 import type { RoomRoutine } from "../user/routines"

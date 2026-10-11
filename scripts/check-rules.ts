@@ -38,8 +38,9 @@ export const RULES: readonly Rule[] = [
     id: "dev-guard",
     description: "process.env.NODE_ENV is read in one dev guard module only.",
     roots: ALL_SRC,
+    skip: (path) => path === "apps/server/src/lib/dev-guard.ts",
     match: (line) => line.includes("process.env.NODE_ENV"),
-    enforce: false,
+    enforce: true,
   },
   {
     id: "egress",
