@@ -37,26 +37,47 @@ const textOf = (m: Message) =>
     .trim()
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
 
-/** Section 8. A worker has no start_work. It runs `[steps N]` slow steps (one by default), then reports every turn it was given. */
+/**
+ * Section 8. A worker has no start_work. A task with a tool directive (`[ws <tool> {json}]` or
+ * `[tool <tool> {json}]`) calls that tool once. Otherwise it runs `[steps N]` slow steps (one by
+ * default). Then it reports every turn it was given, with its tool results.
+ */
 const WORK_STEP_MS = 3_000
+
+const directCall = (text: string) => /\[(?:ws|tool) (\w+) (\{.*?\})\]/.exec(text.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
 
 function workerReply(messages: readonly Message[]) {
   const users = messages.filter((m) => m.role === "user").map(textOf)
-  const steps = Number(/\[steps (\d+)\]/.exec(users[0] ?? "")?.[1] ?? 1)
-  if (messages.filter((m) => m.role === "toolResult").length < steps) return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
-  return fauxAssistantMessage(`work done: heard=${users.join(" | ")}`)
+  const results = messages.filter((m) => m.role === "toolResult")
+  const direct = directCall(users[0] ?? "")
+  if (direct && !results.length) return fauxAssistantMessage(fauxToolCall(direct[1]!, JSON.parse(direct[2]!)), { stopReason: "toolUse" })
+  const steps = direct ? 1 : Number(/\[steps (\d+)\]/.exec(users[0] ?? "")?.[1] ?? 1)
+  if (results.length < steps) return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
+  return fauxAssistantMessage(`work done: heard=${users.join(" | ")}${direct ? `; tool: ${results.map(textOf).join(", ")}` : ""}`)
 }
+
+/** The tool names a request offers, read from its system entries. */
+const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => m[1]!))
 
 export function fakeReply(transcript: readonly Message[]) {
   const messages = transcript.filter((m) => m.role !== "system")
-  if (!JSON.stringify(transcript.filter((m) => m.role === "system")).includes('"start_work"')) return workerReply(messages)
+  const offered = toolsOf(transcript)
+  if (!offered.has("start_work")) return workerReply(messages)
   const report = messages.at(-1)?.role === "user" ? /<work id="(\w+)" status="(\w+)">([\s\S]*?)<\/work>/.exec(textOf(messages.at(-1)!)) : null
   if (report) return fauxAssistantMessage(`report ${report[1]} ${report[2]}: ${report[3]!.trim()}`)
+  const last = messages.at(-1)
+  // The talker has no worker-only tool (web, apps, extension tools), so it hands a call to one the way a model would.
+  const handOff = (m: Message | undefined) => {
+    const call = m?.role === "user" ? directCall(textOf(m)) : null
+    return call && !offered.has(call[1]!) ? call : null
+  }
+  const toWorker = handOff(last)
+  if (toWorker) return fauxAssistantMessage(fauxToolCall("start_work", { task: toWorker[0] }), { stopReason: "toolUse" })
+  if (last?.role === "toolResult" && last.toolName === "start_work" && handOff(messages.findLast((m) => m.role === "user"))) return fauxAssistantMessage("[skip]")
   const answered = messages.findLastIndex((m) => m.role === "assistant" && !callsTool(m) && m.stopReason !== "aborted")
   const since = messages.slice(answered + 1)
   const users = since.filter((m) => m.role === "user").map(textOf)
   const results = since.filter((m) => m.role === "toolResult").map(textOf)
-  const last = messages.at(-1)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
   const fetchFirst = last?.role === "user" && /^\[fetch\]/.test(textOf(last))
