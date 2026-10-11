@@ -152,8 +152,11 @@ export class Workers {
     this.watch(id)
   }
 
-  step(conversationId: ConversationId, step: string): void {
-    this.sql.exec("UPDATE workers SET step = ?, updated_at = ? WHERE conversation_id = ? AND status = 'running'", step, this.now(), conversationId)
+  /** Records a running worker's last step. False when `conversationId` is no running worker, such as the talker. */
+  step(conversationId: ConversationId, step: string): boolean {
+    const cursor = this.sql.exec("UPDATE workers SET step = ?, updated_at = ? WHERE conversation_id = ? AND status = 'running'", step, this.now(), conversationId)
+    cursor.toArray()
+    return cursor.rowsWritten > 0
   }
 
   /** Aborts the worker. Its report says it stopped. The abort is not awaited: a tool that ignores its signal must not hold up the talker. */

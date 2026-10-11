@@ -78,16 +78,16 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     if (took > BUSY_MS) throw new VerifyError(`the busy answer took ${took} ms, over ${BUSY_MS} ms`)
     console.log(`  ok the ninth tab was refused in ${took} ms: ${full.slice(full.indexOf("the browser is full")).slice(0, 160)}`)
 
-    // 3. a helper has none of the browser tools; its parent has all of them.
-    const parent = (await ask(a.room, "[tools]")).replace(/^tools: /, "").split(",")
-    const missing = TOOLS.filter((t) => !parent.includes(t))
-    if (missing.length) throw new VerifyError(`the agent itself should have ${missing.join(", ")}: ${parent.join(",")}`)
-    const viaHelper = await ask(a.room, toolLine("spawn_subagent", { task: "[tools]" }))
-    const listed = /tool: tools: ([\w,]+)/.exec(viaHelper)?.[1]?.split(",")
-    if (!listed?.length) throw new VerifyError(`the helper did not list its tools: ${JSON.stringify(viaHelper.slice(0, 300))}`)
-    const leaked = listed.filter((t) => TOOLS.includes(t))
-    if (leaked.length) throw new VerifyError(`a helper has browser tools: ${leaked.join(", ")}`)
-    console.log(`  ok the agent has ${TOOLS.join(", ")}; its helper has ${listed.length} tools and none of them`)
+    // 3. Section 8: the talker has none of the browser tools, so a page cannot block the human; a worker has all of them.
+    const talker = (await ask(a.room, "[tools]")).replace(/^tools: /, "").split(",")
+    const leaked = TOOLS.filter((t) => talker.includes(t))
+    if (leaked.length) throw new VerifyError(`the talker has browser tools: ${leaked.join(", ")}`)
+    const viaWorker = await ask(a.room, toolLine("start_work", { task: "[tools]" }))
+    const listed = /tools: ([\w,]+)/.exec(viaWorker)?.[1]?.split(",")
+    if (!listed?.length) throw new VerifyError(`the worker did not list its tools: ${JSON.stringify(viaWorker.slice(0, 300))}`)
+    const missing = TOOLS.filter((t) => !listed.includes(t))
+    if (missing.length) throw new VerifyError(`a worker lacks browser tools: ${missing.join(", ")}`)
+    console.log(`  ok the talker has none of ${TOOLS.join(", ")}; a worker has all of them`)
 
     // 4. the routine's browser_act ran and clicked.
     const routineText = agentTexts(r.room).find((t) => t.includes("/newest")) ?? ""

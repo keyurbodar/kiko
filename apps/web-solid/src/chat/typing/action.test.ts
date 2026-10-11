@@ -11,7 +11,7 @@ describe("how a working agent's dots move", () => {
       ["write", { path: "/a.html" }, "hop"],
       ["edit", { path: "a.html" }, "hop"],
       ["propose_agent", {}, "hop"],
-      ["spawn_subagent", {}, "orbit"],
+      ["start_work", {}, "orbit"],
       ["create_reminder", {}, "orbit"],
       ["composio_remote_workbench", {}, "orbit"],
       ["composio_multi_execute_tool", {}, "orbit"],

@@ -319,6 +319,7 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 | `create_task(title, owner, depends_on)` | lead | task board |
 | `spawn_agent(slug, role, task)` | lead | adds a member, creates its first task, delivers the task |
 | `start_work(task)`, `steer_work(id, text)`, `stop_work(id)` | every agent | background workers (section 8) |
+| `web_fetch(url)`, `composio_*`, user extension tools | workers only | the outside world, through a worker (section 8) |
 
 **DEVIATION.** The spec lets an agent reach another agent directly with `idFromName` and RPC. In yuki every agent-to-agent message goes through `RoomDO`.
 
@@ -423,7 +424,7 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 
 ## 8. Talker and workers
 
-**Decision.** An agent's root conversation is the talker. It keeps its tools and answers the human. Anything slow goes to a worker: a background child conversation in the same `AgentDO` that runs while the talker keeps talking. The `work` extension (`apps/server/src/agent/extensions/work.ts`) gives the talker three tools, and `@yuki/agent/workers` keeps the registry.
+**Decision.** An agent's root conversation is the talker. It keeps its fast tools and answers the human. Anything slow, and anything that leaves the object, goes to a worker: a background child conversation in the same `AgentDO` that runs while the talker keeps talking. The `work` extension (`apps/server/src/agent/extensions/work.ts`) gives the talker three tools, and `@yuki/agent/workers` keeps the registry.
 
 - `start_work(task)` creates a worker and returns at once with a short id (`w1`). Effect `write`.
 - `steer_work(id, text)` submits `text` to the worker with `whenBusy: "steer"`, so it joins after the worker's current tool round. A worker that already reported takes it up as a new input, so the talker can pass on the human's answer to a worker's question. Effect `message`.
@@ -431,7 +432,23 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 
 How it works:
 
-- A worker is an ownerless conversation (`tx.createConversation({ownership: {kind: "ownerless"}})`), configured in the same commit with the talker's agent minus `NOT_FOR_WORKERS`: the work tools, messaging, `note`, the chief's tools, reminders, and the team board. It gets a short worker instruction. Task ownership would keep the talker's tool open until the child ends, which is the wait this design removes.
+- The talker has only fast tools that stay in the object. Tools that leave it or can take long belong to workers only. `factory.ts` keeps the split as data, keyed by extension name:
+
+  | Extension | Talker | Worker |
+  | --- | --- | --- |
+  | `web` (`web_fetch`) | no | yes |
+  | `composio` (every `composio_*` tool) | no | yes |
+  | `ext:<name>/tools` (a user extension's tools) | no | yes |
+  | `ext:<name>` (its sections, hooks, and wraps) | yes | yes |
+  | `work` (`start_work`, `steer_work`, `stop_work`) | yes | no |
+  | messaging, `note`, chief, reminders and routines, team board | yes | no |
+  | files and bash, recall, loop, skills, self, presence, base | yes | yes |
+
+  The talker gets every extension minus `WORKER_ONLY`; a worker gets every extension minus `NOT_FOR_WORKERS`. Filtering keeps the order, so the talker's prompt cache holds. A compiled user extension is installed as two registry extensions, so a hook such as path-guard's still guards the talker's own writes. The talker's input names the learned Composio tools; the worker reads them in a `composio` prompt section.
+- Evidence, 2026-10-11. With prompt guidance only, a real-browser check on main showed the model rarely called `start_work`. Asked to read six Wikipedia pages, the talker fetched them itself and narrated each one. A human "what is 6 times 7?" sent after its first bubble was steered into that run and was answered only in the final report, at about 8.5 s, or never. After the split, `workers-model` sends the same question within 1 s of the first bubble and gets "42" in 3.0 to 3.8 s, before the report, three runs out of three. The dev counters (`tool.talker.*`, `tool.worker.*`) showed no talker `web_fetch`.
+- A worker is an ownerless conversation (`tx.createConversation({ownership: {kind: "ownerless"}})`), configured in the same commit with every extension selected now minus `NOT_FOR_WORKERS`. It does not copy the talker's list, which lacks the worker-only tools. It gets a short worker instruction. When `syncExtensions` changes the talker's extensions (an install, a switch, an update), it configures every worker conversation in the same commit, so a worker started or steered later sees the change. A learned Composio tool reaches workers through the harness reopen, since the `composio` extension keeps its name.
+- An extension tool runs in a worker, so its `yuki.call` reaches worker tools. An extension whose manifest `calls` names a talker-only tool (`send_message`, a reminder, the board) keeps its tools with the talker instead, since a worker has no such tool. The `extensions-compose` probe P3a covers it.
+- A routine run ends when its agent goes idle, not when the talker's run ends. The outbox passes `working` to `RoomDO.endRun`, which keeps the agent `working` while workers run, so a routine's worker report counts toward its outcome. Task ownership would keep the talker's tool open until the child ends, which is the wait this design removes.
 - The tool submits the task inside the tool call and keeps only the submission id. The talker's run ends; the worker goes on.
 - One agent runs at most 3 workers (`MAX_WORKERS`). A fourth `start_work` returns a refusal that tells the model to wait for a report or stop one. The slot is taken synchronously before any await, so parallel calls in one round cannot overbook. ASSUMPTION: the number 3. Every worker uses the human's one key.
 - The registry is a SQLite table in the `AgentDO`: id, task, conversation id, current submission id, status (`running`, `done`, `failed`, `stopped`), last step, origin, and times. A `beforeTool` hook in the `work-steps` extension, which workers keep, records each worker's last step (tool name and a short argument summary).

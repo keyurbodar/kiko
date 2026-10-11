@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
-import type { Conversation, ConversationId, Harness, ModelRef, SubmissionId } from "@earendil-works/pi-durable"
+import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope, RoomId } from "@yuki/protocol"
 import { measureTurn } from "../experiments/coalescing"
 import { TurnExperiment } from "../experiments/turn"
@@ -26,6 +26,7 @@ import { type ComposioTool, learnedSignature } from "../integrations/composio/cl
 import { learnedNote } from "../integrations/composio/tools"
 
 import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
+import { forWorker } from "./extensions/work"
 import type { GuestResponse, Installed, ScriptPorts } from "@yuki/sandbox/compile"
 import { hasScriptWasm, scriptWasm } from "@yuki/sandbox/wasm"
 import { checkExtension } from "@yuki/sandbox/check"
@@ -166,7 +167,7 @@ export class AgentDO extends DurableObject<Env> {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
       status: (state) => room().setStatus(home.slug, state),
-      endRun: async (runId, inputs = []) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => [])),
+      endRun: async (runId, inputs = [], working = false) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => []), working),
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
     }
   }
@@ -503,9 +504,17 @@ export class AgentDO extends DurableObject<Env> {
         .filter((i) => !broken.has(i.name))
         .map((i) => `${i.name} ${i.bundle.manifest.version}${Object.keys(i.bundle.manifest.tools ?? {}).length ? ` (tools: ${Object.keys(i.bundle.manifest.tools ?? {}).join(", ")})` : ""}`)
         .join("; ")
-      const want = extensions.selection()
+      // The talker and every worker change together, so a worker started or steered later sees the same extensions.
+      const want = extensions.talker()
       const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
-      if (want.map((e) => e.name).join("\n") !== have.join("\n")) await root.configure({ extensions: want }, BACKGROUND_CONTEXT)
+      if (want.map((e) => e.name).join("\n") !== have.join("\n")) {
+        const workers = this.host.workers.list().flatMap((w) => (w.conversationId === null ? [] : [w.conversationId]))
+        const all = forWorker(extensions.selection())
+        await root.commit(async (tx) => {
+          await configure(tx, root.id, { extensions: want })
+          for (const id of workers) await configure(tx, id, { extensions: all })
+        }, BACKGROUND_CONTEXT)
+      }
       if (!problems.length) this.#extensionsSynced = { on: extensions, key }
     } catch (error) {
       console.error(`extensions not synced: ${error instanceof Error ? error.message : String(error)}`)

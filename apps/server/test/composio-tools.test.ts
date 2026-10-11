@@ -179,9 +179,11 @@ describe("composio learned tools", () => {
     expect(state.learned.map((t) => [t.slug, t.toolkit, t.inputSchema])).toEqual([["COMPOSIO_SEARCH_WEB", "composio_search", webSchema]])
 
     const tools = (await connection.tools())!
-    const ext = composioExtension(tools, (name, args) => connection.call(name, args)).tools as unknown as Tool[]
+    const extension = composioExtension(tools, (name, args) => connection.call(name, args))
+    const ext = extension.tools as unknown as Tool[]
     expect(ext.map((t) => t.name)).toEqual(["composio_search_tools", "composio_multi_execute_tool", "composio_search_web"])
-    expect(learnedNote(tools)).toBe("connected-app tools you can call directly, no search needed: composio_search_web.")
+    expect(learnedNote(tools)).toBe("connected-app tools a worker can call directly: composio_search_web.")
+    expect(await extension.sections![0]!.render(undefined as never, undefined as never)).toBe("connected-app tools you can call directly, no search needed: composio_search_web.")
     const web = ext[2]!
     expect(effectOf(web as never)).toBe("external")
     expect(web.description).toBe("Search the web. (composio_search through composio, call it directly)")

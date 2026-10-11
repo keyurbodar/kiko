@@ -1376,7 +1376,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
-		if (state === "idle") this.team.clear(slug)
+		if (state === "idle") {
+			this.team.clear(slug)
+			this.reportRuns(this.routines.ended(slug), "ended")
+		}
 		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
 		if (!this.members.setStatus(slug, state)) return
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now())
@@ -1386,7 +1389,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, String(this.log.lastSeq()))
 	}
 
-	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = []): Promise<void> {
+	/** `working`: the agent's workers still run (section 8). A routine run ends when the agent goes idle, so its workers' report counts. */
+	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false): Promise<void> {
 		const settled = this.bubbles.settle(slug, runId)
 		if (settled) this.publish([settled], { touch: false })
 		const home = this.home()
@@ -1396,8 +1400,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.answerAsks(home, slug, runId, heard)
 		}
 		this.mail.runEnded(slug)
-		await this.setStatus(slug, "idle")
-		this.reportRuns(this.routines.ended(slug), "ended")
+		await this.setStatus(slug, working ? "working" : "idle")
 		if (!home || !first) return
 		await this.captureAnswer(home, slug, runId)
 		await this.armMemory()

@@ -92,7 +92,8 @@ describe("buildAgent", () => {
     for (const input of inputs) {
       const built = buildAgent(input)
       expect(Array.isArray(built.agent.extensions)).toBe(true)
-      expect(built.registry.snapshot().installed().map((e) => e.name)).toEqual(lists[0])
+      // The registry holds the worker-only web tool too; the talker leaves it out (section 8).
+      expect(built.registry.snapshot().installed().map((e) => e.name).filter((n) => n !== WEB)).toEqual(lists[0])
     }
     const { selected } = await firstRequest(inputs[0])
     expect(selected).toEqual(lists[0])
@@ -102,7 +103,7 @@ describe("buildAgent", () => {
     const extra = defineExtension({ name: "extra" })
     for (const lead of [true, false]) {
       const names = (buildAgent({ role: "", lead, model: FAUX, work, testExtensions: [extra] }).agent.extensions as readonly { name: string }[]).map((e) => e.name)
-      expect(names).toEqual([BASE, SKILLS, WEB, WORK, WORK_STEPS, "extra"])
+      expect(names).toEqual([BASE, SKILLS, WORK, WORK_STEPS, "extra"])
     }
   })
 
