@@ -204,6 +204,7 @@ Two guards apply.
 The table is `decide()` in `core/agent/src/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
 
 - ASSUMPTION: only a human message interrupts. An agent or system message is queued.
+- DEVIATION: a human message used to wait for a running tool to finish. A read, `bash`, or `ask` is now stopped, as AGENTS.md rule 4 asks. A write, a message, or an outside call still runs to its end.
 - A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles used to queue the burst as a follow-up (owner directive 2026-10-11, section 8).
 - When inputs already wait in the conversation's queue, or the cap is reached, a human message steers instead of restarting, because a restart's abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers. UNVERIFIED: stopping a tool does not withdraw queued inputs. The `abortTask` comment names only the tool task, so an interrupt is used whenever a tool runs.
 - ASSUMPTION: stop also drops the room's pending burst, so a message sent just before stop starts no run. The messages stay in the log.
