@@ -86,6 +86,10 @@ bun scripts/check-imports.ts      # packages import only the packages below them
 - Keep a check under 5 minutes: run only the suites the change touches. Suites that reset and read the server's dev counters clobber each other, so run those one at a time or on separate servers.
 - Do not write a test that only proves the code runs. A test must fail when the behavior breaks.
 
+## Subagents
+
+Pick the model with [`docs/subagents.md`](docs/subagents.md). Run every subagent at `medium` effort.
+
 ## Tasks and pull requests
 
 - The plan is in `docs/phases/`. `tasks.tsv` and `issues/` are generated from it by `bun scripts/plan.ts`. Edit the phase file, then regenerate.
@@ -138,7 +142,7 @@ core/
   sandbox/              @yuki/sandbox: QuickJS VM, manifest, compiler, checker
   browser/              @yuki/browser: browser session and tools
 docs/
-  overview.md  product.md  architecture.md
+  overview.md  product.md  architecture.md  subagents.md
   phases/               the plan, one file per phase
   research/             facts with sources
   reference/            code to port, kept unchanged
