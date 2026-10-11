@@ -21,4 +21,4 @@ U28	Human can stop work, ask does not wait	2	haiku	running	s/u28-agent	-	-	-	202
 U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
 U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
-U31	Verification never touches another server	2	deepseek	running	s/u31-verify-safety	-	-	-	2026-10-11T17:02:46Z
+U31	Verification never touches another server	2	deepseek	landed	s/u31-verify-safety	d877e482	full-gate-green	main 50becab5	2026-10-11T17:10:10Z
