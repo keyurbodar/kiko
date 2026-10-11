@@ -1,7 +1,5 @@
 import type { AgentDO } from "./agent/agent-do"
-import { devAgentRoute } from "./agent/dev-route"
-import { devBrowserRoute } from "./user/dev-browser-route"
-import { devStatsRoute } from "./lib/dev-stats"
+import { devResponse } from "./lib/dev-guard"
 import { authRoute, getSessionUser } from "./auth/auth"
 import { userStub } from "./lib/names"
 import { accountRoute } from "./auth/account-route"
@@ -26,8 +24,6 @@ setScriptWasm(quickjsWasm)
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
 export { UserDO } from "./user/user-do"
-
-declare const process: { env: { NODE_ENV?: string } }
 
 export interface Env {
   USER: DurableObjectNamespace<UserDO>
@@ -66,12 +62,8 @@ export default {
     if (searched) return searched
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
-    const devAgent = await devAgentRoute(request, env)
-    if (devAgent) return devAgent
-    const devBrowser = await devBrowserRoute(request, env)
-    if (devBrowser) return devBrowser
-    const devStats = devStatsRoute(request)
-    if (devStats) return devStats
+    const dev = await devResponse(request, env)
+    if (dev) return dev
     const account = await accountRoute(request, env)
     if (account) return account
     if (url.pathname === "/api/me") {

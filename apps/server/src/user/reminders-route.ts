@@ -1,10 +1,9 @@
 import { isRoomId } from "@yuki/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
+import { DEV } from "../lib/dev-guard"
 import { userStub } from "../lib/names"
 import type { ReminderResult } from "./reminders"
-
-declare const process: { env: { NODE_ENV?: string } }
 
 const ACTION = /^\/api\/reminders\/([0-9a-f-]{36})\/(cancel|snooze|rewind)$/
 
@@ -52,7 +51,7 @@ export async function remindersRoute(request: Request, env: Env): Promise<Respon
   const [, id, verb] = action as unknown as [string, string, string]
   if (verb === "cancel") return reply(await stub.cancelReminder(id))
   if (verb === "rewind") {
-    if (process.env.NODE_ENV !== "development") return error(404, "not found")
+    if (!DEV) return error(404, "not found")
     return reply(await stub.rewindReminder(id))
   }
   const time = str((await body(request))?.time)

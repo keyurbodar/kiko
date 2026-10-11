@@ -1,9 +1,8 @@
 import { type AuthEnv, getSessionUser } from "./auth/auth"
 import type { Env } from "./index"
 import { humanHandle } from "@yuki/protocol"
+import { DEV } from "./lib/dev-guard"
 import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
-
-declare const process: { env: { NODE_ENV?: string } }
 
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
 
@@ -49,7 +48,7 @@ export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean
   if (!origin || origin === url.origin) return true
   const trusted = env.TRUSTED_ORIGINS?.split(",").map((o) => o.trim()) ?? []
   if (trusted.includes(origin)) return true
-  return process.env.NODE_ENV === "development" && /^http:\/\/localhost(:\d+)?$/.test(origin)
+  return DEV && /^http:\/\/localhost(:\d+)?$/.test(origin)
 }
 
 export async function route(

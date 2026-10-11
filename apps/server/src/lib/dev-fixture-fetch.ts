@@ -1,6 +1,5 @@
 import type { Fetcher } from "@yuki/durable/safe-fetch"
-
-declare const process: { env: { NODE_ENV?: string } }
+import { DEV } from "./dev-guard"
 
 export const devFixtureFetcher: Fetcher = async (url, init) => {
   const target = new URL(url)
@@ -16,4 +15,4 @@ export const devFixtureFetcher: Fetcher = async (url, init) => {
 }
 
 export const defaultFetcher = (): Fetcher | undefined =>
-  process.env.NODE_ENV === "development" ? devFixtureFetcher : undefined
+  DEV ? devFixtureFetcher : undefined

@@ -2,15 +2,10 @@ import type { Mode } from "../integrations/kernel/client"
 import type { ComposioConnection } from "../integrations/composio/connect"
 import { type KernelConnection, profileName } from "../integrations/kernel/connect"
 import type { InitiativeEngine } from "../initiative/engine"
+import { devOnly } from "../lib/dev-guard"
 import { setSetting } from "../lib/settings"
 import type { Reminders } from "./reminders"
 import { LAST_SEEN } from "./keys"
-
-declare const process: { env: { NODE_ENV?: string } }
-
-function devOnly(): void {
-  if (process.env.NODE_ENV !== "development") throw new Error("not found")
-}
 
 export async function devSeen(sql: SqlStorage, ago: number): Promise<void> {
   devOnly()
@@ -18,7 +13,8 @@ export async function devSeen(sql: SqlStorage, ago: number): Promise<void> {
 }
 
 export async function devSetting(sql: SqlStorage, key: "memory_policy", value: string): Promise<void> {
-  if (process.env.NODE_ENV !== "development" || key !== "memory_policy") throw new Error("not found")
+  devOnly()
+  if (key !== "memory_policy") throw new Error("not found")
   setSetting(sql, key, value)
 }
 
