@@ -35,7 +35,9 @@ const suite: Suite = {
       const from = statuses(room).length
       await until("the agent's reply", () => seen(room).live.length > before, ms)
       // The agent may say a line before its tools run, so wait for the run to end, not the first bubble.
-      await until("the run to end", () => statuses(room).slice(from).at(-1) === "idle", ms)
+      await until("the run to end", () => statuses(room).slice(from).at(-1) === "idle", ms).catch((e: Error) => {
+        throw new VerifyError(`${e.message}. statuses ${statuses(room).slice(from).join(",")}; bubbles ${JSON.stringify(seen(room).live.slice(before).map((m) => m.text.slice(0, 80)))}`)
+      })
       await Bun.sleep(1_500)
       return seen(room).live.slice(before).map((m) => m.text).join("\n")
     }

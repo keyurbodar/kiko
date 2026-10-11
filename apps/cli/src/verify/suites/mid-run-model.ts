@@ -1,7 +1,7 @@
 import type { RoomToClient } from "@yuki/protocol"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { newRoom, seen, send, until } from "./mid-run"
+import { newRoom, seen, send, statuses, until } from "./mid-run"
 
 // P1-12 with the real test model. `mid-run` proves each rule with the fake agent. This one checks
 // that stop really ends a live model run: once the agent reports idle, no more bubbles arrive, and
@@ -28,7 +28,9 @@ const suite: Suite = {
       "the agent to go idle",
       () => room.raw.log.slice(stoppedAt).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as { state: string }).state === "idle"),
       15_000,
-    )
+    ).catch((e: Error) => {
+      throw new VerifyError(`${e.message}. statuses ${statuses(room).join(",")}; bubbles ${JSON.stringify(seen(room).live.map((m) => m.text.slice(0, 60)))}`)
+    })
     const atIdle = seen(room).live.length
     await Bun.sleep(5_000)
     expectEqual(seen(room).live.length, atIdle, "bubbles after the agent went idle")

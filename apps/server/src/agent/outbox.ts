@@ -313,11 +313,13 @@ export class Outbox {
       this.save(run)
       await this.flush()
     }
-    await this.room()?.endRun(id, inputs, this.workers)
+    const working = this.workers
+    await this.room()?.endRun(id, inputs, working)
     this.sql.exec("UPDATE outbox SET ended = 1 WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
-    this.state = "idle"
-    if (this.workers && !this.run) await this.setStatus("working")
+    this.state = working ? "working" : "idle"
+    // A worker may have started or ended while the room ended the run.
+    if (!this.run) await this.setStatus(this.workers ? "working" : "idle")
   }
 
   private async setStatus(state: AgentState): Promise<void> {
