@@ -11,7 +11,7 @@ import type { Suite } from "../runner"
 //
 //   restart  a message before the first bubble aborts the run; one answer covers both turns
 //   steer    a message during a tool joins the run after the tool; one answer covers both
-//   queue    a message after a bubble waits; the first run finishes, then a second answers it
+//   steer after a bubble   a message after a bubble steers; with no tool round left, it is placed when the run answers
 //   stop     stop aborts the run and discards the message that waited
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -121,20 +121,19 @@ const cases: Case[] = [
     },
   },
   {
-    name: "queue after a bubble",
+    name: "steer after a bubble",
     async run(room) {
       await send(room, "[two-part] first")
       await until("the first bubble", () => texts(room).includes("part one."), 10_000)
       await send(room, "next")
-      await until("the second run's answer", () => texts(room).includes("heard: next"), 25_000)
+      await until("the answer to the second message", () => texts(room).includes("heard: next"), 25_000)
       await Bun.sleep(2_000)
       const { live, deleted } = seen(room)
       expectEqual(live.length, 3, "bubbles")
       expectEqual(live[0]!.text, "part one.", "the first bubble")
       if (!live[1]!.text.endsWith("heard: [two-part] first")) throw new VerifyError(`the first run did not finish its answer: ${live[1]!.text}`)
-      expectEqual(live[2]!.text, "heard: next", "the queued answer")
+      expectEqual(live[2]!.text, "heard: next", "the answer to the steered message")
       expectEqual(live[0]!.run?.runId === live[1]!.run?.runId, true, "the first two bubbles share a run")
-      expectEqual(live[1]!.run?.runId !== live[2]!.run?.runId, true, "the queued message got its own run")
       expectEqual(deleted, 0, "deleted bubbles")
     },
   },
