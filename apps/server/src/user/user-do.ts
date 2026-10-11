@@ -874,10 +874,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async deleteAll(): Promise<number> {
-    if (await isWiped(this.ctx.storage)) return 0
     // The Composio session goes too, behind the wipe: it reads the key before the rows are gone.
-    this.#composio.disconnect()
-    return wipeStorage(this.ctx)
+    return wipeStorage(this.ctx, async () => this.#composio.disconnect())
   }
 
   async storedRows(): Promise<number> {

@@ -901,7 +901,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async deleteAll(): Promise<number> {
-		if (await isWiped(this.ctx.storage)) return 0
 		return wipeStorage(this.ctx)
 	}
 
