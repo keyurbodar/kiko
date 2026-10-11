@@ -17,7 +17,7 @@ U29	One dev guard	2	haiku	landed	s/u29-dev-guard	968c7199	full-gate-green 5-suit
 U23	One sealed-key store	2	deepseek	queued	-	-	-	-	2026-10-11T16:35:27Z
 U26	Routines and UserDO edges	3	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 U27	One delivery path in RoomDO	3	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U28	Human can stop work, ask does not wait	2	haiku	landed	s/u28-agent	75ec5081	full-gate-green mid-run+team-ask-live review-pending	main 7c9814dc	2026-10-11T17:22:27Z
+U28	Human can stop work, ask does not wait	2	haiku	round2	s/u28-agent	75ec5081	landed-r1 review-F1-F2	main 7c9814dc	2026-10-11T17:38:12Z
 U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
 U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
