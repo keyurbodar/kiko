@@ -101,3 +101,25 @@ export async function enqueueDeletion(queue: Queue, userId: string, rooms: RoomI
 		await queue.sendBatch(jobs.slice(i, i + QUEUE_BATCH).map((body) => ({ body })))
 	}
 }
+
+interface DeletionStart {
+	revoke(): Promise<void>
+	begin(): Promise<RoomId[]>
+	enqueue(rooms: RoomId[]): Promise<void>
+	// Undoes revoke and begin so the user can sign in and ask again.
+	abort(): Promise<void>
+}
+
+// The tombstone must land before any data is touched, so a failed queue send undoes it: a tombstoned user is answered 401 and could never retry.
+// Jobs already queued by a partial send are harmless; they only delete data the user asked to delete, and the retry queues the rest.
+export async function startDeletion(s: DeletionStart): Promise<number> {
+	await s.revoke()
+	try {
+		const rooms = await s.begin()
+		await s.enqueue(rooms)
+		return rooms.length
+	} catch (e) {
+		await s.abort().catch((abortError) => console.error("account deletion rollback failed", abortError))
+		throw e
+	}
+}

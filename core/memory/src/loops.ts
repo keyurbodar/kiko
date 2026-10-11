@@ -129,7 +129,7 @@ export class Loops {
         )
         return { ok: true, id: old.id, merged: true } as const
       }
-      if (input.source !== "tool" && input.ref && owner !== "human") {
+      if (input.source === "jev" && input.ref && owner !== "human") {
         const seen = this.sql.exec<{ id: number }>("SELECT id FROM loops WHERE ref = ? AND owner = ? AND room = ? LIMIT 1", input.ref, owner, room).toArray()[0]
         if (seen) return { ok: true, id: seen.id, merged: true } as const
       }
