@@ -12,6 +12,7 @@ import type { RoomRoutines } from "./routines"
 import type { RoomWorkspace } from "./workspace"
 import { wakeBody } from "./workspace"
 import { type HeldWakes, HELD_PER_PASS, HELD_WAKEUP, type Wake, type WakeResult, wakeStamp } from "./wake"
+import type { Receipt } from "./receive"
 import { type Deliveries, type ReminderDelivery, reminderChain } from "./deliver"
 
 export const DELIVERY_RETRY_MS = 2_000
@@ -35,7 +36,7 @@ export type WakeDeps = {
 	chat: (home: Home) => Promise<Chat | null>
 	seedMembers: (home: Home, chat: Chat) => Promise<void>
 	publish: (events: RoomEvent[]) => void
-	deliver: (home: Home, member: MemberRow, members: readonly MemberRow[], chatTitle: string, envelope: Envelope) => Promise<{ refused: string | null | undefined; envelopes: Envelope[]; reactionsUpTo: number; deliveredTo: AgentSlug }>
+	receive: (home: Home, member: MemberRow, members: readonly MemberRow[], chatTitle: string, envelope: Envelope) => Promise<Receipt>
 }
 
 export class RoomWakes {
@@ -148,27 +149,20 @@ export class RoomWakes {
 			}
 		}
 		const envelope: Envelope = { id: w.id, roomId: home.roomId, from: { kind: "system", reason: w.why }, body: w.body, seq: w.seq ?? this.d.log.lastSeq(), ...wakeStamp(w, (root) => this.d.mail.stopped(root)) }
-		const { refused } = await this.d.deliver(home, member, members, chat.title, envelope)
-		if (refused === "full") {
+		const receipt = await this.d.receive(home, member, members, chat.title, envelope)
+		if (receipt !== "admitted") {
 			this.d.mail.refund(w.id)
 			if (w.budget !== "paid") await userStub(this.d.env.USER, home.userId).refundAutonomous(w.id)
-			throw new Error(`${w.to}'s inbox is full`)
-		}
-		if (refused) {
-			console.error(`${w.why} delivery to ${w.to} refused: ${refused}`)
-			this.d.mail.refund(w.id)
-			if (w.budget !== "paid") await userStub(this.d.env.USER, home.userId).refundAutonomous(w.id)
-			this.d.deliveries.mark(w.id)
-			return "refused"
+			if (receipt === "full") throw new Error(`${w.to}'s inbox is full`)
 		}
 		this.d.deliveries.mark(w.id)
-		return "delivered"
+		return receipt === "admitted" ? "delivered" : "refused"
 	}
 
 	async retryHeld(): Promise<void> {
 		const home = this.d.home()
 		if (!home) return
-		const due = this.d.outbox.due(Date.now())
+		const due = this.d.outbox.next(Date.now())
 		let stuck = false
 		let failed = false
 		for (const w of due) {

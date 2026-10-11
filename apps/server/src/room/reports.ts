@@ -86,7 +86,7 @@ export class Reports {
 		const home = this.d.home()
 		if (!home) return
 		for (let held = this.d.signals.held(); held; held = this.d.signals.held()) {
-			await userStub(this.d.env.USER, home.userId).signals({ roomId: home.roomId, openedAt: Date.now(), signals: held.signals, more: 0 })
+			await userStub(this.d.env.USER, home.userId).signals({ roomId: home.roomId, openedAt: held.signals[0]?.at ?? 0, signals: held.signals, more: 0 })
 			this.d.signals.released(held.upto)
 		}
 	}
