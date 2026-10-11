@@ -78,9 +78,12 @@ export function ignoreDeadline(r: Rhythm, at: number, tz: string): number {
   if (!known(now)) return at + DAY
   const need = total(now) / 7
   let mass = 0
-  for (let t = at; t < at + DEADLINE_HORIZON; t += STEP) {
-    mass += ((now.w[slotOf(t, tz)] ?? 0) * STEP) / HOUR
-    if (mass >= need) return t + STEP
+  // Steps end on the 15-minute grid, so a step never straddles an hour and counts only the time it spends in its own slot.
+  for (let t = at; t < at + DEADLINE_HORIZON; ) {
+    const end = t - (t % STEP) + STEP
+    mass += ((now.w[slotOf(t, tz)] ?? 0) * (end - t)) / HOUR
+    if (mass >= need) return end
+    t = end
   }
   return at + DEADLINE_HORIZON
 }
