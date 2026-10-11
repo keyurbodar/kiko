@@ -7,10 +7,10 @@ import { until } from "./mid-run"
 // Architecture section 7.11, with the real model. The human never fills in a form:
 //
 //   1. temp      the new chat button's temporary chat with yuki
-//   2. propose   yuki proposes an agent and makes nothing until the human answers
-//   3. agent     after "yes", the agent exists with yuki's soul, its chat opens, and it says hi first
-//   4. group     another temporary chat: yuki proposes, the human says yes, the chat becomes the group
-//                with new agents and yuki's /chat.md, and joins the chat list
+//   2. agent     yuki makes the agent in the same run: it exists with yuki's soul, its chat opens, and
+//                it says hi first
+//   3. group     another temporary chat: yuki makes the group, the chat becomes the group with new
+//                agents and yuki's /chat.md, and joins the chat list
 
 function messages(room: RoomHandle): Message[] {
   const out = new Map<string, Message>()
@@ -22,19 +22,6 @@ function messages(room: RoomHandle): Message[] {
 }
 const yuki = (room: RoomHandle, after = 0) => messages(room).filter((m) => m.seq > after && m.from.kind === "agent" && m.from.slug === "yuki")
 const last = (room: RoomHandle) => messages(room).at(-1)?.seq ?? 0
-
-async function quiet(room: RoomHandle, ms: number, cap: number) {
-  const end = Date.now() + cap
-  let n = room.raw.log.length
-  let since = Date.now()
-  while (Date.now() < end) {
-    await Bun.sleep(250)
-    if (room.raw.log.length !== n) {
-      n = room.raw.log.length
-      since = Date.now()
-    } else if (Date.now() - since >= ms) return
-  }
-}
 
 const suite: Suite = {
   name: "chief",
@@ -69,19 +56,10 @@ const suite: Suite = {
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === draftId))
     const draft = await s.room(draftId)
 
-    // 2. Propose, and nothing is made yet.
+    // 2. The agent, its chat, its hello.
     let from = last(draft)
     t0 = Date.now()
-    draft.send("i want something to help me plan my weekly meals and grocery list")
-    await until("yuki's proposal", () => yuki(draft, from).length > 0, 90_000)
-    await quiet(draft, 6_000, 90_000)
-    console.log(`  proposal (${Date.now() - t0} ms): ${JSON.stringify(yuki(draft, from).map((m) => m.text))}`)
-    if (agents().length) throw new VerifyError("yuki made an agent before the human said yes")
-
-    // 3. Yes: the agent, its chat, its hello.
-    from = last(draft)
-    t0 = Date.now()
-    draft.send("yes, make it")
+    draft.send("make me an agent to help me plan my weekly meals and grocery list")
     await until("the made line", () => messages(draft).some((m) => m.seq > from && m.goto), 90_000).catch((e) => {
       throw new VerifyError(`${e instanceof Error ? e.message : e}. yuki said: ${JSON.stringify(yuki(draft, from).map((m) => m.text))}`)
     })
@@ -96,19 +74,14 @@ const suite: Suite = {
     await until(`@${agent.slug} says hi`, () => messages(dm).some((m) => m.from.kind === "agent" && m.from.slug === agent.slug), 90_000)
     console.log(`  hello (${Date.now() - t0} ms): ${JSON.stringify(messages(dm).find((m) => m.from.kind === "agent")!.text)}`)
 
-    // 4. A group.
+    // 3. A group.
     const groupId = newRoomId()
     t0 = Date.now()
     user.send({ t: "chat", op: { op: "create", roomId: groupId, title: "new chat", agents: ["yuki"], temp: true } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === groupId))
     const group = await s.room(groupId)
     from = last(group)
-    group.send(`a group to plan a weekend in lisbon: @${agent.slug} for food, and a new one who plans the itinerary`)
-    await until("yuki's group proposal", () => yuki(group, from).length > 0, 90_000)
-    await quiet(group, 6_000, 90_000)
-    console.log(`  group proposal: ${JSON.stringify(yuki(group, from).map((m) => m.text))}`)
-    from = last(group)
-    group.send("yes")
+    group.send(`make a group to plan a weekend in lisbon: @${agent.slug} for food, and a new one who plans the itinerary`)
     await until("the temporary chat to become the group", () => chats().get(groupId) !== undefined && chats().get(groupId)?.temp === undefined, 120_000).catch((e) => {
       throw new VerifyError(`${e instanceof Error ? e.message : e}. yuki said: ${JSON.stringify(yuki(group, from).map((m) => m.text))}`)
     })

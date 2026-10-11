@@ -1,16 +1,13 @@
 import { VerifyError } from "../client"
-import { agentTexts, api, dev, eventually, inSeconds, ok, type Routine, routines, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
+import { agentTexts, api, dev, eventually, inSeconds, ok, type Routine, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
 import { fake, newRoom, send } from "./mid-run"
 
 // Architecture section 25.2 and 25.3, with the scripted fake agent: no tokens. A human's ask makes a
 // routine at once; a routine runs once per occurrence, posts its answer, or stays quiet and says so in
-// its run record; a routine that wants a new routine asks in chat and the human's "yes" makes it; a
-// run that read outside content and wants a grant asks too, and the routine the yes makes is clean; a
-// grant lets a routine use one outside tool and nothing else; runs past the day's budget are held; a run past its time
-// budget is stopped; three failed runs pause the routine. Needs NODE_ENV=development.
-
-const ASKS = "This needs the human's ok"
+// its run record; a routine run may make a new routine and use an outside tool on its own; runs past
+// the day's budget are held; a run past its time budget is stopped; three failed runs pause the
+// routine. Needs NODE_ENV=development.
 
 const suite: Suite = {
   name: "routines",
@@ -32,13 +29,6 @@ const suite: Suite = {
       const after = await waitRoutine(url, s, (all) => all.find((x) => x.id === r.id), "the routine")
       if (after.status !== "done") throw new VerifyError(`a one-off routine should be done after its run, got ${after.status}`)
       console.log(`  ok a human's ask made routine ${r.id} at once; it ran once (seq ${runs[0]!.seq}) and is done`)
-
-      // A clean run the human started may grant an outside tool without asking.
-      await send(room, toolLine("create_routine", { name: "pinger", instructions: "[quiet]", may: ["fake_send"], trigger: { on: "time", at: inSeconds(3600) } }))
-      const p = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "pinger"), "the granted routine")
-      if (p.tainted || p.grant.join() !== "fake_send") throw new VerifyError(`expected a clean routine granted fake_send, got ${JSON.stringify(p)}`)
-      if (agentTexts(room).some((t) => t.includes(ASKS))) throw new VerifyError("a clean human run's grant was told to ask")
-      console.log("  ok a clean human run granted fake_send to a routine without asking")
       room.raw.close()
     }
 
@@ -56,58 +46,29 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 3. A routine run (no human) that wants a new routine is told to ask in chat; nothing exists until the human says yes.
+    // 3. A routine run (no human) that wants a new routine makes it.
     {
-      const { roomId, room } = await newRoom(s, "routines: ask first")
+      const { roomId, room } = await newRoom(s, "routines: child")
       await fake(v, s, roomId)
       const inner = { name: "child", instructions: "[quiet]", trigger: { on: "time", at: inSeconds(3600) } }
       const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "parent", instructions: toolLine("create_routine", inner), trigger: { on: "time", at: inSeconds(3) } })
-      await eventually("the agent told to ask", () => agentTexts(room).some((t) => t.includes(ASKS)), 40_000)
-      await waitRuns(url, s, routine.id, "the parent's run to end", (rs) => rs.some((x) => x.status !== "running"), 30_000)
-      if ((await routines(url, s)).routines.some((x) => x.name === "child")) throw new VerifyError("the routine existed before the human said yes")
-      await send(room, "[yes]")
-      const child = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "child"), "the routine the yes made", 30_000)
-      console.log(`  ok a run nobody asked for was told to ask in chat and made nothing; the human's yes made ${child.id}`)
+      await waitRuns(url, s, routine.id, "the parent's run to end", (rs) => rs.some((x) => x.status !== "running"), 40_000)
+      const child = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "child"), "the routine the run made", 30_000)
+      if (child.createdBy !== "yuki") throw new VerifyError(`expected yuki to make the child routine, got ${JSON.stringify(child)}`)
+      console.log(`  ok a run nobody asked for made routine ${child.id} on its own`)
       room.raw.close()
     }
 
-    // 3b. A run that read a page asking for a routine with a grant is told to ask. The human's yes starts
-    // a fresh run that makes it: stored clean, with its grant.
+    // 4. A routine run uses an outside tool on its own.
     {
-      const { roomId, room } = await newRoom(s, "routines: tainted grant")
+      const { roomId, room } = await newRoom(s, "routines: outside")
       await fake(v, s, roomId)
-      const granted = { name: "granted child", instructions: "[call fake_send]", may: ["fake_send"], trigger: { on: "time", at: inSeconds(3600) } }
-      await send(room, `[fetch] ${toolLine("create_routine", granted)}`)
-      // The fake answers with its trust tools only, so the refusal shows as the absent routine.
-      await eventually("the tainted run's answer", () => agentTexts(room).includes("tools: fake_fetch ran"), 30_000)
-      if ((await routines(url, s)).routines.some((x) => x.name === "granted child")) throw new VerifyError("a tainted run made a routine with a grant")
-      await send(room, "[yes]")
-      const g = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "granted child"), "the granted routine", 30_000)
-      if (g.tainted || g.grant.join() !== "fake_send") throw new VerifyError(`the routine the yes made should be clean and keep its grant, got ${JSON.stringify(g)}`)
-      const before = agentTexts(room).filter((t) => t.startsWith("tools:")).length
-      await ok(url, s, `routines/${g.id}/run`, {})
-      await eventually("the granted child's answer", () => agentTexts(room).filter((t) => t.startsWith("tools:")).length > before, 30_000)
-      const said = agentTexts(room).filter((t) => t.startsWith("tools:")).at(-1)
-      if (said !== "tools: fake_send ran") throw new VerifyError(`a grant the human said yes to did not work: ${JSON.stringify(said)}`)
-      console.log("  ok a tainted run's routine with a grant was refused until the human's yes; then it was stored clean and its run used fake_send")
-      room.raw.close()
-    }
-
-    // 4. A grant lets the routine use exactly that outside tool; without it the call is refused.
-    {
-      const { roomId, room } = await newRoom(s, "routines: grant")
-      await fake(v, s, roomId)
-      const granted = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "send it", instructions: "[call fake_send]", may: ["fake_send"], trigger: { on: "time", at: inSeconds(3) } })
-      await waitRuns(url, s, granted.routine.id, "the granted run", (rs) => rs.some((x) => x.status === "ok"), 40_000)
-      await eventually("the granted answer", () => agentTexts(room).some((t) => t.startsWith("tools:")), 5_000)
+      const made = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "send it", instructions: "[call fake_send]", trigger: { on: "time", at: inSeconds(3) } })
+      await waitRuns(url, s, made.routine.id, "the run", (rs) => rs.some((x) => x.status === "ok"), 40_000)
+      await eventually("the answer", () => agentTexts(room).some((t) => t.startsWith("tools:")), 5_000)
       const said = agentTexts(room).find((t) => t.startsWith("tools:"))
-      if (said !== "tools: fake_send ran") throw new VerifyError(`expected the granted tool to run, got ${JSON.stringify(said)}`)
-      const bare = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "send it bare", instructions: "[call fake_send]", trigger: { on: "time", at: inSeconds(3) } })
-      await waitRuns(url, s, bare.routine.id, "the ungranted run", (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      await eventually("the blocked answer", () => agentTexts(room).filter((t) => t.startsWith("tools:")).length >= 2, 5_000)
-      const blocked = agentTexts(room).filter((t) => t.startsWith("tools:"))[1]
-      if (blocked !== "tools: fake_send blocked") throw new VerifyError(`expected the ungranted call blocked, got ${JSON.stringify(blocked)}`)
-      console.log("  ok a granted routine ran fake_send; the same routine without the grant was blocked")
+      if (said !== "tools: fake_send ran") throw new VerifyError(`expected the outside tool to run, got ${JSON.stringify(said)}`)
+      console.log("  ok a routine run used fake_send with nobody asked")
       room.raw.close()
     }
 

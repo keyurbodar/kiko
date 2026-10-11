@@ -1,16 +1,13 @@
-import type { Agent, AgentSlug, RoomId, RoomToClient, UserToClient } from "@yuki/protocol"
+import type { AgentSlug, RoomToClient, UserToClient } from "@yuki/protocol"
 import { type RoomHandle, VerifyError } from "../client"
 import { agentTexts, dev, eventually, inSeconds, messages, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
-import { fake, newRoom, send, ulid } from "./mid-run"
+import { fake, newRoom, send } from "./mid-run"
 
 // Architecture sections 25.3, 25.5, and 26.6, with the scripted fake agent: no tokens. A task left
 // two days wakes its owner once through the initiative pass; a human away for a week holds every run
-// nobody asked for and hears why once; no check-in routine exists, and yuki's overview reads every chat; work a
-// routine hands to a teammate keeps the routine's authority, so the teammate cannot act outside yuki
-// without the human, while the same hand-off from a human can. Needs NODE_ENV=development.
-
-const agentOf = (name: string, run: string): Agent => ({ id: `proactive-${run}-${name}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
+// nobody asked for and hears why once; no check-in routine exists, and yuki's overview reads every chat.
+// Needs NODE_ENV=development.
 
 const suite: Suite = {
   name: "proactive",
@@ -129,32 +126,6 @@ const suite: Suite = {
       const text = agentTexts(room).find((t) => t.includes("chats, newest first"))!
       if (!text.includes("proactive: overview") || !text.includes("open task")) throw new VerifyError(`the overview missed something: ${text.slice(0, 600)}`)
       console.log(`  ok no check-in routine; overview lists chats and open tasks (${text.length} chars)`)
-      room.raw.close()
-    }
-
-    // 4. Authority survives a hand-off. A routine's run hands work to @ada: ada cannot act outside yuki
-    //    without the human. The human handing the same work to ada through yuki: ada can.
-    {
-      const user = await s.user()
-      // Two agents make a group, which yuki leads (section 7.11), so yuki is the one who hands off.
-      for (const name of ["ada", "bob"]) user.send({ t: "agent", op: { op: "create", agent: agentOf(name, run) } })
-      const roomId = ulid() as RoomId
-      user.send({ t: "chat", op: { op: "create", roomId, title: "proactive: hand-off", agents: [agentOf("ada", run).id, agentOf("bob", run).id] } })
-      await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
-      const room = await s.room(roomId)
-      await ok(url, s, "dev/agent/fake", { roomId, slugs: ["yuki", "ada", "bob"] })
-      // A human hand-off first: yuki sends ada the work, ada runs fake_send.
-      await send(room, "[send ada] [call fake_send]")
-      await eventually("ada's answer to the human's hand-off", () => messages(room).some((m) => m.from.kind === "agent" && m.from.slug === "ada" && m.text.startsWith("tools:")), 30_000)
-      const fromHuman = messages(room).find((m) => m.from.kind === "agent" && m.from.slug === "ada" && m.text.startsWith("tools:"))!.text
-      if (fromHuman !== "tools: fake_send ran") throw new VerifyError(`a human's hand-off was blocked: ${fromHuman}`)
-      // Now a routine of yuki's hands the same work to ada.
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "hand off", instructions: "[send ada] [call fake_send]", trigger: { on: "time", at: inSeconds(3) } })
-      await waitRuns(url, s, routine.id, "the routine's run", (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      await eventually("ada's answer to the routine's hand-off", () => messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ada" && m.text.startsWith("tools:")).length >= 2, 30_000)
-      const fromRoutine = messages(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ada" && m.text.startsWith("tools:"))[1]!.text
-      if (fromRoutine !== "tools: fake_send blocked") throw new VerifyError(`a routine's hand-off let ada act outside yuki: ${fromRoutine}`)
-      console.log("  ok the human's hand-off let ada run fake_send; a routine's identical hand-off was blocked")
       room.raw.close()
     }
   },

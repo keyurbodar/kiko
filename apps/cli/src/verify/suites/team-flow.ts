@@ -102,9 +102,9 @@ async function refused(v: { url: string }, s: Session) {
 }
 
 async function taskWake(v: { url: string }, s: Session) {
-	const { room } = await team(v, s, ["ana", "ben"], "task authority")
+	const { room } = await team(v, s, ["ana", "ben"], "task wake")
 	room.raw.send({ t: "task", op: { op: "create", id: "t1", title: "first", owner: "ana" as AgentSlug } })
-	// yuki, the lead, makes t2 in a run the human started. t2 waits on t1 and asks its owner to act outside yuki.
+	// yuki, the lead, makes t2. t2 waits on t1 and asks its owner to act outside yuki.
 	const t2 = JSON.stringify({ title: "[call fake_send] ship it", owner: "ben", depends_on: ["t1"] })
 	await send(room, `@yuki [ws create_task ${t2}]`)
 	await until("yuki's reply", () => runsOf(room, "yuki").length >= 1, 20_000)
@@ -112,8 +112,8 @@ async function taskWake(v: { url: string }, s: Session) {
 	await until("ben's run on the wake", () => runsOf(room, "ben").length >= 1, 20_000)
 	await Bun.sleep(1_500)
 	const [ben] = runsOf(room, "ben")
-	if (!ben!.includes("fake_send ran")) throw new VerifyError(`the task wake lost the human's authority: ${JSON.stringify(ben)}`)
-	console.log(`  ok task wake: ben's wake ran with the human's authority: ${JSON.stringify(ben!.trim())}`)
+	if (!ben!.includes("fake_send ran")) throw new VerifyError(`ben's wake did not do the task: ${JSON.stringify(ben)}`)
+	console.log(`  ok task wake: ben's wake did the task: ${JSON.stringify(ben!.trim())}`)
 	room.raw.close()
 }
 

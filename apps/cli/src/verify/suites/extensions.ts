@@ -15,7 +15,7 @@ import { fake, newRoom, seen, send, until } from "./mid-run"
 // - an update replaces the running code at the next run
 // - a bundle with problems is refused with every problem named
 // - uninstall removes it and its state
-// - a trigger runs as a routine granted the extension's own tools, so its outside tool needs no card
+// - a trigger runs as a routine, and its outside tool runs
 
 const MANIFEST = (version: string) => ({
   yuki: 1,
@@ -97,8 +97,7 @@ const suite: Suite = {
     const second = await answer("[ws verify_bump {}]", 3)
     if (!second.includes("tool: count 2")) throw new VerifyError(`the count did not survive between runs: ${second}`)
 
-    // Its beforeTool hook blocks a built-in tool. In a clean run trust lets a write through, so the
-    // block is the extension's. (The fake model words a trust tool's result as `ran` or `blocked`.)
+    // Its beforeTool hook blocks a built-in tool. (The fake model words a fake tool's result as `ran` or `blocked`.)
     const blocked = await answer("[ws fake_note {}]", 4)
     if (!blocked.includes("fake_note blocked")) throw new VerifyError(`the hook did not block fake_note: ${blocked}`)
 
@@ -134,7 +133,7 @@ const suite: Suite = {
     if (!fresh.includes("tool: tally 1")) throw new VerifyError(`uninstall kept the old state: ${fresh}`)
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
 
-    // A trigger runs as a routine granted the extension's own tools: its outside tool runs without asking.
+    // A trigger runs as a routine, and its outside tool runs.
     const sender = { yuki: 1, name: "verify-sender", version: "1.0.0", description: "sends, for yuki verify", tools: { verify_send: { description: "sends a ping outside yuki", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
     // Triggers post in the yuki chat, which the first visit makes.
     await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
@@ -149,8 +148,8 @@ const suite: Suite = {
     if (!due.ok) throw new VerifyError(`the due route answered ${due.status}`)
     await until("the trigger's run", () => seen(home).live.some((m) => m.text.includes("tool: ")), 30_000)
     const said = seen(home).live.find((m) => m.text.includes("tool: "))!.text
-    if (!said.includes("tool: sent")) throw new VerifyError(`the trigger's run could not use its own extension's outside tool: ${said}`)
-    console.log(`  ok an extension's trigger ran its own outside tool without asking: ${JSON.stringify(said.slice(0, 80))}`)
+    if (!said.includes("tool: sent")) throw new VerifyError(`the trigger's run could not use its extension's outside tool: ${said}`)
+    console.log(`  ok an extension's trigger ran its own outside tool: ${JSON.stringify(said.slice(0, 80))}`)
     ok(await op({ op: "uninstall", name: "verify-sender" }), "clean up the sender")
     home.raw.close()
   },
