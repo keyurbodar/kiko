@@ -37,6 +37,12 @@ export function fakeTab(site: Site, start: string, opts: { delayMs?: number } = 
       return { ok: false, reason: next.fail }
     },
     screenshot: async () => new Uint8Array(),
+    eval: async () => ({ ok: false, error: "not scripted" }),
+    extract: async () => "",
+    dialog: () => null,
+    answerDialog: async () => false,
+    url: async () => `https://site.test/${at}`,
+    title: async () => "",
     close: async () => {},
   }
   return { tab, acted, at: () => at }

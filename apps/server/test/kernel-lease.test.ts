@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { type KernelClient, KernelError } from "../src/integrations/kernel/client"
-import { IDLE_MS, KernelLease, LIFETIME_MS, type LeaseStore, reapDecision, TAKEOVER_RECHECK_MS } from "../src/integrations/kernel/lease"
+import { IDLE_MS, KernelLease, type LeaseStore, reapDecision, TAKEOVER_RECHECK_MS } from "../src/integrations/kernel/lease"
 import type { LeaseRow, LeaseUrls } from "../src/integrations/kernel/store"
 
 /** A store in memory with the same behavior the lease relies on. */
@@ -62,6 +62,17 @@ function fakeKernel(script: { createErrors?: KernelError[]; deleteError?: Kernel
       calls.push(`profile ${name}`)
     },
     deleteProfile: async (name) => void calls.push(`delete profile ${name}`),
+    async curl(id, req) {
+      calls.push(`curl ${id} ${req.method ?? "GET"}`)
+      return { status: 200, headers: {}, body: req.url, durationMs: 1 }
+    },
+    async writeFile(id, path) {
+      calls.push(`write ${id} ${path}`)
+    },
+    async readFile(id, path) {
+      calls.push(`read ${id} ${path}`)
+      return new Uint8Array([1])
+    },
   }
   return { client, calls, live, maxLive: () => maxLive }
 }
@@ -84,15 +95,15 @@ function setup(script: Parameters<typeof fakeKernel>[0] = {}, start = 1_000_000)
 }
 
 describe("reaper decision table", () => {
-  const base = { createdAt: 1_000, lastUse: 1_000, takeover: false, watchUntil: 0, dead: false }
+  const base = { lastUse: 1_000, takeover: false, watchUntil: 0, dead: false }
   const cases: [string, Partial<typeof base>, number, ReturnType<typeof reapDecision>][] = [
     ["fresh browser waits for the idle time", {}, 1_000 + 10, { delete: false, at: 1_000 + IDLE_MS }],
     ["idle past the warm window is deleted", {}, 1_000 + IDLE_MS, { delete: true }],
     ["recent use pushes the idle time out", { lastUse: 200_000 }, 250_000, { delete: false, at: 200_000 + IDLE_MS }],
-    ["a busy browser still dies at its lifetime", { lastUse: LIFETIME_MS }, LIFETIME_MS + 1_000, { delete: true }],
-    ["the lifetime comes before a later idle time", { lastUse: LIFETIME_MS - 1_000 }, LIFETIME_MS - 500, { delete: false, at: 1_000 + LIFETIME_MS }],
-    ["takeover keeps it however old", { takeover: true }, 1_000 + LIFETIME_MS * 2, { delete: false, at: 1_000 + LIFETIME_MS * 2 + TAKEOVER_RECHECK_MS }],
-    ["watching keeps it until the watch ends", { watchUntil: 5_000_000 }, 1_000 + LIFETIME_MS * 2, { delete: false, at: 5_000_000 }],
+    ["a browser used inside the idle window survives any age", { lastUse: 10_000_000 }, 10_000_000 + IDLE_MS - 1, { delete: false, at: 10_000_000 + IDLE_MS }],
+    ["an idle browser is deleted at its idle time, whatever its age", { lastUse: 1_000 }, 1_000 + IDLE_MS, { delete: true }],
+    ["takeover keeps it however old", { takeover: true }, 1_000 + IDLE_MS * 20, { delete: false, at: 1_000 + IDLE_MS * 20 + TAKEOVER_RECHECK_MS }],
+    ["watching keeps it until the watch ends", { watchUntil: 5_000_000 }, 4_000_000, { delete: false, at: 5_000_000 }],
     ["a watch in the past does not count", { watchUntil: 500 }, 1_000 + IDLE_MS, { delete: true }],
     ["a dead browser is deleted at once", { dead: true, takeover: true }, 1_001, { delete: true }],
   ]
@@ -223,7 +234,7 @@ describe("reaper", () => {
     const t = setup()
     await t.lease.lease("a")
     t.lease.setTakeover(true)
-    t.clock.now += LIFETIME_MS * 2
+    t.clock.now += IDLE_MS * 20
     await t.lease.reap()
     expect(t.store.lease()).toBeDefined()
     t.lease.setTakeover(false)
@@ -232,13 +243,13 @@ describe("reaper", () => {
     expect(t.store.lease()).toBeDefined()
   })
 
-  test("a lease after the lifetime makes a new browser", async () => {
+  test("a browser touched after the idle window is kept, not replaced", async () => {
     const t = setup()
     await t.lease.lease("a")
-    t.clock.now += LIFETIME_MS + 1
+    t.clock.now += IDLE_MS + 1
     t.lease.touch("a")
     const next = await t.lease.lease("a")
-    expect(next.cdpUrl).toBe("wss://cdp/s2")
+    expect(next.cdpUrl).toBe("wss://cdp/s1")
     expect(next.restarted).toBe(false)
     expect(t.kernel.maxLive()).toBe(1)
   })

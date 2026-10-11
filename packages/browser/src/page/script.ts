@@ -21,8 +21,7 @@ const SELECTOR = [
 /** Installs window.__yuki once per document. Read and act both call into it. */
 const RUNTIME = `
 if (!window.__yuki) {
-  const SKIP = { file: 1, hidden: 1 };
-  const INPUT_ROLE = { checkbox: "checkbox", radio: "radio", submit: "button", button: "button", reset: "button", image: "button", range: "slider", search: "searchbox", email: "textbox", tel: "textbox", url: "textbox", number: "spinbutton" };
+  const INPUT_ROLE = { file: "file", checkbox: "checkbox", radio: "radio", submit: "button", button: "button", reset: "button", image: "button", range: "slider", search: "searchbox", email: "textbox", tel: "textbox", url: "textbox", number: "spinbutton" };
   const clip = (s, n) => {
     s = (s || "").replace(/\\s+/g, " ").trim();
     return s.length > n ? s.slice(0, n - 1) + "\\u2026" : s;
@@ -79,6 +78,16 @@ export const GZIP_MARK = "gz:"
 const GZIP_FROM = 8_000
 
 const READ_BODY = `
+// A load event can fire for the previous document, so a read can land mid-parse on a body-less html.
+// Wait, bounded, until this document really has a body.
+if (!document.body || document.readyState === "loading") {
+  const until = performance.now() + ${BROWSER.loadMs};
+  while ((!document.body || document.readyState === "loading") && performance.now() < until) {
+    const { promise, resolve } = Promise.withResolvers();
+    setTimeout(resolve, 50);
+    await promise;
+  }
+}
 const Y = window.__yuki;
 const CAP = ${BROWSER.controlsMax};
 const SELECTOR = ${JSON.stringify(SELECTOR)};
@@ -95,10 +104,11 @@ const vh = window.innerHeight;
 const candidates = [];
 for (let i = 0; i < found.length; i++) {
   const el = found[i];
-  if (el.tagName === "INPUT" && (el.type === "file" || el.type === "hidden")) continue;
+  if (el.tagName === "INPUT" && el.type === "hidden") continue;
+  const file = el.tagName === "INPUT" && el.type === "file";
   if (el.closest("[aria-hidden='true'],[inert]")) continue;
   const rect = el.getBoundingClientRect();
-  if (!Y.visible(el, rect)) continue;
+  if (!file && !Y.visible(el, rect)) continue;
   const dist = rect.bottom < 0 ? -rect.bottom : rect.top > vh ? rect.top - vh : 0;
   candidates.push({ el, rect, dist, order: i });
 }
@@ -221,7 +231,7 @@ return new Response(new Blob([json]).stream().pipeThrough(new CompressionStream(
  * A large one comes gzipped and base64 encoded after GZIP_MARK. Hacker News is 41 KB as JSON and took two to four
  * network round trips from Kernel; its 8.7 KB on the wire takes about one.
  */
-export const READ_SCRIPT = `(() => {${RUNTIME}${READ_BODY}})()`
+export const READ_SCRIPT = `(async () => {${RUNTIME}${READ_BODY}})()`
 
 /**
  * The guard before an action: the element with this id still exists, is visible, and has the label of the last read.

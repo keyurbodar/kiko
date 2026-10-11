@@ -10,6 +10,9 @@ import { ComposioConnection, composioErrorText } from "../integrations/composio/
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import { checkAgentId, KernelConnection, kernelErrorText, profileName } from "../integrations/kernel/connect"
+import { basenameOf, decodeBase64, encodeBase64, FETCH_BODY_CAP, FETCH_METHODS, FILE_CAP, URL_CAP } from "../integrations/kernel/files"
+import { KernelError } from "../integrations/kernel/client"
+import type { FetchRequest, FetchResult } from "../agent/browser/lease"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
 import type { Mode } from "../integrations/kernel/client"
@@ -1121,6 +1124,38 @@ export class UserDO extends DurableObject<Env> {
     const dead = await this.#kernel.markDead(agentId, sessionId)
     if (dead) this.#pushBrowser()
     return dead
+  }
+
+  /** HTTP through the browser's stack. The body is capped at 20000 chars; only http and https. */
+  async browserFetch(agentId: string, req: FetchRequest): Promise<FetchResult> {
+    checkAgentId(agentId)
+    if (typeof req?.url !== "string" || req.url.length > URL_CAP) throw new KernelError("failed", "bad url")
+    if (req.method !== undefined && FETCH_METHODS[req.method] !== true) throw new KernelError("failed", "bad method")
+    const res = await this.#kernel.fetchPage(req)
+    const truncated = res.body.length > FETCH_BODY_CAP
+    return { status: res.status, headers: res.headers, body: truncated ? res.body.slice(0, FETCH_BODY_CAP) : res.body, truncated }
+  }
+
+  /** Writes an upload into the browser's VM. `name` is sanitized to a basename; the file is capped at 10 MB. */
+  async browserPutFile(agentId: string, name: string, base64: string): Promise<{ path: string }> {
+    checkAgentId(agentId)
+    const bytes = decodeBase64(base64)
+    const safe = basenameOf(name)
+    return this.#kernel.putFile(safe, bytes)
+  }
+
+  /** Reads a file from the browser's VM. The path must be under /tmp or the downloads folder; the file is capped at 10 MB. */
+  async browserGetFile(agentId: string, path: string): Promise<{ name: string; base64: string; size: number }> {
+    checkAgentId(agentId)
+    const bytes = await this.#kernel.getFile(path)
+    if (bytes.byteLength > FILE_CAP) throw new KernelError("failed", "file is over 10 MB")
+    return { name: basenameOf(path), base64: encodeBase64(bytes), size: bytes.byteLength }
+  }
+
+  /** Names of the files in a folder on the browser's VM. The folder must be under /tmp or the downloads folder. */
+  async browserListFiles(agentId: string, dir: string): Promise<string[]> {
+    checkAgentId(agentId)
+    return this.#kernel.listFiles(dir)
   }
 
   /** The agent closed its tabs. */

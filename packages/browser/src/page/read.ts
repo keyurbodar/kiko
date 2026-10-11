@@ -1,6 +1,6 @@
 import type { Channel } from "../cdp/session"
 import { GZIP_MARK, READ_SCRIPT, settleScript } from "./script"
-import type { PageView } from "./types"
+import type { Dialog, PageView } from "./types"
 
 /** What one tab's page layer keeps between calls. */
 export type PageState = {
@@ -8,8 +8,8 @@ export type PageState = {
   targetId: string
   /** The label each id had at the last read. The click guard compares against it. */
   labels: Map<number, string>
-  /** A confirm or prompt that was dismissed and not yet reported. */
-  dialog?: string
+  /** A dialog the policy left open. The page is blocked until it is answered. */
+  dialog?: Dialog
   crashed?: boolean
   /**
    * Set by an action: the page still owes a settle (true when a menu may open). The next page script
@@ -23,6 +23,7 @@ export type PageState = {
 export const navigates = (message: string) => /context was destroyed|navigated or closed|Cannot find context/i.test(message)
 
 export async function evaluate<T>(page: PageState, expression: string, awaitPromise = false): Promise<T> {
+  if (page.dialog) throw new Error(`A ${page.dialog.type} dialog says "${page.dialog.message}" and blocks the page. Answer it with browser_dialog.`)
   if (page.loading) await page.loading
   const settle = page.settle
   page.settle = undefined
@@ -60,6 +61,11 @@ async function readOnce(page: PageState): Promise<string> {
 }
 
 export async function read(page: PageState): Promise<PageView> {
+  if (page.dialog) {
+    page.labels = new Map()
+    const { type, message } = page.dialog
+    return { key: "dialog", url: "", title: "", controls: [], text: `a ${type} dialog says: ${message}. Answer it before reading the page.`, omitted: 0 }
+  }
   let raw = await readOnce(page)
   // A click that navigates starts loading during the settle while the old document answers: read the new one.
   if (page.loading) raw = await readOnce(page)

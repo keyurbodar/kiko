@@ -1,7 +1,7 @@
 import type { BrowserState, KernelStatus } from "@yuki/protocol"
 import { sha256Hex } from "@yuki/durable/hash"
 import { CredentialError, checkApiKey } from "../../user/credentials"
-import { type KernelClient, KernelError, REJECTED, sdkClient } from "./client"
+import { type CurlRequest, type CurlResponse, type KernelClient, KernelError, REJECTED, sdkClient } from "./client"
 import { KernelLease, type LeaseInfo, MAX_TABS } from "./lease"
 import type { KernelStore, LeaseRow } from "./store"
 
@@ -186,6 +186,41 @@ export class KernelConnection {
     return this.deps.store.lease()?.sessionId ?? null
   }
 
+  /** The browser's network stack: HTTP with the session's cookies and proxy. Only http and https. */
+  async fetchPage(req: CurlRequest): Promise<CurlResponse> {
+    if (!/^https?:\/\//i.test(req.url)) throw new KernelError("failed", "only http and https urls")
+    const sessionId = await this.liveSession()
+    return (await this.client()).curl(sessionId, req)
+  }
+
+  /** Writes a file onto the browser's VM. `name` is already a basename; the path is per session. */
+  async putFile(name: string, bytes: Uint8Array): Promise<{ path: string }> {
+    const sessionId = await this.liveSession()
+    const path = `${UPLOAD_DIR}/${sessionId}/${name}`
+    await (await this.client()).writeFile(sessionId, path, bytes)
+    return { path }
+  }
+
+  /** Reads a file from the browser's VM. Only `/tmp` and the Kernel downloads directory. */
+  async getFile(path: string): Promise<Uint8Array> {
+    if (!ALLOWED_READ.test(path) || path.includes("..")) throw new KernelError("failed", "only files under /tmp or the downloads folder")
+    const sessionId = await this.liveSession()
+    return (await this.client()).readFile(sessionId, path)
+  }
+
+  /** Names of the files in a folder on the browser's VM. Only `/tmp` and the Kernel downloads directory. */
+  async listFiles(dir: string): Promise<string[]> {
+    if (!ALLOWED_READ.test(`${dir}/`) || dir.includes("..")) throw new KernelError("failed", "only folders under /tmp or the downloads folder")
+    const sessionId = await this.liveSession()
+    return (await this.client()).listFiles(sessionId, dir)
+  }
+
+  private async liveSession(): Promise<string> {
+    const row = this.deps.store.connected() ? this.deps.store.lease() : undefined
+    if (!row || row.dead) throw new KernelError("failed", "No browser is open")
+    return row.sessionId
+  }
+
   /** DEVELOPMENT ONLY. Moves the browser's clocks back, so the reaper's time is up. */
   age(ms: number): void {
     const row = this.deps.store.lease()
@@ -208,6 +243,11 @@ export class KernelConnection {
     return this.clientFor(key)
   }
 }
+
+/** Where uploads land on the browser's VM, one directory per session. */
+export const UPLOAD_DIR = "/tmp/kiko-uploads"
+/** Kernel's downloads directory and `/tmp`, the only places `getFile` reads. */
+const ALLOWED_READ = /^(\/tmp\/|\/home\/kernel\/Downloads\/)/
 
 /** `yuki-` and 16 hex characters of the user's id hash. The name never comes from input. */
 export async function profileName(userId: string): Promise<string> {

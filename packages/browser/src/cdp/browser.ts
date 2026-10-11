@@ -1,7 +1,8 @@
 import { BROWSER } from "../config"
-import { act, screenshot } from "../page/act"
+import { act, schemeError, screenshot } from "../page/act"
+import { extract, evaluateExpression } from "../page/extract"
 import { evaluate, type PageState, read } from "../page/read"
-import type { BrowserSession, DialogPolicy, Tab } from "../page/types"
+import type { BrowserSession, Dialog, DialogPolicy, Tab } from "../page/types"
 import { openSession, type SessionOptions } from "./session"
 
 export type ConnectOptions = SessionOptions & { dialogs?: DialogPolicy }
@@ -19,9 +20,21 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true })
     const page: PageState = { channel: cdp.channel(sessionId), targetId, labels: new Map() }
     page.channel.on("Page.javascriptDialogOpening", (dialog) => {
-      const accept = policy({ type: dialog.type, message: dialog.message }) === "accept"
-      if (!accept) page.dialog = `A ${dialog.type} dialog said: ${dialog.message}`
-      page.channel.send("Page.handleJavaScriptDialog", { accept }).catch(() => {})
+      const shown: Dialog = { type: dialog.type, message: dialog.message }
+      if (policy(shown) === "accept") {
+        page.channel.send("Page.handleJavaScriptDialog", { accept: true }).catch(() => {})
+        return
+      }
+      page.dialog = shown
+      // Nobody answered in time: dismiss it so a stray confirm or prompt cannot wedge the agent.
+      setTimeout(() => {
+        if (page.dialog !== shown) return
+        page.dialog = undefined
+        page.channel.send("Page.handleJavaScriptDialog", { accept: false }).catch(() => {})
+      }, BROWSER.dialogHoldMs)
+    })
+    page.channel.on("Page.javascriptDialogClosed", () => {
+      page.dialog = undefined
     })
     // The load waiter is registered from the start event, so it exists before the load can fire.
     page.channel.on("Page.frameStartedLoading", (event) => {
@@ -45,12 +58,27 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       url ? evaluate<boolean>(page, `location.href !== "about:blank" && document.readyState === "complete"`).catch(() => false) : true,
     ])
     if (!ready) await loaded
+    const info = async () => (await cdp.send("Target.getTargetInfo", { targetId })).targetInfo
     const tab: Tab = {
       id: targetId,
       read: () => read(page),
       act: (step) => act(page, step),
-      screenshot: () => screenshot(page),
+      eval: (expression) => evaluateExpression(page, expression),
+      extract: (kind) => extract(page, kind),
+      screenshot: (opts) => screenshot(page, opts),
+      dialog: () => page.dialog ?? null,
+      answerDialog: async (accept, text) => {
+        if (!page.dialog) return false
+        page.dialog = undefined
+        return page.channel
+          .send("Page.handleJavaScriptDialog", { accept, promptText: text })
+          .then(() => true)
+          .catch(() => false)
+      },
+      url: async () => (await info()).url,
+      title: async () => (await info()).title,
       close: async () => {
+        page.dialog = undefined
         tabs.delete(targetId)
         await cdp.send("Target.closeTarget", { targetId }).catch(() => {})
       },
@@ -75,15 +103,22 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     tabs.delete(targetId)
   })
   await cdp.send("Target.setDiscoverTargets", { discover: true })
+  await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: BROWSER.downloadDir }).catch(() => {})
 
   return {
     openTab: async (url) => {
+      const invalid = url === undefined ? undefined : schemeError(url)
+      if (invalid) throw new Error(invalid)
       // A background tab in a shared window gets ~0 animation frames, so screenshots took 1.5 s to over 10 s on Kernel.
       // Its own unactivated window keeps it rendering (about 0.3 s) without stealing focus.
       const { targetId } = await cdp.send("Target.createTarget", { url: url ?? "about:blank", background: true, newWindow: true })
       return adopt(targetId, url)
     },
     tab: (id) => tabs.get(id),
+    listTabs: async () =>
+      Promise.all(
+        [...tabs.values()].map(async (tab) => ({ id: tab.id, url: await tab.url(), title: await tab.title() })),
+      ),
     onPopup: (listener) => {
       popupListeners.add(listener)
     },

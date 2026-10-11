@@ -42,6 +42,8 @@ export class BrowserConnection {
   private opening: Promise<BrowserSession> | null = null
   private current: Held | null = null
   private readonly borrowed = new Map<string, string>()
+  /** Tabs the agent opened or switched away from: still open, still counted as its own, not current. */
+  private readonly parked = new Map<string, string>()
   private busy = 0
   private closingByUs = false
   private lostSocket = false
@@ -76,7 +78,7 @@ export class BrowserConnection {
   }
 
   private tabs(): Record<string, string> {
-    const out: Record<string, string> = Object.fromEntries(this.borrowed)
+    const out: Record<string, string> = { ...Object.fromEntries(this.borrowed), ...Object.fromEntries(this.parked) }
     if (this.current?.tab) out[this.current.tab.id] = this.current.url
     return out
   }
@@ -103,6 +105,7 @@ export class BrowserConnection {
     this.lostSocket = false
     if (this.current) this.current.tab = undefined
     this.borrowed.clear()
+    this.parked.clear()
     void session.closed.then(() => {
       if (this.session !== session) return
       this.session = null
@@ -130,9 +133,21 @@ export class BrowserConnection {
         return view
       },
       act: (step) => tab.act(step),
-      screenshot: () => tab.screenshot(),
+      eval: (expression) => tab.eval(expression),
+      extract: (kind) => tab.extract(kind),
+      screenshot: (opts) => tab.screenshot(opts),
+      dialog: () => tab.dialog(),
+      answerDialog: (accept, text) => tab.answerDialog(accept, text),
+      url: () => tab.url(),
+      title: () => tab.title(),
       close: () => tab.close(),
     }
+  }
+
+  /** Moves the current tab to the parked set, where it still counts as the agent's. */
+  private park(): void {
+    const cur = this.current
+    if (cur?.tab) this.parked.set(cur.tab.id, cur.url)
   }
 
   /** The agent's current tab, reopened at its last address when the socket closed. Null if it never opened one. */
@@ -151,7 +166,7 @@ export class BrowserConnection {
     const tab = await this.currentTab()
     if (tab && this.current) {
       const result = await tab.act({ op: "goto", url })
-      if (!result.ok) throw new Error(`could not open ${url}: ${result.reason}`)
+      if (!result.ok) throw new Error(`could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}${result.reason === "dialog" ? ". a dialog is open: call browser_dialog with accept or dismiss, then try again" : ""}`)
       this.current.url = url
       return tab
     }
@@ -164,6 +179,50 @@ export class BrowserConnection {
     count("browser.open.ms", Math.round(performance.now() - t))
     this.current = held
     return held.tab
+  }
+
+  /** Every page this session holds, the agent's and the others'. The current tab is marked. */
+  async listTabs(): Promise<{ id: string; url: string; title: string; current: boolean }[]> {
+    const session = await this.socket()
+    const all = await session.listTabs()
+    const currentId = this.current?.tab?.id
+    return all.map((t) => ({ ...t, current: t.id === currentId }))
+  }
+
+  /** Opens `url` in a new tab the agent owns, parked until it switches to it. */
+  async openTab(url: string): Promise<Tab> {
+    await this.room(1)
+    const session = await this.socket()
+    const tab = await session.openTab(url)
+    this.parked.set(tab.id, url)
+    return tab
+  }
+
+  /** Makes tab `id` the current tab, parking the one it replaces so it still counts as the agent's. */
+  async switchTo(id: string): Promise<Tab> {
+    if (this.current?.tab?.id === id) return this.current.tab
+    const session = await this.socket()
+    const found = (await session.listTabs()).find((t) => t.id === id)
+    if (!found) throw new Error(`no tab ${id}`)
+    const target = await session.tab(id)
+    if (!target) throw new Error(`no tab ${id}`)
+    this.park()
+    this.parked.delete(id)
+    this.current = { url: found.url, tab: this.track({ url: found.url }, target) }
+    return this.current.tab as Tab
+  }
+
+  /** Closes tab `id`. Closing the current tab leaves the agent with no current tab until it browses again. */
+  async closeTab(id: string): Promise<void> {
+    const session = await this.socket()
+    const target = await session.tab(id)
+    if (!target) throw new Error(`no tab ${id}`)
+    await target.close()
+    this.borrowed.delete(id)
+    this.parked.delete(id)
+    if (this.current?.tab?.id === id) {
+      this.current.tab = undefined
+    }
   }
 
   /** Opens one tab per entry, already at its url, for one call. They count as the agent's until `done` closes them. */
@@ -200,9 +259,11 @@ export class BrowserConnection {
     }
     if (this.current) this.current.tab = undefined
     this.borrowed.clear()
+    this.parked.clear()
     await this.deps.lease.release().catch(() => {})
     return "closed"
   }
+
 
   isOpen(): boolean {
     return this.session !== null

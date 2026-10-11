@@ -21,6 +21,10 @@ export const BROWSER = {
   historyForDecision: 3,
   /** Most steps one decision may chain: fills and ticks, then one final step, read once at the end. */
   chainMax: 3,
+  /** Where Chrome saves downloads. Set on the browser at connect so the save location is known. */
+  downloadDir: "/tmp/kiko-downloads",
+  /** How long a confirm or prompt may wait for an answer before it is dismissed. */
+  dialogHoldMs: 30_000,
 } as const
 
 export type BrowserConfig = typeof BROWSER

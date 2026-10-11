@@ -6,8 +6,6 @@ export type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patc
 
 /** A browser nobody called for this long is deleted. */
 export const IDLE_MS = 5 * 60_000
-/** A browser older than this is deleted, whoever uses it. */
-export const LIFETIME_MS = 30 * 60_000
 /** While the human drives, the reaper looks again this often. */
 export const TAKEOVER_RECHECK_MS = 60_000
 /** Kernel's own net if our reaper misses. */
@@ -21,12 +19,12 @@ export const REAP_WAKEUP = "kernel_reap"
 
 export type ReapDecision = { delete: true } | { delete: false; at: number }
 
-/** The whole reaper policy, as data in and a verdict out. */
-export function reapDecision(row: Pick<LeaseRow, "createdAt" | "lastUse" | "takeover" | "watchUntil" | "dead">, now: number): ReapDecision {
+/** The whole reaper policy, as data in and a verdict out. A browser an agent used inside the idle window is never deleted, whatever its age. */
+export function reapDecision(row: Pick<LeaseRow, "lastUse" | "takeover" | "watchUntil" | "dead">, now: number): ReapDecision {
   if (row.dead) return { delete: true }
   if (row.takeover) return { delete: false, at: now + TAKEOVER_RECHECK_MS }
   if (row.watchUntil > now) return { delete: false, at: row.watchUntil }
-  const at = Math.min(row.lastUse + IDLE_MS, row.createdAt + LIFETIME_MS)
+  const at = row.lastUse + IDLE_MS
   return at <= now ? { delete: true } : { delete: false, at }
 }
 

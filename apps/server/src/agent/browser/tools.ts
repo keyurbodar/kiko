@@ -11,16 +11,19 @@ import type { Task, TaskResult } from "@yuki/browser/worker/types"
 import { count } from "../../lib/dev-stats"
 import type { BrowserConnection } from "./connection"
 import type { LeasePort } from "./lease"
+import { browserMoreTools } from "./tools-more"
 
 export const BROWSER_EXT = "browser"
 
 export const PAUSED = "The human is using the browser. Wait for them to hand it back, or carry on without it."
+export const NO_TAB = "you have no tab open yet. browse a url first."
 
 const BROWSER_RULES = [
-  "browser: use web_fetch first. use the browser only when a page needs javascript, a login, or clicks.",
+  "browser: extract before you scan. use browser_extract for links, tables, forms, headings, or all text of your current tab, instead of reading it control by control.",
+  "use web_fetch first. use the browser only when a page needs javascript, a login, or clicks. for an authenticated GET use browser_fetch, which sends the browser's cookies.",
   "give browser_run whole goals, the url to start at, and the values to type, and add find to get the answer text back. do not drive step by step when a worker can.",
-  "use browser_act for a few clicks on your current tab, by the control ids browse showed you.",
-  "use browser_look only when the layout matters.",
+  "use browser_act for a few steps on your current tab, by the control ids browse showed you. put a wait inside the batch, after a click, so the next step sees the result. use browser_eval only for what the other tools cannot do.",
+  "use browser_look only when the layout matters. use browser_tabs to switch or close tabs, browser_dialog when a dialog blocks the page, and browser_files to move a file to or from the browser.",
   "never type a password, a card number, or a one-time code. call browser_share and ask the human to take over.",
 ].join("\n")
 
@@ -34,19 +37,38 @@ export type BrowserToolDeps = {
   acceptsImages: (model: ModelRef | undefined) => boolean
 }
 
-const text = (value: string, isError = false) => ({ content: [{ type: "text" as const, text: value }], isError })
+export type TextResult = { content: { type: "text"; text: string }[]; isError: boolean }
+export type CallWrapper = (tool: string, run: (signal: AbortSignal) => Promise<string>) => (signal: AbortSignal | undefined) => Promise<TextResult>
+
+export const text = (value: string, isError = false): TextResult => ({ content: [{ type: "text", text: value }], isError })
 
 const StepSchema = Type.Object({
-  op: Type.Union(["click", "type", "select", "press", "scroll", "back"].map((op) => Type.Literal(op))),
-  id: Type.Optional(Type.Number({ description: "the control id, for click, type, and select" })),
-  text: Type.Optional(Type.String({ description: "for type: the text to type" })),
+  op: Type.Union(["click", "type", "select", "press", "scroll", "back", "hover", "wait", "upload"].map((op) => Type.Literal(op))),
+  id: Type.Optional(Type.Number({ description: "the control id, for click, type, select, hover, and upload" })),
+  text: Type.Optional(Type.String({ description: "for type: the text to type. for wait: text that should appear on the page" })),
+  gone: Type.Optional(Type.String({ description: "for wait: text that should disappear from the page" })),
+  ms: Type.Optional(Type.Number({ description: "for wait: a fixed pause, up to 10000" })),
+  navigation: Type.Optional(Type.Boolean({ description: "for wait: until the next navigation or load" })),
   submit: Type.Optional(Type.Boolean({ description: "for type: press enter after" })),
   option: Type.Optional(Type.String({ description: "for select: the option's label" })),
   key: Type.Optional(Type.String({ description: "for press: a key such as Enter or Escape" })),
   direction: Type.Optional(Type.Union([Type.Literal("up"), Type.Literal("down")])),
+  paths: Type.Optional(Type.Array(Type.String(), { description: "for upload: VM file paths from browser_files upload" })),
 })
 
-type StepArgs = { op: string; id?: number; text?: string; submit?: boolean; option?: string; key?: string; direction?: "up" | "down" }
+export type StepArgs = {
+  op: string
+  id?: number
+  text?: string
+  gone?: string
+  ms?: number
+  navigation?: boolean
+  submit?: boolean
+  option?: string
+  key?: string
+  direction?: "up" | "down"
+  paths?: string[]
+}
 
 /** The model's flat step, checked at the edge. A string is an error to show the model. */
 export function toStep(s: StepArgs): Step | string {
@@ -54,22 +76,38 @@ export function toStep(s: StepArgs): Step | string {
   switch (s.op) {
     case "click":
       return needId((id) => ({ op: "click", id }))
+    case "hover":
+      return needId((id) => ({ op: "hover", id }))
     case "type":
       return typeof s.text === "string" ? needId((id) => ({ op: "type", id, text: s.text as string, ...(s.submit ? { submit: true } : {}) })) : "type needs text"
     case "select":
       return typeof s.option === "string" ? needId((id) => ({ op: "select", id, option: s.option as string })) : "select needs an option"
+    case "upload":
+      return Array.isArray(s.paths) && s.paths.length > 0 ? needId((id) => ({ op: "upload", id, paths: s.paths as string[] })) : "upload needs paths"
     case "press":
       return s.key ? { op: "press", key: s.key } : "press needs a key"
     case "scroll":
       return { op: "scroll", direction: s.direction ?? "down" }
     case "back":
       return { op: "back" }
+    case "wait": {
+      if (s.ms !== undefined) return s.ms > 0 && s.ms <= 10_000 ? { op: "wait", ms: s.ms } : "wait ms must be between 1 and 10000"
+      if (s.navigation) return { op: "wait", navigation: true }
+      if (s.text !== undefined || s.gone !== undefined) return { op: "wait", text: s.text, gone: s.gone }
+      return "wait needs text, gone, ms, or navigation"
+    }
     default:
       return `unknown step ${s.op}`
   }
 }
 
 const describe = (step: Step) => ("id" in step ? `${step.op} ${step.id}` : step.op)
+
+/** A dialog that stopped the page is named to the model, so it can answer it with browser_dialog. */
+export async function dialogNote(tab: Tab): Promise<string> {
+  const pending = tab.dialog()
+  return pending ? `a ${pending.type} dialog is open, blocking the page: "${pending.message}". answer it with browser_dialog.\n\n` : ""
+}
 
 /** One result per task, a few lines each: the stop, where it ended, its last actions, and what it found. */
 export function taskLine(i: number, task: Task, r: TaskResult, found: string): string {
@@ -83,7 +121,7 @@ export function taskLine(i: number, task: Task, r: TaskResult, found: string): s
   return lines.join("\n")
 }
 
-async function timed<T>(tool: string, run: () => Promise<T>): Promise<T> {
+export async function timed<T>(tool: string, run: () => Promise<T>): Promise<T> {
   const t = performance.now()
   try {
     return await run()
@@ -101,9 +139,7 @@ function timedTab(tab: Tab): Tab {
   let since = 0
   let acted = false
   return {
-    id: tab.id,
-    screenshot: () => tab.screenshot(),
-    close: () => tab.close(),
+    ...tab,
     act: async (step) => {
       if (step.op === "goto") return tab.act(step)
       acted = true
@@ -130,9 +166,9 @@ function timedTab(tab: Tab): Tab {
   }
 }
 
-export function browserExtension(deps: BrowserToolDeps): Extension {
-  /** Runs a browser call: refuses at once while the human holds the browser, and turns every failure into a line for the model. */
-  const call = (tool: string, run: (signal: AbortSignal) => Promise<string>) => async (signal: AbortSignal | undefined) =>
+/** Runs a browser call: refuses at once while the human holds the browser, and turns every failure into a line for the model. */
+export function call(deps: BrowserToolDeps, tool: string, run: (signal: AbortSignal) => Promise<string>) {
+  return async (signal: AbortSignal | undefined) =>
     timed(tool, async () => {
       try {
         if (await deps.lease().paused()) return text(PAUSED)
@@ -143,7 +179,9 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
         return text(e instanceof Error ? e.message : String(e), true)
       }
     })
+}
 
+export function browserExtension(deps: BrowserToolDeps): Extension {
   const browse = defineTool({
     name: "browse",
     description:
@@ -154,7 +192,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
     }),
     replay: "safe",
     execute: (args, _api, ctx) =>
-      call("browse", async (signal) => {
+      call(deps, "browse", async (signal) => {
         const urls = (args.urls ?? []).slice(0, BROWSER.urlsPerBrowse)
         const conn = deps.connection()
         const { ranker } = args.find ? await deps.decider() : { ranker: null }
@@ -165,7 +203,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
         if (!urls.length) {
           const tab = await conn.currentTab()
           if (!tab) return "you have no tab open yet. pass a url."
-          return show(await tab.read())
+          return `${await dialogNote(tab)}${await show(await tab.read())}`
         }
         const [first, ...rest] = urls
         const borrowed = rest.length ? await conn.borrow(rest) : null
@@ -175,7 +213,9 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
             ...(borrowed?.tabs ?? []).map((tab) => tab.read()),
           ])
           const shown = await Promise.all(pages.map(show))
-          return shown.length === 1 ? (shown[0] as string) : shown.map((s, i) => `--- page ${i + 1}\n${s}`).join("\n\n")
+          if (shown.length !== 1) return shown.map((s, i) => `--- page ${i + 1}\n${s}`).join("\n\n")
+          const current = await conn.currentTab()
+          return `${current ? await dialogNote(current) : ""}${shown[0] as string}`
         } finally {
           await borrowed?.done()
         }
@@ -185,11 +225,11 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
   const act = defineTool({
     name: "browser_act",
     description:
-      "act on your current tab: up to 10 steps in one call, by the control ids browse showed you. ops: click {id}, type {id, text, submit?}, select {id, option}, press {key}, scroll {direction}, back. stops at the first step that fails. returns a fresh summary of the page.",
+      "act on your current tab: up to 10 steps in one call, by the control ids browse showed you. ops: click {id}, hover {id}, type {id, text, submit?}, select {id, option}, upload {id, paths} (paths from browser_files), press {key}, scroll {direction}, back, wait {text?, gone?, ms?, navigation?}. wait after a click so the next step sees the result. stops at the first step that fails. returns a fresh summary of the page.",
     parameters: Type.Object({ steps: Type.Array(StepSchema, { minItems: 1, maxItems: BROWSER.stepsPerAct }) }),
     replay: "unsafe",
     execute: (args, _api, ctx) =>
-      call("browser_act", async () => {
+      call(deps, "browser_act", async () => {
         const steps = args.steps.slice(0, BROWSER.stepsPerAct).map((s) => toStep(s as StepArgs))
         const bad = steps.findIndex((s) => typeof s === "string")
         if (bad >= 0) return `step ${bad + 1}: ${steps[bad]}. nothing was done.`
@@ -211,7 +251,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
         const head = failed && !failed.result.ok
           ? `did: ${done.join("; ") || "nothing"}. ${describe(failed.step)} failed: ${failed.result.reason}${failed.result.detail ? ` (${failed.result.detail})` : ""}${failed.result.reason === "stale" ? ". the page changed: use the ids below" : ""}.`
           : `did: ${done.join("; ")}.`
-        return `${head}\n\n${page}`
+        return `${head}\n\n${await dialogNote(tab)}${page}`
       })(ctx.abortSignal),
   })
 
@@ -232,7 +272,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
     }),
     replay: "unsafe",
     execute: (args, _api, ctx) =>
-      call("browser_run", async (signal) => {
+      call(deps, "browser_run", async (signal) => {
         const tasks = args.tasks.slice(0, BROWSER.workersPerRun)
         const { name, decider, ranker } = await deps.decider()
         count(`browser.decider.${name}`)
@@ -273,10 +313,10 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
 
   const look = defineTool({
     name: "browser_look",
-    description: "a screenshot of your current tab, about 50 kb. only when the layout matters and you can see images.",
-    parameters: Type.Object({}),
+    description: "a screenshot of your current tab, about 50 kb. only when the layout matters and you can see images. fullPage captures the whole scrollable page, larger.",
+    parameters: Type.Object({ fullPage: Type.Optional(Type.Boolean({ description: "the whole page, not just the viewport" })) }),
     replay: "safe",
-    execute: async (_args, api, ctx) => {
+    execute: async (args, api, ctx) => {
       if (!deps.acceptsImages((await api.agent(ctx)).model)) return text("this model cannot see images, so browser_look is off. use browse.")
       return timed("browser_look", async () => {
         try {
@@ -284,7 +324,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
           return await deps.connection().use(async () => {
             const tab = await deps.connection().currentTab()
             if (!tab) return text("you have no tab open yet. call browse with a url first.")
-            const bytes = await tab.screenshot()
+            const bytes = await tab.screenshot({ fullPage: args.fullPage === true })
             let binary = ""
             for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
             return { content: [{ type: "image" as const, data: btoa(binary), mimeType: "image/jpeg" }] }
@@ -318,6 +358,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
       declareEffect("external", run),
       declareEffect("read", look),
       declareEffect("message", share),
+      ...browserMoreTools(deps),
     ],
     sections: [section(BROWSER_EXT, () => BROWSER_RULES)],
   })
