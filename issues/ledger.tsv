@@ -1,5 +1,5 @@
 unit	title	wave	model	state	branch	head	verdict	evidence	updated
-U01	Delete dead and experiment code	1	sonnet	fixing	s/u01-subtract	f7b2daf0	merge-conflict turn.ts	-	2026-10-11T16:43:52Z
+U01	Delete dead and experiment code	1	sonnet	landed	s/u01-subtract	becdc030	self-verified	main 6ff31d1f	2026-10-11T16:49:26Z
 U02	Fast check, parallel cached tests	1	sonnet	running	s/u02-ci	-	-	-	2026-10-11T16:30:02Z
 U03	Rules and exports as scripts	1	sonnet	landed	s/u03-rules	2ecd8d8c	self-verified	main d53cd5b4	2026-10-11T16:35:27Z
 U04	Verification skill up to date	1	haiku	running	s/u04-verify-skill	-	-	-	2026-10-11T16:30:02Z
