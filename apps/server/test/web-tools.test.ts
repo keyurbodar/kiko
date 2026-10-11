@@ -66,4 +66,16 @@ describe("web_fetch", () => {
   test("htmlToText puts blocks on their own lines, with at most one blank line between", () => {
     expect(htmlToText("<ul><li>a</li><li>b&#x21;</li></ul>")).toBe("a\n\nb!")
   })
+
+  test("htmlToText finishes 1 MB of bare '<' quickly", () => {
+    const start = performance.now()
+    htmlToText("<".repeat(1_000_000))
+    expect(performance.now() - start).toBeLessThan(200)
+  })
+
+  test("htmlToText finishes 50,000 unclosed script tags quickly", () => {
+    const start = performance.now()
+    htmlToText("<script>".repeat(50_000))
+    expect(performance.now() - start).toBeLessThan(200)
+  })
 })
