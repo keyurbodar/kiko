@@ -642,7 +642,7 @@ Executor Cloud was the integration until phase 14 and was removed on 2026-10-10:
 
 - The session's MCP server needs no `initialize` and no `Mcp-Session-Id`: `tools/list` and `tools/call` work with a bare POST (checked 2026-10-11). The session id is stored with the key, so nothing is lost when `UserDO` is evicted.
 - One key does everything: the session, its tools, and the catalog lookups in section 12.3.
-- Tools are typed, and `COMPOSIO_MULTI_EXECUTE_TOOL` runs several in parallel.
+- Tools are typed. `COMPOSIO_MULTI_EXECUTE_TOOL` batches slowly: measured 2026-10-11, 5 tools took 4.8 s against 2.1 s as 5 separate calls, and 30 tools took 15.2 s against 2.8 to 6.8 s as 30 separate concurrent calls. Separate concurrent `tools/call` requests returned 200 at 30 and at 60, with no 429. So an agent issues independent calls separately, and the tool description says so. Each connection runs at most 40 calls at once, and a read-only call retries on 429 and 5xx (`integrations/composio/limit.ts`).
 - Connections live in the user's own Composio account. Yuki never holds an app token.
 
 ### 12.1 Connecting

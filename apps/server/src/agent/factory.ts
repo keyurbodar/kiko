@@ -183,5 +183,5 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }
-  return { models, settings: { stream: { headers: { "x-opencode-session": sessionId } } } }
+  return { models, settings: { toolExecution: "parallel", stream: { headers: { "x-opencode-session": sessionId } } } }
 }

@@ -12,7 +12,11 @@ export function createLimiter(max: number) {
   return {
     async run<T>(fn: () => Promise<T>): Promise<T> {
       if (active < max) active++
-      else await new Promise<void>((resolve) => waiting.push(resolve))
+      else {
+        const { promise, resolve } = Promise.withResolvers<void>()
+        waiting.push(resolve)
+        await promise
+      }
       try {
         return await fn()
       } finally {
@@ -39,7 +43,10 @@ export async function withRetry<T>(fn: () => Promise<T>, delays: readonly number
     } catch (e) {
       const delay = delays[attempt]
       if (delay === undefined || !(e instanceof ComposioError) || !e.status || !RETRY_STATUSES[e.status]) throw e
-      await Bun.sleep(retryAfterMs(e) ?? delay * (0.75 + Math.random() * 0.5))
+      const wait = retryAfterMs(e) ?? delay * (0.75 + Math.random() * 0.5)
+      const { promise, resolve } = Promise.withResolvers<void>()
+      setTimeout(resolve, wait)
+      await promise
     }
   }
 }
