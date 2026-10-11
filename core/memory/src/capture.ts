@@ -116,7 +116,7 @@ export function captureQuestions(messages: readonly string[], items: readonly Ca
   return { state, questions }
 }
 
-export type CaptureRow = { heard: Heard; ref: string; keep?: () => boolean }
+type CaptureRow = { heard: Heard; ref: string; keep?: () => boolean }
 
 // One judge request for every queued message. A message the human changed meanwhile (keep() false) is asked about but not written.
 export async function captureWithJudge(life: Life, judge: Judge, rows: readonly CaptureRow[], policy: CapturePolicy): Promise<CaptureCount | null> {
