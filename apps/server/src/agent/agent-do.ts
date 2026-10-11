@@ -35,7 +35,7 @@ import { createAlarms } from "@yuki/durable/alarm"
 import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
-import { storedRows, wipeStorage } from "@yuki/durable/wipe"
+import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { count, instrument } from "../lib/dev-stats"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
@@ -122,7 +122,9 @@ export class AgentDO extends DurableObject<Env> {
     return this.outboxInstance
   }
 
-  receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
+  async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
+    // A deleted agent takes no work: admitting it would write inbox rows into an object that is meant to stay empty.
+    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (home) this.setHome(home)
     if (envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return this.host.receive(envelopes, brief)
@@ -667,12 +669,10 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async alarm() {
-    if (this.#wiped) return
+    if (await isWiped(this.ctx.storage)) return
     if (await this.browserIdle()) return
     await this.host.alarm()
   }
-
-  #wiped = false
 
   #browser?: BrowserConnection
   #browserLease?: LeasePort
@@ -732,15 +732,14 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async deleteAll(): Promise<number> {
-    if (this.#wiped) return 0
-    this.#wiped = true
+    if (await isWiped(this.ctx.storage)) return 0
     await this.#browser?.idle().catch(() => {})
     await this.hostInstance?.shutdown()
     return wipeStorage(this.ctx)
   }
 
   async storedRows(): Promise<number> {
-    return this.#wiped ? 0 : storedRows(this.ctx.storage)
+    return storedRows(this.ctx.storage)
   }
 
   async devClassic(): Promise<void> {

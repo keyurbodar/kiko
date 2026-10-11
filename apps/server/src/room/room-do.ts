@@ -12,7 +12,7 @@ import { HELD_WAKEUP, HeldWakes, type Wake, type WakeResult } from "./wake"
 import { chatTasks, openTasks } from "./open-tasks"
 import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
-import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
+import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { sha256Hex } from "@yuki/durable/hash"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
@@ -110,7 +110,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.asks = new Asks(ctx.storage.sql)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
-			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home(), isWiped: () => this.#wiped })
+			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home(), isWiped: () => isWiped(ctx.storage) })
 			this.proposals = new Proposals({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), chat: (home) => this.chat(home), publish: (events) => this.publish(events), memberOp: (op) => this.memberOp(op), writeChatFile: (slug, text) => this.writeChatFile(slug, text) })
 			this.pending = new PendingUploads(ctx.storage.sql)
 			this.outbox = new HeldWakes(ctx.storage.sql)
@@ -429,7 +429,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const userId = request.headers.get(USER_ID_HEADER)
 		const roomId = request.headers.get(ROOM_ID_HEADER)
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
-		if (this.#closed || this.#wiped) return new Response("account deleted", { status: 410 })
+		if (this.#closed || (await isWiped(this.ctx.storage))) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
 			const recorded = this.env.USER ? await userStub(this.env.USER, userId).recordRoom(roomId as RoomId) : true
 			if (!recorded) return new Response("account deleted", { status: 410 })
@@ -484,7 +484,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				.then(async () => {
 					this.#touching = false
 					const home = this.home()
-					if (home && !this.#wiped) await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
+					if (home && !(await isWiped(this.ctx.storage))) await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 				})
 				.catch((error) => console.error(`touchChat failed: ${error instanceof Error ? error.message : String(error)}`)),
 		)
@@ -886,8 +886,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	#wiped = false
-
 	async close(): Promise<void> {
 		this.#closed = true
 		closeSockets(this.ctx)
@@ -895,7 +893,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	#closed = false
 
 	async inventory(): Promise<{ agents: AgentSlug[]; keys: string[] }> {
-		if (this.#wiped) return { agents: [], keys: [] }
+		if (await isWiped(this.ctx.storage)) return { agents: [], keys: [] }
 		const sql = this.ctx.storage.sql
 		const agents = this.members.everyone()
 		const keys = sql.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files").toArray().map((r) => r.r2_key)
@@ -903,14 +901,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async deleteAll(): Promise<number> {
-		if (this.#wiped) return 0
-		const rows = await wipeStorage(this.ctx)
-		this.#wiped = true
-		return rows
+		if (await isWiped(this.ctx.storage)) return 0
+		return wipeStorage(this.ctx)
 	}
 
 	async storedRows(): Promise<number> {
-		return this.#wiped ? 0 : storedRows(this.ctx.storage)
+		return storedRows(this.ctx.storage)
 	}
 	async devSeed(turns: { from: string; text: string }[]): Promise<number> {
 		return this.dev.seed(turns)
