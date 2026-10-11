@@ -13,3 +13,55 @@ Make `core/durable/src/wipe.ts` own it: wiping writes a stored tombstone after `
 ## Acceptance
 - A test per item that fails on today's code: an evicted and reloaded wiped RoomDO and AgentDO refuse work; a failed D1 write during rotation leaves the old token working and the DO row unchanged; a successful rotation leaves exactly one hooks row.
 - `bun run check` passes. `bun yuki verify account-delete routines routine-triggers --url http://localhost:8833` pass on your own server.
+
+## Report
+
+**STATUS** done (with one DEVIATION: there is no rotation path, see below)
+
+**BRANCH** s/u33-wipe-hooks
+
+**HEAD** the final commit of this branch (see the last line of the report commit)
+
+**CHANGED**
+- `core/durable/src/wipe.ts`: `wipeStorage` writes the `wiped` tombstone after `deleteAll`; `isWiped(storage)` reads it; `storedRows` returns 0 for a wiped object.
+- `apps/server/src/user/user-do.ts`: drops the `WIPED` constant, `#isWiped`, and the post-wipe put; uses `isWiped`.
+- `apps/server/src/room/room-do.ts`: drops `#wiped`; fetch, inventory, touch, deleteAll, storedRows read the tombstone.
+- `apps/server/src/room/memory-naps.ts`: `isWiped` is async, reads the tombstone.
+- `apps/server/src/agent/agent-do.ts`: drops `#wiped`; alarm, deleteAll, storedRows read the tombstone; `receive` refuses a wiped agent.
+- `apps/server/src/user/reminders.ts`: `rowOf` and `putRow` (snapshot and restore one routine row, re-arm the alarm).
+- `apps/server/src/user/routines-wiring.ts`: `updateRoutine` restores the row when the lookup row cannot be stored; `routineChanged` drops a routine's old lookup row before inserting its new one.
+- `apps/server/test/wipe-tombstone.test.ts` (new) and `apps/server/test/wipe-tombstone-worker.ts` (new): an evicted, reloaded RoomDO refuses a socket, an evicted, reloaded AgentDO refuses receive and stores nothing.
+- `apps/server/test/routines-hooks.test.ts`: two conversion tests with a bun:sqlite lookup table.
+- `apps/server/test/log-memory.test.ts`: the `isWiped` stub is async.
+- `issues/U33-wipe-and-hooks.md`: this report.
+
+**VERIFIED**
+- `bun run check`: all 10 steps passed, exit 0. typecheck pass (39.1s), test apps/server pass (76.6s), test apps/web-solid pass, test apps/cli pass, test core/protocol pass, test core/browser pass, check-imports, check-rules, check-exports pass, lint pass. Frontend lint (advisory, not gating) reports 17 errors, the same known state as before.
+- `bun scripts/check-imports.ts`: `imports ok: durable, browser, agent, memory, sandbox, protocol`.
+- `bun run --cwd apps/server test -- wipe-tombstone`: `2 pass, 0 fail`.
+- `bun test test/routines-hooks.test.ts test/reminders.test.ts test/reminder-rules.test.ts test/log-memory.test.ts` (in apps/server): `35 pass, 0 fail`.
+- `bun yuki verify account-delete routines routine-triggers --url http://localhost:8833`: `pass account-delete (2670ms)`, `pass routine-triggers (259781ms)`, `pass routines (71982ms)`.
+- `bunx biome check apps/server core apps/cli scripts`: no errors. My changes add no warnings; the remaining 9 warnings predate this unit.
+
+**FAILED-BEFORE** (each run against the old code)
+- `wipe-tombstone.test.ts` "a wiped room refuses a socket after it is evicted and restarted": `- "status": 410` / `+ "status": 101`.
+- `wipe-tombstone.test.ts` "a wiped agent refuses work after it is evicted and restarted, and stores none": `Expected: "this agent was deleted"`, `Received: undefined`.
+- `routines-hooks.test.ts` "a routine that becomes a webhook is unchanged when its lookup row cannot be stored": the routine's trigger changed to `"on": "webhook"` despite the failed write.
+- `routines-hooks.test.ts` "a routine that becomes a webhook leaves exactly one lookup row, even after an earlier stale one": two `hooks` rows where one is expected.
+
+**DEVIATIONS**
+- Rotation does not exist in the code. `updateRoutine` mints a token only when a routine becomes a webhook (`token = current.trigger.on !== "webhook" ? fresh : undefined`). Editing a webhook keeps its token. I did not add rotation, since a new token would break the URL the user already gave out. The fix covers the conversion path, which is the only path that writes a new token hash. The brief's "failed D1 write during rotation" test is therefore the conversion test.
+- `AgentDO.receive` throws `"this agent was deleted"` instead of returning a `Refusal`. The room reads a `Refusal` as a refused message and sends a notice back, which would write rows into a deleted room.
+- `AgentDO.deleteAll` no longer sets a flag before its shutdown awaits. An alarm can now run during shutdown, which the old flag blocked. The tombstone is written after the wipe, as the brief says.
+- `storedRows` now returns 0 for any wiped object. Before, each caller checked the flag. Behavior is the same.
+- Local setup: `apps/web-solid/dist/index.html` is a one-line placeholder (gitignored) so `wrangler dev` starts without a client build.
+- Commit trailer: the brief names Opus 5.5, and I used that line as written.
+
+**FOLLOW-UPS**
+- Decide whether a webhook needs a "rotate token" action. If yes, make it an explicit action, not an edit side effect. It would reuse the same restore and delete-then-insert shape. Recommendation: add it as its own action.
+- A webhook converted to another trigger keeps its `hook_hash` (harmless, since `routineHook` checks the trigger). Clearing it would be tidier.
+- `AgentDO.wake()` and the other work entry points are not guarded. Only `receive` and `alarm` are.
+
+## Discoveries
+- The U26 note "rotating its token" describes the conversion path above. No code path rotates an existing token.
+- `updateRoutine` converts a routine to a webhook with a DO write before the D1 insert, so the DO and D1 can disagree after an error. The restore closes that gap for conversions only. A webhook converted to another trigger still drops its D1 row after the DO write. If that drop fails, the DO row stays converted and the lookup row remains. That is harmless today, because the trigger check refuses the stale token.
