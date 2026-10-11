@@ -236,6 +236,12 @@ describe("composio learned tools", () => {
     expect(tools?.length).toBe(1)
   })
 
+  test("two learned slugs that differ only in case give one tool, not a duplicate name that stops the agent", () => {
+    const direct = (slug: string) => ({ name: slug, inputSchema: {}, direct: { slug, toolkit: "gmail" } })
+    const tools = composioExtension([direct("GMAIL_FETCH_EMAILS"), direct("gmail_fetch_emails")], async () => ({ content: [] })).tools
+    expect(tools?.map((t) => t.name)).toEqual(["composio_gmail_fetch_emails"])
+  })
+
   test("learned tools keep the most recently used, upsert by slug keeping their class, and cap", () => {
     const tool = (slug: string, usedAt: number): LearnedTool => ({ slug, toolkit: "t", description: "", inputSchema: {}, usedAt })
     const full = Array.from({ length: LEARNED_MAX }, (_, i) => tool(`T${i}`, i))

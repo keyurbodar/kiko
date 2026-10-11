@@ -34,11 +34,17 @@ export const fillFlags = (schema: unknown, args: Record<string, unknown>): Recor
 /** `COMPOSIO_SEARCH_TOOLS` becomes `composio_search_tools`. */
 export const toolName = (name: string) => `composio_${name.replace(/^COMPOSIO_/, "").toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
 
-/** Every tool Composio lists, then each learned one whose name no listed tool already has, by name so the prompt prefix stays the same. */
+/** Every tool Composio lists, then each learned one whose name no earlier tool already has, by name so the prompt prefix stays the same. Two slugs can differ only in case and map to one tool name; a duplicate name stops the whole agent from opening. */
 function shown(tools: readonly ComposioTool[]): ComposioTool[] {
-  const meta = new Set(tools.filter((t) => !t.direct).map((t) => toolName(t.name)))
   const byName = (a: ComposioTool, b: ComposioTool) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
-  return [...tools.filter((t) => !t.direct), ...tools.filter((t) => t.direct && !meta.has(toolName(t.name))).sort(byName)]
+  const taken = new Set<string>()
+  const fresh = (t: ComposioTool) => {
+    const name = toolName(t.name)
+    if (taken.has(name)) return false
+    taken.add(name)
+    return true
+  }
+  return [...tools.filter((t) => !t.direct).filter(fresh), ...tools.filter((t) => t.direct).sort(byName).filter(fresh)]
 }
 
 /** A line for the run's input: Composio's search description says to always search first, which would skip learned tools. */
