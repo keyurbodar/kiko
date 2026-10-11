@@ -8,10 +8,10 @@ U10	Bound html-text regexes	1	deepseek	running	s/u10-html-text	-	-	-	2026-10-11T
 U11	Deletion survives failed enqueue	1	sonnet	running	s/u11-delete-rollback	-	-	-	2026-10-11T16:30:02Z
 U12	Nap promises stay separate	1	haiku	running	s/u12-nap-dedupe	-	-	-	2026-10-11T16:30:02Z
 U20	Extension review tells the truth	1	sonnet	running	s/u20-extensions	-	-	-	2026-10-11T16:30:02Z
-U21	Browser tab cap under parallel calls	1	haiku	queued	s/u21-browser	-	-	-	2026-10-11T16:35:27Z
-U22	Bash honest across spaces	1	haiku	queued	s/u22-bash	-	-	-	2026-10-11T16:35:27Z
+U21	Browser tab cap under parallel calls	1	haiku	running	s/u21-browser	-	-	-	2026-10-11T16:35:46Z
+U22	Bash honest across spaces	1	haiku	running	s/u22-bash	-	-	-	2026-10-11T16:35:46Z
 U25	Memory correctness and fewer judge calls	1	sonnet	running	s/u25-memory	-	-	-	2026-10-11T16:30:02Z
-U30	Platform edges	1	deepseek	queued	s/u30-platform	-	-	-	2026-10-11T16:35:27Z
+U30	Platform edges	1	deepseek	running	s/u30-platform	-	-	-	2026-10-11T16:35:46Z
 U07	One schema per object	2	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 U29	One dev guard	2	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 U23	One sealed-key store	2	deepseek	queued	-	-	-	-	2026-10-11T16:35:27Z
