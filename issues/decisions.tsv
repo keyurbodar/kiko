@@ -1,0 +1,9 @@
+ts	phase	decision	why	evidence	result
+2026-10-11T16:28:53Z	start	began the S+ program run in this chat	new run; prior turns were the audit and plan	session 45ac8ccc	open
+2026-10-11T16:28:53Z	frame	capped writers at 8 instead of 50	4 CPUs and 15 GB; each server test boots workerd	nproc=4, free -g	open
+2026-10-11T16:28:53Z	frame	used issues/ in the repo as the one coordination store, not a second store outside	operator asked for issues/; two stores would drift	issues/PLAN.md	open
+2026-10-11T16:28:53Z	frame	land branches locally with no-ff merges	no git remote and gh is not signed in	git remote -v empty	open
+2026-10-11T16:28:53Z	decide	squash migrations (D-squash)	no kiko Worker exists on the signed-in Cloudflare account, so no live data	wrangler deployments list --name kiko: code 10007	reverse with: keep migrations
+2026-10-11T16:28:53Z	decide	keep the always capture mode	it is a user setting; no evidence of harm	core/protocol/src/loops.ts:29	open
+2026-10-11T16:28:53Z	decide	park G01 deploy measurement for the operator	deploys are always-pause; nothing depends on it	issues/G01-deploy-measure.md	gated
+2026-10-11T16:28:53Z	decide	dropped upload byte counter, lazy bash listing, snapshot paging, 20-run window	no measured cost; yagni	issues/PLAN.md dropped section	dropped

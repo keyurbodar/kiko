@@ -1,0 +1,40 @@
+{
+  "commands": [
+    {
+      "cmd": "bun run typecheck",
+      "exit": 0,
+      "passed": null,
+      "failed": null,
+      "tail": "$ bun run --filter '*' typecheck\n@yuki/durable typecheck: Exited with code 0\n@yuki/browser typecheck: Exited with code 0\n@yuki/ui typecheck: Exited with code 0\n@yuki/agent typecheck: Exited with code 0\n@yuki/memory typecheck: Exited with code 0\n@yuki/sandbox typecheck: Exited with code 0\n@yuki/protocol typecheck: Exited with code 0\n@yuki/cli typecheck: Exited with code 0\nweb-solid typecheck: Exited with code 0\n@yuki/server typecheck: Exited with code 0"
+    },
+    {
+      "cmd": "bun scripts/check-imports.ts",
+      "exit": 0,
+      "passed": null,
+      "failed": null,
+      "tail": "imports ok: durable, browser, agent, memory, sandbox, protocol"
+    },
+    {
+      "cmd": "bun run --cwd core/protocol test",
+      "exit": 0,
+      "passed": 111,
+      "failed": 0,
+      "tail": "$ bun test\nbun test v1.3.14 (0d9b296a)\n\n 111 pass\n 0 fail\n 313 expect() calls\nRan 111 tests across 7 files. [251.00ms]"
+    },
+    {
+      "cmd": "bun run --cwd apps/cli test",
+      "exit": 0,
+      "passed": 9,
+      "failed": 0,
+      "tail": "$ bun test\nbun test v1.3.14 (0d9b296a)\n\n 9 pass\n 0 fail\n 18 expect() calls\nRan 9 tests across 4 files. [1126.00ms]"
+    },
+    {
+      "cmd": "bun run --cwd apps/server test",
+      "exit": 1,
+      "passed": 703,
+      "failed": 1,
+      "tail": "ok   provider-login.test.ts  8 pass\nok   reactions.test.ts  6 pass\nok   recall-agent.test.ts  4 pass\nok   recipients.test.ts  26 pass\nok   recurrence.test.ts  18 pass\nok   reminder-rules.test.ts  4 pass\nok   reminders.test.ts  6 pass\nok   rich-text.test.ts  31 pass\nok   room-fs.test.ts  17 pass\nok   room-log.test.ts  13 pass\nok   room-search.test.ts  4 pass\nFAIL routines.test.ts  7 pass, 1 fail\nerror: expect(received).toBe(expected)\n(fail) triggers (section 25.4) > a watch steps on its own grid past now, and a trigger reads as words [3.36ms]\nok   safe-fetch.test.ts  76 pass\nok   script-vm.test.ts  11 pass\nok   skills.test.ts  6 pass\nok   souls.test.ts  3 pass\nok   spill.test.ts  5 pass\nok   split-bubbles.test.ts  11 pass\nok   sqlite-conformance.test.ts  3 pass\nok   user-extensions.test.ts  17 pass\nok   user.test.ts  16 pass\nok   web-tools.test.ts  6 pass\nok   work-tools.test.ts  6 pass\nok   workers.test.ts  9 pass\nok   workspace.test.ts  5 pass\n\n703 pass, 1 fail across 63 files\nerror: script \"test\" exited with code 1"
+    }
+  ],
+  "summary": "4 of 5 commands passed. typecheck (exit 0) and check-imports (exit 0) are clean. core/protocol tests pass (111 pass, 0 fail across 7 files). apps/cli tests pass (9 pass, 0 fail across 4 files). apps/server tests fail: 703 pass, 1 fail across 63 files; the failure is routines.test.ts, test 'triggers (section 25.4) > a watch steps on its own grid past now, and a trigger reads as words' (expect(received).toBe(expected)). No repo edits were made and failures were not fixed."
+}

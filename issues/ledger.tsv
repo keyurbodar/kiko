@@ -1,0 +1,23 @@
+unit	title	wave	model	state	branch	head	verdict	evidence	updated
+U01	Delete dead and experiment code	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U02	Fast check, parallel cached tests	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U03	Rules and exports as scripts	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U04	Verification skill up to date	1	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
+U05	Spike: tool abort and ask	1	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
+U10	Bound html-text regexes	1	deepseek	queued	-	-	-	-	2026-10-11T16:28:53Z
+U11	Deletion survives failed enqueue	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U12	Nap promises stay separate	1	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
+U20	Extension review tells the truth	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U21	Browser tab cap under parallel calls	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U22	Bash honest across spaces	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U25	Memory correctness and fewer judge calls	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U30	Platform edges	1	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
+U07	One schema per object	2	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U29	One dev guard	2	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U23	One sealed-key store	2	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
+U26	Routines and UserDO edges	3	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U27	One delivery path in RoomDO	3	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U28	Human can stop work, ask does not wait	3	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
+U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
+U41	Enforce every rule, docs match code	5	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
