@@ -4,6 +4,7 @@ import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@yuki/protocol"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
+import { DEV } from "../lib/dev-guard"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
 import type { Env } from "../index"
@@ -55,8 +56,6 @@ import { extensionOp, type ExtensionHost, proposeExtension } from "./extension-w
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
 import { LAST_SEEN } from "./keys"
-
-declare const process: { env: { NODE_ENV?: string } }
 
 const REPLAY_LIMIT = 500
 
@@ -410,23 +409,19 @@ export class UserDO extends DurableObject<Env> {
     await this.#mem.captureHuman(roomId, items)
   }
 
-  async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[]): Promise<void> {
+  async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[], turns: number[]): Promise<void> {
     const ids = [...new Set([...messageIds, ...requeue.map((r) => r.messageId)])]
     const gone = this.life.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
     this.#il.loops.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
     this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(ids))
-    if (gone.length) await this.#mem.armNaps()
-    await this.captureHuman(roomId, requeue)
-  }
-
-  async forgetRoomTurn(roomId: RoomId, pos: number): Promise<void> {
     const prefix = `room:${roomId}:turns:`
-    const refs = this.life.refsLike(prefix).filter((ref) => {
+    const spans = this.life.refsLike(prefix).filter((ref) => {
       const m = /^(\d+)-(\d+)$/.exec(ref.slice(prefix.length))
-      return m !== null && Number(m[1]) <= pos && pos < Number(m[2])
+      return m !== null && turns.some((pos) => Number(m[1]) <= pos && pos < Number(m[2]))
     })
-    if (this.life.redactRefs(refs).length) await this.#mem.armNaps()
-    this.#il.loops.forgetTurn(roomId, pos)
+    if (gone.length + this.life.redactRefs(spans).length) await this.#mem.armNaps()
+    for (const pos of turns) this.#il.loops.forgetTurn(roomId, pos)
+    await this.captureHuman(roomId, requeue)
   }
 
   async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
@@ -741,7 +736,7 @@ export class UserDO extends DurableObject<Env> {
       setWakeup: (key, at) => this.alarms.setWakeup(key, at),
       clearWakeup: (key) => this.alarms.clearWakeup(key),
       subscriptions: this.env.PROVIDER_OAUTH === "on",
-      fake: process.env.NODE_ENV === "development",
+      fake: DEV,
     })
     return this.#logins
   }

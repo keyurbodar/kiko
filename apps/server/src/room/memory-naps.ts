@@ -58,8 +58,7 @@ export class MemoryNaps {
 		if (!changes) return
 		const user = userStub(this.d.env.USER, home.userId)
 		try {
-			if (changes.deleted.length || changes.edited.length) await user.forgetMessages(home.roomId, changes.deleted, this.d.log.meta("private") === "1" ? [] : changes.edited)
-			for (const pos of changes.positions) await user.forgetRoomTurn(home.roomId, pos)
+			await user.forgetMessages(home.roomId, changes.deleted, this.d.log.meta("private") === "1" ? [] : changes.edited, changes.positions)
 			this.d.memory.forwarded(changes.upto)
 		} catch (error) {
 			console.error(`forget failed: ${error instanceof Error ? error.message : String(error)}`)

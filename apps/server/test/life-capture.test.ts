@@ -128,28 +128,29 @@ test("capture is active with always, with auto only when a judge is ready, and n
 })
 
 test("capture questions are pi-ai bool and choice questions that point into the state by path", () => {
-  const { state, questions } = captureQuestions("I moved to Pune. The weather is nice.", [
-    { candidate: "I moved to Pune.", known: [{ pos: 3, text: "lives in Bangalore" }, { pos: 9, text: "likes tea" }] },
-    { candidate: "The weather is nice.", known: [] },
+  const { state, questions } = captureQuestions(["I moved to Pune. The weather is nice."], [
+    { message: 0, candidate: "I moved to Pune.", known: [{ pos: 3, text: "lives in Bangalore" }, { pos: 9, text: "likes tea" }] },
+    { message: 0, candidate: "The weather is nice.", known: [] },
   ])
-  expect(state).toEqual({
-    message: "I moved to Pune. The weather is nice.",
+  expect(state).toMatchObject({
+    messages: ["I moved to Pune. The weather is nice."],
     candidates: [
-      { text: "I moved to Pune." },
-      { text: "The weather is nice." },
+      { text: "I moved to Pune.", message: 0 },
+      { text: "The weather is nice.", message: 0 },
     ],
   })
   expect(Object.keys(questions).sort()).toEqual(
     ["c0_card", "c0_private", "c0_replaces_3", "c0_replaces_9", "c0_same_3", "c0_same_9", "c0_standing", "c0_worth", "c1_card", "c1_private", "c1_standing", "c1_worth"].sort(),
   )
-  expect(questions.c0_replaces_9).toMatchObject({ type: "bool", instructions: 'Does `candidates[0].text` make this known fact: "likes tea" no longer true?' })
+  expect(questions.c0_replaces_9!.type).toBe("bool")
+  expect(questions.c0_replaces_9!.instructions).toContain('Does `candidates[0].text` make this known fact: "likes tea" no longer true?')
   expect(questions.c1_worth!.instructions).toContain("`candidates[1].text`")
   for (const q of Object.values(questions)) {
     expect(typeof q.instructions).toBe("string")
     if (!/_(same|replaces)_/.test(Object.keys(questions).find((k) => questions[k] === q)!)) expect(q.instructions).not.toContain("Bangalore")
     if (q.type === "bool") expect([typeof q.criteria.true, typeof q.criteria.false]).toEqual(["string", "string"])
   }
-  expect((questions.c0_private as { criteria: { false: string } }).criteria.false).toContain("food allergies or diets are not private")
+  expect((state as { rules: { private: { false: string } } }).rules.private.false).toContain("food allergies or diets are not private")
   expect(questions.c0_card).toMatchObject({ type: "choice" })
 })
 
@@ -193,7 +194,7 @@ test("the judged path keeps only worthy, non-private facts, and a replacement su
     },
     seen,
   )
-  const count = await captureWithJudge(l, judge, { messageId: "m1", text, at: 10 }, "room:r:msg:m1", DEFAULT_POLICY)
+  const count = await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text, at: 10 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY)
   expect(count).toEqual({ added: 2, replaced: 2, same: 0, private: 1 })
   expect(seen.length).toBe(1)
   expect(l.recall("lisbon")).toEqual([])
@@ -207,12 +208,12 @@ test("the judged path keeps only worthy, non-private facts, and a replacement su
 test("an unavailable judge writes nothing, and a message changed meanwhile is not written", async () => {
   const l = life()
   const none: Judge = async () => null
-  expect(await captureWithJudge(l, none, { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, "room:r:msg:m1", DEFAULT_POLICY)).toBeNull()
+  expect(await captureWithJudge(l, none, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY)).toBeNull()
   const judge = fakeJudge({ "My sister Sam is a nurse.": { worth: 0.9 } })
-  expect(await captureWithJudge(l, judge, { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, "room:r:msg:m1", DEFAULT_POLICY, () => false)).toEqual({ added: 0, replaced: 0, same: 0, private: 0 })
+  expect(await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1", keep: () => false }], DEFAULT_POLICY)).toEqual({ added: 0, replaced: 0, same: 0, private: 0 })
   expect(l.count()).toBe(0)
-  expect((await captureWithJudge(l, judge, { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, "room:r:msg:m1", DEFAULT_POLICY))!.added).toBe(1)
-  expect((await captureWithJudge(l, judge, { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, "room:r:msg:m1", DEFAULT_POLICY))!.same).toBe(1)
+  expect((await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY))!.added).toBe(1)
+  expect((await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY))!.same).toBe(1)
   expect(l.count()).toBe(1)
 })
 
@@ -231,4 +232,32 @@ test("questions and requests to the agent are never candidates", () => {
   expect(candidates("where do i live now and what does my sister do?")).toEqual([])
   expect(candidates("oh and the dog's name is miso, she's a shiba")).toEqual(["oh and the dog's name is miso, she's a shiba"])
   expect(candidates("thanks! my sister lives in lisbon.")).toEqual(["my sister lives in lisbon."])
+})
+
+test("a queue of messages is judged in one request and each fact keeps its own message ref", async () => {
+  const l = life()
+  let calls = 0
+  const inner = fakeJudge({ "My sister Sam is a nurse.": { worth: 0.9 }, "I work at the Porto library.": { worth: 0.9 } })
+  const judge = (async (state: never, questions: never) => {
+    calls++
+    return inner(state, questions)
+  }) as Judge
+  const rows = [
+    { heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" },
+    { heard: { messageId: "m2", text: "I work at the Porto library.", at: 2 }, ref: "room:r:msg:m2" },
+  ]
+  expect((await captureWithJudge(l, judge, rows, DEFAULT_POLICY))!.added).toBe(2)
+  expect(calls).toBe(1)
+  expect(l.redactRefs(["room:r:msg:m2"]).length).toBe(1)
+  expect(l.recall("sam nurse").map((x) => x.text)).toEqual(["My sister Sam is a nurse."])
+})
+
+test("the criteria text is sent once in the state, not once per question", () => {
+  const known = Array.from({ length: 8 }, (_, i) => ({ pos: i + 1, text: `fact ${i}` }))
+  const items = Array.from({ length: 3 }, (_, i) => ({ message: 0, candidate: `candidate number ${i}`, known }))
+  const { state, questions } = captureQuestions(["m"], items)
+  const bytes = JSON.stringify({ state, questions }).length
+  expect(Object.keys(questions).length).toBe(3 * (4 + 16))
+  expect(bytes).toBeLessThan(40_000)
+  expect(JSON.stringify(questions).split("different fact. A different name").length - 1).toBe(0)
 })

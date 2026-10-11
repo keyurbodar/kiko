@@ -137,9 +137,10 @@ export class SignalWindow {
 	}
 
 	/** The batch up to row `upto` reached `UserDO`. Signals added while it was on its way stay for the next window. */
-	sent(upto: number): void {
+	sent(upto: number, more: number): void {
 		this.sql.exec("DELETE FROM signal_window WHERE n <= ?", upto)
-		this.sql.exec("DELETE FROM signal_more")
+		this.sql.exec("UPDATE signal_more SET more = more - ? WHERE id = 1", more)
+		this.sql.exec("DELETE FROM signal_more WHERE more <= 0")
 	}
 
 	nextClose(): number | null {

@@ -4,8 +4,7 @@ import type { Members } from "./members"
 import type { RoomLog } from "./log"
 import type { PendingUploads } from "./pending"
 import type { RoomMemory } from "./memory"
-
-declare const process: { env: { NODE_ENV?: string } }
+import { devOnly } from "../lib/dev-guard"
 
 export type DevDeps = {
 	sql: SqlStorage
@@ -23,12 +22,8 @@ export type DevDeps = {
 export class RoomDev {
 	constructor(private readonly d: DevDeps) {}
 
-	private guard(): void {
-		if (process.env.NODE_ENV !== "development") throw new Error("not found")
-	}
-
 	async seed(turns: { from: string; text: string }[]): Promise<number> {
-		this.guard()
+		devOnly()
 		const call = crypto.randomUUID()
 		for (const [i, t] of turns.entries()) {
 			const from: Sender = t.from === "human" ? { kind: "human" } : { kind: "agent", slug: t.from as AgentSlug }
@@ -40,7 +35,7 @@ export class RoomDev {
 	}
 
 	async memory(): Promise<{ turns: number; pending: number; view: string }> {
-		this.guard()
+		devOnly()
 		const view = this.d.memory.view(Date.now())
 		const pending = this.d.memory.pending(1_000).length
 		if (pending) await this.d.armMemory()
@@ -48,26 +43,26 @@ export class RoomDev {
 	}
 
 	async quiet(): Promise<void> {
-		this.guard()
+		devOnly()
 		await this.d.rollupQuiet()
 	}
 
 	async age(ms: number): Promise<number> {
-		this.guard()
+		devOnly()
 		this.d.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)
 		await this.d.tasksChanged()
 		return openTasks(this.d.sql).length
 	}
 
 	async agePending(ms: number): Promise<number> {
-		this.guard()
+		devOnly()
 		this.d.pending.age(ms)
 		await this.d.sweepPending()
 		return this.d.pending.count()
 	}
 
 	async agentMessage(slug: AgentSlug, text: string): Promise<void> {
-		this.guard()
+		devOnly()
 		const added = this.d.members.apply({ op: "add", slug, name: slug })
 		if (added.ok) this.d.publish(added.events)
 		const { event } = this.d.log.addMessage({ from: { kind: "agent", slug }, text })

@@ -61,4 +61,42 @@ Two more patterns in the same file are quadratic on hostile input, outside this 
 
 The head title path is now linear, so `"<head>" + "<title>".repeat(20_000) + "</head>"` takes 0.5 ms.
 
+## Round 2
+
+STATUS: done
+
+BRANCH: s/u10-html-text
+
+HEAD: 5af1d434278584f67a3b29a8dc6fd436c8829b64
+
+Merged `main` into the branch first (no conflicts; `main` had landed round 1). Closed both follow-ups from round 1: `BLOCK` now uses `[^<>]*`, and the comment pass is an `indexOf` scan (`stripComments`). Scanned the rest of the file: `decodeEntities`, the script opener pattern, the final tag strip, and the whitespace collapse are single character-class runs, and `closeIndex`, `titleOf`, and `stripComments` are `indexOf` scans, so no other pattern can backtrack across the input.
+
+CHANGED:
+- `core/durable/src/html-text.ts`: `BLOCK` `[^>]*` -> `[^<>]*`; new `stripComments` replaces `/<!--[\s\S]*?-->/g`.
+- `apps/server/test/web-tools.test.ts`: two tests, 1 MB of `"<p"` and 1 MB of `"<!--"`, each under 200 ms.
+
+VERIFIED:
+- `bun run --cwd apps/server test web-tools` -> `10 pass, 0 fail across 1 files` (ran 4 times, green every time).
+- `bun run --cwd core/durable typecheck` -> exit 0.
+- `bun scripts/check-rules.ts` -> exit 0, `check-rules ok in 385 ms`.
+- `bun scripts/check-exports.ts` -> exit 0, `check-exports ok: 197 files, 209 baselined in 1373 ms`.
+- `bunx biome check apps/server core apps/cli scripts` -> exit 0, `Found 4 warnings` (all pre-existing; the one in `html-text.ts:28` is the round-1 `lower[j]!`, not new code).
+- 25-case byte-identical check: `identical: 25/25, diffs: 0` between the pre-round-2 module and the new one.
+
+Timings, same machine, before -> after:
+- `"<p".repeat(30_000)` (60 KB, the failing probe): 1399.6 ms -> 1.9 ms.
+- `"<!--".repeat(30_000)` (120 KB, the failing probe): 2657.4 ms -> 1.4 ms.
+- 1 MB of `"<p"` (`repeat(500_000)`, committed test): quadratic, about 13 min estimated -> 112.3 ms.
+- 1 MB of `"<!--"` (`repeat(250_000)`, committed test): quadratic, about 2.5 min estimated -> 70.7 ms.
+
+FAILED-BEFORE:
+- Reduced-size probe on old code, `"<p".repeat(30_000)`: `(fail) probe: '<p' x30k fails the 200 ms bound on old code [2312.81ms]` with `Received: 2304.273177`.
+- Reduced-size probe on old code, `"<!--".repeat(30_000)`: `(fail) probe: '<!--' x30k fails the 200 ms bound on old code [5279.80ms]` with `Received: 5262.579464`.
+
+DEVIATIONS:
+- The committed 1 MB tests were not run against the old code at full size. `"<p"` is quadratic there and would take about 13 minutes; `"<!--"` about 2.5 minutes. Failure was shown at 30,000 (2.3 s and 5.3 s), and the measured full-size curve is quadratic, so the direction is proven.
+
+FOLLOW-UPS:
+- None known. The four patterns in this file are now all single passes.
+
 

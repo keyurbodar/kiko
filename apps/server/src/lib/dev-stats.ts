@@ -1,8 +1,7 @@
 // Under `wrangler dev` every object of one Worker shares one isolate, so this module-level table sees them all.
 
-declare const process: { env: { NODE_ENV?: string } }
+import { devRequest, DEV } from "./dev-guard"
 
-const dev = () => process.env.NODE_ENV === "development"
 const counters = new Map<string, number>()
 const open: { kind: string; write: boolean; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] = []
 
@@ -20,7 +19,7 @@ function settle(): void {
 const KV = ["get", "put", "delete", "list", "setAlarm", "getAlarm", "deleteAlarm", "transaction"] as const
 
 export function instrument(ctx: DurableObjectState, kind: string): void {
-  if (!dev()) return
+  if (!DEV) return
   const storage = ctx.storage as unknown as Record<string, unknown>
   const sql = ctx.storage.sql
   const exec = sql.exec.bind(sql)
@@ -51,7 +50,7 @@ export function instrument(ctx: DurableObjectState, kind: string): void {
 }
 
 export function rpc<T extends object>(stub: T, target: string): T {
-  if (!dev()) return stub
+  if (!DEV) return stub
   return new Proxy(stub, {
     get(obj, key, receiver) {
       const value = Reflect.get(obj, key, receiver)
@@ -65,15 +64,13 @@ export function rpc<T extends object>(stub: T, target: string): T {
 }
 
 export function count(key: string, n = 1): void {
-  if (dev()) bump(key, n)
+  if (DEV) bump(key, n)
 }
-
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 
 export function devStatsRoute(request: Request): Response | null {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/dev/stats")) return null
-  if (!dev() || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
+  if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   if (url.pathname === "/api/dev/stats/reset" && request.method === "POST") {
     settle()
     counters.clear()

@@ -179,21 +179,20 @@ export class MemoryCapture {
     let learned = false
     if (this.judgeKey()) {
       const judge = this.judge(CAPTURE_TIMEOUT_MS)
-      const left: QueueRow[] = []
-      for (const r of rows) {
-        if (left.length) {
-          left.push(r)
-          continue
-        }
+      let left: QueueRow[] = []
+      if (rows.length) {
         this.count({ capture_jev: 1 })
-        const out = await captureWithJudge(this.life, judge, { messageId: r.message_id, text: r.text, at: r.at }, `room:${r.room_id}:msg:${r.message_id}`, policy, () => this.queued(r.room_id, r.message_id, r.text))
-        if (!out) {
-          left.push(r)
-          continue
-        }
-        this.tally(out)
-        learned ||= out.added + out.replaced > 0
-        if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
+        const out = await captureWithJudge(
+          this.life,
+          judge,
+          rows.map((r) => ({ heard: { messageId: r.message_id, text: r.text, at: r.at }, ref: `room:${r.room_id}:msg:${r.message_id}`, keep: () => this.queued(r.room_id, r.message_id, r.text) })),
+          policy,
+        )
+        if (out) {
+          this.tally(out)
+          learned = out.added + out.replaced > 0
+          for (const r of rows) if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
+        } else left = rows
       }
       rows = left
       if (rows.length && policy.capture === "auto") {

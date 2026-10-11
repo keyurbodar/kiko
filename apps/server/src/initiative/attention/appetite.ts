@@ -11,6 +11,8 @@ export type Outcome = { nudge: Pending; result: Result; at: number }
 
 const DAY = 86_400_000
 const HALF_LIFE = 14 * DAY
+// The per-item ignore count never fades like the appetite does, so its rest stops doubling here.
+const MAX_DOUBLINGS = 3
 const DISMISS_WEIGHT = 5
 const MAX_PER_PASS = 3
 const GATE = 0.5
@@ -62,7 +64,7 @@ export function allowance(app: Appetite, now: number): number {
 export function restUntil(app: Appetite, c: { kind: Kind; lastSurfaced?: number; ignored: number }, cycle: number, now: number): number {
   if (c.lastSurfaced === undefined) return 0
   const p = Math.max(kindMean(app, c.kind, now), 0.02)
-  return c.lastSurfaced + cycle * 2 ** c.ignored * (0.5 / p)
+  return c.lastSurfaced + cycle * 2 ** Math.min(c.ignored, MAX_DOUBLINGS) * (0.5 / p)
 }
 
 export function nudged(app: Appetite, p: Pending): Appetite {

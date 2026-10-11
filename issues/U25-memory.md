@@ -18,3 +18,16 @@ The `always` capture mode stays. The appetite and rhythm models stay (a later un
 
 ## Acceptance
 One failing-first test per finding. `bun run --cwd apps/server test memory loops attention initiative log-memory` green.
+
+## Report
+Status: done, except the real-model quality check below.
+
+1. Forget: `MemoryNaps.forget` now sends one `forgetMessages(roomId, deleted, requeue, turns)` call. `forgetRoomTurn` is deleted. `forwarded()` still runs only after that one call succeeds, and the call is idempotent, so a failure retries the same work cheaply. Test in `log-memory.test.ts` failed on the old code with 3 extra calls.
+2. Capture: `captureWithJudge` takes all queued rows and makes one classify per alarm. The long criteria text moved into `state.rules` once, and each question carries a one-word criteria label. Request bytes for 6 candidates with 8 known facts each went from 47768 to 31028 (measured offline with the old and new `captureQuestions`; `bun yuki verify token-cost` was not run, it needs a model key and a dev server). UNVERIFIED: whether the real judge answers as well with rules in the state. Run `memory-jev` and `memory-eval` against real models before relying on it.
+3. Appetite: the per-item rest doubles at most 3 times (`MAX_DOUBLINGS`).
+4. Jev close: the burst's room is passed when the loop is an agent's promise. A human's own plan still closes from any chat, because `similar()` finds human loops across rooms on purpose. Test fails without the room.
+5. Initiative: `items()` reads marks for the current candidates through `json_each(?)`. Each pass prunes marks, briefs and settled wakes older than 90 days. Test added.
+6. Signals: `SignalWindow.sent(upto, more)` subtracts the sent overflow. Test fails with a clear-all.
+
+## Discoveries
+`routines.test.ts` "a watch steps on its own grid" fails on `main` too (date format "oct 6 at 08:30" vs "oct 6, 08:30", a runtime ICU difference). Not caused by this unit.

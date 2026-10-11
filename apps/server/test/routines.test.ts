@@ -3,7 +3,8 @@ import type { AgentSlug, Envelope, RoomEvent } from "@yuki/protocol"
 import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 import { joinOrigin, type Origin, originOf, originOfAll } from "@yuki/agent/envelope"
-import { matches, routineRun, type Signal, signalOf } from "../src/room/signals"
+import { matches, routineRun, type Signal, signalOf, SignalWindow } from "../src/room/signals"
+import { sqlStorage } from "./sql-shim"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
 import { describeTrigger, nextEvery } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
@@ -103,3 +104,19 @@ describe("proactivity (sections 25.5 and 25.6)", () => {
   })
 })
 
+
+describe("signal window", () => {
+  test("a sent batch subtracts its overflow, so overflow that arrived in flight stays for the next window", () => {
+    const window = new SignalWindow(sqlStorage(), () => "r1")
+    const hit = (n: number): Signal => ({ kind: "burst", roomId: "r1", at: 1, seq: n, text: `t${n}`, by: { kind: "human" } })
+    window.add(Array.from({ length: 25 }, (_, i) => hit(i)), 1)
+    const due = window.due(1 + 60_001)!
+    expect(due.batch.more).toBe(5)
+    window.add([hit(100), hit(101), hit(102)], 2)
+    window.sent(due.upto, due.batch.more)
+    window.add([hit(103)], 3)
+    const next = window.due(3 + 60_001)!
+    expect(next.batch.signals.length).toBe(1)
+    expect(next.batch.more).toBe(3)
+  })
+})

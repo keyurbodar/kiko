@@ -622,10 +622,14 @@ export function nextEvery(due: number, every: number, now: number): number {
   return due + Math.max(1, Math.ceil((now - due + 1) / every)) * every
 }
 
+// Built from parts so the text does not depend on the host ICU version, which joins date and time differently.
 export function localTime(at: number, tz: string): string {
-  return new Date(at)
-    .toLocaleString("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .toLowerCase()
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date(at))
+      .map((x) => [x.type, x.value]),
+  )
+  return `${p.weekday}, ${p.month} ${p.day} at ${p.hour}:${p.minute}`.toLowerCase()
 }
 
 function ruleText(rrule: string): string {

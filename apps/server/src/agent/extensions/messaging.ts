@@ -13,7 +13,7 @@ export type MessagingPort = {
   spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
   ask(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
-  waitAnswer(id: string, ms: number): Promise<Answer | null>
+  waitAnswer(id: string, ms: number, signal?: AbortSignal): Promise<Answer | null>
   closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
   humanWaiting(): boolean
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
@@ -65,7 +65,7 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
         "ask one teammate a question and wait for the answer, which comes back as this tool's result. use it when you need their answer to go on. it waits up to two minutes, and stops at once if the human writes. to ask several teammates, call ask once per teammate in the same reply, and they wait together.",
       parameters: Type.Object({ to: slug("the agent's slug, without @"), question: Type.String() }),
       replay: "safe",
-      execute: async ({ to, question }, api) => {
+      execute: async ({ to, question }, api, context) => {
         const id = `${api.conversationId}:${api.callId}`
         const who = to.replace(/^@/, "").toLowerCase() as AgentSlug
         const sent = await room().ask({ id, to: who, text: question })
@@ -74,7 +74,7 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
         const answered = (s: { state: string; answer: string | null } | null) => (s?.state === "answered" ? reply(s.answer ?? "") : null)
         const stored = answered(await room().askState(id))
         if (stored) return stored
-        const pushed = room().humanWaiting() ? null : await room().waitAnswer(id, ASK_WAIT_MS)
+        const pushed = room().humanWaiting() ? null : await room().waitAnswer(id, ASK_WAIT_MS, context.abortSignal)
         if (pushed !== null) return reply(pushed)
         const last = answered(await room().closeAsk(id))
         if (last) return last

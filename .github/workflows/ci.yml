@@ -17,10 +17,7 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun run test
-      - run: bun run lint
-      - run: bun scripts/check-imports.ts
+      - run: bun run check
 
   # Real backend verification. It needs no repository secret and no model key, so it is
   # safe for a pull request from a fork. It has only the read-only `contents` permission.

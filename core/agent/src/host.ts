@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import type { Models } from "@earendil-works/pi-ai"
-import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type RegistryReader } from "@earendil-works/pi-durable"
+import type { Models, ToolCall } from "@earendil-works/pi-ai"
+import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type RegistryReader, type TaskId, type ToolTaskInput } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { type Alarms, createAlarms } from "@yuki/durable/alarm"
@@ -108,6 +108,10 @@ export type HostOptions = {
   onReset?: () => void
   autoBudgetMs?: () => Promise<number>
   onWorkers?: (running: number, pending: boolean) => void
+  // Whether a running tool may be aborted when a human arrives. Tools that write or message are never stopped mid-call.
+  interruptible?: (toolName: string) => boolean
+  // Keeps an un-awaited promise alive past the handler's return, so an abort still commits.
+  waitUntil: (work: Promise<unknown>) => void
 }
 
 export type Opened = {
@@ -129,6 +133,7 @@ export type HostStatus = {
   submissions: number
 }
 
+const TOOL_TASK = "pi.tool"
 const HUMAN_COMING = "human-coming"
 const HUMAN_COMING_MS = 10_000
 
@@ -330,7 +335,9 @@ export class AgentHost {
         restarts++
       }
       await this.ctx.storage.put(RESTARTS_KEY, restarts)
-      const whenBusy = action === "steer" ? ({ whenBusy: "steer" } as const) : {}
+      // Read before the steer: a tool the steer starts must not be stopped by it.
+      const stopping = action === "interrupt" ? await this.stoppableTools(harness, root) : []
+      const whenBusy = action === "steer" || action === "interrupt" ? ({ whenBusy: "steer" } as const) : {}
       let memory: string | undefined
       let fresh = false
       if (!run && inputMemory) {
@@ -351,6 +358,7 @@ export class AgentHost {
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
+      if (action === "interrupt") for (const id of stopping) this.options.waitUntil(harness.abortTask(id, context).catch(() => {}))
       this.inputs++
       if (shown.key) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
@@ -391,9 +399,23 @@ export class AgentHost {
       return
     }
     if (row.steered) return
-    this.ctx.storage.sql.exec("UPDATE run_origin SET steered = 1 WHERE id = 1")
     const content = '<system-event reason="run_budget">\ntime is up for this run. post what you have now in one short message, and stop.\n</system-event>'
     await root.submit({ type: "input", content, requestId: `budget:${row.started_at}`, whenBusy: "steer" }, context)
+    this.ctx.storage.sql.exec("UPDATE run_origin SET steered = 1 WHERE id = 1")
+  }
+
+  // The running tools the host may stop, so a human message is answered after the tool, not after it finishes.
+  private async stoppableTools(harness: Harness, root: Conversation): Promise<TaskId[]> {
+    const interruptible = this.options.interruptible
+    if (!interruptible) return []
+    const live = await harness.inspect(context)
+    const ids: TaskId[] = []
+    for (const task of live.tasks) {
+      if (task.record.kind !== TOOL_TASK || task.record.conversationId !== root.id || task.state.kind !== "running") continue
+      const name = await toolName(root, task.record.input as ToolTaskInput)
+      if (name !== undefined && interruptible(name)) ids.push(task.record.id)
+    }
+    return ids
   }
 
   private async contextFull(root: Conversation): Promise<boolean> {
@@ -519,6 +541,17 @@ export class AgentHost {
 
 function isTalking(live: { tasks: readonly { record: { conversationId: ConversationId } }[]; submissions: readonly { conversationId: ConversationId }[] }, root: ConversationId): boolean {
   return live.tasks.some((t) => t.record.conversationId === root) || live.submissions.some((s) => s.conversationId === root)
+}
+
+// The tool task's input names the assistant entry that made the call, not the tool, so the name is read from that entry.
+async function toolName(root: Conversation, input: ToolTaskInput): Promise<string | undefined> {
+  const { items } = await root.entries({ minEntryId: input.assistant, maxEntryId: input.assistant }, 1, undefined, context)
+  for (const message of items[0]?.model ?? []) {
+    if (message.role !== "assistant") continue
+    const call = message.content.find((part): part is ToolCall => part.type === "toolCall" && part.id === input.callId)
+    if (call) return call.name
+  }
+  return undefined
 }
 
 function arrivalOf(batch: Batch): Arrival {

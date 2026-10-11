@@ -1,14 +1,13 @@
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
+import { devRequest, DEV } from "../lib/dev-guard"
 import { userStub } from "../lib/names"
-
-const LOCAL_HOSTS: Record<string, true> = { localhost: true, "127.0.0.1": true, "[::1]": true }
 
 export async function devBrowserRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const share = url.pathname === "/api/dev/user/browser-share"
-  if (process.env.NODE_ENV !== "development" || (url.pathname !== "/api/dev/user/browser-tabs" && !share) || request.method !== "POST") return null
-  if (LOCAL_HOSTS[url.hostname] !== true) return Response.json({ error: "not found" }, { status: 404 })
+  if (!DEV || (url.pathname !== "/api/dev/user/browser-tabs" && !share) || request.method !== "POST") return null
+  if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   const user = await getSessionUser(request, env)
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null

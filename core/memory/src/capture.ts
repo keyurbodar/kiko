@@ -65,63 +65,73 @@ export function candidates(text: string): string[] {
 
 const NEIGHBORS = 8
 
-const WORTH = {
-  true: "a lasting fact about the human worth remembering for months: who they are, their people, places, work, plans, preferences, or how they want to be helped",
-  false: "small talk, a passing mood, a question, or a request to the agent",
+// The long definitions travel once in the judge state; each question carries only a short label and points at them by path.
+const RULES = {
+  worth: {
+    true: "a lasting fact about the human worth remembering for months: who they are, their people, places, work, plans, preferences, or how they want to be helped",
+    false: "small talk, a passing mood, a question, or a request to the agent",
+  },
+  standing: { true: "a rule for how to help the human from now on", false: "a request about the current message only, or no rule at all" },
+  private: {
+    true: "a street address, phone number, government id, account number, password, pin or key, a medical diagnosis, condition, or medication, or something they asked to keep secret",
+    false: "none of these. A city, employer, job, who someone is to them, tastes, and food allergies or diets are not private",
+  },
+  same: { true: "the same fact, maybe in other words", false: "a different fact. A different name, person, place, or detail makes it a different fact, even when the sentences look alike" },
+  replaces: {
+    true: "an update or correction of the same detail about the same person, place, or thing, so the known fact is no longer true",
+    false: "both can be true at once, or they are about different people, places, or things",
+  },
+  card: {
+    IDENTITY: "who they are: name, age, pronouns, where they live, what they do",
+    ATTRIBUTE: "a lasting trait, taste, or habit",
+    RELATIONSHIP: "a person in their life and who that person is to them",
+    INSTRUCTION: "a standing rule for how agents should help them",
+    not_card: "anything that may change within six months, or a minor detail",
+  },
 }
 
-const STANDING = { true: "a rule for how to help the human from now on", false: "a request about the current message only, or no rule at all" }
+const YES_NO = { true: "yes", false: "no" }
 
-const PRIVATE = {
-  true: "a street address, phone number, government id, account number, password, pin or key, a medical diagnosis, condition, or medication, or something they asked to keep secret",
-  false: "none of these. A city, employer, job, who someone is to them, tastes, and food allergies or diets are not private",
-}
+export type CaptureItem = { message: number; candidate: string; known: { pos: number; text: string }[] }
 
-const SAME = { true: "the same fact, maybe in other words", false: "a different fact. A different name, person, place, or detail makes it a different fact, even when the sentences look alike" }
-
-const REPLACES = { true: "an update or correction of the same detail about the same person, place, or thing, so the known fact is no longer true", false: "both can be true at once, or they are about different people, places, or things" }
-
-const CARD: Record<CardTag | "not_card", string> = {
-  IDENTITY: "who they are: name, age, pronouns, where they live, what they do",
-  ATTRIBUTE: "a lasting trait, taste, or habit",
-  RELATIONSHIP: "a person in their life and who that person is to them",
-  INSTRUCTION: "a standing rule for how agents should help them",
-  not_card: "anything that may change within six months, or a minor detail",
-}
-
-export type CaptureItem = { candidate: string; known: { pos: number; text: string }[] }
-
-export function captureQuestions(message: string, items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
+export function captureQuestions(messages: readonly string[], items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
   const questions: Record<string, Question> = {}
   items.forEach(({ known }, i) => {
     const c = `\`candidates[${i}].text\``
-    questions[`c${i}_worth`] = { type: "bool", instructions: `Is ${c} a lasting fact about the human worth remembering for months?`, criteria: WORTH }
-    questions[`c${i}_standing`] = { type: "bool", instructions: `Is ${c} a standing rule for how to help the human from now on?`, criteria: STANDING }
-    questions[`c${i}_private`] = { type: "bool", instructions: `Does ${c} hold a private detail about the human?`, criteria: PRIVATE }
+    questions[`c${i}_worth`] = { type: "bool", instructions: `Is ${c} a lasting fact about the human worth remembering for months? Judge by \`rules.worth\`.`, criteria: YES_NO }
+    questions[`c${i}_standing`] = { type: "bool", instructions: `Is ${c} a standing rule for how to help the human from now on? Judge by \`rules.standing\`.`, criteria: YES_NO }
+    questions[`c${i}_private`] = { type: "bool", instructions: `Does ${c} hold a private detail about the human? Judge by \`rules.private\`.`, criteria: YES_NO }
     for (const k of known) {
       const fact = `this known fact: ${JSON.stringify(k.text)}`
-      questions[`c${i}_same_${k.pos}`] = { type: "bool", instructions: `Does ${c} state the very same fact as ${fact}: the same person, place, or thing, and the same detail about it?`, criteria: SAME }
-      questions[`c${i}_replaces_${k.pos}`] = { type: "bool", instructions: `Does ${c} make ${fact} no longer true?`, criteria: REPLACES }
+      questions[`c${i}_same_${k.pos}`] = { type: "bool", instructions: `Does ${c} state the very same fact as ${fact}: the same person, place, or thing, and the same detail about it? Judge by \`rules.same\`.`, criteria: YES_NO }
+      questions[`c${i}_replaces_${k.pos}`] = { type: "bool", instructions: `Does ${c} make ${fact} no longer true? Judge by \`rules.replaces\`.`, criteria: YES_NO }
     }
     questions[`c${i}_card`] = {
       type: "choice",
-      instructions: `Does ${c} belong on the human's profile card? Only facts unlikely to change within six months belong there.`,
-      criteria: CARD,
+      instructions: `Does ${c} belong on the human's profile card? Only facts unlikely to change within six months belong there. Choose by \`rules.card\`.`,
+      criteria: Object.fromEntries(Object.keys(RULES.card).map((k) => [k, k])),
     }
   })
-  const state = { message, candidates: items.map((it) => ({ text: it.candidate })) }
+  const state = { messages: [...messages], candidates: items.map((it) => ({ text: it.candidate, message: it.message })), rules: RULES }
   return { state, questions }
 }
 
-export async function captureWithJudge(life: Life, judge: Judge, heard: Heard, ref: string, policy: CapturePolicy, keep: () => boolean = () => true): Promise<CaptureCount | null> {
+type CaptureRow = { heard: Heard; ref: string; keep?: () => boolean }
+
+// One judge request for every queued message. A message the human changed meanwhile (keep() false) is asked about but not written.
+export async function captureWithJudge(life: Life, judge: Judge, rows: readonly CaptureRow[], policy: CapturePolicy): Promise<CaptureCount | null> {
   const count: CaptureCount = { added: 0, replaced: 0, same: 0, private: 0 }
-  const items = candidates(heard.text).map((candidate) => ({ candidate, known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })) }))
+  const items = rows.flatMap((row, message) => candidates(row.heard.text).map((candidate) => ({ message, candidate, known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })) })))
   if (!items.length) return count
-  const { state, questions } = captureQuestions(heard.text, items)
+  const { state, questions } = captureQuestions(
+    rows.map((r) => r.heard.text),
+    items,
+  )
   const answers = await judge(state, questions)
   if (!answers) return null
-  if (!keep()) return count
-  for (const [i, { candidate, known }] of items.entries()) {
+  for (const [i, { message, candidate, known }] of items.entries()) {
+    const row = rows[message]!
+    if (row.keep && !row.keep()) continue
     if (boolOf(answers[`c${i}_private`]) > policy.privateMax) {
       count.private++
       continue
@@ -136,7 +146,7 @@ export async function captureWithJudge(life: Life, judge: Judge, heard: Heard, r
       count.same++
       continue
     }
-    store(life, candidate, card, heard.at, ref, replaced, count)
+    store(life, candidate, card, row.heard.at, row.ref, replaced, count)
   }
   return count
 }

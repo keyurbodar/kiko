@@ -17,11 +17,12 @@ const server = Bun.serve({
 })
 afterAll(() => server.stop(true))
 
-async function run(args: string[], stdin = "") {
+async function run(args: string[], stdin = "", env?: Record<string, string>) {
   const p = Bun.spawn(["bun", `${import.meta.dir}/index.ts`, ...args], {
     stdin: new Blob([stdin]),
     stdout: "pipe",
     stderr: "pipe",
+    env: env ? { ...process.env, ...env } : undefined,
   })
   const [out, err] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text()])
   return { code: await p.exited, out, err }
@@ -36,7 +37,23 @@ test("health ok", async () => {
 test("health exits 1 with one line when down", async () => {
   const r = await run(["health", "--url", "http://localhost:1"])
   expect(r.code).toBe(1)
-  expect(r.err.trim().split("\n")).toHaveLength(1)
+  const lines = r.err.trim().split("\n")
+  expect(lines).toHaveLength(2)
+  expect(lines[0]).toBe("yuki: target http://localhost:1")
+  expect(lines[1]).toMatch(/^yuki: health failed: cannot reach http:\/\/localhost:1 /)
+})
+
+test("YUKI_URL sets the default target and prints it first", async () => {
+  const r = await run(["health"], "", { YUKI_URL: `http://localhost:${server.port}` })
+  expect(r.code).toBe(0)
+  expect(r.err.split("\n")[0]).toBe(`yuki: target http://localhost:${server.port}`)
+  expect(r.out.trim()).toBe("ok")
+})
+
+test("--url overrides YUKI_URL", async () => {
+  const r = await run(["health", "--url", `http://localhost:${server.port}`], "", { YUKI_URL: "http://localhost:1" })
+  expect(r.code).toBe(0)
+  expect(r.err.split("\n")[0]).toBe(`yuki: target http://localhost:${server.port}`)
 })
 
 test("health exits 1 on bad status", async () => {
