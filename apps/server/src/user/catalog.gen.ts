@@ -160,23 +160,23 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
   {
     "name": "slack-post",
     "version": "1.0.0",
-    "description": "post a message to one slack channel through an incoming webhook.",
+    "description": "post a message to one Slack channel through an incoming webhook.",
     "bundle": {
       "manifest": {
         "yuki": 1,
         "name": "slack-post",
         "version": "1.0.0",
-        "description": "post a message to one slack channel through an incoming webhook.",
+        "description": "post a message to one Slack channel through an incoming webhook.",
         "tools": {
           "slack_post": {
-            "description": "post a message to the human's slack channel",
+            "description": "post a message to the human's Slack channel",
             "effect": "external",
             "parameters": {
               "type": "object",
               "properties": {
                 "text": {
                   "type": "string",
-                  "description": "the message, slack markdown allowed"
+                  "description": "the message, Slack markdown allowed"
                 }
               },
               "required": [
@@ -268,13 +268,13 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
   {
     "name": "weather",
     "version": "1.0.0",
-    "description": "the weather now and for the next days, anywhere, from open-meteo. no key needed.",
+    "description": "the weather now and for the next days, anywhere, from Open-Meteo. no key needed.",
     "bundle": {
       "manifest": {
         "yuki": 1,
         "name": "weather",
         "version": "1.0.0",
-        "description": "the weather now and for the next days, anywhere, from open-meteo. no key needed.",
+        "description": "the weather now and for the next days, anywhere, from Open-Meteo. no key needed.",
         "tools": {
           "weather": {
             "description": "the weather now and a short forecast for a place",

@@ -3,6 +3,7 @@ import { useNavigate } from "@solidjs/router"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { useApp } from "../lib/store"
 import { lineDiff } from "./line-diff"
+import { reviewChange, type ReviewChange } from "./review-diff"
 import { cn } from "../lib/cn"
 import { Button, DetailsButton, fieldClass, Group, Hint, Item, line, muted, Notice, Pill, Row, Toggle } from "./kit"
 
@@ -140,7 +141,9 @@ function ProposalCard(props: { proposal: ExtensionProposal; installed?: Extensio
             Written after the agent read outside content, like a web page. Read the code before you install it.
           </Notice>
         </Show>
-        <Review lines={describeManifest(m())} />
+        <Show when={props.installed} fallback={<Review lines={describeManifest(m())} />}>
+          {(old) => <UpdateReview change={reviewChange(describeManifest(old().manifest), describeManifest(m()))} />}
+        </Show>
         <div class="flex flex-wrap items-center gap-2">
           <Button variant="primary" data-action="install-extension" onClick={() => void props.run({ op: "install", id: p().id })}>
             {props.installed ? "Update" : "Install"}
@@ -179,6 +182,26 @@ function Review(props: { lines: ReviewLine[] }) {
         )}
       </For>
     </ul>
+  )
+}
+
+/** An update's powers: what this version adds or drops, and how many stay the same. */
+function UpdateReview(props: { change: ReviewChange }) {
+  const c = () => props.change
+  return (
+    <div class="flex flex-col gap-2" data-component="extension-update-review">
+      <Show when={c().added.length} fallback={<p class={cn("text-[13px]", muted)}>No new powers.</p>}>
+        <Review lines={c().added} />
+      </Show>
+      <Show when={c().removed.length}>
+        <ul class="flex flex-col gap-1" data-component="extension-review-removed">
+          <For each={c().removed}>{(entry) => <li class={cn("text-[13px] leading-relaxed line-through", muted)}>{sentence(entry.text)}</li>}</For>
+        </ul>
+      </Show>
+      <Show when={c().unchanged}>
+        <p class={cn("text-[13px]", muted)}>Unchanged powers: {c().unchanged}</p>
+      </Show>
+    </div>
   )
 }
 

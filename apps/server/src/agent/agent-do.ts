@@ -350,7 +350,7 @@ export class AgentDO extends DurableObject<Env> {
         const down = composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
-        const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}.` : undefined
+        const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}. one that is not live may be installed but switched off: check extension_list before telling the human to install anything.` : undefined
         const initiative = await this.takeInitiative()
         return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
       },
@@ -579,7 +579,7 @@ export class AgentDO extends DurableObject<Env> {
       propose: async (bundle, tainted) => {
         const home = where()
         const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId, tainted })) as ExtensionResult
-        if (out.ok && out.proposal) await roomStub(this.env.ROOM, home.userId, home.roomId).homeNotice(home.slug, `proposed the ${out.proposal.name} extension. review it in settings → extensions`)
+        if (out.ok && out.proposal) await roomStub(this.env.ROOM, home.userId, home.roomId).homeNotice(home.slug, `Proposed the ${out.proposal.name} extension. Review it in Settings → extensions.`)
         return out
       },
       list: async () => (await userStub(this.env.USER, where().userId).extensionList()) as unknown as ExtensionInfo[],
