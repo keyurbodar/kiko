@@ -86,6 +86,23 @@ test("a secret is filled in only for its own host, and an echo never hands it ba
   expect(output).not.toContain(SECRET)
 })
 
+test("a secret shorter than six characters is scrubbed from the response too", async () => {
+  const u = fresh()
+  await installed(u)
+  await call(u, "setSecret", "hook", "TOKEN", "abc")
+  const out = await call(u, "fetch", "hook", { url: "https://api.example.com/v1?key={{secret.TOKEN}}" })
+  expect(out.value.text).toContain("key={{secret.TOKEN}}")
+})
+
+test("a trigger failure still reports the install and records the error on the row", async () => {
+  const u = fresh()
+  const boom = { manifest: { ...manifest, name: "boom" }, files: bundle.files }
+  const p = await call(u, "propose", { bundle: boom, source: "agent", by: "ada", room: "0190f5e2-7c3a-7b4d-8e9f-0123456789ab" })
+  const i = await call(u, "install", p.value.id)
+  expect(i).toMatchObject({ ok: true, value: { name: "boom", error: "triggers: the scheduler is down" } })
+  expect((await seen(u)).events).toContain("extension")
+})
+
 test("only hosts in egress, only https, and no secret the human has not set", async () => {
   const u = fresh()
   await installed(u)

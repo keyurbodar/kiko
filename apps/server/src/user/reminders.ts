@@ -8,12 +8,11 @@ import type { Budget } from "../room/wake"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@yuki/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
-import { nextOccurrence, ruleProblem, validZone } from "./recurrence"
+import { MIN_REPEAT_MS, nextOccurrence, repeatProblem, ruleProblem, validZone } from "./recurrence"
 
 export const REMINDERS_WAKEUP = "reminders"
 export const MAX_ROUTINES = 50
 export const RUNS_KEPT = 20
-const MIN_REPEAT_MS = 30 * 60_000
 const LATE_MS = 60 * 60_000
 export const MAX_FAILS = 3
 const WATCHES_PER_PASS = 10
@@ -609,16 +608,8 @@ const fail = (message: string): never => {
 
 
 function checkRepeat(rrule: string, tz: string, from: number): void {
-  const problem = ruleProblem(rrule)
+  const problem = repeatProblem(rrule, tz, from)
   if (problem) throw new ReminderError(problem)
-  let first: Date | null
-  try {
-    first = nextOccurrence(rrule, tz, from - 1000)
-  } catch {
-    throw new ReminderError("rrule does not parse")
-  }
-  const second = first ? nextOccurrence(rrule, tz, first) : null
-  if (first && second && second.getTime() - first.getTime() < MIN_REPEAT_MS) throw new ReminderError("a schedule repeats at most every 30 minutes. to notice changes on a page, use a watch trigger instead: it checks every 15 minutes without a model run.")
 }
 
 export function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: number): number | null {

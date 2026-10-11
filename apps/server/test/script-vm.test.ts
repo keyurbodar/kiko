@@ -78,6 +78,24 @@ test("the sandbox has no fetch, timers, process, or wasm, and cannot reach the r
   vm.dispose()
 })
 
+test("the prelude's helpers are not reachable from the script", async () => {
+  const names = ["host", "hostSync", "ask", "makeYuki", "pick", "parse"]
+  const vm = await ScriptVM.create(bundle(`export const tools = { go: async () => [${names.map((n) => `typeof ${n}`).join(", ")}] }`), wasm)
+  expect(await vm.invoke({ group: "tools", name: "go" }, [{}], {}, noBridge)).toEqual(names.map(() => "undefined"))
+  vm.dispose()
+})
+
+test("a retired vm finishes the call that is running and is disposed after", async () => {
+  const vm = await ScriptVM.create(bundle(`export const tools = { go: async (_a, yuki) => (await yuki.state.get("k")) + "!" }`), wasm)
+  let release: (v: string) => void = () => {}
+  const running = vm.invoke({ group: "tools", name: "go" }, [{}], {}, () => new Promise((r) => (release = r)))
+  await new Promise((r) => setTimeout(r, 20))
+  vm.retire()
+  release("still alive")
+  expect(await running).toBe("still alive!")
+  await expect(vm.invoke({ group: "tools", name: "go" }, [{}], {}, noBridge)).rejects.toThrow("stopped working")
+})
+
 test("imports resolve inside the bundle only", async () => {
   const vm = await ScriptVM.create(bundle(`import { shout } from "./lib/text.js"; export const tools = { go: async ({ s }) => shout(s) }`, { "lib/text.js": `export const shout = (s) => s.toUpperCase() + "!"` }), wasm)
   expect(await vm.invoke({ group: "tools", name: "go" }, [{ s: "hi" }], {}, noBridge)).toBe("HI!")

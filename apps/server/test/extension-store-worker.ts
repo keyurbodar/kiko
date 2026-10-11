@@ -20,7 +20,10 @@ export class StoreDO extends DurableObject<Env> {
       (e) => this.events.push(e.t),
       {
         create: async (t) => void this.triggers.push(`create ${t.createdBy} ${t.rrule} ${t.text}`),
-        cancelBy: async (by) => void this.triggers.push(`cancel ${by}`),
+        cancelBy: async (by) => {
+          if (by === "ext:boom") throw new Error("the scheduler is down")
+          this.triggers.push(`cancel ${by}`)
+        },
         fallback: () => ({ roomId: "0190f5e2-7c3a-7b4d-8e9f-0123456789ab" as never, target: "yuki" }),
       },
       () => [],
