@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
@@ -12,6 +13,7 @@ import type { MessagingPort } from "../src/agent/extensions/messaging"
 import type { RemindersPort } from "../src/agent/extensions/reminders"
 import type { WorkspacePort } from "../src/agent/extensions/workspace"
 import { buildAgent } from "../src/agent/factory"
+import type { ScriptPorts } from "@yuki/sandbox/compile"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
 import type { FsEntry } from "../src/room/files"
 
@@ -78,6 +80,50 @@ test("a worker gets the agent's tools but no chat, notes, reminders, board, or m
     expect(talkerTools).toContain(name)
     expect(workerTools).not.toContain(name)
   }
+})
+
+test("the talker has no web, app, or extension tools; a worker has them all, and keeps the extension's hook", async () => {
+  const wasm = await WebAssembly.compile(readFileSync(require.resolve("quickjs-wasi/quickjs.wasm")))
+  const scripts: ScriptPorts = { wasm: () => wasm, state: async () => null, fetch: async () => ({ status: 200, headers: {}, text: "" }), env: () => ({ agent: "ada", room: "r1", timezone: "UTC" }), report: () => {} }
+  const composio = { tools: [{ name: "COMPOSIO_SEARCH_TOOLS", description: "search", inputSchema: { type: "object", properties: {} } }], call: async () => ({ text: "ok" }) as never }
+  const { workers, reports } = registry()
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, composio, scripts, work: workers, egress: async () => new Response("hi") })
+  const dice = { yuki: 1, name: "dice", version: "1.0.0", description: "dice", tools: { roll_dice: { description: "rolls", effect: "read" } }, hooks: ["beforeTool"] }
+  const source = `export const tools = { roll_dice: async () => "4" }\nexport const hooks = { beforeTool: async (call) => { if (call.name === "web_fetch") return { block: "no web" } } }`
+  expect(built.extensions.sync([{ name: "dice", hash: "h1", bundle: { manifest: dice as never, files: { "main.js": source } } }])).toEqual([])
+  const faux = fauxProvider()
+  let talkerTools: string[] = []
+  let workerTools: string[] = []
+  const results: string[] = []
+  const step = (r: Request) => {
+    const messages = r.messages as Msg[]
+    const done = messages.filter((m) => m.role === "toolResult")
+    if (isWorker(r)) {
+      workerTools = toolNames(r)
+      results.push(...done.map((m) => (m.content ?? []).map((p) => p.text ?? "").join("")))
+      if (done.length === 0) return fauxAssistantMessage(fauxToolCall("roll_dice", {}), { stopReason: "toolUse" })
+      if (done.length === 1) return fauxAssistantMessage(fauxToolCall("web_fetch", { url: "https://example.com" }), { stopReason: "toolUse" })
+      return fauxAssistantMessage("rolled")
+    }
+    talkerTools = toolNames(r)
+    if (done.length) return fauxAssistantMessage("[skip]")
+    return fauxAssistantMessage(fauxToolCall("start_work", { task: "roll" }), { stopReason: "toolUse" })
+  }
+  faux.setResponses(Array.from({ length: 6 }, () => step))
+  const models = createModels()
+  models.setProvider(faux.provider)
+  const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
+  workers.rearm(harness)
+  const root = await harness.root(context, { agent: { ...built.agent, extensions: built.extensions.talker() } })
+  expect((await (await root.submit({ type: "input", content: "go" }, context)).wait(context)).status).toBe("done")
+  await until(() => reports.length === 1)
+  await harness.close(context)
+  const outside = (names: string[]) => names.filter((n) => n === "web_fetch" || n.startsWith("composio_") || n === "roll_dice")
+  expect(outside(talkerTools)).toEqual([])
+  expect(talkerTools).toContain("start_work")
+  expect(outside(workerTools).sort()).toEqual(["composio_search_tools", "roll_dice", "web_fetch"])
+  expect(results[0]).toBe("4")
+  expect(results.at(-1)).toContain("no web")
 })
 
 test("two asks in one reply, to two teammates, wait together and each gets its own answer", async () => {

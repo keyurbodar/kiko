@@ -8,6 +8,7 @@ import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
 import { WORKSPACE } from "./workspace"
 import { WORK_LINES } from "../prompt"
+import { count } from "../../lib/dev-stats"
 
 // Architecture section 8. The agent talks; workers do slow work in the background. A worker is an
 // ownerless conversation in the agent's own harness, so a tool returns at once and the agent's run
@@ -24,13 +25,11 @@ const WORKER_PROMPT =
 
 const say = (text: string) => ({ content: [{ type: "text" as const, text }] })
 
-function workerAgent(agent: Agent): AgentChange {
-  return {
-    model: agent.model ?? null,
-    thinkingLevel: agent.thinkingLevel,
-    extensions: agent.extensions.filter((e) => !NOT_FOR_WORKERS.includes(e.name)),
-    instructions: WORKER_PROMPT,
-  }
+/** A worker's extensions: every extension, the worker-only ones included (section 8), minus `NOT_FOR_WORKERS`. */
+export const forWorker = (all: readonly Extension[]): Extension[] => all.filter((e) => !NOT_FOR_WORKERS.includes(e.name))
+
+function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
+  return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forWorker(all), instructions: WORKER_PROMPT }
 }
 
 const brief = (args: unknown) => {
@@ -38,11 +37,14 @@ const brief = (args: unknown) => {
   return text === "{}" ? "" : ` ${text.length > 80 ? `${text.slice(0, 79)}…` : text}`
 }
 
-/** The work tools for the talker, and a hook every conversation keeps so a worker's last step shows. */
-export function workExtensions(workers: Workers): Extension[] {
+/**
+ * The work tools for the talker, and a hook every conversation keeps so a worker's last step shows.
+ * `all` is every extension selected now, user extensions and the worker-only tools included.
+ */
+export function workExtensions(workers: Workers, all: () => readonly Extension[]): Extension[] {
   const start = defineTool({
     name: "start_work",
-    description: "Start a background worker on a slow task: browsing, research, several app actions, long drafting. Returns its id at once; its report comes back later as <work>.",
+    description: "Start a background worker on one clear task. The only way to fetch web pages, use the human's connected apps, or run extension tools; also for slow work. Returns its id at once; its report comes back later as <work>.",
     parameters: Type.Object({ task: Type.String({ description: "The whole task, with everything the worker needs to know" }) }),
     replay: "safe",
     execute: async ({ task }, api, ctx) => {
@@ -53,7 +55,7 @@ export function workExtensions(workers: Workers): Extension[] {
       }
       let conversationId = work.conversationId
       if (conversationId === null) {
-        const agent = workerAgent(await api.agent(ctx))
+        const agent = workerAgent(await api.agent(ctx), all())
         conversationId = await api.commit(async (tx) => {
           const created = await tx.createConversation({ ownership: { kind: "ownerless" } })
           await configure(tx, created.id, agent)
@@ -103,7 +105,8 @@ export function workExtensions(workers: Workers): Extension[] {
       hooks: [
         hook(ToolTask, {
           beforeTool: async (call, api) => {
-            workers.step(api.conversationId, `${call.name}${brief(call.arguments)}`)
+            const worker = workers.step(api.conversationId, `${call.name}${brief(call.arguments)}`)
+            count(`tool.${worker ? "worker" : "talker"}.${call.name}`)
             return undefined
           },
         }),

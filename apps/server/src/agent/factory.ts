@@ -6,7 +6,7 @@ import { workExtensions } from "./extensions/work"
 import type { Workers } from "@yuki/agent/workers"
 import { effectTable } from "@yuki/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
-import { webExtension } from "./extensions/web"
+import { WEB, webExtension } from "./extensions/web"
 import type { Fetcher } from "@yuki/durable/safe-fetch"
 import { type MemoryPort, memoryExtensions } from "@yuki/memory/tools"
 import { type LoopPort, loopExtension } from "@yuki/memory/loop-tool"
@@ -19,7 +19,7 @@ import { type ChiefPort, chiefExtension } from "./extensions/chief"
 import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
-import { composioExtension } from "../integrations/composio/tools"
+import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
@@ -56,7 +56,21 @@ export type BuiltAgent = {
 
 export const BASE = "base"
 
-function extensionsFor(input: BuildAgentInput): Extension[] {
+/** A user extension's tools live in their own extension, named `ext:<name>/tools`, so the talker can leave them out. */
+export const TOOLS_SUFFIX = "/tools"
+
+/**
+ * Architecture section 8. What only a worker gets: tools that leave the object or can take long. The
+ * talker gets every other extension, so slow work cannot block the human's messages. Keyed by
+ * extension name: the web, the human's connected apps, and the tools of every user extension. A
+ * user extension's sections and hooks stay with the talker.
+ */
+export const WORKER_ONLY: readonly string[] = [WEB, COMPOSIO]
+export const workerOnly = (name: string): boolean => WORKER_ONLY.includes(name) || (name.startsWith("ext:") && name.endsWith(TOOLS_SUFFIX))
+/** The talker's extensions: all of them minus `WORKER_ONLY`, in the same order, so the prompt cache holds. */
+export const forTalker = (extensions: readonly Extension[]): Extension[] => extensions.filter((e) => !workerOnly(e.name))
+
+function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
   return [
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
@@ -72,28 +86,35 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
-    ...(input.work ? workExtensions(input.work) : []),
+    ...(input.work ? workExtensions(input.work, all) : []),
     ...(input.testExtensions ?? []),
   ]
 }
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
-  const builtins = extensionsFor(input)
+  let extensions: UserExtensions | undefined
+  const builtins = extensionsFor(input, () => extensions?.selection() ?? builtins)
   // Throws when a tool declares no effect. An extension script reads the effect to decide what it may call.
   effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
-  const extensions = new UserExtensions(registry, builtins, input.scripts)
+  extensions = new UserExtensions(registry, builtins, input.scripts)
   // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
   // supports. A chat reply waits on every turn, and on tool-heavy tasks the default level made each
   // turn take 2 to 5 s longer with the same answers.
-  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: builtins }, extensions }
+  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) }, extensions }
+}
+
+/** A compiled user extension as two: its sections, hooks, and wraps for every conversation, and its tools for workers only. */
+function split(extension: Extension): Extension[] {
+  if (!extension.tools?.length) return [extension]
+  return [{ ...extension, tools: [] }, defineExtension({ name: `${extension.name}${TOOLS_SUFFIX}`, tools: extension.tools })]
 }
 
 export type ExtensionProblem = { name: string; hash: string; error: string }
 
 export class UserExtensions {
-  private installed = new Map<string, { hash: string; extension: Extension }>()
+  private installed = new Map<string, { hash: string; parts: Extension[] }>()
   private readonly pool?: VmPool
   private readonly reserved: ReadonlySet<string>
 
@@ -106,15 +127,21 @@ export class UserExtensions {
     this.reserved = new Set(builtins.flatMap((e) => (e.tools ?? []).map((t) => t.name)))
   }
 
+  /** Every extension, the worker's tools included. A worker takes this minus `NOT_FOR_WORKERS`. */
   selection(): Extension[] {
-    const users = [...this.installed.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v.extension)
+    const users = [...this.installed.entries()].sort(([a], [b]) => a.localeCompare(b)).flatMap(([, v]) => v.parts)
     return [...this.builtins, ...users]
+  }
+
+  /** The talker's extensions (section 8). */
+  talker(): Extension[] {
+    return forTalker(this.selection())
   }
 
   sync(list: readonly Installed[]): ExtensionProblem[] {
     if (!this.ports || !this.pool) return list.map((i) => ({ name: i.name, hash: i.hash, error: "this agent cannot run extensions" }))
     const problems: ExtensionProblem[] = []
-    const next = new Map<string, { hash: string; extension: Extension }>()
+    const next = new Map<string, { hash: string; parts: Extension[] }>()
     const taken = new Map<string, string>()
     for (const item of [...list].sort((a, b) => a.name.localeCompare(b.name))) {
       const tools = Object.keys(item.bundle.manifest.tools ?? {})
@@ -127,10 +154,10 @@ export class UserExtensions {
       }
       for (const t of tools) taken.set(t, item.name)
       const current = this.installed.get(item.name)
-      next.set(item.name, current?.hash === item.hash ? current : { hash: item.hash, extension: compileExtension(item, this.pool, this.ports) })
+      next.set(item.name, current?.hash === item.hash ? current : { hash: item.hash, parts: split(compileExtension(item, this.pool, this.ports)) })
     }
-    for (const [name, v] of this.installed) if (next.get(name) !== v) this.registry.uninstall(v.extension)
-    for (const [name, v] of next) if (this.installed.get(name) !== v) this.registry.install(v.extension)
+    for (const [name, v] of this.installed) if (next.get(name) !== v) for (const part of v.parts) this.registry.uninstall(part)
+    for (const [name, v] of next) if (this.installed.get(name) !== v) for (const part of v.parts) this.registry.install(part)
     this.installed = next
     this.pool.retain(new Set([...next.values()].map((v) => v.hash)))
     return problems

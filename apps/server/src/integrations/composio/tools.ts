@@ -1,4 +1,4 @@
-import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
+import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { spill } from "../../agent/extensions/spill"
 import type { RoomFs } from "../../files/room-fs"
@@ -47,15 +47,23 @@ function shown(tools: readonly ComposioTool[]): ComposioTool[] {
   return [...tools.filter((t) => !t.direct).filter(fresh), ...tools.filter((t) => t.direct).sort(byName).filter(fresh)]
 }
 
-/** A line for the run's input: Composio's search description says to always search first, which would skip learned tools. */
+const learned = (tools: readonly ComposioTool[]) => shown(tools).flatMap((t) => (t.direct ? [toolName(t.name)] : []))
+
+/**
+ * A line for the talker's input, which has no Composio tools (architecture section 8): which learned
+ * tools a worker can call, so the talker can name one in the task.
+ */
 export function learnedNote(tools: readonly ComposioTool[]): string | undefined {
-  const names = shown(tools).flatMap((t) => (t.direct ? [toolName(t.name)] : []))
-  return names.length ? `connected-app tools you can call directly, no search needed: ${names.join(", ")}.` : undefined
+  const names = learned(tools)
+  return names.length ? `connected-app tools a worker can call directly: ${names.join(", ")}.` : undefined
 }
 
 export function composioExtension(tools: readonly ComposioTool[], call: ComposioCall, fs?: RoomFs): Extension {
+  const names = learned(tools)
   return defineExtension({
     name: COMPOSIO,
+    // Composio's search description says to always search first, which would skip learned tools.
+    sections: names.length ? [section("composio", () => `connected-app tools you can call directly, no search needed: ${names.join(", ")}.`)] : [],
     tools: shown(tools).map((t) => {
         const name = toolName(t.name)
         return declareEffect(
