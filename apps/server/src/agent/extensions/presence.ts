@@ -1,7 +1,7 @@
 import { defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
 
 // Architecture section 7.12. The room sees file changes and messages itself; everything else an
-// agent does happens inside it: connected apps through Composio, web pages, subagents, reminders.
+// agent does happens inside it: connected apps through Composio, web pages, workers, reminders.
 // This hook tells the room what each tool call is about, in a few plain words, so teammates and
 // the human see it on the team board. It never blocks or delays a call. Memory stays silent.
 
@@ -34,8 +34,8 @@ export function describeCall(name: string, args: Record<string, unknown>): strin
       return command(args)
     case "web_fetch":
       return "reading a web page"
-    case "spawn_subagent":
-      return "working with a helper"
+    case "start_work":
+      return "starting background work"
     case "create_reminder":
     case "list_reminders":
     case "cancel_reminder":
@@ -48,6 +48,8 @@ export function describeCall(name: string, args: Record<string, unknown>): strin
     case "list_agents":
     case "send_message":
     case "ask":
+    case "steer_work":
+    case "stop_work":
       return null
     default:
       return `using ${name.replace(/_/g, " ")}`

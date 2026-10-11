@@ -101,7 +101,7 @@ export class T extends AgentDO {
         }
         return live
       }
-      await host.pulse(opened.harness)
+      await host.pulse(opened)
       opened.harness.inspect = inspect
       return Response.json({ origin: host.origin() })
     }

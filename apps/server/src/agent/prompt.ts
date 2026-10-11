@@ -9,7 +9,7 @@ import { type PromptSection, section } from "@earendil-works/pi-durable"
 // /chat.md. Both are files the agent keeps current itself, so it fits the human over time.
 
 /** Section keys in their fixed order. A test asserts this order. */
-export const SECTION_ORDER = ["intro", "voice", "judgment", "team", "autonomy", "files", "reactions", "soul", "role", "chat", "skills"] as const
+export const SECTION_ORDER = ["intro", "voice", "judgment", "work", "team", "autonomy", "files", "reactions", "soul", "role", "chat", "skills"] as const
 export type SectionKey = (typeof SECTION_ORDER)[number]
 
 export type RoleInput = {
@@ -72,8 +72,13 @@ function roleText({ role, lead }: RoleInput): string {
 /** Renders nothing. A later extension fills it with `wrapSection(key, ...)`, so the order holds. */
 const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
 
+/** How the talker uses its workers (section 8). The work extension fills the `work` slot, so a worker never reads it. */
+export const WORK_LINES = `- Do quick lookups yourself. Give anything slow or with several steps (browsing, research, a series of app actions, long drafting) to start_work, tell the human in one short line that you are on it, and end your turn.
+- Your workers are listed in <context>. When the human changes the request, steer_work the right worker, or stop_work it if they no longer want it.
+- A <work> input is a worker's report. Tell the human the outcome in your own words.`
+
 /**
- * The base sections in `SECTION_ORDER`. `soul` and `chat` (section 7.10) and `skills` (section 15)
+ * The base sections in `SECTION_ORDER`. `work` (section 8), `soul` and `chat` (section 7.10), and `skills` (section 15)
  * are empty slots. The extension that owns one fills it with
  * `wrapSection` and is selected after `Base` in `factory.ts`.
  */
@@ -82,6 +87,7 @@ export function baseSections(input: RoleInput): PromptSection[] {
     section("intro", () => INTRO),
     section("voice", () => VOICE),
     section("judgment", () => JUDGMENT),
+    slot("work"),
     section("team", () => TEAM),
     section("autonomy", () => AUTONOMY),
     section("files", () => FILES),

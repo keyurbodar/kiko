@@ -4,13 +4,16 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, Harness, MemoryStorage, wrapSection } from "@earendil-works/pi-durable"
 import { BASE, type BuildAgentInput, buildAgent } from "../src/agent/factory"
-import { SUBAGENT } from "../src/agent/extensions/subagent"
+import { WORK, WORK_STEPS } from "../src/agent/extensions/work"
+import type { Workers } from "@yuki/agent/workers"
 import { WEB } from "../src/agent/extensions/web"
 import { SKILLS } from "../src/agent/extensions/skills"
 import { SECTION_ORDER } from "../src/agent/prompt"
 
 const context = BACKGROUND_CONTEXT
 const FAUX = { provider: "faux", modelId: "faux-1" }
+/** The work tools only keep the registry. Nothing here runs them. */
+const work = {} as Workers
 
 async function firstRequest(input: BuildAgentInput, extra: Parameters<typeof defineExtension>[0][] = []) {
   const built = buildAgent(input)
@@ -64,6 +67,7 @@ describe("buildAgent", () => {
         wrapSection("skills", (s) => ({ ...s, render: () => "<available_skills>short answers</available_skills>" })),
         wrapSection("chat", (s) => ({ ...s, render: () => "/chat.md:\n# trip" })),
         wrapSection("soul", (s) => ({ ...s, render: () => "# ada\nsharp and dry" })),
+        wrapSection("work", (s) => ({ ...s, render: () => "- use start_work" })),
       ],
     }
     const { system } = await firstRequest({ role: "", lead: false, model: FAUX }, [fill])
@@ -75,15 +79,15 @@ describe("buildAgent", () => {
 
   test("every built agent selects the same base extensions, in the same order", async () => {
     const inputs: BuildAgentInput[] = [
-      { role: "you plan trips.", lead: true, model: FAUX },
-      { role: "you check facts.", lead: false, model: FAUX },
-      { role: "", lead: false, model: { provider: "opencode-go", modelId: "deepseek-v4.1-flash" } },
+      { role: "you plan trips.", lead: true, model: FAUX, work },
+      { role: "you check facts.", lead: false, model: FAUX, work },
+      { role: "", lead: false, model: { provider: "opencode-go", modelId: "deepseek-v4.1-flash" }, work },
     ]
     const lists = inputs.map((input) => (buildAgent(input).agent.extensions as readonly { name: string }[]).map((e) => e.name))
     for (const list of lists) {
       expect(list).toEqual(lists[0])
       expect(list[0]).toBe(BASE)
-      expect(list.at(-1)).toBe(SUBAGENT)
+      expect(list.slice(-2)).toEqual([WORK, WORK_STEPS])
     }
     for (const input of inputs) {
       const built = buildAgent(input)
@@ -97,8 +101,8 @@ describe("buildAgent", () => {
   test("test extensions come after the built-ins", () => {
     const extra = defineExtension({ name: "extra" })
     for (const lead of [true, false]) {
-      const names = (buildAgent({ role: "", lead, model: FAUX, testExtensions: [extra] }).agent.extensions as readonly { name: string }[]).map((e) => e.name)
-      expect(names).toEqual([BASE, SKILLS, WEB, SUBAGENT, "extra"])
+      const names = (buildAgent({ role: "", lead, model: FAUX, work, testExtensions: [extra] }).agent.extensions as readonly { name: string }[]).map((e) => e.name)
+      expect(names).toEqual([BASE, SKILLS, WEB, WORK, WORK_STEPS, "extra"])
     }
   })
 

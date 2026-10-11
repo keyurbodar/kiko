@@ -9,6 +9,7 @@ import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
 import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
 import { type Envelope, joinOrigin, type Origin, originOfAll } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
+import { Workers } from "./workers"
 
 const context = BACKGROUND_CONTEXT
 
@@ -107,6 +108,8 @@ export type HostOptions = {
   shortBrief?: (brief: string) => string
   onReset?: () => void
   autoBudgetMs?: () => Promise<number>
+  /** The number of running workers changed (architecture section 8). */
+  onWorkers?: (running: number) => void
 }
 
 export type Opened = {
@@ -140,6 +143,7 @@ const PI_DURABLE_TABLES = ["document_revisions", "documents", "submissions", "ta
 
 export class AgentHost {
   readonly inbox: Inbox
+  readonly workers: Workers
   private readonly alarms: Alarms
   private readonly heartbeatMs: number
   private opened?: Promise<Opened>
@@ -157,6 +161,7 @@ export class AgentHost {
     ctx.storage.sql.exec("DROP TABLE IF EXISTS run_authority")
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
     this.inbox = new Inbox(ctx.storage)
+    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running) })
     this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
   }
@@ -182,7 +187,7 @@ export class AgentHost {
       const opened = await this.current()
       await this.drain(opened)
       await this.enforceBudget(opened)
-      await this.pulse(opened.harness)
+      await this.pulse(opened)
       this.failures = 0
     } catch (error) {
       this.failures++
@@ -212,6 +217,7 @@ export class AgentHost {
       }
       await this.options.onOpen?.(opened)
       opened.harness.resume()
+      this.workers.rearm(opened.harness)
       return opened
     })()
     opening.catch(() => {
@@ -280,12 +286,6 @@ export class AgentHost {
     await this.ctx.storage.delete(COMPACT_DUE_KEY)
   }
 
-  async children(): Promise<{ id: string; taskId: string }[]> {
-    const { root, storage } = await this.open()
-    const page = await storage.scanConversations({ ownerConversationId: root.id }, 100, undefined, context)
-    return page.items.map((c) => ({ id: String(c.id), taskId: String(c.owner?.taskId ?? "") }))
-  }
-
   async status(): Promise<HostStatus> {
     const inbox = this.inbox.counts()
     if (!this.opened) return { open: false, inbox, tasks: 0, submissions: 0 }
@@ -296,6 +296,7 @@ export class AgentHost {
 
   private async drain({ harness, root, storage, beginRun, inputContext, inputMemory }: Opened): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
+      this.workers.stopAll()
       await root.abort(context)
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
     }
@@ -345,7 +346,8 @@ export class AgentHost {
       this.joinOrigin(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
       const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
-      const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : [])] }, memory)
+      const work = this.workers.note()
+      const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
       this.inputs++
@@ -406,7 +408,7 @@ export class AgentHost {
   private async runState(harness: Harness, root: Conversation): Promise<RunState | null> {
     const live = await harness.inspect(context)
     const mine = live.submissions.filter((s) => s.conversationId === root.id)
-    if (!mine.some((s) => s.status === "placed") && live.tasks.length === 0) return null
+    if (!mine.some((s) => s.status === "placed") && !live.tasks.some((t) => t.record.conversationId === root.id)) return null
     return {
       ...(this.options.progress?.() ?? FRESH_RUN),
       queued: mine.some((s) => s.status === "queued"),
@@ -445,11 +447,15 @@ export class AgentHost {
     return live.submissions.some((s) => s.conversationId === root.id && s.status === "placed")
   }
 
-  private async pulse(harness: Harness): Promise<void> {
+  // Workers keep the harness busy while the talker is idle (section 8). The talker's idle frees held
+  // mail; only an idle harness clears the heartbeat, which must outlive an eviction mid-work.
+  private async pulse({ harness, root }: Opened): Promise<void> {
     const seen = this.inputs
     const live = await harness.inspect(context)
+    const talking = isTalking(live, root.id)
+    // Nothing awaits between the check and the delete, so no input can join in between.
+    if (!talking && this.inputs === seen) this.ctx.storage.sql.exec("DELETE FROM run_origin")
     if (live.tasks.length === 0 && live.submissions.length === 0 && this.inputs === seen) {
-      // Nothing awaits between the check and idle's delete, so no input can join in between.
       await this.idle()
       await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
       this.options.onIdle?.()
@@ -457,25 +463,26 @@ export class AgentHost {
       return
     }
     await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + this.heartbeatMs)
-    this.watchIdle(harness)
+    if (talking) this.watchIdle(harness, root)
   }
 
-  private watchIdle(harness: Harness): void {
+  /** Waits for the talker, not the harness: `harness.waitForIdle` also waits on every worker. */
+  private watchIdle(harness: Harness, root: Conversation): void {
     if (this.watchingIdle) return
     this.watchingIdle = true
-    harness
+    root
       .waitForIdle(context)
       .then(async () => {
         this.watchingIdle = false
         const seen = this.inputs
         const live = await harness.inspect(context)
-        if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
-        if (live.tasks.length === 0 && live.submissions.length === 0 && this.inputs === seen) {
-          // Nothing awaits between the check and idle's delete, so no input can join in between.
-          await this.idle()
-          await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
-          this.options.onIdle?.()
-        } else this.watchIdle(harness)
+        if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
+        if (isTalking(live, root.id) || this.inputs !== seen) return this.watchIdle(harness, root)
+        this.ctx.storage.sql.exec("DELETE FROM run_origin")
+        if (live.tasks.length || live.submissions.length) return
+        await this.idle()
+        await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
+        this.options.onIdle?.()
       })
       .catch(() => {
         this.watchingIdle = false
@@ -486,6 +493,7 @@ export class AgentHost {
     const sql = this.ctx.storage.sql
     for (const table of PI_DURABLE_TABLES) sql.exec(`DROP TABLE IF EXISTS ${table}`)
     sql.exec("INSERT INTO harness_epoch (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1")
+    this.workers.forget()
     this.options.onReset?.()
     if (!requeue) return
     const newest = sql
@@ -509,6 +517,10 @@ export class AgentHost {
     if (!opened) return
     await opened.then((o) => o.harness.close(context)).catch(() => {})
   }
+}
+
+function isTalking(live: { tasks: readonly { record: { conversationId: ConversationId } }[]; submissions: readonly { conversationId: ConversationId }[] }, root: ConversationId): boolean {
+  return live.tasks.some((t) => t.record.conversationId === root) || live.submissions.some((s) => s.conversationId === root)
 }
 
 function arrivalOf(batch: Batch): Arrival {
