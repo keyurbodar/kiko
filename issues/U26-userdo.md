@@ -22,9 +22,9 @@ One failing-first test per finding. `bun run --cwd apps/server test reminders ro
 
 **STATUS:** done
 
-**BRANCH:** s/u26-userdo (main merged in, fast-forward to f2a9ef27)
+**BRANCH:** s/u26-userdo. Main merged in twice: first at f2a9ef27, then at 2b5b4fb2 (U27 landed), both without conflicts. The merge commit is 9facfbb9.
 
-**HEAD:** 816d583b (code commit). A report commit sits on top and changes only this file.
+**HEAD:** 9facfbb9 as the branch tip with this report. The code commit is 816d583b; the report commits and the two main merges sit above it.
 
 **CHANGED**
 - `apps/server/src/user/reminders.ts`: snooze refuses non-time triggers and keeps a paused routine paused; `cancelRoom` and `remove` added; a refused routine run goes through `finishRun`; a one-off that throws three times becomes `failed` with one notice; `reminder_fired` and `watch_change` emission and the `signal` port removed.
@@ -36,7 +36,8 @@ One failing-first test per finding. `bun run --cwd apps/server test reminders ro
 - Tests: `reminder-rules.test.ts` (3 added), `reminders.test.ts` (chat delete), `routines.test.ts` (signal schema), new `routines-hooks.test.ts`, `user-routes-origin.test.ts`, `user-tombstone.test.ts`.
 
 **VERIFIED**
-- `bun run check` → `all 10 steps passed`, exit 0 (the frontend lint 17 errors line is the known non-gating advisory step).
+- `bun run check` → `all 10 steps passed`, exit 0, run on the tree after the merge of 2b5b4fb2 (the frontend lint 17 errors line is the known non-gating advisory step).
+- `bun yuki verify reminders routines routine-triggers --url http://localhost:8826` on the merged tree → `pass reminders (9608ms)`, `pass routine-triggers (259706ms)`, `pass routines (73624ms)`, exit 0.
 - `bun run typecheck` → every package `Exited with code 0`.
 - `bun run --cwd apps/server test -- reminders routines user recurrence --no-cache` → `75 pass, 0 fail across 8 files`.
 - `bun run --cwd apps/server test -- reminder-rules --no-cache` → `7 pass, 0 fail`.
