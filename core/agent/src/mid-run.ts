@@ -5,6 +5,7 @@ export const MAX_RESTARTS = 2
 export type MidRunAction =
   | "restart"
   | "steer"
+  | "interrupt"
   | "queue"
   | "hold"
 
@@ -25,7 +26,8 @@ export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: 
 export function decide(run: RunState | null, arrival: Arrival): MidRunAction {
   if (!run) return "queue"
   if (arrival.kind !== "human") return "hold"
-  // A human never waits for a run to end (section 6.2). pi-durable places a steer after the tool round, or when the run answers.
-  if (run.toolRunning || run.bubblePosted || run.toolStarted || run.queued || run.restarts >= MAX_RESTARTS) return "steer"
+  // A human never waits for a run to end (section 6.2). A running tool may be stopped (section 7.8); the steer lands right after it.
+  if (run.toolRunning) return "interrupt"
+  if (run.bubblePosted || run.toolStarted || run.queued || run.restarts >= MAX_RESTARTS) return "steer"
   return "restart"
 }

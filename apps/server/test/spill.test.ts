@@ -37,6 +37,14 @@ test("a big one-line JSON result is saved as lines, and the agent gets its start
   expect(body.split("\n").some((line) => line.includes('"securitySchemes"'))).toBe(true)
 })
 
+test("a result of many short lines is cut to its start quickly", async () => {
+  const lines = "a\n".repeat(100_000)
+  const started = performance.now()
+  const out = await spill(undefined, "x", lines)
+  expect(performance.now() - started).toBeLessThan(100)
+  expect(out).toContain("(cut: the whole result is")
+})
+
 test("the same content lands at the same path once", async () => {
   const { fs, saved, writes } = files()
   const a = await spill(fs, "composio-workbench", spec)

@@ -191,7 +191,8 @@ The room gets both things a flush needs from `UserDO` (the chat row and the day'
 | State of the current run | Action | `pi-durable` call |
 | --- | --- | --- |
 | No bubble posted and no tool started | **restart**. Abort, then submit the new burst. The model sees both user turns and answers once | `conversation.abort()`, then `submit()` |
-| A tool round is running or has finished | **steer**. The new burst joins the run after the current tool round | `submit({whenBusy: "steer"})` |
+| A tool is running | **interrupt**. The burst is submitted as a steer, and each running tool that may be stopped (a read, `bash`, or `ask`) is aborted. The steer lands right after the stopped tool | `submit({whenBusy: "steer"})`, then `abortTask()` for each such tool |
+| A tool round has finished | **steer**. The new burst joins the run after the current tool round | `submit({whenBusy: "steer"})` |
 | Bubbles posted, no tool running | **steer**. The new burst is placed when the run answers, before any queued follow-up | `submit({whenBusy: "steer"})` |
 | The human pressed stop | **abort**. Nothing is submitted | `conversation.abort()` |
 
@@ -204,10 +205,10 @@ The table is `decide()` in `core/agent/src/mid-run.ts`, and `AgentHost.drain()` 
 
 - ASSUMPTION: only a human message interrupts. An agent or system message is queued.
 - A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles used to queue the burst as a follow-up (owner directive 2026-10-11, section 8).
-- When inputs already wait in the conversation's queue, or the cap is reached, a human message steers, because an abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers.
+- When inputs already wait in the conversation's queue, or the cap is reached, a human message steers instead of restarting, because a restart's abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers. UNVERIFIED: stopping a tool does not withdraw queued inputs. The `abortTask` comment names only the tool task, so an interrupt is used whenever a tool runs.
 - ASSUMPTION: stop also drops the room's pending burst, so a message sent just before stop starts no run. The messages stay in the log.
 
-**Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short.
+**Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short. An interrupt stops a slow read, `bash`, or `ask` at once, so the steer lands sooner. A write, a message, or an outside call is never stopped mid-call, because a half-finished effect is worse than a late answer. `bash` is the exception among writes: it saves nothing it did not finish.
 
 Human messages always outrank agent messages. The inbox sorts by priority first, so a human burst is placed before any waiting agent message, and the table above applies even when the current run was started by another agent.
 
@@ -318,6 +319,8 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 | `start_work(task)`, `steer_work(id, text)`, `stop_work(id)` | every agent | background workers (section 8) |
 | `web_fetch(url)`, `composio_*`, user extension tools | workers only | the outside world, through a worker (section 8) |
 
+The `ask` wait is a bounded tool wait, not scheduled work: a crash during it replays the call, which is safe because `ask` declares `replay: "safe"`.
+
 **DEVIATION.** The spec lets an agent reach another agent directly with `idFromName` and RPC. In yuki every agent-to-agent message goes through `RoomDO`.
 
 **Reasoning.** One place enforces the hop limit and the budgets. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
@@ -359,6 +362,7 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 
 - A human burst is placed before any waiting agent message.
 - A human burst applies section 6.2 to a run that another agent started.
+- A human burst stops a running read, `bash`, or `ask` (section 6.2). The stopped tool returns "aborted", and the answer to the human follows at once.
 - When a human message is stored, each busy agent it is for, by the table of section 7.2, is told one is coming. Until it arrives, that agent holds agent and system mail, and a waiting `ask` stops so the run answers the human first. Agents the message is not for keep working. When the burst closes without reaching a warned agent (refused, or routed elsewhere), the room tells it so and its held mail goes at once. Every human message used to warn every busy agent and cancel every open `ask`.
 - The stop button aborts every run in the room and clears agent messages still waiting in inboxes for that `rootId`.
 
