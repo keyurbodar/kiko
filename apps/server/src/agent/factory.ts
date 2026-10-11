@@ -20,6 +20,7 @@ import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
 import { composioExtension } from "../integrations/composio/tools"
+import { type BrowserToolDeps, browserExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
@@ -38,6 +39,8 @@ export type BuildAgentInput = RoleInput & {
   loops?: () => LoopPort | null
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
+  /** Only when the user has a Kernel key (phase 17). */
+  browser?: BrowserToolDeps
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
@@ -71,6 +74,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
+    ...(input.browser ? [browserExtension(input.browser)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
     ...(input.work ? workExtensions(input.work) : []),
     ...(input.testExtensions ?? []),

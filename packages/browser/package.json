@@ -1,0 +1,23 @@
+{
+  "name": "@yuki/browser",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "effect": "4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "@types/bun": "1.3.14",
+    "devtools-protocol": "0.0.1716261",
+    "typescript": "^5.9.0"
+  }
+}

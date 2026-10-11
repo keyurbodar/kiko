@@ -1686,3 +1686,77 @@ Routes, all from the session's user:
 
 - `GET /api/loops` lists open and snoozed loops. `POST /api/loops/<id>` takes `{action: "done" | "drop"}` or `{action: "snooze", until}` and goes through `UserDO.closeLoop` for a close.
 - `GET /api/settings` and `POST /api/settings` read and patch `initiative` (off, chat, digest, active) and `capture` (auto, always, off).
+
+## 27. Browser
+
+Agents get a real browser for pages that need JavaScript, a login, or clicks. Kernel runs it, on the user's own Kernel key. The whole phase is in [phases/17-browser.md](phases/17-browser.md). This section holds what P17-01 built: the key, the user's one browser, and its lifecycle. The CDP client, the tools, the workers, and watch and take over are P17-02 to P17-05. This section is 27 and not 26 because the initiative work took 26 first.
+
+### 27.1 One browser per user
+
+Every limit and every cent is the user's own, so `UserDO` keeps one Kernel browser per user and leases it to that user's agents. A tab is free. A browser costs a create, one of the user's Kernel slots, and one of Kernel's 10 creates a minute. So the agents share one browser, each in its own tabs. Sharing also means one live view for the human, one profile with one writer, and the same logins for every agent.
+
+The `kernel_lease` row (`integrations/kernel/store.ts`) holds the Kernel session id, the mode (`headless` or `headful`), the CDP and live view URLs sealed together with AAD `kernel/lease`, the create and last-use times, the tabs by agent (tab id to last URL, plain, never sent to the client), a takeover flag, a watch-until time, and a dead flag. The Kernel key is sealed with AAD `kernel/key`. Both use the keyring of provider credentials. `clear` bumps a generation counter, so a create that was in flight during a disconnect is deleted again instead of stored.
+
+DEVIATION from the Composio pattern, where `UserDO` makes every call: an agent holds the CDP socket itself, so `UserDO` hands it the CDP URL over RPC (`browserLease`, `browserTouch`, `browserDead`, `browserRelease`). The URL is a bearer capability for the life of the browser. It is sealed at rest, never logged, never in a frame to the client, and never shown to a model. The key never leaves `UserDO`.
+
+### 27.2 The lease
+
+`KernelLease` (`integrations/kernel/lease.ts`) runs every change one at a time. Two agents that ask together get the same browser: the second finds the first one's row. The browser is created headless on the profile `yuki-` plus 16 hex characters of the SHA-256 of the user's id, with `timeout_seconds: 600` and `save_changes: true`. The name comes from the user's own id and never from input. The profile is created on first use, and a conflict counts as created.
+
+A switch to the other mode deletes the browser, waits for the profile save, and then creates the new one. There is never a second browser, so the browser is the only writer of the profile. The switch returns each agent's last tab URLs so the agents can reopen them. Page state outside the profile, such as a half-filled form, is lost. A takeover or watch in force carries over.
+
+`dead` marks the lease when an agent reports that its socket died. The next lease deletes the browser, ignoring a 404, makes a new one, and answers `restarted: true` with the caller's last tab URLs.
+
+### 27.3 The reaper and the wipe
+
+The reaper is the wakeup `kernel_reap` in `alarm.ts`. It is set when a browser is made and moved only when it fires, so a touch writes one row and no alarm. `reapDecision` is one pure table.
+
+| Row | Verdict |
+| --- | --- |
+| dead | delete |
+| takeover is set | keep, look again in 1 min |
+| watch-until is in the future | keep until then |
+| idle for 5 min, or 30 min old | delete |
+| otherwise | keep until the earlier of those two times |
+
+A delete that finds a 404 counts as done. Any other failure keeps the row and the wakeup retries. Kernel deletes a browser on its own after 600 s without activity and saves the profile then too, which is the net if a wakeup is missed. Account deletion deletes the browser and then the profile before the object's storage goes (`beginDeletion`). A Kernel failure there is logged and does not stop the deletion.
+
+### 27.4 Connecting
+
+`connectKernel { apiKey }` checks the key with `GET /browsers?status=active` and stores it only when Kernel answers 200. It first closes any browser made with the old key. `disconnectKernel` closes the browser and deletes the rows. It keeps the Kernel profile, which is the user's own. `kernelStatus` and the other sockets' push carry `{ connected, broken, browser: { mode, tabs per agent } | null }`. No URL, no key.
+
+| Kernel answer | Handling |
+| --- | --- |
+| 401 | The key is marked broken. Settings says "Key rejected". A new key clears it. |
+| 429 | `Retry-After` of 5 s or less: wait once and retry. Longer: return "Kernel is busy. Try again in N s". |
+| 529 | Retry once after 1 s, then fail. |
+| 404 on delete | Done. |
+
+### 27.5 The SDK
+
+The Kernel REST calls go through `@onkernel/sdk` 0.123.0 behind the small `KernelClient` interface (`integrations/kernel/client.ts`), which maps its errors to `unauthorized`, `rate_limited` (with `retryAfter`), `capacity`, `not_found`, `conflict`, and `failed`. The SDK runs with `maxRetries: 0`, because the lease decides which 429 is worth waiting for.
+
+Measured 2026-10-10 with `wrangler deploy --dry-run` on the server bundle, with and without a module that creates and deletes a browser and a profile through the SDK: 2,579,030 bytes gzipped without, 2,626,082 with, so the SDK adds 47,052 bytes (46 KB) gzipped and 217,401 bytes raw. That is under the 50 KB line, so the SDK stays. If a later change pushes it over, the fallback is a fetch client for the five endpoints behind the same interface.
+
+### 27.6 Verification
+
+| Check | Proves |
+| --- | --- |
+| `test/kernel-lease.test.ts` | the reaper table, single-flight, switch order (delete before create, never two live), the profile made once, dead replacement, 429, 529, and 401 handling, wipe order |
+| `bun yuki verify kernel` (needs `KERNEL_API_KEY`) | a bad key is refused and nothing is stored; two concurrent leases get one headless session; a cookie set through Kernel's execute endpoint survives the reaper, a switch to headful and back, and a replacement after a dead socket; account deletion removes the browser and the profile; no frame to the client holds the key or a URL; Kernel's active list ends empty |
+
+The dev route `POST /api/dev/agent/browser` (development only) leases, touches, kills, ages (moves last use back), reaps, and switches the user's browser, and never returns a CDP URL. The suite waits for browsers that other runs on the same key still have, since it asserts the list ends empty.
+
+Measured 2026-10-10 against Kernel from `wrangler dev`: a first lease with the profile already made 1.2 to 1.6 s, a reap 2.6 s, a switch 4.2 to 4.7 s, a replacement 4.0 s. The delete takes about 2.6 s because it waits for the profile save. UNVERIFIED: the same numbers from a deployed Worker.
+
+### 27.7 Watch and take over
+
+The human sees and drives the browser from a button, and the link never leaves the socket that pressed it.
+
+- `browserState` is pushed on hello, on `kernelStatus`, and on every change: `{ mode, tabs: [{ agent, slug, host }], takeover, switching, since }` or null. It holds a hostname per tab and never a page URL. A touch that changes nothing the client shows sends nothing.
+- `browserLink { mode: "watch" | "control" }` answers once, to that socket, with the live view URL (`readOnly=true` for watch). The URL is in no room log and no stored row. A headless browser has no live view, so the frame first sets takeover (control) or watch-until of 10 minutes (watch), pushes `switching: true`, switches to headful (about 5 s), and pushes the new state before the answer. The takeover flag is set before the switch so agents stop at once. `handBack` clears the flag. `closeBrowser` deletes the browser, which saves the profile.
+- `UserDO.browserShare(agentId, roomId, reason)` posts the reason as a plain agent message through `RoomDO.browserShare`. There is no card, by the owner's rule against card UI, and no link. The browser bar above the composer carries Watch and Take over. `agentId` ends in the agent's slug after the last `/` or `:`.
+- `UserDO.browserTakeover()` tells a tool whether the human is driving.
+- The client opens `about:blank` in a new tab on the click, because a tab opened later from a socket frame is blocked, and sets its location when the answer arrives. Take over shows at once as taken over. Close in Settings empties the state at once.
+- Check: `bun yuki verify browser-takeover` (needs `KERNEL_API_KEY`) and `test/kernel-browser-state.test.ts`. The dev routes `POST /api/dev/user/browser-tabs` and `browser-share` call the same RPCs a tool uses.
+- DEVIATION: the chip sits above the composer with the other room banners, not in the header.

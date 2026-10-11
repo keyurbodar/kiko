@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import type { AuthResult } from "@earendil-works/pi-ai"
+import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import type { Conversation, ConversationId, Harness, ModelRef, SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope, RoomId } from "@yuki/protocol"
 import { measureTurn } from "../experiments/coalescing"
@@ -9,7 +9,6 @@ import type { Env } from "../index"
 import { AnswerWaiters } from "@yuki/agent/answers"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
-import { findProvider } from "../user/turn-context"
 import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
@@ -37,7 +36,12 @@ import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type 
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
 import { storedRows, wipeStorage } from "@yuki/durable/wipe"
-import { instrument } from "../lib/dev-stats"
+import { count, instrument } from "../lib/dev-stats"
+import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
+import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
+import { jevPort, modelPort, pickDecider } from "./browser/deciders"
+import type { DeciderChoice } from "./browser/tools"
+import { findProvider, pickJudge } from "../user/turn-context"
 
 declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
@@ -293,7 +297,11 @@ export class AgentDO extends DurableObject<Env> {
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     const messaging = () => this.messagingPort()
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
+      const browserOn = await this.browserOn()
+      // The fake agent has real browser tools but no model, so its decider says so if browser_run is called.
+      const noModel = async (): Promise<DeciderChoice> => { throw new Error("the fake agent has no model for browser_run") }
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.scriptPorts(), {
+        ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), decider: noModel, acceptsImages: () => false } } : {}),
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
         chief: this.chiefPort(),
         loops: () => this.loopPort(),
@@ -329,7 +337,11 @@ export class AgentDO extends DurableObject<Env> {
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const browserOn = await this.browserOn()
+    const browser = browserOn && home
+      ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
+      : undefined
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -355,7 +367,8 @@ export class AgentDO extends DurableObject<Env> {
         return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
       },
       // A tool another agent learned since this one opened shows up at its next run.
-      ...(home ? { stale: () => signature === "unreachable" ? Promise.resolve(false) : userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false) } : {}),
+      // Connecting or removing a Kernel key adds or drops the browser tools at the next run.
+      ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
       ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
       beforeCompact: (harness) => this.carryUsage(harness),
     }
@@ -658,6 +671,7 @@ export class AgentDO extends DurableObject<Env> {
 
   async alarm() {
     if (this.#wiped) return
+    if (await this.browserIdle()) return
     const experiment = this.ctx.storage.sql.exec("SELECT 1 FROM wakeups WHERE key = 'experiment-heartbeat'").toArray().length > 0
     if (experiment) return this.experiment.alarm()
     await this.host.alarm()
@@ -677,9 +691,68 @@ export class AgentDO extends DurableObject<Env> {
 
   #wiped = false
 
+  #browser?: BrowserConnection
+  #browserLease?: LeasePort
+
+  private async browserOn(): Promise<boolean> {
+    const home = this.home()
+    if (!home) return false
+    return (userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
+  }
+
+  private browserLease(): LeasePort {
+    const home = this.home()
+    if (!home) throw new Error("this agent has no room yet")
+    this.#browserLease ??= userLease(() => userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
+    return this.#browserLease
+  }
+
+  private browser(): BrowserConnection {
+    const home = this.home()
+    if (!home) throw new Error("this agent has no room yet")
+    this.#browser ??= new BrowserConnection({
+      agentId: `${home.roomId}:${home.slug}`,
+      lease: this.browserLease(),
+      idle: { arm: (at) => createAlarms(this.ctx).setWakeup(BROWSER_IDLE_WAKEUP, at) },
+    })
+    return this.#browser
+  }
+
+  /** The decider for one browser call: Jev with a TypeSafe key, else this agent's own model. The key is looked up each call, the way UserDO's judge does. */
+  private async browserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
+    const home = this.home()
+    const own = modelPort(models, await this.model(), this.ctx.id.toString())
+    if (home) {
+      const user = userStub(this.env.USER, home.userId)
+      const picked = pickJudge(await user.listProviders(), (p) => p.refused === true)
+      const auth = picked ? (await user.turnContext(picked.key.provider)).auth : null
+      if (picked && auth) {
+        const jevModels = userModels(async () => auth, `browser-${this.ctx.id.toString()}`, egress).models
+        return { name: "jev", ...pickDecider(own, jevPort(jevModels, { provider: picked.key.provider, model: picked.model, auth }, egress)) }
+      }
+    }
+    return { name: "model", ...pickDecider(own, null) }
+  }
+
+  /**
+   * Closes the browser socket when its idle wakeup is due. The host's alarm would drop the row as
+   * due without knowing it, so this runs first. True when nothing else was due.
+   */
+  private async browserIdle(): Promise<boolean> {
+    const now = Date.now()
+    this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
+    const due = this.ctx.storage.sql.exec<{ key: string }>("SELECT key FROM wakeups WHERE at <= ?", now).toArray().map((r) => r.key)
+    if (!due.includes(BROWSER_IDLE_WAKEUP)) return false
+    await createAlarms(this.ctx).clearWakeup(BROWSER_IDLE_WAKEUP)
+    if (this.#browser && (await this.#browser.idle()) === "closed") count("browser.idle.closed")
+    else if (this.home()) await this.browserLease().release().catch(() => {})
+    return due.length === 1
+  }
+
   async deleteAll(): Promise<number> {
     if (this.#wiped) return 0
     this.#wiped = true
+    await this.#browser?.idle().catch(() => {})
     await this.hostInstance?.shutdown()
     return wipeStorage(this.ctx)
   }

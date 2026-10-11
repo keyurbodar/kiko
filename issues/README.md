@@ -2,7 +2,7 @@
 
 Every task in a wave can start once all earlier waves it depends on are merged. Tasks in one wave run at the same time in separate worktrees, except the ones marked "Parallel: no", which run first and alone.
 
-147 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
+152 tasks in 12 waves. This tree is generated from `docs/phases/` by `bun scripts/plan.ts`.
 
 ## Wave 0
 
@@ -21,6 +21,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P15-01](wave-00/P15-01-facts-with-sources-replacement-and-a-card.md) | Facts with sources, replacement, and a card | backend | 4 | none | no |
 | [P15-02](wave-00/P15-02-team-fixes-from-the-bops-comparison.md) | Team fixes from the bops comparison | backend | 2 | none | yes |
 | [P16-01](wave-00/P16-01-open-loops-store-and-detectors.md) | Open loops store and detectors | backend | 4 | none | no |
+| [P17-01](wave-00/P17-01-kernel-key-and-the-user-s-browser.md) | Kernel key and the user's browser | backend | 3 | none | yes |
+| [P17-02](wave-00/P17-02-a-cdp-client-that-reads-and-acts.md) | A CDP client that reads and acts on a page | backend | 4 | none | yes |
 
 ## Wave 1
 
@@ -45,6 +47,7 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P13-02](wave-01/P13-02-never-show-cut-text-as-if-whole.md) | Never show cut text as if whole | backend | 2 | P13-01 | yes |
 | [P16-02](wave-01/P16-02-attention-engine-and-nudges.md) | Attention engine and nudges | backend | 5 | P16-01 | no |
 | [P16-03](wave-01/P16-03-client-surfaces-and-settings.md) | Client surfaces and settings | frontend | 2 | P16-01 | yes |
+| [P17-03](wave-01/P17-03-browser-tools-for-agents.md) | Browser tools for agents | backend | 4 | P17-01, P17-02 | no |
 | [P2-01](wave-01/P2-01-rewrite-the-theme-to-the-kat-values.md) | Rewrite the theme to the kat values | frontend | 3 | P0-02 | yes |
 | [P3-02](wave-01/P3-02-reverse-swipe-to-reply.md) | Reverse swipe to reply | frontend | 2 | P0-02 | yes |
 | [P8-01](wave-01/P8-01-build-the-safe-fetcher.md) | Build the safe fetcher | backend | 4 | P0-01 | yes |
@@ -64,6 +67,8 @@ Every task in a wave can start once all earlier waves it depends on are merged. 
 | [P11-04](wave-02/P11-04-start-every-run-from-memory.md) | Start every run from memory | backend | 4 | P11-02, P11-03 | yes |
 | [P11-06](wave-02/P11-06-show-the-life-log.md) | Show the life log | frontend | 3 | P11-03 | yes |
 | [P12-03](wave-02/P12-03-store-and-run-routines.md) | Store and run routines | backend | 4 | P12-02 | yes |
+| [P17-04](wave-02/P17-04-workers-with-the-model-or-jev.md) | Workers with the model or Jev | backend | 4 | P17-03 | no |
+| [P17-05](wave-02/P17-05-watch-and-take-over.md) | Watch and take over | frontend | 3 | P17-03 | yes |
 | [P2-02](wave-02/P2-02-build-the-app-shell-and-the-routes.md) | Build the app shell and the routes | frontend | 3 | P0-02, P0-14 | yes |
 | [P2-05](wave-02/P2-05-build-the-indexeddb-warm-tier.md) | Build the IndexedDB warm tier | frontend | 4 | P0-02, P0-03 | yes |
 | [P3-01](wave-02/P3-01-port-the-typing-indicator.md) | Port the typing indicator | frontend | 3 | P2-01 | yes |

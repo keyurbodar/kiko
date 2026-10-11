@@ -1,0 +1,633 @@
+{
+ "key": "hn-front",
+ "url": "https://news.ycombinator.com/",
+ "title": "Hacker News",
+ "controls": [
+  {
+   "id": 1,
+   "role": "link",
+   "label": "",
+   "hint": "top nav"
+  },
+  {
+   "id": 2,
+   "role": "link",
+   "label": "Hacker News",
+   "hint": "top nav"
+  },
+  {
+   "id": 3,
+   "role": "link",
+   "label": "new",
+   "hint": "top nav"
+  },
+  {
+   "id": 4,
+   "role": "link",
+   "label": "past",
+   "hint": "top nav"
+  },
+  {
+   "id": 5,
+   "role": "link",
+   "label": "comments",
+   "hint": "top nav"
+  },
+  {
+   "id": 6,
+   "role": "link",
+   "label": "ask",
+   "hint": "top nav"
+  },
+  {
+   "id": 7,
+   "role": "link",
+   "label": "show",
+   "hint": "top nav"
+  },
+  {
+   "id": 8,
+   "role": "link",
+   "label": "jobs",
+   "hint": "top nav"
+  },
+  {
+   "id": 9,
+   "role": "link",
+   "label": "submit",
+   "hint": "top nav"
+  },
+  {
+   "id": 10,
+   "role": "link",
+   "label": "login",
+   "hint": "top nav"
+  },
+  {
+   "id": 11,
+   "role": "link",
+   "label": "",
+   "hint": "story 1, vote"
+  },
+  {
+   "id": 12,
+   "role": "link",
+   "label": "Bitwarden Dual License Model",
+   "hint": "story 1, title"
+  },
+  {
+   "id": 13,
+   "role": "link",
+   "label": "bitwarden.com",
+   "hint": "story 1, domain"
+  },
+  {
+   "id": 14,
+   "role": "link",
+   "label": "Cider9986",
+   "hint": "story 1, user"
+  },
+  {
+   "id": 15,
+   "role": "link",
+   "label": "1 hour ago",
+   "hint": "story 1, time"
+  },
+  {
+   "id": 16,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 1, hide"
+  },
+  {
+   "id": 17,
+   "role": "link",
+   "label": "42 comments",
+   "hint": "story 1, comments"
+  },
+  {
+   "id": 18,
+   "role": "link",
+   "label": "",
+   "hint": "story 2, vote"
+  },
+  {
+   "id": 19,
+   "role": "link",
+   "label": "Talorys – A self-hosted personal AI agent on Cloudflare's free tier",
+   "hint": "story 2, title"
+  },
+  {
+   "id": 20,
+   "role": "link",
+   "label": "github.com/rociiu",
+   "hint": "story 2, domain"
+  },
+  {
+   "id": 21,
+   "role": "link",
+   "label": "rociiu",
+   "hint": "story 2, user"
+  },
+  {
+   "id": 22,
+   "role": "link",
+   "label": "4 hours ago",
+   "hint": "story 2, time"
+  },
+  {
+   "id": 23,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 2, hide"
+  },
+  {
+   "id": 24,
+   "role": "link",
+   "label": "59 comments",
+   "hint": "story 2, comments"
+  },
+  {
+   "id": 25,
+   "role": "link",
+   "label": "",
+   "hint": "story 3, vote"
+  },
+  {
+   "id": 26,
+   "role": "link",
+   "label": "Rampart: Browser native on-device PII radaction",
+   "hint": "story 3, title"
+  },
+  {
+   "id": 27,
+   "role": "link",
+   "label": "ndstudio.gov",
+   "hint": "story 3, domain"
+  },
+  {
+   "id": 28,
+   "role": "link",
+   "label": "nateb2022",
+   "hint": "story 3, user"
+  },
+  {
+   "id": 29,
+   "role": "link",
+   "label": "1 hour ago",
+   "hint": "story 3, time"
+  },
+  {
+   "id": 30,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 3, hide"
+  },
+  {
+   "id": 31,
+   "role": "link",
+   "label": "3 comments",
+   "hint": "story 3, comments"
+  },
+  {
+   "id": 32,
+   "role": "link",
+   "label": "",
+   "hint": "story 4, vote"
+  },
+  {
+   "id": 33,
+   "role": "link",
+   "label": "REA Reverse – Engineer Anything",
+   "hint": "story 4, title"
+  },
+  {
+   "id": 34,
+   "role": "link",
+   "label": "rea.tools",
+   "hint": "story 4, domain"
+  },
+  {
+   "id": 35,
+   "role": "link",
+   "label": "modinfo",
+   "hint": "story 4, user"
+  },
+  {
+   "id": 36,
+   "role": "link",
+   "label": "15 hours ago",
+   "hint": "story 4, time"
+  },
+  {
+   "id": 37,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 4, hide"
+  },
+  {
+   "id": 38,
+   "role": "link",
+   "label": "243 comments",
+   "hint": "story 4, comments"
+  },
+  {
+   "id": 39,
+   "role": "link",
+   "label": "",
+   "hint": "story 5, vote"
+  },
+  {
+   "id": 40,
+   "role": "link",
+   "label": "Telegram Desktop vulnerability allowed any user's file to be stolen",
+   "hint": "story 5, title"
+  },
+  {
+   "id": 41,
+   "role": "link",
+   "label": "beaksec.github.io",
+   "hint": "story 5, domain"
+  },
+  {
+   "id": 42,
+   "role": "link",
+   "label": "g-b-r",
+   "hint": "story 5, user"
+  },
+  {
+   "id": 43,
+   "role": "link",
+   "label": "12 hours ago",
+   "hint": "story 5, time"
+  },
+  {
+   "id": 44,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 5, hide"
+  },
+  {
+   "id": 45,
+   "role": "link",
+   "label": "145 comments",
+   "hint": "story 5, comments"
+  },
+  {
+   "id": 46,
+   "role": "link",
+   "label": "",
+   "hint": "story 6, vote"
+  },
+  {
+   "id": 47,
+   "role": "link",
+   "label": "Cloudflare acquires Deno",
+   "hint": "story 6, title"
+  },
+  {
+   "id": 48,
+   "role": "link",
+   "label": "deno.com",
+   "hint": "story 6, domain"
+  },
+  {
+   "id": 49,
+   "role": "link",
+   "label": "ilreb",
+   "hint": "story 6, user"
+  },
+  {
+   "id": 50,
+   "role": "link",
+   "label": "1 day ago",
+   "hint": "story 6, time"
+  },
+  {
+   "id": 51,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 6, hide"
+  },
+  {
+   "id": 52,
+   "role": "link",
+   "label": "668 comments",
+   "hint": "story 6, comments"
+  },
+  {
+   "id": 53,
+   "role": "link",
+   "label": "",
+   "hint": "story 7, vote"
+  },
+  {
+   "id": 54,
+   "role": "link",
+   "label": "Triple-A Minesweeper",
+   "hint": "story 7, title"
+  },
+  {
+   "id": 55,
+   "role": "link",
+   "label": "mikelacher.com",
+   "hint": "story 7, domain"
+  },
+  {
+   "id": 56,
+   "role": "link",
+   "label": "robin_reala",
+   "hint": "story 7, user"
+  },
+  {
+   "id": 57,
+   "role": "link",
+   "label": "23 hours ago",
+   "hint": "story 7, time"
+  },
+  {
+   "id": 58,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 7, hide"
+  },
+  {
+   "id": 59,
+   "role": "link",
+   "label": "231 comments",
+   "hint": "story 7, comments"
+  },
+  {
+   "id": 60,
+   "role": "link",
+   "label": "",
+   "hint": "story 8, vote"
+  },
+  {
+   "id": 61,
+   "role": "link",
+   "label": "`123456' password used in Danish CPR data breach",
+   "hint": "story 8, title"
+  },
+  {
+   "id": 62,
+   "role": "link",
+   "label": "cphpost.dk",
+   "hint": "story 8, domain"
+  },
+  {
+   "id": 63,
+   "role": "link",
+   "label": "baal80spam",
+   "hint": "story 8, user"
+  },
+  {
+   "id": 64,
+   "role": "link",
+   "label": "5 hours ago",
+   "hint": "story 8, time"
+  },
+  {
+   "id": 65,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 8, hide"
+  },
+  {
+   "id": 66,
+   "role": "link",
+   "label": "166 comments",
+   "hint": "story 8, comments"
+  },
+  {
+   "id": 67,
+   "role": "link",
+   "label": "",
+   "hint": "story 9, vote"
+  },
+  {
+   "id": 68,
+   "role": "link",
+   "label": "Mxc: Microsoft Execution Containers version 1.0.0",
+   "hint": "story 9, title"
+  },
+  {
+   "id": 69,
+   "role": "link",
+   "label": "windows.com",
+   "hint": "story 9, domain"
+  },
+  {
+   "id": 70,
+   "role": "link",
+   "label": "smokel",
+   "hint": "story 9, user"
+  },
+  {
+   "id": 71,
+   "role": "link",
+   "label": "4 hours ago",
+   "hint": "story 9, time"
+  },
+  {
+   "id": 72,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 9, hide"
+  },
+  {
+   "id": 73,
+   "role": "link",
+   "label": "1 comment",
+   "hint": "story 9, comments"
+  },
+  {
+   "id": 74,
+   "role": "link",
+   "label": "",
+   "hint": "story 10, vote"
+  },
+  {
+   "id": 75,
+   "role": "link",
+   "label": "My personal AI agent posted my bank details on company Slack",
+   "hint": "story 10, title"
+  },
+  {
+   "id": 76,
+   "role": "link",
+   "label": "businessinsider.com",
+   "hint": "story 10, domain"
+  },
+  {
+   "id": 77,
+   "role": "link",
+   "label": "bhrlady",
+   "hint": "story 10, user"
+  },
+  {
+   "id": 78,
+   "role": "link",
+   "label": "58 minutes ago",
+   "hint": "story 10, time"
+  },
+  {
+   "id": 79,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 10, hide"
+  },
+  {
+   "id": 80,
+   "role": "link",
+   "label": "14 comments",
+   "hint": "story 10, comments"
+  },
+  {
+   "id": 81,
+   "role": "link",
+   "label": "",
+   "hint": "story 11, vote"
+  },
+  {
+   "id": 82,
+   "role": "link",
+   "label": "Eye of Sauron: Long-Range Hidden Spy Camera Detection (2024)",
+   "hint": "story 11, title"
+  },
+  {
+   "id": 83,
+   "role": "link",
+   "label": "usenix.org",
+   "hint": "story 11, domain"
+  },
+  {
+   "id": 84,
+   "role": "link",
+   "label": "ortusdux",
+   "hint": "story 11, user"
+  },
+  {
+   "id": 85,
+   "role": "link",
+   "label": "14 hours ago",
+   "hint": "story 11, time"
+  },
+  {
+   "id": 86,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 11, hide"
+  },
+  {
+   "id": 87,
+   "role": "link",
+   "label": "48 comments",
+   "hint": "story 11, comments"
+  },
+  {
+   "id": 88,
+   "role": "link",
+   "label": "",
+   "hint": "story 12, vote"
+  },
+  {
+   "id": 89,
+   "role": "link",
+   "label": "WSL3 Performance is about 5-60% faster than WSL2 depending on the workload",
+   "hint": "story 12, title"
+  },
+  {
+   "id": 90,
+   "role": "link",
+   "label": "tonym.us",
+   "hint": "story 12, domain"
+  },
+  {
+   "id": 91,
+   "role": "link",
+   "label": "tonymet",
+   "hint": "story 12, user"
+  },
+  {
+   "id": 92,
+   "role": "link",
+   "label": "7 hours ago",
+   "hint": "story 12, time"
+  },
+  {
+   "id": 93,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 12, hide"
+  },
+  {
+   "id": 94,
+   "role": "link",
+   "label": "116 comments",
+   "hint": "story 12, comments"
+  },
+  {
+   "id": 95,
+   "role": "link",
+   "label": "",
+   "hint": "story 13, vote"
+  },
+  {
+   "id": 96,
+   "role": "link",
+   "label": "Chernobyl particles reveal unexpectedly stable nuclear fuel after 40 years",
+   "hint": "story 13, title"
+  },
+  {
+   "id": 97,
+   "role": "link",
+   "label": "phys.org",
+   "hint": "story 13, domain"
+  },
+  {
+   "id": 98,
+   "role": "link",
+   "label": "geox",
+   "hint": "story 13, user"
+  },
+  {
+   "id": 99,
+   "role": "link",
+   "label": "10 hours ago",
+   "hint": "story 13, time"
+  },
+  {
+   "id": 100,
+   "role": "link",
+   "label": "hide",
+   "hint": "story 13, hide"
+  },
+  {
+   "id": 101,
+   "role": "link",
+   "label": "16 comments",
+   "hint": "story 13, comments"
+  },
+  {
+   "id": 102,
+   "role": "link",
+   "label": "",
+   "hint": "story 14, vote"
+  },
+  {
+   "id": 103,
+   "role": "link",
+   "label": "Can you use autoregressive diffusion to generate market data?",
+   "hint": "story 14, title"
+  },
+  {
+   "id": 104,
+   "role": "link",
+   "label": "janestreet.com",
+   "hint": "story 14, domain"
+  }
+ ],
+ "text": "\tHacker Newsnew | past | comments | ask | show | jobs | submit\tlogin\n\n\n\n1.\t\n\tBitwarden Dual License Model (bitwarden.com)\n\t95 points by Cider9986 1 hour ago | hide | 42 comments\n\n2.\t\n\tTalorys – A self-hosted personal AI agent on Cloudflare's free tier (github.com/rociiu)\n\t113 points by rociiu 4 hours ago | hide | 59 comments\n\n3.\t\n\tRampart: Browser native on-device PII radaction (ndstudio.gov)\n\t14 points by nateb2022 1 hour ago | hide | 3 comments\n\n4.\t\n\tREA Reverse – Engineer Anything (rea.tools)\n\t554 points by modinfo 15 hours ago | hide | 243 comments\n\n5.\t\n\tTelegram Desktop vulnerability allowed any user's file to be stolen (beaksec.github.io)\n\t287 points by g-b-r 12 hours ago | hide | 145 comments\n\n6.\t\n\tCloudflare acquires Deno (deno.com)\n\t1299 points by ilreb 1 day ago | hide | 668 comments\n\n7.\t\n\tTriple-A Minesweeper (mikelacher.com)\n\t1178 points by robin_reala 23 hours ago | hide | 231 comments\n\n8.\t\n\t`123456' password used in Danish CPR data breach (cphpost.dk)\n\t292 points by baal80spam 5 hours ago | hide | 166 comments\n\n9.\t\n\tMxc: Microsoft Execution Containers version 1.0.0 (windows.com)\n\t26 points by smokel 4 hours ago | hide | 1 comment\n\n10.\t\n\tMy personal AI agent posted my bank details on company Slack (businessinsider.com)\n\t21 points by bhrlady 58 minutes ago | hide | 14 comments\n\n11.\t\n\tEye of Sauron: Long-Range Hidden Spy Camera Detection (2024) (usenix.org)\n\t233 points by ortusdux 14 hours ago | hide | 48 comments\n\n12.\t\n\tWSL3 Performance is about 5-60% faster than WSL2 depending on the workload (tonym.us)\n\t154 points by tonymet 7 hours ago | hide | 116 comments\n\n13.\t\n\tChernobyl particles reveal unexpectedly stable nuclear fuel after 40 years (phys.org)\n\t63 points by geox 10 hours ago | hide | 16 comments\n\n14.\t\n\tCan you use autoregressive diffusion to generate market data? (janestreet.com)\n\t141 points by jsomers 15 hours ago | hide | 41 comments\n\n15.\t\n\tApple/macOS silently removed from official Unix registry (opengroup.org)\n\t114 points by john_alan 4 hours ago | hide | 119 comments\n\n16.\t\n\tShow HN: Carrier-Explode: iPhone, Pixel and Galaxy carrier settings decoded (carrierexplode.com)\n\t376 points by simplyalec 21 hours ago | hide | 45 comments\n\n17.\t\n\tWhooping Cranes Learned to Migrate by Following Costumed Pilots (theverifiedpost.com)\n\t3 points by kgolubic 2 hours ago | hide | discuss\n\n18.\t\n\tCompiling Rust to readable C with Eurydice (lwn.net)\n\t111 points by peter_d_sherman 16 hours ago | hide | 33 comments\n\n19.\t\n\tNoto means \"no tofu\": fixing dotted circles in Myanmar text (datocms.com)\n\t33 points by steffoz 6 hours ago | hide | 20 comments\n\n20.\t\n\tHow to head into VR without wearing a headset (kyushu-u.ac.jp)\n\t55 points by Betelbuddy 11 hours ago | hide | 27 comments\n\n21.\t\n\tClinical trial of a prion disease drug candidate begins enrolling participants (broadinstitute.org)\n\t122 points by luu 15 hours ago | hide | 30 comments\n\n22.\t\n\tScam American companies are using to manipulate ingredient lists (twitter.com/wallstreetapes)\n\t175 points by bilsbie 22 hours ago | hide | 195 comments\n\n23.\t\n\tTypesafe AI raises $870M at $7.5B (typesafe.ai)\n\t409 points by tosh 22 hours ago | hide | 326 comments\n\n24.\t\n\tWhat mathematicians should know about the Lean Theorem Prover: reliability & AI (terrytao.wordpress.com)\n\t158 points by matt_d 22 hours ago | hide | 42 comments\n\n25.\t\n\tC for Rust Programmers (bd103.dev)\n\t71 points by xyproto 6 hours ago | hide | 60 comments\n\n26.\t\n\tCube Type – Isometric Typography Generator (typeincube.com)\n\t42 points by eustoria 8 hours ago | hide | 10 comments\n\n27.\t\n\tPointing AI at archives found a forgotten meteorite, lost rhinos, and more (jessewaites.com)\n\t170 points by piratebroadcast 22 hours ago | hide | 87 comments\n\n28.\t\n\tComputers Cannot Make Decisions (cateat.fish)\n\t157 points by heavensteeth 9 hours ago | hide | 132 comments\n\n29.\t\n\tTimestamping a Giant Record of the Web (projecttimestamper.org)\n\t12 points by arthuredelstein 4 hours ago | hide | discuss\n\n30.\t\n\tShow HN: Proton Drive for Linux (lsantos.dev)\n\t106 points by khaosdoctor 19 hours ago | hide | 39 comments\n\n\n\tMore\n\n\n\n\nConsider applying for YC's Winter 2027 batch! Applications are open till November 2.\n\n\nGuidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact\n\n\nSearch: ",
+ "omitted": 0
+}
