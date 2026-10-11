@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { allowance, type Appetite, emptyAppetite, kindOpen, learn, nudged, restUntil, settle } from "../src/initiative/attention/appetite"
-import { type AttendContext, attend } from "../src/initiative/attention/attend"
+import { type AttendContext, attend, rankOrder, score } from "../src/initiative/attention/attend"
 import { emptyRhythm, ignoreDeadline, nextMoment, type Rhythm, record, slotOf, view } from "../src/initiative/attention/rhythm"
 import { AttentionStore } from "../src/initiative/attention/store"
 import type { Candidate, Signal } from "../src/initiative/attention/types"
@@ -29,6 +29,11 @@ describe("rhythm", () => {
     expect(local(m).hour).toBeGreaterThanOrEqual(8)
     expect(local(m).hour).toBeLessThanOrEqual(9)
     expect(local(nextMoment(weekdays, after + 4 * DAY + 20 * HOUR, NY)!).day).toBe(0)
+  })
+
+  test("a moment is the session's own hour, not the hour before it", () => {
+    const nine = habit([0, 1, 2, 3, 4], [9], 3)
+    expect(local(nextMoment(nine, after + DAY + 20 * HOUR, NY)!).hour).toBe(9)
   })
 
   test("a cold start has no moment and is not known", () => {
@@ -156,7 +161,7 @@ describe("attend", () => {
     ["away", {}, { away: true }, "brief:away"],
     ["no budget", {}, { budget: 0 }, "brief:budget"],
     ["tentative without Jev never interrupts", { certainty: "tentative" }, {}, "brief:tentative"],
-    ["far due, mentioned long ago", { due: NOW + 30 * DAY, lastSeen: NOW - 60 * DAY, mentions: 1 }, {}, "brief:worth"],
+    ["far due, seen long ago", { due: NOW + 30 * DAY, lastSeen: NOW - 60 * DAY }, {}, "brief:worth"],
     ["outside the usual window", {}, { rhythm: { ...known, activeNow: false } }, "brief:moment"],
     ["no lead in the room", { room: "r9" }, {}, "brief:no_lead"],
     ["said an hour ago, not due yet", { lastSeen: NOW - HOUR }, {}, "brief:fresh"],
@@ -175,6 +180,26 @@ describe("attend", () => {
     })
   }
 
+  test("nothing due or promised scores zero, however often it came up or how long ago", () => {
+    const scores = [
+      cand({ due: undefined, mentions: 1, lastSeen: NOW - HOUR }),
+      cand({ due: undefined, mentions: 9, lastSeen: NOW - 60 * DAY }),
+      cand({ kind: "goal", due: undefined, mentions: 9, lastSeen: NOW - 60 * DAY }),
+    ].map((c) => score(c, { now: NOW, rhythm: known }))
+    expect(scores).toEqual([0, 0, 0])
+  })
+
+  test("an agent's promise with no date scores half", () => {
+    expect(score(cand({ kind: "commitment", owner: "scout", due: undefined }), { now: NOW, rhythm: known })).toBe(0.5)
+  })
+
+  test("equal scores rank the oldest sighting first", () => {
+    const recent = cand({ id: "recent", due: undefined, lastSeen: NOW - HOUR })
+    const old = cand({ id: "old", due: undefined, lastSeen: NOW - 30 * DAY })
+    const order = [recent, old].sort(rankOrder({ now: NOW, rhythm: known }))
+    expect(order.map((c) => c.id)).toEqual(["old", "recent"])
+  })
+
   test("rest after an ignore lasts longer than after a clean nudge", () => {
     const at = (ignored: number) => {
       const [v] = attend([cand({ surfaced: 1, lastSurfaced: NOW - HOUR, ignored })], ctx())
@@ -184,7 +209,7 @@ describe("attend", () => {
   })
 
   test("one interruption per room, the most worthwhile wins", () => {
-    const vs = attend([cand({ id: "weak", due: NOW + 2.5 * DAY, mentions: 3, lastSeen: NOW - DAY }), cand({ id: "strong", due: NOW - HOUR })], ctx({ appetite: keenAppetite() }))
+    const vs = attend([cand({ id: "weak", due: NOW + 1.5 * DAY, lastSeen: NOW - DAY }), cand({ id: "strong", due: NOW - HOUR })], ctx({ appetite: keenAppetite() }))
     expect(vs.map((v) => (v.verdict === "brief" ? `brief:${v.reason}` : v.verdict))).toEqual(["brief:room_taken", "nudge"])
   })
 
