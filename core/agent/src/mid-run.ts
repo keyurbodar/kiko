@@ -6,7 +6,6 @@ export type MidRunAction =
   | "restart"
   | "steer"
   | "queue"
-  | "abort"
   | "hold"
 
 export type RunState = {
@@ -19,12 +18,11 @@ export type RunState = {
 
 export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "toolRunning">
 
-export type Arrival = { kind: Sender["kind"] } | { kind: "stop" }
+export type Arrival = { kind: Sender["kind"] }
 
 export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: false, toolStarted: false, toolRunning: false }
 
 export function decide(run: RunState | null, arrival: Arrival): MidRunAction {
-  if (arrival.kind === "stop") return "abort"
   if (!run) return "queue"
   if (arrival.kind !== "human") return "hold"
   // A human never waits for a run to end (section 6.2). pi-durable places a steer after the tool round, or when the run answers.

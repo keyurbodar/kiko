@@ -35,7 +35,7 @@ import { asResult, type NewReminder, type NewRoutine, REMINDERS_WAKEUP, Reminder
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
-import { type RoomRoutine, roomRoutine, type RoutineResult } from "./routines"
+import { roomRoutine, type RoutineResult } from "./routines"
 import { migrate } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
@@ -250,10 +250,6 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  async eventRoutines(roomId: string): Promise<RoomRoutine[]> {
-    return this.reminders.roomRoutines(roomId).map(roomRoutine)
-  }
-
   async routineHook(routineId: string, token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
     return this.#routines.routineHook(routineId, token, deliveryKey, body)
   }
@@ -276,11 +272,6 @@ export class UserDO extends DurableObject<Env> {
 
   async pinChat(roomId: RoomId, pinned: boolean): Promise<Chat | null> {
     this.apply({ op: "pin", roomId, pinned })
-    return getChat(this.sql, roomId)
-  }
-
-  async muteChat(roomId: RoomId, muted: boolean): Promise<Chat | null> {
-    this.apply({ op: "mute", roomId, muted })
     return getChat(this.sql, roomId)
   }
 

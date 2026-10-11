@@ -1,4 +1,3 @@
-import { runImports } from "./experiments/imports"
 import type { AgentDO } from "./agent/agent-do"
 import { devAgentRoute } from "./agent/dev-route"
 import { devBrowserRoute } from "./user/dev-browser-route"
@@ -11,8 +10,6 @@ import { uploadRoute } from "./files/upload"
 import { consume } from "./jobs/consumer"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
-import { experimentTurnRoute } from "./experiments/turn"
-import { experimentCoalescingRoute } from "./experiments/coalescing"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 import { hooksRoute } from "./user/hooks-route"
@@ -51,7 +48,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
-    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/imports") return Response.json(await runImports())
     const routed = await route(request, env)
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)
@@ -86,8 +82,6 @@ export default {
     }
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
-    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/turn") return experimentTurnRoute(request, env)
-    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/coalescing") return experimentCoalescingRoute(request, env)
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
   },

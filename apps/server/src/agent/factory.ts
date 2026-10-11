@@ -22,7 +22,7 @@ import type { ComposioCall, ComposioTool } from "../integrations/composio/client
 import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
 import { BROWSER_EXT, type BrowserToolDeps, browserExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
-import { compileExtension, extensionName, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
+import { compileExtension, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
 import { count } from "../lib/dev-stats"
 
@@ -156,10 +156,6 @@ export class UserExtensions {
 
   release(): void {
     this.pool?.release()
-  }
-
-  names(): string[] {
-    return [...this.installed.keys()].map(extensionName)
   }
 }
 

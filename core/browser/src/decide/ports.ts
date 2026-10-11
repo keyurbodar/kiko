@@ -1,14 +1,14 @@
-export type JevOption = { key: string; text: string }
+type JevOption = { key: string; text: string }
 
-export type JevChoose = {
+type JevChoose = {
   state: Record<string, unknown>
   instructions: string
   options: JevOption[]
 }
 
-export type JevAnswer = { key: string; probabilities: Record<string, number>; confidence: number }
+type JevAnswer = { key: string; probabilities: Record<string, number>; confidence: number }
 
-export type JevNoul = {
+type JevNoul = {
   state: Record<string, unknown>
   questions: { key: string; instructions: string }[]
 }

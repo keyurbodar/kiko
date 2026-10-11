@@ -26,3 +26,15 @@ Schema tables and migrations (U07). NODE_ENV guards (U29). Anything that still h
 
 ## Verify
 `bun run typecheck`, `bun run lint`, `bun scripts/check-imports.ts`, `bun run --cwd apps/server test coalescing hardening mid-run agent-factory skills`, `bun run --cwd apps/cli test`.
+
+## Report
+
+Deleted: `core/browser/scripts/`, `apps/server/measure-worker/`, `apps/server/src/experiments/` (with its routes, `TurnExperiment`, the `experiment-heartbeat` alarm branch and three `AgentDO` methods), the CLI `measure` command and its test. The `measure` op of the coalescing test worker now carries `measureTurn` and `countRows` inline, so the rows-written test keeps its coverage.
+
+Dead code removed: `UserDO.eventRoutines`, `UserDO.muteChat`, `UserExtensions.names()`, `blocksOf`, the `stop` arrival and the `abort` action, `SkillSource` `"user"`, the wakeup history (table, write, trim, `history()`, `HISTORY_LIMIT`) and its hardening test. `TriggerKind` had no use and is deleted. `JevAnswer`, `JevChoose`, `JevNoul`, `JevOption`, `StepFailure`, `tempRoomId` and `FileRefusal` are used only in their own file, so they lost `export` instead of being deleted.
+
+Callerless proof: grep for `experiments/|measure-worker|experimentTurn|blocksOf|eventRoutines|muteChat|yuki measure|core/browser/scripts` over apps, core, docs, AGENTS.md finds nothing after the change. `names()` had no `.names()` caller; `abort` was only returned for `stop`.
+
+Load note: `hardening.test.ts` run as a whole fails 7 tests after the first crash test kills workerd under machine load (load average 24). On unmodified base it failed 11 of 11 under the same load. Run with `-t wakeup` (1 pass) and `-t inbox` (6 pass) it is green.
+
+`bun run lint` exits 1 on 17 errors in `apps/web-solid`, none in files this unit touched (`biome check` on the touched files is clean).

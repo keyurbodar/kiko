@@ -56,7 +56,7 @@ export type MemberOp =
 
 export type FileOp = { op: "rm"; paths: readonly string[]; recursive?: boolean } | { op: "mv"; from: string; to: string } | { op: "mkdir"; path: string }
 
-export type FileRefusal = string
+type FileRefusal = string
 
 export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved" | "chief"
 

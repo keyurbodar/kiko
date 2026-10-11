@@ -41,7 +41,7 @@ export class H extends DurableObject {
         await this.alarms.setWakeup(b.key, b.at)
         return Response.json(true)
       case "due":
-        return Response.json({ keys: await this.alarms.dueWakeups(b.now), history: this.alarms.history() })
+        return Response.json({ keys: await this.alarms.dueWakeups(b.now) })
     }
     return new Response("unknown op", { status: 400 })
   }
