@@ -1,0 +1,37 @@
+
+== open loop: score (rooms=3) — same pass, worth from score vs simple(due, promise) ==
+  regular-keen       passes 468 | no-Jev nudge set changes 1.1% | Jev passes with >10 eligible 3.8%, top-10 set changes 3.8% | brief top-2 changes 50/145 (34.5%)
+  regular-ignorer    passes 475 | no-Jev nudge set changes 0.8% | Jev passes with >10 eligible 4.2%, top-10 set changes 3.8% | brief top-2 changes 79/200 (39.5%)
+  irregular-keen     passes 388 | no-Jev nudge set changes 0.8% | Jev passes with >10 eligible 4.6%, top-10 set changes 3.9% | brief top-2 changes 78/136 (57.4%)
+  irregular-ignorer  passes 403 | no-Jev nudge set changes 0.5% | Jev passes with >10 eligible 9.9%, top-10 set changes 6.9% | brief top-2 changes 42/118 (35.6%)
+  kind-split         passes 468 | no-Jev nudge set changes 1.3% | Jev passes with >10 eligible 9.6%, top-10 set changes 7.9% | brief top-2 changes 64/255 (25.1%)
+  weekday-weekend    passes 428 | no-Jev nudge set changes 1.2% | Jev passes with >10 eligible 2.3%, top-10 set changes 1.2% | brief top-2 changes 18/109 (16.5%)
+  hoarder            passes 475 | no-Jev nudge set changes 0.6% | Jev passes with >10 eligible 98.9%, top-10 set changes 80.2% | brief top-2 changes 611/1282 (47.7%)
+
+== closed loop: score, no Jev (rooms=3, 10 seeds x 8 weeks) ==
+ variant simple worth (due + promise only)
+   regular-keen       base nudges  279 | dropped   2.2% added   1.8% moved>1h   0.0% | welcome: base 219/279 (78.5%) variant 218/278 (78.4%)
+   regular-ignorer    base nudges  262 | dropped   2.3% added   2.7% moved>1h   0.0% | welcome: base 30/262 (11.5%) variant 30/263 (11.4%)
+   irregular-keen     base nudges  244 | dropped   1.2% added   1.2% moved>1h   0.0% | welcome: base 175/244 (71.7%) variant 175/244 (71.7%)
+   irregular-ignorer  base nudges  185 | dropped   2.2% added   1.6% moved>1h   0.0% | welcome: base 34/186 (18.3%) variant 33/185 (17.8%)
+   kind-split         base nudges  352 | dropped   4.5% added   4.0% moved>1h   0.0% | welcome: base 201/352 (57.1%) variant 199/350 (56.9%)
+   weekday-weekend    base nudges  265 | dropped   2.3% added   1.9% moved>1h   0.0% | welcome: base 144/265 (54.3%) variant 143/264 (54.2%)
+   hoarder            base nudges  667 | dropped   1.6% added   1.5% moved>1h   0.0% | welcome: base 274/667 (41.1%) variant 276/666 (41.4%)
+
+== closed loop: score, with Jev (rooms=3, 10 seeds x 8 weeks) ==
+ variant jev, ranked by simple
+   regular-keen       base nudges  316 | dropped   0.0% added   0.3% moved>1h   0.0% | welcome: base 237/316 (75.0%) variant 238/317 (75.1%)
+   regular-ignorer    base nudges  326 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 38/326 (11.7%) variant 38/326 (11.7%)
+   irregular-keen     base nudges  262 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 191/262 (72.9%) variant 191/262 (72.9%)
+   irregular-ignorer  base nudges  224 | dropped   3.1% added   4.0% moved>1h   0.0% | welcome: base 40/224 (17.9%) variant 40/226 (17.7%)
+   kind-split         base nudges  411 | dropped   3.2% added   2.9% moved>1h   0.0% | welcome: base 212/411 (51.6%) variant 208/410 (50.7%)
+   weekday-weekend    base nudges  337 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 174/337 (51.6%) variant 174/337 (51.6%)
+   hoarder            base nudges  562 | dropped  47.5% added  48.2% moved>1h   0.0% | welcome: base 223/562 (39.7%) variant 227/566 (40.1%)
+ variant no Jev at all (score decides)
+   regular-keen       base nudges  316 | dropped  63.3% added  51.6% moved>1h   0.3% | welcome: base 237/316 (75.0%) variant 219/279 (78.5%)
+   regular-ignorer    base nudges  326 | dropped  73.0% added  53.4% moved>1h   0.0% | welcome: base 38/326 (11.7%) variant 30/262 (11.5%)
+   irregular-keen     base nudges  262 | dropped  66.8% added  59.9% moved>1h   0.0% | welcome: base 191/262 (72.9%) variant 175/244 (71.7%)
+   irregular-ignorer  base nudges  224 | dropped  68.8% added  51.3% moved>1h   0.0% | welcome: base 40/224 (17.9%) variant 34/186 (18.3%)
+   kind-split         base nudges  411 | dropped  62.3% added  47.9% moved>1h   0.0% | welcome: base 212/411 (51.6%) variant 201/352 (57.1%)
+   weekday-weekend    base nudges  337 | dropped  60.2% added  38.9% moved>1h   0.0% | welcome: base 174/337 (51.6%) variant 144/265 (54.3%)
+   hoarder            base nudges  562 | dropped  79.9% added  98.6% moved>1h   0.0% | welcome: base 223/562 (39.7%) variant 274/667 (41.1%)
