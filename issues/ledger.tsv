@@ -26,7 +26,7 @@ U32	Fold core/agent migrations	2	haiku	landed	s/u32-agent-migrations	2ce9aef7	fu
 U33	Stored wipe tombstone, safe webhook rotation	3	haiku	landed	s/u33-wipe-hooks	9c1518ed	full-gate-green account-delete+routines-live	main cdeaf7f6	2026-10-11T19:02:15Z
 U40a	All verify suites against real models on main	4	haiku	abandoned	s/u40a-suites	-	stale-worker-on-old-main superseded-by-U40c	-	2026-10-11T20:18:49Z
 U40b	Attention model: simulate, then keep or simplify	4	opus	done	-	-	report	issues/evidence/u40b	2026-10-11T18:41:46Z
-U34	Attention: no pooling or smoothing, two-part score	4	haiku	landed	s/u34-attention-simplify	8e965fdf	full-gate-green sim-within-1h-9.7to69.6	main f2fd5092	2026-10-11T18:58:37Z
+U34	Attention: no pooling or smoothing, two-part score	4	haiku	landed	s/u34-attention-simplify	4e7f6a4d	gate-green	main 51a989c0	2026-10-11T21:15:13Z
 U35	Engagement signal, then decide per-kind appetite	4	opus	landed	s/u35-engagement	ceceea1f	full-gate-green proactive+initiative-loops+initiative-live	main bcfeda23	2026-10-11T19:34:37Z
 U36	Engagement test red on main: clock or code	5	haiku	landed	s/u36-engagement-test	005c8335	gate-green root-cause-product-ignoreDeadline	main d4aed249	2026-10-11T20:18:49Z
 U40c	Final proof: every suite on finished main	5	haiku	landed	s/u40c-final	ffdc89cf	gate-green	main e3d929c4	2026-10-11T21:13:00Z
