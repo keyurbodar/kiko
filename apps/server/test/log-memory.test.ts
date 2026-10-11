@@ -6,6 +6,7 @@ import { RoomMemory } from "../src/room/memory"
 import { migrate } from "../src/room/schema"
 import { Life, MAX_PINS } from "@yuki/memory/life"
 import { importRecords } from "../src/user/import-records"
+import { MemoryNaps } from "../src/room/memory-naps"
 import { sqlStorage } from "./sql-shim"
 
 function room() {
@@ -259,4 +260,34 @@ test("a message edited and then deleted is only reported as deleted", () => {
   const changes = memory.changes()!
   expect(changes.deleted).toEqual([a.id])
   expect(changes.edited).toEqual([])
+})
+
+test("forgetting edits and deletes is one UserDO call however many turns changed, and a failed call leaves the changes pending", async () => {
+  const { log, memory, say } = room()
+  const ids = Array.from({ length: 6 }, (_, i) => say(i % 2 ? agent("ada") : human, `turn ${i}`, i % 2 ? `r${i}` : undefined).id)
+  memory.sync()
+  log.deleteMessages(ids.filter((_, i) => i % 2 === 0), human)
+  const calls: [string, unknown[]][] = []
+  let fail = true
+  const user = new Proxy({}, { get: (_, method: string) => async (...args: unknown[]) => { calls.push([method, args]); if (fail) throw new Error("budget") } })
+  const env = { USER: { idFromName: (n: string) => n, get: () => user } }
+  const naps = new MemoryNaps({
+    ctx: {} as DurableObjectState,
+    env: env as never,
+    alarms: { setWakeup: async () => {}, clearWakeup: async () => {} } as never,
+    log,
+    members: { list: () => [] } as never,
+    memory,
+    home: () => ({ userId: "u1", roomId: "r1" as never }),
+    isWiped: () => false,
+  })
+  await naps.forget()
+  expect(calls.map(([m]) => m)).toEqual(["forgetMessages"])
+  expect(memory.changes()).not.toBeNull()
+  fail = false
+  calls.length = 0
+  await naps.forget()
+  expect(calls.map(([m]) => m)).toEqual(["forgetMessages"])
+  expect((calls[0]![1][3] as number[]).length).toBeGreaterThan(1)
+  expect(memory.changes()).toBeNull()
 })

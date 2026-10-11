@@ -46,7 +46,7 @@ function world(opts: { level?: Level; titles?: Record<string, string | null> } =
     title,
     off: () => level === "off",
     count: () => {},
-    close: (id, status, at) => loops.close(id, status, at),
+    close: (id, status, at, room) => loops.close(id, status, at, room),
     noticed: (roomId, skip) => engine.noticed(roomId, skip),
   })
   return { sql, loops, life, engine, initiative, wakes, setLevel: (l: Level) => void (level = l) }
@@ -112,4 +112,31 @@ test("a snooze must end after now and within a year", () => {
   expect(loops.snooze(out.id, now - 1, now)).toBe(false)
   expect(loops.snooze(out.id, now + 400 * 86_400_000, now)).toBe(false)
   expect(loops.snooze(out.id, now + 86_400_000, now)).toBe(true)
+})
+
+test("a burst closes a human's plan from any chat but an agent's promise only from its own", async () => {
+  const { loops, initiative } = world()
+  const plan = loops.open({ ...base, certainty: "explicit", text: "call the bank about the loan", room: "r2" })
+  const promise = loops.open({ ...base, owner: "ada", kind: "commitment", certainty: "explicit", text: "send the bank statement", room: "r2" })
+  if (!plan.ok || !promise.ok) throw new Error("open failed")
+  const done = (async (_state: unknown, questions: Record<string, unknown>) =>
+    Object.fromEntries(Object.keys(questions).map((k) => [k, k.includes("_l") ? { type: "choice", choice: "done", confidence: 0.9, probabilities: { done: 0.9 } } : { type: "bool", probability: 0.1 }]))) as never
+  const heard = new Initiative({ loops, life: new Life(world().sql, (fn) => fn(), { get: () => null, set: () => {} }), judge: () => done, title: () => "Taxes", off: () => false, count: () => {}, close: (id, status, at, room) => loops.close(id, status, at, room), noticed: () => [] })
+  await heard.heard("r1", [{ messageId: "m1", text: "I called the bank about the loan and sent the bank statement.", at: Date.now() }])
+  expect(loops.get(plan.id)?.status).toBe("done")
+  expect(loops.get(promise.id)?.status).toBe("open")
+})
+
+test("a pass prunes marks, briefs and wakes older than the longest rest and keeps recent ones", async () => {
+  const { sql, engine } = world()
+  const now = Date.now()
+  const old = now - 100 * 86_400_000
+  sql.exec("INSERT INTO initiative_marks (id, surfaced, ignored, skipped, last_at) VALUES ('loop:1', 1, 9, 0, ?), ('loop:2', 1, 0, 0, ?)", old, now - 1000)
+  sql.exec("INSERT INTO initiative_briefed (loop_id, at) VALUES (1, ?), (2, ?)", old, now - 1000)
+  sql.exec("INSERT INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES ('w1', 'r1', 'ada', 'intention', '[]', ?, 'spoke'), ('w2', 'r1', 'ada', 'intention', '[]', ?, 'pending'), ('w3', 'r1', 'ada', 'intention', '[]', ?, 'spoke')", old, old, now - 1000)
+  await engine.pass(now)
+  const ids = (table: string, col: string) => sql.exec<Record<string, string | number>>(`SELECT ${col} FROM ${table} ORDER BY ${col}`).toArray().map((r) => r[col])
+  expect(ids("initiative_marks", "id")).toEqual(["loop:2"])
+  expect(ids("initiative_briefed", "loop_id")).toEqual([2])
+  expect(ids("initiative_wakes", "id")).toEqual(["w2", "w3"])
 })

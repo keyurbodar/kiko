@@ -58,7 +58,7 @@ export class Reports {
 		const due = this.d.signals.due(Date.now())
 		if (home && due) {
 			await userStub(this.d.env.USER, home.userId).signals(due.batch)
-			this.d.signals.sent(due.upto)
+			this.d.signals.sent(due.upto, due.batch.more)
 		}
 		const next = this.d.signals.nextClose()
 		if (next !== null) await this.d.alarms.setWakeup(SIGNALS_WAKEUP, next)
