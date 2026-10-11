@@ -4,7 +4,7 @@ U02	Fast check, parallel cached tests	1	sonnet	landed	s/u02-ci	223eee7b	full-gat
 U03	Rules and exports as scripts	1	sonnet	landed	s/u03-rules	2ecd8d8c	self-verified	main d53cd5b4	2026-10-11T16:35:27Z
 U04	Verification skill up to date	1	haiku	landed	s/u04-verify-skill	4ecc70de	docs-only	main c2cc080f	2026-10-11T17:02:46Z
 U05	Spike: tool abort and ask	1	opus	done	-	-	report	issues/U05-spike-agent.md	2026-10-11T16:38:31Z
-U10	Bound html-text regexes	1	deepseek	round2	s/u10-html-text	73f570ed	round1-landed	main 437e0493	2026-10-11T16:58:41Z
+U10	Bound html-text regexes	1	deepseek	landed	s/u10-html-text	032f828f	full-gate-green	main 617d9649	2026-10-11T17:11:42Z
 U11	Deletion survives failed enqueue	1	sonnet	landed	s/u11-delete-rollback	6befd55e	self-verified	main 871f7794	2026-10-11T16:40:03Z
 U12	Nap promises stay separate	1	haiku	landed	s/u12-nap-dedupe	e77c6131	self-verified	main a318a95c	2026-10-11T16:38:31Z
 U20	Extension review tells the truth	1	sonnet	landed	s/u20-extensions	1dda5e9d	self-verified	main 4d9aa337	2026-10-11T16:48:23Z

@@ -34,3 +34,4 @@ ts	phase	decision	why	evidence	result
 2026-10-11T17:03:34Z	review	rejected U02's repo-wide lint downgrade; gate on backend lint, report frontend lint without gating, rerun failed test steps once	downgrading hides 17 real errors and weakens backend rules; flakes under load must stay visible, not hidden	U02 report, biome.json diff	round2
 2026-10-11T17:09:31Z	land	landed U02: bun run check is the gate (parallel, cached, reruns flakes once); every later landing runs full tests	first full-gate landing passed all 10 steps on main	main 016cf239, ~/.cache/splus/U02-check.log	landed
 2026-10-11T17:10:10Z	land	landed U31: CLI honors YUKI_URL and prints its target; server.sh stops only its own PID	a verify run hit another session's server	main 50becab5	landed
+2026-10-11T17:11:42Z	land	landed U10 round 2: no html-text pattern can backtrack across the input	1 MB hostile inputs now 70 to 112 ms; 25/25 byte-identical	main 617d9649	landed
