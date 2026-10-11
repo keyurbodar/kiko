@@ -311,7 +311,7 @@ const PROMISE = {
 
 const RELATION = {
   done: "the sentence says this is finished or has happened",
-  dropped: "the sentence says the human no longer wants or needs it",
+  dropped: "the sentence says the human no longer wants or needs it followed up, or will handle it themselves",
   same: "the sentence is about this same plan or promise, and it is still open",
   other: "the sentence is about something else",
 }
@@ -450,7 +450,7 @@ export function napLoopsPrompt(base: string, known: readonly Loop[], endsAt: num
     "owner is human, or @name for an agent that promised to come back or follow up later.",
     "explicit when they commit or name a time; tentative for maybe, thinking about, someday.",
     "due is a date like 2026-10-17 when one is named or clear, else -. text is one short line in the third person.",
-    "list every one, tentative ones too. skip only what the agent finished in these same turns, and an item already known below with the same owner and the same goal. a known loop the turns say is finished is loop done <id>; one no longer wanted is loop dropped <id>.",
+    "list every one, tentative ones too. skip only what the agent finished in these same turns, and an item already known below with the same owner and the same goal. a known loop the turns say is finished is loop done <id>; one no longer wanted, or one the human will handle themselves, is loop dropped <id>.",
     `the turns end on ${new Date(endsAt).toISOString().slice(0, 10)}.`,
     "known open loops:",
     ...(known.length ? known.map((l) => `${l.id}: ${l.text}`) : ["(none)"]),

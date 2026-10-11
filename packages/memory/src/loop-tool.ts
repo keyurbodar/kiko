@@ -14,16 +14,16 @@ const text = (value: string) => [{ type: "text" as const, text: value }]
 export function loopExtension(port: () => LoopPort | null): Extension {
   const loop = defineTool({
     name: "loop",
-    description: "close an open loop L<id>: done, or dropped when the human no longer wants it.",
+    description: "close an open loop L<id>. done: it happened. dropped: the human no longer wants it followed up, or will handle it themselves.",
     parameters: Type.Object({
       id: Type.Number(),
-      status: Type.Optional(Type.Union([Type.Literal("done"), Type.Literal("dropped")])),
+      status: Type.Union([Type.Literal("done"), Type.Literal("dropped")]),
     }),
     replay: "safe",
     execute: async (args) => {
       const p = port()
       if (!p) throw new Error("this agent is not in a room yet")
-      return (await p.close(args.id, args.status ?? "done")) ? { content: text(`closed L${args.id}`) } : { content: text(`no open loop L${args.id}`), isError: true }
+      return (await p.close(args.id, args.status)) ? { content: text(`closed L${args.id}`) } : { content: text(`no open loop L${args.id}`), isError: true }
     },
   })
   return defineExtension({ name: LOOPS, tools: [declareEffect("write", loop)], sections: [section(LOOPS, () => LOOP_RULE)] })
