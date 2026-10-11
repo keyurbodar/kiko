@@ -44,7 +44,7 @@ import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
 import { repeatProblem } from "../user/recurrence"
 
-declare const process: { env: { NODE_ENV?: string } }
+import { devOnly, DEV } from "../lib/dev-guard"
 import { Outbox, type RoomPort } from "./outbox"
 
 const DEV_FAKE_KEY = "dev-fake"
@@ -95,7 +95,7 @@ export class AgentDO extends DurableObject<Env> {
         await this.hostOptions.onOpen?.(opened)
         await this.outbox.attach(opened.harness, opened.root.id)
       },
-      ...(process.env.NODE_ENV === "development" ? { autoBudgetMs: async () => (await this.ctx.storage.get<number>(DEV_BUDGET_KEY)) ?? AUTO_RUN_BUDGET_MS } : {}),
+      ...(DEV ? { autoBudgetMs: async () => (await this.ctx.storage.get<number>(DEV_BUDGET_KEY)) ?? AUTO_RUN_BUDGET_MS } : {}),
       onTimeout: async () => {
         const home = this.home()
         if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runTimedOut(home.slug)
@@ -292,7 +292,7 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     const messaging = () => this.messagingPort()
-    if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
+    if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
       const noModel = async (): Promise<DeciderChoice> => { throw new Error("the fake agent has no model for browser_run") }
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.scriptPorts(), {
@@ -337,7 +337,7 @@ export class AgentDO extends DurableObject<Env> {
     const browser = browserOn && home
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     this.effects = built.effects
     return {
       ...built,
@@ -364,7 +364,7 @@ export class AgentDO extends DurableObject<Env> {
         return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
-      ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
+      ...(DEV && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
       beforeCompact: (harness) => this.carryUsage(harness),
     }
   }
@@ -427,7 +427,7 @@ export class AgentDO extends DurableObject<Env> {
     const pending = this.#initiative
     this.#initiative = undefined
     const text = pending ? await pending : ""
-    if (process.env.NODE_ENV === "development" && pending) await this.ctx.storage.put(DEV_INITIATIVE_KEY, text)
+    if (DEV && pending) await this.ctx.storage.put(DEV_INITIATIVE_KEY, text)
     return text
   }
 
@@ -438,7 +438,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devInitiative(): Promise<string | null> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     return (await this.ctx.storage.get<string>(DEV_INITIATIVE_KEY)) ?? null
   }
 
@@ -743,12 +743,12 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devClassic(): Promise<void> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     await this.ctx.storage.put(DEV_CLASSIC_KEY, true)
   }
 
   async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     if (!this.home()) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
     const { harness } = await this.host.open()
     const now = await this.usageOf(harness)
@@ -757,7 +757,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     if (!this.home()) return []
     const { root } = await this.host.open()
     const view = await root.context(BACKGROUND_CONTEXT)
@@ -771,22 +771,22 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devBudget(ms: number): Promise<void> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     await this.ctx.storage.put(DEV_BUDGET_KEY, ms)
   }
 
   async devFake(): Promise<void> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     await this.ctx.storage.put(DEV_FAKE_KEY, true)
   }
 
   async devWorkers(): Promise<Work[]> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     return this.host.workers.list()
   }
 
   async devSeed(): Promise<void> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
+    devOnly()
     await this.ctx.storage.put("dev-seed", Date.now())
   }
 }

@@ -17,6 +17,8 @@ NODE_ENV=development bun run --cwd apps/server dev --port 8787 --inspector-port 
 
 The `dev` script applies the local D1 migrations (`kiko-auth`) before it starts wrangler, so there is no separate migrate step. `apps/server/.dev.vars` is a symlink to `~/.config/yuki/dev.vars`, added by a git hook. If it is missing, link it by hand.
 
+Set `YUKI_URL=http://localhost:<your port>` to point every command at your own server; the CLI prints `yuki: target <url>` on its first line, and `--url` overrides it per command.
+
 If the inspector port 9229 is taken, pass another `--inspector-port` and `--url http://localhost:<port>` to every command.
 
 If wrangler says the assets directory is missing, run `bun run --cwd apps/web-solid build` once. To stop a server you started, use its recorded PID (see Cleanup). Never kill whatever holds the port.

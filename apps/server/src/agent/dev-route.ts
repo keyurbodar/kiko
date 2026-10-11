@@ -1,20 +1,18 @@
 import { isAgentSlug, isRoomId } from "@yuki/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
+import { devRequest } from "../lib/dev-guard"
 import { agentStub, roomStub, userStub } from "../lib/names"
 import { DEFAULT_AGENT } from "../room/room-do"
 import { MAX_MEMBERS } from "../room/members"
 
-declare const process: { env: { NODE_ENV?: string } }
-
 const PREFIX = "/api/dev/agent/"
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
   if (!["fake", "status", "workers", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
-  if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
+  if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   if (action === "limits") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })

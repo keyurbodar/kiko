@@ -10,7 +10,9 @@ function decodeEntities(text: string): string {
   })
 }
 
-const BLOCK = /<\/?(?:p|div|br|li|ul|ol|h[1-6]|tr|table|section|article|header|footer|nav|main|aside|blockquote|pre|hr|title|dd|dt)\b[^>]*>/gi
+// `[^<>]*` matches `[^>]*` for a well-formed tag and cannot scan past a `<`, so a page of unclosed
+// `<p` openers stays linear.
+const BLOCK = /<\/?(?:p|div|br|li|ul|ol|h[1-6]|tr|table|section|article|header|footer|nav|main|aside|blockquote|pre|hr|title|dd|dt)\b[^<>]*>/gi
 
 const WS = /\s/
 const WORD = /\w/
@@ -46,6 +48,20 @@ function titleOf(head: string): string {
   return ""
 }
 
+// The lazy `<!--[\s\S]*?-->` rescanned to the end of the page from every stray `<!--`, so a page of
+// unclosed comments was quadratic. `indexOf` finds the first `-->` the way the regex did.
+function stripComments(html: string): string {
+  let out = ""
+  let end = 0
+  for (let open = html.indexOf("<!--"); open >= 0; open = html.indexOf("<!--", end)) {
+    const close = html.indexOf("-->", open + 4)
+    if (close < 0) break
+    out += html.slice(end, open)
+    end = close + 3
+  }
+  return out + html.slice(end)
+}
+
 function stripElements(html: string): string {
   const lower = html.toLowerCase()
   const open = /<(script|style|noscript|template|svg|head)\b/gi
@@ -69,7 +85,7 @@ function stripElements(html: string): string {
 }
 
 export function htmlToText(html: string): string {
-  const body = stripElements(html.replace(/<!--[\s\S]*?-->/g, ""))
+  const body = stripElements(stripComments(html))
     .replace(BLOCK, "\n")
     .replace(/<[^<>]*>/g, "")
   return decodeEntities(body)

@@ -15,7 +15,7 @@ Builds on `verify-yuki-server` (same CLI client and dev server). Real models onl
 .cursor/skills/verify-initiative/scripts/server.sh stop     # when done
 ```
 
-`start` refuses if something already answers on 8787 (another worktree's server): drive that one or set `YUKI_URL`. It also needs `apps/server/.dev.vars`, the symlink a git hook adds; it fails without it. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
+`start` refuses if something already answers on 8787 (another worktree's server): drive that one or set `YUKI_URL=http://localhost:<your port>`. When `YUKI_URL` is set, every `server.sh` action and every `bun yuki` command targets your own server, and the CLI prints `yuki: target <url>` on its first line. It also needs `apps/server/.dev.vars`, the symlink a git hook adds; it fails without it. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
 
 ## Models and keys
 
@@ -58,6 +58,6 @@ Each `save` lands in `artifacts/initiative/<timestamp>-<name>/` (transcript, lif
 
 ## Cleanup
 
-`server.sh stop` kills the PID in `artifacts/initiative/server.pid` and its children, then every process listening on 8787. That last step can stop another session's server. Run `server.sh doctor` first, or stop only your own PID with `kill <pid>`. Dev users and rooms stay in local wrangler state, which is fine.
+`server.sh stop` kills the PID in `artifacts/initiative/server.pid` and its children, and nothing else. It never touches another process on the port, so it cannot stop another session's server. Dev users and rooms stay in local wrangler state, which is fine.
 
 Features: [features/README.md](./features/README.md).

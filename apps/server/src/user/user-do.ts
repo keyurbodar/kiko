@@ -4,6 +4,7 @@ import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@yuki/protocol"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
+import { DEV } from "../lib/dev-guard"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
 import type { Env } from "../index"
@@ -56,8 +57,6 @@ import { extensionOp, type ExtensionHost, proposeExtension } from "./extension-w
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
 import { LAST_SEEN } from "./keys"
-
-declare const process: { env: { NODE_ENV?: string } }
 
 const REPLAY_LIMIT = 500
 
@@ -743,7 +742,7 @@ export class UserDO extends DurableObject<Env> {
       setWakeup: (key, at) => this.alarms.setWakeup(key, at),
       clearWakeup: (key) => this.alarms.clearWakeup(key),
       subscriptions: this.env.PROVIDER_OAUTH === "on",
-      fake: process.env.NODE_ENV === "development",
+      fake: DEV,
     })
     return this.#logins
   }

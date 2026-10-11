@@ -78,4 +78,16 @@ describe("web_fetch", () => {
     htmlToText("<script>".repeat(50_000))
     expect(performance.now() - start).toBeLessThan(200)
   })
+
+  test("htmlToText finishes 1 MB of bare '<p' quickly", () => {
+    const start = performance.now()
+    htmlToText("<p".repeat(500_000))
+    expect(performance.now() - start).toBeLessThan(200)
+  })
+
+  test("htmlToText finishes 1 MB of unclosed comments quickly", () => {
+    const start = performance.now()
+    htmlToText("<!--".repeat(250_000))
+    expect(performance.now() - start).toBeLessThan(200)
+  })
 })
