@@ -1,5 +1,5 @@
 unit	title	wave	model	state	branch	head	verdict	evidence	updated
-U01	Delete dead and experiment code	1	sonnet	running	s/u01-subtract	-	-	-	2026-10-11T16:30:02Z
+U01	Delete dead and experiment code	1	sonnet	fixing	s/u01-subtract	f7b2daf0	merge-conflict turn.ts	-	2026-10-11T16:43:52Z
 U02	Fast check, parallel cached tests	1	sonnet	running	s/u02-ci	-	-	-	2026-10-11T16:30:02Z
 U03	Rules and exports as scripts	1	sonnet	landed	s/u03-rules	2ecd8d8c	self-verified	main d53cd5b4	2026-10-11T16:35:27Z
 U04	Verification skill up to date	1	haiku	running	s/u04-verify-skill	-	-	-	2026-10-11T16:30:02Z
@@ -7,10 +7,10 @@ U05	Spike: tool abort and ask	1	opus	done	-	-	report	issues/U05-spike-agent.md	2
 U10	Bound html-text regexes	1	deepseek	running	s/u10-html-text	-	-	-	2026-10-11T16:30:02Z
 U11	Deletion survives failed enqueue	1	sonnet	landed	s/u11-delete-rollback	6befd55e	self-verified	main 871f7794	2026-10-11T16:40:03Z
 U12	Nap promises stay separate	1	haiku	landed	s/u12-nap-dedupe	e77c6131	self-verified	main a318a95c	2026-10-11T16:38:31Z
-U20	Extension review tells the truth	1	sonnet	running	s/u20-extensions	-	-	-	2026-10-11T16:30:02Z
+U20	Extension review tells the truth	1	sonnet	fixing	s/u20-extensions	6ba8277f	export-ratchet-fail	-	2026-10-11T16:43:52Z
 U21	Browser tab cap under parallel calls	1	haiku	running	s/u21-browser	-	-	-	2026-10-11T16:35:46Z
 U22	Bash honest across spaces	1	haiku	running	s/u22-bash	-	-	-	2026-10-11T16:35:46Z
-U25	Memory correctness and fewer judge calls	1	sonnet	running	s/u25-memory	-	-	-	2026-10-11T16:30:02Z
+U25	Memory correctness and fewer judge calls	1	sonnet	verifying	s/u25-memory	5e9042d9	needs-real-model-check	-	2026-10-11T16:43:52Z
 U30	Platform edges	1	deepseek	running	s/u30-platform	-	-	-	2026-10-11T16:35:46Z
 U07	One schema per object	2	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 U29	One dev guard	2	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z

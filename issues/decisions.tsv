@@ -19,3 +19,6 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:38:32Z	land	landed U12 nap dedupe	test failed before, 11 pass after	main a318a95c	landed
 2026-10-11T16:38:32Z	infra	held spawns: load average 25 on 4 CPUs made tests time out	U12 saw workerd broken pipes under load	uptime 14.5 at 16:36	open
 2026-10-11T16:40:03Z	land	landed U11: tombstone rolls back if enqueue fails; retry re-queues every room	rollback chosen over enqueue-first because jobs must not wipe a live user	main 871f7794, delete-account.test 13 pass	landed
+2026-10-11T16:43:52Z	review	U25 must pass memory-jev and memory-eval with real keys before landing	it changed the judge request shape; unit tests cannot show answer quality	issues/U25-memory.md report	verifying
+2026-10-11T16:43:52Z	review	accepted U20 section key ext_id over the brief's name:id	pi-durable key regex has no colon; underscore cannot appear in names	U20 report	accepted
+2026-10-11T16:43:53Z	review	accepted U25 scoping room only for agent-owned loops	a human's own plan should close from any chat	U25 report	accepted
