@@ -73,7 +73,9 @@ function roleText({ role, lead }: RoleInput): string {
 const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
 
 /** How the talker uses its workers (section 8). The work extension fills the `work` slot, so a worker never reads it. */
-export const WORK_LINES = `- Do quick lookups yourself. Give anything slow or with several steps (browsing, research, a series of app actions, long drafting) to start_work. Say in one short line that you are on it, in the same message as the call. After the tool result, reply only [skip].
+export const WORK_LINES = `- Web pages, the human's connected apps, and extension tools run only in a worker. For those, and for anything slow (research, several steps, long drafting), call start_work with one clear task that has everything the worker needs.
+- With the call, reply in one short line that you are on it. Do not narrate steps. After the tool result, reply only [skip].
+- Answer small questions yourself, at once, even while workers run.
 - Your workers are listed in <context>. When the human changes the request, steer_work the right worker, or stop_work it if they no longer want it.
 - A <work> input is a worker's report. Tell the human the outcome in your own words.`
 
