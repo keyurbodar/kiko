@@ -2,7 +2,7 @@ import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
-import { workExtensions } from "./extensions/work"
+import { NOT_FOR_WORKERS, workExtensions } from "./extensions/work"
 import type { Workers } from "@yuki/agent/workers"
 import { effectTable } from "@yuki/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
@@ -105,9 +105,13 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) }, extensions }
 }
 
-/** A compiled user extension as two: its sections, hooks, and wraps for every conversation, and its tools for workers only. */
-function split(extension: Extension): Extension[] {
-  if (!extension.tools?.length) return [extension]
+/**
+ * A compiled user extension as two: its sections, hooks, and wraps for every conversation, and its tools for workers only.
+ * An extension whose tools call a talker-only tool (send_message, a reminder, the board) stays whole with the talker,
+ * since a worker does not have what it calls.
+ */
+function split(extension: Extension, calls: readonly string[], talkerOnly: ReadonlySet<string>): Extension[] {
+  if (!extension.tools?.length || calls.some((c) => talkerOnly.has(c))) return [extension]
   return [{ ...extension, tools: [] }, defineExtension({ name: `${extension.name}${TOOLS_SUFFIX}`, tools: extension.tools })]
 }
 
@@ -117,6 +121,7 @@ export class UserExtensions {
   private installed = new Map<string, { hash: string; parts: Extension[] }>()
   private readonly pool?: VmPool
   private readonly reserved: ReadonlySet<string>
+  private readonly talkerOnly: ReadonlySet<string>
 
   constructor(
     private readonly registry: Registry,
@@ -125,6 +130,7 @@ export class UserExtensions {
   ) {
     if (ports) this.pool = new VmPool(ports.wasm)
     this.reserved = new Set(builtins.flatMap((e) => (e.tools ?? []).map((t) => t.name)))
+    this.talkerOnly = new Set(builtins.filter((e) => NOT_FOR_WORKERS.includes(e.name)).flatMap((e) => (e.tools ?? []).map((t) => t.name)))
   }
 
   /** Every extension, the worker's tools included. A worker takes this minus `NOT_FOR_WORKERS`. */
@@ -154,7 +160,7 @@ export class UserExtensions {
       }
       for (const t of tools) taken.set(t, item.name)
       const current = this.installed.get(item.name)
-      next.set(item.name, current?.hash === item.hash ? current : { hash: item.hash, parts: split(compileExtension(item, this.pool, this.ports)) })
+      next.set(item.name, current?.hash === item.hash ? current : { hash: item.hash, parts: split(compileExtension(item, this.pool, this.ports), item.bundle.manifest.calls ?? [], this.talkerOnly) })
     }
     for (const [name, v] of this.installed) if (next.get(name) !== v) for (const part of v.parts) this.registry.uninstall(part)
     for (const [name, v] of next) if (this.installed.get(name) !== v) for (const part of v.parts) this.registry.install(part)

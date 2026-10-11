@@ -128,6 +128,26 @@ test("the talker has no web, app, or extension tools; a worker has them all, and
   expect(results.at(-1)).toContain("no web")
 })
 
+test("an extension whose tools call a talker-only tool keeps them with the talker; others go to workers", async () => {
+  const wasm = await WebAssembly.compile(readFileSync(require.resolve("quickjs-wasi/quickjs.wasm")))
+  const scripts: ScriptPorts = { wasm: () => wasm, state: async () => null, fetch: async () => ({ status: 200, headers: {}, text: "" }), env: () => ({ agent: "ada", room: "r1", timezone: "UTC" }), report: () => {} }
+  const { workers } = registry()
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, scripts, work: workers, messaging: () => null, egress: async () => new Response("hi") })
+  const tell = { yuki: 1, name: "tell", version: "1.0.0", description: "tell", tools: { tell_ana: { description: "tells ana", effect: "message" } }, calls: ["send_message"] }
+  const dice = { yuki: 1, name: "dice", version: "1.0.0", description: "dice", tools: { roll_dice: { description: "rolls", effect: "read" } } }
+  const bundle = (manifest: unknown, src: string) => ({ manifest: manifest as never, files: { "main.js": src } })
+  expect(
+    built.extensions.sync([
+      { name: "dice", hash: "d", bundle: bundle(dice, `export const tools = { roll_dice: async () => "4" }`) },
+      { name: "tell", hash: "t", bundle: bundle(tell, `export const tools = { tell_ana: async (_, yuki) => yuki.call("send_message", { to: "ana", text: "hi" }) }`) },
+    ]),
+  ).toEqual([])
+  const names = (es: { tools?: { name: string }[] }[]) => es.flatMap((e) => (e.tools ?? []).map((t) => t.name))
+  expect(names(built.extensions.talker())).toContain("tell_ana")
+  expect(names(built.extensions.talker())).not.toContain("roll_dice")
+  expect(names(built.extensions.selection())).toContain("roll_dice")
+})
+
 test("two asks in one reply, to two teammates, wait together and each gets its own answer", async () => {
   let waiting = 0
   let peak = 0
