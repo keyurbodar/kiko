@@ -1,34 +1,25 @@
-import type { AgentSlug, Chat, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, Chat, Envelope, RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
-import type { Env } from "../index"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
 import { deliverable, MAX_DELIVERY_ENVELOPES, type Burst } from "./burst"
-import { markReactionsBriefed } from "./reactions"
+import { receive, type ReceiveDeps } from "./receive"
 import { resolveRecipients } from "./recipients"
-import type { Mail } from "./mail"
 import { HELD_WAKEUP, type HeldWakes } from "./wake"
 import type { RoomLog } from "./log"
-import type { Members, MemberRow } from "./members"
+import type { Members } from "./members"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"
-import type { AgentHome } from "./mail-drain"
 type Home = { userId: string; roomId: RoomId }
 
-export type BurstDeps = {
-	env: Env
+export type BurstDeps = ReceiveDeps & {
 	ctx: DurableObjectState
-	log: RoomLog
 	members: Members
-	mail: Mail
 	burst: Burst
 	outbox: HeldWakes
 	alarms: Alarms
 	home: () => Home | null
 	chat: (home: Home) => Promise<Chat | null>
 	seedMembers: (home: Home, chat: Chat) => Promise<void>
-	publish: (events: RoomEvent[]) => void
-	agentHome: (home: Home, slug: AgentSlug, member: MemberRow) => AgentHome
-	delivery: (member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) => { member: MemberRow; envelopes: Envelope[]; brief: string; reactionsUpTo: number }
 	drainMail: () => Promise<void>
 	retryHeld: () => Promise<void>
 }
@@ -68,7 +59,7 @@ export class BurstFlush {
 		const first = envelopes[0]
 		if (!first) throw new Error("deliverBurst: empty burst")
 		const burstId = first.id
-		const takeTurn = () => (this.d.log.meta("turn_taken") === burstId ? Promise.resolve({ ok: true } as const) : userStub(this.d.env.USER, home.userId).takeTurn())
+		const takeTurn = () => userStub(this.d.env.USER, home.userId).takeTurn(burstId)
 		const known = this.d.log.meta("title") !== null
 		const [chat, turn] = known ? await Promise.all([this.d.chat(home), takeTurn()]) : await this.d.chat(home).then(async (c) => [c, c ? await takeTurn() : ({ ok: true } as const)] as const)
 		if (!chat) {
@@ -82,7 +73,6 @@ export class BurstFlush {
 			this.d.burst.delivered(envelopes)
 			return new Set()
 		}
-		this.d.log.setMeta("turn_taken", burstId)
 		await this.d.seedMembers(home, chat)
 		const members = this.d.members.list()
 		const replyAuthor = (id: string) => {
@@ -90,20 +80,11 @@ export class BurstFlush {
 			return from?.kind === "agent" ? from.slug : undefined
 		}
 		const routes = route(envelopes, members, replyAuthor)
-		const deliveries = [...routes].map(([slug, mine]) => {
-			const member = members.find((m) => m.slug === slug)
-			if (!member) throw new Error(`no member @${slug}`)
-			return this.d.delivery(member, members, chat.title, mine)
-		})
 		const results = await Promise.allSettled(
-			deliveries.map(async ({ member, envelopes: mine, brief, reactionsUpTo }) => {
-				const agent = agentStub(this.d.env.AGENT, home.userId, home.roomId, member.slug)
-				const { refused } = await agent.receive(mine, brief, this.d.agentHome(home, member.slug, member))
-				if (refused === "full") return "full"
-				if (refused) console.error(`burst delivery to ${member.slug} refused: ${refused}`)
-				this.d.mail.delivered(member.slug, mine)
-				markReactionsBriefed(this.d.log, member.slug, reactionsUpTo)
-				return "admitted"
+			[...routes].map(async ([slug, mine]) => {
+				const member = members.find((m) => m.slug === slug)
+				if (!member) throw new Error(`no member @${slug}`)
+				return receive(this.d, home, member, members, chat.title, mine)
 			}),
 		)
 		const failed = results.find((r) => r.status === "rejected")

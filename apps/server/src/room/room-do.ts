@@ -40,6 +40,7 @@ import { MemoryNaps, MEMORY_WAKEUP, QUIET_WAKEUP } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 import { Reports } from "./reports"
 import { Proposals } from "./proposals"
+import { receive, type ReceiveDeps } from "./receive"
 import { RoomWakes, WAKES_WAKEUP } from "./wake-delivery"
 import { RoomMail } from "./mail-drain"
 import { BurstFlush } from "./burst-flush"
@@ -142,51 +143,45 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				chat: (home) => this.chat(home),
 				seedMembers: (home, chat) => this.seedMembers(home, chat),
 				publish: (events) => this.publish(events),
-				deliver: async (home, member, members, chatTitle, envelope) => {
-					const d = this.delivery(member, members, chatTitle, [envelope])
-					const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).receive(d.envelopes, d.brief, this.agentHome(home, member.slug, member))
-					if (!refused) {
-						this.mail.delivered(member.slug, d.envelopes)
-						markReactionsBriefed(this.log, member.slug, d.reactionsUpTo)
-					}
-					return { refused, envelopes: d.envelopes, reactionsUpTo: d.reactionsUpTo, deliveredTo: member.slug }
-				},
+				receive: (home, member, members, chatTitle, envelope) => receive(this.receiveDeps, home, member, members, chatTitle, [envelope]),
 			})
 			this.mailer = new RoomMail({
+				...this.receiveDeps,
 				ctx,
-				env: this.env,
-				log: this.log,
 				members: this.members,
-				mail: this.mail,
 				burst: this.burst,
 				asks: this.asks,
 				team: this.team,
 				alarms: this.alarms,
 				home: () => this.home(),
-				publish: (events) => this.publish(events),
 				title: (home) => this.title(home),
-				agentHome: (home, slug, member) => this.agentHome(home, slug, member),
-				delivery: (member, members, goal, raw) => this.delivery(member, members, goal, raw),
 			})
 			this.burstFlush = new BurstFlush({
+				...this.receiveDeps,
 				ctx,
-				env: this.env,
-				log: this.log,
 				members: this.members,
-				mail: this.mail,
 				burst: this.burst,
 				outbox: this.outbox,
 				alarms: this.alarms,
 				home: () => this.home(),
 				chat: (home) => this.chat(home),
 				seedMembers: (home, chat) => this.seedMembers(home, chat),
-				publish: (events) => this.publish(events),
-				agentHome: (home, slug, member) => this.agentHome(home, slug, member),
-				delivery: (member, members, goal, raw) => this.delivery(member, members, goal, raw),
 				drainMail: () => this.mailer.drain(),
 				retryHeld: () => this.retryHeld(),
 			})
 		})
+	}
+
+	private get receiveDeps(): ReceiveDeps {
+		return {
+			env: this.env,
+			log: this.log,
+			mail: this.mail,
+			deliveries: this.deliveries,
+			publish: (events) => this.publish(events),
+			agentHome: (home, slug, member) => this.agentHome(home, slug, member),
+			delivery: (member, members, goal, raw) => this.delivery(member, members, goal, raw),
+		}
 	}
 
 	private home(): { userId: string; roomId: RoomId } | null {

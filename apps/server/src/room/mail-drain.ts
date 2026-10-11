@@ -1,15 +1,13 @@
-import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
-import type { Env } from "../index"
 import { agentStub } from "../lib/names"
 import type { Asks } from "./asks"
 import type { Burst } from "./burst"
 import { route } from "./deliver"
 import type { Team } from "./team"
 import type { MemberRow, Members } from "./members"
-import type { RoomLog } from "./log"
-import { type AgentSend, type Mail, messageIdOf, type QueuedMail } from "./mail"
-import { markReactionsBriefed } from "./reactions"
+import { type AgentSend, messageIdOf, type QueuedMail } from "./mail"
+import { receive, type ReceiveDeps } from "./receive"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"
 
 export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
@@ -20,21 +18,15 @@ export type Home = { userId: string; roomId: RoomId }
 
 export type MailOutcome = { ok: true; to: AgentSlug[] } | { ok: false; error: string }
 
-export type MailDeps = {
+export type MailDeps = ReceiveDeps & {
 	ctx: DurableObjectState
-	env: Env
-	log: RoomLog
 	members: Members
-	mail: Mail
 	burst: Burst
 	asks: Asks
 	team: Team
 	alarms: Alarms
 	home: () => Home | null
-	publish: (events: RoomEvent[]) => void
 	title: (home: Home) => Promise<string>
-	agentHome: (home: Home, slug: AgentSlug, member: MemberRow) => AgentHome
-	delivery: (member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) => { envelopes: Envelope[]; brief: string; reactionsUpTo: number }
 }
 
 export class RoomMail {
@@ -56,8 +48,10 @@ export class RoomMail {
 			this.pushAnswer(home, send.to as AgentSlug, asked, out.send.text)
 			return { ok: true, to: out.send.recipients }
 		}
-		this.d.mail.queue(slug, out.send)
-		this.d.ctx.waitUntil(this.drain())
+		if (out.fresh) {
+			this.d.mail.queue(slug, out.send)
+			this.d.ctx.waitUntil(this.drain())
+		}
 		return { ok: true, to: out.send.recipients }
 	}
 
@@ -139,25 +133,7 @@ export class RoomMail {
 		const members = this.d.members.list()
 		const member = members.find((m) => m.slug === mail.to)
 		if (!member || this.d.mail.stopped(mail.send.rootId)) return
-		const d = this.d.delivery(member, members, await this.d.title(home), [this.d.mail.envelope(home.roomId, mail.from, mail.send, mail.to)])
-		const { refused } = await agentStub(this.d.env.AGENT, home.userId, home.roomId, mail.to).receive(d.envelopes, d.brief, this.d.agentHome(home, mail.to, member))
-		if (refused === "full") throw new Error(`${mail.to}'s inbox is full`)
-		if (refused) return this.refused(home, mail, refused)
-		this.d.mail.delivered(mail.to, d.envelopes)
-		markReactionsBriefed(this.d.log, mail.to, d.reactionsUpTo)
-	}
-
-	private async refused(home: Home, mail: QueuedMail, why: string): Promise<void> {
-		console.error(`agent message to ${mail.to} refused: ${why}`)
-		const envelopeId = this.d.mail.envelope(home.roomId, mail.from, mail.send, mail.to).id
-		this.d.mail.refused(envelopeId, mail.send.rootId)
-		const members = this.d.members.list()
-		const sender = members.find((m) => m.slug === mail.from)
-		if (!sender) return
-		const id = `refused:${envelopeId}`
-		const reason = why === "too_large" ? "it was too large" : "its inbox could not take it"
-		const notice: Envelope = { id, roomId: home.roomId, from: { kind: "system", reason: "run_budget" }, body: `your message to @${mail.to} was not delivered: ${reason}. send a shorter one, or put the detail in a file.`, hop: 0, rootId: id, seq: this.d.log.lastSeq() }
-		const d = this.d.delivery(sender, members, await this.d.title(home), [notice])
-		await agentStub(this.d.env.AGENT, home.userId, home.roomId, mail.from).receive(d.envelopes, d.brief, this.d.agentHome(home, mail.from, sender))
+		const envelope = this.d.mail.envelope(home.roomId, mail.from, mail.send, mail.to)
+		if ((await receive(this.d, home, member, members, await this.d.title(home), [envelope])) === "full") throw new Error(`${mail.to}'s inbox is full`)
 	}
 }

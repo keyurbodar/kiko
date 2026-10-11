@@ -1,0 +1,143 @@
+import { expect, test } from "bun:test"
+import type { AgentSlug, Envelope } from "@yuki/protocol"
+import { Deliveries } from "../src/room/deliver"
+import { RoomLog } from "../src/room/log"
+import { Mail } from "../src/room/mail"
+import { RoomMail } from "../src/room/mail-drain"
+import type { MemberRow } from "../src/room/members"
+import { receive, type ReceiveDeps } from "../src/room/receive"
+import { Reports } from "../src/room/reports"
+import { SignalWindow } from "../src/room/signals"
+import { migrate } from "../src/room/schema"
+import { HeldWakes } from "../src/room/wake"
+import { sqlStorage } from "./sql-shim"
+
+const ROOM = "01J0000000000000000000000A"
+const home = { userId: "alice", roomId: ROOM as never }
+const ada = { slug: "ada" } as MemberRow
+const bob = { slug: "bob" } as MemberRow
+const members = [ada, bob]
+
+function setup(refusal: string | null) {
+	const sql = sqlStorage()
+	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
+	migrate(storage)
+	const log = new RoomLog(storage, () => 1)
+	const mail = new Mail(storage, log)
+	const deliveries = new Deliveries(storage, log)
+	const received: { slug: string; ids: string[] }[] = []
+	const env = {
+		AGENT: {
+			idFromName: (name: string) => name,
+			get: (name: string) => ({
+				receive: async (envelopes: Envelope[]) => {
+					received.push({ slug: name.split(":").at(-1)!, ids: envelopes.map((e) => e.id) })
+					return { refused: received.length === 1 ? refusal : null }
+				},
+			}),
+		},
+	}
+	const deps: ReceiveDeps = {
+		env: env as never,
+		log,
+		mail,
+		deliveries,
+		publish: () => {},
+		agentHome: (_h, slug) => ({ ...home, slug }),
+		delivery: (_m, _ms, _g, raw) => ({ envelopes: raw, brief: "", reactionsUpTo: 0 }),
+	}
+	const texts = () => log.snapshot().messages.map((m) => m.text)
+	return { deps, mail, log, received, texts, storage }
+}
+
+const human = (id: string): Envelope => ({ id, roomId: home.roomId, from: { kind: "human" }, body: "hi", hop: 0, rootId: id, seq: 1 })
+
+test("a refused human message gets a notice in the chat and leaves no chain behind", async () => {
+	const { deps, mail, texts } = setup("too_large")
+	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("refused")
+	expect(texts().some((t) => /your message to @ada was not delivered: it was too large/.test(t))).toBe(true)
+	expect(mail.chainRoot("ada" as AgentSlug)).toBeNull()
+	await receive(deps, home, ada, members, "t", [human("human:m1")])
+	expect(texts().filter((t) => /not delivered/.test(t))).toHaveLength(1)
+})
+
+test("a full inbox is no one's final answer: no notice, nothing marked", async () => {
+	const { deps, mail, texts } = setup("full")
+	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("full")
+	expect(texts().filter((t) => /not delivered/.test(t))).toHaveLength(0)
+	expect(mail.chainRoot("ada" as AgentSlug)).toBeNull()
+})
+
+test("a refused agent message gives back its hop and tells the sender", async () => {
+	const { deps, mail, received } = setup("too_large")
+	const members2 = [ada, bob]
+	const envelope: Envelope = { id: "agent:m9:bob", roomId: home.roomId, from: { kind: "agent", slug: "ada" as AgentSlug }, body: "x", hop: 1, rootId: "r1", seq: 1 }
+	expect(await receive(deps, home, bob, members2, "t", [envelope])).toBe("refused")
+	expect(received.map((r) => r.slug)).toEqual(["bob", "ada"])
+	expect(received[1]!.ids).toEqual(["refused:agent:m9:bob"])
+	expect(mail.deliveries("r1")).toBe(0)
+})
+
+test("an admitted message is marked delivered", async () => {
+	const { deps, mail } = setup(null)
+	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("admitted")
+	expect(mail.chainRoot("ada" as AgentSlug)).toBe("human:m1")
+})
+
+test("a send the room has seen before is not queued again", async () => {
+	const { deps, mail } = setup(null)
+	const queued: unknown[] = []
+	const pending: Promise<unknown>[] = []
+	const room = new RoomMail({
+		...deps,
+		ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
+		members: { list: () => members } as never,
+		burst: { pending: () => false } as never,
+		asks: { sent: () => {}, answer: () => null, answeredBy: () => null } as never,
+		team: { doing: () => {} } as never,
+		alarms: {} as never,
+		home: () => home,
+		title: async () => "t",
+	})
+	const queue = mail.queue.bind(mail)
+	mail.queue = (...a) => (queued.push(a), queue(...a))
+	const send = { id: "s1", to: "bob" as AgentSlug, text: "hello" }
+	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
+	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
+	await Promise.all(pending)
+	expect(queued).toHaveLength(1)
+})
+
+test("held wakes older than a week are dropped when the next batch is read", () => {
+	const sql = sqlStorage()
+	const outbox = new HeldWakes(sql)
+	const wake = (id: string) => ({ id, to: "ada" as AgentSlug, why: "reminder" as const, body: "b", chain: null, budget: "room" as const, retry: true })
+	const now = 10 * 86_400_000
+	outbox.hold(wake("old"), now - 8 * 86_400_000)
+	outbox.hold(wake("new"), now - 1_000)
+	expect(outbox.next(now).map((w) => w.id)).toEqual(["new"])
+})
+
+test("a held result batch keeps its opening time across retries", async () => {
+	const sent: number[] = []
+	let fail = true
+	const signals = new SignalWindow(sqlStorage(), () => ROOM)
+	signals.hold([{ kind: "routine_result", roomId: ROOM, at: 5_000, routineId: "r", occurrence: "o", outcome: "ok", seq: null }])
+	const env = {
+		USER: {
+			idFromName: (n: string) => n,
+			get: () => ({
+				signals: async (batch: { openedAt: number }) => {
+					sent.push(batch.openedAt)
+					if (fail) throw new Error("user object down")
+				},
+			}),
+		},
+	}
+	const reports = new Reports({ env: env as never, signals, home: () => home } as never)
+	await expect(reports.sendResults()).rejects.toThrow()
+	fail = false
+	await new Promise((r) => setTimeout(r, 5))
+	await reports.sendResults()
+	expect(sent).toEqual([5_000, 5_000])
+})
