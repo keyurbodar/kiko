@@ -29,3 +29,5 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:49:52Z	land	landed U01: experiments, measure CLI, probes, dead RPCs and helpers deleted	export baseline fell 220 to 209	main 6ff31d1f	landed
 2026-10-11T16:57:08Z	land	landed U30: 413 for oversize API bodies, batch size 1, dead queue cycles back to kiko-jobs	old code skipped the user-id scan on bodies over 1 MB; a deletion should never be dropped	router.test 3 pass; CF queues docs	landed
 2026-10-11T16:58:41Z	land	landed U10 round 1 (64 KB hostile input 5517 ms to 2 ms); sent round 2 for two more quadratic patterns	the goal is no hostile page can burn DO CPU, and the worker found BLOCK and the comment pass still quadratic	main 437e0493; U10 report	round2
+2026-10-11T17:02:46Z	land	landed U04 skill fixes; opened U31 for CLI default URL and server.sh kill scope	a suite without --url hit another session's 8787 server; server.sh killed every process on 8787	U04 report	landed
+2026-10-11T17:02:46Z	infra	suites must run on an idle machine to count; 6 no-model suites timed out under load 25	health checks took over 2 s against a 5 s CLI timeout	/tmp/u04/verify-nomodel.log	open
