@@ -27,3 +27,4 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:48:23Z	land	landed U20: read tools cannot write state, one trigger rule, checker uses the real bridge, prelude sealed	every finding had a failing test	main 4d9aa337	landed
 2026-10-11T16:49:52Z	spawn	spawned wave 2: U07 squash, U28 interrupt, U29 dev guard on Haiku	U01 landed; U07 kept out of core/agent so it never overlaps U28	issues/ledger.tsv	running
 2026-10-11T16:49:52Z	land	landed U01: experiments, measure CLI, probes, dead RPCs and helpers deleted	export baseline fell 220 to 209	main 6ff31d1f	landed
+2026-10-11T16:57:08Z	land	landed U30: 413 for oversize API bodies, batch size 1, dead queue cycles back to kiko-jobs	old code skipped the user-id scan on bodies over 1 MB; a deletion should never be dropped	router.test 3 pass; CF queues docs	landed
