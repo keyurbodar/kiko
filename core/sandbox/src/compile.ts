@@ -45,7 +45,7 @@ const RANK: Record<Effect, Effect[]> = {
   external: ["read", "write", "message", "external"],
 }
 
-export const isPlainGet = (init: { method?: string; body?: unknown; json?: unknown } | undefined) =>
+const isPlainGet = (init: { method?: string; body?: unknown; json?: unknown } | undefined) =>
   (init?.method ?? "GET").toUpperCase() === "GET" && init?.body === undefined && init?.json === undefined
 
 export const mayCall = (caller: Effect, callee: Effect) => RANK[caller].includes(callee)
@@ -113,7 +113,7 @@ const MAX_CALL_DEPTH = 4
 const callDepth = new WeakMap<object, number>()
 const MAX_CONTINUES = 3
 
-export type BridgeContext = { name: string; manifest: ExtensionManifest; ports: Pick<ScriptPorts, "state" | "fetch"> }
+type BridgeContext = { name: string; manifest: ExtensionManifest; ports: Pick<ScriptPorts, "state" | "fetch"> }
 
 export type CallPort = {
   effectOf: (tool: string) => Promise<Effect | undefined>
@@ -127,7 +127,7 @@ const stateOp = async ({ name, manifest, ports }: BridgeContext, op: string, pay
   return ports.state(name, manifest.state, verb, String(payload[0] ?? ""), payload[1])
 }
 
-export type ToolBridgeInput = BridgeContext & {
+type ToolBridgeInput = BridgeContext & {
   effect: Effect
   self: string
   logs: string[]
@@ -378,6 +378,6 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
 }
 
 // pi-durable keys sections by this string across every extension, so a joiner neither side can contain keeps two extensions from sharing a key.
-export const sectionKey = (extension: string, id: string) => `${extension}_${id}`
+const sectionKey = (extension: string, id: string) => `${extension}_${id}`
 
 export const extensionName = (name: string) => `ext:${name}`
