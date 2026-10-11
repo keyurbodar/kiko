@@ -93,24 +93,24 @@ describe("appetite", () => {
     expect(allowance(ignoreN(emptyAppetite(), 2), 4 * DAY + 60 * DAY)).toBe(1)
   })
 
-  test("a reply in the nudge's room is engagement at the deadline; a reply elsewhere is not", () => {
+  test("an answer to the nudge is engagement at the deadline; talking in its chat anyway is not", () => {
     const app = nudged(emptyAppetite(), pending("a", 0))
-    const elsewhere = settle(app, [{ kind: "burst", id: "b1", room: "r2", at: HOUR }], 2 * DAY)
-    expect(elsewhere.outcomes.map((o) => o.result)).toEqual(["ignored"])
-    const noted = settle(app, [{ kind: "burst", id: "b2", room: "r1", at: HOUR }], 2 * HOUR)
+    const chatting = settle(app, [{ kind: "burst", id: "b1", room: "r1", at: HOUR }, { kind: "answer", id: "a0", room: "r1", at: HOUR, loop: "loop-other" }], 2 * DAY)
+    expect(chatting.outcomes.map((o) => o.result)).toEqual(["ignored"])
+    const noted = settle(app, [{ kind: "answer", id: "a1", room: "r1", at: HOUR, loop: "loop-a" }], 2 * HOUR)
     expect(noted.outcomes).toEqual([])
     expect(noted.appetite.pending[0]?.engaged).toBe(HOUR)
     const here = settle(noted.appetite, [], 2 * DAY)
     expect(here.outcomes.map((o) => `${o.result}@${o.at}`)).toEqual([`engaged@${HOUR}`])
     expect(here.appetite.pending).toEqual([])
     let keen = emptyAppetite()
-    for (let i = 0; i < 3; i++) keen = settle(nudged(keen, pending(`k${i}`, i * DAY)), [{ kind: "burst", id: `kb${i}`, room: "r1", at: i * DAY + HOUR }], i * DAY + DAY).appetite
+    for (let i = 0; i < 3; i++) keen = settle(nudged(keen, pending(`k${i}`, i * DAY)), [{ kind: "answer", id: `ka${i}`, room: "r1", at: i * DAY + HOUR, loop: `loop-k${i}` }], i * DAY + DAY).appetite
     expect(allowance(keen, 3 * DAY)).toBe(2)
   })
 
   test("a drop wins over the reply that carried it, in either order, and closes only that kind", () => {
     const app = nudged(emptyAppetite(), pending("a", 0, "goal"))
-    const reply: Signal = { kind: "burst", id: "b", room: "r1", at: HOUR }
+    const reply: Signal = { kind: "answer", id: "b", room: "r1", at: HOUR, loop: "loop-a" }
     const drop: Signal = { kind: "dismiss", id: "d", room: "r1", at: HOUR + 60_000, loop: "loop-a" }
     const together = settle(app, [reply, drop], 2 * HOUR)
     const first = settle(app, [reply], HOUR + 1)
@@ -227,7 +227,7 @@ function keenAppetite(): Appetite {
   let a = emptyAppetite()
   for (let i = 0; i < 4; i++) {
     const at = NOW - 10 * DAY + i * DAY
-    a = settle(nudged(a, pending(`k${i}`, at)), [{ kind: "burst", id: `kb${i}`, room: "r1", at: at + HOUR }], at + DAY).appetite
+    a = settle(nudged(a, pending(`k${i}`, at)), [{ kind: "answer", id: `ka${i}`, room: "r1", at: at + HOUR, loop: `loop-k${i}` }], at + DAY).appetite
   }
   return a
 }

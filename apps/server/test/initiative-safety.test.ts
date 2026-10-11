@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { Life } from "@yuki/memory/life"
 import { Loops } from "@yuki/memory/loops"
-import { InitiativeEngine, type WakeInput } from "../src/initiative/engine"
+import { INITIATIVE_RUN, InitiativeEngine, type WakeInput } from "../src/initiative/engine"
 import { Initiative } from "../src/initiative/initiative"
 import type { Level } from "../src/initiative/attention/types"
 import { sqlStorage } from "./sql-shim"
@@ -48,6 +48,8 @@ function world(opts: { level?: Level; titles?: Record<string, string | null> } =
     count: () => {},
     close: (id, status, at, room) => loops.close(id, status, at, room),
     noticed: (roomId, skip) => engine.noticed(roomId, skip),
+    nudges: (roomId) => engine.nudges(roomId),
+    answered: (roomId, loop, messageId, at) => engine.answered(roomId, loop, messageId, at),
   })
   return { sql, loops, life, engine, initiative, wakes, setLevel: (l: Level) => void (level = l) }
 }
@@ -121,7 +123,7 @@ test("a burst closes a human's plan from any chat but an agent's promise only fr
   if (!plan.ok || !promise.ok) throw new Error("open failed")
   const done = (async (_state: unknown, questions: Record<string, unknown>) =>
     Object.fromEntries(Object.keys(questions).map((k) => [k, k.includes("_l") ? { type: "choice", choice: "done", confidence: 0.9, probabilities: { done: 0.9 } } : { type: "bool", probability: 0.1 }]))) as never
-  const heard = new Initiative({ loops, life: new Life(world().sql, (fn) => fn(), { get: () => null, set: () => {} }), judge: () => done, title: () => "Taxes", off: () => false, count: () => {}, close: (id, status, at, room) => loops.close(id, status, at, room), noticed: () => [] })
+  const heard = new Initiative({ loops, life: new Life(world().sql, (fn) => fn(), { get: () => null, set: () => {} }), judge: () => done, title: () => "Taxes", off: () => false, count: () => {}, close: (id, status, at, room) => loops.close(id, status, at, room), noticed: () => [], nudges: () => [], answered: () => {} })
   await heard.heard("r1", [{ messageId: "m1", text: "I called the bank about the loan and sent the bank statement.", at: Date.now() }])
   expect(loops.get(plan.id)?.status).toBe("done")
   expect(loops.get(promise.id)?.status).toBe("open")
@@ -139,4 +141,24 @@ test("a pass prunes marks, briefs and wakes older than the longest rest and keep
   expect(ids("initiative_marks", "id")).toEqual(["loop:2"])
   expect(ids("initiative_briefed", "loop_id")).toEqual([2])
   expect(ids("initiative_wakes", "id")).toEqual(["w2", "w3"])
+})
+
+test("Jev records a nudge as engaged only when it judges the human's words answer it", async () => {
+  const engaged = async (answers: boolean) => {
+    const { sql, life, engine, loops } = world()
+    const now = Date.now()
+    sql.exec("INSERT INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES ('w1', 'r1', 'ada', 'intention', '[\"loop:1\"]', ?, 'pending')", now)
+    await engine.signals({ roomId: "r1", openedAt: now, more: 0, signals: [{ kind: "routine_result", roomId: "r1", at: now, routineId: INITIATIVE_RUN, occurrence: "w1", outcome: "ok", seq: 5, text: "did you call the plumber?" }] }, now)
+    let read: unknown
+    const judge = (async (state: { nudges?: string[] }, questions: Record<string, unknown>) => {
+      read = state.nudges
+      return Object.fromEntries(Object.keys(questions).map((k) => [k, { type: "bool", probability: k === "n0" && answers ? 0.9 : 0.1 }]))
+    }) as never
+    const jev = new Initiative({ loops, life, judge: () => judge, title: () => "Taxes", off: () => false, count: () => {}, close: () => false, noticed: () => [], nudges: (r) => engine.nudges(r), answered: (r, l, m, at) => engine.answered(r, l, m, at) })
+    await jev.heard("r1", [{ messageId: "m6", text: "not yet", at: now + 60_000 }])
+    expect(read).toEqual(["did you call the plumber?"])
+    return engine.devState().appetite.pending[0]?.engaged
+  }
+  expect(await engaged(false)).toBeUndefined()
+  expect(typeof (await engaged(true))).toBe("number")
 })

@@ -10,11 +10,21 @@ async function ask(judge: Judge, state: Parameters<Judge>[0], questions: Record<
   }
 }
 
-export async function classifyBurst(judge: Judge, check: BurstCheck): Promise<LoopOp[] | null> {
-  if (!check.sentences.length) return []
+const ANSWERS = {
+  true: "the human replies to it: answers it, says it is done, not yet, or not wanted, or takes it up",
+  false: "the human writes about something else and leaves it unanswered",
+}
+
+/** `asked`: what the agent raised unasked in this chat, and the human's messages since, to judge whether they answer it. */
+export async function classifyBurst(judge: Judge, check: BurstCheck, asked: { nudges: readonly string[]; said: readonly string[] } = { nudges: [], said: [] }): Promise<{ ops: LoopOp[]; answered: number[] } | null> {
   const { state, questions } = loopQuestions(check)
-  const answers = await ask(judge, state, questions)
-  return answers ? loopOps(check, answers) : null
+  asked.nudges.forEach((_, i) => {
+    questions[`n${i}`] = { type: "bool", instructions: `The agent raised \`nudges[${i}]\` unasked. Do the human's messages in \`human_said\` answer it?`, criteria: ANSWERS }
+  })
+  if (!Object.keys(questions).length) return { ops: [], answered: [] }
+  const answers = await ask(judge, asked.nudges.length ? { ...state, nudges: [...asked.nudges], human_said: [...asked.said] } : state, questions)
+  if (!answers) return null
+  return { ops: loopOps(check, answers), answered: asked.nudges.flatMap((_, i) => (boolOf(answers[`n${i}`]) > 0.5 ? [i] : [])) }
 }
 
 export type WorthItem = {

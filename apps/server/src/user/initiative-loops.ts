@@ -59,6 +59,8 @@ export class InitiativeLoops {
       count: (delta) => d.memory.count(delta),
       close: (id, status, at, room) => this.closeLoop(id, status, at, room),
       noticed: (roomId, skip) => this.engine.noticed(roomId, skip),
+      nudges: (roomId) => this.engine.nudges(roomId),
+      answered: (roomId, loop, messageId, at) => this.engine.answered(roomId, loop, messageId, at),
     })
     this.engine = new InitiativeEngine({
       sql: d.sql,
