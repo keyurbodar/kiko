@@ -26,3 +26,16 @@ Each check prints its total time. Each must finish under 3 s on this repo.
 
 ## Not in scope
 Fixing the report-only violations. Other units do that.
+
+## Report
+- `scripts/check-rules.ts`: five rules, inline `// check-rules: allow <id> <reason>` escape (empty reason does not count). Runs in about 0.9 s.
+- `scripts/check-exports.ts` with `scripts/exports-baseline.txt`. Runs in about 1 s.
+- Report-only counts now: no-timer-in-do 5, dev-guard 31, egress 4 (dev-fixture-fetch x3, composio connect x1; agent-do.ts is allowlisted as the egress path). Enforced and clean: do-names 0, sql-list-binds 0.
+- Each rule caught a deliberate violation in `apps/server/src/zz-violation.ts` (removed): exit 1 from `do-names`, `sql-list-binds`; report-only rules listed; empty-reason allow was ignored, reasoned allow honored; export check printed `zz-violation.ts:1 unused-export zzUnused`.
+
+## Discoveries
+- The audit says 8 unused exports. Strictly (name not referenced in any other file) there are 220; the 8 are a subset. Most are types or constants used only in their own file and exported needlessly.
+- DEVIATION: because 220 cannot be fixed in this unit's scope, check-exports uses a baseline. It fails on any new unused export and reports baseline entries that became used. U01 deleting exports leaves stale baseline lines, which only warn.
+- I removed none of the 8 (U01 owns them).
+- `apps/server/src/experiments/turn.ts` got one allow comment for its `idFromName`.
+- The word match is coarse: a short export name such as `a` that appears elsewhere as a word counts as used.

@@ -7,3 +7,9 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:28:53Z	decide	keep the always capture mode	it is a user setting; no evidence of harm	core/protocol/src/loops.ts:29	open
 2026-10-11T16:28:53Z	decide	park G01 deploy measurement for the operator	deploys are always-pause; nothing depends on it	issues/G01-deploy-measure.md	gated
 2026-10-11T16:28:53Z	decide	dropped upload byte counter, lazy bash listing, snapshot paging, 20-run window	no measured cost; yagni	issues/PLAN.md dropped section	dropped
+2026-10-11T16:30:02Z	spawn	spawned wave 1 window: 9 writers plus the U05 read-only spike	highs, guardrails, and disjoint areas first; U21 U22 U30 wait for free slots	issues/ledger.tsv	running
+2026-10-11T16:35:27Z	land	landed U03 (check-rules, check-exports ratchet with 220 baselined)	un-exporting 220 symbols is churn; a ratchet stops growth	main d53cd5b4	landed
+2026-10-11T16:35:27Z	infra	landing proves the merge in a separate worktree, never resets main	main holds someone else's uncommitted edits (vps tunnel, dev-session, vite config) from 15:26-15:40	git status in /home/keyur/kiko	fixed
+2026-10-11T16:35:27Z	infra	gate lint on backend paths only	frontend has 17 pre-existing lint errors outside this program; backend paths lint clean	biome exit codes backend=0 frontend=1	fixed
+2026-10-11T16:35:27Z	routing	default workers to Haiku and DeepSeek; Sonnet only for U27, Opus only for judgment	operator asked; most units are well-scoped	issues/ledger.tsv model column	open
+2026-10-11T16:35:27Z	infra	workers may stop with a QUESTION; coordinator answers in a new round	operator pointed out forcing guesses is worse than asking	issues/STANDING.md	fixed
