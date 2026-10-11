@@ -134,6 +134,8 @@ A Durable Object has one alarm. Each class multiplexes it with a small shared he
 
 Alarms deliver at least once. Every alarm handler in yuki is idempotent: it reads what is due from a table, acts with a stable id, and marks the row done in the same transaction.
 
+Wipe. A deleted object writes one stored wipe order in `core/durable` (U33) before its shutdown awaits. Every entry point refuses work once it is set, including an alarm that fires during deletion. DEVIATION (U33): `AgentDO.receive` throws `this agent was deleted` instead of returning a `Refusal`. The room reads a refusal as a refused message and posts a notice, which would write rows into a deleted room.
+
 ## 5. Hand-rolled Durable Objects, not the Agents SDK
 
 **Decision.** Yuki uses plain `DurableObject` classes with `pi-durable`. It does not use Cloudflare's `agents` package.
@@ -937,6 +939,8 @@ So every CPU-heavy step runs inside a Durable Object, and Worker request handler
 
 Subrequests. A Free invocation may make 50 outside requests, and it is enforced inside Durable Objects too, including work that keeps running after the request returned, which is how an agent's run continues after its alarm. Measured: the 51st fetch fails with "Too many subrequests by single Worker invocation", in a request and in the background. RPC calls to Durable Objects do not count against the 50 (120 calls passed), and a fetch made inside an RPC call, even one an object makes to itself, gets that call's own budget (150 background fetches passed that way). So `AgentDO` sends every model request and every `web_fetch` through its own stub (`egress`), and each one is its own invocation. `safeFetch` keeps DNS answers for their TTL (30 s to 5 minutes), so a fetch to a recently seen host costs one subrequest instead of three. pi-ai's Google adapters refuse a custom fetch, so their model requests keep the global one and still count against the run's 50.
 
+Egress decision. The `egress` rule in `scripts/check-rules.ts` is enforced: a bare `fetch(` is allowed only in `safe-fetch.ts`, in `AgentDO`, or on a line with `// check-rules: allow egress <reason>`. Two lines carry that reason. The dev fixture fetcher (`lib/dev-fixture-fetch.ts`) runs only when `DEV` is on, and it sits under `safeRequest`, which checks the host first. Composio's default fetcher (`integrations/composio/connect.ts`) runs in `UserDO`, which gets its own invocation per RPC, so its calls do not share an agent run's 50. UNVERIFIED until G01 (`issues/G01-deploy-measure.md`): that the RPC and R2 calls stay outside the 50 on a deployed Free Worker. The counts above came from `wrangler dev`.
+
 Each request through `egress` is one more Durable Object request, about five per turn. Free allows 100,000 a day, and rows written still bind first (the table above), so the user count does not move.
 
 Alarms. The runtime retries a throwing `alarm()` six times, and `dueWakeups` has already claimed the due keys, so a throwing step would lose its wakeup and skip the steps after it. `UserDO` and `RoomDO` run each due step through `runDue` (`core/durable/src/alarm.ts`), which catches a failure and sets that key again: after 30 seconds, or 2 seconds for the room's message path. `AgentHost` already catches and re-arms.
@@ -1079,7 +1083,7 @@ A command is a transaction.
 
 Each file space is atomic on its own. A command that changes both the chat's files and the drive saves the chat's part first; if the drive then refuses, the chat's part stands, and the output says which space was not saved. `/me/soul.md` is saved last, on its own.
 
-`/tmp` is the command's own scratch space and is never saved, and `/dev/null` discards. A command saves nothing when it times out (30 seconds by default, 120 at most), is aborted, or hits just-bash's execution limits (100,000 commands, 100,000 loop iterations, and the like; it exits 126). Pure computation does not advance the Workers clock, so those limits, not the timeout, are what stop a runaway loop; every loop tried stopped within 2 seconds. One command reads at most 400 stored files, because a Free invocation may make 1,000 calls to Cloudflare services; past that the command is stopped with a line that says to narrow it. One command holds at most 16 MB of changed files.
+`/tmp` is the command's own scratch space and is never saved, and `/dev/null` discards. A command saves nothing when it times out (30 seconds by default, 120 at most), is aborted, or hits just-bash's execution limits (100,000 commands, 100,000 loop iterations, and the like; it exits 126). Pure computation does not advance the Workers clock, so those limits, not the timeout, are what stop a runaway loop; every loop tried stopped within 2 seconds. One command reads at most 400 stored files (`MAX_READS`). UNVERIFIED: the 400 assumes R2 reads do not count toward a Free invocation's 50 subrequests (section 17.3). G01 settles that, and the number stays until then. Past 400 files the command is stopped with a line that says to narrow it. One command holds at most 16 MB of changed files.
 
 **Reasoning.** just-bash calls a redirect "open empty, then append each chunk". Sent to the room one call at a time, `echo x > f` would be two R2 writes, and a teammate could read the empty file between them. A loop of `>>` would be a room call per line. Working in memory makes a command as fast as its reads and lets teammates see only finished commands. The conditional commit is what makes parallel work safe. pi runs the tool calls of one turn at the same time, each agent has its own object, and a worker shares its agent's object. Each command checks against its own snapshot, never against a hash another command read, so two commands that read the same file cannot both write it unseen. First writer wins and the other is told. This is the same guarantee as the hash on a single write (section 18.1), stretched over a command.
 
@@ -1317,7 +1321,7 @@ Yuki copies four patterns:
 
 How they are built:
 
-- `core/durable/src/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works. `history()` returns the last 100 fired keys with their due and fired times.
+- `core/durable/src/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works.
 - `core/agent/src/inbox.ts` marks a claimed batch with `in_flight_at` and the id of the process that took it. A batch held by another process is reclaimed at once, because a Durable Object has one live process and the other one is dead. A batch held by this process is reclaimed after 5 minutes. A failed drain releases what it took. `submitted()` returns false the second time. `receive()` returns `{ admitted: [], refused: "full" | "too_large" }` instead of throwing.
 - ASSUMPTION: the caps are 500 open rows (waiting or claimed) and 128 KiB per envelope plus brief. Submitted rows stay for dedupe and do not count. A delivery stores its brief on its first row only, since one delivery always lands in one batch. The room sends a burst past the caps in deliveries of at most 100 envelopes and 64 KiB (`deliverable` in `room/burst.ts`), so a huge burst is never refused forever or dropped.
 - ASSUMPTION: the room treats `full` as backpressure and retries the burst after 2 seconds. It drops a `too_large` burst from the queue. The messages stay in the log either way.
@@ -1334,6 +1338,7 @@ Users and agents add pi-durable extensions while yuki runs, on the Free plan, wi
 
 - An extension is data: `extension.json` plus files, stored by content hash in the user's `UserDO`. User extensions never live in the repository, so a pull from upstream never conflicts with them.
 - The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Yuki adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"yuki": 1` and checked by `checkManifest` in `core/sandbox/src/manifest.ts`, which `@yuki/protocol` re-exports: the same function on the server, in the CLI, and in the client.
+- DEVIATION (U20): the section key is `<extension>_<id>`, not `name:id`. pi-durable's key pattern has no colon, and `_` cannot appear in a name or id, so two extensions cannot share a key.
 - The script is JavaScript, run by QuickJS compiled to wasm (`quickjs-wasi` 3.6.2). The wasm is imported with the Worker, so no code is evaluated by V8. The script is data for a bundled interpreter.
 - Only the human installs. Agents, the catalog, and files the human opens can only propose. The install is reachable from the human's socket alone.
 
@@ -1419,7 +1424,7 @@ A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to t
 
 ### 24.9 The catalog
 
-`apps/server/catalog/<name>/` holds extensions reviewed upstream. `scripts/gen-catalog.ts` bundles them into `user/catalog.gen.ts`, and a test fails when the file is stale or an entry fails its own `extension_check`. A catalog install goes through the same review as any other. Sharing is through the catalog, never a share link.
+`apps/server/catalog/<name>/` holds extensions reviewed upstream. `apps/server/scripts/gen-catalog.ts` bundles them into `user/catalog.gen.ts`, and a test fails when the file is stale or an entry fails its own `extension_check`. A catalog install goes through the same review as any other. Sharing is through the catalog, never a share link.
 
 ### 24.10 Verification
 
@@ -1513,6 +1518,7 @@ type Origin = "human" | "routine" | "auto"
 
 - The Worker hashes the token and reads one D1 row, `hooks(token_hash -> user_id, routine_id)`, then calls `UserDO.routineHook`, which checks the token against the routine's own hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
 - **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker builds the object name from a user id in a D1 row that `UserDO` wrote when the human's routine was made. The request never supplies an id.
+- **No token rotation.** ASSUMPTION: there is no rotate action. `updateRoutine` mints a token only when a routine becomes a webhook, and editing a webhook keeps its token, because a new token would break a URL the human already shared (U33).
 - A sender's own delivery id (`x-github-delivery`, `idempotency-key`, `x-request-id`), or else the body's hash within the same minute, makes a retried post run once. The body is read with a 64 KB cap, so a chunked post cannot grow past it.
 - The run gets the post's text after its instructions.
 - The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
@@ -1527,7 +1533,7 @@ DEVIATION from the first plan: watches do not run extension code from an alarm. 
 
 1. **Once.** A wake id the delivery ledger has, delivered or refused, is a duplicate. One already held is held.
 2. **The room's budget,** for a `room` wake. 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per wake id (`auto_taken`).
-3. **The user's budget,** for a `room` or `user` wake. `UserDO.takeAutonomous(id)`: `limits.autonomousRunsPerDay` (100) across every chat, paid once per wake id (`autonomous_taken`), and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When it refuses, the room's run is refunded.
+3. **The user's budget,** for a `room` or `user` wake. `UserDO.takeAutonomous(id)`: `limits.autonomousRunsPerDay` (100) across every chat, paid once per wake id (`charged_today`, which also holds the day's human burst ids for `takeTurn`), and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When it refuses, the room's run is refunded.
 4. **The hand-over.** A refused delivery refunds both budgets and is recorded in the ledger. A full inbox throws with the budgets kept; the retry carries the same id and pays nothing more.
 5. **Held.** A wake that may retry (a reminder, a task wake) waits in `held_wakes`, the room's outbox. It is retried, oldest first and ten a pass, on the next UTC midnight (the `held_wakes` wakeup) and after every human burst the room delivers, after that burst. One held for a week is dropped (ASSUMPTION). A routine's held run is recorded `held` instead, and a watch keeps its old fingerprint (25.4).
 
@@ -1645,13 +1651,13 @@ A private, temporary, or deleted chat has no candidates. A loop of no chat belon
 
 **Verdict.** `attend` (`attend.ts`), a pure function, gives each candidate one verdict:
 
-- `rest` while an item rests after a nudge or a [skip] (one cycle, doubled for each ignore or [skip], longer as the kind's welcome falls);
+- `rest` while an item rests after a nudge or a [skip] (one cycle, doubled for each ignore or [skip], longer as the kind's welcome falls; ASSUMPTION: at most three doublings, `MAX_DOUBLINGS`, since ten ignores once rested an item for about 1,024 days (U25));
 - `brief` when initiative is `off` or `chat`, the rhythm is unknown, the human is away or busy in that room, the item was said less than half a cycle ago and is not due, it is tentative and there is no judge, the kind's appetite is closed, its worth is under one half, or it is not the human's usual moment;
 - `nudge` for the most worthwhile items, at most one per room, no more than the appetite allows and the budget holds, and one per pass at `digest`.
 
 The score is a noisy-or of due urgency in the human's own cycles (weight 1) and an agent's own promise near its date (weight 0.5). Items with equal scores rank by the oldest sighting first, so the score orders Jev's ten and the brief's `on their plate` lines. Mentions, staleness, and age were dropped on 2026-10-11 (U34). The appetite is a Beta posterior per user and per kind over "a nudge of this kind is welcome" (`appetite.ts`): a new user gets one nudge a pass, two ignores in a row give none, a dismissal weighs five ignores for its kind, a [skip] counts one against its kind only (it never reached the human), and outcomes fade with a two-week half-life.
 
-**Jev.** With a judge key, and only when a nudge could go out at all, Jev's `worthNow` reads the ten highest-scoring candidates past their rest (ties by oldest sighting) in one batched call. Its probability replaces the score in `worth`, and it gates: an item it did not read wakes nobody that pass. It reads what the woken agent will read, in plain words: whose item it is, the due time and last mention relative to now, how often it was raised, let pass, or declined by the agent, how many nudges the human answered or let pass lately, and the agent's own rule. Without Jev the score and the appetite decide alone. Either way the engine is the one decider, and the agent is told to raise the item, not asked whether to.
+**Jev.** With a judge key, and only when a nudge could go out at all, Jev's `worthNow` reads the ten highest-scoring candidates past their rest (ties by oldest sighting) in one batched call. Its probability replaces the score in `worth`, and it gates: an item it did not read wakes nobody that pass. It reads what the woken agent will read, in plain words: whose item it is, the due time and last mention relative to now, how often it was raised, let pass, or declined by the agent, how many nudges the human answered or let pass lately, and the agent's own rule. Without Jev the score and the appetite decide alone. Either way the engine is the one decider, and the agent is told to raise the item, not asked whether to. UNVERIFIED: Jev's recall of about 0.8 has not been measured on real traffic (U35).
 
 **The wake.** `RoomDO.initiativeWake` is one wake (25.5) about one item: origin `auto`, the room's budget, never held. The room answers `busy` while a burst gathers or the human typed in the last two minutes. The target is the owner for an agent's own commitment or task, else the room's lead, which may hand it to a teammate with `send_message`. The body states the item, why now, and the rule: one short message in your own words, at most two sentences, with no text around tool calls, after moving its own work on if it can; [skip] only when the chat shows it is already handled; close a loop as dropped when the human no longer wants it. An agent's own promise is kept in that one message.
 
@@ -1723,6 +1729,8 @@ DEVIATION from the Composio pattern, where `UserDO` makes every call: an agent h
 A switch to the other mode deletes the browser, waits for the profile save, and then creates the new one. There is never a second browser, so the browser is the only writer of the profile. The switch returns each agent's last tab URLs so the agents can reopen them. Page state outside the profile, such as a half-filled form, is lost. A takeover or watch in force carries over.
 
 `dead` marks the lease when an agent reports that its socket died. The next lease deletes the browser, ignoring a 404, makes a new one, and answers `restarted: true` with the caller's last tab URLs.
+
+Known gap (U21): two agents on one browser can still pass the tab cap together, because an agent's opens in flight are not visible to another agent until it touches the lease. Closing it needs a reservation in the UserDO lease. UNVERIFIED: a `switchTo` during an open can leave a tab that no map counts, so `idle()` never closes it.
 
 ### 27.3 The reaper and the wipe
 
