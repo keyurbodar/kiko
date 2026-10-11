@@ -20,6 +20,7 @@ export class AnswerWaiters {
         this.waiting.delete(id)
         resolve(answer)
       }
+      // check-rules: allow no-timer-in-do ask's bounded wait; on timeout the run goes on by safe replay, so no work depends on this timer surviving eviction (U05)
       const deadline = setTimeout(() => settle(null), ms)
       signal?.addEventListener("abort", onAbort)
       this.waiting.set(id, settle)

@@ -57,6 +57,7 @@ export class KernelLease {
 
   constructor(private readonly deps: LeaseDeps) {
     this.#now = deps.now ?? Date.now
+    // check-rules: allow no-timer-in-do in-request backoff between Kernel retries; a lease call lives inside one request
     this.#sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
   }
 

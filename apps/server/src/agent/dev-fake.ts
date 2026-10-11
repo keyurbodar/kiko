@@ -159,6 +159,7 @@ const slowTool = defineTool({
   description: "waits a few seconds, then says slept.",
   parameters: Type.Object({ ms: Type.Optional(Type.Number()) }),
   execute: async (args, _api, context) => {
+    // check-rules: allow no-timer-in-do dev-only fake tool; the wait ends when the run aborts, and a run lives inside one request
     await awaitWithContext(new Promise((resolve) => setTimeout(resolve, Math.min(args.ms ?? SLOW_TOOL_MS, 300_000))), context)
     return { content: [{ type: "text", text: "slept" }] }
   },

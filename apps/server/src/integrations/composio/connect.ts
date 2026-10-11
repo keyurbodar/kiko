@@ -23,6 +23,7 @@ export class ComposioConnection {
   constructor(
     private readonly store: ComposioStore,
     private readonly userId: () => Promise<string>,
+    // check-rules: allow egress Composio calls run in UserDO, which gets its own invocation per RPC, so they do not share an agent run's 50 subrequests (architecture 17.3, G01)
     fetcher: typeof fetch = (input, init) => fetch(input, init),
     private readonly waitUntil: (work: Promise<unknown>) => void = () => undefined,
   ) {

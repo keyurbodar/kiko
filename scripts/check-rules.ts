@@ -24,7 +24,7 @@ export const RULES: readonly Rule[] = [
     description: "setTimeout and setInterval do not survive eviction. Use alarm.ts.",
     roots: SERVER_AND_CORE,
     match: (line) => /(?<![\w.])(setTimeout|setInterval)\(/.test(line),
-    enforce: false,
+    enforce: true,
   },
   {
     id: "do-names",
@@ -48,7 +48,7 @@ export const RULES: readonly Rule[] = [
     roots: ALL_SRC,
     skip: (path) => path === "core/durable/src/safe-fetch.ts" || path === "apps/server/src/agent/agent-do.ts",
     match: (line) => /(?<![\w.$])fetch\(/.test(line) && !/\b(async|private|public|static|function)\s+fetch\(/.test(line) && !/^\s*fetch\(.*\)\s*(:[^{]*)?\{\s*$/.test(line),
-    enforce: false,
+    enforce: true,
   },
   {
     id: "sql-list-binds",

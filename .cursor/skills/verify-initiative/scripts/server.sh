@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage: server.sh start|doctor|stop
-# Starts `bun dev:server` (wrangler dev, NODE_ENV=development) on $YUKI_URL (default localhost:8787) and waits for health.
+# Starts the server's dev script (wrangler dev, NODE_ENV=development) on the port in $YUKI_URL (default localhost:8787) and waits for health.
+# Not `bun dev:server`: the root script pins --port 8787, which collides with other sessions.
 set -u
 ROOT=$(git rev-parse --show-toplevel)
 OUT=${INITIATIVE_OUT:-$ROOT/artifacts/initiative}
@@ -45,7 +46,7 @@ case "${1:-doctor}" in
     cd "$ROOT" || exit 1
     # wrangler refuses to start without the client build (git ignores dist). Scaffolding only.
     [ -d apps/web-solid/dist ] || bun run --cwd apps/web-solid build >"$OUT/web-build.log" 2>&1 || { echo "web build failed, see $OUT/web-build.log"; exit 1; }
-    NODE_ENV=development nohup bun dev:server >"$OUT/server.log" 2>&1 &
+    NODE_ENV=development nohup bun run --cwd apps/server dev --port "$PORT" >"$OUT/server.log" 2>&1 &
     echo $! >"$PIDF"
     for _ in $(seq 1 90); do
       curl -fs "$URL/api/health" >/dev/null 2>&1 && { echo "up: $URL (pid $(cat "$PIDF"), log $OUT/server.log)"; exit 0; }

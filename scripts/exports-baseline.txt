@@ -113,7 +113,6 @@ apps/server/src/user/provider-login.ts:MAX_LOGINS
 apps/server/src/user/provider-login.ts:fakeProvider
 apps/server/src/user/provider-login.ts:hasSignIn
 apps/server/src/user/reminders.ts:Deliver
-apps/server/src/user/reminders.ts:MAX_FAILS
 apps/server/src/user/reminders.ts:MAX_ROUTINES
 apps/server/src/user/reminders.ts:MAX_WATCHES
 apps/server/src/user/reminders.ts:RUNS_KEPT
