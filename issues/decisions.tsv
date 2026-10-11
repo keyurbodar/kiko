@@ -28,3 +28,4 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:49:52Z	spawn	spawned wave 2: U07 squash, U28 interrupt, U29 dev guard on Haiku	U01 landed; U07 kept out of core/agent so it never overlaps U28	issues/ledger.tsv	running
 2026-10-11T16:49:52Z	land	landed U01: experiments, measure CLI, probes, dead RPCs and helpers deleted	export baseline fell 220 to 209	main 6ff31d1f	landed
 2026-10-11T16:57:08Z	land	landed U30: 413 for oversize API bodies, batch size 1, dead queue cycles back to kiko-jobs	old code skipped the user-id scan on bodies over 1 MB; a deletion should never be dropped	router.test 3 pass; CF queues docs	landed
+2026-10-11T16:58:41Z	land	landed U10 round 1 (64 KB hostile input 5517 ms to 2 ms); sent round 2 for two more quadratic patterns	the goal is no hostile page can burn DO CPU, and the worker found BLOCK and the comment pass still quadratic	main 437e0493; U10 report	round2
