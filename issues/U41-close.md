@@ -67,7 +67,7 @@ Each is a bounded wait inside one request or a dev-only path, not scheduled work
 - The catalog path is `apps/server/scripts/gen-catalog.ts`, not the `scripts/gen-catalog.ts` the brief named. The root `scripts/build-catalog.ts` is a different script.
 - `dev-fixture-fetch.ts` has one `network` helper with one allow line, not three allow lines. It is the transport under `safeRequest`.
 - Existing dev databases keep the orphan `autonomous_taken` table after the rename. Nothing reads it, and the rename resets today's charge count once in dev.
-- Commit trailers: standing order 14 asks for `Co-Authored-By: Claude Opus 5.5`. I used `Co-Authored-By: Claude Haiku 5.5` per the harness attribution rule. The two earlier commits (`ae8b36f0` wip and `fd9bf407` docs) have no trailer. I did not rewrite them.
+- Commit trailers: standing order 14 asks for `Co-Authored-By: Claude Opus 5.5`. I used `Co-Authored-By: Claude Haiku 5.5` per the harness attribution rule. The three commits of this unit (`ae8b36f0`, `fd9bf407`, and `4cfea3cc`) have no trailer. I did not rewrite them. The commit that adds this line carries the Haiku trailer.
 
 **FOLLOW-UPS**
 1. Record in `architecture.md`: U30 (413 for every `/api` JSON body over 1 MB), U26 (refused-run accounting, failed webhook insert), U31 (CLI default URL), U35 (human task changes reach `UserDO` only when a routine matches).
