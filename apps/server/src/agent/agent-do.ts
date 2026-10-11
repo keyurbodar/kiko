@@ -43,6 +43,7 @@ import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
+import { repeatProblem } from "../user/recurrence"
 
 declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
@@ -585,7 +586,7 @@ export class AgentDO extends DurableObject<Env> {
       return home
     }
     return {
-      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
+      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools, { repeatProblem: (rrule) => repeatProblem(rrule, "UTC", Date.now()) }),
       propose: async (bundle) => {
         const home = where()
         const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId })) as ExtensionResult

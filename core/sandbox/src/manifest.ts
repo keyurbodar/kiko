@@ -108,7 +108,10 @@ export function needsScript(m: ExtensionManifest): boolean {
 
 export type ManifestCheck = { ok: true; manifest: ExtensionManifest } | { ok: false; problems: string[] }
 
-export function checkManifest(value: unknown): ManifestCheck {
+/** Rules that need code this package may not import, passed in by the host so the check and the install apply one rule. */
+export type CheckOptions = { repeatProblem?: (rrule: string) => string | null }
+
+export function checkManifest(value: unknown, options: CheckOptions = {}): ManifestCheck {
 	const problems: string[] = []
 	const bad = (line: string) => problems.push(line)
 	if (!isObject(value)) return { ok: false, problems: ["the manifest must be a json object"] }
@@ -237,7 +240,10 @@ export function checkManifest(value: unknown): ManifestCheck {
 				else if (seen.has(t.id)) bad(`${at}: id "${t.id}" is used twice`)
 				else seen.add(t.id)
 				if (typeof t.rrule !== "string" || !RRULE.test(t.rrule.trim())) bad(`${at}: "rrule" must be a recurrence rule such as FREQ=DAILY;BYHOUR=9;BYMINUTE=0`)
-				else if (/FREQ=MINUTELY/.test(t.rrule)) bad(`${at}: a trigger fires at most once an hour`)
+				else {
+					const problem = /FREQ=MINUTELY/.test(t.rrule) ? "a schedule repeats at most every 30 minutes" : options.repeatProblem?.(t.rrule)
+					if (problem) bad(`${at}: ${problem}`)
+				}
 				if (typeof t.send !== "string" || !t.send.trim() || t.send.length > 500) bad(`${at}: "send" must be text of at most 500 characters`)
 			}
 		}
@@ -264,9 +270,9 @@ export function checkManifest(value: unknown): ManifestCheck {
 
 export type BundleCheck = { ok: true; bundle: ExtensionBundle } | { ok: false; problems: string[] }
 
-export function checkBundle(value: unknown): BundleCheck {
+export function checkBundle(value: unknown, options: CheckOptions = {}): BundleCheck {
 	if (!isObject(value)) return { ok: false, problems: ["the bundle must be { manifest, files }"] }
-	const m = checkManifest(value.manifest)
+	const m = checkManifest(value.manifest, options)
 	const problems = m.ok ? [] : [...m.problems]
 	const files = value.files
 	if (!isObject(files)) problems.push(`"files" must be an object of path to text`)

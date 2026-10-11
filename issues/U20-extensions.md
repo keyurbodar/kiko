@@ -20,3 +20,20 @@ What the human approves at install is exactly what the script can do, and the ch
 
 ## Acceptance
 One test per finding that fails before the fix. `bun run --cwd apps/server test script-vm user-extensions extension-store` green.
+
+## Report
+All eight findings fixed, one test each (finding 6 shares a test with the section wiring).
+
+1. `makeToolBridge` refuses `state.set` and `state.delete` from a read tool, with `a "read" tool can only read yuki.state`.
+2. `checkBundle` and `checkManifest` take `{ repeatProblem }`. The server passes `repeatProblem` (moved to `user/recurrence.ts`, with `MIN_REPEAT_MS`) from `propose` and from `extension_check`, so `FREQ=HOURLY;BYMINUTE=0,10,...` is refused at both places. The MINUTELY message now says 30 minutes. `docs/architecture.md` line 1412 updated.
+3. `check.ts` now builds its bridge with `makeToolBridge` and `makeQuietBridge` from `compile.ts` over fake ports. The hand-written mock is deleted.
+4. The prelude is wrapped in an IIFE; only `__invoke` and `__shape` stay global.
+5. `ScriptVM.retire()` marks the VM retired. A call in flight finishes and its finally block disposes it. `settle` keeps delivering because retired is not `broken`.
+6. Section key is now `<extension>_<id>`. pi-durable's key regex is `^[a-z][a-z0-9_-]*$` (no colon), and it uses the key as the XML tag and as the map key across all extensions. `_` cannot appear in a name or id, so two extensions cannot collide, and a section can no longer take a built-in's key.
+7. `install` emits the extension event before `scheduleTriggers`, and `cancelBy` failure is recorded on the row as `triggers: ...`.
+8. Any non-empty secret is scrubbed.
+
+Failed before: extension-store (short secret, trigger failure), script-vm (prelude helpers, retire), user-extensions (suite no longer loaded without `repeatProblem`).
+
+## Discoveries
+- `wraps.sections` on another extension's section key now needs the new `<ext>_<id>` key. Nothing in the repo does that.

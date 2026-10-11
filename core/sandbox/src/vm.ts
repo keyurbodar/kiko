@@ -14,7 +14,7 @@ export type ExportShape = { tools: string[]; sections: string[]; hooks: string[]
 
 export class ScriptError extends Error {}
 
-const PRELUDE = `
+const PRELUDE = `(() => {
 const host = globalThis.__host;
 const hostSync = globalThis.__hostSync;
 delete globalThis.__host;
@@ -54,6 +54,7 @@ globalThis.__shape = (mod) => {
     wrapTools: keys(mod.wraps && mod.wraps.tools), wrapSections: keys(mod.wraps && mod.wraps.sections),
   });
 };
+})();
 `
 
 function resolve(base: string, specifier: string): string {
@@ -90,6 +91,7 @@ const errorText = (vm: QuickJS, h: JSValueHandle): string => {
 export class ScriptVM {
   private steps = 0
   private broken = false
+  private retired = false
   private readonly bridges = new Map<string, Bridge>()
   private invocations = 0
   private disposed = false
@@ -193,7 +195,7 @@ export class ScriptVM {
   }
 
   get unusable(): boolean {
-    return this.broken
+    return this.broken || this.retired
   }
 
   get memoryBytes(): number {
@@ -205,7 +207,7 @@ export class ScriptVM {
   }
 
   async invoke(target: Target, args: unknown[], env: Record<string, unknown>, bridge: Bridge): Promise<unknown> {
-    if (this.broken) throw new ScriptError("the script stopped working; it restarts on the next call")
+    if (this.broken || this.retired) throw new ScriptError("the script stopped working; it restarts on the next call")
     const inv = `inv-${++this.invocations}-${crypto.randomUUID()}`
     this.bridges.set(inv, bridge)
     const vm = this.vm
@@ -234,8 +236,14 @@ export class ScriptVM {
       for (const h of handles) h.dispose()
       promise?.dispose()
       if (this.memoryBytes > RETIRE_BYTES) this.broken = true
-      if (this.broken && this.bridges.size === 0) this.dispose()
+      if ((this.broken || this.retired) && this.bridges.size === 0) this.dispose()
     }
+  }
+
+  /** The pool no longer wants this VM: a call still running finishes on it, and its finally block disposes it. */
+  retire(): void {
+    this.retired = true
+    if (this.bridges.size === 0) this.dispose()
   }
 
   dispose(): void {

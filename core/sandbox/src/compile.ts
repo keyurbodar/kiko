@@ -45,7 +45,7 @@ const RANK: Record<Effect, Effect[]> = {
   external: ["read", "write", "message", "external"],
 }
 
-export const isPlainGet = (init: { method?: string; body?: unknown; json?: unknown } | undefined) =>
+const isPlainGet = (init: { method?: string; body?: unknown; json?: unknown } | undefined) =>
   (init?.method ?? "GET").toUpperCase() === "GET" && init?.body === undefined && init?.json === undefined
 
 export const mayCall = (caller: Effect, callee: Effect) => RANK[caller].includes(callee)
@@ -80,7 +80,7 @@ export class VmPool {
     for (const [hash, vm] of this.vms) {
       if (keep.has(hash)) continue
       this.vms.delete(hash)
-      void vm.then((v) => v.dispose()).catch(() => {})
+      void vm.then((v) => v.retire()).catch(() => {})
     }
   }
 }
@@ -113,10 +113,68 @@ const MAX_CALL_DEPTH = 4
 const callDepth = new WeakMap<object, number>()
 const MAX_CONTINUES = 3
 
+type BridgeContext = { name: string; manifest: ExtensionManifest; ports: Pick<ScriptPorts, "state" | "fetch"> }
+
+export type CallPort = {
+  effectOf: (tool: string) => Promise<Effect | undefined>
+  run: (tool: string, args: Record<string, unknown>) => Promise<string>
+}
+
+const stateOp = async ({ name, manifest, ports }: BridgeContext, op: string, payload: unknown[], readOnlyFor?: string): Promise<unknown> => {
+  if (!manifest.state) throw new Error(`yuki.state needs "state" in extension.json`)
+  const verb = op.slice("state.".length) as "get" | "set" | "delete" | "list"
+  if (readOnlyFor && verb !== "get" && verb !== "list") throw new Error(`${readOnlyFor} can only read yuki.state`)
+  return ports.state(name, manifest.state, verb, String(payload[0] ?? ""), payload[1])
+}
+
+type ToolBridgeInput = BridgeContext & {
+  effect: Effect
+  self: string
+  logs: string[]
+  calls: CallPort
+  next?: (args: Record<string, unknown>) => Promise<unknown>
+}
+
+export function makeToolBridge(input: ToolBridgeInput): Bridge {
+  const { name, manifest, ports, effect, self, logs, calls, next } = input
+  const allowed = new Set(manifest.calls ?? [])
+  return async (op, payload) => {
+    if (op === "log") {
+      if (logs.length < MAX_LOGS) logs.push(((payload[0] as string[]) ?? []).join(" ").slice(0, 500))
+      return undefined
+    }
+    if (op.startsWith("state.")) return stateOp(input, op, payload, effect === "read" ? `a "read" tool` : undefined)
+    if (op === "next") {
+      if (!next) throw new Error("yuki.next only works in a tool wrap")
+      return next((payload[0] ?? {}) as Record<string, unknown>)
+    }
+    if (op === "fetch") {
+      const [url, init] = payload as [string, Omit<GuestRequest, "url">]
+      if (effect !== "external" && !isPlainGet(init)) throw new Error(`only a GET without a body works in a "${effect}" tool; ${self} needs "external" to send anything`)
+      return ports.fetch(name, { ...(init ?? {}), url })
+    }
+    if (op === "call") {
+      const [tool, args] = payload as [string, Record<string, unknown>]
+      if (!allowed.has(tool)) throw new Error(`${tool} is not in "calls" in extension.json`)
+      if (tool === self) throw new Error(`${self} cannot call itself`)
+      const declared = await calls.effectOf(tool)
+      if (!declared) throw new Error(`this agent has no tool ${tool}`)
+      if (!mayCall(effect, declared)) throw new Error(`${self} is "${effect}" and cannot call ${tool}, which is "${declared}"`)
+      return calls.run(tool, args ?? {})
+    }
+    throw new Error(`yuki.${op} is not available`)
+  }
+}
+
+export const makeQuietBridge = (ctx: BridgeContext, where: string, readOnly: boolean): Bridge => async (op, payload) => {
+  if (op === "log") return undefined
+  if (op.startsWith("state.")) return stateOp(ctx, op, payload, readOnly ? where : undefined)
+  throw new Error(`${where} can only use yuki.state and yuki.log`)
+}
+
 export function compileExtension(installed: Installed, pool: VmPool, ports: ScriptPorts): Extension {
   const { name, hash, bundle } = installed
   const m: ExtensionManifest = bundle.manifest
-  const calls = new Set(m.calls ?? [])
   const reported = new Set<string>()
 
   const report = (error: string) => {
@@ -139,56 +197,30 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
     return vm.invoke(target, args, env, bridge)
   }
 
-  const stateOp = async (op: string, payload: unknown[], readOnly: boolean): Promise<unknown> => {
-    if (!m.state) throw new Error(`yuki.state needs "state" in extension.json`)
-    const verb = op.slice("state.".length) as "get" | "set" | "delete" | "list"
-    if (readOnly && verb !== "get" && verb !== "list") throw new Error("a section can only read yuki.state")
-    return ports.state(name, m.state, verb, String(payload[0] ?? ""), payload[1])
-  }
+  const toolBridge = (effect: Effect, self: string, api: ToolExecutionApi, context: Context, logs: string[], next?: (args: Record<string, unknown>) => Promise<unknown>): Bridge =>
+    makeToolBridge({ name, manifest: m, ports, effect, self, logs, next, calls: callPort(self, effect, api, context) })
 
-  const toolBridge = (effect: Effect, self: string, api: ToolExecutionApi, context: Context, logs: string[], next?: (args: Record<string, unknown>) => Promise<unknown>): Bridge => {
-    return async (op, payload) => {
-      if (op === "log") {
-        if (logs.length < MAX_LOGS) logs.push(((payload[0] as string[]) ?? []).join(" ").slice(0, 500))
-        return undefined
-      }
-      if (op.startsWith("state.")) return stateOp(op, payload, false)
-      if (op === "next") {
-        if (!next) throw new Error("yuki.next only works in a tool wrap")
-        return next((payload[0] ?? {}) as Record<string, unknown>)
-      }
-      if (op === "fetch") {
-        const [url, init] = payload as [string, Omit<GuestRequest, "url">]
-        if (effect !== "external" && !isPlainGet(init)) throw new Error(`only a GET without a body works in a "${effect}" tool; ${self} needs "external" to send anything`)
-        return ports.fetch(name, { ...(init ?? {}), url })
-      }
-      if (op === "call") {
-        const [tool, args] = payload as [string, Record<string, unknown>]
-        if (!calls.has(tool)) throw new Error(`${tool} is not in "calls" in extension.json`)
-        if (tool === self) throw new Error(`${self} cannot call itself`)
-        const agent = await api.agent(context)
-        const callee = agent.tools.find((t) => t.name === tool)
-        if (!callee) throw new Error(`this agent has no tool ${tool}`)
-        const declared = effectOf(callee) ?? "external"
-        if (!mayCall(effect, declared)) throw new Error(`${self} is "${effect}" and cannot call ${tool}, which is "${declared}"`)
-        const call: ToolCall = { type: "toolCall", id: `${api.callId}:${tool}`, name: tool, arguments: (args ?? {}) as never }
-        const depth = callDepth.get(api) ?? 0
-        if (depth >= MAX_CALL_DEPTH) throw new Error(`calls nest deeper than ${MAX_CALL_DEPTH}: ${self} called ${tool}`)
-        callDepth.set(api, depth + 1)
-        const result = await callThroughHooks(agent, callee, { ...call, arguments: validateToolArguments(callee, call) as never }, api, context).finally(() => callDepth.set(api, depth))
-        const out = resultText(result)
-        if (result.isError) throw new Error(out || `${tool} failed`)
-        return out
-      }
-      throw new Error(`yuki.${op} is not available`)
-    }
-  }
+  const quietBridge = (where: string, readOnly: boolean): Bridge => makeQuietBridge({ name, manifest: m, ports }, where, readOnly)
 
-  const quietBridge = (where: string, readOnly: boolean): Bridge => async (op, payload) => {
-    if (op === "log") return undefined
-    if (op.startsWith("state.")) return stateOp(op, payload, readOnly)
-    throw new Error(`${where} can only use yuki.state and yuki.log`)
-  }
+  const callPort = (self: string, effect: Effect, api: ToolExecutionApi, context: Context): CallPort => ({
+    effectOf: async (tool) => {
+      const callee = (await api.agent(context)).tools.find((t) => t.name === tool)
+      return callee ? (effectOf(callee) ?? "external") : undefined
+    },
+    run: async (tool, args) => {
+      const agent = await api.agent(context)
+      const callee = agent.tools.find((t) => t.name === tool)
+      if (!callee) throw new Error(`this agent has no tool ${tool}`)
+      const call: ToolCall = { type: "toolCall", id: `${api.callId}:${tool}`, name: tool, arguments: args as never }
+      const depth = callDepth.get(api) ?? 0
+      if (depth >= MAX_CALL_DEPTH) throw new Error(`calls nest deeper than ${MAX_CALL_DEPTH}: ${self} called ${tool}`)
+      callDepth.set(api, depth + 1)
+      const result = await callThroughHooks(agent, callee, { ...call, arguments: validateToolArguments(callee, call) as never }, api, context).finally(() => callDepth.set(api, depth))
+      const out = resultText(result)
+      if (result.isError) throw new Error(out || `${tool} failed`)
+      return out
+    },
+  })
 
   const tools: ToolRegistration[] = Object.entries(m.tools ?? {}).map(([toolName, t]) =>
     declareEffect(
@@ -214,7 +246,7 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
   )
 
   const sections: PromptSection[] = Object.entries(m.sections ?? {}).map(([id, s]) => {
-    const key = id === name ? id : `${name}-${id}`
+    const key = sectionKey(name, id)
     if (s.text !== undefined) {
       const fixed = s.text
       return section(key, () => fixed)
@@ -344,5 +376,8 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
 
   return defineExtension({ name: extensionName(name), tools, sections, hooks, wraps })
 }
+
+// pi-durable keys sections by this string across every extension, so a joiner neither side can contain keeps two extensions from sharing a key.
+const sectionKey = (extension: string, id: string) => `${extension}_${id}`
 
 export const extensionName = (name: string) => `ext:${name}`
