@@ -304,6 +304,7 @@ export class AgentDO extends DurableObject<Env> {
           await this.syncExtensions(fake.extensions, root)
           return true
         },
+        joinRun: (_batch, root) => this.syncExtensions(fake.extensions, root),
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.carryUsage(harness),
       }
@@ -340,6 +341,9 @@ export class AgentDO extends DurableObject<Env> {
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true
       },
+      // Input that joins a working run skipped beginRun, so it asks for the current selection itself:
+      // an install, a switch, or an update made since the run began reaches the human's next message.
+      joinRun: (_batch, root) => this.syncExtensions(built.extensions, root),
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
