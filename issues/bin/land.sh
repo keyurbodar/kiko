@@ -24,6 +24,7 @@ else
   { bun run typecheck && bunx biome check apps/server core apps/cli scripts && bun scripts/check-imports.ts && { [ ! -f scripts/check-rules.ts ] || bun scripts/check-rules.ts; } && { [ ! -f scripts/check-exports.ts ] || bun scripts/check-exports.ts; }; } >"$logs/$unit-check.log" 2>&1
 fi
 if [ $? -ne 0 ]; then
+  "$root/issues/bin/ledger.sh" "$unit" state=gate-red evidence="$logs/$unit-check.log"
   echo "land: $unit is red when merged; main untouched"; tail -40 "$logs/$unit-check.log"; exit 4
 fi
 cd "$root"
@@ -31,4 +32,6 @@ if ! git merge --no-ff -q -m "Land $unit from $branch" "$branch" >>"$logs/$unit-
   git merge --abort 2>/dev/null
   echo "land: $unit merged green in the lane but not in main; see $logs/$unit-merge.log"; exit 5
 fi
-echo "land: $unit landed as $(git rev-parse --short HEAD)"; tail -8 "$logs/$unit-check.log"
+sha="$(git rev-parse --short HEAD)"
+"$root/issues/bin/ledger.sh" "$unit" state=landed head="$(git rev-parse --short "$branch")" evidence="main_$sha"
+echo "land: $unit landed as $sha"; tail -8 "$logs/$unit-check.log"
