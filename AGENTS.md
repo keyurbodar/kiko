@@ -60,6 +60,10 @@ bun dev:web           # the client on localhost:5173, proxying /api to the serve
 
 Wrangler is already signed in on this machine. Do not run a login step. Use `localhost`, not `127.0.0.1`, for the client.
 
+Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, workerd, or vite: it stops other sessions' servers mid-run. Start yours on a free port (`bun run --cwd apps/server dev --port <n>`, then `bun yuki verify <suite> --url http://localhost:<n>`) and stop only its PID.
+
+Dev keys live in `~/.config/yuki/dev.vars`. Every worktree's `apps/server/.dev.vars` links to it; a git hook adds the link to a new worktree. Never ask the owner to paste a key. The CLI reads keys from the shell: `set -a; . apps/server/.dev.vars; set +a`.
+
 ## Verifying
 
 A task is not done until its `Verify` line passes and you have shown the output. Tests alone are not enough.
