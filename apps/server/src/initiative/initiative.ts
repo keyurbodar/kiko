@@ -15,7 +15,7 @@ type InitiativeDeps = {
   title: (roomId: string) => string | null
   off: () => boolean
   count: (delta: Record<string, number>) => void
-  close: (id: number, status: "done" | "dropped", at: number) => boolean
+  close: (id: number, status: "done" | "dropped", at: number, room?: string) => boolean
   noticed: (roomId: string, skip: ReadonlySet<number>) => string[]
 }
 
@@ -49,7 +49,8 @@ export class Initiative {
       const from = sentence && burst[sentence.from]
       if (!sentence || !from) throw new Error(`initiative burst has no message for sentence ${op.sentence}`)
       if (op.op === "close") {
-        this.deps.close(op.id, op.status, from.at)
+        // A human's own plan may be done from any chat. An agent's promise closes only from the chat it was made in.
+        this.deps.close(op.id, op.status, from.at, this.deps.loops.get(op.id)?.owner === "human" ? undefined : roomId)
         continue
       }
       const out = this.deps.loops.open(

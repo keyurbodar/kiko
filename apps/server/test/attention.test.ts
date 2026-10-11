@@ -79,6 +79,11 @@ describe("appetite", () => {
     expect(rest(twice, 2)).toBeGreaterThan(2 * rest(once, 1))
   })
 
+  test("a loop ignored ten times rests under a year, not a thousand days", () => {
+    const rest = restUntil(emptyAppetite(), { kind: "intention", lastSurfaced: 0, ignored: 10 }, DAY, 0)
+    expect(rest).toBeLessThan(365 * DAY)
+  })
+
   test("time fades ignores and lets one careful nudge back", () => {
     expect(allowance(ignoreN(emptyAppetite(), 2), 4 * DAY + 60 * DAY)).toBe(1)
   })

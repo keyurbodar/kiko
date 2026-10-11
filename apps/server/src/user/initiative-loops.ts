@@ -57,7 +57,7 @@ export class InitiativeLoops {
       },
       off: () => this.level() === "off",
       count: (delta) => d.memory.count(delta),
-      close: (id, status, at) => this.closeLoop(id, status, at),
+      close: (id, status, at, room) => this.closeLoop(id, status, at, room),
       noticed: (roomId, skip) => this.engine.noticed(roomId, skip),
     })
     this.engine = new InitiativeEngine({
@@ -111,7 +111,7 @@ export class InitiativeLoops {
   }
 
   /** Every close goes through here: a drop settles a nudge about the loop as dismissed (section 26.6). */
-  private closeLoop(id: number, status: "done" | "dropped", at: number, roomId?: RoomId): boolean {
+  private closeLoop(id: number, status: "done" | "dropped", at: number, roomId?: string): boolean {
     const closed = this.loops.close(id, status, at, roomId)
     if (closed) this.d.memory.count({ loops_closed: 1 })
     if (closed && status === "dropped") this.engine.dropped(id, at)

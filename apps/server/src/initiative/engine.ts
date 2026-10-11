@@ -21,6 +21,7 @@ export const INITIATIVE_WAKEUP = "initiative_pass"
 const MIN_GAP = 20 * 3_600_000
 const JEV_MAX = 10
 const BUSY_MS = 120_000
+const KEEP_MS = 90 * 86_400_000
 const NOTICED_MAX = 2
 export const SHARED_WORDS = 2
 const LAST_PASS = "initiative_last_pass"
@@ -153,12 +154,10 @@ export class InitiativeEngine {
 
   private items(now: number, cycle: number): Item[] {
     const tz = this.d.tz()
-    const marks = new Map(this.d.sql.exec<Mark & { id: string }>("SELECT * FROM initiative_marks").toArray().map((m) => [m.id, m]))
-    const out: Item[] = []
+    const found: { id: string; c: Omit<Candidate, "id" | "surfaced" | "ignored" | "lastSurfaced">; rest: Omit<Item, "c" | "skipped"> }[] = []
     const home = this.d.home()
     const add = (id: string, c: Omit<Candidate, "id" | "surfaced" | "ignored" | "lastSurfaced">, rest: Omit<Item, "c" | "skipped">) => {
-      const m = marks.get(id)
-      out.push({ c: { ...c, id, surfaced: m?.surfaced ?? 0, ignored: (m?.ignored ?? 0) + (m?.skipped ?? 0), ...(m?.last_at ? { lastSurfaced: m.last_at } : {}) }, skipped: m?.skipped ?? 0, ...rest })
+      found.push({ id, c, rest })
     }
     const kept = new Set(
       this.d.sql
@@ -204,7 +203,24 @@ export class InitiativeEngine {
         { text: routine.name ?? "a routine", line: `routine "${routine.name ?? routine.id}" (${routine.id}) ${what}`, reason: routine.status === "paused" ? "A routine paused" : "A routine failed" },
       )
     }
-    return out
+    const marks = new Map(
+      this.d.sql
+        .exec<Mark & { id: string }>("SELECT * FROM initiative_marks WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(found.map((f) => f.id)))
+        .toArray()
+        .map((m) => [m.id, m]),
+    )
+    return found.map(({ id, c, rest }): Item => {
+      const m = marks.get(id)
+      return { c: { ...c, id, surfaced: m?.surfaced ?? 0, ignored: (m?.ignored ?? 0) + (m?.skipped ?? 0), ...(m?.last_at ? { lastSurfaced: m.last_at } : {}) }, skipped: m?.skipped ?? 0, ...rest }
+    })
+  }
+
+  /** Rows older than the longest rest the appetite can ask for no longer change a decision. */
+  private prune(now: number): void {
+    const cutoff = now - KEEP_MS
+    this.d.sql.exec("DELETE FROM initiative_marks WHERE last_at < ?", cutoff)
+    this.d.sql.exec("DELETE FROM initiative_briefed WHERE at < ?", cutoff)
+    this.d.sql.exec("DELETE FROM initiative_wakes WHERE at < ? AND status != 'pending'", cutoff)
   }
 
   private lastPass(): number {
@@ -228,6 +244,7 @@ export class InitiativeEngine {
     const tz = this.d.tz()
     const store = this.store
     this.apply(store.observe([], now, tz))
+    this.prune(now)
     setSetting(this.d.sql, LAST_PASS, String(now))
     const rhythm = view(store.rhythm(), now, tz)
     const items = this.items(now, rhythm.cycle)
