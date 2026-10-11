@@ -65,8 +65,8 @@ test("ancestors climb one node per level", () => {
   ])
 })
 
-function fakeLog(n: number, tainted: (i: number) => boolean = () => false) {
-  const log: Item[] = Array.from({ length: n }, (_, i) => ({ pos: i, at: Date.UTC(2026, 8, 1) + i * 3_600_000, text: `item ${i}`, tainted: tainted(i) }))
+function fakeLog(n: number) {
+  const log: Item[] = Array.from({ length: n }, (_, i) => ({ pos: i, at: Date.UTC(2026, 8, 1) + i * 3_600_000, text: `item ${i}` }))
   const tree = new Tree(sqlStorage(), "t", shape, (lo, hi) => log.slice(lo, Math.min(hi, log.length)))
   const napAll = () => {
     let calls = 0
@@ -90,7 +90,7 @@ test("every node is built once, smallest first, about one call per four items", 
   expect(calls).toBe(244)
   expect(napAll()).toBe(0)
   expect(tree.node({ lo: 0, hi: 512 })).not.toBeNull()
-  expect(tree.put({ lo: 0, hi: 8 }, { text: "again", tainted: false, from: 0, to: 0 })).toBe(false)
+  expect(tree.put({ lo: 0, hi: 8 }, { text: "again", from: 0, to: 0 })).toBe(false)
   expect(tree.node({ lo: 0, hi: 8 })!.text).toBe("0,1,2,3,4,5,6,7")
 })
 
@@ -117,15 +117,6 @@ test("a view is bounded, keeps the floor verbatim, and falls back to halves for 
   expect(next.lines.slice(0, warm.tiling.length)).toEqual(warm.lines.slice(0, warm.tiling.length))
 })
 
-test("taint climbs the tree", () => {
-  const { tree, napAll } = fakeLog(64, (i) => i === 5)
-  napAll()
-  expect(tree.node({ lo: 0, hi: 8 })!.tainted).toBe(true)
-  expect(tree.node({ lo: 0, hi: 64 })!.tainted).toBe(true)
-  expect(tree.node({ lo: 8, hi: 16 })!.tainted).toBe(false)
-  expect(tree.render({ lo: 0, hi: 64 }, Date.now())[0]).toContain("[outside]")
-})
-
 test("zoom opens a node into its halves, down to items", () => {
   const { tree, napAll } = fakeLog(64)
   napAll()
@@ -141,7 +132,7 @@ test("the nap prompt and the answer cleaner", () => {
   expect(prompt).toEndWith(`\n\n${Array.from({ length: 8 }, (_, i) => `item ${i + 8}`).join("\n")}`)
   expect(prompt).not.toMatch(/#\d/)
   const long = "x".repeat(2_000)
-  expect(napPrompt({ span: { lo: 0, hi: 8 }, items: [{ pos: 0, at: 0, text: long, tainted: false }] }, "turns")).toContain(long)
+  expect(napPrompt({ span: { lo: 0, hi: 8 }, items: [{ pos: 0, at: 0, text: long }] }, "turns")).toContain(long)
   expect(cleanLine('\n"#0-7 ada booked the flight"\nmore')).toBe("ada booked the flight")
   expect(cleanLine("   ")).toBeNull()
   expect(new TextEncoder().encode(capBytes("é".repeat(400), 280)).byteLength).toBeLessThanOrEqual(280)
@@ -153,15 +144,15 @@ test("a stretch that already fits a line is its own summary, word for word, with
   const { tree } = fakeLog(16)
   const input = tree.input({ lo: 0, hi: 8 })!
   expect(tree.free(input)).toBe("item 0; item 1; item 2; item 3; item 4; item 5; item 6; item 7")
-  const long: Item[] = [{ pos: 0, at: 0, text: "x".repeat(LINE_BYTES + 1), tainted: false }]
+  const long: Item[] = [{ pos: 0, at: 0, text: "x".repeat(LINE_BYTES + 1) }]
   expect(tree.free({ span: { lo: 0, hi: 8 }, items: long })).toBeNull()
-  expect(tree.free({ span: { lo: 0, hi: 16 }, halves: [{ text: "a", tainted: false, from: 0, to: 0 }, { text: "b", tainted: false, from: 0, to: 0 }] })).toBe("a; b")
+  expect(tree.free({ span: { lo: 0, hi: 16 }, halves: [{ text: "a", from: 0, to: 0 }, { text: "b", from: 0, to: 0 }] })).toBe("a; b")
 })
 
 test("a cut verbatim line says it was cut and how to see the rest", async () => {
   const { itemLine } = await import("@yuki/memory/optmem")
-  expect(itemLine({ pos: 12, at: 0, text: "short", tainted: false }, 100)).not.toContain("cut")
-  expect(itemLine({ pos: 12, at: 0, text: "long ".repeat(50), tainted: false }, 100)).toEndWith("… (cut, zoom chat:12)")
+  expect(itemLine({ pos: 12, at: 0, text: "short" }, 100)).not.toContain("cut")
+  expect(itemLine({ pos: 12, at: 0, text: "long ".repeat(50) }, 100)).toEndWith("… (cut, zoom chat:12)")
 })
 
 test("a node whose call failed while later ones were built is still built, and so are the nodes above it", () => {

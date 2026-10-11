@@ -19,17 +19,17 @@ test("an old life table gains ref, superseded_by, and card, and its rows stay li
   const columns = sql.exec<{ name: string }>("PRAGMA table_info(life)").toArray().map((c) => c.name)
   expect(columns).toEqual(expect.arrayContaining(["ref", "superseded_by", "card"]))
   expect(l.recall("sister").map((x) => x.text)).toEqual(["sister is sam"])
-  expect(l.append("works as a nurse", "you", false, 2, { ref: "room:r:msg:m1", card: "IDENTITY" })).toEqual({ ok: true, pos: 1 })
+  expect(l.append("works as a nurse", "you", 2, { ref: "room:r:msg:m1", card: "IDENTITY" })).toEqual({ ok: true, pos: 1 })
   expect(l.view(Date.now()).split("\n")[0]).toBe("card: works as a nurse")
   life(sql)
 })
 
 test("a superseded line leaves recall and the card, shows as replaced in the tree, and hands over its pin", () => {
   const l = life()
-  l.append("lives in lisbon", "you", false, 1, { card: "IDENTITY" })
-  for (let i = 0; i < 20; i++) l.append(`filler fact ${i}`, "@ada", false)
+  l.append("lives in lisbon", "you", 1, { card: "IDENTITY" })
+  for (let i = 0; i < 20; i++) l.append(`filler fact ${i}`, "@ada")
   l.pin(0, true)
-  const next = l.append("lives in porto since october", "you", false, 3)
+  const next = l.append("lives in porto since october", "you", 3)
   if (!next.ok) throw new Error("append failed")
   l.settle({ lo: 0, hi: 8 }, "a summary that still mentions lisbon")
   expect(l.tree.node({ lo: 0, hi: 8 })).not.toBeNull()
@@ -40,13 +40,13 @@ test("a superseded line leaves recall and the card, shows as replaced in the tre
   expect(l.tree.node({ lo: 0, hi: 8 })).toBeNull()
   expect(l.card()).toEqual([{ pos: next.pos, text: "lives in porto since october", pinned: true }])
   expect(l.supersede(0, next.pos)).toBe(false)
-  expect(l.append("Lives in Lisbon", "you", false).ok && l.count()).toBe(next.pos + 2)
+  expect(l.append("Lives in Lisbon", "you").ok && l.count()).toBe(next.pos + 2)
 })
 
 test("the card is pins first, then card lines newest first, at most twelve, and recall skips only what it shows", () => {
   const l = life()
-  for (let i = 0; i < 16; i++) l.append(`card fact ${i}`, "you", false, i, { card: "ATTRIBUTE" })
-  l.append("plain fact", "you", false)
+  for (let i = 0; i < 16; i++) l.append(`card fact ${i}`, "you", i, { card: "ATTRIBUTE" })
+  l.append("plain fact", "you")
   l.pin(5, true)
   l.pin(16, true)
   const head = l.view(Date.now()).split("\n").slice(0, CARD_MAX + 1)
@@ -60,10 +60,10 @@ test("the card is pins first, then card lines newest first, at most twelve, and 
 
 test("redacting by ref removes every line from that message and brings back the line it replaced", () => {
   const l = life()
-  l.append("lives in lisbon", "you", false, 1, { ref: "room:r:msg:a" })
-  l.append("moved to porto", "you", false, 2, { ref: "room:r:msg:b" })
-  l.append("works at a bakery in porto", "you", false, 2, { ref: "room:r:msg:b" })
-  l.append("has a dog named rex", "you", false, 3, { ref: "room:r2:msg:b" })
+  l.append("lives in lisbon", "you", 1, { ref: "room:r:msg:a" })
+  l.append("moved to porto", "you", 2, { ref: "room:r:msg:b" })
+  l.append("works at a bakery in porto", "you", 2, { ref: "room:r:msg:b" })
+  l.append("has a dog named rex", "you", 3, { ref: "room:r2:msg:b" })
   l.supersede(0, 1)
   expect(l.redactRefs(["room:r:msg:b"]).sort()).toEqual([1, 2])
   expect(l.recall("porto")).toEqual([])
@@ -75,8 +75,8 @@ test("redacting by ref removes every line from that message and brings back the 
 
 test("rollup refs are found by prefix", () => {
   const l = life()
-  l.append("a week of trip planning", "chat trip", false, 1, { ref: "room:r:turns:0-128" })
-  l.append("a week of work", "chat work", false, 1, { ref: "room:r2:turns:0-128" })
+  l.append("a week of trip planning", "chat trip", 1, { ref: "room:r:turns:0-128" })
+  l.append("a week of work", "chat work", 1, { ref: "room:r2:turns:0-128" })
   expect(l.refsLike("room:r:turns:")).toEqual(["room:r:turns:0-128"])
 })
 
@@ -104,7 +104,7 @@ test("the model's capture lines are read strictly, and a malformed line or an un
 
 test("each applied fact carries the ref of the message it came from, and a replacement supersedes", () => {
   const l = life()
-  l.append("the human lives in lisbon", "you", false, 1)
+  l.append("the human lives in lisbon", "you", 1)
   const heard = [{ ref: "room:r:msg:m1", at: 5 }, { ref: "room:r:msg:m2", at: 6 }]
   const count = applyOps(l, parseCapture("~ 0 m2 the human lives in porto [IDENTITY]\n+ m1 the human has a cat\n+ m9 the human plays chess", new Set([0]), 2), heard)
   expect(count).toEqual({ added: 2, replaced: 1, same: 0, private: 0 })
@@ -194,8 +194,8 @@ function fakeJudge(verdicts: Record<string, Verdict>, seen: Question[][] = []): 
 
 test("the judged path keeps only worthy, non-private facts, and a replacement supersedes every copy it corrects", async () => {
   const l = life()
-  l.append("I live in Lisbon.", "you", false, 1)
-  l.append("Human lives in Lisbon", "@yuki", false, 2)
+  l.append("I live in Lisbon.", "you", 1)
+  l.append("Human lives in Lisbon", "@yuki", 2)
   const text = "I live in Porto now. The weather is nice today. My passport number is X1234567. My partner Ana is a chef. Please keep answers short. Answer in one short line."
   const seen: Question[][] = []
   const judge = fakeJudge(
@@ -234,8 +234,8 @@ test("an unavailable judge writes nothing, and a message changed meanwhile is no
 
 test("nearest offers a correction the facts it shares no word with", () => {
   const l = life()
-  l.append("Human lives in Bangalore.", "@yuki", false, 1)
-  l.append("the human likes green tea", "you", false, 2)
+  l.append("Human lives in Bangalore.", "@yuki", 1)
+  l.append("the human likes green tea", "you", 2)
   expect(l.nearest("btw i moved to pune last month", 8).map((x) => x.text)).toContain("Human lives in Bangalore.")
   expect(l.nearest("tea", 1).map((x) => x.text)).toEqual(["the human likes green tea"])
 })

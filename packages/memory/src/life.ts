@@ -8,13 +8,13 @@ export const isCardTag = (value: unknown): value is CardTag => CARD_TAGS.include
 
 const TILING_KEY = "life_tiling"
 
-export type LifeLine = { pos: number; at: number; text: string; source: string; tainted: boolean; pinned: boolean; redacted: boolean; supersededBy: number | null }
+export type LifeLine = { pos: number; at: number; text: string; source: string; pinned: boolean; redacted: boolean; supersededBy: number | null }
 
 export type NoteResult = { ok: true; pos: number; duplicate?: true } | { ok: false; error: string }
 
 export type AppendOptions = { ref?: string; card?: CardTag | null }
 
-type Row = { pos: number; at: number; text: string; source: string; tainted: number; pinned: number; redacted: number; ref: string; superseded_by: number | null; card: string | null }
+type Row = { pos: number; at: number; text: string; source: string; pinned: number; redacted: number; ref: string; superseded_by: number | null; card: string | null }
 
 const LIVE = "redacted = 0 AND superseded_by IS NULL"
 
@@ -51,7 +51,6 @@ export class Life {
       text TEXT NOT NULL,
       source TEXT NOT NULL DEFAULT '',
       norm TEXT NOT NULL,
-      tainted INTEGER NOT NULL DEFAULT 0,
       pinned INTEGER NOT NULL DEFAULT 0,
       redacted INTEGER NOT NULL DEFAULT 0
     )`)
@@ -76,7 +75,7 @@ export class Life {
     return n === null ? 0 : n + 1
   }
 
-  append(text: string, source: string, tainted: boolean, at = Date.now(), options: AppendOptions = {}): NoteResult {
+  append(text: string, source: string, at = Date.now(), options: AppendOptions = {}): NoteResult {
     const line = text.replace(/\s+/g, " ").trim()
     if (!line) return { ok: false, error: "empty. a memory is one line of text." }
     if (new TextEncoder().encode(line).byteLength > LINE_BYTES) return { ok: false, error: `too long: a memory is at most ${LINE_BYTES} bytes. say it shorter.` }
@@ -89,13 +88,12 @@ export class Life {
       }
       const pos = this.count()
       this.sql.exec(
-        "INSERT INTO life (pos, at, text, source, norm, tainted, ref, card) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO life (pos, at, text, source, norm, ref, card) VALUES (?, ?, ?, ?, ?, ?, ?)",
         pos,
         at,
         line,
         source,
         key,
-        tainted ? 1 : 0,
         options.ref ?? "",
         options.card ?? null,
       )
@@ -106,13 +104,12 @@ export class Life {
 
   items(lo: number, hi: number): Item[] {
     return this.sql
-      .exec<Row>("SELECT pos, at, text, source, tainted, redacted, superseded_by FROM life WHERE pos >= ? AND pos < ? ORDER BY pos", lo, hi)
+      .exec<Row>("SELECT pos, at, text, source, redacted, superseded_by FROM life WHERE pos >= ? AND pos < ? ORDER BY pos", lo, hi)
       .toArray()
       .map((r) => ({
         pos: r.pos,
         at: r.at,
         text: r.redacted ? "(removed by the human)" : r.superseded_by !== null ? `(replaced, see #${r.superseded_by})` : `${r.source ? `${r.source}: ` : ""}${r.text}`,
-        tainted: r.tainted === 1,
       }))
   }
 
@@ -254,5 +251,5 @@ export class Life {
 }
 
 function toLine(r: Row): LifeLine {
-  return { pos: r.pos, at: r.at, text: r.text, source: r.source, tainted: r.tainted === 1, pinned: r.pinned === 1, redacted: r.redacted === 1, supersededBy: r.superseded_by }
+  return { pos: r.pos, at: r.at, text: r.text, source: r.source, pinned: r.pinned === 1, redacted: r.redacted === 1, supersededBy: r.superseded_by }
 }

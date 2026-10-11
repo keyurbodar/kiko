@@ -30,7 +30,6 @@ export type Loop = {
   openedAt: number
   lastSeen: number
   mentions: number
-  tainted: boolean
   closedAt: number | null
   snoozedUntil: number | null
 }
@@ -44,7 +43,6 @@ export type NewLoop = {
   room?: string
   ref?: string
   due?: string | null
-  tainted?: boolean
   at?: number
 }
 
@@ -64,7 +62,6 @@ type Row = {
   opened_at: number
   last_seen: number
   mentions: number
-  tainted: number
   closed_at: number | null
   snoozed_until: number | null
 }
@@ -106,7 +103,6 @@ export class Loops {
       opened_at INTEGER NOT NULL,
       last_seen INTEGER NOT NULL,
       mentions INTEGER NOT NULL DEFAULT 1,
-      tainted INTEGER NOT NULL DEFAULT 0,
       closed_at INTEGER,
       snoozed_until INTEGER
     )`)
@@ -137,12 +133,10 @@ export class Loops {
       if (old) {
         const firmer = input.certainty === "explicit" && old.certainty === "tentative"
         this.sql.exec(
-          "UPDATE loops SET mentions = mentions + 1, last_seen = max(last_seen, ?), certainty = ?, due = coalesce(?, due), status = 'open', snoozed_until = NULL, tainted = ? WHERE id = ?",
+          "UPDATE loops SET mentions = mentions + 1, last_seen = max(last_seen, ?), certainty = ?, due = coalesce(?, due), status = 'open', snoozed_until = NULL WHERE id = ?",
           at,
           firmer ? "explicit" : old.certainty,
           due,
-          // Outside content stays outside: one tainted mention taints the loop for good.
-          old.tainted || input.tainted ? 1 : 0,
           old.id,
         )
         return { ok: true, id: old.id, merged: true } as const
@@ -154,7 +148,7 @@ export class Loops {
         if (seen) return { ok: true, id: seen.id, merged: true } as const
       }
       this.sql.exec(
-        "INSERT INTO loops (kind, certainty, owner, room, ref, due, text, norm, source, opened_at, last_seen, tainted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO loops (kind, certainty, owner, room, ref, due, text, norm, source, opened_at, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         input.kind,
         input.certainty === "explicit" ? "explicit" : "tentative",
         owner,
@@ -166,7 +160,6 @@ export class Loops {
         input.source,
         at,
         at,
-        input.tainted ? 1 : 0,
       )
       const id = this.sql.exec<{ id: number }>("SELECT last_insert_rowid() AS id").one().id
       this.sql.exec("INSERT INTO loops_fts (rowid, text) VALUES (?, ?)", id, text)
@@ -283,7 +276,6 @@ function toLoop(r: Row): Loop {
     openedAt: r.opened_at,
     lastSeen: r.last_seen,
     mentions: r.mentions,
-    tainted: r.tainted === 1,
     closedAt: r.closed_at,
     snoozedUntil: r.snoozed_until,
   }

@@ -6,7 +6,7 @@ import { Initiative } from "../src/initiative/initiative"
 import type { Level } from "../src/initiative/attention/types"
 import { sqlStorage } from "./sql-shim"
 
-// Section 26: what a tainted loop may reach, whose loops an agent may touch, and what a private chat keeps.
+// Section 26: whose loops an agent may touch, and what a private chat keeps.
 
 const base = { kind: "intention" as const, owner: "human", source: "tool" as const }
 
@@ -56,29 +56,6 @@ function world(opts: { level?: Level; titles?: Record<string, string | null> } =
 
 const burst = (text: string) => ({ text })
 
-test("a merge keeps a loop tainted when either side read outside content", () => {
-  const { loops } = world()
-  const first = loops.open({ ...base, certainty: "explicit", text: "pay the invoice from the email", tainted: true })
-  if (!first.ok) throw new Error("open failed")
-  loops.open({ ...base, certainty: "explicit", text: "pay the invoice from the email", tainted: false })
-  expect(loops.get(first.id)?.tainted).toBe(true)
-  const clean = loops.open({ ...base, certainty: "explicit", text: "renew the passport" })
-  if (!clean.ok) throw new Error("open failed")
-  loops.open({ ...base, certainty: "explicit", text: "renew the passport", tainted: true })
-  expect(loops.get(clean.id)?.tainted).toBe(true)
-})
-
-test("a tainted loop or life line never reaches a run's brief", async () => {
-  const { loops, life, initiative } = world()
-  loops.open({ ...base, owner: "ada", kind: "commitment", certainty: "explicit", text: "wire the deposit for the invoice", room: "r1", tainted: true })
-  loops.open({ ...base, certainty: "explicit", text: "send the invoice deposit to the vendor", room: "r1", tainted: true })
-  life.append("the vendor invoice deposit goes to account 42", "chat Other", true)
-  const view = await initiative.brief("r1", "ada", burst("what about the invoice deposit for the vendor?"))
-  expect(view.owe).toEqual([])
-  expect(view.related).toEqual([])
-  expect(view.noticed).toEqual([])
-})
-
 test("related lines skip loops of a private or deleted chat", async () => {
   const { loops, initiative } = world({ titles: { r3: null } })
   loops.open({ ...base, certainty: "explicit", text: "book the dentist appointment soon", room: "r3" })
@@ -96,25 +73,14 @@ test("initiative off gives a run no lines at all", async () => {
   expect(await initiative.brief("r1", "ada", burst("tax return receipts"))).toEqual({ owe: [], related: [], noticed: [] })
 })
 
-test("on their plate leaves out tentative and tainted loops, and rests a loop once shown", async () => {
+test("on their plate leaves out tentative loops, and rests a loop once shown", async () => {
   const { loops, initiative } = world()
   loops.open({ ...base, certainty: "tentative", text: "maybe learn the cello", room: "r1" })
-  loops.open({ ...base, certainty: "explicit", text: "follow the link in that newsletter", room: "r1", tainted: true })
   loops.open({ ...base, certainty: "explicit", text: "submit the grant report", room: "r1" })
   const first = await initiative.brief("r1", "ada", burst("hello"))
   expect(first.noticed.length).toBe(1)
   expect(first.noticed[0]).toContain("grant report")
   expect((await initiative.brief("r1", "ada", burst("hello again"))).noticed).toEqual([])
-})
-
-test("a stalled task made by a tainted run wakes its owner tainted", async () => {
-  const { sql, engine, wakes } = world()
-  engine.devRhythm("now")
-  const old = Date.now() - 30 * 86_400_000
-  sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?)", "r1", JSON.stringify({ open: 1, oldest: [{ id: "t1", title: "summarize the scraped page", status: "doing", owner: "ada", updatedAt: old, tainted: true }] }))
-  await engine.pass()
-  expect(wakes.length).toBe(1)
-  expect(wakes[0]!.tainted).toBe(true)
 })
 
 test("an agent closes only loops of its own chat", () => {

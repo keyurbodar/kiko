@@ -18,7 +18,7 @@ export class WorkspaceDO extends DurableObject {
 	}
 	async call(slug: AgentSlug, lead: boolean, call: WorkspaceCall) {
 		// Every agent works on the chain of a human message "m-<slug>", one hop in.
-		const { answer, events } = runCall(this.ws, slug, lead, call, MEMBERS, { rootId: `m-${slug}`, hop: 1, authority: { origin: "human", grant: [] } })
+		const { answer, events } = runCall(this.ws, slug, lead, call, MEMBERS, { rootId: `m-${slug}`, hop: 1, origin: "human" })
 		return { answer, events, wakes: this.ws.pendingWakes() }
 	}
 	async human(op: Parameters<RoomWorkspace["update"]>[2] & { id: string; dependsOn?: string[]; title?: string; create?: boolean }) {

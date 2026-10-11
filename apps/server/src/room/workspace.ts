@@ -1,5 +1,4 @@
 import type { Actor, AgentSlug, RoomEvent, Task, TaskOp, TaskStatus } from "@yuki/protocol"
-import { HUMAN } from "@yuki/agent/authority"
 import { actorKey, type RoomLog } from "./log"
 import type { Chain } from "./mail"
 
@@ -12,8 +11,8 @@ const MAX_NOTE = 2_000
 const MAX_DEPS = 20
 
 export type WorkspaceCall =
-	| { op: "update_task"; id: string; status?: string; note?: string; tainted?: boolean }
-	| { op: "create_task"; id: string; title: string; owner?: string; dependsOn?: readonly string[]; tainted?: boolean }
+	| { op: "update_task"; id: string; status?: string; note?: string }
+	| { op: "create_task"; id: string; title: string; owner?: string; dependsOn?: readonly string[] }
 
 export type WorkspaceAnswer = { ok: true; text: string } | { ok: false; error: string }
 
@@ -31,8 +30,8 @@ export interface Workspace {
 	tasks(): Task[]
 	task(id: string): Task | null
 	briefTasks(slug: AgentSlug): Task[]
-	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[]; tainted?: boolean }, members: readonly AgentSlug[], chain?: Chain): Result<Task>
-	update(by: Actor, id: string, patch: { title?: string; status?: string; owner?: string | null; note?: string; tainted?: boolean }, members: readonly AgentSlug[], lead: boolean): Result<Task>
+	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[], chain?: Chain): Result<Task>
+	update(by: Actor, id: string, patch: { title?: string; status?: string; owner?: string | null; note?: string }, members: readonly AgentSlug[], lead: boolean): Result<Task>
 	claim(slug: AgentSlug, id: string): Result<Task>
 	remove(id: string): Result<null>
 	pendingWakes(): Wake[]
@@ -138,7 +137,7 @@ export class RoomWorkspace implements Workspace {
 		return this.log.append(actorKey(by), { t: "task", task })
 	}
 
-	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[]; tainted?: boolean }, members: readonly AgentSlug[], chain?: Chain): Result<Task> {
+	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[], chain?: Chain): Result<Task> {
 		return this.storage.transactionSync(() => {
 			const title = clip(input.title, MAX_TITLE)
 			if (!title) return fail("a task needs a title")
@@ -155,9 +154,9 @@ export class RoomWorkspace implements Workspace {
 			const cycle = deps.find((d) => this.reaches(d, input.id))
 			if (cycle) return fail(`depending on ${cycle} would make a cycle`)
 			const seq = this.log.lastSeq() + 1
-			const made = chain ?? (by.kind === "human" ? { rootId: `task:${input.id}`, hop: 0, authority: HUMAN } : null)
+			const made = chain ?? (by.kind === "human" ? { rootId: `task:${input.id}`, hop: 0, origin: "human" as const } : null)
 			this.sql.exec(
-				"INSERT INTO ws_tasks (id, title, status, owner, note, created_by, created_seq, updated_at, chain, tainted) VALUES (?, ?, 'todo', ?, NULL, ?, ?, ?, ?, ?)",
+				"INSERT INTO ws_tasks (id, title, status, owner, note, created_by, created_seq, updated_at, chain) VALUES (?, ?, 'todo', ?, NULL, ?, ?, ?, ?)",
 				input.id,
 				title,
 				owner,
@@ -165,7 +164,6 @@ export class RoomWorkspace implements Workspace {
 				seq,
 				this.now(),
 				made ? JSON.stringify(made) : null,
-				input.tainted ? 1 : 0,
 			)
 			for (const d of deps) this.sql.exec("INSERT INTO ws_task_deps (task_id, depends_on) VALUES (?, ?)", input.id, d)
 			const task = this.task(input.id)!
@@ -176,7 +174,7 @@ export class RoomWorkspace implements Workspace {
 	update(
 		by: Actor,
 		id: string,
-		patch: { title?: string; status?: string; owner?: string | null; note?: string; tainted?: boolean },
+		patch: { title?: string; status?: string; owner?: string | null; note?: string },
 		members: readonly AgentSlug[],
 		lead: boolean,
 	): Result<Task> {
@@ -200,7 +198,7 @@ export class RoomWorkspace implements Workspace {
 			if (!owner) delete (next as { owner?: AgentSlug }).owner
 			if (!note) delete (next as { note?: string }).note
 			if (JSON.stringify(next) === JSON.stringify(current)) return { ok: true as const, value: current, events: [] }
-			this.sql.exec("UPDATE ws_tasks SET title = ?, status = ?, owner = ?, note = ?, updated_at = ?, tainted = max(tainted, ?) WHERE id = ?", title, status, owner, note, this.now(), patch.tainted ? 1 : 0, id)
+			this.sql.exec("UPDATE ws_tasks SET title = ?, status = ?, owner = ?, note = ?, updated_at = ? WHERE id = ?", title, status, owner, note, this.now(), id)
 			const events = [this.emit(by, next)]
 			if (status === "done" && current.status !== "done") this.markUnblocked(id, events[0]!.seq)
 			return { ok: true as const, value: next, events }
@@ -286,7 +284,7 @@ export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: Wor
 				const claimed = ws.claim(slug, call.id)
 				if (!claimed.ok || call.note === undefined) return done(claimed, (t) => `took ${line(t)}`)
 			}
-			return done(ws.update(by, call.id, { status: call.status, note: call.note, tainted: call.tainted }, members, lead), (t) => `updated ${line(t)}`)
+			return done(ws.update(by, call.id, { status: call.status, note: call.note }, members, lead), (t) => `updated ${line(t)}`)
 		}
 		case "create_task":
 			if (!lead) return { answer: fail("only the lead creates tasks"), events: [] }

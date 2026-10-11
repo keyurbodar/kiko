@@ -244,7 +244,6 @@ export const envelopes: readonly Envelope[] = [
 		body: "can you two plan the protocol package?",
 		hop: 0,
 		rootId: "m1",
-		tainted: false,
 		seq: 1,
 	},
 	{
@@ -255,7 +254,6 @@ export const envelopes: readonly Envelope[] = [
 		replyTo: messageId(1),
 		hop: 1,
 		rootId: "m1",
-		tainted: true,
 		seq: 2,
 	},
 	{
@@ -265,7 +263,6 @@ export const envelopes: readonly Envelope[] = [
 		body: "task t2 is unblocked",
 		hop: 0,
 		rootId: "unblocked:t2",
-		tainted: false,
 		seq: 18,
 	},
 ]

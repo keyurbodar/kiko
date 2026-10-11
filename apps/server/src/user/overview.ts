@@ -5,7 +5,7 @@ import { localTime, type Reminder, type RoutineRun } from "./reminders"
 // few short lines, so one tool call costs a few hundred tokens however many chats there are.
 
 /** A room's open tasks, as the room reports them on every task change. */
-export type ChatTasks = { open: number; oldest: { id?: string; title: string; status: string; owner?: string; updatedAt: number; tainted?: boolean }[] }
+export type ChatTasks = { open: number; oldest: { id?: string; title: string; status: string; owner?: string; updatedAt: number }[] }
 
 /** Every chat's task summary, as stored: room id and the JSON text the room reported. */
 function taskRows(sql: SqlStorage): { room_id: string; tasks: string }[] {

@@ -5,7 +5,6 @@ import type { AgentSend } from "../../room/mail"
 import type { SpawnInput } from "../../room/room-do"
 import { declareEffect } from "@yuki/agent/effects"
 import type { Answer } from "@yuki/agent/answers"
-import { isRunTainted, markRunTainted } from "@yuki/agent/trust"
 
 export const MESSAGING = "messaging"
 
@@ -13,9 +12,9 @@ export type MessagingPort = {
   send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
   ask(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
-  askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean } | null>
+  askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
   waitAnswer(id: string, ms: number): Promise<Answer | null>
-  closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null; tainted: boolean } | null>
+  closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
   humanWaiting(): boolean
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
 }
@@ -30,8 +29,8 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
     if (!p) throw new Error("this agent is not in a room yet")
     return p
   }
-  const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "registry" | "conversationId" | "callId">) => {
-    const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body, tainted: isRunTainted(api) })
+  const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "conversationId" | "callId">) => {
+    const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body })
     return out.ok
       ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat. if that was all you had to say, reply with just [skip].`) }
       : { content: text(out.error), isError: true }
@@ -52,7 +51,7 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
       }),
       replay: "safe",
       execute: async ({ slug: handle, name, role, task }, api) => {
-        const out = await room().spawn({ id: `${api.conversationId}:${api.callId}`, slug: handle, name, role, task, tainted: isRunTainted(api) })
+        const out = await room().spawn({ id: `${api.conversationId}:${api.callId}`, slug: handle, name, role, task })
         return out.ok ? { content: text(`@${out.slug} joined the room and has the task.`) } : { content: text(out.error), isError: true }
       },
     }),
@@ -69,13 +68,10 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
       execute: async ({ to, question }, api) => {
         const id = `${api.conversationId}:${api.callId}`
         const who = to.replace(/^@/, "").toLowerCase() as AgentSlug
-        const sent = await room().ask({ id, to: who, text: question, tainted: isRunTainted(api) })
+        const sent = await room().ask({ id, to: who, text: question })
         if (!sent.ok) return { content: text(sent.error), isError: true }
-        const reply = (answer: Answer) => {
-          if (answer.tainted) markRunTainted(api, "agent")
-          return { content: text(`@${who} answered: ${answer.text}`) }
-        }
-        const answered = (s: { state: string; answer: string | null; tainted: boolean } | null) => (s?.state === "answered" ? reply({ text: s.answer ?? "", tainted: s.tainted }) : null)
+        const reply = (answer: Answer) => ({ content: text(`@${who} answered: ${answer}`) })
+        const answered = (s: { state: string; answer: string | null } | null) => (s?.state === "answered" ? reply(s.answer ?? "") : null)
         const stored = answered(await room().askState(id))
         if (stored) return stored
         const pushed = room().humanWaiting() ? null : await room().waitAnswer(id, ASK_WAIT_MS)

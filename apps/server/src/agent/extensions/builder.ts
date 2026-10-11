@@ -6,7 +6,6 @@ import { filesOf, type RoomFs } from "../../files/room-fs"
 import { declareEffect, type Effect, effectOf } from "@yuki/agent/effects"
 import type { CheckReport } from "@yuki/sandbox/check"
 import { extensionName } from "@yuki/sandbox/compile"
-import { isRunTainted } from "@yuki/agent/trust"
 
 export const BUILDER = "extension-builder"
 const ROOT = "extensions"
@@ -14,7 +13,7 @@ const TEXT_FILE = /\.(?:js|mjs|json|md|txt)$/i
 
 export type BuilderPorts = {
   check: (bundle: unknown, tools: ReadonlyMap<string, Effect>) => Promise<CheckReport>
-  propose: (bundle: unknown, tainted: boolean) => Promise<ExtensionResult>
+  propose: (bundle: unknown) => Promise<ExtensionResult>
   list: () => Promise<ExtensionInfo[]>
   source: (name: string) => Promise<ExtensionBundle | null>
 }
@@ -50,7 +49,7 @@ async function agentTools(api: ToolExecutionApi, context: Context, skip: string)
   const agent = await api.agent(context)
   const own = new Set((agent.extensions.find((e) => e.name === extensionName(skip))?.tools ?? []).map((t) => t.name))
   const map = new Map<string, Effect>()
-  for (const t of agent.tools) if (!own.has(t.name)) map.set(t.name, effectOf(t)?.effect ?? "external")
+  for (const t of agent.tools) if (!own.has(t.name)) map.set(t.name, effectOf(t) ?? "external")
   return map
 }
 
@@ -85,7 +84,7 @@ export function builderExtension(ports: BuilderPorts): Extension {
             if ("error" in read) return text(read.error, true)
             const report = await ports.check(read.bundle, await agentTools(api, context, name))
             if (!report.ok) return text(`not proposed: fix these first.\n${report.lines.join("\n")}`, true)
-            const out = await ports.propose(read.bundle, isRunTainted(api))
+            const out = await ports.propose(read.bundle)
             if (!out.ok) return text(`not proposed: ${out.error}${out.problems?.length ? `\n${out.problems.join("\n")}` : ""}`, true)
             const p = out.proposal!
             return text(`proposed ${p.name} ${p.version}${p.replaces ? " (an update)" : ""}. it waits for the human in settings → extensions; it does nothing until they install it.`)

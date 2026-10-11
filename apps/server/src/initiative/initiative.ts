@@ -63,7 +63,7 @@ export class Initiative {
         continue
       }
       const out = this.deps.loops.open(
-        { kind: op.kind, certainty: op.certainty, owner: op.owner, text: sentences[op.sentence]!.text, source: "jev", room: roomId, ref: ref(roomId, from.messageId), at: from.at, tainted: false },
+        { kind: op.kind, certainty: op.certainty, owner: op.owner, text: sentences[op.sentence]!.text, source: "jev", room: roomId, ref: ref(roomId, from.messageId), at: from.at },
         op.same,
       )
       if (out.ok) this.deps.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
@@ -81,7 +81,7 @@ export class Initiative {
   }
 
   /** Writes what the summary pass saw and returns its summary line. `turns` names the page, so forgetting a turn forgets its loops. */
-  napApply(roomId: string, answer: string, known: ReadonlySet<number>, endsAt: number, tainted: boolean, turns?: { lo: number; hi: number }): string | null {
+  napApply(roomId: string, answer: string, known: ReadonlySet<number>, endsAt: number, turns?: { lo: number; hi: number }): string | null {
     const { summary, ops } = parseNapLoops(answer, known)
     for (const op of ops) {
       if (op.op === "close") {
@@ -89,7 +89,7 @@ export class Initiative {
         continue
       }
       if (op.owner !== "human" && !isAgentSlug(op.owner)) continue
-      const out = this.deps.loops.open({ kind: op.kind, certainty: op.certainty, owner: op.owner, text: op.text, due: op.due, source: "nap", room: roomId, ...(turns ? { ref: `room:${roomId}:turns:${turns.lo}-${turns.hi}` } : {}), at: endsAt, tainted })
+      const out = this.deps.loops.open({ kind: op.kind, certainty: op.certainty, owner: op.owner, text: op.text, due: op.due, source: "nap", room: roomId, ...(turns ? { ref: `room:${roomId}:turns:${turns.lo}-${turns.hi}` } : {}), at: endsAt })
       if (out.ok) this.deps.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
     }
     return summary
@@ -98,8 +98,7 @@ export class Initiative {
   /**
    * The lines a run starts with when the human writes: what this agent owes, and at most three open
    * loops or life lines that share two words with the burst. SQL only, no model call: the run waits
-   * on it. These lines sit in the human's input, which the trust extension never taints, so nothing
-   * tainted goes in: a tainted loop or life line stays reachable only through memory recall.
+   * on it.
    */
   brief(roomId: string, slug: string, burst: { text: string }): { owe: string[]; related: string[]; noticed: string[] } {
     if (this.deps.off()) return { owe: [], related: [], noticed: [] }
@@ -113,7 +112,7 @@ export class Initiative {
     if (here === null) return { owe: [], related: [], shown: [] }
     const where = (l: Loop) => (l.room && l.room !== roomId ? this.deps.title(l.room) : null)
     // A loop of a private or deleted chat stays there.
-    const shown = (l: Loop) => !l.tainted && (!l.room || l.room === roomId || this.deps.title(l.room) !== null)
+    const shown = (l: Loop) => (!l.room || l.room === roomId || this.deps.title(l.room) !== null)
     // Only this chat's: a promise is kept where it was made, and one from another chat invited a duplicate.
     const owed = this.deps.loops.list({ owner: slug, room: roomId, status: ["open"], limit: 20 }).filter(shown).slice(0, OWE_MAX)
     const owe = owed.map((l) => escape(`L${l.id} ${l.text}${l.due ? ` (due ${l.due})` : ""}`))
@@ -128,7 +127,7 @@ export class Initiative {
       })),
       ...this.deps.life
         .recall(words.join(" "), 8, { skipCard: true })
-        .filter((l) => l.source !== `chat ${here}` && !l.tainted)
+        .filter((l) => l.source !== `chat ${here}`)
         .map((l) => ({ id: `m${l.pos}`, text: `memory: ${l.source ? `${l.source}: ` : ""}${l.text}`, words: keywords(l.text) })),
     ]
     const mine = new Set(words)

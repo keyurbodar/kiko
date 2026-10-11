@@ -15,7 +15,7 @@ function room() {
   const log = new RoomLog(storage, () => (clock += 60_000))
   const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) })
   const human: Sender = { kind: "human" }
-  const say = (text: string, run?: string) => log.addMessage({ from: run ? ({ kind: "agent", slug: "ada" } as Sender) : human, text, tainted: false, ...(run ? { run: { runId: run, attempt: 0, index: 0 } } : {}) })
+  const say = (text: string, run?: string) => log.addMessage({ from: run ? ({ kind: "agent", slug: "ada" } as Sender) : human, text, ...(run ? { run: { runId: run, attempt: 0, index: 0 } } : {}) })
   return { memory, say, sql, now: () => clock }
 }
 

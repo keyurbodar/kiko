@@ -50,7 +50,6 @@ const envelope = (body = "hi", from: Envelope["from"] = { kind: "human" }): Enve
   body,
   hop: 0,
   rootId: `r${n}`,
-  tainted: false,
 })
 
 type Batch = { requestId: string; envelopes: Envelope[] }

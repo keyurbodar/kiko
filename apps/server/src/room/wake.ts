@@ -1,11 +1,10 @@
 import type { AgentSlug, Envelope, SystemReason } from "@yuki/protocol"
-import { AUTO, type Authority, stamp } from "@yuki/agent/authority"
 import type { Chain } from "./mail"
 
 // Architecture section 25.5. A wake is a run nobody's message started: a routine, a reminder, a task
 // that came unblocked, a nudge. `RoomDO.wake` is the one place that hands one to an agent, and so the
-// one place that takes the budgets, holds for the away pause, keeps taint from carrying the human's
-// authority, dedupes by id, refunds what a refused or held wake took, and keeps held wakes to retry.
+// one place that takes the budgets, holds for the away pause, dedupes by id, refunds what a refused or
+// held wake took, and keeps held wakes to retry.
 
 /** Whose daily runs a wake spends. `room`: the room's loop budget and the user's. `user`: the user's only, for what the human set up. `paid`: neither, for what the human asked for just now. */
 export type Budget = "room" | "user" | "paid"
@@ -16,10 +15,8 @@ export type Wake = {
 	to: AgentSlug
 	why: SystemReason
 	body: string
-	/** The chain the run continues, with its authority. Null starts its own root as `auto`. */
+	/** The chain the run continues, with its origin. Null starts its own root as `auto`. */
 	chain: Chain | null
-	/** The wake carries content, or was made by a run, that read outside content. */
-	tainted: boolean
 	budget: Budget
 	/** A held wake waits in the room and is retried when the budget resets or the human is back. */
 	retry: boolean
@@ -28,20 +25,10 @@ export type Wake = {
 
 export type WakeResult = "delivered" | "held" | "refused" | "gone" | "duplicate"
 
-/**
- * The authority a wake runs with. Taint never carries the human's authority to a later run: a
- * tainted wake on a human chain runs as `auto`, so an outside instruction that scheduled it cannot act
- * outside yuki without the human's yes. A routine's grant was settled when the routine was made (25.3).
- */
-function wakeAuthority(w: Pick<Wake, "chain" | "tainted">): Authority {
-	const authority = w.chain?.authority ?? AUTO
-	return w.tainted && authority.origin === "human" ? AUTO : authority
-}
-
 /** Where the run sits in its chain: the chain's root and hop, or its own root when there is none or the human stopped it. */
-export function wakeStamp(w: Pick<Wake, "id" | "chain" | "tainted">, stopped: (rootId: string) => boolean): Pick<Envelope, "rootId" | "hop" | "origin" | "grant"> {
+export function wakeStamp(w: Pick<Wake, "id" | "chain">, stopped: (rootId: string) => boolean): Pick<Envelope, "rootId" | "hop" | "origin"> {
 	const own = !w.chain || stopped(w.chain.rootId)
-	return { rootId: own ? w.id : w.chain!.rootId, hop: own ? 0 : w.chain!.hop, ...stamp(wakeAuthority(w)) }
+	return { rootId: own ? w.id : w.chain!.rootId, hop: own ? 0 : w.chain!.hop, origin: w.chain?.origin ?? "auto" }
 }
 
 /** How long a held wake waits. ASSUMPTION: a week, the same as the away pause. */

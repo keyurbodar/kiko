@@ -88,7 +88,7 @@ export class T extends AgentDO {
     }
     if (body.op === "stale-idle") {
       // An idle check whose snapshot is taken before a human batch is drained, as watchIdle does.
-      const host = this.host as unknown as { open(): Promise<{ harness: { inspect(c: unknown): Promise<unknown> } }>; drain(o: unknown): Promise<void>; pulse(h: unknown): Promise<void>; authority(): { origin: string }; receive(e: Envelope[], b: string): Promise<unknown> }
+      const host = this.host as unknown as { open(): Promise<{ harness: { inspect(c: unknown): Promise<unknown> } }>; drain(o: unknown): Promise<void>; pulse(h: unknown): Promise<void>; origin(): string; receive(e: Envelope[], b: string): Promise<unknown> }
       const opened = await host.open()
       const inspect = opened.harness.inspect.bind(opened.harness)
       let armed = true
@@ -103,7 +103,7 @@ export class T extends AgentDO {
       }
       await host.pulse(opened.harness)
       opened.harness.inspect = inspect
-      return Response.json({ origin: host.authority().origin })
+      return Response.json({ origin: host.origin() })
     }
     if (body.op === "receive-then-stop") {
       await this.receive(body.envelopes, body.brief ?? "")

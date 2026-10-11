@@ -2,68 +2,33 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Envelope, RoomEvent } from "@yuki/protocol"
 import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
-import { ASK_FIRST, gate } from "@yuki/agent/trust"
-import { AUTO, authorityOf, authorityOfAll, combine, HUMAN } from "@yuki/agent/authority"
+import { joinOrigin, type Origin, originOf, originOfAll } from "@yuki/agent/envelope"
 import { matches, routineRun, type Signal, signalOf } from "../src/room/signals"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
-import { describeTrigger, nextEvery, runGrant } from "../src/user/reminders"
+import { describeTrigger, nextEvery } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
 
-const routine = (grant: string[]) => ({ origin: "routine" as const, grant })
-const env = (e: Partial<Envelope>): Pick<Envelope, "from" | "origin" | "grant"> => ({ from: { kind: "system", reason: "routine" }, ...e })
+const env = (e: Partial<Envelope>): Pick<Envelope, "from" | "origin"> => ({ from: { kind: "system", reason: "routine" }, ...e })
 
-describe("authority (section 25.3)", () => {
+describe("origin (section 25.3)", () => {
   test("a stored envelope without an origin is the human's only when a human wrote it", () => {
-    expect(authorityOf(env({ from: { kind: "human" } }))).toEqual(HUMAN)
-    expect(authorityOf(env({ from: { kind: "agent", slug: "ada" as AgentSlug } }))).toEqual(AUTO)
-    expect(authorityOf(env({}))).toEqual(AUTO)
-    expect(authorityOf(env({ origin: "routine", grant: ["send_email"] }))).toEqual(routine(["send_email"]))
-    expect(authorityOf(env({ origin: "auto", grant: ["send_email"] }))).toEqual(AUTO)
+    expect(originOf(env({ from: { kind: "human" } }))).toBe("human")
+    expect(originOf(env({ from: { kind: "agent", slug: "ada" as AgentSlug } }))).toBe("auto")
+    expect(originOf(env({}))).toBe("auto")
+    expect(originOf(env({ origin: "routine" }))).toBe("routine")
   })
 
-  test("a human anywhere wins; otherwise the stricter wins and grants intersect", () => {
-    const cases: [Parameters<typeof combine>[0], Parameters<typeof combine>[1], ReturnType<typeof combine>][] = [
-      [null, routine(["a"]), routine(["a"])],
-      [routine(["a"]), HUMAN, HUMAN],
-      [HUMAN, AUTO, HUMAN],
-      [routine(["a", "b"]), AUTO, AUTO],
-      [routine(["a", "b"]), routine(["b", "c"]), routine(["b"])],
+  test("a human anywhere wins; otherwise auto wins over routine", () => {
+    const cases: [Origin | null, Origin, Origin][] = [
+      [null, "routine", "routine"],
+      ["routine", "human", "human"],
+      ["human", "auto", "human"],
+      ["routine", "auto", "auto"],
+      ["routine", "routine", "routine"],
     ]
-    for (const [a, b, out] of cases) expect(combine(a, b)).toEqual(out)
-    expect(authorityOfAll([])).toBeNull()
-    expect(authorityOfAll([env({ origin: "routine", grant: ["x"] }), env({ from: { kind: "human" } })])).toEqual(HUMAN)
-  })
-})
-
-describe("the gate (sections 16.3 and 25.3)", () => {
-  const table: [Parameters<typeof gate>[0], boolean, ReturnType<typeof combine>, string, boolean][] = [
-    ["external", false, HUMAN, "send", true],
-    ["external", true, HUMAN, "send", false],
-    ["external", false, routine(["send"]), "send", true],
-    ["external", true, routine(["send"]), "send", true],
-    ["external", true, routine(["send"]), "delete", false],
-    ["external", false, routine(["send"]), "delete", false],
-    ["external", false, AUTO, "send", false],
-    ["external", true, AUTO, "send", false],
-    ["read", true, AUTO, "x", true],
-    ["write", true, AUTO, "x", true],
-    ["message", true, AUTO, "x", true],
-  ]
-  for (const [effect, tainted, authority, tool, runs] of table) {
-    test(`${effect} ${tool} in a ${tainted ? "tainted" : "clean"} ${authority.origin} run ${runs ? "runs" : "asks"}`, () => {
-      expect(gate(effect, tainted, authority, tool).allow).toBe(runs)
-    })
-  }
-
-  test("a routine a tainted run made runs with no grant; one a clean run made keeps it", () => {
-    expect(runGrant({ tainted: false, grant: ["send"] })).toEqual(["send"])
-    expect(runGrant({ tainted: true, grant: ["send"] })).toEqual([])
-  })
-
-  test("taint flags writes and messages; a refused call tells the agent to ask in chat", () => {
-    expect(gate("write", true, HUMAN, "x")).toEqual({ allow: true, flagTainted: true })
-    expect(gate("message", false, AUTO, "x")).toEqual({ allow: true, flagTainted: false })
-    expect(gate("external", false, AUTO, "send")).toEqual({ allow: false, reason: ASK_FIRST })
+    for (const [a, b, out] of cases) expect(joinOrigin(a, b)).toBe(out)
+    expect(originOfAll([])).toBeNull()
+    expect(originOfAll([env({ origin: "routine" }), env({ from: { kind: "human" } })])).toBe("human")
   })
 })
 
@@ -89,7 +54,7 @@ describe("triggers (section 25.4)", () => {
     expect(matchWebhook([{ path: "action" }], null)).toBe(false)
   })
 
-  const ctx = { roomId: "r1", at: 0, by: { kind: "human" } as const, tainted: false }
+  const ctx = { roomId: "r1", at: 0, by: { kind: "human" } as const }
   const at = { seq: 1, at: 0 }
   const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "yuki", trigger })
 
@@ -107,14 +72,13 @@ describe("triggers (section 25.4)", () => {
     expect(signalOf({ ...at, t: "message", id: "m", from: { kind: "system", reason: "reminder" }, text: "x" } as RoomEvent, ctx)).toBeNull()
   })
 
-  test("a batch fires a routine once, never for its own agent's acts or a run an event started, tainted when any act it lists is", () => {
-    const say = (text: string, by: Parameters<typeof signalOf>[1]["by"], tainted = false) => signalOf({ ...at, t: "message", id: "m", from: by?.kind === "agent" ? { kind: "agent", slug: by.slug } : { kind: "human" }, text } as RoomEvent, { ...ctx, by, tainted })!
+  test("a batch fires a routine once, never for its own agent's acts or a run an event started", () => {
+    const say = (text: string, by: Parameters<typeof signalOf>[1]["by"]) => signalOf({ ...at, t: "message", id: "m", from: by?.kind === "agent" ? { kind: "agent", slug: by.slug } : { kind: "human" }, text } as RoomEvent, { ...ctx, by })!
     const agent = (slug: string, eventRun = false) => ({ kind: "agent" as const, slug, name: slug, eventRun })
     const batch = (...signals: Signal[]) => ({ roomId: "r1", openedAt: 0, signals, more: 0 })
     const any = r({ on: "message", from: "any" })
     expect(routineRun(any, batch(say("mine", agent("yuki")), say("loop", agent("ada", true))))).toBeNull()
-    expect(routineRun(any, batch(say("hi", { kind: "human" }), say("read a page", agent("ada"), true)))).toEqual({ body: 'what happened:\n- the human wrote: "hi"\n- @ada wrote: "read a page"', tainted: true })
-    expect(routineRun(any, batch(say("hi", { kind: "human" })))!.tainted).toBe(false)
+    expect(routineRun(any, batch(say("hi", { kind: "human" }), say("read a page", agent("ada"))))).toEqual({ body: 'what happened:\n- the human wrote: "hi"\n- @ada wrote: "read a page"' })
     expect(routineRun(any, { ...batch(say("hi", { kind: "human" })), more: 3 })!.body.endsWith("- and more")).toBe(true)
   })
 

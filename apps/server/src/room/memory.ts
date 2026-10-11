@@ -19,7 +19,7 @@ type TurnRow = { pos: number; key: string; first_seq: number | null; last_seq: n
 
 /** `page` is set for a page of raw turns, ending at `at`: UserDO then also reads open loops from it (section 26). */
 export type Compress = (prompt: string, page?: { at: number; span: Span }) => Promise<{ text: string } | { retryAt: number } | { error: string }>
-export type Rollup = (text: string, tainted: boolean, at: number, span: Span) => Promise<void>
+export type Rollup = (text: string, at: number, span: Span) => Promise<void>
 
 export type Changes = { upto: number; deleted: string[]; edited: { messageId: string; text: string; at: number }[]; positions: number[] }
 
@@ -138,8 +138,8 @@ export class RoomMemory {
 
   items(lo: number, hi: number, skip: ReadonlySet<number> = new Set()): Item[] {
     const rows = this.sql
-      .exec<{ pos: number; at: number; trace: string | null; seq: number | null; id: string | null; sender: string | null; text: string | null; files: string | null; deleted_at: number | null; tainted: number | null; key: string }>(
-        `SELECT t.pos, t.at, t.trace, t.key, m.seq, m.id, m.sender, m.text, m.files, m.deleted_at, m.tainted
+      .exec<{ pos: number; at: number; trace: string | null; seq: number | null; id: string | null; sender: string | null; text: string | null; files: string | null; deleted_at: number | null; key: string }>(
+        `SELECT t.pos, t.at, t.trace, t.key, m.seq, m.id, m.sender, m.text, m.files, m.deleted_at
          FROM mem_turns t LEFT JOIN messages m ON m.seq BETWEEN t.first_seq AND t.last_seq
          WHERE t.pos >= ? AND t.pos < ? ORDER BY t.pos, m.seq`,
         lo,
@@ -152,10 +152,9 @@ export class RoomMemory {
       if (r.seq !== null && skip.has(r.seq)) continue
       let g = groups[groups.length - 1]
       if (g?.item.pos !== r.pos) {
-        g = { item: { pos: r.pos, at: r.at, text: "", tainted: false }, who: whoOfKey(r.key), parts: [], shown: [], trace: r.trace }
+        g = { item: { pos: r.pos, at: r.at, text: "" }, who: whoOfKey(r.key), parts: [], shown: [], trace: r.trace }
         groups.push(g)
       }
-      if (r.tainted) g.item.tainted = true
       if (!r.sender || r.text === null || r.deleted_at !== null) continue
       const from = JSON.parse(r.sender) as Sender
       g.who = who(from)
@@ -275,7 +274,7 @@ export class RoomMemory {
     const node = this.tree.nodeFor(input, "text" in out ? out.text : this.tree.fallback(input))
     this.tree.put(span, node)
     if (rollup && span.hi - span.lo === ROLLUP_SIZE && span.lo >= Number(this.meta.get(ROLLED) ?? 0)) {
-      await rollup(node.text, node.tainted, node.to, span)
+      await rollup(node.text, node.to, span)
       this.meta.set(ROLLED, String(span.hi))
     }
     return {}
@@ -291,7 +290,7 @@ export class RoomMemory {
     if ("retryAt" in out) return { done: false, retryAt: out.retryAt }
     if ("error" in out) throw new Error(out.error)
     const items = input.items
-    await rollup(out.text, items.some((i) => i.tainted), items[items.length - 1]?.at ?? Date.now(), input.span)
+    await rollup(out.text, items[items.length - 1]?.at ?? Date.now(), input.span)
     this.meta.set(ROLLED, String(count))
     return { done: true }
   }

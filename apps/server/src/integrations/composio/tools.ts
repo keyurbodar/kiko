@@ -68,7 +68,6 @@ export function composioExtension(tools: readonly ComposioTool[], call: Composio
                 return { content: [{ type: "text" as const, text }], isError }
               }),
           }),
-          { outside: "composio" },
         )
       }),
   })

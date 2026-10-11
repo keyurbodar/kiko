@@ -9,8 +9,6 @@ export type LifeLine = {
 	at: number
 	text: string
 	source: string
-	/** Written by a run that read outside content. */
-	tainted: boolean
 	pinned: boolean
 	redacted: boolean
 	/** The line that replaced this one, when a later fact corrected it. */

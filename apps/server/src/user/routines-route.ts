@@ -8,12 +8,11 @@ import { originAllowed } from "../router"
 import type { RoutineResult } from "./routines"
 
 // Architecture section 25. The human's routine routes. The Worker checks the session and reaches only
-// the session user's `UserDO`. A routine made here is the human's own request, so it is active at once
-// and may hold a grant: nobody needs to ask for what the human asks themselves.
+// the session user's `UserDO`. A routine made here is active at once.
 //
 //   GET  /api/routines                  routines and their recent runs
-//   POST /api/routines                  create { roomId, name, instructions, trigger, may?, agent? }
-//   POST /api/routines/<id>             change { name?, instructions?, trigger?, may?, status? }
+//   POST /api/routines                  create { roomId, name, instructions, trigger, agent? }
+//   POST /api/routines/<id>             change { name?, instructions?, trigger?, status? }
 //   POST /api/routines/<id>/run         run now
 //
 // Cancel with `POST /api/reminders/<id>/cancel`, as any reminder.
@@ -33,7 +32,6 @@ async function json(request: Request): Promise<Record<string, unknown> | null> {
   }
 }
 
-const strings = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : null)
 
 export async function routinesRoute(request: Request, env: Env): Promise<Response | null> {
   const { pathname } = new URL(request.url)
@@ -62,7 +60,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
       return error(400, `bad trigger: ${(e instanceof Error ? e.message : String(e)).split("\n")[0]}`)
     }
     const tz = (await stub.timezone()) ?? "UTC"
-    return reply(await stub.createRoutine(user.id, { name: b.name, instructions: b.instructions, trigger, grant: strings(b.may) ?? [], tz, roomId, target: agent, createdBy: "human", tainted: false }))
+    return reply(await stub.createRoutine(user.id, { name: b.name, instructions: b.instructions, trigger, tz, roomId, target: agent, createdBy: "human" }))
   }
 
   if (request.method !== "POST") return error(405, "method not allowed")
@@ -84,7 +82,6 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
       ...(typeof b.name === "string" ? { name: b.name } : {}),
       ...(typeof b.instructions === "string" ? { instructions: b.instructions } : {}),
       ...(trigger ? { trigger } : {}),
-      ...(strings(b.may) ? { grant: strings(b.may)! } : {}),
       ...(status ? { status } : {}),
     }),
   )

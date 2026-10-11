@@ -1,16 +1,17 @@
-import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, Envelope, Origin, RoomEvent, RoomId } from "@yuki/protocol"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
-import { AUTO, type Authority, authorityOfAll, combine, stamp } from "@yuki/agent/authority"
+import { joinOrigin, originOfAll } from "@yuki/agent/envelope"
 
-export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; tainted: boolean }
+export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 
-export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; tainted: boolean; recipients: AgentSlug[]; authority?: Authority }
+export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[]; origin?: Origin }
 
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; fresh: boolean } | { ok: false; error: string; events: RoomEvent[] }
 
-export type Chain = { rootId: string; hop: number; authority: Authority }
+/** The run a message belongs to. `origin` says whether the human started it, which decides its time budget. */
+export type Chain = { rootId: string; hop: number; origin: Origin }
 
 export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend }
 
@@ -42,11 +43,13 @@ export class Mail {
 		this.sql.exec("CREATE TABLE IF NOT EXISTS auto_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_queue (n INTEGER PRIMARY KEY, sender TEXT NOT NULL, send TEXT NOT NULL)")
 		const chainColumns = new Set(this.sql.exec<{ name: string }>("PRAGMA table_info(agent_chains)").toArray().map((c) => c.name))
-		if (!chainColumns.has("authority")) this.sql.exec("ALTER TABLE agent_chains ADD COLUMN authority TEXT")
 		if (!chainColumns.has("next_root_id")) {
 			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN next_root_id TEXT")
 			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN next_hop INTEGER")
-			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN next_authority TEXT")
+		}
+		if (!chainColumns.has("origin")) {
+			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN origin TEXT")
+			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN next_origin TEXT")
 		}
 		for (const table of ["root_counts", "agent_sends", "stopped_roots"]) {
 			if (!this.sql.exec<{ name: string }>(`PRAGMA table_info(${table})`).toArray().some((c) => c.name === "at")) {
@@ -105,29 +108,29 @@ export class Mail {
 		const last = envelopes.at(-1)
 		if (!last) return
 		const human = envelopes.some((e) => e.from.kind === "human")
-		const authority = authorityOfAll(envelopes) ?? AUTO
+		const origin = originOfAll(envelopes) ?? "auto"
 		if (human || !this.busy(slug)) {
 			this.sql.exec(
-				`INSERT INTO agent_chains (slug, root_id, hop, authority) VALUES (?, ?, ?, ?)
-				 ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop, authority = excluded.authority,
-				   next_root_id = NULL, next_hop = NULL, next_authority = NULL`,
+				`INSERT INTO agent_chains (slug, root_id, hop, origin) VALUES (?, ?, ?, ?)
+				 ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop, origin = excluded.origin,
+				   next_root_id = NULL, next_hop = NULL, next_origin = NULL`,
 				slug,
 				last.rootId,
 				last.hop,
-				JSON.stringify(authority),
+				origin,
 			)
 		} else {
-			const held = this.sql.exec<{ a: string | null }>("SELECT next_authority AS a FROM agent_chains WHERE slug = ?", slug).toArray()[0]?.a
+			const held = this.sql.exec<{ o: Origin | null }>("SELECT next_origin AS o FROM agent_chains WHERE slug = ?", slug).toArray()[0]?.o ?? null
 			this.sql.exec(
-				`INSERT INTO agent_chains (slug, root_id, hop, authority, next_root_id, next_hop, next_authority) VALUES (?, ?, ?, ?, ?, ?, ?)
-				 ON CONFLICT(slug) DO UPDATE SET next_root_id = excluded.next_root_id, next_hop = excluded.next_hop, next_authority = excluded.next_authority`,
+				`INSERT INTO agent_chains (slug, root_id, hop, origin, next_root_id, next_hop, next_origin) VALUES (?, ?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(slug) DO UPDATE SET next_root_id = excluded.next_root_id, next_hop = excluded.next_hop, next_origin = excluded.next_origin`,
 				slug,
 				last.rootId,
 				last.hop,
-				JSON.stringify(authority),
+				origin,
 				last.rootId,
 				last.hop,
-				JSON.stringify(combine(held ? (JSON.parse(held) as Authority) : null, authority)),
+				joinOrigin(held, origin),
 			)
 		}
 		if (human) this.sql.exec("DELETE FROM autonomous_runs")
@@ -135,17 +138,17 @@ export class Mail {
 
 	runEnded(slug: AgentSlug): void {
 		this.sql.exec(
-			`UPDATE agent_chains SET root_id = next_root_id, hop = next_hop, authority = next_authority,
-			   next_root_id = NULL, next_hop = NULL, next_authority = NULL
+			`UPDATE agent_chains SET root_id = next_root_id, hop = next_hop, origin = next_origin,
+			   next_root_id = NULL, next_hop = NULL, next_origin = NULL
 			 WHERE slug = ? AND next_root_id IS NOT NULL`,
 			slug,
 		)
 	}
 
 	chain(slug: AgentSlug): Chain {
-		const row = this.sql.exec<{ root_id: string; hop: number; authority: string | null }>("SELECT root_id, hop, authority FROM agent_chains WHERE slug = ?", slug).toArray()[0]
-		if (!row) return { rootId: `agent:${slug}`, hop: 0, authority: AUTO }
-		return { rootId: row.root_id, hop: row.hop, authority: row.authority ? (JSON.parse(row.authority) as Authority) : AUTO }
+		const row = this.sql.exec<{ root_id: string; hop: number; origin: Origin | null }>("SELECT root_id, hop, origin FROM agent_chains WHERE slug = ?", slug).toArray()[0]
+		if (!row) return { rootId: `agent:${slug}`, hop: 0, origin: "auto" }
+		return { rootId: row.root_id, hop: row.hop, origin: row.origin ?? "auto" }
 	}
 
 	chainRoot(slug: AgentSlug): string | null {
@@ -173,14 +176,14 @@ export class Mail {
 			}
 			const recipients = input.to === "all" ? others : [input.to]
 			if (!recipients.length) return { ok: false, error: "not sent: you are the only agent in this room.", events: [] }
-			const { rootId, hop: was, authority } = this.chain(from)
+			const { rootId, hop: was, origin } = this.chain(from)
 			if (this.stopped(rootId)) return { ok: false, error: "not sent: the human pressed stop.", events: [] }
 			const hop = was + 1
 			const check = checkSend(hop, this.deliveries(rootId), recipients.length)
 			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
 			const shown = `@${input.to} ${text}`
-			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), tainted: input.tainted, to: input.to })
-			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, tainted: input.tainted, recipients, authority }
+			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), to: input.to })
+			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients, origin }
 			this.count(rootId, recipients.length)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
 			this.prune()
@@ -188,13 +191,13 @@ export class Mail {
 		})
 	}
 
-	relay(id: string, from: AgentSlug, to: AgentSlug, message: { id: string; seq: number; text: string; tainted: boolean }): StoredSend | null {
+	relay(id: string, from: AgentSlug, to: AgentSlug, message: { id: string; seq: number; text: string }): StoredSend | null {
 		return this.storage.transactionSync(() => {
 			if (this.sql.exec("SELECT 1 FROM agent_sends WHERE id = ?", id).toArray().length) return null
-			const { rootId, hop: was, authority } = this.chain(from)
+			const { rootId, hop: was, origin } = this.chain(from)
 			const hop = was + 1
 			if (this.stopped(rootId) || !checkSend(hop, this.deliveries(rootId), 1).ok) return null
-			const send: StoredSend = { messageId: message.id, seq: message.seq, text: message.text, hop, rootId, tainted: message.tainted, recipients: [to], authority }
+			const send: StoredSend = { messageId: message.id, seq: message.seq, text: message.text, hop, rootId, recipients: [to], origin }
 			this.count(rootId, 1)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", id, JSON.stringify(send), this.now())
 			return send
@@ -225,9 +228,8 @@ export class Mail {
 			body: send.text,
 			hop: send.hop,
 			rootId: send.rootId,
-			tainted: send.tainted,
 			seq: send.seq,
-			...stamp(send.authority ?? AUTO),
+			origin: send.origin ?? "auto",
 		}
 	}
 

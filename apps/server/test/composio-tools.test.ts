@@ -65,8 +65,8 @@ describe("composio tools", () => {
   test("tools are composio_<slug>, read-only ones read and safe to replay, the rest external", () => {
     const tools = composioExtension(listed, async () => ({ content: [] })).tools ?? []
     expect(tools.map((t) => t.name)).toEqual(["composio_search_tools", "composio_multi_execute_tool"])
-    expect(effectOf(tools[0]!)).toEqual({ effect: "read", outside: "composio" })
-    expect(effectOf(tools[1]!)).toEqual({ effect: "external", outside: "composio" })
+    expect(effectOf(tools[0]!)).toBe("read")
+    expect(effectOf(tools[1]!)).toBe("external")
     expect((tools as unknown as { replay: string }[]).map((t) => t.replay)).toEqual(["safe", "unsafe"])
   })
 
@@ -159,7 +159,7 @@ describe("composio learned tools", () => {
     expect(ext.map((t) => t.name)).toEqual(["composio_search_tools", "composio_multi_execute_tool", "composio_search_web"])
     expect(learnedNote(tools)).toBe("connected-app tools you can call directly, no search needed: composio_search_web.")
     const web = ext[2]!
-    expect(effectOf(web as never)).toEqual({ effect: "external", outside: "composio" })
+    expect(effectOf(web as never)).toBe("external")
     expect(web.description).toBe("Search the web. (composio_search through composio, call it directly)")
 
     state.replies.push(ran("COMPOSIO_SEARCH_WEB", true))
@@ -177,7 +177,7 @@ describe("composio learned tools", () => {
       await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: {} }] })
       await Promise.all(background)
       const web = (composioExtension((await connection.tools())!, async () => ({ content: [] })).tools as unknown as { replay: string }[])[2]!
-      expect([effectOf(web as never)?.effect, web.replay]).toEqual([effect, replay])
+      expect([effectOf(web as never), web.replay]).toEqual([effect, replay])
     }
   })
 

@@ -5,7 +5,7 @@ import type { RoomFs } from "../../files/room-fs"
 // a large single-line JSON document (an OpenAPI spec, a connected app's listing) came back as its first
 // line and nothing else, and the agent fetched it again and again. A result over `SPILL_BYTES` is
 // saved whole in the chat's files, as lines a model can search, and the agent gets its start and
-// the path. `read` and `bash` results are outside content, so reading the file later still taints.
+// the path.
 
 /** Results up to this size come back whole. pi-durable's own limit is 50 KB. */
 export const SPILL_BYTES = 40 * 1024

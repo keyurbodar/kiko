@@ -34,7 +34,7 @@ extension.json (every key except yuki, name, version, description is optional)
   "tests": [{ "tool": "standup_post", "args": {}, "calls": { "update_task": "updated" }, "fetch": { "status": 200, "body": "ok" }, "expect": "posted" }]
 }
 
-effects decide what the trust gate allows. read: only reads. write: changes yuki data. message: talks to agents. external: acts outside yuki. any tool may yuki.fetch a GET with no body (so a lookup like weather is "read"); sending anything (POST, PUT, a body) needs "external". a tool may yuki.call only tools its effect covers (read calls read; write calls read and write; message calls read and message; external calls anything). pick the smallest effect that works.
+effects decide what a tool may fetch and call. read: only reads. write: changes yuki data. message: talks to agents. external: acts outside yuki. any tool may yuki.fetch a GET with no body (so a lookup like weather is "read"); sending anything (POST, PUT, a body) needs "external". a tool may yuki.call only tools its effect covers (read calls read; write calls read and write; message calls read and message; external calls anything). pick the smallest effect that works.
 
 main.js (an es module; export only what the manifest lists)
 export const tools = {
@@ -66,4 +66,3 @@ rules of the sandbox
 - secrets are never in the script: write {{secret.NAME}} in a url, header, or body and yuki fills it in on its server, only for that secret's hosts.
 - each call has a cpu limit and 16 mb of memory; anything slow or endless is stopped.
 - hooks and sections cannot call tools or fetch. a failing hook changes nothing.
-- fetched content is untrusted: a run that fetched cannot act outside yuki without the human's ok.

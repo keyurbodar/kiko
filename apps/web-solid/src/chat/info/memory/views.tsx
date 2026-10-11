@@ -42,9 +42,6 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 					<Show when={replacedMark(l())}>
 						{(mark) => <span>· {mark()}</span>}
 					</Show>
-					<Show when={l().tainted}>
-						<span title="Written after reading outside content">· from outside</span>
-					</Show>
 					<span class="ml-auto flex gap-1">
 						<Show when={l().pos >= 0}>
 							<button type="button" class={quiet} data-action="pin" onClick={() => props.store.pin(l().pos, !l().pinned)}>

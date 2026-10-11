@@ -1,5 +1,4 @@
 import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@yuki/protocol"
-import { type Authority, HUMAN } from "@yuki/agent/authority"
 import type { RoomLog } from "./log"
 import type { Chain } from "./mail"
 import { type RecipientMember, resolveRecipients } from "./recipients"
@@ -49,20 +48,16 @@ export type ReminderDelivery = {
 	createdBy?: string
 	chain?: Chain | null
 	recurring?: boolean
-	authority?: Authority
-	/** The run that made it had read outside content. */
-	tainted?: boolean
 }
 
 /**
  * The chain an agent's reminder wakes into. A one-off continues the chain that made it; a recurring
  * one starts its own root each time, so a chain's limits never count a week of repeats. A reminder the
- * human set starts its own root with the human's authority. `authority`, when given, replaces the chain's.
+ * human set starts its own root as the human's.
  */
-export function reminderChain(own: string, r: Pick<ReminderDelivery, "chain" | "createdBy" | "recurring" | "authority">): Chain | null {
-	const made = r.chain ?? (r.createdBy === "human" ? { rootId: own, hop: 0, authority: HUMAN } : null)
-	const kept = made && r.recurring ? { ...made, rootId: own, hop: 0 } : made
-	return r.authority ? { rootId: kept?.rootId ?? own, hop: kept?.hop ?? 0, authority: r.authority } : kept
+export function reminderChain(own: string, r: Pick<ReminderDelivery, "chain" | "createdBy" | "recurring">): Chain | null {
+	const made = r.chain ?? (r.createdBy === "human" ? { rootId: own, hop: 0, origin: "human" as const } : null)
+	return made && r.recurring ? { ...made, rootId: own, hop: 0 } : made
 }
 
 export class Deliveries {

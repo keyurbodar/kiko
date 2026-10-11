@@ -23,7 +23,6 @@ export type Candidate = {
   ignored: number
   /** The last nudge or [skip]. */
   lastSurfaced?: number
-  tainted: boolean
 }
 
 /**

@@ -34,14 +34,14 @@ describe("web_fetch", () => {
   }
   const call = tools(webExtension(fetcher))
 
-  test("returns the page as text, marked untrusted", async () => {
+  test("returns the page as text, with its source", async () => {
     const result = await call("web_fetch", { url: "https://example.test/page" })
     expect(result.isError).toBe(false)
     expect(result.text).toContain("the word is tangerine & more")
     expect(result.text).toContain("fixture page")
     expect(result.text).not.toContain("steal()")
     expect(result.text).not.toContain("<")
-    expect(result.details).toEqual({ untrusted: true, source: "https://example.test/page" })
+    expect(result.details).toEqual({ source: "https://example.test/page" })
   })
 
   test("the safe fetcher refuses private hosts and other schemes", async () => {

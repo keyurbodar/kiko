@@ -1,4 +1,4 @@
-export type Answer = { text: string; tainted: boolean }
+export type Answer = string
 
 export class AnswerWaiters {
   private readonly waiting = new Map<string, (answer: Answer | null) => void>()

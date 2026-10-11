@@ -19,7 +19,7 @@ export function importRecords(sql: SqlStorage, life: Life): number {
   }
   lines.sort((a, b) => a.at - b.at)
   let n = 0
-  for (const l of lines) if (life.append(l.text, "", false, l.at).ok) n++
+  for (const l of lines) if (life.append(l.text, "", l.at).ok) n++
   for (const table of ["memory_records", "memory_versions", "memory_fts"]) sql.exec(`DROP TABLE IF EXISTS ${table}`)
   return n
 }

@@ -5,7 +5,6 @@ import { CHIEF_EXT } from "./chief"
 import { MEMORY_NOTE } from "@yuki/memory/tools"
 import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
-import { isRunTainted, markRunTainted } from "@yuki/agent/trust"
 import { WORKSPACE } from "./workspace"
 
 export const SUBAGENT = "subagent"
@@ -77,7 +76,6 @@ export function subagentExtension(): Extension {
 						const entry = await api.commit((tx) => tx.entry(AssistantEntry, settled.answer), ctx)
 						const message = entry?.model?.[0] as AssistantMessage | undefined
 						const text = (message?.content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
-						if (isRunTainted({ registry: api.registry, conversationId: child })) markRunTainted(api, "helper")
 						return { content: [{ type: "text", text }], details: { conversationId: child } }
 					} finally {
 						helpers.give()

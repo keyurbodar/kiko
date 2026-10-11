@@ -27,7 +27,7 @@ const zoomCases: [string, ReturnType<typeof parseZoomId>][] = [
 for (const [raw, want] of zoomCases) test(`zoom id ${JSON.stringify(raw)}`, () => expect(parseZoomId(raw)).toEqual(want))
 
 test("a cut line's hint is an id zoom takes, in its own log", () => {
-  const long = { pos: 12, at: Date.UTC(2026, 9, 6, 14, 5), text: "x".repeat(400), tainted: false }
+  const long = { pos: 12, at: Date.UTC(2026, 9, 6, 14, 5), text: "x".repeat(400) }
   const chat = itemLine(long, 300)
   expect(chat).toEndWith("(cut, zoom chat:12)")
   expect(parseZoomId(/zoom (\S+)\)$/.exec(chat)![1]!)).toEqual({ log: "chat", id: "12" })
@@ -73,7 +73,7 @@ test("only the newest brief shows, once, until it changes or the run starts fres
 
 let n = 0
 const human = (body: string): Envelope =>
-  ({ id: `human:01K${++n}`, roomId: "01J00000000000000000000000", from: { kind: "human" }, body, hop: 0, rootId: "m1", tainted: false, seq: n }) as unknown as Envelope
+  ({ id: `human:01K${++n}`, roomId: "01J00000000000000000000000", from: { kind: "human" }, body, hop: 0, rootId: "m1", seq: n }) as unknown as Envelope
 
 test("a batch with one human message names its id, briefly", () => {
   const one = human("thanks!")

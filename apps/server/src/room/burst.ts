@@ -104,7 +104,6 @@ export class Burst {
 				...(r.reply_to ? { replyTo: r.reply_to as Envelope["replyTo"] } : {}),
 				hop: 0,
 				rootId: r.id,
-				tainted: false,
 				seq: r.seq,
 				origin: "human",
 			}))

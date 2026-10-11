@@ -56,7 +56,7 @@ test("a burst the bus delivers twice touches a loop once", async () => {
   const opened = loops.open({ kind: "intention", owner: "human", source: "tool", certainty: "explicit", text: "file the tax return", room: "r1" })
   if (!opened.ok) throw new Error("open failed")
   const before = loops.get(opened.id)!.mentions
-  const batch = { roomId: "r1", openedAt: 1, more: 0, signals: [{ kind: "burst" as const, roomId: "r1", at: Date.now(), tainted: false, seq: 7, text: "the tax return is due soon", by: { kind: "human" as const } }] }
+  const batch = { roomId: "r1", openedAt: 1, more: 0, signals: [{ kind: "burst" as const, roomId: "r1", at: Date.now(), seq: 7, text: "the tax return is due soon", by: { kind: "human" as const } }] }
   await engine.signals(batch)
   await engine.signals(batch)
   expect(loops.get(opened.id)!.mentions).toBe(before + 1)

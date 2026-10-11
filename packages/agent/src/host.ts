@@ -7,9 +7,8 @@ import { type Alarms, createAlarms } from "@yuki/durable/alarm"
 import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
 import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
 import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
-import type { Envelope } from "./envelope"
+import { type Envelope, joinOrigin, type Origin, originOfAll } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
-import { AUTO, type Authority, authorityOfAll, combine } from "./authority"
 
 const context = BACKGROUND_CONTEXT
 
@@ -147,7 +146,7 @@ export class AgentHost {
   private failures = 0
   private watchingIdle = false
   private resumed = false
-  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not wipe the new run's authority.
+  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not wipe the new run's origin.
   private inputs = 0
 
   constructor(
@@ -155,7 +154,8 @@ export class AgentHost {
     private readonly options: HostOptions,
   ) {
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)")
-    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_authority (id INTEGER PRIMARY KEY CHECK (id = 1), authority TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
+    ctx.storage.sql.exec("DROP TABLE IF EXISTS run_authority")
+    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
     this.inbox = new Inbox(ctx.storage)
     this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
@@ -256,7 +256,7 @@ export class AgentHost {
   }
 
   private async idle(): Promise<void> {
-    this.ctx.storage.sql.exec("DELETE FROM run_authority")
+    this.ctx.storage.sql.exec("DELETE FROM run_origin")
     if (this.resumed) {
       this.resumed = false
       await this.ctx.storage.delete(RESUMES_KEY)
@@ -342,7 +342,7 @@ export class AgentHost {
         await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
       }
-      this.joinAuthority(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
+      this.joinOrigin(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
       const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : [])] }, memory)
@@ -354,29 +354,30 @@ export class AgentHost {
     }
   }
 
-  private joinAuthority(batch: Batch, fresh: boolean): void {
+  private joinOrigin(batch: Batch, fresh: boolean): void {
     this.inputs++
-    const incoming = authorityOfAll(batch.envelopes) ?? AUTO
-    const row = this.ctx.storage.sql.exec<{ authority: string }>("SELECT authority FROM run_authority WHERE id = 1").toArray()[0]
+    const incoming = originOfAll(batch.envelopes) ?? "auto"
+    const row = this.ctx.storage.sql.exec<{ origin: Origin }>("SELECT origin FROM run_origin WHERE id = 1").toArray()[0]
     if (fresh || !row) {
       this.ctx.storage.sql.exec(
-        "INSERT INTO run_authority (id, authority, started_at, steered) VALUES (1, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET authority = excluded.authority, started_at = excluded.started_at, steered = 0",
-        JSON.stringify(incoming),
+        "INSERT INTO run_origin (id, origin, started_at, steered) VALUES (1, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET origin = excluded.origin, started_at = excluded.started_at, steered = 0",
+        incoming,
         Date.now(),
       )
       return
     }
-    this.ctx.storage.sql.exec("UPDATE run_authority SET authority = ? WHERE id = 1", JSON.stringify(combine(JSON.parse(row.authority) as Authority, incoming)))
+    this.ctx.storage.sql.exec("UPDATE run_origin SET origin = ? WHERE id = 1", joinOrigin(row.origin, incoming))
   }
 
-  authority(): Authority {
-    const row = this.ctx.storage.sql.exec<{ authority: string }>("SELECT authority FROM run_authority WHERE id = 1").toArray()[0]
-    return row ? (JSON.parse(row.authority) as Authority) : AUTO
+  /** Who started the live run. Only a run that is not the human's has a time budget. */
+  origin(): Origin {
+    const row = this.ctx.storage.sql.exec<{ origin: Origin }>("SELECT origin FROM run_origin WHERE id = 1").toArray()[0]
+    return row?.origin ?? "auto"
   }
 
   private async enforceBudget({ harness, root }: Opened): Promise<void> {
-    const row = this.ctx.storage.sql.exec<{ authority: string; started_at: number; steered: number }>("SELECT authority, started_at, steered FROM run_authority WHERE id = 1").toArray()[0]
-    if (!row || (JSON.parse(row.authority) as Authority).origin === "human") return
+    const row = this.ctx.storage.sql.exec<{ origin: Origin; started_at: number; steered: number }>("SELECT origin, started_at, steered FROM run_origin WHERE id = 1").toArray()[0]
+    if (!row || row.origin === "human") return
     const age = Date.now() - row.started_at
     const budget = (await this.options.autoBudgetMs?.()) ?? AUTO_RUN_BUDGET_MS
     if (age < budget) return
@@ -384,11 +385,11 @@ export class AgentHost {
     if (age >= 2 * budget) {
       await this.options.onTimeout?.()
       await root.abort(context)
-      this.ctx.storage.sql.exec("DELETE FROM run_authority")
+      this.ctx.storage.sql.exec("DELETE FROM run_origin")
       return
     }
     if (row.steered) return
-    this.ctx.storage.sql.exec("UPDATE run_authority SET steered = 1 WHERE id = 1")
+    this.ctx.storage.sql.exec("UPDATE run_origin SET steered = 1 WHERE id = 1")
     const content = '<system-event reason="run_budget">\ntime is up for this run. post what you have now in one short message, and stop.\n</system-event>'
     await root.submit({ type: "input", content, requestId: `budget:${row.started_at}`, whenBusy: "steer" }, context)
   }

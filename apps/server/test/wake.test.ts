@@ -6,7 +6,7 @@ import type { Received } from "./fake-agent"
 
 // Architecture section 25.5. Every wake nobody's message started goes through `RoomDO.wake`, here
 // with the real UserDO and RoomDO and a recording fake agent. Each test fails on a wake that a
-// held budget, a refusal, or a tainted creator used to lose or widen.
+// held budget or a refusal used to lose.
 
 setDefaultTimeout(30_000)
 let mf: Miniflare
@@ -111,7 +111,7 @@ test("a task wake held by the user's budget is not lost: it is delivered once th
 test("a run the agent refused gives its budget back", async () => {
   const user = await userWithChat()
   await rpc(user, "setLimits", { autonomousRunsPerDay: 1 })
-  const made = await rpc(user, "createRoutine", user, { name: "tick", instructions: "say tick", trigger: { on: "task" }, grant: [], tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const made = await rpc(user, "createRoutine", user, { name: "tick", instructions: "say tick", trigger: { on: "task" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
   expect(made.ok).toBe(true)
   await post(`/refuse/${user}/${ROOM}/yuki/1`)
   expect(await rpc(user, "runRoutine", made.routine.id)).toBe("refused")
@@ -119,23 +119,22 @@ test("a run the agent refused gives its budget back", async () => {
   expect((await wakes(user, "routine:")).length).toBe(1)
 })
 
-test("a reminder a tainted run made wakes the agent tainted and without the human's authority", async () => {
+test("a reminder an agent made on the human's chain wakes it as the human's run", async () => {
   const user = await userWithChat()
-  const chain = { rootId: "m-human", hop: 0, authority: { origin: "human", grant: [] } }
-  const made = await rpc(user, "createReminder", user, { text: "send the file", time: soon(400), tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "yuki", chain, tainted: true })
+  const chain = { rootId: "m-human", hop: 0, origin: "human" }
+  const made = await rpc(user, "createReminder", user, { text: "send the file", time: soon(400), tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "yuki", chain })
   expect(made.ok).toBe(true)
   const [wake] = await until("the reminder wake", async () => {
     const got = await wakes(user, "reminder:")
     return got.length ? got : undefined
   })
-  expect(wake).toMatchObject({ tainted: true, origin: "auto" })
-  expect(wake!.grant).toBeUndefined()
+  expect(wake).toMatchObject({ rootId: "m-human", origin: "human" })
 })
 
 const room = async (user: string, method: string, ...args: unknown[]) => (await post(`/room/${user}/${ROOM}`, { method, args })).result
 
 async function tickRoutine(user: string): Promise<string> {
-  const made = await rpc(user, "createRoutine", user, { name: "tick", instructions: "say tick", trigger: { on: "task" }, grant: [], tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const made = await rpc(user, "createRoutine", user, { name: "tick", instructions: "say tick", trigger: { on: "task" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
   expect(made.ok).toBe(true)
   return made.routine.id
 }

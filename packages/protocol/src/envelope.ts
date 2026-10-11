@@ -21,8 +21,6 @@ export type Envelope = {
 	replyTo?: MessageId
 	hop: number
 	rootId: string
-	tainted: boolean
 	origin?: Origin
-	grant?: readonly string[]
 	seq: number
 }

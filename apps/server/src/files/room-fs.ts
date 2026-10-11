@@ -117,19 +117,6 @@ export function typeForPath(path: string): string {
   return MIME_BY_EXTENSION[ext] ?? "text/plain"
 }
 
-/** The soul, the chat's skills, and its extensions reach every later system prompt. */
-export const shapesPrompts = (rel: string): boolean => rel === SOUL_PATH || /^(skills|extensions)(\/|$)/.test(rel)
-
-/**
- * A run that read outside content cannot change what shapes every later run (section 16.3). Returns
- * the one line the agent gets, or null.
- */
-function promptGuard(rels: readonly string[], tainted: boolean): FileError | null {
-  if (!tainted) return null
-  const hit = rels.find(shapesPrompts)
-  return hit === undefined ? null : new FileError("invalid", `/${hit} was not changed: this run read outside content, and that file shapes every later run. the human can ask you to change it.`, `/${hit}`)
-}
-
 export class RoomFs implements ExecutionEnv {
   readonly cwd = "/"
   /** The hash this conversation last read or wrote at each room path. */
@@ -146,8 +133,6 @@ export class RoomFs implements ExecutionEnv {
     /** pi-durable's file mutation queue keys on it, so every view of one agent shares it. */
     readonly id: string,
     private readonly backend: FilesBackend,
-    /** Whether this conversation's run read outside content (section 16.3). */
-    private readonly tainted: () => boolean = () => false,
   ) {}
 
   /** The room path (no leading slash) of a tool path, or a refusal. */
@@ -247,8 +232,6 @@ export class RoomFs implements ExecutionEnv {
   /** Why `bytes` bytes cannot go at a room path, or null. */
   private unwritable(rel: string, bytes: number, path: string): FileError | null {
     if (rel === "") return new FileError("is_directory", "/ is a folder", path)
-    const guarded = promptGuard([rel], this.tainted())
-    if (guarded) return guarded
     if (rel === CHAT_PATH && bytes > MAX_CHAT) {
       return new FileError("invalid", `/chat.md would be ${bytes} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path)
     }
@@ -283,8 +266,6 @@ export class RoomFs implements ExecutionEnv {
             return { ...c, path: rel(c.path) }
         }
       })
-      const guarded = promptGuard(mapped.flatMap(batchPaths), this.tainted())
-      if (guarded) throw guarded
       const out = await this.backend.commit(mapped)
       this.stats.clear()
       return out.ok ? out : { ...out, path: `/${out.path}` }
@@ -327,8 +308,6 @@ export class RoomFs implements ExecutionEnv {
     if (!a.ok) return a
     const b = this.roomPath(to)
     if (!b.ok) return b
-    const guarded = promptGuard([a.value, b.value], this.tainted())
-    if (guarded) return err(guarded)
     const out = await this.backend.move(a.value, b.value)
     this.stats.clear()
     return out.ok ? ok(out) : err(this.fail(out, from))
@@ -352,8 +331,6 @@ export class RoomFs implements ExecutionEnv {
       if (!rel.ok) return rel
       rels.push(rel.value)
     }
-    const guarded = promptGuard(rels, this.tainted())
-    if (guarded) return err(guarded)
     const out = await this.backend.remove(rels, recursive)
     this.stats.clear()
     if (!out.ok) return err(this.fail(out))
@@ -408,8 +385,6 @@ export class RoomFs implements ExecutionEnv {
   async mkdir(path: string): Promise<Result<FsChange, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
-    const guarded = promptGuard([rel.value], this.tainted())
-    if (guarded) return err(guarded)
     const out = await this.backend.mkdir(rel.value)
     this.stats.clear()
     return out.ok ? ok(out) : err(this.fail(out, path))
@@ -438,13 +413,13 @@ export class RoomFs implements ExecutionEnv {
 
 /**
  * One view of an agent's files per conversation, for pi-durable's `env` option, which builds a
- * conversation's env at each use. `tainted` reads that conversation's run.
+ * conversation's env at each use.
  */
-export function roomViews(id: string, backend: FilesBackend, tainted: (conversationId: ConversationId) => boolean): (conversationId: ConversationId) => RoomFs {
+export function roomViews(id: string, backend: FilesBackend): (conversationId: ConversationId) => RoomFs {
   const views = new Map<ConversationId, RoomFs>()
   return (conversationId) => {
     let view = views.get(conversationId)
-    if (!view) views.set(conversationId, (view = new RoomFs(id, backend, () => tainted(conversationId))))
+    if (!view) views.set(conversationId, (view = new RoomFs(id, backend)))
     return view
   }
 }

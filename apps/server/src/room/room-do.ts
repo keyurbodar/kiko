@@ -60,7 +60,7 @@ export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?
 
 const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed"])
 
-export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string; tainted: boolean }
+export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string }
 
 const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
 	limit: "the room is full: it holds at most 8 agents.",
@@ -196,7 +196,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!id || this.log.meta(`created:${id}`)) return null
 		const p = JSON.parse(this.log.meta(`proposal:${id}`)!) as Proposal
 		const what = p.kind === "agent" ? `the agent @${p.agent.handle}` : `the group "${p.title}"`
-		return `your proposal of ${what} waits for the human's answer. if they say yes, call create. if they want changes, propose again.`
+		return `your proposal of ${what} is not made yet. call create to make it, or propose again.`
 	}
 
 	private newestProposal(): string | null {
@@ -214,10 +214,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const raw = this.log.meta(`proposal:${id}`)
 		if (!raw) return { ok: false, error: `no proposal ${id}. propose first` }
 		const proposal = JSON.parse(raw) as Proposal
-		const answered = this.ctx.storage.sql
-			.exec("SELECT 1 FROM messages WHERE seq > ? AND deleted_at IS NULL AND json_extract(sender, '$.kind') = 'human' LIMIT 1", proposal.seq)
-			.toArray().length
-		if (!answered) return { ok: false, error: "not yet: show the human what you'll make and wait for their yes. never create on your own." }
 		const user = userStub(this.env.USER, home.userId)
 		const model = this.members.list().find((m) => m.slug === CHIEF)?.model ?? ""
 		const make = async (spec: NewAgentSpec) => {
@@ -282,7 +278,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.seedMembers(home, chat)
 		const member = this.members.list().find((m) => m.slug === slug)
 		if (!member) return
-		const envelope: Envelope = { id: "intro", roomId: home.roomId, from: { kind: "system", reason: "created" }, body: text, hop: 0, rootId: "intro", tainted: false, seq: this.log.lastSeq() }
+		const envelope: Envelope = { id: "intro", roomId: home.roomId, from: { kind: "system", reason: "created" }, body: text, hop: 0, rootId: "intro", seq: this.log.lastSeq() }
 		const d = this.delivery(member, this.members.list(), chat.title, [envelope])
 		await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
 	}
@@ -423,13 +419,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	/** The run's answer, for the Jev pass to catch a promise to come back (section 26.2). Outside content is never read for loops. */
+	/** The run's answer, for the Jev pass to catch a promise to come back (section 26.2). */
 	private async captureAnswer(home: { userId: string; roomId: RoomId }, slug: AgentSlug, runId: string): Promise<void> {
 		if (this.log.meta("private") === "1") return
 		const items = this.ctx.storage.sql
-			.exec<{ id: string; text: string; at: number; tainted: number }>("SELECT id, text, at, tainted FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
+			.exec<{ id: string; text: string; at: number }>("SELECT id, text, at FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
 			.toArray()
-		if (!items.length || items.some((m) => m.tainted === 1)) return
+		if (!items.length) return
 		try {
 			// One answer, however many bubbles: its last sentences are read together.
 			const last = items.at(-1)!
@@ -515,9 +511,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.publish(out.events)
 		if (!out.ok) return out
 		if (askId) this.asks.sent(askId, out.send.messageId)
-		const asked = askId || send.to === "all" ? null : out.fresh ? this.asks.answer(slug, send.to, send.text, send.id, send.tainted) : this.asks.answeredBy(send.id)
+		const asked = askId || send.to === "all" ? null : out.fresh ? this.asks.answer(slug, send.to, send.text, send.id) : this.asks.answeredBy(send.id)
 		if (asked) {
-			this.pushAnswer(home, send.to as AgentSlug, asked, out.send.text, out.send.tainted)
+			this.pushAnswer(home, send.to as AgentSlug, asked, out.send.text)
 			return { ok: true, to: out.send.recipients }
 		}
 		this.mail.queue(slug, out.send)
@@ -525,10 +521,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, to: out.send.recipients }
 	}
 
-	private pushAnswer(home: { userId: string; roomId: RoomId }, asker: AgentSlug, askId: string, text: string, tainted: boolean): void {
+	private pushAnswer(home: { userId: string; roomId: RoomId }, asker: AgentSlug, askId: string, text: string): void {
 		this.ctx.waitUntil(
 			agentStub(this.env.AGENT, home.userId, home.roomId, asker)
-				.askAnswered(askId, text, tainted)
+				.askAnswered(askId, text)
 				.catch((e: unknown) => console.error(`ask answer push failed: ${e instanceof Error ? e.message : String(e)}`)),
 		)
 	}
@@ -557,20 +553,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const asks = this.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))
 		if (!asks.length) return
 		const bubbles = this.ctx.storage.sql
-			.exec<{ id: string; seq: number; text: string; tainted: number }>("SELECT id, seq, text, tainted FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
+			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
 			.toArray()
 		const text = bubbles.map((b) => b.text).join("\n\n").trim()
 		if (!text) return
 		const last = bubbles.at(-1)!
-		const tainted = bubbles.some((b) => b.tainted === 1)
 		let relayed = false
 		for (const ask of asks) {
-			if (!this.asks.settle(ask.id, text, tainted)) continue
+			if (!this.asks.settle(ask.id, text)) continue
 			if (ask.state === "open") {
-				this.pushAnswer(home, ask.asker, ask.id, text, tainted)
+				this.pushAnswer(home, ask.asker, ask.id, text)
 				continue
 			}
-			const send = this.mail.relay(`answer:${ask.id}`, slug, ask.asker, { id: last.id, seq: last.seq, text, tainted })
+			const send = this.mail.relay(`answer:${ask.id}`, slug, ask.asker, { id: last.id, seq: last.seq, text })
 			if (send) {
 				this.mail.queue(slug, send)
 				relayed = true
@@ -653,7 +648,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!sender) return
 		const id = `refused:${envelopeId}`
 		const reason = why === "too_large" ? "it was too large" : "its inbox could not take it"
-		const notice: Envelope = { id, roomId: home.roomId, from: { kind: "system", reason: "run_budget" }, body: `your message to @${mail.to} was not delivered: ${reason}. send a shorter one, or put the detail in a file.`, hop: 0, rootId: id, tainted: false, seq: this.log.lastSeq() }
+		const notice: Envelope = { id, roomId: home.roomId, from: { kind: "system", reason: "run_budget" }, body: `your message to @${mail.to} was not delivered: ${reason}. send a shorter one, or put the detail in a file.`, hop: 0, rootId: id, seq: this.log.lastSeq() }
 		const d = this.delivery(sender, members, await this.title(home), [notice])
 		await agentStub(this.env.AGENT, home.userId, home.roomId, mail.from).receive(d.envelopes, d.brief, this.agentHome(home, mail.from, sender))
 	}
@@ -692,7 +687,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 120_000)
 		await this.forwardForgotten()
 		const user = userStub(this.env.USER, home.userId)
-		const rollup = this.log.meta("private") === "1" ? null : (text: string, tainted: boolean, at: number, span: { lo: number; hi: number }) => user.lifeRollup(home.roomId, text, tainted, at, span)
+		const rollup = this.log.meta("private") === "1" ? null : (text: string, at: number, span: { lo: number; hi: number }) => user.lifeRollup(home.roomId, text, at, span)
 		const pass = async () => {
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
 				if (this.members.list().some((m) => m.status !== "idle")) return void (await this.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))
@@ -720,7 +715,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (!home || this.log.meta("private") === "1") return
 		const user = userStub(this.env.USER, home.userId)
-		const out = await this.memory.rollupQuiet((prompt, page) => user.compress(prompt, page ? { roomId: home.roomId, at: page.at, span: page.span } : undefined), (text, tainted, at, span) => user.lifeRollup(home.roomId, text, tainted, at, span))
+		const out = await this.memory.rollupQuiet((prompt, page) => user.compress(prompt, page ? { roomId: home.roomId, at: page.at, span: page.span } : undefined), (text, at, span) => user.lifeRollup(home.roomId, text, at, span))
 		if (out.retryAt) await this.alarms.setWakeup(QUIET_WAKEUP, out.retryAt)
 	}
 
@@ -816,7 +811,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			why: "reminder",
 			body: `reminder: ${reminder.text}`,
 			chain: reminderChain(own, reminder),
-			tainted: reminder.tainted ?? false,
 			budget: reminder.createdBy === "human" ? "user" : "room",
 			retry: true,
 			...(event ? { seq: event.seq } : {}),
@@ -832,7 +826,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * routine run, so `UserDO` learns whether the agent spoke or answered [skip], and what it posts
 	 * carries `initiative: { reason }`.
 	 */
-	async initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string; tainted: boolean }): Promise<WakeResult | "busy"> {
+	async initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string }): Promise<WakeResult | "busy"> {
 		const home = this.home()
 		if (!home) return "refused"
 		const id = `initiative:${input.id}`
@@ -849,7 +843,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.log.setMeta(`initiative:${id}`, input.reason)
 		let out: WakeResult
 		try {
-			out = await this.wake({ id, to: slug, why: "initiative", body: input.body, chain: null, tainted: input.tainted, budget: "room", retry: false })
+			out = await this.wake({ id, to: slug, why: "initiative", body: input.body, chain: null, budget: "room", retry: false })
 		} catch (error) {
 			this.routines.unfollow(run)
 			throw error
@@ -873,7 +867,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.routines.set(list)
 	}
 
-	async deliverRoutine(deliveryId: string, input: { target: string; body: string; tainted: boolean; grant: readonly string[]; budget: Wake["budget"] }): Promise<WakeResult> {
+	async deliverRoutine(deliveryId: string, input: { target: string; body: string; budget: Wake["budget"] }): Promise<WakeResult> {
 		const id = `routine:${deliveryId}`
 		if (!this.home()) return "refused"
 		if (this.deliveries.seen(id)) return "duplicate"
@@ -884,7 +878,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.routines.follow(run)
 		let out: WakeResult
 		try {
-			out = await this.wake({ id, to: slug, why: "routine", body: input.body, chain: { rootId: id, hop: 0, authority: { origin: "routine", grant: [...input.grant] } }, tainted: input.tainted, budget: input.budget, retry: false, seq })
+			out = await this.wake({ id, to: slug, why: "routine", body: input.body, chain: { rootId: id, hop: 0, origin: "routine" }, budget: input.budget, retry: false, seq })
 		} catch (error) {
 			this.routines.unfollow(run)
 			throw error
@@ -909,16 +903,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			return actors.get(seq) ?? null
 		}
 		const eventRun = (slug: AgentSlug) => /^routine:[^:]+:(event|hook|watch):/.test(this.mail.chainRoot(slug) ?? "")
-		const cleanMessage = (id: string) => this.ctx.storage.sql.exec<{ tainted: number }>("SELECT tainted FROM messages WHERE id = ?", id).toArray()[0]?.tainted === 0
 		const now = Date.now()
 		const signals: Signal[] = []
 		for (const event of events) {
 			const actor = event.t === "message" && event.from.kind === "human" ? "human" : actorOf(event.seq)
 			const agent = actor?.startsWith("agent:") ? (actor.slice(6) as AgentSlug) : null
 			const by = actor === "human" ? ({ kind: "human" } as const) : agent ? ({ kind: "agent", slug: agent, name: this.members.get(agent)?.name ?? agent, eventRun: eventRun(agent) } as const) : null
-			// What an agent did may carry outside content. Only its message, stored clean, does not.
-			const tainted = agent !== null && !(event.t === "message" && cleanMessage(event.id))
-			const signal = signalOf(event, { roomId, at: now, by, tainted })
+			const signal = signalOf(event, { roomId, at: now, by })
 			const human = signal !== null && (signal.kind === "burst" || (signal.kind === "task" && signal.by?.kind === "human"))
 			if (signal && (human || routines.some((r) => matches(r, signal)))) signals.push(signal)
 		}
@@ -945,7 +936,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const signals = runs.map((r): Signal => {
 			const posted = status === "ended" ? this.log.lastAgentSeq(r.slug, r.seq) : null
 			const outcome = status === "ended" ? (posted !== null ? "ok" : "quiet") : status === "stopped" ? "quiet" : status
-			return { kind: "routine_result", roomId: home.roomId, at: now, tainted: false, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted }
+			return { kind: "routine_result", roomId: home.roomId, at: now, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted }
 		})
 		// Kept until UserDO has them: a lost result would leave the run pending there for good.
 		this.signals.hold(signals)
@@ -1019,7 +1010,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				return user.reason === "away" ? "held" : this.budgetHeld(now, "your account")
 			}
 		}
-		const envelope: Envelope = { id: w.id, roomId: home.roomId, from: { kind: "system", reason: w.why }, body: w.body, tainted: w.tainted, seq: w.seq ?? this.log.lastSeq(), ...wakeStamp(w, (root) => this.mail.stopped(root)) }
+		const envelope: Envelope = { id: w.id, roomId: home.roomId, from: { kind: "system", reason: w.why }, body: w.body, seq: w.seq ?? this.log.lastSeq(), ...wakeStamp(w, (root) => this.mail.stopped(root)) }
 		const d = this.delivery(member, members, chat.title, [envelope])
 		// A full inbox throws with the budget still taken: a retry carries the same id, which pays once.
 		const { refused } = await agentStub(this.env.AGENT, home.userId, home.roomId, w.to).receive(d.envelopes, d.brief, this.agentHome(home, w.to, member))
@@ -1290,7 +1281,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (refused) return { ok: false, error: SPAWN_REFUSAL[refused] }
 		}
 		await this.workspaceCall(by, { op: "create_task", id: `spawn-${input.id}`.slice(0, 64), title: input.task.slice(0, 140), owner: slug })
-		const sent = await this.agentMessage(by, { id: `spawn:${input.id}`, to: slug, text: input.task, tainted: input.tainted })
+		const sent = await this.agentMessage(by, { id: `spawn:${input.id}`, to: slug, text: input.task })
 		return sent.ok ? { ok: true, slug } : sent
 	}
 
@@ -1325,7 +1316,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		try {
 			// A held wake waits in the room's outbox, so every wake handed over is woken.
 			for (const wake of wakes) {
-				await this.wake({ id: `unblocked:${wake.taskId}`, to: wake.owner, why: "task_unblocked", body: wakeBody(wake), chain: wake.chain, tainted: false, budget: "room", retry: true, seq: wake.seq })
+				await this.wake({ id: `unblocked:${wake.taskId}`, to: wake.owner, why: "task_unblocked", body: wakeBody(wake), chain: wake.chain, budget: "room", retry: true, seq: wake.seq })
 				this.workspace.markWoken(wake.taskId)
 			}
 		} catch (error) {
@@ -1339,10 +1330,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.ctx.waitUntil(this.burst.typing())
 	}
 
-	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string, tainted = false): Promise<boolean> {
+	async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string): Promise<boolean> {
 		const root = this.mail.chainRoot(slug)
 		const reason = root?.startsWith("initiative:") ? this.log.meta(`initiative:${root}`) : null
-		const events = this.bubbles.post(slug, { runId, attempt, index }, block, tainted, reason ? { reason } : undefined)
+		const events = this.bubbles.post(slug, { runId, attempt, index }, block, reason ? { reason } : undefined)
 		this.publish(events, { touch: false })
 		return events.some((e) => e.t === "message")
 	}
@@ -1365,7 +1356,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
 			for (const ask of this.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
-				if (this.asks.settle(ask.id, why, false) && ask.state === "open") this.pushAnswer(home, ask.asker, ask.id, why, false)
+				if (this.asks.settle(ask.id, why) && ask.state === "open") this.pushAnswer(home, ask.asker, ask.id, why)
 			}
 		}
 		this.reportRuns(this.routines.dropped(slug), "failed")

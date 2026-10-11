@@ -60,7 +60,7 @@ type Row = {
   updated_at: number
 }
 
-type ProposalRow = { id: string; name: string; hash: string; bundle: string; source: string; by: string | null; room: string | null; tainted: number; created_at: number }
+type ProposalRow = { id: string; name: string; hash: string; bundle: string; source: string; by: string | null; room: string | null; created_at: number }
 
 export async function bundleHash(bundle: ExtensionBundle): Promise<string> {
   const canonical = (v: unknown): unknown =>
@@ -99,7 +99,6 @@ export class ExtensionStore {
       source TEXT NOT NULL,
       by TEXT,
       room TEXT,
-      tainted INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     )`)
     sql.exec(`CREATE TABLE IF NOT EXISTS extension_state (
@@ -157,7 +156,6 @@ export class ExtensionStore {
       ...(r.room && isRoomId(r.room) ? { room: r.room } : {}),
       bundle: JSON.parse(r.bundle) as ExtensionBundle,
       ...(installed ? { replaces: installed.hash } : {}),
-      ...(r.tainted ? { tainted: true as const } : {}),
       createdAt: r.created_at,
     }
   }
@@ -178,12 +176,6 @@ export class ExtensionStore {
       .map((r) => ({ name: r.name, hash: r.hash }))
   }
 
-  toolNames(name: string): string[] | null {
-    const r = this.row(name)
-    if (r?.enabled !== 1) return null
-    return Object.keys((JSON.parse(r.bundle) as ExtensionBundle).manifest.tools ?? {})
-  }
-
   bundles(hashes: readonly string[]): { name: string; hash: string; bundle: ExtensionBundle }[] {
     const want = new Set(hashes)
     return this.sql
@@ -199,7 +191,7 @@ export class ExtensionStore {
     return JSON.parse(r.bundle) as ExtensionBundle
   }
 
-  async propose(input: { bundle: unknown; source: ExtensionSource; by?: string; room?: string; tainted?: boolean }): Promise<ExtensionProposal> {
+  async propose(input: { bundle: unknown; source: ExtensionSource; by?: string; room?: string }): Promise<ExtensionProposal> {
     const checked = checkBundle(input.bundle)
     if (!checked.ok) throw new ExtensionError("the extension has problems", checked.problems)
     const bundle = checked.bundle
@@ -216,7 +208,7 @@ export class ExtensionStore {
     if (count >= MAX_PROPOSALS) throw new ExtensionError(`${MAX_PROPOSALS} installs already wait for review; decline some first`)
     const id = `xp_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`
     this.sql.exec(
-      "INSERT INTO extension_proposals (id, name, hash, bundle, source, by, room, tainted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO extension_proposals (id, name, hash, bundle, source, by, room, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       name,
       hash,
@@ -224,7 +216,6 @@ export class ExtensionStore {
       input.source,
       input.by ?? null,
       input.room ?? null,
-      input.tainted ? 1 : 0,
       Date.now(),
     )
     const proposal = this.proposal(this.sql.exec<ProposalRow>("SELECT * FROM extension_proposals WHERE id = ?", id).one())

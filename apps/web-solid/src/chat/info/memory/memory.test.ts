@@ -50,7 +50,7 @@ test("a line a later fact replaced says so, and one that was not does not", asyn
 test("a refused change is undone and says why", async () => {
 	const refusing: MemoryClient = {
 		request: async (op: MemoryOp): Promise<MemoryResult> =>
-			op.op === "list" ? { ok: true, lines: [{ pos: 0, at: 0, text: "x", source: "", tainted: false, pinned: false, redacted: false }], next: null } : op.op === "pin" ? { ok: false, error: "at most 10 pinned memories. unpin one first." } : { ok: true, text: [] },
+			op.op === "list" ? { ok: true, lines: [{ pos: 0, at: 0, text: "x", source: "", pinned: false, redacted: false }], next: null } : op.op === "pin" ? { ok: false, error: "at most 10 pinned memories. unpin one first." } : { ok: true, text: [] },
 		close() {},
 	}
 	const store = createMemoryStore(refusing)

@@ -11,7 +11,7 @@ import type { RoomRoutine } from "../user/routines"
 /** Who did it. An agent's act carries whether a run that an event started did it (25.4). */
 const By = Schema.Union([Schema.Struct({ kind: Schema.Literal("human") }), Schema.Struct({ kind: Schema.Literal("agent"), slug: Schema.String, name: Schema.String, eventRun: Schema.Boolean })])
 
-const base = { roomId: Schema.String, at: Schema.Number, tainted: Schema.Boolean }
+const base = { roomId: Schema.String, at: Schema.Number }
 
 export const Signal = Schema.Union([
 	/** A message the human sent. */
@@ -40,16 +40,16 @@ type Act = Extract<Signal, { kind: "burst" | "agent_final" | "task" | "file" }>
 type By = typeof By.Type
 
 /** A room event as a signal. Null for an event nothing listens to. */
-export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null; tainted: boolean }): Act | null {
-	const { roomId, at, by, tainted } = ctx
+export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null }): Act | null {
+	const { roomId, at, by } = ctx
 	switch (event.t) {
 		case "message":
 			if (event.from.kind === "system" || !by) return null
-			return { kind: event.from.kind === "human" ? "burst" : "agent_final", roomId, at, tainted, seq: event.seq, text: event.text, by }
+			return { kind: event.from.kind === "human" ? "burst" : "agent_final", roomId, at, seq: event.seq, text: event.text, by }
 		case "task":
-			return { kind: "task", roomId, at, tainted, seq: event.seq, title: event.task.title, status: event.task.status, owner: event.task.owner ?? null, by }
+			return { kind: "task", roomId, at, seq: event.seq, title: event.task.title, status: event.task.status, owner: event.task.owner ?? null, by }
 		case "file":
-			return { kind: "file", roomId, at, tainted, seq: event.seq, path: event.file.name, by }
+			return { kind: "file", roomId, at, seq: event.seq, path: event.file.name, by }
 		default:
 			return null
 	}
@@ -90,9 +90,9 @@ export function matches(routine: RoomRoutine, s: Signal): boolean {
 /**
  * The run a batch starts for one event routine, or null. An agent's own acts never fire its own
  * routines, and acts of a run that an event started fire none: one event starts at most one level of
- * work, so two routines cannot feed each other. The run is tainted when any act it lists is.
+ * work, so two routines cannot feed each other.
  */
-export function routineRun(routine: RoomRoutine, batch: SignalBatch): { body: string; tainted: boolean } | null {
+export function routineRun(routine: RoomRoutine, batch: SignalBatch): { body: string } | null {
 	const hits = batch.signals.filter((s): s is Act => {
 		if (!matches(routine, s)) return false
 		const by = "by" in s ? s.by : null
@@ -101,7 +101,7 @@ export function routineRun(routine: RoomRoutine, batch: SignalBatch): { body: st
 	if (!hits.length) return null
 	const lines = hits.slice(0, MAX_SIGNALS).map(signalLine)
 	if (hits.length > MAX_SIGNALS || batch.more) lines.push("and more")
-	return { body: `what happened:\n${lines.map((l) => `- ${l}`).join("\n")}`, tainted: hits.some((s) => s.tainted) }
+	return { body: `what happened:\n${lines.map((l) => `- ${l}`).join("\n")}` }
 }
 
 /** The room's open window of signals. Rows stay until `sent` removes them, so a crash retries the batch. */

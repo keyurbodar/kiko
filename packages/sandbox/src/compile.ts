@@ -20,7 +20,6 @@ import {
 } from "@earendil-works/pi-durable"
 import type { ExtensionBundle, ExtensionManifest, ExtensionStateScope } from "./manifest"
 import { declareEffect, type Effect, effectOf } from "@yuki/agent/effects"
-import { markRunTainted } from "@yuki/agent/trust"
 import { type Bridge, ScriptError, ScriptVM, type Target } from "./vm"
 
 export type ScriptPorts = {
@@ -142,9 +141,7 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
       if (op === "fetch") {
         const [url, init] = payload as [string, Omit<GuestRequest, "url">]
         if (effect !== "external" && !isPlainGet(init)) throw new Error(`only a GET without a body works in a "${effect}" tool; ${self} needs "external" to send anything`)
-        const response = await ports.fetch(name, { ...(init ?? {}), url })
-        markRunTainted(api, `extension:${name}`)
-        return response
+        return ports.fetch(name, { ...(init ?? {}), url })
       }
       if (op === "call") {
         const [tool, args] = payload as [string, Record<string, unknown>]
@@ -153,11 +150,10 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
         const agent = await api.agent(context)
         const callee = agent.tools.find((t) => t.name === tool)
         if (!callee) throw new Error(`this agent has no tool ${tool}`)
-        const declared = effectOf(callee) ?? { effect: "external" as const }
-        if (!mayCall(effect, declared.effect)) throw new Error(`${self} is "${effect}" and cannot call ${tool}, which is "${declared.effect}"`)
+        const declared = effectOf(callee) ?? "external"
+        if (!mayCall(effect, declared)) throw new Error(`${self} is "${effect}" and cannot call ${tool}, which is "${declared}"`)
         const checked = validateToolArguments(callee, { type: "toolCall", id: `${api.callId}:${tool}`, name: tool, arguments: (args ?? {}) as never })
         const result = await callee.execute(checked as never, api as never, context)
-        if (declared.outside) markRunTainted(api, declared.outside)
         const out = resultText(result)
         if (result.isError) throw new Error(out || `${tool} failed`)
         return out
@@ -288,7 +284,7 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
         ...original,
         execute: async (args, api, context) => {
           const logs: string[] = []
-          const effect = effectOf(original)?.effect ?? "external"
+          const effect = effectOf(original) ?? "external"
           const next = async (nextArgs: Record<string, unknown>) => {
             const r = await original.execute(nextArgs as never, api, context)
             const out = resultText(r)

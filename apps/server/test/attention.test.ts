@@ -136,7 +136,7 @@ const NOW = 100 * DAY
 const known = { known: true, activeNow: true, moments: [NOW + DAY, NOW + 2 * DAY, NOW + 3 * DAY], cycle: DAY }
 
 function cand(over: Partial<Candidate> = {}): Candidate {
-  return { id: "c", kind: "intention", certainty: "explicit", owner: "human", room: "r1", due: NOW + 12 * HOUR, mentions: 1, lastSeen: NOW - DAY, surfaced: 0, ignored: 0, tainted: false, ...over }
+  return { id: "c", kind: "intention", certainty: "explicit", owner: "human", room: "r1", due: NOW + 12 * HOUR, mentions: 1, lastSeen: NOW - DAY, surfaced: 0, ignored: 0, ...over }
 }
 
 function ctx(over: Partial<AttendContext> = {}): AttendContext {

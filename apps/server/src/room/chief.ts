@@ -4,7 +4,7 @@ import { MAX_SOUL } from "../user/souls"
 
 // Architecture section 7.11. yuki, the chief, makes the human's agents and groups. The human never
 // fills in a form: yuki asks what they want, proposes a name and a soul (or a group and its
-// /chat.md), and makes it only after the human answers. This file holds the shapes and the checks;
+// /chat.md), and makes it. This file holds the shapes and the checks;
 // RoomDO stores the proposal and does the making.
 
 /** The built-in agent. Only it may propose and create. */
@@ -16,7 +16,7 @@ export type ProposalInput =
   | { kind: "agent"; agent: NewAgentSpec }
   | { kind: "group"; title: string; members: readonly string[]; agents: readonly NewAgentSpec[]; chat: string }
 
-/** A stored proposal. `seq` is the log's sequence when yuki made it: a human message after it is the human's answer. */
+/** A stored proposal. `seq` is the log's sequence when yuki made it, so the newest one is known. */
 export type Proposal = ProposalInput & { id: string; seq: number }
 
 /** ASSUMPTION: the most agents one group proposal makes. */

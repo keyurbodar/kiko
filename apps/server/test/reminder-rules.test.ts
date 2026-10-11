@@ -34,7 +34,7 @@ function setup(results: RunDelivery[] = [], pages: string[] = []) {
 
 test("a held watch run keeps the old fingerprint, so the next check reports the change", async () => {
   const { clock, reminders, runs } = setup(["held", "delivered"], ["page one", "page two", "page two"])
-  const { routine } = await reminders.createRoutine("u", { name: "watch", instructions: "say what changed", trigger: { on: "watch", url: "https://example.com", everyMinutes: 15 }, grant: [], tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human", tainted: false })
+  const { routine } = await reminders.createRoutine("u", { name: "watch", instructions: "say what changed", trigger: { on: "watch", url: "https://example.com", everyMinutes: 15 }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
   for (let i = 0; i < 3; i++) {
     clock.now = reminders.get(routine.id)!.dueUtc
     await reminders.fire()

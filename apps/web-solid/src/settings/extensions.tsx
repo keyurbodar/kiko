@@ -135,11 +135,6 @@ function ProposalCard(props: { proposal: ExtensionProposal; installed?: Extensio
     >
       <div class="flex flex-col gap-3">
         <p class={cn("text-[13px] leading-relaxed", muted)}>{sentence(m().description)}</p>
-        <Show when={p().tainted}>
-          <Notice tone="danger" data-component="proposal-tainted">
-            Written after the agent read outside content, like a web page. Read the code before you install it.
-          </Notice>
-        </Show>
         <Review lines={describeManifest(m())} />
         <div class="flex flex-wrap items-center gap-2">
           <Button variant="primary" data-action="install-extension" onClick={() => void props.run({ op: "install", id: p().id })}>

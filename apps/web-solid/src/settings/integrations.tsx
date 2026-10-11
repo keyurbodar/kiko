@@ -147,7 +147,7 @@ export function Integrations(props: { client?: ComposioClient }) {
 								</Show>
 							}
 						>
-							<p class="mb-2 text-[13px] text-muted">Optional. Lets agents read your apps in routines and team chats without asking each time.</p>
+							<p class="mb-2 text-[13px] text-muted">Optional. Lets Yuki tell which app tools only read, so a retried run can safely repeat them.</p>
 							<Show when={!status()?.developer}>
 								<KeyField id="composio-developer-key" label="Composio developer key" placeholder="ak_..." submit="Add" busy={busy()} data-action="composio-developer-add" onKey={(key) => void run("developer", async () => client?.request({ t: "setComposioDeveloperKey", key }))} />
 								<p class="mt-2 text-[13px] text-muted">

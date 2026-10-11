@@ -233,7 +233,7 @@ function apply(life: Life, op: CaptureOp, ref: string, at: number, count: Captur
 
 /** Appends one fact, supersedes the facts it replaces, and counts what happened. */
 function store(life: Life, text: string, card: CardTag | null, at: number, ref: string, replaces: readonly number[], count: CaptureCount): void {
-  const out = life.append(text, SOURCE, false, at, { ref, card })
+  const out = life.append(text, SOURCE, at, { ref, card })
   if (!out.ok) return
   if (out.duplicate) return void count.same++
   const superseded = replaces.filter((pos) => life.supersede(pos, out.pos)).length

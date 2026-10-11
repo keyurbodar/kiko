@@ -79,12 +79,12 @@ test("a judge-only key turns auto capture on, and a chat key that also lists cla
 
 test("a note with replaces supersedes that live line, and a line no longer live is not replaced again", async () => {
   const user = fresh()
-  expect(await rpc(user, "lifeNote", "ada", "the human lives in bangalore", false)).toEqual({ ok: true, pos: 0 })
-  expect(await rpc(user, "lifeNote", "ada", "the human moved to pune", false, "", "life:0")).toEqual({ ok: true, pos: 1, replaced: true })
+  expect(await rpc(user, "lifeNote", "ada", "the human lives in bangalore")).toEqual({ ok: true, pos: 0 })
+  expect(await rpc(user, "lifeNote", "ada", "the human moved to pune", "", "life:0")).toEqual({ ok: true, pos: 1, replaced: true })
   expect(await rpc(user, "lifeRecall", "bangalore")).toEqual([])
   expect(((await rpc(user, "lifeRecall", "pune")) as string[]).join()).toContain("the human moved to pune")
-  expect(await rpc(user, "lifeNote", "ada", "the human moved to mumbai", false, "", "life:0")).toEqual({ ok: true, pos: 2, replaced: false })
-  expect(await rpc(user, "lifeNote", "ada", "the human likes tea", false, "", "chat:1")).toEqual({ ok: true, pos: 3, replaced: false })
+  expect(await rpc(user, "lifeNote", "ada", "the human moved to mumbai", "", "life:0")).toEqual({ ok: true, pos: 2, replaced: false })
+  expect(await rpc(user, "lifeNote", "ada", "the human likes tea", "", "chat:1")).toEqual({ ok: true, pos: 3, replaced: false })
   expect(((await rpc(user, "lifeRecall", "pune")) as string[]).length).toBe(1)
 })
 

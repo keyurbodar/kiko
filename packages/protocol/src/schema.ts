@@ -38,10 +38,8 @@ export const Envelope = Schema.Struct({
 	replyTo: Schema.optionalKey(MessageId),
 	hop: Count,
 	rootId: Id,
-	tainted: Schema.Boolean,
 	seq: Count,
 	origin: Schema.optionalKey(Origin),
-	grant: Schema.optionalKey(Schema.Array(Schema.String)),
 })
 
 // Rich text
@@ -379,7 +377,6 @@ export const ExtensionProposal = Schema.Struct({
 	room: Schema.optionalKey(RoomId),
 	bundle: ExtensionBundle,
 	replaces: Schema.optionalKey(Id),
-	tainted: Schema.optionalKey(Schema.Literal(true)),
 	createdAt: Count,
 })
 
@@ -441,7 +438,6 @@ export const LifeLine = Schema.Struct({
 	at: Count,
 	text: Schema.String,
 	source: Schema.String,
-	tainted: Schema.Boolean,
 	pinned: Schema.Boolean,
 	redacted: Schema.Boolean,
 	supersededBy: Schema.optionalKey(Schema.NullOr(Count)),

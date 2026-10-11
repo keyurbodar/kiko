@@ -87,7 +87,7 @@ export function createMemoryStore(client: MemoryClient, now: () => number = Date
 		async note(text: string) {
 			const line = text.replace(/\s+/g, " ").trim()
 			if (!line) return
-			const temp: LifeLine = { pos: -now(), at: now(), text: line, source: "you", tainted: false, pinned: false, redacted: false }
+			const temp: LifeLine = { pos: -now(), at: now(), text: line, source: "you", pinned: false, redacted: false }
 			const ok = await change({ op: "note", text: line }, () => setState("lines", (l) => [temp, ...l]), () => setState("lines", (l) => l.filter((x) => x.pos !== temp.pos)))
 			if (ok) await load()
 		},

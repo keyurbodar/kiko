@@ -21,7 +21,6 @@ import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, ty
 import { mergeRecall, RECALL_MAX, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@yuki/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
-import { isRunTainted } from "@yuki/agent/trust"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
@@ -158,7 +157,7 @@ export class AgentDO extends DurableObject<Env> {
     if (!home) return null
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
-      post: (runId, attempt, index, block, tainted) => room().post(home.slug, runId, attempt, index, block, tainted),
+      post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
       status: (state) => room().setStatus(home.slug, state),
       endRun: async (runId, inputs = []) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => [])),
@@ -180,7 +179,7 @@ export class AgentDO extends DurableObject<Env> {
         // A reminder an agent sets for itself is its promise to come back: it is owed until kept (section 26).
         if (out.ok && out.reminder.target === home.slug && !out.reminder.rrule) {
           await user()
-            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, tainted: input.tainted, reminderId: out.reminder.id })
+            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, reminderId: out.reminder.id })
             .catch(() => {})
         }
         return out
@@ -228,8 +227,8 @@ export class AgentDO extends DurableObject<Env> {
     return out
   }
 
-  async askAnswered(id: string, answer: string, tainted = true): Promise<void> {
-    this.answers.answer(id, { text: answer, tainted })
+  async askAnswered(id: string, answer: string): Promise<void> {
+    this.answers.answer(id, answer)
   }
 
   private messagingPort(): MessagingPort | null {
@@ -293,7 +292,6 @@ export class AgentDO extends DurableObject<Env> {
     const messaging = () => this.messagingPort()
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.scriptPorts(), {
-        authority: () => this.host.authority(),
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
         chief: this.chiefPort(),
         loops: () => this.loopPort(),
@@ -321,13 +319,13 @@ export class AgentDO extends DurableObject<Env> {
     const backend = withMount(roomBackend(this.env, where, cache), HOME_PATH, homeBackend(this.env, where, notice, cache, locked))
     const id = `room-files:${this.ctx.id.toString()}`
     const space = withSoul(backend, soul)
-    const views = roomViews(id, space, (conversationId) => isRunTainted({ registry: built.registry.snapshot(), conversationId }))
+    const views = roomViews(id, space)
     const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), nudge: () => this.#nudge, messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), authority: () => this.host.authority(), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -335,7 +333,6 @@ export class AgentDO extends DurableObject<Env> {
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
         this.prefetchInitiative(batch)
-        this.#nudge = batch.envelopes.length > 0 && batch.envelopes.every((e) => e.from.kind === "system" && e.from.reason === "initiative")
         if (!(await this.beginRun(batch.requestId, root))) return false
         await this.syncExtensions(built.extensions, root, this.#run?.extensions)
         return true
@@ -399,7 +396,6 @@ export class AgentDO extends DurableObject<Env> {
 
   #initiative?: Promise<string>
   /** The run answers an initiative wake and nothing else (section 26.6). */
-  #nudge = false
 
   /**
    * Section 26. Asks UserDO for what this agent owes and what bears on the human's burst, while the
@@ -572,9 +568,9 @@ export class AgentDO extends DurableObject<Env> {
     }
     return {
       check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
-      propose: async (bundle, tainted) => {
+      propose: async (bundle) => {
         const home = where()
-        const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId, tainted })) as ExtensionResult
+        const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId })) as ExtensionResult
         if (out.ok && out.proposal) await roomStub(this.env.ROOM, home.userId, home.roomId).homeNotice(home.slug, `proposed the ${out.proposal.name} extension. review it in settings → extensions`)
         return out
       },
@@ -589,8 +585,8 @@ export class AgentDO extends DurableObject<Env> {
     const user = () => userStub(this.env.USER, home.userId)
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
-      note: async (text, tainted, replaces) =>
-        this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, tainted, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", replaces),
+      note: async (text, replaces) =>
+        this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", replaces),
       captures: () => this.#run?.captures ?? false,
       recall: async (query, conversationId) => {
         const root = await this.isRootConversation(conversationId)

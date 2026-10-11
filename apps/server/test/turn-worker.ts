@@ -38,7 +38,7 @@ export class T extends AgentDO {
       this.ctx.storage.sql.exec("INSERT INTO calls (call) VALUES (?)", JSON.stringify(call))
     }
     return {
-      post: (runId, attempt, index, block, tainted) => record({ t: "post", runId, attempt, index, block, tainted }),
+      post: (runId, attempt, index, block) => record({ t: "post", runId, attempt, index, block }),
       draft: (runId, index, text) => record({ t: "draft", runId, index, chars: text.length }),
       status: (state: AgentState) => record({ t: "status", state }),
       endRun: (runId) => record({ t: "end", runId }),

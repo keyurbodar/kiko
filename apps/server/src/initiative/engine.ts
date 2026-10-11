@@ -38,7 +38,7 @@ const LAST_PASS = "initiative_last_pass"
 /** The room resolves this to its lead. */
 const LEAD = "@lead"
 
-export type WakeInput = { id: string; to: AgentSlug | null; body: string; reason: string; tainted: boolean }
+export type WakeInput = { id: string; to: AgentSlug | null; body: string; reason: string }
 
 type EngineDeps = {
   sql: SqlStorage
@@ -200,7 +200,7 @@ export class InitiativeEngine {
       const said = l.owner === "human" ? "said" : `@${l.owner} promised`
       add(
         `loop:${l.id}`,
-        { kind: l.kind, certainty: l.certainty, owner: l.owner, room, ...(due !== undefined && !Number.isNaN(due) ? { due } : {}), mentions: l.mentions, lastSeen: l.lastSeen, tainted: l.tainted },
+        { kind: l.kind, certainty: l.certainty, owner: l.owner, room, ...(due !== undefined && !Number.isNaN(due) ? { due } : {}), mentions: l.mentions, lastSeen: l.lastSeen },
         { text: l.text, line: `${loopLine(l)} (${said} ${day(l.openedAt, tz)}, last mentioned ${ago(l.lastSeen, now)})`, reason: l.owner === "human" ? `You mentioned this ${day(l.openedAt, tz)}` : `Promised ${day(l.openedAt, tz)}`, loopId: l.id },
       )
     }
@@ -212,7 +212,7 @@ export class InitiativeEngine {
         const owner = t.status === "review" || !t.owner ? "human" : t.owner
         add(
           `task:${r.room_id}:${t.id}:${t.updatedAt}`,
-          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, mentions: 1, lastSeen: t.updatedAt, tainted: t.tainted === true },
+          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, mentions: 1, lastSeen: t.updatedAt },
           { text: t.title, line: `task ${t.id} "${t.title}" is ${t.status}${t.owner ? `, owner @${t.owner}` : ""}, untouched ${ago(t.updatedAt, now)}`, reason: `Untouched for ${span(now - t.updatedAt)}` },
         )
       }
@@ -224,7 +224,7 @@ export class InitiativeEngine {
       const what = routine.status === "paused" ? "is paused" : `last run ${last!.status} ${ago(at, now)}`
       add(
         `routine:${routine.id}:${last?.occurrence ?? routine.status}`,
-        { kind: "routine", certainty: "explicit", owner: "human", room: routine.roomId, due: at, mentions: 1, lastSeen: at, tainted: routine.tainted },
+        { kind: "routine", certainty: "explicit", owner: "human", room: routine.roomId, due: at, mentions: 1, lastSeen: at },
         { text: routine.name ?? "a routine", line: `routine "${routine.name ?? routine.id}" (${routine.id}) ${what}`, reason: routine.status === "paused" ? "A routine paused" : "A routine failed" },
       )
     }
@@ -302,7 +302,7 @@ export class InitiativeEngine {
       const slug = own ? v.target.slug : LEAD
       // Named by the item and its history, so a retried pass wakes once and a later nudge is a new wake.
       const id = `${item.c.id}#${item.c.lastSurfaced ?? 0}`
-      const result = await this.d.wake(item.c.room, { id, to: own ? (slug as AgentSlug) : null, body: wakeBody(item, own), reason: item.reason, tainted: item.c.tainted })
+      const result = await this.d.wake(item.c.room, { id, to: own ? (slug as AgentSlug) : null, body: wakeBody(item, own), reason: item.reason })
       if (result === "delivered") {
         this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')", id, item.c.room, slug, item.c.kind, JSON.stringify([item.c.id]), now)
         this.d.count({ initiative_woke: 1 })
@@ -318,7 +318,7 @@ export class InitiativeEngine {
   }
 
   /**
-   * The brief channel: at most two of the human's explicit, untainted open loops in this chat (or, in
+   * The brief channel: at most two of the human's explicit open loops in this chat (or, in
    * the yuki chat, loops of no chat), past their rest, most pressing first. The agent decides whether to
    * bring one up. A loop shown rests one rhythm cycle before it is shown again.
    */
@@ -334,7 +334,6 @@ export class InitiativeEngine {
           i.c.owner === "human" &&
           i.c.room === roomId &&
           i.c.certainty === "explicit" &&
-          !i.c.tainted &&
           !skip.has(i.loopId) &&
           now >= restUntil(appetite, i.c, rhythm.cycle, now) &&
           now >= (briefed.get(i.loopId) ?? -Infinity) + rhythm.cycle,
@@ -386,9 +385,7 @@ export class InitiativeEngine {
 }
 
 /** What a woken agent is told to do, and what Jev reads as the agent's instructions. */
-const NUDGE_RULE = "one short message in your own words, at most two sentences, that asks. no text around tool calls. reply only [skip] when this chat shows it is already handled."
-
-const ASK_FIRST = "nobody asked yet, so ask first: no file, task, reminder, or routine until the human says yes."
+const NUDGE_RULE = "one short message in your own words, at most two sentences. no text around tool calls. reply only [skip] when this chat shows it is already handled."
 
 /** The wake: one item, why now, and one short message. */
 function wakeBody(i: Item, own: boolean): string {
@@ -399,11 +396,10 @@ function wakeBody(i: Item, own: boolean): string {
       `then close L${i.loopId} done with the loop tool. if this chat shows it was already kept, close it and reply only [skip].`,
     ].join("\n")
   }
-  if (own) return [`initiative: your ${i.line}.`, `tell the human where it stands or what is in the way, and ask whether to go on: ${NUDGE_RULE}`, ASK_FIRST].join("\n")
+  if (own) return [`initiative: your ${i.line}.`, `move it on if you can, then tell the human where it stands or what is in the way: ${NUDGE_RULE}`].join("\n")
   return [
     `initiative: the human usually writes around now, and this looks worth raising:\n- ${i.line}`,
     `raise it now: ${NUDGE_RULE} if it is a teammate's work, ask that teammate with send_message instead.`,
-    ASK_FIRST,
     i.loopId === undefined ? "" : `if the human says they no longer want it, close L${i.loopId} as dropped with the loop tool.`,
   ]
     .filter(Boolean)

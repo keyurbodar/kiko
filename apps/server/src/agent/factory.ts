@@ -1,11 +1,9 @@
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
-import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, hook, type ModelRef, type Registry, ToolTask } from "@earendil-works/pi-durable"
+import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
 import { subagentExtension } from "./extensions/subagent"
-import { type EffectDeclaration, effectTable } from "@yuki/agent/effects"
-import { trustExtension } from "@yuki/agent/trust"
-import type { Authority } from "@yuki/agent/authority"
+import { effectTable } from "@yuki/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
 import type { Fetcher } from "@yuki/durable/safe-fetch"
@@ -37,14 +35,11 @@ export type BuildAgentInput = RoleInput & {
   memory?: MemoryPort
   /** The human's open loops (initiative). */
   loops?: () => LoopPort | null
-  /** The run is an initiative nudge (section 26.6): it may read, talk, and keep loops, and change nothing else. */
-  nudge?: () => boolean
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
-  authority?: () => Authority
   scripts?: ScriptPorts
   builder?: BuilderPorts
   egress?: Fetcher
@@ -81,35 +76,15 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const builtins = extensionsFor(input)
-  const effects = new Map(effectTable(builtins))
-  const trust = trustExtension({ effects, ...(input.authority ? { authority: input.authority } : {}) })
-  const gates = [...(input.nudge ? [nudgeGate(input.nudge, effects)] : []), trust]
+  // Throws when a tool declares no effect. An extension script reads the effect to decide what it may call.
+  effectTable(builtins)
   const registry = createRegistry()
-  for (const extension of [...builtins, ...gates]) registry.install(extension)
-  const extensions = new UserExtensions(registry, builtins, gates, effects, input.scripts)
+  for (const extension of builtins) registry.install(extension)
+  const extensions = new UserExtensions(registry, builtins, input.scripts)
   // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
   // supports. A chat reply waits on every turn, and on tool-heavy tasks the default level made each
   // turn take 2 to 5 s longer with the same answers.
-  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: [...builtins, ...gates] }, extensions }
-}
-
-const NUDGE_BLOCK = "nobody asked yet: a nudge only asks. say it in one short message and do the work after the human says yes."
-
-/**
- * Section 26.6. A nudge nobody asked for asks in one message. Its run may read, message, and keep
- * loops; a file, task, reminder, or outside action waits for the human's yes. A tool of no known
- * effect counts as external.
- */
-function nudgeGate(active: () => boolean, effects: ReadonlyMap<string, EffectDeclaration>): Extension {
-  const allowed = new Set(["read", "message"])
-  return defineExtension({
-    name: "nudge",
-    hooks: [
-      hook(ToolTask, {
-        beforeTool: (call) => (active() && call.name !== "loop" && !allowed.has(effects.get(call.name)?.effect ?? "external") ? { block: NUDGE_BLOCK } : undefined),
-      }),
-    ],
-  })
+  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: builtins }, extensions }
 }
 
 export type ExtensionProblem = { name: string; hash: string; error: string }
@@ -122,8 +97,6 @@ export class UserExtensions {
   constructor(
     private readonly registry: Registry,
     private readonly builtins: readonly Extension[],
-    private readonly gates: readonly Extension[],
-    private readonly effects: Map<string, EffectDeclaration>,
     private readonly ports?: ScriptPorts,
   ) {
     if (ports) this.pool = new VmPool(ports.wasm)
@@ -132,7 +105,7 @@ export class UserExtensions {
 
   selection(): Extension[] {
     const users = [...this.installed.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v.extension)
-    return [...this.builtins, ...users, ...this.gates]
+    return [...this.builtins, ...users]
   }
 
   sync(list: readonly Installed[]): ExtensionProblem[] {
@@ -157,8 +130,6 @@ export class UserExtensions {
     for (const [name, v] of next) if (this.installed.get(name) !== v) this.registry.install(v.extension)
     this.installed = next
     this.pool.retain(new Set([...next.values()].map((v) => v.hash)))
-    this.effects.clear()
-    for (const [k, v] of effectTable(this.selection())) this.effects.set(k, v)
     return problems
   }
 

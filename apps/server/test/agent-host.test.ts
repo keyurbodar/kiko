@@ -68,7 +68,6 @@ const envelope = (from: Envelope["from"], body: string): Envelope => ({
   body,
   hop: from.kind === "agent" ? 1 : 0,
   rootId: "m1",
-  tainted: false,
   seq: n,
 })
 const human = (body: string) => envelope({ kind: "human" }, body)
@@ -266,7 +265,7 @@ test("the request id depends on the ids and their order only", async () => {
   )
 })
 
-test("an idle check that began before a human batch was drained does not wipe its authority", async () => {
+test("an idle check that began before a human batch was drained does not wipe its origin", async () => {
   const a = await agent()
   await a.receive([human("first")])
   await until(a.status, settled(1))

@@ -199,11 +199,10 @@ export async function requestIdFor(ids: readonly string[]): Promise<string> {
 
 export function renderInput(batch: Pick<Batch, "envelopes" | "briefs">, memory?: string): string {
   const parts = [...(memory ? [memory] : []), ...batch.briefs.map((brief) => `<context>\n${brief.replaceAll("</context>", "&lt;/context>")}\n</context>`)]
-  for (const { from, body, hop, tainted } of batch.envelopes) {
-    const taint = tainted ? ' tainted="true"' : ""
+  for (const { from, body, hop } of batch.envelopes) {
     if (from.kind === "human") parts.push(body)
-    else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}"${taint}>\n${escapeXml(body)}\n</agent-message>`)
-    else parts.push(`<system-event reason="${from.reason}"${taint}>\n${escapeXml(body)}\n</system-event>`)
+    else if (from.kind === "agent") parts.push(`<agent-message from="${from.slug}" hop="${hop}">\n${escapeXml(body)}\n</agent-message>`)
+    else parts.push(`<system-event reason="${from.reason}">\n${escapeXml(body)}\n</system-event>`)
   }
   const human = batch.envelopes.filter((e) => e.from.kind === "human" && e.id.startsWith("human:"))
   if (human.length === 1) parts.push(`<context>message id: ${human[0]!.id.slice(6)}</context>`)

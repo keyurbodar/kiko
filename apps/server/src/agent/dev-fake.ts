@@ -4,7 +4,6 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
-import { ASK_FIRST, isRunTainted, markRunTainted } from "@yuki/agent/trust"
 import { type BuildAgentInput, buildAgent } from "./factory"
 import type { AgentSetup } from "@yuki/agent/host"
 import type { RoleInput } from "./prompt"
@@ -47,9 +46,9 @@ export function fakeReply(transcript: readonly Message[]) {
   const last = messages.at(-1)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
-  const fetchFirst = last?.role === "user" && /^\[(fetch|mark)\]/.test(textOf(last))
-  const page = last?.role === "toolResult" && (last.toolName === "fake_fetch" || last.toolName === "fake_mark")
-  const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!), messages) : null
+  const fetchFirst = last?.role === "user" && /^\[fetch\]/.test(textOf(last))
+  const page = last?.role === "toolResult" && last.toolName === "fake_fetch"
+  const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!)) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
   // One model turn is one bubble, so a two-part answer is two turns: a short note with a tool call, then the rest.
   const twoPart = users.at(-1)?.includes("[two-part]")
@@ -63,9 +62,9 @@ export function fakeReply(transcript: readonly Message[]) {
   }
   const team = last?.role === "user" ? teamCall(textOf(last)) : null
   if (team) return fauxAssistantMessage(team, { stopReason: "toolUse" })
-  const calls = trustCalls(messages)
+  const calls = fakeCalls(messages)
   if (calls.length) return fauxAssistantMessage(calls, { stopReason: "toolUse" })
-  const ran = trustResults(since)
+  const ran = fakeResults(since)
   if (ran) return fauxAssistantMessage(ran)
   const briefed = since.filter((m) => m.role === "user" && textOf(m).includes("[missed]"))
   const missed = briefed.length ? `; missed: ${briefed.flatMap((m) => missedOf(rawOf(m))).join(" | ")}` : ""
@@ -83,14 +82,8 @@ export function fakeReply(transcript: readonly Message[]) {
   return fauxAssistantMessage(heard)
 }
 
-function anyToolCall(raw: string, messages: readonly Message[]) {
+function anyToolCall(raw: string) {
   const text = raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
-  if (text.includes("[yes]")) {
-    const asked = messages.findLast((m) => m.role === "toolResult" && rawOf(m).includes(ASK_FIRST))
-    const calls = messages.flatMap((m) => (m.role === "assistant" && typeof m.content !== "string" ? (m.content ?? []) : [])) as { type: string; id?: string; name?: string; arguments?: Record<string, unknown> }[]
-    const before = asked && calls.find((p) => p.type === "toolCall" && p.id === asked.toolCallId)
-    if (before) return fauxToolCall(before.name!, (before.arguments ?? {}) as Parameters<typeof fauxToolCall>[1])
-  }
   const direct = /\[tool (\w+) (\{.*\})\]\s*$/m.exec(text)
   return direct ? fauxToolCall(direct[1]!, JSON.parse(direct[2]!)) : null
 }
@@ -108,26 +101,12 @@ const slowTool = defineTool({
 export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [declareEffect("read", slowTool)] })
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] })
-const flagged = (word: string, api: Parameters<typeof isRunTainted>[0]) => text(isRunTainted(api) ? `${word} (tainted)` : word)
 const page = Type.Object({ page: Type.String() })
 
-export const TRUST_TOOLS = {
+export const FAKE_TOOLS = {
   fake_fetch: declareEffect(
     "read",
     defineTool({ name: "fake_fetch", description: "fetches a page.", parameters: page, execute: async ({ page }) => text(page) }),
-    { outside: "web" },
-  ),
-  fake_mark: declareEffect(
-    "read",
-    defineTool({
-      name: "fake_mark",
-      description: "reads a file.",
-      parameters: page,
-      execute: async ({ page }, api) => {
-        markRunTainted(api, "file")
-        return text(page)
-      },
-    }),
   ),
   fake_lookup: declareEffect(
     "read",
@@ -135,11 +114,11 @@ export const TRUST_TOOLS = {
   ),
   fake_note: declareEffect(
     "write",
-    defineTool({ name: "fake_note", description: "writes a note.", parameters: Type.Object({}), execute: async (_a, api) => flagged("noted", api) }),
+    defineTool({ name: "fake_note", description: "writes a note.", parameters: Type.Object({}), execute: async () => text("noted") }),
   ),
   fake_ask: declareEffect(
     "message",
-    defineTool({ name: "fake_ask", description: "messages a teammate.", parameters: Type.Object({}), execute: async (_a, api) => flagged("asked", api) }),
+    defineTool({ name: "fake_ask", description: "messages a teammate.", parameters: Type.Object({}), execute: async () => text("asked") }),
   ),
   fake_send: declareEffect(
     "external",
@@ -147,16 +126,16 @@ export const TRUST_TOOLS = {
   ),
 }
 
-export const TRUST_TOOLS_EXTENSION: Extension = defineExtension({ name: "test-trust-tools", tools: Object.values(TRUST_TOOLS) })
+export const FAKE_TOOLS_EXTENSION: Extension = defineExtension({ name: "test-fake-tools", tools: Object.values(FAKE_TOOLS) })
 
-const isTrustTool = (name: string): name is keyof typeof TRUST_TOOLS => Object.hasOwn(TRUST_TOOLS, name)
+const isFakeTool = (name: string): name is keyof typeof FAKE_TOOLS => Object.hasOwn(FAKE_TOOLS, name)
 
-function trustCalls(messages: readonly Message[]) {
+function fakeCalls(messages: readonly Message[]) {
   const last = messages.at(-1)
   if (last?.role === "user") {
     const turn = textOf(last)
-    const fetch = /^\[(fetch|mark)\]\s*([\s\S]*)$/.exec(turn)
-    if (fetch) return [fauxToolCall(`fake_${fetch[1]}`, { page: fetch[2]! })]
+    const fetch = /^\[fetch\]\s*([\s\S]*)$/.exec(turn)
+    if (fetch) return [fauxToolCall("fake_fetch", { page: fetch[1]! })]
     return directives(turn)
   }
   if (last?.role !== "toolResult") return []
@@ -165,12 +144,12 @@ function trustCalls(messages: readonly Message[]) {
 }
 
 const directives = (text: string) =>
-  [...text.matchAll(/\[call (\w+)\]/g)].flatMap(([, name]) => (isTrustTool(name!) && name !== "fake_fetch" && name !== "fake_mark" ? [fauxToolCall(name!, {})] : []))
+  [...text.matchAll(/\[call (\w+)\]/g)].flatMap(([, name]) => (isFakeTool(name!) && name !== "fake_fetch" ? [fauxToolCall(name!, {})] : []))
 
-function trustResults(since: readonly Message[]): string | null {
-  const results = since.filter((m) => m.role === "toolResult" && isTrustTool(m.toolName ?? ""))
+function fakeResults(since: readonly Message[]): string | null {
+  const results = since.filter((m) => m.role === "toolResult" && isFakeTool(m.toolName ?? ""))
   if (!results.length) return null
-  const state = (t: string) => (t.includes("Tool call blocked") ? "blocked" : t.includes("(tainted)") ? "ran tainted" : "ran")
+  const state = (t: string) => (t.includes("Tool call blocked") ? "blocked" : "ran")
   return `tools: ${results.map((m) => `${m.toolName} ${state(textOf(m))}`).join(", ")}`
 }
 
@@ -186,11 +165,11 @@ function teamCall(turn: string) {
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "authority" | "reminders" | "chief" | "loops"> = {}) {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "reminders" | "chief" | "loops"> = {}) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider(faux.provider)
-  return { models, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(scripts ? { scripts } : {}), testExtensions: [SLOW_TOOL_EXTENSION, TRUST_TOOLS_EXTENSION] }) } satisfies AgentSetup
+  return { models, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), ...(scripts ? { scripts } : {}), testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION] }) } satisfies AgentSetup
 }

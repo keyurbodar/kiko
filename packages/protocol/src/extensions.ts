@@ -32,7 +32,6 @@ export type ExtensionProposal = {
 	room?: RoomId
 	bundle: ExtensionBundle
 	replaces?: string
-	tainted?: true
 	createdAt: number
 }
 

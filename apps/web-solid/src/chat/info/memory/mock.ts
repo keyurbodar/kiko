@@ -8,7 +8,7 @@ export function createMockMemory(now: () => number = Date.now): MemoryClient {
 	const lines: LifeLine[] = []
 	let model: MemoryModel = null
 	const add = (text: string, source: string, daysAgo = 0) =>
-		lines.push({ pos: lines.length, at: now() - daysAgo * 86_400_000, text, source, tainted: false, pinned: false, redacted: false })
+		lines.push({ pos: lines.length, at: now() - daysAgo * 86_400_000, text, source, pinned: false, redacted: false })
 	add("lives in lisbon, works at a small design studio", "@yuki", 40)
 	add("sister is sam; they talk every sunday", "@yuki", 30)
 	add("planning a japan trip in november with sam", "chat trip", 6)

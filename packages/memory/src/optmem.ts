@@ -110,11 +110,10 @@ export type Item = {
   pos: number
   at: number
   text: string
-  tainted: boolean
   shown?: string
 }
 
-export type Node = { text: string; tainted: boolean; from: number; to: number }
+export type Node = { text: string; from: number; to: number }
 
 export type NapInput = { span: Span; items: Item[] } | { span: Span; halves: [Node, Node] }
 
@@ -125,22 +124,24 @@ export class Tree {
     readonly shape: Shape,
     private readonly items: (lo: number, hi: number) => Item[],
   ) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS ${name} (size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, tainted INTEGER NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
+    sql.exec(`CREATE TABLE IF NOT EXISTS ${name} (size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
+    // Trees written before 2026-10-11 hold a tainted column with no default. Drop it so an insert works.
+    if (sql.exec<{ name: string }>(`PRAGMA table_info(${name})`).toArray().some((c) => c.name === "tainted")) sql.exec(`ALTER TABLE ${name} DROP COLUMN tainted`)
   }
 
   node(span: Span): Node | null {
     const size = span.hi - span.lo
     const row = this.sql
-      .exec<{ text: string; tainted: number; at_from: number; at_to: number }>(`SELECT text, tainted, at_from, at_to FROM ${this.name} WHERE size = ? AND k = ?`, size, span.lo / size)
+      .exec<{ text: string; at_from: number; at_to: number }>(`SELECT text, at_from, at_to FROM ${this.name} WHERE size = ? AND k = ?`, size, span.lo / size)
       .toArray()[0]
-    return row ? { text: row.text, tainted: row.tainted === 1, from: row.at_from, to: row.at_to } : null
+    return row ? { text: row.text, from: row.at_from, to: row.at_to } : null
   }
 
   put(span: Span, node: Node): boolean {
     const size = span.hi - span.lo
     const k = span.lo / size
     return (
-      this.sql.exec(`INSERT OR IGNORE INTO ${this.name} (size, k, text, tainted, at_from, at_to) VALUES (?, ?, ?, ?, ?, ?)`, size, k, node.text, node.tainted ? 1 : 0, node.from, node.to)
+      this.sql.exec(`INSERT OR IGNORE INTO ${this.name} (size, k, text, at_from, at_to) VALUES (?, ?, ?, ?, ?)`, size, k, node.text, node.from, node.to)
         .rowsWritten > 0
     )
   }
@@ -195,7 +196,7 @@ export class Tree {
   }
 
   free(input: NapInput): string | null {
-    const parts = "items" in input ? input.items.map((i) => `${i.tainted ? OUTSIDE : ""}${i.text.replace(/\s+/g, " ").trim()}`) : input.halves.map((h) => h.text)
+    const parts = "items" in input ? input.items.map((i) => i.text.replace(/\s+/g, " ").trim()) : input.halves.map((h) => h.text)
     const text = parts.join("; ")
     return encoder.encode(text).byteLength <= LINE_BYTES ? text : null
   }
@@ -209,10 +210,10 @@ export class Tree {
 
   nodeFor(input: NapInput, text: string): Node {
     if ("items" in input) {
-      return { text, tainted: input.items.some((i) => i.tainted), from: input.items[0]?.at ?? 0, to: input.items[input.items.length - 1]?.at ?? 0 }
+      return { text, from: input.items[0]?.at ?? 0, to: input.items[input.items.length - 1]?.at ?? 0 }
     }
     const [a, b] = input.halves
-    return { text, tainted: a.tainted || b.tainted, from: a.from, to: b.to }
+    return { text, from: a.from, to: b.to }
   }
 
   view(count: number, prev: readonly Span[] | null, now: number, tail: (lo: number, hi: number) => Item[] = this.items): { lines: string[]; tiling: Span[] } {
@@ -260,18 +261,16 @@ const TAIL_CUT = 300
 const PAGE_CUT = 160
 export const ZOOM_CUT = 4_000
 
-const OUTSIDE = "[outside] "
-
 export function itemLine(item: Item, cut: number, withDay = true, log: ZoomLog = "chat"): string {
   const d = new Date(item.at)
   const time = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
   const text = oneLine(item.shown ?? item.text, cut)
   const rest = text.endsWith("…") ? ` (cut, zoom ${log}:${item.pos})` : ""
-  return `#${item.pos} ${withDay ? `${dayOf(item.at, item.at)} ` : ""}${time} ${item.tainted ? OUTSIDE : ""}${text}${rest}`
+  return `#${item.pos} ${withDay ? `${dayOf(item.at, item.at)} ` : ""}${time} ${text}${rest}`
 }
 
 export function nodeLine(span: Span, node: Node, now: number): string {
-  return `#${span.lo}-${span.hi - 1} ${range(node.from, node.to, now)} ${node.tainted ? OUTSIDE : ""}${node.text}`
+  return `#${span.lo}-${span.hi - 1} ${range(node.from, node.to, now)} ${node.text}`
 }
 
 export function oneLine(text: string, cut: number): string {
@@ -304,7 +303,7 @@ export const NAP_SYSTEM =
 const NAP_ITEM_CUT = 8_000
 
 export function napPrompt(input: NapInput, what: "turns" | "memories"): string {
-  const body = "items" in input ? input.items.map((i) => `${i.tainted ? OUTSIDE : ""}${i.text.length > NAP_ITEM_CUT ? `${i.text.slice(0, NAP_ITEM_CUT)}…` : i.text}`) : input.halves.map((h) => h.text)
+  const body = "items" in input ? input.items.map((i) => (i.text.length > NAP_ITEM_CUT ? `${i.text.slice(0, NAP_ITEM_CUT)}…` : i.text)) : input.halves.map((h) => h.text)
   return [
     "items" in input ? `compress these ${what} into one line of at most ${LINE_WORDS} words.` : `merge these two lines into one line of at most ${LINE_WORDS} words.`,
     "keep what has lasting effect: facts about people, decisions, plans, results, open questions, who did what. copy exactly every name, number, amount, date, time, place, and code (like a flight or booking number): a later reader needs them word for word. drop small talk, greetings, and repeats. invent nothing. name people and agents as they are named below.",

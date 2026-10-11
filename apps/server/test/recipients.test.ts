@@ -54,7 +54,6 @@ const envelope = (seq: number, body: string, replyTo?: string): Envelope => ({
   ...(replyTo ? { replyTo: replyTo as Envelope["replyTo"] } : {}),
   hop: 0,
   rootId: `m${seq}`,
-  tainted: false,
   seq,
 })
 

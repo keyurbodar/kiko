@@ -57,9 +57,9 @@ export class FakeAgent extends DurableObject {
     return { discarded: 0 }
   }
 
-  async askAnswered(id: string, answer: string, tainted: boolean) {
+  async askAnswered(id: string, answer: string) {
     this.log()
-    this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('answer', ?)", JSON.stringify({ id, answer, tainted }))
+    this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('answer', ?)", JSON.stringify({ id, answer }))
   }
 
   /** The room warned that a human message for this agent is on its way (section 7.8). */
