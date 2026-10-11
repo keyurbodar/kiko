@@ -294,6 +294,25 @@ test("changes to the chat's files and the drive in one command both save", async
   expect((await a.bash("cat /c.txt /home/both.txt")).text).toBe("chat\ndrive\n")
 })
 
+test("when the drive refuses a command's write, the output says the chat's files did save", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  await ada.bash("echo one > /home/d.txt")
+  await idle(room, "ada")
+  const slow = ada.bash("echo new > /a.txt; v=$(cat /home/d.txt); sleep 1; echo $v-ada > /home/d.txt")
+  await sleep(300)
+  await bo.bash("echo two > /home/d.txt")
+  await idle(room, "bo")
+  const out = await slow
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("/home/d.txt changed after this command started")
+  expect(out.text).toContain("nothing this command changed in the drive (/home) was saved")
+  expect(out.text).toContain("saved in the chat's files")
+  expect(await ada.read("/a.txt")).toBe("new\n")
+  expect(await ada.read("/home/d.txt")).toBe("two\n")
+})
+
 test("a runaway loop stops at the interpreter's limits and saves nothing", async () => {
   const a = agent(fresh())
   const out = await a.bash("echo partial > /p.txt; while true; do :; done")

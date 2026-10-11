@@ -198,7 +198,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
 
   const bash = defineTool({
     ...createBashTool(),
-    description: `run a bash command over the chat's files, as on linux: pipes, redirects, loops, globs, and grep, sed, awk, jq, sort, uniq, cut, tr, wc, head, tail, find, xargs, diff and the rest. /tmp is scratch for the one command and is not saved. / is the chat's files, /home the human's drive, /me your soul. no network, no python, no programs to install. one command is one transaction: it sees the files as they were when it started, and a write to a file someone changed since then fails, so run it again. calls in one turn run at once. output is cut to the last lines. timeout in seconds, default ${DEFAULT_TIMEOUT_S}, at most ${MAX_TIMEOUT_S}.`,
+    description: `run a bash command over the chat's files, as on linux: pipes, redirects, loops, globs, and grep, sed, awk, jq, sort, uniq, cut, tr, wc, head, tail, find, xargs, diff and the rest. /tmp is scratch for the one command and is not saved. / is the chat's files, /home the human's drive, /me your soul. no network, no python, no programs to install. a command saves per space (the chat's files, /home, /me): each one saves all of its changes or none, and when a command changes more than one, the output says which were saved. it sees the files as they were when it started, and a write to a file someone changed since then fails, so run it again. calls in one turn run at once. output is cut to the last lines. timeout in seconds, default ${DEFAULT_TIMEOUT_S}, at most ${MAX_TIMEOUT_S}.`,
     replay: "unsafe",
   })
 
