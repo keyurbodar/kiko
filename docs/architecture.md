@@ -1311,7 +1311,7 @@ Yuki copies four patterns:
 
 - Wakeups are claimed in one transaction, capped per object, and keep a short history (Rivet `actor/schedule.rs`).
 - An inbox entry is marked in flight when a run takes it and is reclaimed after a timeout, completing it twice is a no-op, and the inbox has a size cap (Rivet `actor/queue.rs`).
-- Schema migration runs inside `blockConcurrencyWhile` on every start, before any other work.
+- Schema migration runs inside `blockConcurrencyWhile` on every start, before any other work. Each object's `schema.ts` holds one versioned list. Version 1 is the current shape of every table, and a change appends an entry. Nothing is deployed yet, so the earlier ALTER steps were folded into version 1 (U07).
 - The Worker's socket upgrade and the first `hello` frame have a hard timeout.
 
 How they are built:

@@ -15,11 +15,10 @@ export class Asks {
       askee TEXT NOT NULL,
       at INTEGER NOT NULL,
       state TEXT NOT NULL CHECK (state IN ('open', 'answered', 'closed')),
-      answer TEXT
+      answer TEXT,
+      message_id TEXT,
+      answer_send TEXT
     ) STRICT`)
-    const columns = new Set(sql.exec<{ name: string }>("PRAGMA table_info(agent_asks)").toArray().map((c) => c.name))
-    if (!columns.has("message_id")) sql.exec("ALTER TABLE agent_asks ADD COLUMN message_id TEXT")
-    if (!columns.has("answer_send")) sql.exec("ALTER TABLE agent_asks ADD COLUMN answer_send TEXT")
   }
 
   open(id: string, asker: AgentSlug, askee: AgentSlug, now: number): void {

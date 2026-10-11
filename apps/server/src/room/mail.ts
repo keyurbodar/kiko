@@ -33,38 +33,14 @@ export class Mail {
 		private readonly now: () => number = Date.now,
 	) {
 		this.sql = storage.sql
-		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_chains (slug TEXT PRIMARY KEY, root_id TEXT NOT NULL, hop INTEGER NOT NULL)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS root_counts (root_id TEXT PRIMARY KEY, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_chains (slug TEXT PRIMARY KEY, root_id TEXT NOT NULL, hop INTEGER NOT NULL, next_root_id TEXT, next_hop INTEGER, origin TEXT, next_origin TEXT)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS root_counts (root_id TEXT PRIMARY KEY, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0, at INTEGER)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL, at INTEGER)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS autonomous_runs (id INTEGER PRIMARY KEY CHECK (id = 1), day TEXT NOT NULL, runs INTEGER NOT NULL)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS stopped_roots (root_id TEXT PRIMARY KEY)")
+		this.sql.exec("CREATE TABLE IF NOT EXISTS stopped_roots (root_id TEXT PRIMARY KEY, at INTEGER)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_refused (id TEXT PRIMARY KEY, at INTEGER NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS auto_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_queue (n INTEGER PRIMARY KEY, sender TEXT NOT NULL, send TEXT NOT NULL)")
-		const chainColumns = new Set(this.sql.exec<{ name: string }>("PRAGMA table_info(agent_chains)").toArray().map((c) => c.name))
-		if (!chainColumns.has("next_root_id")) {
-			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN next_root_id TEXT")
-			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN next_hop INTEGER")
-		}
-		if (!chainColumns.has("origin")) {
-			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN origin TEXT")
-			this.sql.exec("ALTER TABLE agent_chains ADD COLUMN next_origin TEXT")
-		}
-		for (const table of ["root_counts", "agent_sends", "stopped_roots"]) {
-			if (!this.sql.exec<{ name: string }>(`PRAGMA table_info(${table})`).toArray().some((c) => c.name === "at")) {
-				this.sql.exec(`ALTER TABLE ${table} ADD COLUMN at INTEGER`)
-				this.sql.exec(`UPDATE ${table} SET at = ?`, this.now())
-			}
-		}
-		if (!this.sql.exec<{ name: string }>("PRAGMA table_info(mail_queue)").toArray().some((c) => c.name === "recipient")) {
-			storage.transactionSync(() => {
-				this.sql.exec("ALTER TABLE mail_queue ADD COLUMN recipient TEXT")
-				for (const row of this.sql.exec<{ n: number; sender: string; send: string }>("SELECT n, sender, send FROM mail_queue ORDER BY n").toArray()) {
-					for (const to of (JSON.parse(row.send) as StoredSend).recipients) this.sql.exec("INSERT INTO mail_queue (sender, send, recipient) VALUES (?, ?, ?)", row.sender, row.send, to)
-					this.sql.exec("DELETE FROM mail_queue WHERE n = ?", row.n)
-				}
-			})
-		}
+		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_queue (n INTEGER PRIMARY KEY, sender TEXT NOT NULL, send TEXT NOT NULL, recipient TEXT)")
 	}
 
 	queue(from: AgentSlug, send: StoredSend): void {

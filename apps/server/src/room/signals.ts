@@ -92,7 +92,6 @@ export class SignalWindow {
 	) {
 		sql.exec("CREATE TABLE IF NOT EXISTS signal_window (n INTEGER PRIMARY KEY, at INTEGER NOT NULL, signal TEXT NOT NULL)")
 		sql.exec("CREATE TABLE IF NOT EXISTS signal_more (id INTEGER PRIMARY KEY CHECK (id = 1), more INTEGER NOT NULL)")
-		sql.exec("DROP TABLE IF EXISTS routine_windows")
 		sql.exec("CREATE TABLE IF NOT EXISTS signal_results (n INTEGER PRIMARY KEY, signal TEXT NOT NULL)")
 	}
 
