@@ -15,6 +15,8 @@ type Match<In> = ((f: In) => boolean) | Record<string, unknown>
 /** One socket with a frame log. Every received frame is validated against its schema. */
 export class Channel<In, Out> {
   readonly log: Entry[] = []
+  /** Every received frame as it came off the wire. The decoded log drops fields the schema does not name. */
+  readonly texts: string[] = []
   private socket!: WebSocket
   private cursor = 0
   private failure: VerifyError | null = null
@@ -39,6 +41,7 @@ export class Channel<In, Out> {
     socket.onmessage = (ev) => {
       const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
       let frame: unknown = text
+      this.texts.push(text)
       try {
         frame = JSON.parse(text)
         this.log.push({ at: this.now(), dir: "in", frame: Schema.decodeUnknownSync(this.incoming)(frame) })

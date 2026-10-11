@@ -29,7 +29,9 @@
         "@earendil-works/chord": "1.0.0",
         "@earendil-works/pi-ai": "^1.0.0",
         "@earendil-works/pi-durable": "^1.0.0",
+        "@onkernel/sdk": "^0.123.0",
         "@yuki/agent": "workspace:*",
+        "@yuki/browser": "workspace:*",
         "@yuki/durable": "workspace:*",
         "@yuki/memory": "workspace:*",
         "@yuki/protocol": "workspace:*",
@@ -103,6 +105,19 @@
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260101.0",
+        "typescript": "^5.9.0",
+      },
+    },
+    "packages/browser": {
+      "name": "@yuki/browser",
+      "version": "0.0.1",
+      "dependencies": {
+        "effect": "4.0.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20260101.0",
+        "@types/bun": "1.3.14",
+        "devtools-protocol": "0.0.1716261",
         "typescript": "^5.9.0",
       },
     },
@@ -496,6 +511,8 @@
 
     "@nodable/entities": ["@nodable/entities@3.1.0", "", {}, "sha512-LsS/DjHr+uDM647Gru/cA8+J3a3HfhttwCKLyuoyN7yXTFCxKBtSgMQBvrW9yNPa2/zDRUNuGPaH5QUFoa4arQ=="],
 
+    "@onkernel/sdk": ["@onkernel/sdk@0.123.0", "", {}, "sha512-E2KCAgnw+H/0zwyPFLCoCTh3dJ3VH63iFnMjX9/jYZkGIGCX1UbxyXKRr30mcMVke6vjKTLmDzT7jwq/h7v9/g=="],
+
     "@opentelemetry/semantic-conventions": ["@opentelemetry/semantic-conventions@1.43.0", "", {}, "sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.152.0", "", {}, "sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw=="],
@@ -690,6 +707,8 @@
 
     "@yuki/agent": ["@yuki/agent@workspace:packages/agent"],
 
+    "@yuki/browser": ["@yuki/browser@workspace:packages/browser"],
+
     "@yuki/cli": ["@yuki/cli@workspace:apps/cli"],
 
     "@yuki/durable": ["@yuki/durable@workspace:packages/durable"],
@@ -773,6 +792,8 @@
     "defu": ["defu@6.1.7", "", {}, "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ=="],
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
+
+    "devtools-protocol": ["devtools-protocol@0.0.1716261", "", {}, "sha512-CM8wc1lu6EFmiVIDQVErh/JeW548q5YhFnjbcdYPAjXwf7E/+jFUK41l7k+zZIiz7nyGqcz0r+ggV3kl679ZGw=="],
 
     "diff": ["diff@8.0.4", "", {}, "sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw=="],
 

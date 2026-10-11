@@ -16,6 +16,8 @@ const Snowball = lazy(() => import("../../composer/snowball").then((m) => ({ def
 
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
+// The browser chip loads after first paint and shows while one of the room's agents holds a tab.
+const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
 // A temporary chat's "to:" row loads the first time one is open, not with the transcript.
 const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
 
@@ -345,6 +347,7 @@ export default function ChatRoute() {
               </Show>
             </div>
           </Show>
+          <BrowserChip slugs={[...members().keys()]} />
           {/* The one place that says no model can run: the room's refusal, or no provider at all. */}
           <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders()))}>
             {(np) => (

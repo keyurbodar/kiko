@@ -1,8 +1,8 @@
-import type { ComposioResult, ComposioStatus } from "@yuki/protocol"
-import { Show, createSignal, onCleanup, onMount } from "solid-js"
+import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@yuki/protocol"
+import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
 import { cn } from "../lib/cn"
 import { Button, Empty, Group, Item, Notice, fieldClass } from "./kit"
-import { createComposioClient, type ComposioClient } from "./integrations-client"
+import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
 
 /*
  * The integrations section: Composio with the user's own key. It shows what the server says
@@ -11,6 +11,10 @@ import { createComposioClient, type ComposioClient } from "./integrations-client
  */
 
 export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
+// The live browser loads with the connected Kernel row, so the settings route does not carry it.
+const LiveBrowser = lazy(() => import("./live-browser"))
+
+export const KERNEL_HOME = "https://dashboard.onkernel.com"
 
 function GridIcon() {
 	return (
@@ -20,6 +24,16 @@ function GridIcon() {
 	)
 }
 
+function GlobeIcon() {
+	return (
+		<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			<circle cx="8" cy="8" r="5.5" />
+			<path d="M2.5 8h11M8 2.5c1.7 1.6 2.5 3.4 2.5 5.5S9.7 11.9 8 13.5M8 2.5C6.3 4.1 5.5 5.9 5.5 8s.8 3.9 2.5 5.5" />
+		</svg>
+	)
+}
+
+type Where = "app" | "kernel"
 function KeyField(props: { id: string; label: string; placeholder: string; submit: string; busy: boolean; onKey: (key: string) => void; [data: `data-${string}`]: string | undefined }) {
 	let input: HTMLInputElement | undefined
 	function submit(event: SubmitEvent) {
@@ -51,30 +65,57 @@ function KeyField(props: { id: string; label: string; placeholder: string; submi
 	)
 }
 
-export function Integrations(props: { client?: ComposioClient }) {
+export function Integrations(props: { client?: ComposioClient; kernel?: KernelClient }) {
 	const [status, setStatus] = createSignal<ComposioStatus | null>(null)
-	const [error, setError] = createSignal<string | null>(null)
+	const [error, setError] = createSignal<{ where: Where; text: string } | null>(null)
 	const [busy, setBusy] = createSignal(false)
+	const errorAt = (where: Where) => (error()?.where === where ? error()?.text : undefined)
+	const [kernel, setKernel] = createSignal<KernelStatus | null>(null)
 	let client: ComposioClient | undefined
+	let kernelClient: KernelClient | undefined
 	let closed = false
 
+	function applyKernel(result: KernelResult) {
+		if (!result.ok) return setError({ where: "kernel", text: result.error })
+		setError(null)
+		setKernel(result.status)
+	}
+
 	function apply(result: ComposioResult) {
-		if (!result.ok) return setError(result.error)
+		if (!result.ok) return setError({ where: "app", text: result.error })
 		setError(null)
 		setStatus(result.status)
 	}
 
 	onMount(() => {
 		// The dev mock has no Composio account behind it, so it shows the empty state.
-		if (!props.client && import.meta.env.DEV && import.meta.env.VITE_YUKI_SYNC === "mock") return setStatus({ connected: false, rows: 0 })
+		if (!props.client && import.meta.env.DEV && import.meta.env.VITE_YUKI_SYNC === "mock") {
+			setKernel({ connected: false, broken: false, browser: null })
+			return setStatus({ connected: false, rows: 0 })
+		}
 		client = props.client ?? createComposioClient()
 		client.onPush(apply)
 		void client.request({ t: "composioStatus" }).then((r) => !closed && apply(r))
+		kernelClient = props.kernel ?? createKernelClient()
+		kernelClient.onPush(applyKernel)
+		void kernelClient.request({ t: "kernelStatus" }).then((r) => !closed && applyKernel(r))
 	})
 	onCleanup(() => {
 		closed = true
 		if (!props.client) client?.close()
+		if (!props.kernel) kernelClient?.close()
 	})
+
+	async function runKernel(ask: () => Promise<KernelResult | undefined>) {
+		setBusy(true)
+		setError(null)
+		try {
+			const result = await ask()
+			if (result) applyKernel(result)
+		} finally {
+			setBusy(false)
+		}
+	}
 
 	async function run(ask: () => Promise<ComposioResult | undefined>) {
 		setBusy(true)
@@ -115,10 +156,44 @@ export function Integrations(props: { client?: ComposioClient }) {
 								, under Settings, then API keys.
 							</p>
 						</Show>
-						<Show when={error()}>
-							<Notice data-component="composio-error">{error()}</Notice>
+						<Show when={errorAt("app")}>
+							<Notice data-component="composio-error">{errorAt("app")}</Notice>
 						</Show>
 					</Item>
+				</Show>
+				<Show when={kernel()}>
+					<Item
+						data-state={kernel()?.broken ? "broken" : kernel()?.connected ? "connected" : "empty"}
+						data-component="kernel"
+						icon={<GlobeIcon />}
+						title="Kernel browser"
+						meta={<span data-field="kernel-status">{kernel()?.broken ? "Key rejected" : kernel()?.connected ? "Connected" : "Not connected"}</span>}
+						actions={
+							<Show when={kernel()?.connected}>
+								<Button variant="danger" data-action="kernel-disconnect" disabled={busy()} onClick={() => void runKernel(async () => kernelClient?.request({ t: "disconnectKernel" }))}>
+									Disconnect
+								</Button>
+							</Show>
+						}
+					>
+						<p class="mb-2 text-[13px] text-muted">Lets your agents use a real browser, in your own Kernel account.</p>
+						<Show when={!kernel()?.connected || kernel()?.broken}>
+							<KeyField id="kernel-key" label="Kernel browser" placeholder="sk_..." submit="Connect" busy={busy()} data-action="kernel-connect" onKey={(apiKey) => void runKernel(async () => kernelClient?.request({ t: "connectKernel", apiKey }))} />
+							<p class="mt-2 text-[13px] text-muted">
+								Create a key at{" "}
+								<a class="underline" href={KERNEL_HOME} target="_blank" rel="noreferrer" data-component="kernel-link">
+									{KERNEL_HOME}
+								</a>
+								, under API keys.
+							</p>
+						</Show>
+						<Show when={errorAt("kernel")}>
+							<Notice data-component="kernel-error">{errorAt("kernel")}</Notice>
+						</Show>
+					</Item>
+					<Show when={kernel()?.connected}>
+						<LiveBrowser icon={<GlobeIcon />} />
+					</Show>
 				</Show>
 			</Group>
 		</div>

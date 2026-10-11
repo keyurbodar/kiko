@@ -5,6 +5,7 @@ import type { RoomFs } from "../../files/room-fs"
 import { count } from "../../lib/dev-stats"
 import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
 import { directResult, MULTI_EXECUTE } from "./learn"
+import { COMPOSIO_MAX_CONCURRENT, createLimiter, withRetry } from "./limit"
 
 export const COMPOSIO = "composio"
 
@@ -53,16 +54,19 @@ export function learnedNote(tools: readonly ComposioTool[]): string | undefined 
   return names.length ? `connected-app tools you can call directly, no search needed: ${names.join(", ")}.` : undefined
 }
 
-export function composioExtension(tools: readonly ComposioTool[], call: ComposioCall, fs?: RoomFs): Extension {
+export function composioExtension(tools: readonly ComposioTool[], rawCall: ComposioCall, fs?: RoomFs): Extension {
+  const limiter = createLimiter(COMPOSIO_MAX_CONCURRENT)
   return defineExtension({
     name: COMPOSIO,
     tools: shown(tools).map((t) => {
         const name = toolName(t.name)
+        const call: ComposioCall = t.readOnly ? (n, a) => withRetry(() => limiter.run(() => rawCall(n, a))) : (n, a) => limiter.run(() => rawCall(n, a))
+        const base = t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.description?.trim() || t.name} (through composio, the human's connected apps)`
         return declareEffect(
           t.readOnly ? "read" : "external",
           defineTool({
             name,
-            description: t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.description?.trim() || t.name} (through composio, the human's connected apps)`,
+            description: t.name === MULTI_EXECUTE ? `${base} Slow for many tools at once; for more than 3 independent calls, issue separate parallel tool calls instead.` : base,
             parameters: (t.direct ? t.inputSchema : relaxSchema(t.inputSchema)) as never,
             replay: t.readOnly ? "safe" : "unsafe",
             execute: (args) =>
