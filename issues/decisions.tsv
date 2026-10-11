@@ -36,3 +36,4 @@ ts	phase	decision	why	evidence	result
 2026-10-11T17:10:10Z	land	landed U31: CLI honors YUKI_URL and prints its target; server.sh stops only its own PID	a verify run hit another session's server	main 50becab5	landed
 2026-10-11T17:11:42Z	land	landed U10 round 2: no html-text pattern can backtrack across the input	1 MB hostile inputs now 70 to 112 ms; 25/25 byte-identical	main 617d9649	landed
 2026-10-11T17:15:20Z	land	landed U29: one dev guard; dev-guard rule enforced; /api/dev gone from the prod bundle	audit claimed the prod bundle dropped dev routes; the build showed 5 occurrences, now 0	main 01744e63, U29 report	landed
+2026-10-11T17:22:27Z	land	landed U28: a human message aborts a running read, bash, or ask tool and is steered into the same run	AGENTS.md rule 4; live mid-run suite shows the abort, team-ask still passes; DeepSeek reviews the diff after landing	main 7c9814dc	landed
