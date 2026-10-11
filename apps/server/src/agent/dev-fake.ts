@@ -37,8 +37,21 @@ const textOf = (m: Message) =>
     .trim()
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
 
+/** Section 8. A worker has no start_work. It runs `[steps N]` slow steps (one by default), then reports every turn it was given. */
+const WORK_STEP_MS = 3_000
+
+function workerReply(messages: readonly Message[]) {
+  const users = messages.filter((m) => m.role === "user").map(textOf)
+  const steps = Number(/\[steps (\d+)\]/.exec(users[0] ?? "")?.[1] ?? 1)
+  if (messages.filter((m) => m.role === "toolResult").length < steps) return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
+  return fauxAssistantMessage(`work done: heard=${users.join(" | ")}`)
+}
+
 export function fakeReply(transcript: readonly Message[]) {
   const messages = transcript.filter((m) => m.role !== "system")
+  if (!JSON.stringify(transcript.filter((m) => m.role === "system")).includes('"start_work"')) return workerReply(messages)
+  const report = messages.at(-1)?.role === "user" ? /<work id="(\w+)" status="(\w+)">([\s\S]*?)<\/work>/.exec(textOf(messages.at(-1)!)) : null
+  if (report) return fauxAssistantMessage(`report ${report[1]} ${report[2]}: ${report[3]!.trim()}`)
   const answered = messages.findLastIndex((m) => m.role === "assistant" && !callsTool(m) && m.stopReason !== "aborted")
   const since = messages.slice(answered + 1)
   const users = since.filter((m) => m.role === "user").map(textOf)
@@ -165,7 +178,7 @@ function teamCall(turn: string) {
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "reminders" | "chief" | "loops"> = {}) {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], scripts?: BuildAgentInput["scripts"], more: Pick<BuildAgentInput, "reminders" | "chief" | "loops" | "work"> = {}) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))

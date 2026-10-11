@@ -2,7 +2,8 @@ import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
-import { subagentExtension } from "./extensions/subagent"
+import { workExtensions } from "./extensions/work"
+import type { Workers } from "@yuki/agent/workers"
 import { effectTable } from "@yuki/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { webExtension } from "./extensions/web"
@@ -43,6 +44,8 @@ export type BuildAgentInput = RoleInput & {
   scripts?: ScriptPorts
   builder?: BuilderPorts
   egress?: Fetcher
+  /** The agent's background workers (architecture section 8). Without it the agent has no work tools. */
+  work?: Workers
 }
 
 export type BuiltAgent = {
@@ -69,7 +72,7 @@ function extensionsFor(input: BuildAgentInput): Extension[] {
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
     ...(input.builder ? [builderExtension(input.builder)] : []),
-    subagentExtension(),
+    ...(input.work ? workExtensions(input.work) : []),
     ...(input.testExtensions ?? []),
   ]
 }

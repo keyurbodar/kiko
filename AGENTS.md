@@ -21,7 +21,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Room.** A chat. One human and one or more agents. `RoomDO`.
 - **Agent.** A member of a room with its own Durable Object, inbox, and `pi-durable` harness. `AgentDO`.
 - **Lead.** The one agent in a room that gets untagged messages and may add agents.
-- **Subagent.** A private child conversation inside an agent's own object. Not a room member.
+- **Worker.** A background child conversation inside an agent's own object. It runs slow work while the agent keeps talking. Not a room member.
 - **Burst.** The human messages that arrive before a pause. Delivered together.
 - **Run.** The model turns from one input to its final answer.
 - **Envelope.** A message as delivered to an agent, with sender, hop count, and root id.

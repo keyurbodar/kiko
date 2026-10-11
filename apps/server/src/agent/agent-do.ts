@@ -35,6 +35,7 @@ import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateSco
 import { createAlarms } from "@yuki/durable/alarm"
 import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
+import type { Work } from "@yuki/agent/workers"
 import { storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { instrument } from "../lib/dev-stats"
 
@@ -86,6 +87,7 @@ export class AgentDO extends DurableObject<Env> {
       shortBrief,
       onReset: () => this.outbox.clear(),
       onIdle: () => this.#userExtensions?.release(),
+      onWorkers: (running) => void this.outbox.background(running > 0).catch(() => undefined),
       ...this.hostOptions,
       setup: () => this.setup(),
       onOpen: async (opened) => {
@@ -295,6 +297,7 @@ export class AgentDO extends DurableObject<Env> {
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
         chief: this.chiefPort(),
         loops: () => this.loopPort(),
+        work: this.host.workers,
       })
       return {
         ...fake,
@@ -325,7 +328,7 @@ export class AgentDO extends DurableObject<Env> {
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const scripts = this.scriptPorts()
-    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(process.env.NODE_ENV === "development" ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -602,7 +605,7 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** Only the root conversation holds the <memory> block; a helper's context starts without it. */
+  /** Only the root conversation holds the <memory> block; a worker's context starts without it. */
   private async isRootConversation(conversationId: ConversationId): Promise<boolean> {
     return conversationId === (await this.host.rootId())
   }
@@ -719,10 +722,9 @@ export class AgentDO extends DurableObject<Env> {
     await this.ctx.storage.put(DEV_FAKE_KEY, true)
   }
 
-  async devChildren(): Promise<{ id: string; taskId: string }[]> {
+  async devWorkers(): Promise<Work[]> {
     if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    if (!this.home()) return []
-    return this.host.children()
+    return this.host.workers.list()
   }
 
   async devSeed(): Promise<void> {

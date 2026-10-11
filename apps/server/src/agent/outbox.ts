@@ -70,6 +70,7 @@ export class Outbox {
   private lastEntry = 0
   private lastDraft = 0
   private state: AgentState = "idle"
+  private workers = false
 
   constructor(
     storage: DurableObjectStorage,
@@ -103,6 +104,12 @@ export class Outbox {
     stream.start(async (events) => {
       for (const event of events) await this.guard(() => this.apply(event))
     })
+  }
+
+  /** Section 8: while a worker runs, the agent shows as working between its own runs. */
+  async background(running: boolean): Promise<void> {
+    this.workers = running
+    if (!this.run) await this.setStatus(running ? "working" : "idle")
   }
 
   clear(): void {
@@ -309,6 +316,7 @@ export class Outbox {
     this.sql.exec("UPDATE outbox SET ended = 1 WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
     this.state = "idle"
+    if (this.workers && !this.run) await this.setStatus("working")
   }
 
   private async setStatus(state: AgentState): Promise<void> {

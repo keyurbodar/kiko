@@ -11,6 +11,8 @@ export type Envelope = {
   rootId: string
   origin?: Origin
   seq: number
+  /** A worker's report to its own agent (architecture section 8). */
+  work?: { id: string; status: string }
 }
 
 export const originOf = (e: Pick<Envelope, "from" | "origin">): Origin => e.origin ?? (e.from.kind === "human" ? "human" : "auto")

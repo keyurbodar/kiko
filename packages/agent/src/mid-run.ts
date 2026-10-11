@@ -27,10 +27,7 @@ export function decide(run: RunState | null, arrival: Arrival): MidRunAction {
   if (arrival.kind === "stop") return "abort"
   if (!run) return "queue"
   if (arrival.kind !== "human") return "hold"
-  if (run.toolRunning) return "steer"
-  if (run.bubblePosted) return "queue"
-  if (run.toolStarted) return "steer"
-  if (run.queued) return "steer"
-  if (run.restarts >= MAX_RESTARTS) return "steer"
+  // A human never waits for a run to end (section 6.2). pi-durable places a steer after the tool round, or when the run answers.
+  if (run.toolRunning || run.bubblePosted || run.toolStarted || run.queued || run.restarts >= MAX_RESTARTS) return "steer"
   return "restart"
 }
