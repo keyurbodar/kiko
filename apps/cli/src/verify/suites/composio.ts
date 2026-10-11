@@ -90,6 +90,13 @@ const suite: Suite = {
     }
     const called = (counters: Record<string, number>) => Object.keys(counters).filter((k) => /^composio\.[^.]+\.ms$/.test(k)).map((k) => k.split(".")[1]!)
     const toolName = (slug: string) => `composio_${slug.replace(/^COMPOSIO_/, "").toLowerCase()}`
+    /** Section 8: the talker has no composio_* tool, so every call ran in a worker (`tool.<talker|worker>.<name>`). */
+    const inWorker = (counters: Record<string, number>, what: string) => {
+      const by = (who: string) => Object.keys(counters).filter((k) => k.startsWith(`tool.${who}.composio_`)).map((k) => k.split(".")[2]!)
+      if (by("talker").length) throw new VerifyError(`${what}: the talker called ${by("talker").join(" ")}`)
+      if (!by("worker").length) throw new VerifyError(`${what}: no worker called a composio_* tool`)
+      return by("worker")
+    }
 
     // An agent that opens now, before anything is learned. Part four runs a routine in its room.
     const early = await open("composio routine")
@@ -108,9 +115,10 @@ const suite: Suite = {
       const tools = called(counters)
       if (!tools.length) throw new VerifyError(`${title}: no composio_* tool was called. the agent said: ${text}`)
       if (!first) throw new VerifyError(`${title}: no reply bubble arrived`)
+      const workerTools = inWorker(counters, title)
 
       console.log(`  ${title}`)
-      console.log(`    tools called: ${tools.join(" ")}`)
+      console.log(`    tools called: ${tools.join(" ")} (in a worker: ${workerTools.join(" ")})`)
       console.log(`    models: ${Object.keys(counters).filter((k) => k.startsWith("model.id.")).map((k) => k.slice(9)).join(" ")}, model turns: ${counters["model.turns"] ?? 0}`)
       console.log(`    reply: ${text.slice(0, 200)}`)
       console.log(`    time to first bubble: ${(first / 1000).toFixed(1)} s, total: ${(total / 1000).toFixed(1)} s`)
@@ -151,8 +159,9 @@ const suite: Suite = {
       if (performance.now() - t0 > TURN_MS) throw new VerifyError("the routine run did not finish")
       await Bun.sleep(500)
     }
-    const ran = called(await readStats(v, s))
-    console.log(`    tools called: ${ran.join(" ")}`)
+    const routineCounters = await readStats(v, s)
+    const ran = called(routineCounters)
+    console.log(`    tools called: ${ran.join(" ")} (in a worker: ${inWorker(routineCounters, "the routine run").join(" ")})`)
     if (!ran.some((t) => direct.some((slug) => t === toolName(slug)))) throw new VerifyError(`the routine run called no learned tool: ${ran.join(" ") || "none"}`)
     user.send({ t: "chat", op: { op: "delete", roomId: early.roomId as never } })
 

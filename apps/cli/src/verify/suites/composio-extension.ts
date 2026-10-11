@@ -53,6 +53,18 @@ const suite: Suite = {
       return out
     }
     const tools = async () => Object.keys(await readStats(v, s)).filter((k) => /^composio\.[^.]+\.ms$/.test(k)).map((k) => k.split(".")[1])
+    /** Section 8: tool calls by the talker and by workers. The talker has no composio_* or extension tool. */
+    const roles = async () => {
+      const keys = Object.keys(await readStats(v, s))
+      const by = (who: string) => keys.filter((k) => k.startsWith(`tool.${who}.`)).map((k) => k.split(".")[2]!)
+      return { talker: by("talker"), worker: by("worker") }
+    }
+    const mustWork = async (what: string, tool: RegExp) => {
+      const r = await roles()
+      console.log(`  ${what}: talker ${r.talker.join(" ") || "none"}; worker ${r.worker.join(" ") || "none"}`)
+      if (r.talker.some((t) => tool.test(t))) throw new VerifyError(`${what}: the talker called a worker-only tool`)
+      if (!r.worker.some((t) => tool.test(t))) throw new VerifyError(`${what}: no worker called ${tool}`)
+    }
 
     const a = await newRoom(s, "composio yes")
     a.room.raw.send({ t: "model", ref: MODEL })
@@ -62,6 +74,7 @@ const suite: Suite = {
     console.log(`  tools after ask: ${(await tools()).join(" ")}`)
     console.log(`  after yes: ${(await turn(a.room, "yes, go ahead")).slice(0, 300)}`)
     console.log(`  tools after yes: ${(await tools()).join(" ")}`)
+    await mustWork("the composio search", /^composio_/)
 
     const p = await op({ op: "propose", bundle: { manifest: { yuki: 1, name: "web-lookup", version: "1.0.0", description: "web lookups through composio", tools: { web_lookup: { description: "search the web through composio and return the raw result", effect: "external", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } } }, calls: ["composio_multi_execute_tool"] }, files: { "main.js": WEB } } })
     if (!p.ok) throw new VerifyError(`propose: ${p.error} ${p.problems?.join("; ")}`)
@@ -73,6 +86,8 @@ const suite: Suite = {
     await resetStats(v, s)
     console.log(`  ext reply: ${(await turn(b.room, "use web_lookup to find who created the Deno runtime. one line.")).slice(0, 400)}`)
     console.log(`  tools via ext: ${(await tools()).join(" ")}`)
+    await mustWork("the extension's lookup", /^web_lookup$/)
+    if (!(await tools()).length) throw new VerifyError("the extension's composio call never ran")
   },
 }
 

@@ -1,20 +1,20 @@
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
+import { readStats, resetStats } from "./latency"
 import { newRoom, seen, send, until } from "./mid-run"
 
 // Architecture section 8 with the real test model. `workers` proves each rule with the fake agent.
-// This one checks that a real model hands slow research to a worker, answers an unrelated question
-// while the worker runs, passes a steer on, and reports a result that follows the steer.
+// The browser check that set the rule: asked to read six pages, the talker fetched them itself, and a
+// human question sent after its first bubble waited behind the run. Now the talker has no web_fetch,
+// so the pages go to a worker, the question is answered at once, and a steer reaches the worker.
 
 type Work = { id: string; status: string; delivered: boolean }
 
-const PAGES = [
-  "https://en.wikipedia.org/wiki/Example.com",
-  "https://www.iana.org/help/example-domains",
-  "https://www.rfc-editor.org/rfc/rfc2606.html",
-  "https://en.wikipedia.org/wiki/Top-level_domain",
-  "https://www.iana.org/domains/reserved",
-]
+const PAGES = ["Rust_(programming_language)", "Go_(programming_language)", "Python_(programming_language)", "Zig_(programming_language)", "Bun_(software)", "Deno_(software)"].map(
+  (p) => `https://en.wikipedia.org/wiki/${p}`,
+)
+/** About 10 s from the question to its answer, with room for one slow model turn. */
+const ANSWER_MS = 12_000
 
 const suite: Suite = {
   name: "workers-model",
@@ -31,22 +31,21 @@ const suite: Suite = {
     const texts = () => seen(room).live.map((m) => m.text)
     const step = (what: string) => console.log(`  ok ${what}`)
     try {
-      await send(room, `research for me: read each of these pages one by one with web_fetch and give me one line on what each says about reserved example domains. ${PAGES.join(" ")}`)
-      let started: Work | undefined
-      for (const end = Date.now() + 90_000; !started; await Bun.sleep(500)) {
-        if (Date.now() > end) throw new VerifyError(`the agent never started a worker: ${JSON.stringify(texts())}`)
-        started = (await list())[0]
-      }
-      step(`the agent started ${started.id}`)
-      await until("the agent's first reply", () => texts().length > 0, 60_000)
+      await resetStats(v, s)
+      await send(room, `look up these six wikipedia pages and give me one line on each language or tool. ${PAGES.join(" ")}`)
+      await until("the agent's first bubble", () => texts().length > 0, 60_000)
       const before = texts().length
-      await send(room, "unrelated question: what is 17 plus 25? answer with only the number.")
-      await until("an answer to the unrelated question", () => texts().slice(before).some((t) => /\b42\b/.test(t)), 60_000)
-      const [w] = await list()
-      if (!w || w.delivered) throw new VerifyError(`the worker reported before the unrelated answer: ${JSON.stringify(w)}`)
-      step(`the agent answered "42" while ${w.id} was ${w.status}`)
+      const asked = performance.now()
+      await send(room, "what is 6 times 7?")
+      await until(`an answer to 6 times 7 within ${ANSWER_MS / 1000} s`, () => texts().slice(before).some((t) => /\b42\b/.test(t)), ANSWER_MS)
+      const answeredMs = Math.round(performance.now() - asked)
+      const works = await list()
+      if (!works.length) throw new VerifyError(`the agent never started a worker: ${JSON.stringify(texts())}`)
+      if (works.every((w) => w.delivered)) throw new VerifyError(`the worker reported before the answer to 6 times 7: ${JSON.stringify(works)}`)
+      step(`"42" came ${answeredMs} ms after the question, while ${works.map((w) => `${w.id} was ${w.status}`).join(", ")}`)
+
       const steered = texts().length
-      await send(room, "change of plan for the research: only look at the wikipedia pages, skip all the others.")
+      await send(room, "change of plan for the research: only Bun and Deno.")
       for (const end = Date.now() + 240_000; ; await Bun.sleep(1_000)) {
         const all = await list()
         if (all.length && all.every((x) => x.delivered) && texts().length > steered + 1) break
@@ -54,10 +53,16 @@ const suite: Suite = {
       }
       await Bun.sleep(5_000)
       const report = texts().slice(steered).join("\n")
-      if (!/wikipedia/i.test(report)) throw new VerifyError(`the report does not follow the steer: ${JSON.stringify(report.slice(0, 400))}`)
-      if (/rfc ?2606|rfc-editor/i.test(report) && !/skip|only|wikipedia only/i.test(report)) throw new VerifyError(`the report still covers a skipped page: ${JSON.stringify(report.slice(0, 400))}`)
+      if (!/\bbun\b/i.test(report) || !/\bdeno\b/i.test(report)) throw new VerifyError(`the report does not cover Bun and Deno: ${JSON.stringify(report.slice(0, 400))}`)
+      if (/\b(python|zig)\b/i.test(report) && !/skip|only|dropped|left out/i.test(report)) throw new VerifyError(`the report still covers a dropped page: ${JSON.stringify(report.slice(0, 400))}`)
       step(`the report follows the steer: ${JSON.stringify(report.slice(0, 200))}`)
-      console.log(`  workers ${JSON.stringify(await list())}`)
+
+      const stats = await readStats(v, s)
+      const calls = (who: string) => Object.entries(stats).filter(([k]) => k.startsWith(`tool.${who}.`)).map(([k, n]) => `${k.split(".")[2]}=${n}`)
+      console.log(`  talker tools ${calls("talker").join(" ")}; worker tools ${calls("worker").join(" ")}`)
+      if (stats["tool.talker.web_fetch"]) throw new VerifyError(`the talker called web_fetch ${stats["tool.talker.web_fetch"]} times`)
+      if (!stats["tool.worker.web_fetch"]) throw new VerifyError("no worker called web_fetch")
+      step("only workers fetched pages")
       console.log(`  bubbles ${JSON.stringify(texts().map((t) => (t.length > 90 ? `${t.slice(0, 87)}...` : t)))}`)
     } finally {
       room.raw.close()
