@@ -16,7 +16,6 @@ const DAY = 24 * HOUR
 const STEP = 15 * 60_000
 const HALF_LIFE = 28 * DAY
 const MIN_EVIDENCE = 10
-const POOL = 2
 const HORIZON = 8 * DAY
 const DEADLINE_HORIZON = 14 * DAY
 
@@ -39,20 +38,9 @@ export function record(r: Rhythm, at: number, tz: string): Rhythm {
 
 const total = (r: Rhythm) => r.w.reduce((a, b) => a + b, 0)
 
-function rates(r: Rhythm): number[] {
-  const hourAvg = Array.from({ length: 24 }, (_, h) => {
-    let s = 0
-    for (let d = 0; d < 7; d++) s += r.w[d * 24 + h] ?? 0
-    return s / 7
-  })
-  const own = total(r) / (total(r) + POOL)
-  const pooled = r.w.map((x, i) => own * x + (1 - own) * (hourAvg[i % 24] ?? 0))
-  return pooled.map((x, i) => 0.5 * x + 0.25 * (pooled[(i + SLOTS - 1) % SLOTS] ?? 0) + 0.25 * (pooled[(i + 1) % SLOTS] ?? 0))
-}
-
 function activeSlots(r: Rhythm): boolean[] {
   const mean = total(r) / SLOTS
-  return rates(r).map((x) => x > 0 && x >= mean)
+  return r.w.map((x) => x > 0 && x >= mean)
 }
 
 export function known(r: Rhythm): boolean {
@@ -88,11 +76,10 @@ export function view(r: Rhythm, now: number, tz: string): RhythmView {
 export function ignoreDeadline(r: Rhythm, at: number, tz: string): number {
   const now = decayed(r, at)
   if (!known(now)) return at + DAY
-  const rate = rates(now)
   const need = total(now) / 7
   let mass = 0
   for (let t = at; t < at + DEADLINE_HORIZON; t += STEP) {
-    mass += ((rate[slotOf(t, tz)] ?? 0) * STEP) / HOUR
+    mass += ((now.w[slotOf(t, tz)] ?? 0) * STEP) / HOUR
     if (mass >= need) return t + STEP
   }
   return at + DEADLINE_HORIZON

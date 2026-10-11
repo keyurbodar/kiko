@@ -35,7 +35,7 @@ import { createAlarms } from "@yuki/durable/alarm"
 import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
-import { storedRows, wipeStorage } from "@yuki/durable/wipe"
+import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { count, instrument } from "../lib/dev-stats"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
@@ -122,7 +122,13 @@ export class AgentDO extends DurableObject<Env> {
     return this.outboxInstance
   }
 
-  receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
+  // A deleted agent takes no work: admitting it would write rows into an object that is meant to stay empty.
+  private async refuseIfDeleted(): Promise<void> {
+    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
+  }
+
+  async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
+    await this.refuseIfDeleted()
     if (home) this.setHome(home)
     if (envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return this.host.receive(envelopes, brief)
@@ -133,6 +139,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async wake(): Promise<boolean> {
+    if (await isWiped(this.ctx.storage)) return false
     this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
     const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
     if (at === undefined) return false
@@ -211,11 +218,13 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async humanComing(): Promise<void> {
+    if (await isWiped(this.ctx.storage)) return
     this.host.humanComing()
     this.answers.interrupt()
   }
 
   async humanGone(): Promise<void> {
+    if (await isWiped(this.ctx.storage)) return
     await this.host.humanGone()
   }
 
@@ -231,6 +240,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async askAnswered(id: string, answer: string): Promise<void> {
+    if (await isWiped(this.ctx.storage)) return
     this.answers.answer(id, answer)
   }
 
@@ -440,6 +450,7 @@ export class AgentDO extends DurableObject<Env> {
 
   async devInitiative(): Promise<string | null> {
     devOnly()
+    await this.refuseIfDeleted()
     return (await this.ctx.storage.get<string>(DEV_INITIATIVE_KEY)) ?? null
   }
 
@@ -518,6 +529,7 @@ export class AgentDO extends DurableObject<Env> {
    * Only this object calls it, through `egressFetch`.
    */
   async egress(request: EgressRequest): Promise<Response> {
+    await this.refuseIfDeleted()
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
     return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
   }
@@ -667,12 +679,10 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async alarm() {
-    if (this.#wiped) return
+    if (await isWiped(this.ctx.storage)) return
     if (await this.browserIdle()) return
     await this.host.alarm()
   }
-
-  #wiped = false
 
   #browser?: BrowserConnection
   #browserLease?: LeasePort
@@ -732,15 +742,14 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async deleteAll(): Promise<number> {
-    if (this.#wiped) return 0
-    this.#wiped = true
-    await this.#browser?.idle().catch(() => {})
-    await this.hostInstance?.shutdown()
-    return wipeStorage(this.ctx)
+    return wipeStorage(this.ctx, async () => {
+      await this.#browser?.idle().catch(() => {})
+      await this.hostInstance?.shutdown()
+    })
   }
 
   async storedRows(): Promise<number> {
-    return this.#wiped ? 0 : storedRows(this.ctx.storage)
+    return storedRows(this.ctx.storage)
   }
 
   async devClassic(): Promise<void> {
@@ -750,6 +759,7 @@ export class AgentDO extends DurableObject<Env> {
 
   async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
     devOnly()
+    await this.refuseIfDeleted()
     if (!this.home()) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
     const { harness } = await this.host.open()
     const now = await this.usageOf(harness)
@@ -759,6 +769,7 @@ export class AgentDO extends DurableObject<Env> {
 
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
     devOnly()
+    await this.refuseIfDeleted()
     if (!this.home()) return []
     const { root } = await this.host.open()
     const view = await root.context(BACKGROUND_CONTEXT)
@@ -783,6 +794,7 @@ export class AgentDO extends DurableObject<Env> {
 
   async devWorkers(): Promise<Work[]> {
     devOnly()
+    await this.refuseIfDeleted()
     return this.host.workers.list()
   }
 

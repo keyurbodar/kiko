@@ -7,7 +7,7 @@ import type { WakeResult } from "../room/wake"
 import type { ChatTasks } from "../user/overview"
 import type { Reminder, RoutineRun } from "../user/reminders"
 import { allowance, type Outcome, restUntil } from "./attention/appetite"
-import { attend, score } from "./attention/attend"
+import { attend, rankOrder } from "./attention/attend"
 import { decayed, emptyRhythm, known, nextMoment, slotOf, view } from "./attention/rhythm"
 import { AttentionStore } from "./attention/store"
 import { getSetting, setSetting } from "../lib/settings"
@@ -278,9 +278,10 @@ export class InitiativeEngine {
     let worth: Record<string, number> | null = null
     const judge = this.d.judge()
     if (judge && items.length && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && budget > 0 && allowance(appetite, now) > 0) {
+      const rank = rankOrder(ctx)
       const eligible = items
         .filter((i) => now >= restUntil(appetite, i.c, rhythm.cycle, now) && !busyRooms.includes(i.c.room))
-        .sort((a, b) => score(b.c, ctx) - score(a.c, ctx))
+        .sort((a, b) => rank(a.c, b.c))
         .slice(0, JEV_MAX)
       if (eligible.length) {
         const u = appetite.user
@@ -331,6 +332,7 @@ export class InitiativeEngine {
     const rhythm = view(this.store.rhythm(), now, this.d.tz())
     const appetite = this.store.appetite()
     const briefed = new Map(this.d.sql.exec<{ loop_id: number; at: number }>("SELECT loop_id, at FROM initiative_briefed").toArray().map((r) => [r.loop_id, r.at]))
+    const rank = rankOrder({ now, rhythm })
     const picked = this.items(now, rhythm.cycle)
       .filter(
         (i): i is Item & { loopId: number } =>
@@ -342,11 +344,10 @@ export class InitiativeEngine {
           now >= restUntil(appetite, i.c, rhythm.cycle, now) &&
           now >= (briefed.get(i.loopId) ?? -Infinity) + rhythm.cycle,
       )
-      .map((i) => ({ i, s: score(i.c, { now, rhythm }) }))
-      .sort((a, b) => b.s - a.s)
+      .sort((a, b) => rank(a.c, b.c))
       .slice(0, NOTICED_MAX)
-    for (const { i } of picked) this.d.sql.exec("INSERT INTO initiative_briefed (loop_id, at) VALUES (?, ?) ON CONFLICT(loop_id) DO UPDATE SET at = excluded.at", i.loopId, now)
-    return picked.map(({ i }) => i.line)
+    for (const i of picked) this.d.sql.exec("INSERT INTO initiative_briefed (loop_id, at) VALUES (?, ?) ON CONFLICT(loop_id) DO UPDATE SET at = excluded.at", i.loopId, now)
+    return picked.map((i) => i.line)
   }
 
   devAge(ms: number): void {

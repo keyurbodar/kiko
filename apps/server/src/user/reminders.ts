@@ -508,6 +508,18 @@ export class Reminders {
     this.sql.exec("DELETE FROM reminders WHERE id = ?", id)
   }
 
+  /** The stored row, every column, so a wiring that failed after an update can put it back. */
+  rowOf(id: string): Record<string, SqlStorageValue> | null {
+    return this.sql.exec<Record<string, SqlStorageValue>>("SELECT * FROM reminders WHERE id = ?", id).toArray()[0] ?? null
+  }
+
+  /** Writes back a row from rowOf. The alarm is re-armed from the restored due time. */
+  async putRow(row: Record<string, SqlStorageValue>): Promise<void> {
+    const entries = Object.entries(row)
+    this.sql.exec(`UPDATE reminders SET ${entries.map(([c]) => `"${c}" = ?`).join(", ")} WHERE id = ?`, ...entries.map(([, v]) => v), row.id)
+    await this.rearm()
+  }
+
   async cancelCreatedBy(createdBy: string): Promise<number> {
     const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE created_by = ? AND status = 'active'", createdBy)
     if (changed.rowsWritten) await this.rearm()

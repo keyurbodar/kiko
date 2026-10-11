@@ -19,12 +19,12 @@ U26	Routines and UserDO edges	3	haiku	landed	s/u26-userdo	dc179ddf	full-gate-gre
 U27	One delivery path in RoomDO	3	sonnet	landed	s/u27-roomdo	3efd89ea	full-gate-green burst-backlog+team-flow+limits-live	main 76051ff7	2026-10-11T18:02:28Z
 U28	Human can stop work, ask does not wait	2	haiku	landed	s/u28-agent	1cc89b95	full-gate-green mid-run+team-ask review-fixed	main e8a5f440	2026-10-11T17:44:22Z
 U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
-U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
+U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T19:02:49Z
 G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
 U31	Verification never touches another server	2	deepseek	landed	s/u31-verify-safety	d877e482	full-gate-green	main 50becab5	2026-10-11T17:10:10Z
 U32	Fold core/agent migrations	2	haiku	landed	s/u32-agent-migrations	2ce9aef7	full-gate-green column-proof-identical	main 828f1afc	2026-10-11T17:54:20Z
-U33	Stored wipe tombstone, safe webhook rotation	3	haiku	round2	s/u33-wipe-hooks	180345f2	r1-good alarm-during-delete-gap	-	2026-10-11T18:36:00Z
-U40a	All verify suites against real models on main	4	haiku	running	s/u40a-suites	-	-	-	2026-10-11T18:18:56Z
+U33	Stored wipe tombstone, safe webhook rotation	3	haiku	landed	s/u33-wipe-hooks	9c1518ed	full-gate-green account-delete+routines-live	main cdeaf7f6	2026-10-11T19:02:15Z
+U40a	All verify suites against real models on main	4	haiku	zombie-finishing	s/u40a-suites	-	r1-alive running-suites	-	2026-10-11T19:02:15Z
 U40b	Attention model: simulate, then keep or simplify	4	opus	done	-	-	report	issues/evidence/u40b	2026-10-11T18:41:46Z
-U34	Attention: no pooling or smoothing, two-part score	4	haiku	running	s/u34-attention-simplify	-	-	-	2026-10-11T18:41:46Z
-U35	Engagement signal, then decide per-kind appetite	4	opus	running	s/u35-engagement	-	-	-	2026-10-11T18:41:46Z
+U34	Attention: no pooling or smoothing, two-part score	4	haiku	landed	s/u34-attention-simplify	8e965fdf	full-gate-green sim-within-1h-9.7to69.6	main f2fd5092	2026-10-11T18:58:37Z
+U35	Engagement signal, then decide per-kind appetite	4	opus	zombie-finishing	s/u35-engagement	-	r1-alive-after-cancel watch-branch	-	2026-10-11T19:02:15Z

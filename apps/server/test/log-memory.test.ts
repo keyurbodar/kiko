@@ -267,7 +267,7 @@ test("forgetting edits and deletes is one UserDO call however many turns changed
     members: { list: () => [] } as never,
     memory,
     home: () => ({ userId: "u1", roomId: "r1" as never }),
-    isWiped: () => false,
+    isWiped: async () => false,
   })
   await naps.forget()
   expect(calls.map(([m]) => m)).toEqual(["forgetMessages"])
