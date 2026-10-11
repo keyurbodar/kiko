@@ -90,7 +90,6 @@ test("the talker has no web, app, or extension tools; a worker has them all, and
   const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, composio, scripts, work: workers, egress: async () => new Response("hi") })
   const dice = { yuki: 1, name: "dice", version: "1.0.0", description: "dice", tools: { roll_dice: { description: "rolls", effect: "read" } }, hooks: ["beforeTool"] }
   const source = `export const tools = { roll_dice: async () => "4" }\nexport const hooks = { beforeTool: async (call) => { if (call.name === "web_fetch") return { block: "no web" } } }`
-  expect(built.extensions.sync([{ name: "dice", hash: "h1", bundle: { manifest: dice as never, files: { "main.js": source } } }])).toEqual([])
   const faux = fauxProvider()
   let talkerTools: string[] = []
   let workerTools: string[] = []
@@ -115,6 +114,9 @@ test("the talker has no web, app, or extension tools; a worker has them all, and
   const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
   workers.rearm(harness)
   const root = await harness.root(context, { agent: { ...built.agent, extensions: built.extensions.talker() } })
+  // Switched on after the harness opened, as syncExtensions does before a run: a worker started later sees it.
+  expect(built.extensions.sync([{ name: "dice", hash: "h1", bundle: { manifest: dice as never, files: { "main.js": source } } }])).toEqual([])
+  await root.configure({ extensions: built.extensions.talker() }, context)
   expect((await (await root.submit({ type: "input", content: "go" }, context)).wait(context)).status).toBe("done")
   await until(() => reports.length === 1)
   await harness.close(context)
