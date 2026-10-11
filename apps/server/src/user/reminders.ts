@@ -343,13 +343,15 @@ export class Reminders {
   }
 
   async updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" }): Promise<{ routine: Reminder; token?: string } | null> {
+    const fresh = patch.trigger?.on === "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
+    const freshHash = fresh ? await sha256Hex(fresh) : null
     const current = this.get(id)
     if (!current?.trigger || current.status === "cancelled" || current.status === "done") return null
     const trigger = patch.trigger ?? current.trigger
     const fields = this.routineFields({ name: patch.name ?? current.name ?? "", instructions: patch.instructions ?? current.text, trigger, tz: current.tz, target: current.target })
     const retimed = patch.trigger !== undefined || (patch.status === "active" && current.status === "paused")
     const due = retimed ? fields.due : current.dueUtc
-    const token = patch.trigger?.on === "webhook" && current.trigger.on !== "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
+    const token = current.trigger.on !== "webhook" ? fresh : undefined
     this.sql.exec(
       `UPDATE reminders SET name = ?, text = ?, trigger = ?, rrule = ?, due_utc = ?, status = ?, fails = CASE WHEN ? = 'active' THEN 0 ELSE fails END,
        watch_state = CASE WHEN ? THEN NULL ELSE watch_state END, hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
@@ -361,7 +363,7 @@ export class Reminders {
       patch.status ?? current.status,
       patch.status ?? "",
       patch.trigger !== undefined ? 1 : 0,
-      token ? await sha256Hex(token) : null,
+      token ? freshHash : null,
       id,
     )
     await this.rearm()

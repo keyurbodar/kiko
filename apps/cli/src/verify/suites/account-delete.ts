@@ -127,7 +127,7 @@ const suite: Suite = {
 			rooms: Object.fromEntries(rooms.map((r) => [r, 0])),
 			agents: { [agent]: 0 },
 			objects: 0,
-			auth: { user: 0, session: 0, account: 0 },
+			auth: { user: 0, session: 0, account: 0, hooks: 0 },
 		}
 		const deadline = Date.now() + 30_000
 		let after = await residue()
