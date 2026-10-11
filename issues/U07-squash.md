@@ -55,7 +55,7 @@ Fresh objects have the same final columns as before (prove it: dump `PRAGMA tabl
 
 **Not verified.** `routines.test.ts` fails once: `a watch steps on its own grid past now, and a trigger reads as words`. `describeTrigger` returns `oct 6, 08:30` where the test expects `oct 6 at 08:30`. The code on that path is untouched by this change. I did not run the test on `main` to confirm the failure is already there.
 
-**Branch.** `s/u07-squash`. The code commit is `cd9ba31f`. `main` is merged in as `26797e12`'s parent chain.
+**Branch.** `s/u07-squash`. Main is merged in at `c2cc080f58bc1d31b5afb14350df2cd10f6beaad`. The code commit is `cd9ba31f`.
 
 **Attribution.** The commit trailer is `Co-Authored-By: Claude Opus 5.5`, as STANDING order 14 asks. The harness reminder asked for Haiku 5.5. The coordinator should decide which one to use.
 
