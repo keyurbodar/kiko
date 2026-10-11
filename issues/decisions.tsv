@@ -24,3 +24,4 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:43:53Z	review	accepted U25 scoping room only for agent-owned loops	a human's own plan should close from any chat	U25 report	accepted
 2026-10-11T16:45:42Z	land	landed U21: tab cap reserved before await, dialog timer removed; LeasePort kept	folding LeasePort only moves logic; tests failed before	main 13bc2755	landed
 2026-10-11T16:47:07Z	land	landed U22: bash reports per space instead of refusing multi-space writes	an existing test and prompt.ts treat chat plus /home writes as normal; refusing would break them	main f19632de, bash.test 24 pass	landed
+2026-10-11T16:48:23Z	land	landed U20: read tools cannot write state, one trigger rule, checker uses the real bridge, prelude sealed	every finding had a failing test	main 4d9aa337	landed
