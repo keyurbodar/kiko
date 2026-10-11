@@ -25,3 +25,4 @@ U31	Verification never touches another server	2	deepseek	landed	s/u31-verify-saf
 U32	Fold core/agent migrations	2	haiku	landed	s/u32-agent-migrations	2ce9aef7	full-gate-green column-proof-identical	main 828f1afc	2026-10-11T17:54:20Z
 U33	Stored wipe tombstone, safe webhook rotation	3	haiku	running	s/u33-wipe-hooks	-	-	-	2026-10-11T18:18:34Z
 U40a	All verify suites against real models on main	4	haiku	running	s/u40a-suites	-	-	-	2026-10-11T18:18:56Z
+U40b	Attention model: simulate, then keep or simplify	4	opus	running	-	-	-	-	2026-10-11T18:19:19Z
