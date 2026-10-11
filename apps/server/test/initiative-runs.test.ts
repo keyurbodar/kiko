@@ -95,7 +95,8 @@ test("a promise whose reminder just fired is not nudged until that run reports, 
 test("a human who chats about other things after a nudge did not engage with it; a reply quoting it did", async () => {
   const outcome = async (answers?: number) => {
     const { sql, engine, wakes, counts } = world()
-    const now = Date.now()
+    // 13:14 is a minute the old deadline got wrong: its last step ran past the active hour and the window closed an hour out.
+    const now = Date.UTC(2026, 9, 10, 13, 14)
     sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?)", "r1", JSON.stringify({ open: 1, oldest: [{ id: "t1", title: "file the tax return", status: "doing", owner: "ada", updatedAt: now - 30 * 86_400_000 }] }))
     engine.devRhythm("now", now)
     await engine.pass(now)
