@@ -465,7 +465,7 @@ export const MemoryResult = Schema.Union([
 	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 
-export const ComposioStatus = Schema.Struct({ connected: Schema.Boolean, rows: Schema.Number, developer: Schema.Boolean })
+export const ComposioStatus = Schema.Struct({ connected: Schema.Boolean, rows: Schema.Number })
 
 export const ComposioResult = Schema.Union([
 	Schema.Struct({ ok: Schema.Literal(true), status: ComposioStatus, tools: Schema.optionalKey(Schema.Array(Schema.String)), readOnly: Schema.optionalKey(Schema.Array(Schema.String)) }),
@@ -482,7 +482,6 @@ export const ClientToUser = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("connectComposio"), reqId: Id, apiKey: Schema.String }),
-	Schema.Struct({ t: Schema.Literal("setComposioDeveloperKey"), reqId: Id, key: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("disconnectComposio"), reqId: Id }),
 	Schema.Struct({ t: Schema.Literal("composioStatus"), reqId: Id, tools: Schema.optionalKey(Schema.Boolean) }),
 	Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),

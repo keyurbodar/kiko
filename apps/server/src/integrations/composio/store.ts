@@ -1,20 +1,19 @@
 import { type Keyring, open, seal } from "@yuki/durable/crypto"
-import type { ComposioTool } from "./client"
+import type { ComposioTool, Session, Target } from "./client"
 import type { LearnedTool } from "./learn"
 
 /**
- * One user's Composio rows in `UserDO`. `key` is the sealed consumer key, with the same keyring as
- * provider credentials and AAD `composio/key`. `developer` is the optional developer key (`ak_...`), sealed the
- * same way with AAD `composio/developer`; it only reads Composio's tool catalog. `listing` is the last tool listing, plain JSON because it holds
- * no secret, kept so a cold object serves it at once. `learned` is the direct tools, plain JSON too.
- * Disconnect deletes every row.
+ * One user's Composio rows in `UserDO`. `key` is the sealed project key (`ak_...`), with the same
+ * keyring as provider credentials and AAD `composio/key`. Its `value` is the session the key
+ * created, plain JSON because the url is useless without the key. `listing` is the last tool
+ * listing, plain JSON because it holds no secret, kept so a cold object serves it at once.
+ * `learned` is the direct tools, plain JSON too. Disconnect deletes every row.
  */
 export type SavedListing = { at: number; tools: ComposioTool[] }
 
-type KeyRow = { kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer }
+type KeyRow = { kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer; value: string }
 
-const SEALED = { key: "composio/key", developer: "composio/developer" } as const
-type Sealed = keyof typeof SEALED
+const AAD = "composio/key"
 
 export class ComposioStore {
   #generation = 0
@@ -36,55 +35,46 @@ export class ComposioStore {
       value TEXT,
       updated_at INTEGER NOT NULL
     )`)
+    // Until 2026-10-11 the key was a consumer key (`ck_...`) with no session, and a developer key could
+    // sit beside it. Neither works now, so a store with no session is dropped and the user pastes the one key again.
+    sql.exec("DELETE FROM composio WHERE NOT EXISTS (SELECT 1 FROM composio WHERE name = 'key' AND value IS NOT NULL)")
   }
 
-  key(): Promise<string | undefined> {
-    return this.opened("key")
-  }
-
-  putKey(key: string, generation = this.generation): Promise<void> {
-    return this.sealed("key", key, generation)
-  }
-
-  developerKey(): Promise<string | undefined> {
-    return this.opened("developer")
-  }
-
-  /** Null deletes it. */
-  async putDeveloperKey(key: string | null, generation = this.generation): Promise<void> {
-    if (key !== null) return this.sealed("developer", key, generation)
-    if (generation === this.generation) this.sql.exec("DELETE FROM composio WHERE name = 'developer'")
-  }
-
-  hasDeveloperKey(): boolean {
-    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM composio WHERE name = 'developer'").one().n > 0
-  }
-
-  private async opened(name: Sealed): Promise<string | undefined> {
-    const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext FROM composio WHERE name = ?", name).toArray()[0]
-    if (!row) return undefined
-    const key = await open(this.keyring, this.userId, SEALED[name], {
-      kekVersion: row.kek_version,
-      iv: new Uint8Array(row.iv),
-      ciphertext: new Uint8Array(row.ciphertext),
+  /**
+   * The key and its session, or undefined when not connected. The row is read before the first
+   * await, so a caller that clears the store right after still gets what was stored.
+   */
+  target(): Promise<(Target & { session: string }) | undefined> {
+    const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext, value FROM composio WHERE name = 'key'").toArray()[0]
+    if (!row) return Promise.resolve(undefined)
+    const session = JSON.parse(row.value) as Session
+    const generation = this.generation
+    return open(this.keyring, this.userId, AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) }).then(async (key) => {
+      if (row.kek_version !== this.keyring.current.version) await this.putKey(key, session, generation)
+      return { key, url: session.url, session: session.id }
     })
-    if (row.kek_version !== this.keyring.current.version) await this.sealed(name, key)
-    return key
   }
 
-  private async sealed(name: Sealed, key: string, generation = this.generation): Promise<void> {
-    const sealed = await seal(this.keyring, this.userId, SEALED[name], key)
+  /** Stores the key and its session as one row. */
+  async putKey(key: string, session: Session, generation = this.generation): Promise<void> {
+    const sealed = await seal(this.keyring, this.userId, AAD, key)
     if (generation !== this.generation) return
     this.sql.exec(
-      `INSERT INTO composio (name, kek_version, iv, ciphertext, updated_at) VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO composio (name, kek_version, iv, ciphertext, value, updated_at) VALUES ('key', ?, ?, ?, ?, ?)
        ON CONFLICT (name) DO UPDATE SET kek_version = excluded.kek_version, iv = excluded.iv,
-         ciphertext = excluded.ciphertext, updated_at = excluded.updated_at`,
-      name,
+         ciphertext = excluded.ciphertext, value = excluded.value, updated_at = excluded.updated_at`,
       sealed.kekVersion,
       sealed.iv,
       sealed.ciphertext,
+      JSON.stringify(session),
       Date.now(),
     )
+  }
+
+  /** Replaces the session of the stored key. */
+  putSession(session: Session, generation = this.generation): void {
+    if (generation !== this.generation) return
+    this.sql.exec("UPDATE composio SET value = ?, updated_at = ? WHERE name = 'key'", JSON.stringify(session), Date.now())
   }
 
   listing(): SavedListing | undefined {

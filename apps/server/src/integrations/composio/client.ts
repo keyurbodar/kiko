@@ -1,11 +1,16 @@
-// Composio's hosted MCP server, spoken as plain JSON-RPC over fetch. The server is stateless: no
-// `initialize` and no `Mcp-Session-Id`, so every request is one POST that answers in an event stream.
-// The user's consumer key (`ck_...`) goes in `x-consumer-api-key`, the header Composio documents for it. It is never put in an error or a log.
+// Composio's session MCP server, spoken as plain JSON-RPC over fetch. The user's one project key
+// (`ak_...`) creates a session for the user, and the session's MCP url answers `tools/list` and
+// `tools/call` with a bare POST: no `initialize` and no `Mcp-Session-Id`. The key goes in `x-api-key`,
+// the header Composio documents for a project key, on every request. It is never put in an error or a log.
 
-export const COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp"
-const DEVELOPER_API = "https://backend.composio.dev/api/v3.1/"
+const API = "https://backend.composio.dev/api/v3.1/"
+/** A session url must be on this origin, so the key never goes anywhere else. */
+const SESSION_ORIGIN = "https://backend.composio.dev"
 export const REJECTED = "Composio rejected this key"
-export const DEVELOPER_REJECTED = "Composio rejected this developer key"
+
+/** What a session request needs: the key and the session's MCP url. */
+export type Session = { id: string; url: string }
+export type Target = { key: string; url: string }
 
 export type ComposioTool = {
   name: string
@@ -66,11 +71,14 @@ function eventData(body: string): string[] {
 
 let nextId = 1
 
-export async function composioRpc(key: string, method: string, params: Record<string, unknown>, fetchImpl: typeof fetch = fetch, timeoutMs = 120_000): Promise<unknown> {
+/** True when Composio says the session no longer exists, so a new one is worth one retry. */
+export const sessionGone = (e: unknown): boolean => e instanceof ComposioError && (e.status === 404 || e.status === 410)
+
+export async function composioRpc(target: Target, method: string, params: Record<string, unknown>, fetchImpl: typeof fetch = fetch, timeoutMs = 120_000): Promise<unknown> {
   const id = nextId++
-  const res = await fetchImpl(COMPOSIO_MCP_URL, {
+  const res = await fetchImpl(target.url, {
     method: "POST",
-    headers: { "x-consumer-api-key": key, "content-type": "application/json", accept: "application/json, text/event-stream" },
+    headers: { "x-api-key": target.key, "content-type": "application/json", accept: "application/json, text/event-stream" },
     body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
     signal: AbortSignal.timeout(timeoutMs),
   })
@@ -87,8 +95,8 @@ export async function composioRpc(key: string, method: string, params: Record<st
 
 type ListedTool = { name: string; description?: string; inputSchema?: unknown; annotations?: { readOnlyHint?: boolean } }
 
-export async function listTools(key: string, fetchImpl?: typeof fetch): Promise<ComposioTool[]> {
-  const result = (await composioRpc(key, "tools/list", {}, fetchImpl, 20_000)) as { tools?: ListedTool[] } | undefined
+export async function listTools(target: Target, fetchImpl?: typeof fetch): Promise<ComposioTool[]> {
+  const result = (await composioRpc(target, "tools/list", {}, fetchImpl, 20_000)) as { tools?: ListedTool[] } | undefined
   return (result?.tools ?? []).map((t) => ({
     name: t.name,
     ...(t.description ? { description: t.description } : {}),
@@ -99,8 +107,8 @@ export async function listTools(key: string, fetchImpl?: typeof fetch): Promise<
 
 type McpBlock = { type: string; text?: string; data?: string; mimeType?: string; [k: string]: unknown }
 
-export async function callTool(key: string, name: string, args: Record<string, unknown>, fetchImpl?: typeof fetch): Promise<ComposioCallResult> {
-  const result = (await composioRpc(key, "tools/call", { name, arguments: args }, fetchImpl)) as { content?: McpBlock[]; isError?: boolean } | undefined
+export async function callTool(target: Target, name: string, args: Record<string, unknown>, fetchImpl?: typeof fetch): Promise<ComposioCallResult> {
+  const result = (await composioRpc(target, "tools/call", { name, arguments: args }, fetchImpl)) as { content?: McpBlock[]; isError?: boolean } | undefined
   const content = (result?.content ?? []).map((b): ComposioResultBlock => {
     if (b.type === "text") return { type: "text", text: String(b.text ?? "") }
     if (b.type === "image" && b.data && b.mimeType) return { type: "image", data: b.data, mimeType: b.mimeType }
@@ -109,24 +117,46 @@ export async function callTool(key: string, name: string, args: Record<string, u
   return { content, ...(result?.isError ? { isError: true } : {}) }
 }
 
-/** One GET on Composio's developer API with a developer key (`ak_...`). Consumer keys are refused there. */
-async function developerGet(key: string, path: string, fetchImpl: typeof fetch): Promise<unknown> {
-  const res = await fetchImpl(`${DEVELOPER_API}${path}`, { headers: { "x-api-key": key }, signal: AbortSignal.timeout(10_000) })
-  if (!res.ok) {
-    await res.body?.cancel()
-    throw new ComposioError(res.status === 401 || res.status === 403 ? DEVELOPER_REJECTED : `Composio's developer API answered ${res.status}`, res.status)
-  }
-  return res.json()
+/** One request to Composio's API with the key. A 401 or 403 is `REJECTED`. */
+async function api(key: string, path: string, fetchImpl: typeof fetch, init: { method?: string; body?: unknown } = {}): Promise<Response> {
+  const res = await fetchImpl(`${API}${path}`, {
+    method: init.method ?? "GET",
+    headers: { "x-api-key": key, ...(init.body === undefined ? {} : { "content-type": "application/json" }) },
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (res.ok) return res
+  await res.body?.cancel()
+  throw new ComposioError(res.status === 401 || res.status === 403 ? REJECTED : `Composio answered ${res.status}`, res.status)
 }
 
-/** Throws unless Composio accepts `key` as a developer key, with the cheapest read it has. */
-export async function checkDeveloperKey(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
-  await developerGet(key, "toolkits?limit=1", fetchImpl)
+/** Throws unless Composio accepts `key`, with the cheapest read it has. */
+export async function checkKey(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  await (await api(key, "toolkits?limit=1", fetchImpl)).body?.cancel()
+}
+
+/** A new session for `userId`. Its MCP url must be on Composio's own origin. */
+export async function createSession(key: string, userId: string, fetchImpl: typeof fetch = fetch): Promise<Session> {
+  const body = (await (await api(key, "tool_router/session", fetchImpl, { method: "POST", body: { user_id: userId } })).json()) as { session_id?: unknown; mcp?: { url?: unknown } }
+  const id = body.session_id
+  const url = body.mcp?.url
+  if (typeof id !== "string" || typeof url !== "string" || new URL(url).origin !== SESSION_ORIGIN) throw new ComposioError("Composio sent no session")
+  return { id, url }
+}
+
+/** Deletes a session. One that is already gone is not an error. */
+export async function deleteSession(key: string, id: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  await api(key, `tool_router/session/${encodeURIComponent(id)}`, fetchImpl, { method: "DELETE" }).then(
+    (res) => res.body?.cancel(),
+    (e) => {
+      if (!sessionGone(e)) throw e
+    },
+  )
 }
 
 /** Whether Composio's tool catalog tags `slug` read-only. */
 export async function catalogReadOnly(key: string, slug: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
-  const { tags } = (await developerGet(key, `tools/${encodeURIComponent(slug)}`, fetchImpl)) as { tags?: unknown }
+  const { tags } = (await (await api(key, `tools/${encodeURIComponent(slug)}`, fetchImpl)).json()) as { tags?: unknown }
   return Array.isArray(tags) && tags.includes("readOnlyHint")
 }
 

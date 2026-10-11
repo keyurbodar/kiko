@@ -1,7 +1,7 @@
 import type { ComposioStatus } from "@yuki/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-stats"
-import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkDeveloperKey, learnedSignature, listTools } from "./client"
+import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, createSession, deleteSession, learnedSignature, listTools, sessionGone, type Target } from "./client"
 import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
 import type { ComposioStore } from "./store"
 
@@ -20,12 +20,15 @@ export function composioErrorText(e: unknown): string {
 export class ComposioConnection {
   private listing: { at: number; tools: Promise<ComposioTool[]> } | undefined
   private readonly candidates = new Map<string, Candidate>()
+  /** The one session renewal in flight, keyed by the session it replaces. */
+  private renewing: { gone: string; next: Promise<Target> } | undefined
 
   private readonly fetcher: typeof fetch
 
-  /** `waitUntil` keeps the object alive for catalog lookups that run behind a call. */
+  /** `userId` is the id Composio sees. `waitUntil` keeps the object alive for work that runs behind an answer. */
   constructor(
     private readonly store: ComposioStore,
+    private readonly userId: () => Promise<string>,
     fetcher: typeof fetch = (input, init) => fetch(input, init),
     private readonly waitUntil: (work: Promise<unknown>) => void = () => undefined,
   ) {
@@ -41,45 +44,44 @@ export class ComposioConnection {
   }
 
   status(): ComposioStatus {
-    return { connected: this.store.connected(), rows: this.store.count(), developer: this.store.hasDeveloperKey() }
-  }
-
-  /** Validates the key with one `tools/list`, then replaces any stored key. A rejected key stores nothing. */
-  async connect(apiKey: unknown): Promise<{ status: ComposioStatus; tools: string[] }> {
-    const key = checkApiKey(apiKey)
-    const tools = await listTools(key, this.fetcher)
-    const developer = await this.store.developerKey()
-    this.store.clear()
-    const generation = this.store.generation
-    await this.store.putKey(key, generation)
-    if (developer) await this.store.putDeveloperKey(developer, generation)
-    this.store.putListing({ at: Date.now(), tools }, generation)
-    this.listing = { at: Date.now(), tools: Promise.resolve(tools) }
-    return { status: this.status(), tools: tools.map((t) => t.name) }
+    return { connected: this.store.connected(), rows: this.store.count() }
   }
 
   /**
-   * Stores the developer key once Composio accepts it, or deletes it with null. A rejected key
-   * stores nothing. Learned tools with no class yet are classified behind the answer.
+   * Checks the key, creates a session for the user, and lists its tools, then replaces whatever
+   * was stored. A rejected key stores nothing. The old session is deleted behind the answer.
    */
-  async setDeveloperKey(value: unknown): Promise<ComposioStatus> {
-    if (!this.store.connected()) throw new ComposioError("Composio is not connected")
+  async connect(apiKey: unknown): Promise<{ status: ComposioStatus; tools: string[] }> {
+    const key = checkApiKey(apiKey)
+    await checkKey(key, this.fetcher)
+    const session = await createSession(key, await this.userId(), this.fetcher)
+    const tools = await listTools({ key, url: session.url }, this.fetcher).catch((e) => {
+      this.dropSession(Promise.resolve({ key, url: session.url, session: session.id }))
+      throw e
+    })
+    const old = this.store.target()
+    this.store.clear()
     const generation = this.store.generation
-    if (value === null) {
-      await this.store.putDeveloperKey(null, generation)
-      return this.status()
-    }
-    const key = checkApiKey(value)
-    await checkDeveloperKey(key, this.fetcher)
-    await this.store.putDeveloperKey(key, generation)
-    for (const t of this.store.learned()) if (t.readOnly === undefined) this.classify(t.slug, generation)
-    return this.status()
+    await this.store.putKey(key, session, generation)
+    this.store.putListing({ at: Date.now(), tools }, generation)
+    this.listing = { at: Date.now(), tools: Promise.resolve(tools) }
+    this.candidates.clear()
+    this.dropSession(old)
+    return { status: this.status(), tools: tools.map((t) => t.name) }
   }
 
+  /** Deletes every row at once, and the session at Composio behind the answer. */
   disconnect(): number {
+    const old = this.store.target()
     this.listing = undefined
     this.candidates.clear()
-    return this.store.clear()
+    const removed = this.store.clear()
+    this.dropSession(old)
+    return removed
+  }
+
+  private dropSession(stored: ReturnType<ComposioStore["target"]>): void {
+    this.waitUntil(stored.then((t) => t && deleteSession(t.key, t.session, this.fetcher)).catch(() => undefined))
   }
 
   /** The tools agents get, or null when no key is stored: the listing, then the learned direct tools. */
@@ -115,8 +117,7 @@ export class ComposioConnection {
 
   private async discover(): Promise<ComposioTool[]> {
     const generation = this.store.generation
-    const key = await this.key()
-    const tools = await listTools(key, this.fetcher)
+    const tools = await this.session((target) => listTools(target, this.fetcher))
     this.store.putListing({ at: Date.now(), tools }, generation)
     return tools
   }
@@ -124,7 +125,7 @@ export class ComposioConnection {
   /** Every agent call passes here, so this is where direct tools are learned. */
   async call(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
     const generation = this.store.generation
-    const out = await callTool(await this.key(), name, args, this.fetcher)
+    const out = await this.session((target) => callTool(target, name, args, this.fetcher))
     if (out.isError && name === MULTI_EXECUTE) this.forgetFailed(failed(args, undefined), generation)
     if (out.isError || (name !== SEARCH && name !== SCHEMAS && name !== MULTI_EXECUTE)) return out
     const body = resultJson(out)
@@ -148,11 +149,11 @@ export class ComposioConnection {
     return out
   }
 
-  /** Without a developer key the tool stays `external`. */
+  /** When the lookup fails, the tool stays `external`. */
   private classify(slug: string, generation: number): void {
-    const work = this.store.developerKey().then(async (key) => {
-      if (!key) return
-      const readOnly = await catalogReadOnly(key, slug, this.fetcher)
+    const work = this.store.target().then(async (target) => {
+      if (!target) return
+      const readOnly = await catalogReadOnly(target.key, slug, this.fetcher)
       this.store.putLearned(this.store.learned().map((t) => (t.slug === slug ? { ...t, readOnly } : t)), generation)
     })
     this.waitUntil(work.catch(() => undefined))
@@ -164,9 +165,31 @@ export class ComposioConnection {
     if (kept.length !== learned.length) this.store.putLearned(kept, generation)
   }
 
-  private async key(): Promise<string> {
-    const key = await this.store.key()
-    if (!key) throw new ComposioError("Composio is not connected")
-    return key
+  /** Runs `work` on the stored session. When Composio says the session is gone, makes a new one and runs it once more. */
+  private async session<T>(work: (target: Target) => Promise<T>): Promise<T> {
+    const target = await this.store.target()
+    if (!target) throw new ComposioError("Composio is not connected")
+    try {
+      return await work(target)
+    } catch (e) {
+      if (!sessionGone(e)) throw e
+      return work(await this.renew(target.key, target.session))
+    }
+  }
+
+  /** One new session for any number of calls that found `gone` gone. */
+  private renew(key: string, gone: string): Promise<Target> {
+    if (this.renewing?.gone === gone) return this.renewing.next
+    const generation = this.store.generation
+    const next = (async () => {
+      const session = await createSession(key, await this.userId(), this.fetcher)
+      this.store.putSession(session, generation)
+      return { key, url: session.url }
+    })()
+    this.renewing = { gone, next }
+    next.catch(() => {
+      if (this.renewing?.next === next) this.renewing = undefined
+    })
+    return next
   }
 }

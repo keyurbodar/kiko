@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { effectOf } from "@yuki/agent/effects"
-import { callTool, ComposioError, DEVELOPER_REJECTED, learnedSignature, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
+import { callTool, ComposioError, createSession, learnedSignature, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
 import { ComposioConnection } from "../src/integrations/composio/connect"
 import { LEARNED_MAX, type LearnedTool, remember } from "../src/integrations/composio/learn"
-import type { ComposioStore } from "../src/integrations/composio/store"
+import { ComposioStore } from "../src/integrations/composio/store"
+import { sqlStorage } from "./sql-shim"
 import { composioExtension, learnedNote } from "../src/integrations/composio/tools"
 
 const SSE = "text/event-stream"
@@ -37,19 +38,26 @@ describe("composio client", () => {
   }) as unknown as typeof fetch
 
   test("a rejected key is a typed 401 that never echoes the key", async () => {
-    const err = await listTools("ck_secret", fake(401, "unauthorized")).catch((e) => e)
+    const err = await listTools({ key: "ak_secret", url: "https://backend.composio.dev/tool_router/trs_1/mcp" }, fake(401, "unauthorized")).catch((e) => e)
     expect(err).toBeInstanceOf(ComposioError)
     expect(err.status).toBe(401)
     expect(err.message).toBe(REJECTED)
-    expect(err.message).not.toContain("ck_secret")
+    expect(err.message).not.toContain("ak_secret")
+  })
+
+  test("a session whose MCP url is off Composio's origin is refused, so the key never goes there", async () => {
+    const answer = (url: string) => (async () => Response.json({ session_id: "trs_1", mcp: { type: "http", url } }, { status: 201 })) as unknown as typeof fetch
+    expect(await createSession("ak", "u", answer("https://backend.composio.dev/tool_router/trs_1/mcp"))).toEqual({ id: "trs_1", url: "https://backend.composio.dev/tool_router/trs_1/mcp" })
+    expect(await createSession("ak", "u", answer("https://evil.example/mcp")).catch((e) => e.message)).toBe("Composio sent no session")
   })
 
   test("readOnlyHint becomes readOnly, and a call keeps text and image blocks", async () => {
     const listed = `data: {"jsonrpc":"2.0","id":__ID__,"result":{"tools":[{"name":"COMPOSIO_SEARCH_TOOLS","inputSchema":{"type":"object"},"annotations":{"readOnlyHint":true}},{"name":"COMPOSIO_MULTI_EXECUTE_TOOL","inputSchema":{"type":"object"},"annotations":{"readOnlyHint":false}}]}}\n\n`
-    const tools = await listTools("k", fake(200, listed))
+    const target = { key: "k", url: "https://backend.composio.dev/tool_router/trs_1/mcp" }
+    const tools = await listTools(target, fake(200, listed))
     expect(tools.map((t) => [t.name, t.readOnly ?? false])).toEqual([["COMPOSIO_SEARCH_TOOLS", true], ["COMPOSIO_MULTI_EXECUTE_TOOL", false]])
     const called = `data: {"jsonrpc":"2.0","id":__ID__,"result":{"isError":true,"content":[{"type":"text","text":"hi"},{"type":"image","data":"AA==","mimeType":"image/png"},{"type":"resource","resource":{"uri":"x"}}]}}\n\n`
-    const out = await callTool("k", "COMPOSIO_SEARCH_TOOLS", {}, fake(200, called))
+    const out = await callTool(target, "COMPOSIO_SEARCH_TOOLS", {}, fake(200, called))
     expect(out.isError).toBe(true)
     expect(out.content).toEqual([{ type: "text", text: "hi" }, { type: "image", data: "AA==", mimeType: "image/png" }, { type: "text", text: '{"type":"resource","resource":{"uri":"x"}}' }])
   })
@@ -117,32 +125,48 @@ describe("composio learned tools", () => {
   const ran = (slug: string, ok: boolean) => ({ successful: true, data: { results: [{ response: { successful: ok, data: { answer: "1.4.2" }, error: ok ? null : "no connection" }, tool_slug: slug, index: 0 }] } })
 
   /**
-   * A connection over an in-memory store, answering each call with the next queued body. The
-   * catalog tags every tool `catalog`, and a developer key is stored when `catalog` is given.
+   * A connection over an in-memory store, answering each MCP call with the next queued body. The
+   * catalog tags every tool `catalog`. `gone` lists sessions Composio no longer knows, and
+   * `sessions` counts the ones it created.
    */
   function setup(catalog?: string[]) {
-    const state = { learned: [] as LearnedTool[], sent: [] as { name: string; arguments: unknown }[], replies: [] as unknown[], developer: catalog && "ak", developerStatus: 200, tags: catalog }
+    const state = { learned: [] as LearnedTool[], sent: [] as { name: string; arguments: unknown }[], replies: [] as unknown[], tags: catalog, session: "trs_1", sessions: 0, gone: new Set<string>(), deleted: [] as string[], keyStatus: 200, stored: false, users: [] as string[] }
+    const url = (id: string) => `https://backend.composio.dev/tool_router/${id}/mcp`
     const store = {
       generation: 0,
       connected: () => true,
-      key: async () => "k",
-      developerKey: async () => state.developer,
-      hasDeveloperKey: () => state.developer !== undefined,
-      putDeveloperKey: async (key: string | null) => void (state.developer = key ?? undefined),
+      target: async () => ({ key: "ak", url: url(state.session), session: state.session }),
+      putKey: async (_key: string, session: { id: string }) => void ((state.stored = true), (state.session = session.id)),
+      putSession: (session: { id: string }) => void (state.session = session.id),
+      clear: () => 0,
       count: () => 1,
       listing: () => ({ at: Date.now(), tools: [{ name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} }, { name: "COMPOSIO_MULTI_EXECUTE_TOOL", inputSchema: {} }] }),
+      putListing: () => undefined,
       learned: () => state.learned,
       putLearned: (l: LearnedTool[]) => void (state.learned = l),
     }
     const background: Promise<unknown>[] = []
-    const fetcher = (async (url: unknown, init?: RequestInit) => {
-      if (String(url).includes("/toolkits?")) return Response.json({ items: [] }, { status: state.developerStatus })
-      if (String(url).startsWith("https://backend.composio.dev/")) return Response.json({ tags: state.tags })
-      const body = JSON.parse(String(init?.body)) as { id: number; params: { name: string; arguments: unknown } }
+    const fetcher = (async (input: unknown, init?: RequestInit) => {
+      const u = String(input)
+      if (u.includes("/toolkits?")) return Response.json({ items: [] }, { status: state.keyStatus })
+      if (u.endsWith("/tool_router/session")) {
+        state.users.push((JSON.parse(String(init?.body)) as { user_id: string }).user_id)
+        const id = `trs_new${++state.sessions}`
+        return Response.json({ session_id: id, mcp: { type: "http", url: url(id) } }, { status: 201 })
+      }
+      if (init?.method === "DELETE") {
+        state.deleted.push(u.split("/").at(-1)!)
+        return Response.json({ deleted: true })
+      }
+      if (u.includes("/api/v3.1/tools/")) return Response.json({ tags: state.tags })
+      const id = u.split("/").at(-2)!
+      if (state.gone.has(id)) return Response.json({ error: { message: `Tool router session with ID ${id} not found` } }, { status: 404 })
+      const body = JSON.parse(String(init?.body)) as { id: number; method: string; params: { name: string; arguments: unknown } }
+      if (body.method === "tools/list") return new Response(`data: ${JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { tools: [] } })}\n\n`, { headers: { "content-type": SSE } })
       state.sent.push(body.params)
       return new Response(text(state.replies.shift()).replace('"__ID__"', String(body.id)), { headers: { "content-type": SSE } })
     }) as unknown as typeof fetch
-    const connection = new ComposioConnection(store as unknown as ComposioStore, fetcher, (work) => background.push(work))
+    const connection = new ComposioConnection(store as unknown as ComposioStore, async () => "yuki_u1", fetcher, (work) => background.push(work))
     return { state, connection, background }
   }
   type Tool = { name: string; description: string; execute: (a: unknown, api: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> }
@@ -181,28 +205,35 @@ describe("composio learned tools", () => {
     }
   })
 
-  test("a developer key Composio rejects stores nothing and is never echoed", async () => {
+  test("a key Composio rejects stores nothing, opens no session, and is never echoed", async () => {
     const { state, connection } = setup()
-    state.developerStatus = 401
-    const err = await connection.setDeveloperKey("ak_secret").catch((e) => e)
-    expect([err.message, state.developer]).toEqual([DEVELOPER_REJECTED, undefined])
-    expect(connection.status().developer).toBe(false)
+    state.keyStatus = 401
+    const err = await connection.connect("ak_secret").catch((e) => e)
+    expect([err.message, state.stored, state.sessions]).toEqual([REJECTED, false, 0])
+    expect(err.message).not.toContain("ak_secret")
   })
 
-  test("adding a developer key classifies tools learned without one, which changes the signature", async () => {
+  test("connect opens a session for the user's Composio id and deletes the old one behind the answer", async () => {
     const { state, connection, background } = setup()
-    state.replies.push(searchBody, ran("COMPOSIO_SEARCH_WEB", true))
-    await connection.call("COMPOSIO_SEARCH_TOOLS", {})
-    await connection.call("COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: {} }] })
+    await connection.connect("ak_good")
     await Promise.all(background)
-    expect(state.learned[0]!.readOnly).toBeUndefined()
-    const before = connection.signature()
+    expect([state.stored, state.session, state.users, state.deleted]).toEqual([true, "trs_new1", ["yuki_u1"], ["trs_1"]])
+  })
 
-    state.tags = ["readOnlyHint"]
-    expect((await connection.setDeveloperKey("ak_good")).developer).toBe(true)
+  test("a session Composio no longer knows is made again once, and the call goes through", async () => {
+    const { state, connection } = setup()
+    state.gone.add("trs_1")
+    state.replies.push({ successful: true }, { successful: true })
+    const [a, b] = await Promise.all([connection.call("COMPOSIO_SEARCH_TOOLS", {}), connection.call("COMPOSIO_SEARCH_TOOLS", {})])
+    expect([a.isError, b.isError, state.sessions, state.session]).toEqual([undefined, undefined, 1, "trs_new1"])
+    expect(state.sent).toHaveLength(2)
+  })
+
+  test("disconnect deletes the session at Composio behind the answer", async () => {
+    const { state, connection, background } = setup()
+    connection.disconnect()
     await Promise.all(background)
-    expect(state.learned[0]!.readOnly).toBe(true)
-    expect(connection.signature()).not.toBe(before)
+    expect(state.deleted).toEqual(["trs_1"])
   })
 
   test("a failed run teaches nothing, and a failed direct call is a tool error with Composio's text", async () => {
@@ -258,5 +289,27 @@ describe("learned signature", () => {
   test("the same tools in another order give the same signature", () => {
     const tool = (name: string) => ({ name, description: "", inputSchema: {}, direct: { slug: name, toolkit: "x" } })
     expect(learnedSignature([tool("B_TWO"), tool("A_ONE")])).toBe(learnedSignature([tool("A_ONE"), tool("B_TWO")]))
+  })
+})
+
+describe("composio store", () => {
+  const keyring = { current: { version: 1, secret: "kek-composio-test" } }
+  const session = { id: "trs_1", url: "https://backend.composio.dev/tool_router/trs_1/mcp" }
+
+  test("the key and its session come back together, and a new object still has them", async () => {
+    const sql = sqlStorage()
+    await new ComposioStore(sql, keyring, "u1").putKey("ak_secret", session)
+    expect(await new ComposioStore(sql, keyring, "u1").target()).toEqual({ key: "ak_secret", url: session.url, session: "trs_1" })
+  })
+
+  test("an old consumer key with no session, its developer key, and its rows are dropped, so the user pastes the one key again", async () => {
+    const sql = sqlStorage()
+    const old = new ComposioStore(sql, keyring, "u1")
+    await old.putKey("ck_old", session)
+    old.putListing({ at: 1, tools: [] })
+    sql.exec("UPDATE composio SET value = NULL WHERE name = 'key'")
+    sql.exec("INSERT INTO composio (name, value, updated_at) VALUES ('developer', NULL, 1)")
+    const store = new ComposioStore(sql, keyring, "u1")
+    expect([store.connected(), store.count(), await store.target()]).toEqual([false, 0, undefined])
   })
 })

@@ -42,7 +42,7 @@ import { migrate } from "./schema"
 import { DEFAULT_TIMEZONE, findProvider, pickJudge, providerUses, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { DEFAULT_MODEL, userModels } from "../agent/factory"
-import { roomStub } from "../lib/names"
+import { composioUserId, roomStub } from "../lib/names"
 import { type ExtensionEvent, ExtensionError, ExtensionStore } from "./extensions"
 import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "./recurrence"
@@ -1028,18 +1028,18 @@ export class UserDO extends DurableObject<Env> {
   get #composio(): ComposioConnection {
     this.#composioConnection ??= new ComposioConnection(
       new ComposioStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name)),
+      () => composioUserId(userIdFromObjectName(this.ctx.id.name)),
       undefined,
       (work) => this.ctx.waitUntil(work),
     )
     return this.#composioConnection
   }
 
-  private async composioFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectComposio" | "setComposioDeveloperKey" | "disconnectComposio" | "composioStatus" }>) {
+  private async composioFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectComposio" | "disconnectComposio" | "composioStatus" }>) {
     const composio = this.#composio
     let result: ComposioResult
     try {
       if (frame.t === "connectComposio") result = { ok: true, ...(await composio.connect(frame.apiKey)) }
-      else if (frame.t === "setComposioDeveloperKey") result = { ok: true, status: await composio.setDeveloperKey(frame.key) }
       else if (frame.t === "disconnectComposio") {
         composio.disconnect()
         result = { ok: true, status: composio.status() }
@@ -1102,7 +1102,7 @@ export class UserDO extends DurableObject<Env> {
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
       return
     }
-    if (frame.t === "connectComposio" || frame.t === "setComposioDeveloperKey" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
+    if (frame.t === "connectComposio" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
       await this.composioFrame(ws, frame)
       return
     }
@@ -1196,6 +1196,8 @@ export class UserDO extends DurableObject<Env> {
 
   async deleteAll(): Promise<number> {
     if (this.#wiped) return 0
+    // The Composio session goes too, behind the wipe: it reads the key before the rows are gone.
+    this.#composio.disconnect()
     const rows = await wipeStorage(this.ctx)
     this.#wiped = true
     return rows

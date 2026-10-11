@@ -36,6 +36,12 @@ function checkSlug(slug: string): AgentSlug {
   return slug
 }
 
+/** The user id Composio sees: stable for one yuki user, and not the yuki id itself. */
+export async function composioUserId(userId: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`composio:${checkUser(userId)}`))
+  return `yuki_${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32)}`
+}
+
 export function userName(userId: string): string {
   return `user:${checkUser(userId)}`
 }

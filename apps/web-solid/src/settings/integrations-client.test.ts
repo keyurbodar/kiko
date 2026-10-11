@@ -10,7 +10,7 @@ function fake() {
 	const reply = (f: object) => channel.deliver(f as UserToClient)
 	return { channel, sent, reply }
 }
-const status = { connected: true, rows: 2, developer: false }
+const status = { connected: true, rows: 2 }
 
 test("a reply with the same reqId answers the request, a push reaches listeners", async () => {
 	const f = fake()

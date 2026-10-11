@@ -7,7 +7,7 @@ import type { ClientToUser, ComposioResult } from "@yuki/protocol"
 import { type UserChannel, userChannel } from "../sync/user-channel"
 
 type AskOf<T extends string> = ClientToUser extends infer F ? (F extends { t: T } ? Omit<F, "reqId"> : never) : never
-type ComposioAsk = AskOf<"connectComposio" | "setComposioDeveloperKey" | "disconnectComposio" | "composioStatus">
+type ComposioAsk = AskOf<"connectComposio" | "disconnectComposio" | "composioStatus">
 
 export type ComposioClient = {
 	request(frame: ComposioAsk): Promise<ComposioResult>
