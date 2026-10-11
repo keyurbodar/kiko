@@ -14,7 +14,7 @@
 
 ## Verification
 
-`bun yuki verify browser --fake` passes with no model key. A scripted agent browses, acts in one batch, and reads a fresh summary. A routine's `browser_act` runs with no approval card. A helper has no browser tools. The ninth tab gets a busy answer naming the holders. Then `bun yuki verify browser` passes with real keys. An agent asked for the top story on Hacker News answers correctly in under 20 s, with no screenshot and its socket closed 15 s later.
+`bun yuki verify browser --fake` passes with no model key. A scripted agent browses, acts in one batch, and reads a fresh summary. A routine's `browser_act` runs. A helper has no browser tools. The ninth tab gets a busy answer naming the holders. Then `bun yuki verify browser` passes with real keys. An agent asked for the top story on Hacker News answers correctly in under 20 s, with no screenshot and its socket closed 15 s later.
 
 ## Task
 
