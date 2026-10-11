@@ -18,7 +18,7 @@ U23	One sealed-key store	2	deepseek	landed	s/u23-sealed-keys	015bd031	no-code-ch
 U26	Routines and UserDO edges	3	haiku	landed	s/u26-userdo	dc179ddf	full-gate-green reminders+routines+triggers-live	main f2060241	2026-10-11T18:18:17Z
 U27	One delivery path in RoomDO	3	sonnet	landed	s/u27-roomdo	3efd89ea	full-gate-green burst-backlog+team-flow+limits-live	main 76051ff7	2026-10-11T18:02:28Z
 U28	Human can stop work, ask does not wait	2	haiku	landed	s/u28-agent	1cc89b95	full-gate-green mid-run+team-ask review-fixed	main e8a5f440	2026-10-11T17:44:22Z
-U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
+U40	Real-model proof, right-size attention	4	opus	superseded	-	-	split-into-U40a-U40b-U40c	-	2026-10-11T21:20:31Z
 U41	Enforce every rule, docs match code	5	haiku	landed	s/u41-close	58889f64	gate-green all-rules-enforced 33-no-model-suites	main 97c26f4a	2026-10-11T20:18:49Z
 G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
 U31	Verification never touches another server	2	deepseek	landed	s/u31-verify-safety	d877e482	full-gate-green	main 50becab5	2026-10-11T17:10:10Z
