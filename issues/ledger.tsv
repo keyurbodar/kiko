@@ -12,12 +12,12 @@ U21	Browser tab cap under parallel calls	1	haiku	landed	s/u21-browser	daca2cb8	s
 U22	Bash honest across spaces	1	haiku	landed	s/u22-bash	5bae8f00	self-verified	main f19632de	2026-10-11T16:47:06Z
 U25	Memory correctness and fewer judge calls	1	sonnet	verifying	s/u25-memory	5e9042d9	needs-real-model-check	-	2026-10-11T16:43:52Z
 U30	Platform edges	1	deepseek	running	s/u30-platform	-	-	-	2026-10-11T16:35:46Z
-U07	One schema per object	2	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
-U29	One dev guard	2	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
+U07	One schema per object	2	haiku	running	s/u07-squash	-	-	-	2026-10-11T16:49:30Z
+U29	One dev guard	2	haiku	running	s/u29-dev-guard	-	-	-	2026-10-11T16:49:30Z
 U23	One sealed-key store	2	deepseek	queued	-	-	-	-	2026-10-11T16:35:27Z
 U26	Routines and UserDO edges	3	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 U27	One delivery path in RoomDO	3	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U28	Human can stop work, ask does not wait	2	haiku	queued	-	-	-	-	2026-10-11T16:38:31Z
+U28	Human can stop work, ask does not wait	2	haiku	running	s/u28-agent	-	-	-	2026-10-11T16:49:30Z
 U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
 U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
