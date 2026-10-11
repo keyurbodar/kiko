@@ -1,5 +1,7 @@
 import { RRule } from "rrule";
 
+export const MIN_REPEAT_MS = 30 * 60_000;
+
 export function nextOccurrence(rrule: string, tz: string, afterUtc: Date | number): Date | null {
   const unsafe = ruleProblem(rrule);
   if (unsafe) throw new Error(unsafe);
@@ -130,4 +132,18 @@ export function ruleProblem(rrule: string): string | null {
   const months = parts.get("BYMONTH")?.split(",").map(Number) ?? Array.from({ length: 12 }, (_, i) => i + 1);
   if (days.length && !days.some((d) => months.some((m) => Math.abs(d) <= (MONTH_DAYS[m - 1] ?? -Infinity)))) return "rrule BYMONTHDAY never falls in the chosen months";
   return null;
+}
+
+export function repeatProblem(rrule: string, tz: string, from: number): string | null {
+  const problem = ruleProblem(rrule)
+  if (problem) return problem
+  let first: Date | null
+  try {
+    first = nextOccurrence(rrule, tz, from - 1000)
+  } catch {
+    return "rrule does not parse"
+  }
+  const second = first ? nextOccurrence(rrule, tz, first) : null
+  if (first && second && second.getTime() - first.getTime() < MIN_REPEAT_MS) return "a schedule repeats at most every 30 minutes. to notice changes on a page, use a watch trigger instead: it checks every 15 minutes without a model run."
+  return null
 }

@@ -16,6 +16,7 @@ import {
 import { type Keyring, open, seal } from "@yuki/durable/crypto"
 import { type Fetcher, safeRequest, type SafeRequest } from "@yuki/durable/safe-fetch"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
+import { repeatProblem } from "./recurrence"
 
 export type ExtensionEvent =
   | { t: "extension"; extension: ExtensionInfo }
@@ -192,7 +193,7 @@ export class ExtensionStore {
   }
 
   async propose(input: { bundle: unknown; source: ExtensionSource; by?: string; room?: string }): Promise<ExtensionProposal> {
-    const checked = checkBundle(input.bundle)
+    const checked = checkBundle(input.bundle, { repeatProblem: (rrule) => repeatProblem(rrule, "UTC", Date.now()) })
     if (!checked.ok) throw new ExtensionError("the extension has problems", checked.problems)
     const bundle = checked.bundle
     const hash = await bundleHash(bundle)
@@ -262,18 +263,22 @@ export class ExtensionStore {
     }
     this.sql.exec("DELETE FROM extension_proposals WHERE id = ?", id)
     this.commit({ t: "extension_proposal_removed", id })
+    this.changed(p.name)
     await this.scheduleTriggers(p.name)
     const row = this.row(p.name)
     if (!row) throw new ExtensionError(`extension ${p.name} is missing right after install`)
-    const info = this.info(row)
-    this.commit({ t: "extension", extension: info })
-    return info
+    return this.info(row)
   }
 
   private async scheduleTriggers(name: string): Promise<void> {
     const by = `ext:${name}`
-    await this.triggers.cancelBy(by)
     const r = this.row(name)
+    try {
+      await this.triggers.cancelBy(by)
+    } catch (e) {
+      if (r) this.setError(name, r.hash, `triggers: ${e instanceof Error ? e.message : String(e)}`)
+      return
+    }
     if (r?.enabled !== 1) return
     const m = (JSON.parse(r.bundle) as ExtensionBundle).manifest
     if (!m.triggers?.length) return
@@ -445,7 +450,7 @@ export class ExtensionStore {
     const known: [string, string][] = []
     for (const ref of Object.keys(secrets)) {
       const value = await this.secret(name, ref)
-      if (value && value.length >= 6) known.push([ref, value])
+      if (value) known.push([ref, value])
     }
     const scrub = (s: string): string => known.reduce((acc, [ref, value]) => acc.replaceAll(value, `{{secret.${ref}}}`), s)
     const text = scrub(new TextDecoder().decode(out.body))

@@ -8,7 +8,7 @@ import type { Chat, ClientToUser, UserToClient } from "./user"
 export const userId = "user_fixture" as UserId
 export const roomId = "01JZ8Q4T6M0000000000000001" as RoomId
 export const otherRoomId = "01JZ8Q4T6M0000000000000002" as RoomId
-export const tempRoomId = "01a0fa46-9777-7fdf-871e-3c63e992c708" as RoomId
+const tempRoomId = "01a0fa46-9777-7fdf-871e-3c63e992c708" as RoomId
 export const ada = "ada" as AgentSlug
 export const bob = "bob" as AgentSlug
 

@@ -15,7 +15,7 @@ const context = BACKGROUND_CONTEXT
 
 export const INBOX_WAKEUP = "inbox"
 export const HEARTBEAT_WAKEUP = "heartbeat"
-export const HEARTBEAT_MS = 30_000
+const HEARTBEAT_MS = 30_000
 const RETRY_MS = 1_000
 export const CONTEXT_BUDGET_CHARS = 60_000
 export const TASK_BUDGET_CHARS = 240_000

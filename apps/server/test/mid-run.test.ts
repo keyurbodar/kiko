@@ -13,7 +13,6 @@ const run = (patch: Partial<RunState> = {}): RunState => ({
 const human: Arrival = { kind: "human" }
 const agent: Arrival = { kind: "agent" }
 const system: Arrival = { kind: "system" }
-const stop: Arrival = { kind: "stop" }
 
 const rows: [string, RunState | null, Arrival, MidRunAction][] = [
   ["no bubble and no tool: restart", run(), human, "restart"],
@@ -22,8 +21,6 @@ const rows: [string, RunState | null, Arrival, MidRunAction][] = [
   ["a bubble was posted, no tool running: steer, a human never waits for the run to end", run({ bubblePosted: true }), human, "steer"],
   ["a bubble was posted after a finished tool: steer", run({ bubblePosted: true, toolStarted: true }), human, "steer"],
   ["a bubble was posted and a tool is running: steer", run({ bubblePosted: true, toolStarted: true, toolRunning: true }), human, "steer"],
-  ["stop during a run: abort", run({ bubblePosted: true }), stop, "abort"],
-  ["stop when idle: abort", null, stop, "abort"],
   ["idle: queue starts a run", null, human, "queue"],
   ["an agent message while busy: hold in the inbox", run(), agent, "hold"],
   ["a system message while busy: hold in the inbox", run({ toolRunning: true, toolStarted: true }), system, "hold"],

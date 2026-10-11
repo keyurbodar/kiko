@@ -35,7 +35,7 @@ import { asResult, type NewReminder, type NewRoutine, REMINDERS_WAKEUP, Reminder
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
-import { type RoomRoutine, roomRoutine, type RoutineResult } from "./routines"
+import { roomRoutine, type RoutineResult } from "./routines"
 import { migrate } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
@@ -250,10 +250,6 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  async eventRoutines(roomId: string): Promise<RoomRoutine[]> {
-    return this.reminders.roomRoutines(roomId).map(roomRoutine)
-  }
-
   async routineHook(routineId: string, token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
     return this.#routines.routineHook(routineId, token, deliveryKey, body)
   }
@@ -276,11 +272,6 @@ export class UserDO extends DurableObject<Env> {
 
   async pinChat(roomId: RoomId, pinned: boolean): Promise<Chat | null> {
     this.apply({ op: "pin", roomId, pinned })
-    return getChat(this.sql, roomId)
-  }
-
-  async muteChat(roomId: RoomId, muted: boolean): Promise<Chat | null> {
-    this.apply({ op: "mute", roomId, muted })
     return getChat(this.sql, roomId)
   }
 
@@ -868,6 +859,14 @@ export class UserDO extends DurableObject<Env> {
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
     this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
     return this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
+  }
+
+  // The queue refused the jobs, so the account lives on. deletion_rooms stays: a job that did get through must not see an empty ledger and wipe the user.
+  async cancelDeletion(): Promise<void> {
+    if (this.#wiped) return
+    await this.ctx.storage.delete(DELETING)
+    // beginDeletion dropped the storage alarm; setting the hello wakeup points it at the earliest row again.
+    await enforceHello(this.ctx, this.alarms)
   }
 
   async roomDeleted(roomId: RoomId): Promise<number> {

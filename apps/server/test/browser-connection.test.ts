@@ -104,6 +104,33 @@ describe("browser connection", () => {
     expect(conn.takeNote()).toBeUndefined()
   })
 
+  test("parallel borrows cannot both pass the tab cap", async () => {
+    const browser = fakeBrowser()
+    const { lease } = fakeLease()
+    const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect })
+    const five = (tag: string) => ["a", "b", "c", "d", "e"].map((u) => `https://${u}.${tag}.test`)
+    const results = await Promise.allSettled([conn.borrow(five("x")), conn.borrow(five("y"))])
+    const [won, lost] = results
+    expect(won?.status).toBe("fulfilled")
+    expect(lost?.status === "rejected" && lost.reason).toBeInstanceOf(Busy)
+    expect(browser.opened).toHaveLength(5)
+    if (won?.status === "fulfilled") await won.value.done()
+    const again = await conn.borrow(Array.from({ length: 8 }, (_, i) => `https://${i}.z.test`))
+    expect(again.tabs).toHaveLength(8)
+    await again.done()
+  })
+
+  test("parallel single tabs admit exactly the cap", async () => {
+    const browser = fakeBrowser()
+    const { lease } = fakeLease()
+    const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect })
+    const opens = Array.from({ length: 9 }, (_, i) => conn.openTab(`https://${i}.test`))
+    const results = await Promise.allSettled(opens)
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(8)
+    expect(results.filter((r) => r.status === "rejected" && r.reason instanceof Busy)).toHaveLength(1)
+    expect(browser.opened).toHaveLength(8)
+  })
+
   test("a ninth tab is refused at once, naming who holds the others", async () => {
     const browser = fakeBrowser()
     const { lease } = fakeLease({ tabs: { "r:scout": 5, "r:writer": 3 } })

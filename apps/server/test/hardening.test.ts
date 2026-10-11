@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { Envelope } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
 import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "@yuki/agent/inbox"
-import { HISTORY_LIMIT, MAX_WAKEUPS } from "@yuki/durable/alarm"
+import { MAX_WAKEUPS } from "@yuki/durable/alarm"
 import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "@yuki/durable/hello-deadline"
 import { bundleWorker } from "./bundle"
 
@@ -136,15 +136,6 @@ describe("wakeups", () => {
     expect(await call(id, "wakeups", { prefix: "new", count: 11 })).toEqual({ stored: 10, error: "WakeupLimitError" })
   }, 30_000)
 
-  test("the last 100 fired keys are kept with their times, newest first", async () => {
-    const id = fresh()
-    await call(id, "wakeups", { prefix: "k", count: HISTORY_LIMIT + 20 })
-    await call(id, "due", { now: 5e12 + 59 })
-    const { history } = await call(id, "due", { now: 5e12 + HISTORY_LIMIT + 19 })
-    expect(history).toHaveLength(HISTORY_LIMIT)
-    expect(history[0]).toEqual({ key: `k${HISTORY_LIMIT + 19}`, at: 5e12 + HISTORY_LIMIT + 19, firedAt: 5e12 + HISTORY_LIMIT + 19 })
-    expect(history.at(-1)).toEqual({ key: "k20", at: 5e12 + 20, firedAt: 5e12 + 59 })
-  })
 })
 
 describe("the worker's upgrade checks", () => {

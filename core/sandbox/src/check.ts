@@ -1,12 +1,12 @@
-import { checkBundle, describeManifest, type ExtensionBundle, type ExtensionTest } from "./manifest"
+import { type CheckOptions, checkBundle, describeManifest, type ExtensionBundle, type ExtensionTest, hostAllowed } from "./manifest"
 import type { Effect } from "@yuki/agent/effects"
-import { isPlainGet, mayCall } from "./compile"
-import { ScriptError, ScriptVM } from "./vm"
+import { type Bridge, ScriptError, ScriptVM } from "./vm"
+import { type CallPort, makeQuietBridge, makeToolBridge, mayCall, type ScriptPorts } from "./compile"
 
 export type CheckReport = { ok: boolean; lines: string[] }
 
-export async function checkExtension(input: unknown, wasm: WebAssembly.Module, tools: ReadonlyMap<string, Effect>): Promise<CheckReport> {
-  const checked = checkBundle(input)
+export async function checkExtension(input: unknown, wasm: WebAssembly.Module, tools: ReadonlyMap<string, Effect>, options?: CheckOptions): Promise<CheckReport> {
+  const checked = checkBundle(input, options)
   if (!checked.ok) return { ok: false, lines: checked.problems.map((p) => `problem: ${p}`) }
   const bundle: ExtensionBundle = checked.bundle
   const m = bundle.manifest
@@ -44,7 +44,7 @@ export async function checkExtension(input: unknown, wasm: WebAssembly.Module, t
       for (const [i, test] of (m.tests ?? []).entries()) lines.push(await runTest(vm, bundle, test, i + 1, tools))
       for (const id of vm.shape.sections.filter((s) => m.sections?.[s]?.text === undefined && m.sections?.[s])) {
         try {
-          const out = await vm.invoke({ group: "sections", name: id }, [], { extension: m.name, section: id }, mockBridge({ tools, effect: "read", bundle, test: {} as ExtensionTest, logs: [] }))
+          const out = await vm.invoke({ group: "sections", name: id }, [], { extension: m.name, section: id }, quietBridge(bundle))
           lines.push(`section ${id} renders: ${typeof out === "string" ? JSON.stringify(out.slice(0, 160)) : "nothing"}`)
         } catch (e) {
           problems.push(`section ${id} throws: ${e instanceof Error ? e.message : String(e)}`)
@@ -69,45 +69,37 @@ export async function checkExtension(input: unknown, wasm: WebAssembly.Module, t
   }
 }
 
-type MockInput = { tools: ReadonlyMap<string, Effect>; effect: Effect; bundle: ExtensionBundle; test: ExtensionTest; logs: string[] }
-
-function mockBridge({ tools, effect, bundle, test, logs }: MockInput, state = new Map<string, unknown>()) {
-  const m = bundle.manifest
-  return async (op: string, payload: unknown[]): Promise<unknown> => {
-    if (op === "log") {
-      logs.push(((payload[0] as string[]) ?? []).join(" "))
-      return undefined
-    }
-    if (op.startsWith("state.")) {
-      if (!m.state) throw new Error(`yuki.state needs "state" in extension.json`)
-      const key = String(payload[0] ?? "")
-      if (op === "state.get") return state.get(key) ?? null
-      if (op === "state.set") return void state.set(key, payload[1] ?? null)
-      if (op === "state.delete") return void state.delete(key)
-      if (op === "state.list") return [...state.keys()].filter((k) => k.startsWith(key)).sort()
-    }
-    if (op === "fetch") {
-      if (effect !== "external" && !isPlainGet(payload[1] as never)) throw new Error(`only a GET without a body works in a "${effect}" tool; it needs "external" to send anything`)
-      const url = new URL(String(payload[0]))
-      const egress = m.egress ?? []
-      const allowed = egress.some((p) => (p.startsWith("*.") ? url.hostname.endsWith(p.slice(1)) : url.hostname === p))
-      if (!allowed) throw new Error(`${url.hostname} is not in "egress" in extension.json`)
+// The same bridge code the agent runs, over ports that answer from the manifest's tests instead of the network and the user's store.
+function fakePorts(bundle: ExtensionBundle, test: ExtensionTest): Pick<ScriptPorts, "state" | "fetch"> {
+  const kept = new Map<string, unknown>()
+  return {
+    state: async (_name, _scope, op, key, value) => {
+      if (op === "get") return kept.get(key) ?? null
+      if (op === "set") return void kept.set(key, value ?? null)
+      if (op === "delete") return void kept.delete(key)
+      return [...kept.keys()].filter((k) => k.startsWith(key)).sort()
+    },
+    fetch: async (_name, request) => {
+      const host = new URL(request.url).hostname.toLowerCase()
+      if (!hostAllowed(host, bundle.manifest.egress ?? [])) throw new Error(`${host} is not in "egress" in extension.json`)
       const body = test.fetch?.body ?? ""
-      const text = typeof body === "string" ? body : JSON.stringify(body)
-      return { status: test.fetch?.status ?? 200, headers: {}, text, ...(typeof body === "string" ? {} : { json: body }) }
-    }
-    if (op === "call") {
-      const tool = String(payload[0])
-      if (!(m.calls ?? []).includes(tool)) throw new Error(`${tool} is not in "calls" in extension.json`)
-      const callee = tools.get(tool)
-      if (!callee) throw new Error(`this agent has no tool ${tool}`)
-      if (!mayCall(effect, callee)) throw new Error(`a "${effect}" tool cannot call ${tool}, which is "${callee}"`)
-      if (!test.calls || !(tool in test.calls)) throw new Error(`the test has no mock for ${tool}; add it under "calls"`)
-      const out = test.calls[tool]
-      return typeof out === "string" ? out : JSON.stringify(out)
-    }
-    throw new Error(`yuki.${op} is not available here`)
+      return { status: test.fetch?.status ?? 200, headers: {}, text: typeof body === "string" ? body : JSON.stringify(body), ...(typeof body === "string" ? {} : { json: body }) }
+    },
   }
+}
+
+const quietBridge = (bundle: ExtensionBundle): Bridge => makeQuietBridge({ name: bundle.manifest.name, manifest: bundle.manifest, ports: fakePorts(bundle, {} as ExtensionTest) }, "section", true)
+
+function toolBridge(tools: ReadonlyMap<string, Effect>, effect: Effect, bundle: ExtensionBundle, test: ExtensionTest, tool: string, logs: string[]): Bridge {
+  const calls: CallPort = {
+    effectOf: async (name) => tools.get(name),
+    run: async (name) => {
+      if (!test.calls || !(name in test.calls)) throw new Error(`the test has no mock for ${name}; add it under "calls"`)
+      const out = test.calls[name]
+      return typeof out === "string" ? out : JSON.stringify(out)
+    },
+  }
+  return makeToolBridge({ name: bundle.manifest.name, manifest: bundle.manifest, ports: fakePorts(bundle, test), effect, self: tool, logs, calls })
 }
 
 async function runTest(vm: ScriptVM, bundle: ExtensionBundle, test: ExtensionTest, n: number, tools: ReadonlyMap<string, Effect>): Promise<string> {
@@ -115,7 +107,7 @@ async function runTest(vm: ScriptVM, bundle: ExtensionBundle, test: ExtensionTes
   if (!t) return `fail test ${n}: no tool ${test.tool}`
   const logs: string[] = []
   try {
-    const out = await vm.invoke({ group: "tools", name: test.tool }, [test.args ?? {}], { extension: bundle.manifest.name, tool: test.tool, callId: `test-${n}` }, mockBridge({ tools, effect: t.effect as Effect, bundle, test, logs }))
+    const out = await vm.invoke({ group: "tools", name: test.tool }, [test.args ?? {}], { extension: bundle.manifest.name, tool: test.tool, callId: `test-${n}` }, toolBridge(tools, t.effect as Effect, bundle, test, test.tool, logs))
     const text = out === undefined || out === null ? "(no output)" : typeof out === "string" ? out : JSON.stringify(out)
     const shown = JSON.stringify(text.length > 200 ? `${text.slice(0, 200)}…` : text)
     if (test.expect !== undefined && !text.includes(test.expect)) return `fail test ${n} (${test.tool}): expected ${JSON.stringify(test.expect)} in ${shown}`

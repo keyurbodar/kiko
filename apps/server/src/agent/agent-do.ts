@@ -3,8 +3,6 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope, RoomId } from "@yuki/protocol"
-import { measureTurn } from "../experiments/coalescing"
-import { TurnExperiment } from "../experiments/turn"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@yuki/agent/answers"
 import { roomStub, userStub } from "../lib/names"
@@ -43,6 +41,7 @@ import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
+import { repeatProblem } from "../user/recurrence"
 
 declare const process: { env: { NODE_ENV?: string } }
 import { Outbox, type RoomPort } from "./outbox"
@@ -67,7 +66,6 @@ export class AgentDO extends DurableObject<Env> {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
-  private experimentInstance?: TurnExperiment
   private readonly answers = new AnswerWaiters()
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -78,11 +76,6 @@ export class AgentDO extends DurableObject<Env> {
       void this.outbox
       this.home()
     })
-  }
-
-  private get experiment(): TurnExperiment {
-    this.experimentInstance ??= new TurnExperiment(this.ctx, this.env)
-    return this.experimentInstance
   }
 
   protected get host(): AgentHost {
@@ -585,7 +578,7 @@ export class AgentDO extends DurableObject<Env> {
       return home
     }
     return {
-      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
+      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools, { repeatProblem: (rrule) => repeatProblem(rrule, "UTC", Date.now()) }),
       propose: async (bundle) => {
         const home = where()
         const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId })) as ExtensionResult
@@ -669,21 +662,7 @@ export class AgentDO extends DurableObject<Env> {
   async alarm() {
     if (this.#wiped) return
     if (await this.browserIdle()) return
-    const experiment = this.ctx.storage.sql.exec("SELECT 1 FROM wakeups WHERE key = 'experiment-heartbeat'").toArray().length > 0
-    if (experiment) return this.experiment.alarm()
     await this.host.alarm()
-  }
-
-  experimentTurn(requestId: string, heartbeat: boolean, userId: string) {
-    return this.experiment.turn(requestId, heartbeat, userId)
-  }
-
-  experimentStatus() {
-    return this.experiment.status()
-  }
-
-  experimentCoalescing(coalesce: boolean, streamMs: number) {
-    return measureTurn(this.ctx.storage, coalesce, streamMs)
   }
 
   #wiped = false

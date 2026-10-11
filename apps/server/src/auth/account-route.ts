@@ -2,8 +2,8 @@ import { isAgentSlug, isRoomId, type RoomId } from "@yuki/protocol"
 import type { Env } from "../index"
 import { agentStub, NameError, roomStub, userStub } from "../lib/names"
 import { originAllowed } from "../router"
-import { deletionTargets, enqueueDeletion, runDeleteJob, userPrefix } from "../jobs/delete-account"
-import { createAuth, isDeletedUser, revokeUser } from "./auth"
+import { deletionTargets, enqueueDeletion, runDeleteJob, startDeletion, userPrefix } from "../jobs/delete-account"
+import { createAuth, isDeletedUser, restoreUser, revokeUser } from "./auth"
 
 // Development builds answer the verify-suite routes below. They are dead code in a production bundle.
 declare const process: { env: { NODE_ENV?: string } }
@@ -61,14 +61,32 @@ async function deleteAccount(request: Request, env: Env, url: URL): Promise<Resp
 	const body = await readJson(request)
 	if (body?.confirm !== CONFIRM_PHRASE) return error(400, `type "${CONFIRM_PHRASE}" to confirm`)
 
-	// The tombstone and revoked sessions must land before any data is touched, so no route or socket reaches it.
 	const userId = session.user.id
-	await revokeUser(env.AUTH_DB, userId)
-	const rooms = await userStub(env.USER, userId).beginDeletion()
-	await enqueueDeletion(env.JOBS, userId, rooms)
+	let user: ReturnType<typeof userStub>
+	try {
+		user = userStub(env.USER, userId)
+	} catch (e) {
+		if (e instanceof NameError) return error(400, e.message)
+		throw e
+	}
+	let rooms: number
+	try {
+		rooms = await startDeletion({
+			revoke: () => revokeUser(env.AUTH_DB, userId),
+			begin: () => user.beginDeletion(),
+			enqueue: (ids) => enqueueDeletion(env.JOBS, userId, ids),
+			abort: async () => {
+				await user.cancelDeletion()
+				await restoreUser(env.AUTH_DB, userId)
+			},
+		})
+	} catch (e) {
+		console.error("account deletion could not start", e)
+		return error(503, "could not start deleting your account, sign in and try again")
+	}
 
 	const { headers } = await auth.api.signOut({ headers: request.headers, returnHeaders: true })
-	const response = Response.json({ rooms: rooms.length }, { status: 202 })
+	const response = Response.json({ rooms }, { status: 202 })
 	for (const cookie of headers.getAll("set-cookie")) response.headers.append("set-cookie", cookie)
 	return response
 }

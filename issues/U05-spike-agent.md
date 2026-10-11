@@ -9,3 +9,9 @@
 
 ## Report
 For each question: the answer, evidence as `file:line`, the recommended change in under 15 lines of prose, files it touches, and the test that would fail before it. Say plainly when the answer is "leave it".
+
+## Report (written by the coordinator from the read-only spike, Opus 5.5)
+
+1. **Tool abort: yes.** `Harness.abortTask(id, context)` is public in pi-durable (`dist/harness/types.d.ts:493-497`). Aborting the running `pi.tool` task makes the tool return "Tool X was aborted", and a steer queued first lands right after it in the same run (`generation.js:502-513`). Measured with a faux model: run done in 543 ms after abort. `abortTask` waits for the tool to return (1924 ms for a tool that ignores its signal), so never await it inside `drain()`. Bash already honors `context.abortSignal` (`apps/server/src/files/bash.ts:400,407`).
+2. **ask: keep the wait (option A).** Option B costs every ask a second run and routes the answer through relay mail, where hop and root limits can drop it (`room/mail.ts:197`). The timer bounds a live tool call and is recovered by safe replay, so it is not scheduled work. Real bug: the wait ignores the abort signal (`messaging.ts:68` passes no context, `core/agent/src/answers.ts:7` takes no signal), so stop during an ask can hold the agent's alarm up to 120 s, and tool abort cannot cut an ask short.
+3. **endRun: leave it.** Every side effect is already safe to run twice (`asks.ts:61-64`, `memory.ts:254-256`, `initiative-loops.ts:138-143`), and moving `markEnded` first would turn at-least-once into at-most-once.

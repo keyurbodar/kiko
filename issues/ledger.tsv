@@ -1,23 +1,24 @@
 unit	title	wave	model	state	branch	head	verdict	evidence	updated
-U01	Delete dead and experiment code	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U02	Fast check, parallel cached tests	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U03	Rules and exports as scripts	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U04	Verification skill up to date	1	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
-U05	Spike: tool abort and ask	1	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
-U10	Bound html-text regexes	1	deepseek	queued	-	-	-	-	2026-10-11T16:28:53Z
-U11	Deletion survives failed enqueue	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U12	Nap promises stay separate	1	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
-U20	Extension review tells the truth	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U21	Browser tab cap under parallel calls	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U22	Bash honest across spaces	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U25	Memory correctness and fewer judge calls	1	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U30	Platform edges	1	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
-U07	One schema per object	2	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U29	One dev guard	2	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U23	One sealed-key store	2	haiku	queued	-	-	-	-	2026-10-11T16:28:53Z
-U26	Routines and UserDO edges	3	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U01	Delete dead and experiment code	1	sonnet	landed	s/u01-subtract	becdc030	self-verified	main 6ff31d1f	2026-10-11T16:49:26Z
+U02	Fast check, parallel cached tests	1	sonnet	round2	s/u02-ci	5cd93fe8	rejected-biome-downgrade	-	2026-10-11T17:03:34Z
+U03	Rules and exports as scripts	1	sonnet	landed	s/u03-rules	2ecd8d8c	self-verified	main d53cd5b4	2026-10-11T16:35:27Z
+U04	Verification skill up to date	1	haiku	landed	s/u04-verify-skill	4ecc70de	docs-only	main c2cc080f	2026-10-11T17:02:46Z
+U05	Spike: tool abort and ask	1	opus	done	-	-	report	issues/U05-spike-agent.md	2026-10-11T16:38:31Z
+U10	Bound html-text regexes	1	deepseek	round2	s/u10-html-text	73f570ed	round1-landed	main 437e0493	2026-10-11T16:58:41Z
+U11	Deletion survives failed enqueue	1	sonnet	landed	s/u11-delete-rollback	6befd55e	self-verified	main 871f7794	2026-10-11T16:40:03Z
+U12	Nap promises stay separate	1	haiku	landed	s/u12-nap-dedupe	e77c6131	self-verified	main a318a95c	2026-10-11T16:38:31Z
+U20	Extension review tells the truth	1	sonnet	landed	s/u20-extensions	1dda5e9d	self-verified	main 4d9aa337	2026-10-11T16:48:23Z
+U21	Browser tab cap under parallel calls	1	haiku	landed	s/u21-browser	daca2cb8	self-verified needs-live-browser-in-U40	main 13bc2755	2026-10-11T16:45:41Z
+U22	Bash honest across spaces	1	haiku	landed	s/u22-bash	5bae8f00	self-verified	main f19632de	2026-10-11T16:47:06Z
+U25	Memory correctness and fewer judge calls	1	sonnet	verifying	s/u25-memory	5e9042d9	needs-real-model-check	-	2026-10-11T16:43:52Z
+U30	Platform edges	1	deepseek	landed	s/u30-platform	ff01cc7a	self-verified	main 21aff63a	2026-10-11T16:57:08Z
+U07	One schema per object	2	haiku	running	s/u07-squash	-	-	-	2026-10-11T16:49:30Z
+U29	One dev guard	2	haiku	running	s/u29-dev-guard	-	-	-	2026-10-11T16:49:30Z
+U23	One sealed-key store	2	deepseek	queued	-	-	-	-	2026-10-11T16:35:27Z
+U26	Routines and UserDO edges	3	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 U27	One delivery path in RoomDO	3	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
-U28	Human can stop work, ask does not wait	3	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
+U28	Human can stop work, ask does not wait	2	haiku	running	s/u28-agent	-	-	-	2026-10-11T16:49:30Z
 U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
-U41	Enforce every rule, docs match code	5	sonnet	queued	-	-	-	-	2026-10-11T16:28:53Z
+U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
 G01	Operator gate: measure budgets	-	-	gated	-	-	-	-	2026-10-11T16:28:53Z
+U31	Verification never touches another server	2	deepseek	running	s/u31-verify-safety	-	-	-	2026-10-11T17:02:46Z

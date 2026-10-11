@@ -10,7 +10,9 @@ export const MAX_TIMEOUT_S = 120
 const PREFETCH_FILES = 32
 const PREFETCH_MAX_FILE = 256 * 1024
 const PREFETCH_BYTES = 8 * 1024 * 1024
-// Cloudflare's Free plan allows 1,000 subrequests per invocation; a run also makes other calls.
+// UNVERIFIED: AGENTS.md and architecture.md say Free allows 50 subrequests per invocation, which this
+// budget does not fit. Whether R2 reads inside a Durable Object count against that limit is still open.
+// Measure it before changing this number.
 const MAX_READS = 400
 const DIRTY_BYTES = 16 * 1024 * 1024
 
@@ -79,7 +81,10 @@ type Change =
   | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
   | { op: "mkdir"; path: string }
 
-const spaceOf = (path: string) => (path === `/${HOME_PATH}` || path.startsWith(`/${HOME_PATH}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : "chat")
+const SPACES = ["chat", "home", "me"] as const
+type Space = (typeof SPACES)[number]
+const SPACE_NAME: Record<Space, string> = { home: "the drive (/home)", me: "/me", chat: "the chat's files" }
+const spaceOf = (path: string): Space => (path === `/${HOME_PATH}` || path.startsWith(`/${HOME_PATH}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : "chat")
 
 function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>): Change[] {
   const moves: Change[] = []
@@ -369,9 +374,9 @@ class CommandFs implements IFileSystem {
     return path
   }
 
-  async commit(): Promise<Refusal | null> {
+  // Each space commits on its own, so a command that changes two spaces can save one and refuse the other.
+  async commit(): Promise<{ saved: string[]; refused: Refusal[] }> {
     const changes = plan(this.start, this.tree)
-    if (!changes.length) return null
     const batch = await Promise.all(
       changes.map(async (c): Promise<BatchChange> => {
         if (c.op !== "write") return c
@@ -379,11 +384,20 @@ class CommandFs implements IFileSystem {
         return { op: "write", path: c.path, bytes: await this.content(c.path, c.node), type, expect: c.expect }
       }),
     )
-    const out = await this.files.commit(batch)
-    if (out.ok) return null
-    const space = { home: "the drive (/home)", me: "/me", chat: "the chat's files" }[spaceOf(out.path)]
-    const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
-    return { path: out.path, message: `${why}. nothing this command changed in ${space} was saved. look again, then run it again` }
+    const saved: string[] = []
+    const refused: Refusal[] = []
+    for (const space of SPACES) {
+      const group = batch.filter((c) => spaceOf(c.op === "move" ? c.to : c.path) === space)
+      if (!group.length) continue
+      const out = await this.files.commit(group)
+      if (out.ok) {
+        saved.push(SPACE_NAME[space])
+        continue
+      }
+      const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
+      refused.push({ path: out.path, message: `${why}. nothing this command changed in ${SPACE_NAME[space]} was saved. look again, then run it again` })
+    }
+    return { saved, refused }
   }
 }
 
@@ -414,9 +428,11 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
       say(`${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`)
       return ok({ exitCode: LIMIT_EXIT })
     }
-    const refused = await fs.commit()
-    say(out.stdout + out.stderr + (refused ? `bash: ${refused.path}: not saved: ${refused.message}\n` : ""))
-    return ok({ exitCode: refused && !out.exitCode ? 1 : out.exitCode })
+    const { saved, refused } = await fs.commit()
+    const report = refused.map((r) => `bash: ${r.path}: not saved: ${r.message}\n`)
+    if (saved.length && refused.length) report.push(`bash: saved in ${saved.join(" and ")}\n`)
+    say(out.stdout + out.stderr + report.join(""))
+    return ok({ exitCode: refused.length && !out.exitCode ? 1 : out.exitCode })
   } catch (e) {
     if (outside.aborted) return err(stopped(timer, seconds))
     if (fs?.overRead.signal.aborted) {

@@ -967,7 +967,7 @@ Rows written is the limit that binds first, and partial commits cause most of it
 
 **How a partial is told apart.** A partial commit is exactly one `document.change` delta to the conversation's `pi.live` document, and every op in it changes `generation`. One other commit has that shape, the marker that sets `generation` to `{ attempt }` before a request. Holding it is safe, because after a crash the task sends the request again from its checkpoint. The other commits in `src/harness/generation.ts` that change `generation` also write a task checkpoint, so they have more than one write. The wrapper also holds only a delta to a document without history, at the version stored, so the inner storage would accept it and no read can ask for a point inside a window.
 
-**Measured rows written per turn.** One turn on an empty `AgentDO`, with a faux model that streams 3,000 characters for 15 seconds, counted with `cursor.rowsWritten` (`bun yuki measure turn`):
+**Measured rows written per turn.** One turn on an empty `AgentDO`, with a faux model that streams 3,000 characters for 15 seconds, counted with `cursor.rowsWritten` (`apps/server/test/coalescing-worker.ts`, run by the coalescing storage test):
 
 | | Commits | Rows written |
 | --- | --- | --- |
@@ -1409,7 +1409,7 @@ Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for 
 
 ### 24.8 Triggers
 
-A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to the chat the extension came from, for the agent that wrote it, or else to the yuki chat for yuki. Installing, switching on, or updating replaces the extension's reminders; switching off and uninstalling cancel them. A trigger fires at most once an hour.
+A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to the chat the extension came from, for the agent that wrote it, or else to the yuki chat for yuki. Installing, switching on, or updating replaces the extension's reminders; switching off and uninstalling cancel them. A trigger repeats at most every 30 minutes, the reminder rule. `extension_check` and install apply the same rule.
 
 ### 24.9 The catalog
 
