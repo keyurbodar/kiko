@@ -2,9 +2,6 @@
 refs/
 solid-refs/
 
-# Decision trail for the port. Local only.
-.audit/
-
 # Dependencies and build output.
 node_modules/
 dist/

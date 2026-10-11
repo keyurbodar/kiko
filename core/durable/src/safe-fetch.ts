@@ -263,6 +263,7 @@ function isPublicAddress(address: string): boolean {
   const [first, second] = v6
   if ((first & 0xe000) !== 0x2000) return false
   if (first === 0x2001 && second < 0x200) return false
+  if (first === 0x2001 && second === 0x0db8) return false
   if (first === 0x2002) return false
   return true
 }

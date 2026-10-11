@@ -237,6 +237,7 @@ test("/me/soul.md is the agent's soul: read and edited with pi's tools, never mo
   expect((await ada.run("rm", { paths: ["/me/soul.md"] })).text).toContain("cannot be deleted")
   expect((await ada.run("mv", { from: "/me/soul.md", to: "/soul.md" })).text).toContain("stays where it is")
   expect((await ada.write("/me/other.md", "x")).text).toContain("only /me/soul.md")
+  await ada.read("me/soul.md")
   expect((await ada.write("/me/soul.md", "x".repeat(3_001))).text).toContain("tighten it")
   expect(await agent(room, "yuki").read("/me/soul.md")).toContain("i'm yuki, their chief")
 })

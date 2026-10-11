@@ -20,7 +20,7 @@ type Residue = {
 	rooms: Record<string, number>
 	agents: Record<string, number>
 	objects: number
-	auth: { user: number; session: number; account: number }
+	auth: { user: number; session: number; account: number; hooks: number }
 }
 
 const suite: Suite = {
