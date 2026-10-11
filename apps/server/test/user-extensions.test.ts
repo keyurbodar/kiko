@@ -179,6 +179,47 @@ describe("user extensions in the harness", () => {
   })
 })
 
+describe("a tool reached through yuki.call", () => {
+  const relay = ext({ name: "relay", tools: { relay: { description: "relay", effect: "write" } }, calls: ["fake_note"] }, `export const tools = { relay: async (a, yuki) => yuki.call("fake_note", { text: a.text }) }`)
+  const outer = ext(
+    { name: "outer", tools: { outer: { description: "outer", effect: "external" } }, egress: ["api.example.com"], calls: ["fake_send"] },
+    `export const tools = { outer: async (_a, yuki) => { await yuki.fetch("https://api.example.com/now"); return yuki.call("fake_send", {}) } }`,
+  )
+
+  test("meets every beforeTool hook: a block throws in the script and a rewrite applies", async () => {
+    const world = fresh()
+    const guard = ext({ name: "guard", hooks: ["beforeTool"] }, `export const hooks = { beforeTool: async (call) => call.name !== "fake_note" ? undefined : call.arguments.text.startsWith("/prod") ? { block: "no prod" } : { arguments: { text: call.arguments.text + "!" } } }`)
+    const { results } = await run([relay, guard], [{ name: "relay", args: { text: "/prod/via.md" } }, { name: "relay", args: { text: "/tmp/a.md" } }], world)
+    expect(results[0]).toBe("relay failed: no prod (extension guard)")
+    expect(results[1]).toBe("noted /tmp/a.md!")
+  })
+
+  test("meets every afterTool hook before the script sees its result", async () => {
+    const world = fresh()
+    const shout = ext({ name: "shout", hooks: ["afterTool"] }, `export const hooks = { afterTool: async (call, r) => call.name === "fake_note" ? r.text.toUpperCase() : undefined }`)
+    const { results } = await run([relay, shout], [{ name: "relay", args: { text: "hi" } }], world)
+    expect(results[0]).toBe("NOTED HI")
+  })
+
+  test("runs after the calling tool fetched: nothing asks for approval", async () => {
+    const world = fresh()
+    sent.length = 0
+    const { results } = await run([outer], [{ name: "outer", args: {} }], world)
+    expect(world.fetches).toHaveLength(1)
+    expect(results[0]).toBe("sent")
+    expect(sent).toEqual(["sent"])
+  })
+
+  test("stops two tools that call each other", async () => {
+    const ping = ext({ name: "ping", tools: { ping: { description: "ping", effect: "write" } }, calls: ["pong"] }, `export const tools = { ping: async (_a, yuki) => yuki.call("pong", {}) }`)
+    const pong = ext({ name: "pong", tools: { pong: { description: "pong", effect: "write" } }, calls: ["ping"] }, `export const tools = { pong: async (_a, yuki) => yuki.call("ping", {}) }`)
+    const started = performance.now()
+    const { results } = await run([ping, pong], [{ name: "ping", args: {} }], fresh())
+    expect(results[0]).toContain("calls nest deeper than 4")
+    expect(performance.now() - started).toBeLessThan(5_000)
+  })
+})
+
 describe("the catalog", () => {
   test("the generated file is current", () => {
     expect(readFileSync(new URL("../src/user/catalog.gen.ts", import.meta.url), "utf8")).toBe(generated)

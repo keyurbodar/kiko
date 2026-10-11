@@ -90,6 +90,8 @@ export type AgentSetup = {
   /** The env of one conversation. pi-durable asks for it at each use, so each run and each helper can have its own. */
   env?: (conversationId: ConversationId) => ExecutionEnv
   beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
+  /** Called instead of `beginRun` when input joins a run already working, before it is submitted. Its next model request sees what this changes. */
+  joinRun?: (batch: Batch, root: Conversation) => Promise<void>
   inputContext?: () => Promise<string | undefined>
   inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
   beforeCompact?: (harness: Harness) => Promise<void>
@@ -117,6 +119,7 @@ export type Opened = {
   root: Conversation
   storage: CoalescingStorage
   beginRun?: AgentSetup["beginRun"]
+  joinRun?: AgentSetup["joinRun"]
   inputContext?: AgentSetup["inputContext"]
   inputMemory?: AgentSetup["inputMemory"]
   beforeCompact?: AgentSetup["beforeCompact"]
@@ -242,7 +245,7 @@ export class AgentHost {
     const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(setup.env ? { env: (target) => setup.env!(target.conversationId) } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
-    return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact, stale: setup.stale }
+    return { harness, root, storage, beginRun: setup.beginRun, joinRun: setup.joinRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact, stale: setup.stale }
   }
 
   /** Counts the talker only. A worker has its own count (`Workers.resumed`), so a slow worker never drops the agent. */
@@ -296,7 +299,7 @@ export class AgentHost {
     return { open: true, inbox, tasks: live.tasks.length, submissions: live.submissions.length }
   }
 
-  private async drain({ harness, root, storage, beginRun, inputContext, inputMemory }: Opened): Promise<void> {
+  private async drain({ harness, root, storage, beginRun, joinRun, inputContext, inputMemory }: Opened): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       this.workers.stopAll()
       await root.abort(context)
@@ -325,6 +328,7 @@ export class AgentHost {
         this.inbox.submitted(batch.requestId)
         continue
       }
+      if (run) await joinRun?.(batch, root)
       let restarts = run?.restarts ?? 0
       if (action === "restart") {
         await root.abort(context)

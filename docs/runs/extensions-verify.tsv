@@ -1,0 +1,37 @@
+when	what	why	evidence	result
+2026-10-11	fast-forward extensions to main (52 commits)	verify against what ships, incl. phase 16 no-cards trust	git merge --ff-only main	done
+2026-10-11	keys in apps/server/.dev.vars only	keys stay out of git	git check-ignore .dev.vars	done
+2026-10-11	run bun yuki verify extensions (fake agent)	baseline	pass extensions (16.7s)	VERIFIED
+2026-10-11	run bun yuki verify extensions-model (Muse Spark 1.3)	real model builds and uses an extension	weather Lisbon 16c / Porto 15c; dice 1.0.0 proposed, installed, rolled 10 on d20; 20.5s	VERIFIED
+2026-10-11	composio with the given ak_ key	yuki accepts only ck_ consumer keys at connect.composio.dev/mcp	MCP 401 for ak_; ak_ mints a Tool Router session MCP URL that lists tools; no ck_ minting API found	product cannot use an ak_ key; test via local shim
+2026-10-11	delegate composition probes to Sonnet (new CLI suite)	reusable, rerunnable evidence	apps/cli/src/verify/suites/extensions-compose.ts	pending
+2026-10-11	delegate browser UI path to Sonnet with verify-yuki	user-facing proof	scratchpad/ui screenshots	pending
+2026-10-11	browser pass: catalog install, chat use, agent-built coin, update with diff, switch off, secrets	user-facing proof	scratchpad/ui 01-19 screenshots; all 6 steps pass; no UI wait over 1s	VERIFIED
+2026-10-11	finding: agent's first edit of an installed extension was blocked after reading files; user had to reply "go"	edit loop friction	browser step 4, shots 09-13	OPEN, root cause pending
+2026-10-11	finding: switched-off extension, agent tells user to reinstall instead of switch on	wrong guidance	browser step 5	OPEN
+2026-10-11	finding: update review repeats "adds tool"; diff only after a click; lowercase system lines; "slack" lowercase	copy	browser steps 4,6	OPEN, low
+2026-10-11	root-cause the blocked first edit	browser step 4 friction	no gate blocks write/edit/extension_propose after a read (trust.ts gate blocks external only; files.ts:77 read taints, builder.ts:90 only flags the proposal); no matching refusal string in code	INCONCLUSIVE, likely model reasoning; recheck with scripted P4
+2026-10-11	P1 hook bypass (fake guard + real path-guard with Muse Spark)	does yuki.call skip other extensions' beforeTool hooks	direct write to /prod blocked; write_via via yuki.call wrote prod/via.md (2 of 3 real runs; 1 inconclusive, model never called it)	NOT VERIFIED: bypass confirmed
+2026-10-11	P2 taint inside one call	does trust gate an inner external call after a fetch	fetched 200 then sink (external) ran in same invocation	NOT VERIFIED: no gate on yuki.call
+2026-10-11	P2b routine grant	can a granted extension tool reach an ungranted external tool	routine may=[fetch_send]; sink (not granted) ran, sink runs: 2	NOT VERIFIED: grant escape
+2026-10-11	P3 messaging via yuki.call	composition with agent messaging and effect ranking	ben received <agent-message from=ana>; read tool calling send_message refused	VERIFIED
+2026-10-11	P4 edit loop (Muse Spark)	extension_open, update, reuse	dice 1.1.0 replaces installed hash; rolled 6, 5, 2	VERIFIED
+2026-10-11	P5 routine grant names extension tool	routines compose	granted external ext tool ran in routine; ungranted got ASK_FIRST	VERIFIED
+2026-10-11	edit-blocked friction root cause	model said "this run read outside content, so it cannot save extension files. reply go"	no such rule in code; reads of /extensions files taint (files.ts:77) and come back untrusted, and the model self-refuses	OPEN: model confusion, medium
+2026-10-11	local shim: ak_ key via Composio Tool Router session URL (reverted after)	only way to exercise Composio with the given key	client.ts patch, not committed	done, reverted
+2026-10-11	bun yuki verify composio (Muse Spark, shim)	baseline Composio path on main	agent called composio_search_tools then asked "May I search the web...?"; "the first chat taught no direct tool"	FAIL on main
+2026-10-11	reply "yes" to the Composio ask	is it the trust gate	after yes: composio_multi_execute_tool ran, "latest stable Bun version is v1.4.3"	inferred: search result taints the run, multi_execute (external) gets ASK_FIRST
+2026-10-11	extension web_lookup (external, calls composio_multi_execute_tool)	extension composes with Composio	"Ryan Dahl created the Deno runtime"; counters show composio_multi_execute_tool	VERIFIED
+2026-10-11	fix yuki.call: run beforeTool/afterTool chain (incl. trust with callee effect, run taint, run authority) around the callee	P1/P2/P2b bypasses; pi-durable runs hooks only inside ToolTask and exposes no runner to a tool	Haiku inspection of pi-durable dist/harness/tool.js:21-53	delegated to Opus, TDD, pending
+2026-10-11	fixed yuki.call bypass (Opus, reviewed): callThroughHooks runs every ToolTask beforeTool/afterTool in selection order, trust last	P1/P2/P2b	tests 4 fail before, pass after; probes P1 P2 P2b now VERIFIED; P1r with Muse Spark: no file under /prod	VERIFIED
+2026-10-11	added call depth cap (4)	two tools calling each other hung	test hung >120s before; passes in 1.3s after	VERIFIED
+2026-10-11	docs: 24.1 checkManifest path, 24.4 fetch row ASK_FIRST, call row hooks and depth	stale after phase 16 and sandbox move	docs/architecture.md	done
+2026-10-11	extensions-model now fails 4 of 4 after the first pass: agent never calls roll_dice after install	is it the fix or timing	temp logs in trust.ts and agent-do.ts: no beginRun after install; roll message joined the build run, which synced only ["weather"]	ROOT CAUSE: mid-run human input does not resync extensions
+2026-10-11	"I read a file and need your ok" (seen 2x)	is a gate blocking	no gate in code refuses write or propose (trust.ts gate blocks external only); not reproduced in the 3 probed runs	INCONCLUSIVE: likely model self-refusal after untrusted file reads
+2026-10-11	fixed mid-run resync (Opus, reviewed): host calls joinRun for input joining a working run; AgentDO syncs from UserDO.extensionsFor	extensions-model 4/4 fail	new fake case failed "Tool verify_bump is not available", passes after; extensions-model 3/3 pass; mid-run, extensions-compose pass	VERIFIED
+2026-10-11	committed 8d49af0f, eed06e44, 652d2bfb on extensions	fixes plus suites plus docs	git log	done
+2026-10-11	decision: Composio catalog tools (SEARCH_TOOLS, GET_TOOL_SCHEMAS) do not taint; data tools keep outside	catalog text is the vendor's, not outside content; without it every first Composio action needs a yes	composio suite FAIL on main	delegated to Sonnet, pending
+2026-10-11	fixed Composio catalog taint (Sonnet, reviewed): CATALOG set, SEARCH_TOOLS and GET_TOOL_SCHEMAS carry no outside	composio suite failed on main	composio-tools test 2 fail before, 20 pass after; bun yuki verify composio pass x2 (37.8s, 34.9s) via local ak_ shim, reverted	VERIFIED
+2026-10-11	bun run test (all packages)	regressions from host and compile changes	exit=0	VERIFIED
+2026-10-11	open: yuki accepts only ck_ Composio keys; an ak_ key could work through a Tool Router session	product choice for the owner	Haiku probe: POST /api/v3/tool_router/session returns an MCP URL that lists tools with x-api-key	OPEN
+2026-10-11	open: model sometimes refuses to save after reading files ("need your ok"); switched-off extension told to reinstall; update review copy; lowercase system lines	UX and prompt	browser pass, extensions-model runs	OPEN

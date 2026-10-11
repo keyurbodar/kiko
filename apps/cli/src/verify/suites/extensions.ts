@@ -1,7 +1,7 @@
 import type { ExtensionOp, ExtensionResult, UserEvent } from "@yuki/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { fake, newRoom, seen, send, until } from "./mid-run"
+import { fake, newRoom, seen, send, statuses, until } from "./mid-run"
 
 // Architecture section 24. Extensions end to end on the dev server, with the scripted fake agent so
 // no token is spent. The human's side goes over the user socket the way settings does; the agent's
@@ -131,6 +131,22 @@ const suite: Suite = {
     ok(await op({ op: "install", id: reinstall.proposal!.id }), "reinstall")
     const fresh = await answer("[ws verify_bump {}]", 7)
     if (!fresh.includes("tool: tally 1")) throw new VerifyError(`uninstall kept the old state: ${fresh}`)
+
+    // A switch made while a run works reaches the human's next message, even when that message
+    // joins the run instead of starting one. Off before a slow tool, on during it, then a message
+    // that steers into the run and calls the tool.
+    ok(await op({ op: "enable", name: "verify-counter", enabled: false }), "switch off before the slow run")
+    const busy = await newRoom(s, "extensions mid-run")
+    await fake(v, s, busy.roomId)
+    await send(busy.room, "[tool] wait")
+    await until("the slow tool to start", () => statuses(busy.room).includes("working"), 10_000)
+    ok(await op({ op: "enable", name: "verify-counter", enabled: true }), "switch on during the run")
+    await send(busy.room, "[ws verify_bump {}]")
+    await until("the joined answer", () => seen(busy.room).live.length >= 1, 20_000)
+    const joined = seen(busy.room).live.at(-1)!.text
+    if (!joined.includes("tally 1")) throw new VerifyError(`a message that joined a run did not see the extension switched on during it: ${joined}`)
+    console.log(`  ok a message that joined a run saw the extension switched on during it: ${JSON.stringify(joined.slice(0, 80))}`)
+    busy.room.raw.close()
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
 
     // A trigger runs as a routine, and its outside tool runs.
