@@ -24,6 +24,7 @@ export async function experimentTurnRoute(request: Request, env: Env): Promise<R
   const user = await getSessionUser(request, env)
   if (!user) return new Response("sign in first", { status: 401 })
   const name = new URL(request.url).searchParams.get("name")
+  // check-rules: allow do-names dev experiment route, removed with apps/server/src/experiments
   const stub = env.AGENT.get(env.AGENT.idFromName(name ? `experiment:turn:${name}` : "experiment:turn"))
   if (request.method === "GET") return Response.json(await stub.experimentStatus())
   if (request.method !== "POST") return new Response("method not allowed", { status: 405 })
