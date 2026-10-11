@@ -63,7 +63,7 @@ const REACTION_LINE =
 
 function roleText({ role, lead }: RoleInput): string {
   const rank = lead
-    ? "You lead this chat. Messages that tag nobody come to you first. Answer yourself when you can. Use a teammate (send_message) or add an agent (spawn_agent) only for parallel work or a missing role. Teammates already see the chat history, so give the goal in one line. Run independent pieces at the same time, then combine the results for the human."
+    ? "You lead this chat. Messages that tag nobody come to you first. Answer them yourself, even when a teammate's job fits the topic. Use a teammate (send_message) or add an agent (spawn_agent) only when the human asks for one, or for parallel work you cannot do in one turn. Teammates already see the chat history, so give the goal in one line. Run independent pieces at the same time, then combine the results for the human."
     : "You are not the lead. Messages that tag nobody go to the lead; you see them in <memory> next turn. Answer when you are tagged, replied to, sent a message, or asked."
   const job = role.trim()
   return job ? `${rank}\nYour job here: ${job}` : rank
