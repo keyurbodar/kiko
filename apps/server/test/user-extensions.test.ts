@@ -48,7 +48,8 @@ function ports(world: World): ScriptPorts {
 const sent: string[] = []
 const fakeSend = declareEffect("external", defineTool({ name: "fake_send", description: "sends", parameters: Type.Object({}), execute: async () => (sent.push("sent"), { content: [{ type: "text" as const, text: "sent" }] }) }))
 const fakeNote = declareEffect("write", defineTool({ name: "fake_note", description: "notes", parameters: Type.Object({ text: Type.String() }), execute: async ({ text }) => ({ content: [{ type: "text" as const, text: `noted ${text}` }] }) }))
-const TEST_TOOLS = defineExtension({ name: "test-tools", tools: [fakeSend, fakeNote] })
+const fakeLook = declareEffect("read", defineTool({ name: "fake_look", description: "looks", parameters: Type.Object({}), execute: async () => ({ content: [{ type: "text" as const, text: "looked" }] }) }))
+const TEST_TOOLS = defineExtension({ name: "test-tools", tools: [fakeSend, fakeNote, fakeLook] })
 
 const ext = (manifest: Record<string, unknown>, source = ""): { name: string; hash: string; bundle: ExtensionBundle } => ({
   name: manifest.name as string,
@@ -203,6 +204,67 @@ describe("user extensions in the harness", () => {
     const more = ext({ name: "more", hooks: ["onYield"] }, `export const hooks = { onYield: async () => ({ continue: "keep going" }) }`)
     const { requests } = await run([more], [], world, 10)
     expect(requests).toBe(4)
+  })
+})
+
+describe("a tool reached through yuki.call", () => {
+  const relay = ext({ name: "relay", tools: { relay: { description: "relay", effect: "write" } }, calls: ["fake_note"] }, `export const tools = { relay: async (a, yuki) => yuki.call("fake_note", { text: a.text }) }`)
+  const outer = (fetchFirst: boolean) =>
+    ext(
+      { name: "outer", tools: { outer: { description: "outer", effect: "external" } }, egress: ["api.example.com"], calls: ["fake_send"] },
+      `export const tools = { outer: async (_a, yuki) => { ${fetchFirst ? `await yuki.fetch("https://api.example.com/now");` : ""} return yuki.call("fake_send", {}) } }`,
+    )
+
+  test("meets every beforeTool hook: a block throws in the script and a rewrite applies", async () => {
+    const world = fresh()
+    const guard = ext({ name: "guard", hooks: ["beforeTool"] }, `export const hooks = { beforeTool: async (call) => call.name !== "fake_note" ? undefined : call.arguments.text.startsWith("/prod") ? { block: "no prod" } : { arguments: { text: call.arguments.text + "!" } } }`)
+    const { results } = await run([relay, guard], [{ name: "relay", args: { text: "/prod/via.md" } }, { name: "relay", args: { text: "/tmp/a.md" } }], world)
+    expect(results[0]).toBe("relay failed: no prod (extension guard)")
+    expect(results[1]).toBe("noted /tmp/a.md!")
+  })
+
+  test("meets every afterTool hook before the script sees its result", async () => {
+    const world = fresh()
+    const shout = ext({ name: "shout", hooks: ["afterTool"] }, `export const hooks = { afterTool: async (call, r) => call.name === "fake_note" ? r.text.toUpperCase() : undefined }`)
+    const { results } = await run([relay, shout], [{ name: "relay", args: { text: "hi" } }], world)
+    expect(results[0]).toBe("NOTED HI")
+  })
+
+  test("is refused when the run fetched earlier in the same tool", async () => {
+    const world = fresh()
+    sent.length = 0
+    const { results, decisions } = await run([outer(true)], [{ name: "outer", args: {} }], world)
+    expect(world.fetches).toHaveLength(1)
+    expect(results[0]).toContain("outer failed: This needs the human's ok")
+    expect(sent).toEqual([])
+    expect(decisions.find((d) => d.tool === "fake_send")).toMatchObject({ tainted: true, ran: false })
+  })
+
+  test("is judged by its own name against a routine's grant", async () => {
+    sent.length = 0
+    const refused = await run([outer(false)], [{ name: "outer", args: {} }], fresh(), 0, { origin: "routine", grant: ["outer"] })
+    expect(refused.results[0]).toContain("outer failed: This needs the human's ok")
+    expect(sent).toEqual([])
+    const granted = await run([outer(false)], [{ name: "outer", args: {} }], fresh(), 0, { origin: "routine", grant: ["outer", "fake_send"] })
+    expect(granted.results[0]).toBe("sent")
+    expect(sent).toEqual(["sent"])
+  })
+
+  test("a read tool still calls a read tool in a tainted run", async () => {
+    const world = fresh()
+    const look = ext({ name: "look", tools: { look: { description: "look", effect: "read" } }, egress: ["api.example.com"], calls: ["fake_look"] }, `export const tools = { look: async (_a, yuki) => { await yuki.fetch("https://api.example.com/q"); return yuki.call("fake_look", {}) } }`)
+    const { results } = await run([look], [{ name: "look", args: {} }], world, 0, AUTO)
+    expect(results[0]).toContain("looked")
+    expect(results[0]).toContain("<untrusted source=\"extension:look\"")
+  })
+
+  test("stops two tools that call each other", async () => {
+    const ping = ext({ name: "ping", tools: { ping: { description: "ping", effect: "write" } }, calls: ["pong"] }, `export const tools = { ping: async (_a, yuki) => yuki.call("pong", {}) }`)
+    const pong = ext({ name: "pong", tools: { pong: { description: "pong", effect: "write" } }, calls: ["ping"] }, `export const tools = { pong: async (_a, yuki) => yuki.call("ping", {}) }`)
+    const started = performance.now()
+    const { results } = await run([ping, pong], [{ name: "ping", args: {} }], fresh())
+    expect(results[0]).toContain("calls nest deeper than 4")
+    expect(performance.now() - started).toBeLessThan(5_000)
   })
 })
 

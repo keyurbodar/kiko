@@ -1,6 +1,8 @@
 import type { Context } from "@earendil-works/chord"
+import type { ToolCall } from "@earendil-works/pi-ai"
 import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation"
 import {
+  type Agent,
   defineExtension,
   defineTool,
   type Extension,
@@ -12,6 +14,7 @@ import {
   section,
   type ToolExecutionApi,
   type ToolExecutionResult,
+  type ToolHooks,
   type ToolRegistration,
   ToolTask,
   type Wrap,
@@ -92,7 +95,28 @@ function asResult(value: unknown, logs: readonly string[]): ToolExecutionResult 
 
 const resultText = (r: ToolExecutionResult) => (r.content ?? []).flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n")
 
+/**
+ * A tool a script calls runs between the agent's tool hooks, in selection order, the way the model's own call does:
+ * the first block wins and trust, selected last, judges the callee by its own name and effect.
+ */
+async function callThroughHooks(agent: Agent, tool: ToolRegistration, call: ToolCall, api: ToolExecutionApi, context: Context): Promise<ToolExecutionResult> {
+  const hooks = agent.extensions.flatMap((e) => (e.hooks ?? []).filter((h) => h.task === ToolTask.definition.name).map((h) => h.handlers as Partial<ToolHooks>))
+  let args = call.arguments
+  for (const h of hooks) {
+    const decision = await h.beforeTool?.({ ...call, arguments: args }, api, context)
+    if (decision?.block !== undefined) throw new Error(decision.block)
+    if (decision?.arguments !== undefined) args = decision.arguments
+  }
+  const final = { ...call, arguments: validateToolArguments(tool, { ...call, arguments: args }) }
+  let result = await tool.execute(final.arguments as never, api as never, context)
+  for (const h of hooks) result = (await h.afterTool?.(final, result, api, context)) ?? result
+  return result
+}
+
 const MAX_LOGS = 50
+const MAX_CALL_DEPTH = 4
+/** Nested `yuki.call`s per tool execution. Every callee runs with its caller's api, so the api object keys one chain. */
+const callDepth = new WeakMap<object, number>()
 const MAX_CONTINUES = 3
 
 export function compileExtension(installed: Installed, pool: VmPool, ports: ScriptPorts): Extension {
@@ -155,8 +179,11 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
         if (!callee) throw new Error(`this agent has no tool ${tool}`)
         const declared = effectOf(callee) ?? { effect: "external" as const }
         if (!mayCall(effect, declared.effect)) throw new Error(`${self} is "${effect}" and cannot call ${tool}, which is "${declared.effect}"`)
-        const checked = validateToolArguments(callee, { type: "toolCall", id: `${api.callId}:${tool}`, name: tool, arguments: (args ?? {}) as never })
-        const result = await callee.execute(checked as never, api as never, context)
+        const call: ToolCall = { type: "toolCall", id: `${api.callId}:${tool}`, name: tool, arguments: (args ?? {}) as never }
+        const depth = callDepth.get(api) ?? 0
+        if (depth >= MAX_CALL_DEPTH) throw new Error(`calls nest deeper than ${MAX_CALL_DEPTH}: ${self} called ${tool}`)
+        callDepth.set(api, depth + 1)
+        const result = await callThroughHooks(agent, callee, { ...call, arguments: validateToolArguments(callee, call) as never }, api, context).finally(() => callDepth.set(api, depth))
         if (declared.outside) markRunTainted(api, declared.outside)
         const out = resultText(result)
         if (result.isError) throw new Error(out || `${tool} failed`)
